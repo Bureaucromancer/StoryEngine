@@ -183,7 +183,7 @@ the breadth is not. This section exists so that it gets answered from
 measurements rather than from mood.
 
 Numbered `2A` rather than inserted as a new §3 because §4 through §9 are cited by
-number from four other documents. [P2A](docs/design/workplan/09-p2a-configuration-surface.md) sets the
+number from four other documents. [P2A](09-p2a-configuration-surface.md) sets the
 precedent for inserting without renumbering.
 
 Three framings were considered. The third is the one that keeps coming back, and
@@ -222,7 +222,7 @@ validation. There is no `users`, `accounts` or `sessions` table among the 32 in
 install. Commitment 1 of these documents is *natively multi-user*
 ([09 §4](../09-server-multiuser-deployment.md)), and that is not a feature to be
 added: it is an ownership dimension running through every table, route, query and
-client store. [Work plan §2.2](docs/design/workplan/01-work-plan.md) already priced this exact shape of
+client store. [Work plan §2.2](01-work-plan.md) already priced this exact shape of
 mistake — a stub identity threaded through every route and later torn out is
 every route written twice. A fork commits to that at 518k-line scale before the
 first commit.
@@ -242,7 +242,7 @@ repository's own `CLAUDE.md` says as much. What exists is one Playwright file
 (`e2e/core-flows.e2e.ts`) and a set of `scripts/check-*.mjs` regression guards.
 The fork plan is *replace the ownership model, the storage layer and the
 assembler* — the three most load-bearing subsystems — in a codebase with no unit
-tests beneath any of them. Set against [testing §2](docs/design/workplan/03-testing.md)'s stance that a
+tests beneath any of them. Set against [testing §2](03-testing.md)'s stance that a
 claim nobody can break the build over is not a claim, this is the least
 defensible risk profile of the three options, and it is the measurement that
 would decide this section on its own.
@@ -279,8 +279,8 @@ editor with version history and a conflict refusal, the provider layer, the RNG
 service and its tape, assembler → budgeter → render, the complete turn record,
 resumable server-side turn jobs with SSE reattach, a Scene mode written as data,
 and a play surface. P2 is through its exit gate and
-[P2A](docs/design/workplan/09-p2a-configuration-surface.md) is landing. PLAYABLE
-([work plan §4.1](docs/design/workplan/01-work-plan.md)) is two phases out, and P3 is a *reader* over a
+[P2A](09-p2a-configuration-surface.md) is landing. PLAYABLE
+([work plan §4.1](01-work-plan.md)) is two phases out, and P3 is a *reader* over a
 record that already exists.
 
 At that rate the standalone build reaches a defensible product before a fork
@@ -386,7 +386,7 @@ a bad week:
 - **If Marinara grows a real user model and folder-native object storage on its
   own**, two of §2A.2's four measurements disappear and the third framing gets
   materially cheaper. Worth re-checking; not worth waiting for.
-- **If PLAYABLE ([work plan §4.1](docs/design/workplan/01-work-plan.md)) falsifies the core
+- **If PLAYABLE ([work plan §4.1](01-work-plan.md)) falsifies the core
   hypotheses** — the record is not legible, one budgeter over everything is not
   comprehensible — then the thing being built is not the thing these documents
   describe, and the question stops being fork-versus-build and becomes what to
@@ -656,7 +656,7 @@ The triage suggests an order, because some verdicts depend on others being right
    the block/budget model.
 4. **Import.** Early, not late — it is how you get a realistic library to test
    retrieval and budgeting against, and it is the largest PORT in the document.
-5. **The modes** — Scene and Freeform at 1.0 ([work plan §0](docs/design/workplan/01-work-plan.md)),
+5. **The modes** — Scene and Freeform at 1.0 ([work plan §0](01-work-plan.md)),
    each as a separate package against the public contract.
 6. **Retrieval and memory.** The Aventuras PORT. Needs a real library and real
    long sessions to tune, so it wants to come after import.

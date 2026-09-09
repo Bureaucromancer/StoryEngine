@@ -58,7 +58,7 @@ SillyTavern and it exists to serve raw-completion local backends.
 **Replacement:** the model contract is *chat-shaped with roles, structured output
 and tool calling*. Not "chat-shaped by default with a completion adapter behind
 it" — **raw completion is treated as legacy and is not supported at all**
-([19 §5.5](docs/design/19-tech-stack.md)).
+([19 §5.5](19-tech-stack.md)).
 
 An earlier draft kept a downgrade adapter. Dropping it entirely is the stronger
 position and costs less than it did three years ago: essentially every local
@@ -164,7 +164,7 @@ SillyTavern's generation loop lives in the browser. This is why group chats,
 autonomous messages and mobile all get harder rather than easier, and it is
 incompatible with multi-user.
 
-**Replacement:** see [09](docs/design/09-server-multiuser-deployment.md). Generation is
+**Replacement:** see [09](09-server-multiuser-deployment.md). Generation is
 server-side and resumable; clients subscribe to an event stream.
 
 ### 2.10 Group chat by card-swapping
@@ -206,7 +206,7 @@ shareable types have no fields for that material, so violating it requires
 changing a type rather than forgetting a check.
 
 Model *preferences* are allowed, as abstract hints resolved locally — see
-[03 §2.6](docs/design/03-data-model.md).
+[03 §2.6](03-data-model.md).
 
 ### 3.3 Dangling references are normal, not an error
 
@@ -220,14 +220,14 @@ block a flow on a missing link, never silently drop it.
 If the user can get the thing out by dragging it out of the storage folder, the
 export feature is a convenience rather than a dependency. This constrains the
 storage design considerably and is worth the constraint. See
-[03 §5](docs/design/03-data-model.md).
+[03 §5](03-data-model.md).
 
 ### 3.5 The workflow surfaces are the product
 
 Data management and call construction UI rank *with* the chat surface, not below
 it. In practice this means the prompt workbench and library are designed in the
 same pass as the chat views, and the turn record is designed to be displayed —
-see [10](docs/design/10-ui-surfaces.md).
+see [10](10-ui-surfaces.md).
 
 ### 3.6 The engine's understanding is visible, and correctable
 
@@ -238,13 +238,13 @@ Promoted to a principle because it was arrived at independently three times, fro
 three different directions, which is the signal that it is a rule rather than a
 coincidence:
 
-- **The workbench** ([10 §3](docs/design/10-ui-surfaces.md)) shows what the engine decided to
+- **The workbench** ([10 §3](10-ui-surfaces.md)) shows what the engine decided to
   send and why, with inclusion reasons in plain language — and lets you edit a
   block and re-run.
-- **Mention linking** ([10 §13.1](docs/design/10-ui-surfaces.md)) shows which names the
+- **Mention linking** ([10 §13.1](10-ui-surfaces.md)) shows which names the
   engine resolved to which actors, marked by confidence — and an unresolved name
   is an offer to link or create.
-- **The cast panel** ([10 §13.2](docs/design/10-ui-surfaces.md)) shows who it thinks is
+- **The cast panel** ([10 §13.2](10-ui-surfaces.md)) shows who it thinks is
   present and alive — and is where you merge duplicates, split conflations and
   correct status.
 

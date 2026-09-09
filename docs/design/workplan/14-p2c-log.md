@@ -1,20 +1,20 @@
 # 14 — P2C findings log
 
-**Status: historical, closed to new entries.** [playable log](docs/design/workplan/21-playable-log.md) is its
+**Status: historical, closed to new entries.** [playable log](21-playable-log.md) is its
 successor and takes anything found from 2026-09-07 onward.
 
 **One obligation is still open and is carried elsewhere:** the Triage table at
 the foot of this file has a heading and no rows, and its fourteen findings still
-need homes. That obligation lives at [manual testing §10](docs/design/workplan/05-manual-testing.md), not here —
+need homes. That obligation lives at [manual testing §10](05-manual-testing.md), not here —
 this file's own rule is that it is not a queue.
 
-**Appended to as things happen; emptied by [P2C.4](docs/design/workplan/12-p2c-first-real-run.md)'s
+**Appended to as things happen; emptied by [P2C.4](12-p2c-first-real-run.md)'s
 triage; kept afterwards rather than deleted.** What a person saw the first time is
 not reconstructible later, and it is the one artifact a second pass cannot
 produce — a second pass is by definition made by somebody who already knows.
 
 **This file is not a queue.** Nothing is fixed *because* it is written here.
-[P2C §2.5](docs/design/workplan/12-p2c-first-real-run.md) decides where each entry goes, and the
+[P2C §2.5](12-p2c-first-real-run.md) decides where each entry goes, and the
 decision is made at triage rather than at the moment of annoyance, because
 afterwards every finding argues for its own importance.
 
@@ -40,7 +40,7 @@ recorded after the diagnosis is a finding shaped by it, and the gap between what
 somebody expected and what happened is most of what this phase is for — it is the
 part that stops being visible the moment you understand the cause.
 
-**`snapshot` is a real path or the word `none`.** [P2C §1.4](docs/design/workplan/12-p2c-first-real-run.md)
+**`snapshot` is a real path or the word `none`.** [P2C §1.4](12-p2c-first-real-run.md)
 buys the procedure: stop the server, copy the whole directory including `-wal` and
 `-shm`. A finding whose state is gone is one somebody will re-derive from scratch.
 
@@ -55,7 +55,7 @@ the order they happened is data, and reordering by importance discards it.*
 ## 2026-08-23 — P2C.0, the smoke run
 
 **Not a person's session, and the log's own ordering rule cannot be honoured
-here.** [P2C.0](docs/design/workplan/12-p2c-first-real-run.md) asked for two hours of hand-driving
+here.** [P2C.0](12-p2c-first-real-run.md) asked for two hours of hand-driving
 whose output was a *reordering*. What was run instead was automated: fifty-seven
 turns across the whole stack on a scratch install, against a local endpoint
 speaking the streaming chat-completions API — setup, first admin, a connection,
@@ -123,7 +123,7 @@ snapshot  none
 ```
 
 **Invisible on screen and only visible on the wire**, which is why it survived a
-survey, four phases and six audits — and why [P2C §5](docs/design/workplan/12-p2c-first-real-run.md)'s
+survey, four phases and six audits — and why [P2C §5](12-p2c-first-real-run.md)'s
 *already checked and found sound* list carried it as a reassurance until this
 run. That entry is now removed.
 
@@ -177,7 +177,7 @@ snapshot  none
 
 P2C.1's own stated signal is *"every point at which you consulted the source
 instead of the screen"*. This is a guaranteed one, and it corrects
-[§1.2](docs/design/workplan/12-p2c-first-real-run.md)'s *"no way to say otherwise"*: the mechanism is
+[§1.2](12-p2c-first-real-run.md)'s *"no way to say otherwise"*: the mechanism is
 there, the surface is not.
 
 ### 7 — Transient failures classify as terminal, and the retry never fires
@@ -192,7 +192,7 @@ observed  ECONNREFUSED and "terminated" both miss the classifier's transient
 snapshot  none
 ```
 
-This half-refutes [§1](docs/design/workplan/12-p2c-first-real-run.md)'s downgrade note that
+This half-refutes [§1](12-p2c-first-real-run.md)'s downgrade note that
 classification *does* work on the non-streaming path. It classifies — into the
 wrong bucket, for the one case retry exists for.
 
@@ -213,12 +213,12 @@ observed  worse and differently shaped: three successive writes each returned
 snapshot  none
 ```
 
-*Mechanism confirmed reachable — [manual gate §2.1](docs/design/workplan/11-p2-manual-gate.md) step 8 tells the
+*Mechanism confirmed reachable — [manual gate §2.1](11-p2-manual-gate.md) step 8 tells the
 tester to do exactly this — but the loop was not reproduced end to end in this
 run.*
 
 > **Reproduced and fixed at P4.0, 2026-08-30**, before the triage below ran —
-> [P4 §2](docs/design/workplan/16-p4-implementation.md) asks for it, because import walks this path in
+> [P4 §2](16-p4-implementation.md) asks for it, because import walks this path in
 > bulk and a wild-corpus object that lands broken goes straight into it. The
 > mechanism was exactly as written: `update()` compared the on-disk bytes against
 > the index row and threw `stale` carrying that same row, so the 412's
@@ -327,7 +327,7 @@ transcript, 63 KB at 13 turns and 590 KB at 55, about 10.8 KB per turn.
 Per-record size plateaus around 13 KB because the history window caps at twenty.
 `?limit=1` works and is cheap.
 
-*Do not spend session time re-measuring this.* [§1.7](docs/design/workplan/12-p2c-first-real-run.md)
+*Do not spend session time re-measuring this.* [§1.7](12-p2c-first-real-run.md)
 asked for the measurement before the fix, and this is it.
 
 ---
@@ -336,12 +336,12 @@ asked for the measurement before the fix, and this is it.
 
 ## Triage
 
-*Filled at [P2C.4](docs/design/workplan/12-p2c-first-real-run.md). Every finding above gets exactly one
+*Filled at [P2C.4](12-p2c-first-real-run.md). Every finding above gets exactly one
 row, and the phase does not end while this table is shorter than that list.*
 
 | Finding | Home | Why |
 | --- | --- | --- |
 
-**The five homes, from [P2C §2.5](docs/design/workplan/12-p2c-first-real-run.md):** stopped the phase ·
-fixed inside it · a gate correction · [polish](docs/design/workplan/06-polish.md) ·
-[PLAYABLE](docs/design/workplan/01-work-plan.md) or [roadmap](../24-roadmap.md).
+**The five homes, from [P2C §2.5](12-p2c-first-real-run.md):** stopped the phase ·
+fixed inside it · a gate correction · [polish](06-polish.md) ·
+[PLAYABLE](01-work-plan.md) or [roadmap](../24-roadmap.md).

@@ -1,16 +1,16 @@
 # 07 — P1 implementation plan
 
 **Status: ~~plan~~ landed**, merged into `main` 2026-08-16 at `a9a05a0`.
-Expands [work plan P1](docs/design/workplan/01-work-plan.md) into something that can be worked from — the
+Expands [work plan P1](01-work-plan.md) into something that can be worked from — the
 first document here that describes *code to write* rather than a design to
 argue with.
 
 **Its gate is the one gate that owes nothing.** P1 exits through the CI step
 that still runs on every push, which is why it is the single row in
-[manual testing §1](docs/design/workplan/05-manual-testing.md) with no person named beside it.
+[manual testing §1](05-manual-testing.md) with no person named beside it.
 
 *(This status line was written 2026-09-07 at
-[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
@@ -18,7 +18,7 @@ rather than what happened.)*
 **P1 delivers:** repo shape, the portable schemas, files on disk, the derived
 index, login, library CRUD, a library list, and a prototype actor editor.
 
-**The demo that defines done**, from [work plan P1](docs/design/workplan/01-work-plan.md): *create an actor
+**The demo that defines done**, from [work plan P1](01-work-plan.md): *create an actor
 through the API, see the folder appear, edit the JSON on disk by hand, watch the
 change reflected without a restart.* That last gesture is the whole storage
 thesis — if it does not work, the design has already failed on its own terms
@@ -35,7 +35,7 @@ promise the format does not currently keep**, and the file-access feature
 ([10 §4](../10-ui-surfaces.md)) will eventually need an "edit card JSON" action that
 splices for the user. Recorded here because P1 is where it becomes visible.
 
-**The discipline this phase runs under** is [work plan §2.2](docs/design/workplan/01-work-plan.md):
+**The discipline this phase runs under** is [work plan §2.2](01-work-plan.md):
 *demonstrate minimally, but build nothing whose only purpose is to be replaced.*
 It decides several things below that would otherwise look arbitrary — why auth
 ships whole rather than stubbed (§1.3), why the `Capabilities` record is written
@@ -152,11 +152,11 @@ Two things this deliberately is not:
 
 ### 1.3 Auth is day-zero, not a stub
 
-Per-user layout is a day-one item ([work plan §2](docs/design/workplan/01-work-plan.md)), so P1 writes to
+Per-user layout is a day-one item ([work plan §2](01-work-plan.md)), so P1 writes to
 `users/<handle>/` from the first write. An earlier draft supplied `<handle>` from
 a stub context module returning a fixed `dev` user, with real accounts at P10.
 
-**REVISED: build the real thing in P1**, per [work plan §2.2](docs/design/workplan/01-work-plan.md) — the
+**REVISED: build the real thing in P1**, per [work plan §2.2](01-work-plan.md) — the
 stub was a system whose only purpose was to be deleted, and it would have been
 threaded through every route written between here and P10. The reason it is
 affordable is that there is very little "real thing" to build. [09 §4.1](../09-server-multiuser-deployment.md) already
@@ -195,13 +195,13 @@ notification router, deployment and the Tailscale provider seam
 and deployment phase it is named for, rather than retrofitting an identity into
 a codebase that assumed one.
 
-*The first two of those went to [P2A](docs/design/workplan/09-p2a-configuration-surface.md) rather
+*The first two of those went to [P2A](09-p2a-configuration-surface.md) rather
 than P10, and the correction is worth reading beside the paragraph that made it:
 this section moved auth forward because a stub would have been threaded through
 every route and torn out later. It left management behind on the grounds that it
 was additive — which was true, and missed that the phases in between would each
 ship a feature with nowhere to configure it.
-[work plan §2.3](docs/design/workplan/01-work-plan.md) is the rule that came out of noticing.*
+[work plan §2.3](01-work-plan.md) is the rule that came out of noticing.*
 
 **The honest cost.** P1.6 carries a login form and a first-run form on top of the
 list. Cheap, and neither needs anything the field-assist contract provides.
@@ -246,13 +246,13 @@ packages/client/     React + Vite; list in P1.6, actor editor in P1.7
                      modes/* deferred to P7 — the boundary rules land now
 ```
 
-> **Corrected as built ([P2 §1.4](docs/design/workplan/08-p2-implementation.md)):** `shared`
+> **Corrected as built ([P2 §1.4](08-p2-implementation.md)):** `shared`
 > shipped with two runtime deps — TypeBox and Ajv. The dependency is right
 > (one schema technology, five jobs); this line was wrong.
 
 - TypeScript strict, `"type": "module"`, project references.
 - **ESLint flat config with `eslint-plugin-boundaries`**, encoding
-  [testing §2](docs/design/workplan/03-testing.md)'s graph: `modes/* → sdk, shared` (never `server`, never
+  [testing §2](03-testing.md)'s graph: `modes/* → sdk, shared` (never `server`, never
   `client`); `client → shared`; `sdk → shared`.
 
   Rules for `modes/*` are written now, before the directory exists. This is
@@ -267,7 +267,7 @@ packages/client/     React + Vite; list in P1.6, actor editor in P1.7
 - Stylelint with the logical-properties rule, written before there is any CSS.
 - AGPL header check as a lint rule; `LICENSE` is already in place.
 - CI on PR: typecheck, lint, build, test. Fast enough never to be skipped
-  ([testing §6](docs/design/workplan/03-testing.md)).
+  ([testing §6](03-testing.md)).
 
 *Ends at:* `pnpm build && pnpm lint && pnpm test` green, CI green, nothing runs.
 
@@ -304,7 +304,7 @@ Silently stripping a field written by a newer version is the failure that strand
 people, and it is invisible until someone downgrades.
 
 *Tests:* round-trip identity per kind; unknown-field preservation
-([testing §1](docs/design/workplan/03-testing.md)); **no portable schema declares a property matching the
+([testing §1](03-testing.md)); **no portable schema declares a property matching the
 connection/credential denylist** — the [00 §3.2](../00-stance.md) invariant, made a
 property over the emitted JSON Schema rather than a habit.
 
@@ -350,7 +350,7 @@ Written as an **envelope with per-container encoders** from the start
 ([03 §5.2](../03-data-model.md)), PNG being the only one implemented — so WebP and
 JPEG are later a codec rather than a migration.
 
-*Tests:* `object → chunk → object` is identity ([testing §1](docs/design/workplan/03-testing.md)); pixel
+*Tests:* `object → chunk → object` is identity ([testing §1](03-testing.md)); pixel
 bytes byte-identical across a save; a V2/V3 `chara` card still parses; an unknown
 ancillary chunk survives a round trip.
 
@@ -413,7 +413,7 @@ six. List merges user and system libraries with a source badge
 ([10 §5](../10-ui-surfaces.md)). Fastify validates against the same JSON Schema the
 storage layer uses, which is the fifth job for one schema technology
 ([19 §3](../19-tech-stack.md)). *Not delivered as built — params only, no body
-schemas; recorded at [P2 §1.4](docs/design/workplan/08-p2-implementation.md) (F2) and repaired at
+schemas; recorded at [P2 §1.4](08-p2-implementation.md) (F2) and repaired at
 20 P2.0.*
 
 **Every library route resolves its root from the session**, never from a
@@ -436,7 +436,7 @@ React + Vite + TanStack ([19 §6](../19-tech-stack.md)). Deliberately small: **o
 surface for all six kinds with a kind filter**, a source badge for user versus
 system, and a detail view. *Built as specified, but the position it was built
 from has since been reversed: [10 §5](../10-ui-surfaces.md) now calls for one panel
-per kind, and the client change is [polish §4](docs/design/workplan/06-polish.md). What P1.6 delivered is
+per kind, and the client change is [polish §4](06-polish.md). What P1.6 delivered is
 unaffected and stays as it is until then.*
 
 **Plus login and first-run** (§1.3): no accounts on disk routes every request to
@@ -447,7 +447,7 @@ stage is not purely read-only.
 deliberate: this one has to be green on its own, because it is what the hot-reload
 demo runs on.
 
-This stage is the model for [work plan §2.2](docs/design/workplan/01-work-plan.md)'s good case: **nothing
+This stage is the model for [work plan §2.2](01-work-plan.md)'s good case: **nothing
 here is thrown away.** The list, the detail view, the routing and the login are
 all the real surfaces, scoped small.
 
@@ -457,7 +457,7 @@ demonstration of the storage thesis than a second `curl` returning different
 JSON.
 
 **The day-one client rules start here**, because this is the first stylesheet and
-the first component ([work plan §2](docs/design/workplan/01-work-plan.md)):
+the first component ([work plan §2](01-work-plan.md)):
 
 - **CSS logical properties only** — `margin-inline-start`, never `margin-left`.
   Enforced by the Stylelint rule from P1.0, which is why that rule was written
@@ -515,7 +515,7 @@ schemas, because the roles are the part that cannot be retrofitted
 in P1 — and P1.1's round-trip tests are the whole of their coverage. Worth
 naming so the fields are not mistaken for an unfinished feature.
 
-**Built as the smallest real editor, per [work plan §2.2](docs/design/workplan/01-work-plan.md)** — which
+**Built as the smallest real editor, per [work plan §2.2](01-work-plan.md)** — which
 means one specific thing about its shape:
 
 - **A single `Field` primitive** owning label, value, validation and the slot
@@ -548,7 +548,7 @@ the same, the watcher is not distinguishing its own writes from foreign ones,
 which is [03 §5.1.1](../03-data-model.md) failing in a way nothing else in P1
 surfaces.
 
-**The risk, stated because [work plan §2.2](docs/design/workplan/01-work-plan.md) requires it to be.**
+**The risk, stated because [work plan §2.2](01-work-plan.md) requires it to be.**
 Building a field primitive before the assist contract is proven can bake in the
 wrong shape. The mitigation is that P1 commits to a *component boundary*, not to
 the contract: one component, whose interface changes cheaply if P2 shows the four
@@ -610,7 +610,7 @@ pnpm dev    # http://127.0.0.1:8080
 *Automated equivalents of 4 and 7–19 are this phase's CI suite*, plus the
 rebuild-equals-incremental property test. *Overstated as built — steps 16,
 11's login half, DELETE, and the rebuild property test were not automated;
-recorded at [P2 §1.4](docs/design/workplan/08-p2-implementation.md) (F11) and completed at
+recorded at [P2 §1.4](08-p2-implementation.md) (F11) and completed at
 20 P2.0.*
 
 **Steps 16–18 are cheap to write and disproportionately worth having**, because
@@ -629,7 +629,7 @@ and both test a claim P1 makes and would otherwise ship unverified: that this
 storage model survives contact with a second writer, and that it does not eat
 data it does not understand.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
 needs a value set, name where someone sets it before calling the phase done.
 
@@ -640,8 +640,8 @@ needs a value set, name where someone sets it before calling the phase done.
 Named so they do not creep in: **field assist in any form** and **editors for the
 other five kinds** (P1.7 is actor-only); the workbench (P3);
 account management and capability enforcement
-([P2A](docs/design/workplan/09-p2a-configuration-surface.md) — written here as P10's, and moved for
-[work plan §2.3](docs/design/workplan/01-work-plan.md)'s reason; login and first-run land now, §1.3);
+([P2A](09-p2a-configuration-surface.md) — written here as P10's, and moved for
+[work plan §2.3](01-work-plan.md)'s reason; login and first-run land now, §1.3);
 deployment (P10); the turn pipeline and providers (P2); import
 (P4); lorebook *activation* semantics — P1 stores lorebooks, it does not retrieve
 from them (P5); and `modes/*` (P7).

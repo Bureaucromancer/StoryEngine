@@ -1,13 +1,13 @@
 # 26 — P10 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](docs/design/workplan/23-p7-implementation.md), [P8](docs/design/workplan/24-p8-implementation.md),
-[P9](docs/design/workplan/25-p9-implementation.md) and [P11](docs/design/workplan/27-p11-implementation.md); to be
-revisited before the phase starts. [P7 §0](docs/design/workplan/23-p7-implementation.md) says what a
-skeleton this far out is for. Format follows [P1](docs/design/workplan/07-p1-implementation.md);
-citation convention as [P4](docs/design/workplan/16-p4-implementation.md)'s.
+[P7](23-p7-implementation.md), [P8](24-p8-implementation.md),
+[P9](25-p9-implementation.md) and [P11](27-p11-implementation.md); to be
+revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
+skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
+citation convention as [P4](16-p4-implementation.md)'s.
 
-**P10 delivers**, from [work plan P10](docs/design/workplan/01-work-plan.md), what is left of multi-user,
+**P10 delivers**, from [work plan P10](01-work-plan.md), what is left of multi-user,
 notifications and deployment after three earlier phases took the parts that
 could not wait: the remainder of [10 §15](../10-ui-surfaces.md) — the extensions
 panel, *Restart now*, connectivity state, the notification preference rows — plus
@@ -23,15 +23,15 @@ field.*
 
 **The spine, because a remainder phase does not have one by default.** Accounts,
 login and first-run went to P1; account management and capability enforcement
-went to [P2A](docs/design/workplan/09-p2a-configuration-surface.md); system connections and bindings
-went to [P2B](docs/design/workplan/10-p2b-provider-configuration.md). What is left is not a subsystem
+went to [P2A](09-p2a-configuration-surface.md); system connections and bindings
+went to [P2B](10-p2b-provider-configuration.md). What is left is not a subsystem
 and will read as a list unless it is given a test. The test:
 
 > **This is the phase that makes the install reachable, and safe, for someone
 > who is not the developer.**
 
 Anything here that does not sit on that line should be checked against
-[P11](docs/design/workplan/27-p11-implementation.md) before it is built, and anything found elsewhere
+[P11](27-p11-implementation.md) before it is built, and anything found elsewhere
 that does sit on it belongs here.
 
 **CI this phase establishes:** the route-enumeration assertion extended —
@@ -45,7 +45,7 @@ household server, *user A's turn never produces an event addressed to user B*.
 
 ## 0. What this document is, seven phases out
 
-[P7 §0](docs/design/workplan/23-p7-implementation.md) states the shared answer. What is specific here
+[P7 §0](23-p7-implementation.md) states the shared answer. What is specific here
 is that **more of this phase is auditable today than of any other late one**,
 because its subject is capabilities and configuration rather than a feature —
 and both of those already exist and already have surfaces.
@@ -60,7 +60,7 @@ and both of those already exist and already have surfaces.
   settings surface's *Recorded for later* group and rewrite its three labels,
   because the capability had quietly widened to *may direct the server to read
   paths outside their own directory* ([10 §4.2.2](../10-ui-surfaces.md),
-  [P4 §7.2](docs/design/workplan/16-p4-implementation.md)). **That is this phase's §1.4 rehearsed on
+  [P4 §7.2](16-p4-implementation.md)). **That is this phase's §1.4 rehearsed on
   a smaller subject**: a capability either has an enforcer or it is not shipped,
   and the moment it acquires one, the words in front of the administrator have
   to change in the same commit. P10 inherits a worked example rather than a
@@ -95,7 +95,7 @@ nothing binds non-loopback without someone typing a bind address — which is wh
 has been carrying the safety in the meantime, and what stops carrying it in this
 phase.
 
-**~~this phase~~ — [P6A](docs/design/workplan/19-p6a-alpha-1.md) built it, and this section is why.**
+**~~this phase~~ — [P6A](19-p6a-alpha-1.md) built it, and this section is why.**
 The sentence above states the trigger as *until an image ships*, which is a
 condition rather than a date; P6A ships the image, so the condition fired there.
 Nothing about the decision changed — a stored token, checked, on the console —
@@ -104,9 +104,9 @@ P6A implemented. Kept rather than deleted because it is the argument, and becaus
 the phase that inherited it should be able to read why.
 
 **Its twin came with it.** The cookie `secure`/`trustProxy` hardening deferred at
-[P2 §2.11](docs/design/workplan/08-p2-implementation.md) rests on the identical premise — the loopback
+[P2 §2.11](08-p2-implementation.md) rests on the identical premise — the loopback
 default — so it expired at the same instant and shipped in the same stage
-([P6A §1.4](docs/design/workplan/19-p6a-alpha-1.md)). What is left for this phase is what always was:
+([P6A §1.4](19-p6a-alpha-1.md)). What is left for this phase is what always was:
 mDNS, and the surfaces below.
 
 ### 1.2 The container inverts the bind default, and that is not a hidden build flag
@@ -122,7 +122,7 @@ difference**, so a bare-metal user can opt into the same behaviour and a
 container user can tighten it. A hidden difference between artifacts is a
 support burden shaped like a security feature.
 
-**Built at [P6A](docs/design/workplan/19-p6a-alpha-1.md), and this rule is what shaped it.** The
+**Built at [P6A](19-p6a-alpha-1.md), and this rule is what shaped it.** The
 finding that made it expensive rather than trivial belongs here, because it is
 this section's own constraint that produced it: the server read **exactly one
 environment variable in the entire codebase**, and it was dev-only, so *one
@@ -148,28 +148,28 @@ viewing the session in question. Write it as a presence *input* with one
 implementation rather than as a connection check, so real presence substitutes
 rather than rewrites whenever it lands. **That is now an open-ended wait rather
 than a one-release one**, which makes the substitutable shape more important, not
-less — [work plan §0.3](docs/design/workplan/01-work-plan.md) records the cost of a seam with no date.
+less — [work plan §0.3](01-work-plan.md) records the cost of a seam with no date.
 
 ### 1.4 Every class either has a producer or is not shipped
 
 [09 §3.5](../09-server-multiuser-deployment.md) lists five 1.0 classes.
 `turn.complete`, `turn.failed` and `system.notice` have producers today;
-`artifact.ready` gets one at [P9](docs/design/workplan/25-p9-implementation.md);
+`artifact.ready` gets one at [P9](25-p9-implementation.md);
 `turn.awaiting-input` has one only if [25 C5](../25-open-questions.md)'s
-suspending step exists, which [P3 §1.6](docs/design/workplan/15-p3-implementation.md) notes arrives
+suspending step exists, which [P3 §1.6](15-p3-implementation.md) notes arrives
 early in a different shape — *park, publish, resume-on-intent* — and warns that
 the obvious name is already taken, since `Turn.status: 'suspended'` means a turn
 that will resume.
 
 **Decide per class, and say so in the preference rows.** A preference row for a
-class nothing emits is [work plan §2.3](docs/design/workplan/01-work-plan.md)'s failure inverted: a surface
+class nothing emits is [work plan §2.3](01-work-plan.md)'s failure inverted: a surface
 for configuration that has no producer.
 
 ### 1.5 The extensions panel needs installation, and nothing installs
 
 [10 §15.5](../10-ui-surfaces.md) names the blocker plainly. The manifest and the
 lifecycle are specified ([22 §6–§7](../22-extensions.md)) and
-[P7](docs/design/workplan/23-p7-implementation.md) builds the boundary they run behind, but no
+[P7](23-p7-implementation.md) builds the boundary they run behind, but no
 document owns *acquiring and enabling an extension on an install*.
 
 **To decide at the revisit:** whether P10 builds installation — and therefore
@@ -198,8 +198,8 @@ users have active sessions."*
 ### 1.7 Connectivity state ships with its producer, or it ships dark
 
 [10 §15.5](../10-ui-surfaces.md) lists connectivity state as remaining at P10 and
-names its producer as [P11](docs/design/workplan/27-p11-implementation.md)'s update check;
-[P2B §6](docs/design/workplan/10-p2b-provider-configuration.md) records the same dependency from the
+names its producer as [P11](27-p11-implementation.md)'s update check;
+[P2B §6](10-p2b-provider-configuration.md) records the same dependency from the
 other side. **Two phases, one signal, in the wrong order.**
 
 The revisit has to pick one: move the update check into P10 (it is small, and
@@ -229,7 +229,7 @@ including **the server's first upload route** with its multipart, sniffing and
 size bounds; the client's first tile grid and the generated tile. It also names
 the three tests that keep it honest. That section was written to be read at the
 build rather than re-derived, and the only thing this plan adds is: the
-type-to-filter escalation is [polish §7](docs/design/workplan/06-polish.md)'s, is blocked on the
+type-to-filter escalation is [polish §7](06-polish.md)'s, is blocked on the
 gallery existing, and should be built as the **one** text affordance that
 subsumes *sign in by name* rather than as a second box beside it.
 
@@ -242,7 +242,7 @@ person's experience correct, then arrival.
 
 ### P10.0 — Reachable and safe: ~~bind, container, token,~~ mDNS
 
-**Mostly built at [P6A](docs/design/workplan/19-p6a-alpha-1.md), and this stage is what is left.**
+**Mostly built at [P6A](19-p6a-alpha-1.md), and this stage is what is left.**
 Struck rather than rewritten, because what this stage *was* is the clearest
 statement of what that phase took: §1.1's stored-and-checked token, §1.2's single
 documented environment variable and the image that uses it, first-run setup
@@ -257,7 +257,7 @@ loopback — plus verifying the whole first-run path again against the artifact
 this phase inherits rather than one it built.
 
 *One question for that re-verification, from Alpha 1's first install
-(2026-09-07, [P6A §3](docs/design/workplan/19-p6a-alpha-1.md) step 11):* Docker creates a missing
+(2026-09-07, [P6A §3](19-p6a-alpha-1.md) step 11):* Docker creates a missing
 bind-mount source as root, the image runs as uid 1000, and the first start on
 unraid died on `mkdir /data/state`. Alpha 1 answers with a one-time `chown` on
 the host, said in the template and refused in one line by the server. The
@@ -268,7 +268,7 @@ to decide against a second install, not the first.
 
 ~~*Ends at:* `docker run`, a token in `docker logs`, an admin created, a turn
 taken — from a machine that is not the host.~~ That gate became
-[P6A §3](docs/design/workplan/19-p6a-alpha-1.md)'s steps 3 through 7 — **and it has not been met.**
+[P6A §3](19-p6a-alpha-1.md)'s steps 3 through 7 — **and it has not been met.**
 This paragraph said *met* before the phase ran; corrected 2026-09-05 at P6A's
 close, which shipped every file the image needs and built no image, because
 there was no daemon on the machine that wrote it. It is walked when Alpha 1 is
@@ -323,7 +323,7 @@ a grid of accounts is a shape that invites the extra tile.
 [09 §7](../09-server-multiuser-deployment.md)'s licence obligations that are
 actually features: the running version and commit embedded in the build — ~~**no
 build embeds one today**, which [09 §6.5](../09-server-multiuser-deployment.md)
-names as this phase's to fix~~ embedded at [P6A §1.5](docs/design/workplan/19-p6a-alpha-1.md) and
+names as this phase's to fix~~ embedded at [P6A §1.5](19-p6a-alpha-1.md) and
 shown since alpha.2, as the footer on every page and the About block at the top
 of Settings ([10 §15.1](../10-ui-surfaces.md)) — and the §13 source link, which
 is what is left here. If §1.7 moved the update check here, its badge lands on
@@ -362,7 +362,7 @@ Sketch; expand on revisit.
     never seen it, from the URL alone, and watch where they stop. The phase's
     whole claim is about that person.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** This phase is the line's last large debtor —
 if anything shipped since P1 still needs a text editor to configure, this is
 where it is found and fixed, not P11.
@@ -380,9 +380,9 @@ level (feature list at High, [25 D1](../25-open-questions.md)); the file browser
 kept open at [09 §4.3](../09-server-multiuser-deployment.md)); multiplayer and
 shared heads ([09 §8](../09-server-multiuser-deployment.md)); a role system
 ([09 §4.2.1](../09-server-multiuser-deployment.md) — named capabilities, and
-[P2A](docs/design/workplan/09-p2a-configuration-surface.md) already built them); auto-provisioning
+[P2A](09-p2a-configuration-surface.md) already built them); auto-provisioning
 accounts ([25 D2](../25-open-questions.md)); and packaging, all six artifacts of
-which [P11](docs/design/workplan/27-p11-implementation.md) now owns ([work plan §0.5](docs/design/workplan/01-work-plan.md)).
+which [P11](27-p11-implementation.md) now owns ([work plan §0.5](01-work-plan.md)).
 
 ---
 
@@ -407,7 +407,7 @@ check, not the print*, and *not a hidden build flag* — and the revisit should
 resist any pressure to soften either for convenience.
 
 **Both paragraphs above are now history, and they were right.**
-[P6A](docs/design/workplan/19-p6a-alpha-1.md) took the unrecoverable half — the bind default, the
+[P6A](19-p6a-alpha-1.md) took the unrecoverable half — the bind default, the
 token, the container — and the two rules this section told the revisit to defend
 are the two that survived contact: P6A built the environment layer rather than a
 baked build difference, and shipped the check rather than the print. **The
@@ -443,7 +443,7 @@ than after.
 - ~~**What the container image actually is.** §1.2 decides the bind default
   inverts inside it; nothing yet says what *it* is, and that is a
   [19](../19-tech-stack.md) question this phase inherits.~~ **Closed by
-  [P6A §2](docs/design/workplan/19-p6a-alpha-1.md)**, which answers it — base image, package manager,
+  [P6A §2](19-p6a-alpha-1.md)**, which answers it — base image, package manager,
   the workspace prune, the volume, the user, the compose file — rather than
   passing it on again. Worth noting that it was routed to
   [19](../19-tech-stack.md) and [19](../19-tech-stack.md) never grew a section

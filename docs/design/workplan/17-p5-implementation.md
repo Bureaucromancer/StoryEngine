@@ -7,21 +7,21 @@ would have met on the day — among them the retriever half unreachable through
 the product, because nothing in the client selects a lorebook for a session.
 ~~That one is still true at P6A's close: neither the browser nor `pnpm seed`
 names a book or a treatment for the session it makes, so the session resolves
-none.~~ **Fixed at [P6B.0](docs/design/workplan/20-p6b-playable.md), 2026-09-07** — the create form
+none.~~ **Fixed at [P6B.0](20-p6b-playable.md), 2026-09-07** — the create form
 and a mid-session panel send the selection, `pnpm seed` names the treatment it
 builds, and the whole path was checked against a real server rather than only in
 jsdom. The **[AWAITS PLAYABLE]** questions are still open, because PLAYABLE
 still has not run.
 
 **What holds this phase open, as of 2026-09-07, is now exactly two things and
-they are both a person's.** [P6B.1](docs/design/workplan/20-p6b-playable.md) discharged §0.5's list:
+they are both a person's.** [P6B.1](20-p6b-playable.md) discharged §0.5's list:
 six silent defects fixed with tests that redden without them, the four
 contradictions settled and recorded, and steps 6, 8, 11 and 12 amended to ask
 what is actually being asked. What is left is **the walk itself** — eighteen
 steps against HEAD, with each outcome recorded rather than ticked — and **the
-four [AWAITS PLAYABLE] questions**, which want [P6B.2](docs/design/workplan/20-p6b-playable.md). Two
+four [AWAITS PLAYABLE] questions**, which want [P6B.2](20-p6b-playable.md). Two
 of the eighteen already have their answers written down: step 6 is
-person-blocked on a corpus with lead time ([manual testing §3.4](docs/design/workplan/05-manual-testing.md)), and
+person-blocked on a corpus with lead time ([manual testing §3.4](05-manual-testing.md)), and
 step 12 is deferred to P7 with the row moved and the receiving document told.
 Neither is a failure and neither is a blank. Audited 2026-08-30 at `09ea758`, re-audited
 2026-08-31 after P4's own audit closed, and re-audited again at `12a28d9` on the
@@ -49,15 +49,14 @@ the answering session pass unremarked has held them open for nothing.
 
 The split into a document half and a retriever half is §1.6; §1.1–§1.5 stand as
 written, with §0 saying which of their leans the ground has since confirmed.
-Format follows [P1](docs/design/workplan/07-p1-implementation.md); the readiness audit, honest-size
-and still-to-settle sections follow [P4](docs/design/workplan/16-p4-implementation.md)'s, which is the
+Format follows [P1](07-p1-implementation.md); the readiness audit, honest-size
+and still-to-settle sections follow [P4](16-p4-implementation.md)'s, which is the
 document this one was expanded alongside.
 
-**Citation convention**, adopted from [P4](docs/design/workplan/16-p4-implementation.md) because two
-documents are "10": `10 §N` means [04-schemas](../04-schemas.md); **`testing §N`**
-means [testing-testing](docs/design/workplan/03-testing.md); **`survey §N`** means
-[01-source-survey](../01-source-survey.md); **`polish §N`** means
-[polish-polish](docs/design/workplan/06-polish.md).
+*A local citation convention used to sit here, inherited from
+[P4](16-p4-implementation.md), because two documents were "10". The renumber of
+2026-09-09 removed the collision and the checker now enforces the rule; see
+[P4 §0](16-p4-implementation.md).*
 
 **P5 delivers two things that share a subject and share almost nothing else.**
 
@@ -68,7 +67,7 @@ means [testing-testing](docs/design/workplan/03-testing.md); **`survey §N`** me
   offline. Specified at [10 §5.3](../10-ui-surfaces.md),
   [10 §11.2d](../10-ui-surfaces.md) and [10 §14.5](../10-ui-surfaces.md), with the
   position at [11](../11-lorebooks-as-a-format.md).
-- **The retriever half**, from [work plan P5](docs/design/workplan/01-work-plan.md): full lorebook activation
+- **The retriever half**, from [work plan P5](01-work-plan.md): full lorebook activation
   semantics, book scoping, the two-tier budget, the deterministic trim order, and
   skip reporting — testable against P4's real library rather than fixtures.
 
@@ -98,12 +97,12 @@ rendering of something the schema already carries
 ([11 §4](../11-lorebooks-as-a-format.md)).
 
 **CI this phase establishes:** unit tests over the pure activation logic
-([testing §3.2](docs/design/workplan/03-testing.md)) — matching, timing interactions, recursion flags,
+([testing §3.2](03-testing.md)) — matching, timing interactions, recursion flags,
 trim order — plus golden-file coverage of budget behaviour under pressure
 against the imported library (the `context-fit` regression pattern,
-[testing §3.1](docs/design/workplan/03-testing.md)). The document half's own contribution is smaller and
+[testing §3.1](03-testing.md)). The document half's own contribution is smaller and
 different in kind: the index gains a second table pair, so the rebuild property
-test ([testing §3.1](docs/design/workplan/03-testing.md)) has to cover it, and that is the check that keeps
+test ([testing §3.1](03-testing.md)) has to cover it, and that is the check that keeps
 §1.7's stale-row hazard from shipping.
 
 ---
@@ -150,7 +149,7 @@ knew in five places, less ready in five, and moved outright in four.
   becomes a decision — §1.8 makes it.
 - **The regex timeout has not landed**, and this one is sharper than a missing
   dependency. `useRegex` is stored on every entry and **read by nothing**;
-  [triage §5.1](docs/design/workplan/02-triage.md) marks Marinara's `regex-timeout.ts` an ADOPT and
+  [triage §5.1](02-triage.md) marks Marinara's `regex-timeout.ts` an ADOPT and
   calls it *"the strongest single lift candidate in all three repos"*. P5.4 runs
   author-supplied patterns over turn text, and P4 has just filled the library
   with patterns nobody here wrote. Without the timeout, an imported book is a
@@ -164,7 +163,7 @@ knew in five places, less ready in five, and moved outright in four.
 - **There is no client lorebook surface of any kind.** `library/` holds the
   list, the detail page, the as-stored fold and the revision list. The document
   half starts from nothing, which is the honest reading of its size.
-- **The corpus still does not exist.** [P4 §1.2](docs/design/workplan/16-p4-implementation.md)
+- **The corpus still does not exist.** [P4 §1.2](16-p4-implementation.md)
   established there is no used SillyTavern or Marinara install on hand, and
   §1.6 now carries the prerequisite that follows: **acquiring one is
   person-blocked work this phase depends on**, not a convenience.
@@ -297,7 +296,7 @@ holds open:
 - **Does the same wrong thing happen twice?** A diagnostic earns its place by
   the second occurrence, not the first.
 
-Write what happens down somewhere, even roughly. [P2C log](docs/design/workplan/14-p2c-log.md) is the
+Write what happens down somewhere, even roughly. [P2C log](14-p2c-log.md) is the
 precedent and the reason it exists: a findings log appended to as things happen
 is worth more than a recollection assembled afterwards, and this plan has four
 decisions waiting on exactly that.
@@ -413,7 +412,7 @@ because the sentence reads as a P4 deliverable that a later phase can rely on.
 
 - **P5.0 needs a panel to be a panel, and `polish §4` has not landed.**
   [10 §5.3](../10-ui-surfaces.md) specifies the Lorebooks panel as one of the six
-  per-kind panels [polish §4](docs/design/workplan/06-polish.md) creates; `LibraryPage.tsx` is still
+  per-kind panels [polish §4](06-polish.md) creates; `LibraryPage.tsx` is still
   one merged table with a kind filter, and §1.7's dependency reasoning covered
   `polish §1` alone. The escape is the shape `polish §4` already describes —
   *shared machinery, per-kind surfaces*, with Lorebooks as the first of the six
@@ -498,7 +497,7 @@ missing — and both change what landing a stage *means*.
 #### And §0.3's instruction has no receptacle
 
 §0.3 asks that the window immediately ahead be written down, on
-[P2C log-p2c-log](docs/design/workplan/14-p2c-log.md)'s precedent, because four decisions wait on it. **No
+[P2C log](14-p2c-log.md)'s precedent, because four decisions wait on it. **No
 such log exists**, and `16-p2c-log.md` records nothing about what gets cut, how
 often, or how long it takes to find out why — so nothing anywhere answers the
 four [AWAITS PLAYABLE] questions today, and §1.11's re-audit line stands
@@ -531,8 +530,8 @@ written against:
   corpus policy already keeps in the repository"*. It keeps none —
   `import/fixtures/test-sillytavern.ts:15-20` says outright *"this is the whole
   corpus the phase gets"* and names the real-library walk as outstanding.
-  [testing §5](docs/design/workplan/03-testing.md) is the policy's *plan*, not a record that it ran. The
-  same false claim is duplicated at [P4 §1057](docs/design/workplan/16-p4-implementation.md).
+  [testing §5](03-testing.md) is the policy's *plan*, not a record that it ran. The
+  same false claim is duplicated at [P4 §1057](16-p4-implementation.md).
 - **Step 8** describes a string the build does not produce. It asks the workbench
   to show *"sticky, 2 remaining"*; `blocks.ts:94-95` returns `'still active from
   an earlier turn'` with no count, `LoreReport` has no timing field, and
@@ -542,12 +541,12 @@ written against:
 - **Step 11** cannot be executed. There is no production replay entry point:
   `turns/runner.ts:304` and `turns/preview.ts:135` are the only non-test `Rng`
   constructions and neither takes a tape. Its parenthetical cites *"P3's
-  edit-and-re-run"*, which [P3 §344](docs/design/workplan/15-p3-implementation.md) explicitly
+  edit-and-re-run"*, which [P3 §344](15-p3-implementation.md) explicitly
   disclaims. **What P5 actually discharged is the keying, not the reproduction.**
 - **Step 12** cannot be expressed. No entry can be conditioned on a channel at
   all: [04 §5]'s schema lists `activationConditions` as *deliberately absent*,
   the importer discards it, and no `SkipReason` in the seventeen-arm union names
-  a channel. Meanwhile [work plan §195](docs/design/workplan/01-work-plan.md) still assigns the work to P5.
+  a channel. Meanwhile [work plan §195](01-work-plan.md) still assigns the work to P5.
   **Do not credit `unknownSources` to this step** — it is the same visible-warning
   posture for scan *sources*, but the entry keeps scanning and can still fire, so
   it does not satisfy *never fires*.
@@ -576,7 +575,7 @@ are bugs.**
   session that resolves **zero books**. The reversal was right — `2380bd0` fixed
   a real fault, and [03 §3.4](../03-data-model.md) now describes the world — but
   it shipped half a mechanism, and no test noticed because every test builds its
-  selection by hand. **This is the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md)
+  selection by hand. **This is the standing line from [work plan §2.3](01-work-plan.md)
   undischarged for the retriever half**, and it is the single largest thing
   between this phase and an honest close.
 - **`SCENE_PRESET` has exactly one lore slot**, `{ of: 'lore', phase: 'before' }`
@@ -633,7 +632,7 @@ each is an argument waiting to happen mid-walk:
 3. **Step 11's ownership** (this document says P3's gesture; P3 says P6's).
 4. **Step 6's stated means** (above).
 
-**All four settled at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07.** Recorded here
+**All four settled at [P6B.1](20-p6b-playable.md), 2026-09-07.** Recorded here
 rather than only in the steps, because a list of open arguments that never says
 how they ended is the same failure at one remove.
 
@@ -647,22 +646,22 @@ how they ended is the same failure at one remove.
    `activationConditions` is *deliberately absent* from the schema, and a
    predicate over a channel is unbuildable in a phase where nearly no channels
    exist. What was wrong is that the deferral was taken in the code and no
-   document followed, so [work plan §195](docs/design/workplan/01-work-plan.md) still read **P5** for a thing
+   document followed, so [work plan §195](01-work-plan.md) still read **P5** for a thing
    P5 had decided not to build. **It is P7's**, which is the phase that makes
    channels a contract rather than a handful of engine-owned names — that row and
-   §1.4 now say so, and [P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it as
+   §1.4 now say so, and [P7 §0.1](23-p7-implementation.md) carries it as
    inherited. *Anything richer still waits for 6.0's rule vocabulary; what moved
    is the minimal comparison set, not the vocabulary.*
 3. **Settled in P6's favour, which is where it had already gone.** P3 disclaims
    rewrite and reroll explicitly, so the reproduction half of step 11 was never
-   P5's to execute and never P3's to have provided. [P6 §3](docs/design/workplan/18-p6-implementation.md)
+   P5's to execute and never P3's to have provided. [P6 §3](18-p6-implementation.md)
    step 3 carries it, with the fixture constraint P5 could not have known. The
    contradiction was only ever between two documents; no code was wrong.
 4. **Settled as person-blocked, which is a resolution and not a dodge.** The
    permissively-licensed corpus this step was said to be met by does not exist in
    the repository — `import/fixtures/` holds three synthesised files and one of
    them says so. The walker supplies the book. It is counted at
-   [manual testing §3.4](docs/design/workplan/05-manual-testing.md) beside [P4 §3](docs/design/workplan/16-p4-implementation.md) step 1,
+   [manual testing §3.4](05-manual-testing.md) beside [P4 §3](16-p4-implementation.md) step 1,
    which wants the same thing, and the same false claim is corrected there.
 
 **What would have to happen, in the order that costs least.** Settle the four
@@ -673,7 +672,7 @@ in-place rebuild; and an `ephemeral` entry with neither `sticky` nor `cooldown`,
 which is what protects `same()`'s `left.fired === right.fired` clause at
 `retrieve.ts:239` — deleting that clause today leaves the suite green and makes
 an ephemeral entry fire forever — *the first and third of these are one test,
-written at [P6.0a](docs/design/workplan/18-p6-implementation.md) on 2026-09-02; the `orphan-fts`
+written at [P6.0a](18-p6-implementation.md) on 2026-09-02; the `orphan-fts`
 assertion is still owed*); make selection reachable enough to walk from;
 then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and have a
 person walk all eighteen **against HEAD**. Everything but step 6 is about a day's
@@ -753,15 +752,15 @@ and never fires** — the dangling posture, already specified. The predicate
 applies).
 
 **Not built, and the section is corrected rather than left as a lean —
-[P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07, settling §0.5's second contradiction.**
+[P6B.1](20-p6b-playable.md), 2026-09-07, settling §0.5's second contradiction.**
 The lean was taken the other way in the code and nothing said so: the schema
 lists `activationConditions` as *deliberately absent*, the importer discards it,
 no `SkipReason` names a channel, and gate step 12 asks for a posture no entry
 can reach. The decision itself is right — a predicate needs a channel to be
 about, and this phase has almost none — so what is corrected is the record, not
 the code. **The minimal comparison set is P7's**, with the channels it
-predicates over; [work plan §195](docs/design/workplan/01-work-plan.md) says so now, and
-[P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it as inherited. The paragraph above
+predicates over; [work plan §195](01-work-plan.md) says so now, and
+[P7 §0.1](23-p7-implementation.md) carries it as inherited. The paragraph above
 stands as the design for whoever builds it.
 
 ### 1.5 Scan sources and mention resolution
@@ -796,7 +795,7 @@ dependency for nothing — where a lettered phase would have been the same
 sequence with more numbering.
 
 > **The dependency stopped being free on 2026-08-29, and this is the correction
-> rather than a note.** [P4 §1.2](docs/design/workplan/16-p4-implementation.md) established that
+> rather than a note.** [P4 §1.2](16-p4-implementation.md) established that
 > **no real corpus exists** — no used SillyTavern or Marinara install is on
 > hand — and that P4 therefore runs on fixtures it synthesised. So "P5 already
 > follows P4" no longer buys the dependency: P4 produces a library, not a
@@ -807,7 +806,7 @@ sequence with more numbering.
 >
 > **Acquiring a real library is therefore a prerequisite of this half**, not a
 > convenience: person-blocked, with lead time, in the same class as the P2C
-> sessions ([P4 §0](docs/design/workplan/16-p4-implementation.md)) — someone has to find a
+> sessions ([P4 §0](16-p4-implementation.md)) — someone has to find a
 > SillyTavern or Marinara install with years of books in it and put it
 > somewhere the importer can reach. It is named here because this is the
 > document whose argument depends on it, and a prerequisite recorded only in
@@ -842,16 +841,16 @@ header restated as a rule:
 > **behaviour**. Nothing in the panel, the book page or the editor may say *will
 > fire*.
 
-### 1.7 The dependency on [polish §1](docs/design/workplan/06-polish.md), and the hazard in the index
+### 1.7 The dependency on [polish §1](06-polish.md), and the hazard in the index
 
 **Added 2026-08-28.** Two things this plan would otherwise discover late.
 
-**[polish §1](docs/design/workplan/06-polish.md) is shared machinery, and it is upstream of both the
+**[polish §1](06-polish.md) is shared machinery, and it is upstream of both the
 read view and the editor.** The by-field view derived from the schema is what the
 book page's *as configured* fold and the editor's disclosures
 ([10 §11.2d](../10-ui-surfaces.md)) both render through. If it has not landed,
 the document half either builds it or duplicates it — and this repo has already
-been burned in exactly this way: [P3 §5](docs/design/workplan/15-p3-implementation.md) records the
+been burned in exactly this way: [P3 §5](15-p3-implementation.md) records the
 audit finding that two JSON viewers already ship and already disagree. **So:
 land polish §1 first, or make it the document half's first stage.** Named here
 because it is invisible from either item on its own.
@@ -908,7 +907,7 @@ Somebody debugging an entry six months after the import will not think to look
 for the sweep that created it.~~
 
 ***Overtaken 2026-08-31: the alternative was built, and it changes half of this
-section.*** [P4 §7.14](docs/design/workplan/16-p4-implementation.md) closed the addressable report —
+section.*** [P4 §7.14](16-p4-implementation.md) closed the addressable report —
 `import_job` and a new `import_item` are written, `GET /api/import/jobs/:id`
 returns the same `ImportReport` the sweep answered with, and **`importNotesFor(db,
 objectId)` exists and is tested**, written against this section by name.
@@ -945,7 +944,7 @@ with a lorebook surface at all.**
 
 The alternative — building the book page's *as configured* fold and the entry
 editor's disclosures on their own — is how this repository got two JSON viewers
-that disagree ([P3 §5](docs/design/workplan/15-p3-implementation.md) records the finding). A third
+that disagree ([P3 §5](15-p3-implementation.md) records the finding). A third
 would be the same mistake with better documentation. And the by-field view is
 useful to every kind, so building it inside a lorebook stage would bury shared
 machinery under a specific feature, which is the shape that makes it hard to
@@ -975,7 +974,7 @@ own stage.
 
 **The regex timeout comes before the matcher, not with it.** `useRegex` is stored
 and read by nothing, P4 has filled the library with patterns nobody here wrote,
-and [triage §5.1](docs/design/workplan/02-triage.md)'s ADOPT is about sixty lines. A matcher that runs
+and [triage §5.1](02-triage.md)'s ADOPT is about sixty lines. A matcher that runs
 an imported pattern without a timeout is a denial-of-service on your own server,
 triggered by a book somebody downloaded. It is **P5.4's first commit** and its
 own test.
@@ -1045,7 +1044,7 @@ place for the evidence to arrive from.
 the detail route, for every kind rather than for actors. The fields sit above
 the storage block, which kept its own heading; *As stored* stays and keeps the
 job §2 gave it, which is the keys the schema does not declare. `polish §1` and
-§2 are struck in [polish](docs/design/workplan/06-polish.md), §1 by this stage and §2 by the clause it
+§2 are struck in [polish](06-polish.md), §1 by this stage and §2 by the clause it
 could not honestly claim until §1 existed.
 
 **Three things it settled that the item left open**, each argued where it landed
@@ -1080,7 +1079,7 @@ editor's disclosures both render through it, and building it inside either would
 bury shared machinery under a specific feature — which is how this repository
 acquired two disagreeing JSON viewers already.
 
-Numbered `−1` on the precedent [P3](docs/design/workplan/15-p3-implementation.md) set for the same
+Numbered `−1` on the precedent [P3](15-p3-implementation.md) set for the same
 situation: work that has to happen first and is not what the phase is about.
 
 *Ends at:* ~~an actor's greeting readable on its detail page without opening the
@@ -1115,7 +1114,7 @@ hangs on the field that opens its group, §5.3's fold omits `keys`, and `keys` i
 the field `Matching` hangs on — so filtering first silently dropped a heading
 and spilled its fields into the group above.
 
-**Then the panel**, as the first of [polish §4](docs/design/workplan/06-polish.md)'s six and on that
+**Then the panel**, as the first of [polish §4](06-polish.md)'s six and on that
 item's own rule — one list component, and what a panel supplies is its columns,
 its sort and its empty state (`library/panels.tsx`). §5.3's table, verbatim:
 name with badges, entry count, tags, source, updated; sorts by name, recency and
@@ -1302,9 +1301,9 @@ half-built, and the one §1.6 turns on.
 
 No server work, no schema change. Reuses `/library/$kind/$id` and its existing
 shadowed-copy discriminator; a panel that builds its own links from `{kind, id}`
-reintroduces F19 and [polish §4](docs/design/workplan/06-polish.md) says so.
+reintroduces F19 and [polish §4](06-polish.md) says so.
 
-**And “the panel” presumes a panel** — [polish §4](docs/design/workplan/06-polish.md) has not landed,
+**And “the panel” presumes a panel** — [polish §4](06-polish.md) has not landed,
 so the library is still one merged table with a kind filter (§0.4). This stage
 builds the Lorebooks panel as the **first** of that item’s six, on its own
 *shared machinery, per-kind surfaces* rule, and leaves the other five and the
@@ -1470,7 +1469,7 @@ write path, no assist) is the model. This absorbs the editor clause of what was
 previously P5.3.
 
 *The object-level halves of that clause landed first — delete at P4.4, create
-at [P4.5](docs/design/workplan/16-p4-implementation.md), where the actors-only rule means a lorebook
+at [P4.5](16-p4-implementation.md), where the actors-only rule means a lorebook
 gets its New control when **this** editor exists. Nothing here is discharged by
 that: creating and deleting an **entry** is writing below the object, which
 [10 §5](../10-ui-surfaces.md) puts on the editor's side of the line and not the
@@ -1727,7 +1726,7 @@ was never about the extension.
 **Two commits, in §1.10's order.** The regex timeout alone and first, then the
 matcher on top of it.
 
-**The timeout is [triage §5.1](docs/design/workplan/02-triage.md)'s ADOPT, with its two named details
+**The timeout is [triage §5.1](02-triage.md)'s ADOPT, with its two named details
 carried and one of them checked rather than inherited.** §5.1 says the pattern
 must be recompiled *inside* the vm because passing a compiled `RegExp` in "would
 not work, and that is not obvious". On this runtime it does work — a compiled
@@ -1810,7 +1809,7 @@ hang is a result rather than something the person running it inherits.
 >
 > **The regex timeout first, and on its own** (§1.10): `useRegex` is stored and
 > read by nothing, the library is now full of patterns nobody here wrote, and
-> [triage §5.1](docs/design/workplan/02-triage.md)'s ADOPT is sixty lines. A matcher that runs an
+> [triage §5.1](02-triage.md)'s ADOPT is sixty lines. A matcher that runs an
 > imported pattern unbounded is a denial-of-service on your own server, triggered
 > by a book somebody downloaded.
 >
@@ -1836,7 +1835,7 @@ and a branch inherits the wrong stickiness. **But `ChannelDefinition.scope` had
 offered `'entry'` since the first channel was written while `applyEffects` keyed
 on the channel id alone**, so two entries' timing states would have overwritten
 each other, silently, and P6's reconstruction would have inherited whichever
-landed last. §0.4 found it; [P6 §1.9](docs/design/workplan/18-p6-implementation.md) asked which phase
+landed last. §0.4 found it; [P6 §1.9](18-p6-implementation.md) asked which phase
 pays; the phase order answers this one, because P5.5 is the first stage that
 needs a per-entry value and the alternative was shipping a feature that clobbers
 itself.
@@ -1860,7 +1859,7 @@ window is one firing that has not finished. The case that caught it is the one
 the stage predicted: *the interactions, which are the part people actually get
 wrong*.
 
-**And [triage §5.2](docs/design/workplan/02-triage.md)'s carried reasoning is the load-bearing rule:**
+**And [triage §5.2](02-triage.md)'s carried reasoning is the load-bearing rule:**
 the sticky timer is *not* refreshed while an entry is sticky, so an entry named
 every single turn still drops out when its window expires and is re-matched the
 turn after — a hard ceiling on continuous presence rather than a sliding window,
@@ -2284,22 +2283,22 @@ does** — "a book you did not author" is false by construction for a fixture we
 wrote, and the judgement it asks for is about somebody else's organising
 habits. ~~It is met by the **handful of explicitly-permissive real books** the
 corpus policy already keeps in the repository
-([testing §5](docs/design/workplan/03-testing.md)), which is what that handful is for; it does not
+([testing §5](03-testing.md)), which is what that handful is for; it does not
 need the private corpus.~~ **False, found at §0.5: the repository keeps none.**
 `import/fixtures/` holds three synthesised files and one of them says so —
 *"this is the whole corpus the phase gets"*, naming the real-library walk as
-outstanding and owned by §1.6. [testing §5](docs/design/workplan/03-testing.md) is the policy's *plan*.
+outstanding and owned by §1.6. [testing §5](03-testing.md) is the policy's *plan*.
 **The walker must supply the book**, which §1.6 already classes as person-blocked
 with lead time; it still does not need the private corpus, and the same false
-claim wants correcting at [P4 §1057](docs/design/workplan/16-p4-implementation.md). **Only [11 §6]'s falsification counts need that**, and
+claim wants correcting at [P4 §1057](16-p4-implementation.md). **Only [11 §6]'s falsification counts need that**, and
 P5.3 is written so they do not hold the phase closed.
 
-**Amended at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07 — step 6 is recorded
+**Amended at [P6B.1](20-p6b-playable.md), 2026-09-07 — step 6 is recorded
 person-blocked, and that is its outcome rather than a note beside a blank.**
 A walker does not fail it, skip it or fake it with a fixture: the step wants
 a book somebody else organised, the repository has none and cannot make one,
 and the honest entry is *deferred, owner named, reason given*. It waits at
-[manual testing §3.4](docs/design/workplan/05-manual-testing.md) with [P4 §3](docs/design/workplan/16-p4-implementation.md) step 1,
+[manual testing §3.4](05-manual-testing.md) with [P4 §3](16-p4-implementation.md) step 1,
 which wants the same book — one arrangement answers both, which is the
 argument for counting them in one place rather than letting each phase's
 revisit rediscover its own.
@@ -2321,7 +2320,7 @@ revisit rediscover its own.
    counter by design, so its only trace would be a skip reason, and skip reasons
    reach the preview but never the turn record.
 
-   **Amended at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07. Two of the three
+   **Amended at [P6B.1](20-p6b-playable.md), 2026-09-07. Two of the three
    complaints are fixed; the third is a design gap and is now asked as one.**
    `Activation` carries `stickyRemaining`, the post-turn figure, and
    `reasonFor` spends it — *"still active from an earlier turn, 2 messages
@@ -2352,12 +2351,12 @@ revisit rediscover its own.
     `activate.ts:535` and `:611`, each carrying its own entry or group as
     purpose. The *reproduction* half cannot be executed here — there is no
     production replay entry point, and the parenthetical was wrong, since
-    [P3 §344](docs/design/workplan/15-p3-implementation.md) disclaims rewrite and reroll explicitly.
-    It is carried by [P6 §3](docs/design/workplan/18-p6-implementation.md) step 3, which already names
+    [P3 §344](15-p3-implementation.md) disclaims rewrite and reroll explicitly.
+    It is carried by [P6 §3](18-p6-implementation.md) step 3, which already names
     the fixture constraint P5 could not have known: an ordinary turn commits an
     empty tape, so the fixture has to be built to roll.
 
-    **Settled at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07 — §0.5's third
+    **Settled at [P6B.1](20-p6b-playable.md), 2026-09-07 — §0.5's third
     contradiction, and no code was ever wrong.** It was two documents
     disagreeing: this one called reproduction P3's gesture, and P3 disclaims
     rewrite and reroll in as many words. **A walker marks the keying half met
@@ -2369,19 +2368,19 @@ revisit rediscover its own.
     lists `activationConditions` as *deliberately absent*, the importer discards
     it, and no `SkipReason` names a channel. §1.4 kept the predicate check and
     §4 defers only *"the rule vocabulary"*, so the deferral was taken in the code
-    without either section following — and [work plan §195](docs/design/workplan/01-work-plan.md) still reads
+    without either section following — and [work plan §195](01-work-plan.md) still reads
     **P5**. **This step is not met and this phase does not meet it**; the work
     moves to the phase that ships channel predicates. *Do not credit
     `unknownSources` here* — it is the identical visible-warning posture for scan
     *sources*, but such an entry keeps scanning its other haystacks and can still
     fire, so it fails the *never fires* clause.
 
-    **Settled at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07 — §0.5's second
+    **Settled at [P6B.1](20-p6b-playable.md), 2026-09-07 — §0.5's second
     contradiction, and the deferral finally has an owner.** The step named the
     phase that ships channel predicates without naming which one, which is the
     state this project's ledger exists to make impossible. **It is P7's**:
-    [work plan §195](docs/design/workplan/01-work-plan.md)'s row moved, §1.4 above is corrected, and
-    [P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it as inherited work with this
+    [work plan §195](01-work-plan.md)'s row moved, §1.4 above is corrected, and
+    [P7 §0.1](23-p7-implementation.md) carries it as inherited work with this
     step attached. **A walker records step 12 deferred with an owner, not
     failed** — the distinction matters, because a failed step is a defect and a
     deferred one is a plan, and P5 declined to build this deliberately.
@@ -2397,7 +2396,7 @@ revisit rediscover its own.
     a session through two turns with a sticky-or-cooldown entry and assert
     `replayChannels(walkPath(turns, head))` equals `session.channels` with the
     three counters checked. **So P6 inherits an obligation rather than a step
-    that changed meaning**, and [P6 §2](docs/design/workplan/18-p6-implementation.md)'s P6.0a is where
+    that changed meaning**, and [P6 §2](18-p6-implementation.md)'s P6.0a is where
     it is discharged.
     **Discharged at P6.0a, 2026-09-02**, in
     `packages/server/src/sessions/reconstruct-property.test.ts`: four turns
@@ -2407,7 +2406,7 @@ revisit rediscover its own.
     node of a forked session, against a table that passes through no
     production code. The branch-*gesture* half — activate on one line, branch
     from before it, the sibling line does not have it — is
-    [P6 §3](docs/design/workplan/18-p6-implementation.md) step 10, owned by P6.3.
+    [P6 §3](18-p6-implementation.md) step 10, owned by P6.3.
 
 ### Added at the audit
 
@@ -2433,7 +2432,7 @@ revisit rediscover its own.
     A named CI step that goes red on a landing is a step somebody repairs
     hastily; one that changes in the commit that changes it is a decision.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
 needs a value set, name where someone sets it before calling the phase done.
 **The document half is the first phase to discharge that line in the other
@@ -2555,7 +2554,7 @@ phase happens.
 
 *Re-audit 2026-08-31, and the price moved once:* **the document half is slightly
 smaller than this says.** §1.8's storage, its object-keyed query and its index
-came from [P4 §7.14](docs/design/workplan/16-p4-implementation.md), and a concurrent branch has built
+came from [P4 §7.14](16-p4-implementation.md), and a concurrent branch has built
 object-level create and delete, so the entry editor inherits a precedent instead
 of setting one. Everything else here stands — most importantly *starts from
 nothing*, which is still true of the surface, and the five `object_fts` delete
@@ -2563,7 +2562,7 @@ sites, which are still five. The cut order is unchanged.
 
 **Expect the document half to be revised by use.** It is the first surface in
 this repository whose success condition is a reading experience rather than a
-behaviour, and [P3](docs/design/workplan/15-p3-implementation.md)'s workbench — the nearest
+behaviour, and [P3](15-p3-implementation.md)'s workbench — the nearest
 comparable — changed shape three times against a browser walk.
 
 ---
@@ -2596,7 +2595,7 @@ import-notes row (§1.8, with P5.0). [11 §6] — its counts run when a corpus
 exists, and the document already records that they wait (P4.3 wrote it). The
 fixture-pair gate's `lore` assertion (§1.10, with P5.6). ~~And `polish §1`
 leaves the polish list when it lands, per that document's own rule.~~ **Done at
-P5.−1, and the rule cited was not there.** [polish](docs/design/workplan/06-polish.md) has no removal
+P5.−1, and the rule cited was not there.** [polish](06-polish.md) has no removal
 rule — its house rule is about an item that turns out to need a schema change,
 which is a different thing — and its own §6 is the precedent against one: it
 landed and stayed, marked *landed rather than proposed*. So §1 and §2 are struck

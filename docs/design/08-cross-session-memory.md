@@ -4,14 +4,14 @@
 
 Characters should remember you between sessions. This document covers memory
 *across* sessions. Memory *within* a long session is settled elsewhere: a
-**rolling summary, built as an immutable chain** ([07 §5.1](docs/design/07-branching.md),
-[25 E1](docs/design/25-open-questions.md)), with manual chapterisation a roadmap item
-([24 §3](docs/design/24-roadmap.md)).
+**rolling summary, built as an immutable chain** ([07 §5.1](07-branching.md),
+[25 E1](25-open-questions.md)), with manual chapterisation a roadmap item
+([24 §3](24-roadmap.md)).
 
 Worth noting which way the dependency runs. Semantic retrieval is weak medicine
 for lorebooks and strong medicine here — cross-session memories are numerous,
 keyword-poor, and exactly the case where "what is relevant now?" has no lexical
-answer ([25 E2](docs/design/25-open-questions.md)). If embeddings are ever built, this
+answer ([25 E2](25-open-questions.md)). If embeddings are ever built, this
 document is their first customer.
 
 ---
@@ -37,7 +37,7 @@ date. That is a lorebook entry. So:
 > lorebook.** Entries are extracted from sessions; each carries a ref to its
 > origin session and a timestamp.
 
-Everything then already exists ([03 §3](docs/design/03-data-model.md)): keyword and
+Everything then already exists ([03 §3](03-data-model.md)): keyword and
 similarity retrieval, the two-tier token budget, the trim order, skip reporting,
 sticky and cooldown timing, the workbench showing exactly which memories were
 injected and why. No new retrieval path, no new budgeter, no new UI for
@@ -73,7 +73,7 @@ The part the naive version gets wrong.
 
 **Memories are scoped `(user, actor, persona)`.**
 
-- **Per user, absolutely.** Sessions are private ([09 §4.3](docs/design/09-server-multiuser-deployment.md)),
+- **Per user, absolutely.** Sessions are private ([09 §4.3](09-server-multiuser-deployment.md)),
   so Alice's history with Vera can never inform Bob's, even though it is the
   same card. Not a toggle. Not overridable.
 - **Per actor**, which is the obvious axis and what the requirement means by
@@ -110,7 +110,7 @@ interface SessionMemoryConfig {
 
 **This pattern is not unique to memory.** Marinara's Noodle carryover uses the
 same shape — a toggle pushing activity *into* chats, a separate per-chat toggle
-letting activity flow *back* ([24 §4.6](docs/design/24-roadmap.md)) — and Messages mode's
+letting activity flow *back* ([24 §4.6](24-roadmap.md)) — and Messages mode's
 autonomous messages are the same idea with the toggles implicit. Three features
 converging on **two opt-in switches governing context flow between separate
 activity streams** suggests the mechanism is worth naming and sharing rather
@@ -145,7 +145,7 @@ sets both off at creation.
 
 ## 5. Memories are advisory, and must not write state
 
-The same boundary as the guidance box ([06 §5.2](docs/design/06-modes-and-turn-pipeline.md)),
+The same boundary as the guidance box ([06 §5.2](06-modes-and-turn-pipeline.md)),
 and for the same reason.
 
 An imported memory says Vera trusted you. It must not *set* a trust channel in
@@ -164,7 +164,7 @@ with guidance — and that indirect path is the system working, not a leak.
 
 **Spoiler bleed is the sharp one.** Replay a package or start a second story in
 the same treatment, and intake will happily import what happened last time —
-including twists, plot hooks that fired ([03 §4.1](docs/design/03-data-model.md)), and
+including twists, plot hooks that fired ([03 §4.1](03-data-model.md)), and
 things a fresh protagonist has no business knowing. This is the failure most
 likely to make someone turn the whole feature off.
 
@@ -174,7 +174,7 @@ Mitigations, in order of how much they cost:
   an existing one, and offer to start isolated. Cheap and catches the common
   case.
 - **Never import memories derived from hidden content** — a hook's premise, an
-  unfired hook's entrances ([04 §6.1a](docs/design/04-schemas.md)), a hidden channel, GM-only
+  unfired hook's entrances ([04 §6.1a](04-schemas.md)), a hidden channel, GM-only
   state. Extraction should refuse those at the source rather than filtering them
   later. *Entrances are on the list for the same reason as premises and are worse
   if leaked: an entrance is not a summary of an arrival, it is the finished prose
@@ -213,7 +213,7 @@ Per session, in settings:
   That is where individual memories are read, corrected and deleted, and it
   needs no bespoke UI.
 
-The workbench ([10 §3](docs/design/10-ui-surfaces.md)) already answers "which memories
+The workbench ([10 §3](10-ui-surfaces.md)) already answers "which memories
 actually reached this turn, and why" without anything being added, because
 memory entries are lorebook entries and lorebook activation is already recorded
 per block.
@@ -234,7 +234,7 @@ per block.
 - **[OPEN]** Cross-session memory for the *narrator* rather than a character —
   "the GM remembers your last campaign". Coherent, and a different scope key.
   **That scope key now has a name**: it is a World
-  ([15](docs/design/15-world.md)), and this question is the one that found it. The
+  ([15](15-world.md)), and this question is the one that found it. The
   bearing on 1.0 is narrow but real: decide the book-granularity question
   directly above knowing that a fourth key is coming, so nothing hard-codes the
   three-tuple into how memory books are keyed and named on disk.

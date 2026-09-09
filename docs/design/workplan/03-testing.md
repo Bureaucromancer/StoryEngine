@@ -52,7 +52,7 @@ character permanently the first time a narrator ignores its guidance.
 
 ## 2. Encode the day-one checklist as lint rules
 
-[work plan §2](docs/design/workplan/01-work-plan.md) lists a couple of dozen decisions that are free early
+[work plan §2](01-work-plan.md) lists a couple of dozen decisions that are free early
 and expensive late. A useful fraction are **mechanically checkable**, and a lint
 rule is worth more than a paragraph in a document nobody re-reads.
 
@@ -60,20 +60,20 @@ rule is worth more than a paragraph in a document nobody re-reads.
 |---|---|
 | Ban `Math.random` and direct `node:crypto` random outside the RNG service | [19 §14.4](../19-tech-stack.md) |
 | Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [19 §12.6](../19-tech-stack.md) |
-| No sentence assembled from fragments, and no branching on displayed text | [work plan §2](docs/design/workplan/01-work-plan.md)'s reduced i18n discipline |
+| No sentence assembled from fragments, and no branching on displayed text | [work plan §2](01-work-plan.md)'s reduced i18n discipline |
 | No hand-rolled date/relative-time formatting; `Intl` only | [19 §12.6](../19-tech-stack.md) |
 | No direct `fs` outside the storage package | keeps the path-resolution helper the only door |
-| `config.example.json` declares every key the schema does | [work plan §2.3](docs/design/workplan/01-work-plan.md)'s mechanically checkable core |
+| `config.example.json` declares every key the schema does | [work plan §2.3](01-work-plan.md)'s mechanically checkable core |
 
 **The last row is a test rather than a lint rule**, and it is in this table
 anyway because the table is a list of *claims turned into checks* and that is
 what it is. ESLint cannot compare a schema to a JSON document; a two-line
 assertion beside the config tests can, and it lives at
-[P2A §3](docs/design/workplan/09-p2a-configuration-surface.md). The general shape of
-[work plan §2.3](docs/design/workplan/01-work-plan.md) — *does anything this phase built need a value set?*
+[P2A §3](09-p2a-configuration-surface.md). The general shape of
+[work plan §2.3](01-work-plan.md) — *does anything this phase built need a value set?*
 — is not mechanisable and stays a gate question.
 
-**The strings rule is the reduced one, deliberately.** [work plan §2](docs/design/workplan/01-work-plan.md)
+**The strings rule is the reduced one, deliberately.** [work plan §2](01-work-plan.md)
 kept the half of i18n discipline that cannot be retrofitted — never build a
 sentence by assembling clauses in code, never branch on a displayed string — and
 moved catalogue extraction to a pre-beta sweep. An earlier draft of this table
@@ -82,7 +82,7 @@ fails on some ninety strings across a client that has no `t()` to put them in,
 and it would be satisfied by wrapping each one in a helper that is a catalogue in
 everything but name. The narrow rule has a handful of violations, each of them
 the thing that actually forecloses translation. Recorded at
-[P2 §1.4](docs/design/workplan/08-p2-implementation.md), because the wider rule was on this list from
+[P2 §1.4](08-p2-implementation.md), because the wider rule was on this list from
 day one and is being narrowed rather than quietly dropped.
 
 **Architectural boundaries deserve the same treatment**, and here it is not
@@ -179,7 +179,7 @@ catastrophic to break: first-run setup, create an actor, import a card, start a
 session, take a turn, branch, open the workbench.
 
 *"Create an actor" meant through the API when this was written, because the
-browser had no way to. Since [P4.5](docs/design/workplan/16-p4-implementation.md) it does, so the
+browser had no way to. Since [P4.5](16-p4-implementation.md) it does, so the
 journey is a journey: name it on the library page, land in the editor, save.
 The tier is still unbuilt.*
 
@@ -257,7 +257,7 @@ structural edge cases, keep a handful of explicitly-permissive real ones, and
 maintain a larger private local corpus for manual verification that never enters
 the repository.
 
-**Which corpus CI runs, settled 2026-08-29** ([P4 §1.2](docs/design/workplan/16-p4-implementation.md)
+**Which corpus CI runs, settled 2026-08-29** ([P4 §1.2](16-p4-implementation.md)
 owed this sentence and took it early): **CI runs the in-repo set** — synthesised
 plus permissive — per-PR for schema validation and nightly for the full import
 run. §6's "full wild-corpus import run" cannot mean the private corpus, because
@@ -316,7 +316,7 @@ GitHub Actions, three tiers:
 **On every pull request** — must be fast enough that it is never skipped:
 typecheck, lint including the boundary rules, unit, golden-file, schema
 validation, build. **On both ubuntu and Windows**, from
-[P2 §3](docs/design/workplan/08-p2-implementation.md)'s P2.0 — the paths, the watcher and the layout
+[P2 §3](08-p2-implementation.md)'s P2.0 — the paths, the watcher and the layout
 are exactly the code most likely to be wrong on the platform the CI never ran,
 and F4 is the proof of what that costs. And **the rebuild-equals-incremental
 property test as a named step**, rather than folded anonymously into the suite:
@@ -329,7 +329,7 @@ tier above; what stays here is the same property at a corpus size that would
 make the per-PR tier slow. Small budget every PR, large budget nightly.*
 
 **On tag** — reproducible build, artifact publish, changelog
-([releases §4](docs/design/workplan/04-repo-and-releases.md)). *Built at [P6A.4](docs/design/workplan/19-p6a-alpha-1.md) as
+([releases §4](04-repo-and-releases.md)). *Built at [P6A.4](19-p6a-alpha-1.md) as
 `release.yml`, filtered to `v*`: the image to a private package, the tag checked
 against the root `package.json`, the CHANGELOG checked for the entry. Unrun
 until the first tag, which is Alpha 1's.*
@@ -337,22 +337,22 @@ until the first tag, which is Alpha 1's.*
 Two project-specific automations worth having beyond the usual:
 
 - **Dependency licence scanning.** Dependencies must be AGPL-compatible
-  ([triage §1](docs/design/workplan/02-triage.md)), and SSPL/BUSL/source-available terms appear in this
+  ([triage §1](02-triage.md)), and SSPL/BUSL/source-available terms appear in this
   space. A CI check on the dependency licence set is cheap and catches it at PR
   time rather than at release.
 - **Forward-port check.** Flag any commit on a `release/*` branch with no
   counterpart on `main` — the one failure the branching model is prone to
-  ([releases §3](docs/design/workplan/04-repo-and-releases.md)).
+  ([releases §3](04-repo-and-releases.md)).
 - **Restore test**, nightly, beside the upgrade test. Populate a data directory,
   back it up, restore into a clean install, assert the library and sessions come
   back. **An untested restore is not a backup** ([25 E6](../25-open-questions.md)),
   and this is the whole reason the backup story can stay as small as it is — the
   index being derived means the archive excludes it and the restore rebuilds it.
   **This is a 1.0 requirement rather than an eventual nicety**
-  ([work plan §0.5](docs/design/workplan/01-work-plan.md)): backup and restore moved off the feature list and
+  ([work plan §0.5](01-work-plan.md)): backup and restore moved off the feature list and
   into P11, and this test is the half of it that actually establishes anything.
 - **Session export round-trip.** Export ships at 1.0
-  ([25 B12](../25-open-questions.md), [work plan §0.5](docs/design/workplan/01-work-plan.md)) and freezes the
+  ([25 B12](../25-open-questions.md), [work plan §0.5](01-work-plan.md)) and freezes the
   turn record when it does. Export a session with branches, `localActors`,
   channel state and renditions; re-import it; assert the tree, the effects and
   the reading order survive. This is the test that makes "the record is frozen"

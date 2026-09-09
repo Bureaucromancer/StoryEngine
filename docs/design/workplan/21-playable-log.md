@@ -1,22 +1,22 @@
 # 21 — PLAYABLE findings log
 
-**Appended to as things happen; emptied by [P6B.3](docs/design/workplan/20-p6b-playable.md)'s
+**Appended to as things happen; emptied by [P6B.3](20-p6b-playable.md)'s
 triage; kept afterwards rather than deleted.** What a person saw the first time
 is not reconstructible later, and it is the one artifact a second pass cannot
 produce — a second pass is by definition made by somebody who already knows.
 
 **This file is not a queue.** Nothing is fixed *because* it is written here.
-[P6B §1.7](docs/design/workplan/20-p6b-playable.md) decides where each entry goes, and the decision
+[P6B §1.7](20-p6b-playable.md) decides where each entry goes, and the decision
 is made at triage rather than at the moment of annoyance, because afterwards
 every finding argues for its own importance.
 
 **Why this file exists at all.**
-[P5 §0.3](docs/design/workplan/17-p5-implementation.md) wrote observation prompts for the run-up to
+[P5 §0.3](17-p5-implementation.md) wrote observation prompts for the run-up to
 this checkpoint — four things to notice while doing something else, each of
 which closes one of P5's held-open questions — and
-[P5 §0.4](docs/design/workplan/17-p5-implementation.md) then recorded the gap in one line:
+[P5 §0.4](17-p5-implementation.md) then recorded the gap in one line:
 *"§0.3's instruction has no receptacle."* This is the receptacle, in
-[P2C log](docs/design/workplan/14-p2c-log.md)'s shape, which is the shape that worked.
+[P2C log](14-p2c-log.md)'s shape, which is the shape that worked.
 
 ---
 
@@ -44,12 +44,12 @@ is the part that stops being visible the moment you understand the cause.
 whole data directory including `-wal` and `-shm`. A finding whose state is gone
 is one somebody will re-derive from scratch.
 
-**A judgement is a finding.** Unlike [P2C log](docs/design/workplan/14-p2c-log.md), which was mostly about
+**A judgement is a finding.** Unlike [P2C log](14-p2c-log.md), which was mostly about
 a boundary either working or not, this checkpoint asks four questions whose
 answers are opinions: *was that legible, was that comprehensible, did that
 explain anything.* Those are recorded the same way, with `expected` carrying
 what the design claims and `observed` carrying what you actually thought. **An
-answer of "I could not tell" is a finding**, and [P3 §3](docs/design/workplan/15-p3-implementation.md)
+answer of "I could not tell" is a finding**, and [P3 §3](15-p3-implementation.md)
 step 12 already asks for at least one of them honestly.
 
 ---
@@ -58,10 +58,10 @@ step 12 already asks for at least one of them honestly.
 
 Six questions arrive at this checkpoint already written, and a session that
 watches for nothing produces a memory rather than a finding.
-[P6B.2](docs/design/workplan/20-p6b-playable.md) has the full statement; this is the card to keep
+[P6B.2](20-p6b-playable.md) has the full statement; this is the card to keep
 beside the keyboard.
 
-**The four hypotheses** ([work plan §4.1](docs/design/workplan/01-work-plan.md)):
+**The four hypotheses** ([work plan §4.1](01-work-plan.md)):
 
 1. The turn record is *legible*, not merely complete — use the workbench to
    answer a real *why did it say that*.
@@ -73,12 +73,12 @@ beside the keyboard.
    explain anything. **01 calls this the one most likely to be wrong and the
    cheapest to fix here.**
 
-**P5's four** ([P5 §1.11](docs/design/workplan/17-p5-implementation.md), prompts at
-[§0.3](docs/design/workplan/17-p5-implementation.md)): whether the trim order is right; whether the
+**P5's four** ([P5 §1.11](17-p5-implementation.md), prompts at
+[§0.3](17-p5-implementation.md)): whether the trim order is right; whether the
 two-tier budget's per-book tier earns its keep; whether recursion depth needs a
 surface; whether the keyword tester is the diagnostic or a consolation.
 
-**P6's two** ([P6 §5](docs/design/workplan/18-p6-implementation.md)): which reply an edit should
+**P6's two** ([P6 §5](18-p6-implementation.md)): which reply an edit should
 change; and whether a count and two arrows are enough to find a line abandoned
 twenty turns ago.
 
@@ -90,15 +90,15 @@ twenty turns ago.
 Findings go under it in the order they happened, not in order of importance —
 the order they happened is data, and reordering by importance discards it.*
 
-### 2026-09-08 — the pre-P6 walk, sittings A–D — [manual testing](docs/design/workplan/05-manual-testing.md)
+### 2026-09-08 — the pre-P6 walk, sittings A–D — [manual testing](05-manual-testing.md)
 
-*Not [P6B.2](docs/design/workplan/20-p6b-playable.md)'s play. These are the observations from a
-scripted gate walk, kept here because [manual testing §8](docs/design/workplan/05-manual-testing.md) puts both in one
+*Not [P6B.2](20-p6b-playable.md)'s play. These are the observations from a
+scripted gate walk, kept here because [manual testing §8](05-manual-testing.md) puts both in one
 log: they are the same evidence gathered on different days, and splitting them
 would make the triage read two files and reconcile them.*
 
 **Six findings. The requests they came wrapped in are graded and placed in
-[refinements](docs/design/workplan/22-walkthrough-refinements.md); what follows is only what was seen.**
+[refinements](22-walkthrough-refinements.md); what follows is only what was seen.**
 
 #### F-01 — the connection list is thin at the point you need a second model
 
@@ -115,7 +115,7 @@ snapshot  none
 
 **B9's own check passed** — both halves of the 412 work. This is what was noticed
 while standing on that screen, and it is kept separate from the step's result on
-purpose. Graded at [refinements](docs/design/workplan/22-walkthrough-refinements.md) R2, where the diagnosis
+purpose. Graded at [refinements](22-walkthrough-refinements.md) R2, where the diagnosis
 changes: the data model already separates provider from model, and the thing
 actually blocking *use a second model* is a role-binding editor.
 
@@ -132,7 +132,7 @@ snapshot  none
 ```
 
 **This is a recorded, deliberately-accepted condition, not a regression.**
-[P2C brief §](docs/design/workplan/13-p2c-brief.md) says it almost word for word: *"There is no progress, no
+[P2C brief §](13-p2c-brief.md) says it almost word for word: *"There is no progress, no
 step display and no spinner."* What is new is that a person walked into it and
 called it *painful*, which is the evidence that brief was waiting for.
 
@@ -169,9 +169,9 @@ snapshot  none
 **The most valuable finding of the walk, and it indicts three things rather than
 one.** Already fixed at `71ff7f1` on `feat/tagging_and_search`, together with a
 test that reads the built stylesheet — the gate this bug class has never had.
-[P3 §](docs/design/workplan/15-p3-implementation.md)'s stage record claims a browser walk that cannot
-have happened, and [manual testing](docs/design/workplan/05-manual-testing.md)'s D2 tests that a size *persists*,
-never that it can be *set*. See [refinements §2.1](docs/design/workplan/22-walkthrough-refinements.md).
+[P3 §](15-p3-implementation.md)'s stage record claims a browser walk that cannot
+have happened, and [manual testing](05-manual-testing.md)'s D2 tests that a size *persists*,
+never that it can be *set*. See [refinements §2.1](22-walkthrough-refinements.md).
 
 #### F-05 — the workbench cannot be pointed at a turn the head has passed
 
@@ -195,7 +195,7 @@ landed without the per-turn affordance it was assigned.
 build     1.0.0-alpha.3 (c126cba)
 endpoint  hosted, real key
 session   sitting D
-expected  per [P6 §1.8](docs/design/workplan/18-p6-implementation.md)'s lean, a count and two arrows
+expected  per [P6 §1.8](18-p6-implementation.md)'s lean, a count and two arrows
           would be enough to work with a branched session
 observed  it is not obvious what continuing from an already-answered turn will
           do before you do it, and nothing marks a turn that already has a
@@ -203,9 +203,9 @@ observed  it is not obvious what continuing from an already-answered turn will
 snapshot  none
 ```
 
-**A judgement, and the one this checkpoint most wanted.** [P6 §1.8](docs/design/workplan/18-p6-implementation.md)
+**A judgement, and the one this checkpoint most wanted.** [P6 §1.8](18-p6-implementation.md)
 deferred exactly this question to PLAYABLE and said so twice. It is
-[P6B.3](docs/design/workplan/20-p6b-playable.md)'s to route, and it answers rather than asks.
+[P6B.3](20-p6b-playable.md)'s to route, and it answers rather than asks.
 
 ---
 
@@ -214,18 +214,18 @@ deferred exactly this question to PLAYABLE and said so twice. It is
 
 ## Triage
 
-*Filled at [P6B.3](docs/design/workplan/20-p6b-playable.md), and the phase does not end until every
+*Filled at [P6B.3](20-p6b-playable.md), and the phase does not end until every
 finding above has a home here.
-[P2C §2.5](docs/design/workplan/12-p2c-first-real-run.md)'s five destinations:*
+[P2C §2.5](12-p2c-first-real-run.md)'s five destinations:*
 
 - **Stops the phase** — the observations already made were of a broken system.
 - **Fixed inside the phase.**
 - **A gate correction** — a step asked the wrong question.
-- **Polish** ([polish](docs/design/workplan/06-polish.md)).
-- **[P7](docs/design/workplan/23-p7-implementation.md) or the feature list** ([24](../24-roadmap.md)).
+- **Polish** ([polish](06-polish.md)).
+- **[P7](23-p7-implementation.md) or the feature list** ([24](../24-roadmap.md)).
 
 **Nothing is allowed to have no home.**
 
-*And one piece of inherited bookkeeping:* [P2C log](docs/design/workplan/14-p2c-log.md) holds fourteen
+*And one piece of inherited bookkeeping:* [P2C log](14-p2c-log.md) holds fourteen
 findings from P2C.0's smoke run under a *Triage* heading that is still empty.
 They get homes at the same sitting, or a recorded reason why not.

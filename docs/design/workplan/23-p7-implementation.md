@@ -2,17 +2,15 @@
 
 **Status: ~~skeleton~~ skeleton, audited 2026-09-07 at `5602ded` — and this is
 now the phase in front of us.** Drafted 2026-08-29, with P3 landed and
-[P4](docs/design/workplan/16-p4-implementation.md) planned but not started, so it was written four
+[P4](16-p4-implementation.md) planned but not started, so it was written four
 phases ahead of its phase and §0 says what that kind of document is honestly
 for. Four have landed since — P4, P5, P6 and P6A, the last of them cutting
 Alpha 1 — so §0.1 is the readiness audit that starts turning this into a plan,
 and the distance §0 apologises for is down to **one checkpoint**: PLAYABLE,
-which still has not run. Format follows [P1](docs/design/workplan/07-p1-implementation.md); the
-citation convention is [P4](docs/design/workplan/16-p4-implementation.md)'s — **`10 §N`** is
-[04-schemas](../04-schemas.md), **`testing §N`** is [testing-testing](docs/design/workplan/03-testing.md),
-**`survey §N`** is [01-source-survey](../01-source-survey.md).
+which still has not run. Format follows [P1](07-p1-implementation.md); citations
+follow the corpus convention.
 
-**P7 delivers**, from [work plan P7](docs/design/workplan/01-work-plan.md): the mode contract as a real
+**P7 delivers**, from [work plan P7](01-work-plan.md): the mode contract as a real
 interface with built-ins as separate packages consuming the published SDK;
 channels, effects and engine-computed updates; setup objects and the declarative
 wizard; party as a timeline; the plot-hook selector and its three companions,
@@ -29,17 +27,17 @@ actually tests the contract: **`packages/server/src/modes/` is empty**, and the
 build fails if anything puts it back.
 
 **Still the largest phase, and still the one where the contract either holds or
-is revealed as wrong** ([work plan P7](docs/design/workplan/01-work-plan.md)). The standing instruction from
+is revealed as wrong** ([work plan P7](01-work-plan.md)). The standing instruction from
 [06 §2](../06-modes-and-turn-pipeline.md) is the phase's operating rule rather
 than a slogan: *if a built-in mode needs a back door, stop and fix the contract.*
 
 **CI this phase establishes:** the four hook property rows already written into
-[testing §1](docs/design/workplan/03-testing.md) against this phase's arrival — firing state that
+[testing §1](03-testing.md) against this phase's arrival — firing state that
 survives a rewind, an entrance that is not drawn off the RNG tape, a closure
 walk that reaches an actor named only by `introduces`, and *delivered* not being
 treated as *fired*. Each states a property the obvious implementation gets
 wrong, which is why they were written before the code. Plus the extension test
-kit ([testing §7](docs/design/workplan/03-testing.md)), published with the SDK, and the boundary
+kit ([testing §7](03-testing.md)), published with the SDK, and the boundary
 itself as a **build error** rather than a convention (§1.1).
 
 ---
@@ -52,7 +50,7 @@ be the fourth:
 1. **It collects the deferrals already made to this phase**, from documents that
    will not be re-read on the day. More than a dozen separate places across the
    design and the work plan have sent something here; a deferral nobody collects
-   is a deferral that gets lost, and [work plan §2.3](docs/design/workplan/01-work-plan.md) exists because
+   is a deferral that gets lost, and [work plan §2.3](01-work-plan.md) exists because
    that already happened once.
 2. **It names the decisions the revisit has to make**, so the revisit is a
    morning's work rather than a re-derivation.
@@ -60,15 +58,15 @@ be the fourth:
    early — a gate written after the code is a gate written to pass.
 
 The revisit is not optional here. P7 follows PLAYABLE
-([work plan §4.1](docs/design/workplan/01-work-plan.md)) by three phases, and PLAYABLE exists to find out
+([work plan §4.1](01-work-plan.md)) by three phases, and PLAYABLE exists to find out
 whether the record and the budgeter are right; whatever it finds lands in the
 contract this phase makes public.
 
 ### 0.1 Readiness — audited 2026-09-07, at `5602ded`
 
 *Run against the code rather than against this document, which is the only way
-a readiness note is worth anything ([work plan §2.3](docs/design/workplan/01-work-plan.md)'s mechanism, and
-[P6 §0.1a](docs/design/workplan/18-p6-implementation.md)'s worked example). Four phases have landed
+a readiness note is worth anything ([work plan §2.3](01-work-plan.md)'s mechanism, and
+[P6 §0.1a](18-p6-implementation.md)'s worked example). Four phases have landed
 since the draft. Most of what §1 claims is still exactly true, one claim has
 half-expired, and two deferrals had been made to this phase that nothing here
 had collected.*
@@ -125,17 +123,17 @@ reading the file the move in §1.1 is about:
    nor §2 mentions it; it belongs with P7.0 or P7.9.
 
 **And a third, handed over on 2026-09-07 by
-[P6B.1](docs/design/workplan/20-p6b-playable.md), which is where P5's contradictions were settled.**
+[P6B.1](20-p6b-playable.md), which is where P5's contradictions were settled.**
 **Lorebook `activationConditions` and `schedule`, unified as channel
 predicates** — the minimal comparison set, not 6.0's rule vocabulary.
-[work plan §195](docs/design/workplan/01-work-plan.md) had it as P5's; P5 decided in the code not to build
+[work plan §195](01-work-plan.md) had it as P5's; P5 decided in the code not to build
 it and no document followed, so the roadmap read P5 for four months for a thing
 P5 had declined. The decision was right and only the record was wrong: a
 predicate needs a channel to be about, and this is the phase where channels stop
 being a handful of engine-owned names and become a contract. The design is
-written already at [P5 §1.4](docs/design/workplan/17-p5-implementation.md), including the posture for
+written already at [P5 §1.4](17-p5-implementation.md), including the posture for
 an entry naming a channel that does not exist — a **visible warning that never
-fires**, which is [P5 §3](docs/design/workplan/17-p5-implementation.md)'s gate step 12 and comes with
+fires**, which is [P5 §3](17-p5-implementation.md)'s gate step 12 and comes with
 it. *Do not credit `unknownSources` against that step:* it is the identical
 posture for scan *sources*, but such an entry keeps scanning its other haystacks
 and can still fire, so it fails the *never fires* clause.
@@ -150,7 +148,7 @@ which P7.9 grows, so it lands in this phase unless somebody moves it
 deliberately.
 
 **What P6 bought this phase, stated as a subtraction the way
-[P6 §5](docs/design/workplan/18-p6-implementation.md) states its own.** §1.6 argues party belongs in
+[P6 §5](18-p6-implementation.md) states its own.** §1.6 argues party belongs in
 a channel because channels have three properties fields cannot — they
 reconstruct at a node, they appear as effects, they branch correctly. **All
 three are now built and property-tested**, not argued: reconstruction is
@@ -161,17 +159,17 @@ inherits the shape rather than migrating it. The move is cheaper than the
 section assumed.
 
 **What Alpha 1 changed, which is small and worth one sentence.**
-[work plan P6A](docs/design/workplan/01-work-plan.md)'s reason for cutting it before this phase was that P7
+[work plan P6A](01-work-plan.md)'s reason for cutting it before this phase was that P7
 is the largest phase and the one that most wants a known-good baseline to
 measure against; that baseline now exists as a tag, an image and a data
-directory that refuses an older build ([P6A §1.7](docs/design/workplan/19-p6a-alpha-1.md)) — which
+directory that refuses an older build ([P6A §1.7](19-p6a-alpha-1.md)) — which
 is worth having in the phase that changes channel shapes under live sessions
 ([06 §4.2](../06-modes-and-turn-pipeline.md)).
 
 **The obstacle in front of the checkpoint, which is nobody's stage and belongs
 to whoever runs it.** §5's third bullet says the revisit's first job is to read
 what PLAYABLE and P2C found. PLAYABLE has not run, and
-[P5 §0.5](docs/design/workplan/17-p5-implementation.md) named the reason it would stall on the day:
+[P5 §0.5](17-p5-implementation.md) named the reason it would stall on the day:
 **nothing in the client and nothing in `pnpm seed` names a lorebook or a
 treatment for the session it makes**, and `PUT /api/sessions/:id/lore` — still
 the only route that does — has no caller in `packages/client`. Re-checked
@@ -185,7 +183,7 @@ of P5's document half rather than a stage of this phase.
 
 ### 1.1 The move is a move, or it is a rewrite — and one file already knows
 
-[P2 §2.4](docs/design/workplan/08-p2-implementation.md) put the Scene mode in `server` and promised
+[P2 §2.4](08-p2-implementation.md) put the Scene mode in `server` and promised
 it **relocates behind the SDK at P7 without changing shape**. The thing that
 decides whether that is true is how many engine types the mode reached for, and
 P2 answered it in advance: `packages/server/src/modes/contract.ts` enumerates
@@ -257,12 +255,12 @@ exist ([06 §4.1–4.2](../06-modes-and-turn-pipeline.md)).
 
 ### 1.5 Two pre-existing corrections this phase discharges
 
-Both named in [work plan P7](docs/design/workplan/01-work-plan.md), both cheap here and awkward anywhere
+Both named in [work plan P7](01-work-plan.md), both cheap here and awkward anywhere
 else:
 
 - **Hook firing state moves out of the session file into a channel**
   ([03 §4.1](../03-data-model.md)). A flat set does not branch, and
-  [testing §1](docs/design/workplan/03-testing.md) already carries the property that fails if it
+  [testing §1](03-testing.md) already carries the property that fails if it
   stays where it is.
 - **The selector writes its own line into the turn record.** *Held by pacing*
   and *judged: none* are different answers, and a record that merges them makes
@@ -277,7 +275,7 @@ they reconstruct at a node, they appear as effects in the record, and they branc
 correctly. *All three stopped being arguments at P6, which built and
 property-tested every one of them, and P5.5 settled the persisted key — so this
 move now inherits a shape rather than proposing one (§0.1).* `se.party` is on
-[P2 §5](docs/design/workplan/08-p2-implementation.md)'s deferral list by name. Two constraints that
+[P2 §5](08-p2-implementation.md)'s deferral list by name. Two constraints that
 must not be lost in the move: **membership is keyed by `TurnId`, never by
 ordinal** ([07 §3](../07-branching.md)), and **presence is
 not party membership** — two concepts, two channels, one panel
@@ -302,7 +300,7 @@ stored turn or growing a second span type, which is how one overlay becomes two.
 
 ### 1.8 Two modes is a weaker test, and the assistant is the available third
 
-[work plan §0.3](docs/design/workplan/01-work-plan.md) records the cost of cutting Messages and Campaign:
+[work plan §0.3](01-work-plan.md) records the cost of cutting Messages and Campaign:
 the two retained modes are **the more similar pair**, so the contract gets tested
 against less variety than the design assumed. There is a third witness already
 specified and currently scheduled for P11 — the assistant, which
@@ -319,7 +317,7 @@ wrong in P11 is finding it wrong after everything is built on it.
 [19 §5.1](../19-tech-stack.md)'s override table names two of five layers as
 **P7's, with the mode contract that would use them** — `resolveRole` implements
 four of the five and the fifth has no caller.
-[P2B §6](docs/design/workplan/10-p2b-provider-configuration.md) declines to build a control for a
+[P2B §6](10-p2b-provider-configuration.md) declines to build a control for a
 layer with no caller, on the grounds that it would be building P7's UI against
 P7's unwritten contract. This phase writes the contract; the surface follows in
 the same phase or is named as debt with an owner, not left as a third comment.
@@ -328,12 +326,12 @@ the same phase or is named as debt with an owner, not left as a third comment.
 
 **Added 2026-08-30**, and it is §0's first job discharged rather than a new
 decision: this document was drafted the same day
-[P4](docs/design/workplan/16-p4-implementation.md)'s plan was amended, on a different branch, and
+[P4](16-p4-implementation.md)'s plan was amended, on a different branch, and
 neither met the other. P4 defers a named body of material to this phase and
 nothing here collected it.
 
 **What P4 imports, records and does not convert, because this phase is where it
-would have a home** ([P4 §1.8](docs/design/workplan/16-p4-implementation.md)'s disposition tables):
+would have a home** ([P4 §1.8](16-p4-implementation.md)'s disposition tables):
 
 - **Party-shaped** — SillyTavern's `groups` and `group chats`, Marinara's
   `character_groups` and `persona_groups`. P4's note is the one that matters
@@ -384,7 +382,7 @@ converts against a history model that is not ours.
 
 **And one thing P4 took from this phase rather than leaving to it**, recorded
 so the revisit does not find it as a contradiction: session creation grows an
-optional preset id at [P4 §1.9](docs/design/workplan/16-p4-implementation.md), amending
+optional preset id at [P4 §1.9](16-p4-implementation.md), amending
 routes/sessions.ts's *"choosing a different pack is P7's surface"* in place.
 P7 keeps the surface — browsing, previewing, switching mid-session. P4 took
 only copy-at-creation, because PLAYABLE needs it.
@@ -519,7 +517,7 @@ first-class configuration**, as it is in both sources.
 background channel declared here holds *which backdrop is showing*; two phases
 later P9 generates backdrops and writes that channel
 ([06 §10.1a](../06-modes-and-turn-pipeline.md),
-[P9 §1.7](docs/design/workplan/25-p9-implementation.md)). So **its value must be a media reference
+[P9 §1.7](25-p9-implementation.md)). So **its value must be a media reference
 able to name either an authored image or a rendition's asset, from this
 declaration onward.** The narrower shape is the tempting one, because a filename
 is all P7 can actually produce — and choosing it means changing a channel's
@@ -545,7 +543,7 @@ Sketch; expand on revisit.
 4. A hook fires; the record says *why*; a held turn says *held by pacing* and a
    judged-none turn says so differently (§1.5).
 5. Commit a hook, rewind past the commitment, and it is uncommitted — the
-   [testing §1](docs/design/workplan/03-testing.md) property, as a test rather than a sentence.
+   [testing §1](03-testing.md) property, as a test rather than a sentence.
 6. A goal completes, the three offers appear, *Advance* sets the next, and the
    session stays readable and branchable after *End*.
 7. A character dies on one branch and is alive on the other, in the panel, with
@@ -559,7 +557,7 @@ Sketch; expand on revisit.
     with no access to `server`, and see whether the contract permitted it. This
     is the phase's actual claim and no assertion covers it.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** This phase generates more of it than any
 other — every declared channel, every mode preset, every setup schema — so the
 line is a checklist item here rather than a formality.
@@ -568,17 +566,17 @@ line is a checklist item here rather than a formality.
 
 ## 4. Out of scope, deliberately
 
-The authored-rule vocabulary and its evaluator (6.0, the authoring tier — [work plan §0.6](docs/design/workplan/01-work-plan.md)
+The authored-rule vocabulary and its evaluator (6.0, the authoring tier — [work plan §0.6](01-work-plan.md)
 — and the tempting move once steps exist is to let `StepCondition` take rule
 predicates, which [06 §6](../06-modes-and-turn-pipeline.md) warns against by
-name); Campaign and Messages ([work plan §5](docs/design/workplan/01-work-plan.md) — committed, not
+name); Campaign and Messages ([work plan §5](01-work-plan.md) — committed, not
 speculative); engine-computed combat; mechanical goal completion, which needs
 the vocabulary; extension *installation* and its panel (P10 — the manifest and
 lifecycle are specified at [22 §6–§7](../22-extensions.md) and nothing installs);
 custom extension rendering ([10 §8.1](../10-ui-surfaces.md), deferred as far as
 it will go); cross-branch merge ([25 C10](../25-open-questions.md)); the hook
 selector's **tuning** — what four pacing levels resolve to, how a judgement
-prompt is worded — which [work plan P11](docs/design/workplan/01-work-plan.md) owns and which can only be
+prompt is worded — which [work plan P11](01-work-plan.md) owns and which can only be
 done by playing.
 
 **And one thing that is not out of scope but reads like it:** the assistant's
@@ -596,7 +594,7 @@ from a blank page.*
 **P7.0 is the phase, and the other nine stages are its consumers.** That reads
 backwards — nine stages of features against one of plumbing — and it is the
 single most useful thing to hold onto here. The boundary either holds or is
-revealed as wrong ([work plan P7](docs/design/workplan/01-work-plan.md)), and every stage after P7.0 is a
+revealed as wrong ([work plan P7](01-work-plan.md)), and every stage after P7.0 is a
 test of it disguised as a feature. Pricing this phase as *ten stages* invites
 building the features and discovering the contract at the end, which is the
 failure [06 §2](../06-modes-and-turn-pipeline.md)'s standing rule — *if a
@@ -612,7 +610,7 @@ works. A plan that cuts under pressure should cut a panel and never that.
 1. **Hooks** (P7.5) — the pool, the selector, and three companions, plus the two
    identity obligations [15 §5](../15-world.md) makes unrecoverable if missed.
    Four property rows are already written against it in
-   [testing §1](docs/design/workplan/03-testing.md), which is the strongest signal in this document
+   [testing §1](03-testing.md), which is the strongest signal in this document
    that somebody thought the obvious implementation would be wrong.
 2. **Setup objects and the declarative wizard** (P7.4) — a form nobody wrote,
    generated from a declaration, is the contract's hardest single claim.
@@ -639,7 +637,7 @@ skeleton:
 - **What PLAYABLE and P2C did to the record.** P7 follows PLAYABLE by three
   phases, and whatever the record turns out to have got wrong lands in the
   middle of this phase's channel and effect work. The revisit's first job is to
-  re-read [P2C log](docs/design/workplan/14-p2c-log.md) rather than this document. *Still the wait, and
+  re-read [P2C log](14-p2c-log.md) rather than this document. *Still the wait, and
   now the only one: three of the four phases between the draft and here have
   landed, and PLAYABLE has not run. §0.1 names the one small thing standing in
   its way — no surface, anywhere, chooses a session's lorebooks.*

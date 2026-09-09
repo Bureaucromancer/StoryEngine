@@ -12,7 +12,7 @@ configured connections and sessions with recorded turns, put there by ordinary
 use rather than by this phase. What was never done is **capture**: no exchange
 was recorded and promoted to a fixture, which is the half that leaves something
 behind. So the phase should not be re-run and should not be marked done;
-[P6B §1.6](docs/design/workplan/20-p6b-playable.md) folds the capture into the play, where a long
+[P6B §1.6](20-p6b-playable.md) folds the capture into the play, where a long
 unscripted session is happening anyway.
 
 ---
@@ -22,13 +22,13 @@ unscripted session is happening anyway.
 to agree with an adapter this repository also wrote. The one boundary in this
 system that is not ours — a model endpoint — has never been crossed.
 
-**Three exit gates are open on the same clause.** [P2 §4](docs/design/workplan/08-p2-implementation.md)
-step 9 wants a streamed reply and a reattach. [P2A §4](docs/design/workplan/09-p2a-configuration-surface.md)
+**Three exit gates are open on the same clause.** [P2 §4](08-p2-implementation.md)
+step 9 wants a streamed reply and a reattach. [P2A §4](09-p2a-configuration-surface.md)
 steps 1 and 7 want a person to read a warning and say whether it reads as one.
-[P2B §4](docs/design/workplan/10-p2b-provider-configuration.md) step 1 wants a fresh install, one
+[P2B §4](10-p2b-provider-configuration.md) step 1 wants a fresh install, one
 pasted key and a turn. Each was walked as far as automation goes, and each
 stopped at the same place: *a human, and a model that is not ours*. Doc
-[manual gate](docs/design/workplan/11-p2-manual-gate.md) is where they were written down instead of done.
+[manual gate](11-p2-manual-gate.md) is where they were written down instead of done.
 
 This phase is that person. It is not a new obligation; it is three phases of the
 same one, and it has been getting cheaper to defer and more expensive to
@@ -36,7 +36,7 @@ discover.
 
 ## Why this is not an early PLAYABLE
 
-[Work plan §4.1](docs/design/workplan/01-work-plan.md) already names a checkpoint whose purpose is to
+[Work plan §4.1](01-work-plan.md) already names a checkpoint whose purpose is to
 stop and use the thing, at the end of P4, against a realistic imported library.
 That one asks **is the design right** — is the record legible, is one budgeter
 comprehensible, do inclusion reasons explain anything. Four hypotheses, none of
@@ -91,7 +91,7 @@ The three, and none of them is a subtlety:
   browser against the project's own compiled Tailwind: **1.01 to 1**. The caret
   and the placeholder resolve to the same colour, so the box reads as an empty
   bordered rectangle that does nothing when typed into, and *Turn record* — which
-  [manual gate §2.4](docs/design/workplan/11-p2-manual-gate.md) tells the tester to open and read — is a dark
+  [manual gate §2.4](11-p2-manual-gate.md) tells the tester to open and read — is a dark
   rectangle with nothing in it.
 - **Every streaming failure escapes classification.** Five failure shapes driven
   through the real adapter — fetch rejection, 401, 429, 400, and a genuinely
@@ -204,14 +204,14 @@ arrives anywhere.
   the API's address and then *"Open the address above"* — and the server serves
   no static files, so that address is a 404 and the client is on Vite's port. The
   API line names itself `api` now, and the setup line names **the client**, which
-  is where a person should go. [manual gate §2.1](docs/design/workplan/11-p2-manual-gate.md) step 1 and
-  [P2B §4](docs/design/workplan/10-p2b-provider-configuration.md)'s command block are corrected with
+  is where a person should go. [manual gate §2.1](11-p2-manual-gate.md) step 1 and
+  [P2B §4](10-p2b-provider-configuration.md)'s command block are corrected with
   it. *Fastify prints its own listening line first and still names the API port;
   that one is true, it is simply not where anybody goes.*
 - **~~A repeated flag is silently ignored.~~ Done, both halves.** A repeated
   flag is a `UsageError` — the same treatment F24 gave a flag with no value —
   and Vite's proxy target reads `SE_API` (its own port `SE_CLIENT_PORT`),
-  which [P2C brief §2.3](docs/design/workplan/13-p2c-brief.md) documents since nothing else did.
+  which [P2C brief §2.3](13-p2c-brief.md) documents since nothing else did.
 
 ### 1.2 The findings would be wrong — about two days
 
@@ -241,11 +241,11 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   `openai-compatible.test.ts` has ten and every one drives `generate()`. And
   `FakeProvider.stream` throws a `ProviderError` *from inside the generator*,
   which is a shape the real adapter does not have. That is
-  [manual gate §4.1](docs/design/workplan/11-p2-manual-gate.md)'s *"a stub agrees with whatever wrote it"*,
+  [manual gate §4.1](11-p2-manual-gate.md)'s *"a stub agrees with whatever wrote it"*,
   instantiated — and the one test that would have caught it is one whose **fetch
   stub** rejects rather than whose generator throws.
 
-  **Three of [manual gate §2.2](docs/design/workplan/11-p2-manual-gate.md)'s deliberate breakages are about
+  **Three of [manual gate §2.2](11-p2-manual-gate.md)'s deliberate breakages are about
   this path and today all three return the same wrong answer.** *A day, and the
   streaming tests are the more valuable half.*
 - **~~`usage` is null on every turn~~ Done, both halves** —
@@ -352,7 +352,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   ([`watcher.ts`](../../../packages/server/src/index-db/watcher.ts)), wired at
   `app.ts`. So the failure is no longer invisible *afterwards*, which was the
   half that mattered for evidence. It is still invisible to the tester at the
-  moment it happens — no client calls the route, and [manual gate §3.5](docs/design/workplan/11-p2-manual-gate.md)'s
+  moment it happens — no client calls the route, and [manual gate §3.5](11-p2-manual-gate.md)'s
   missing card is §1.7's deliberate deferral rather than an oversight.
 
   **A note on how this entry was found to be stale, because the lesson is the
@@ -361,7 +361,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   is evidence about the plan.
 - **~~The log has no destination, so [§4](#4-verification--the-p2c-exit-gate)
   step 9 cannot be checked at all.~~ Done: `pnpm dev:logged`, and said in the brief at
-  [P2C brief §2.4](docs/design/workplan/13-p2c-brief.md).** It is JSON on
+  [P2C brief §2.4](13-p2c-brief.md).** It is JSON on
   stdout — deliberately, since [21 §4.1](../21-internal-contracts.md) refuses a
   file and refuses a pretty transport — and the documented way to run this was
   `pnpm dev`, which multiplexes both packages and prefixes every line with
@@ -408,7 +408,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   another attempt has a button. A person waiting on a wedged session has nothing.
 
   **And the key's surface came free, as [§4](#4-verification--the-p2c-exit-gate)
-  said it would.** [P2A](docs/design/workplan/09-p2a-configuration-surface.md)'s form generates its
+  said it would.** [P2A](09-p2a-configuration-surface.md)'s form generates its
   control and tier badge from the schema with no client change. The two things
   that were *not* free were the two the test suite refuses to let go: the
   `LIVE_APPLIERS` row, and the key's absence from `config.example.json` and from
@@ -438,7 +438,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
 - **`dataDir` is cwd-relative, the settings form writes it back, and the
   read-only guard is client-side only.** A config `PUT` naming
   `"dataDir": "../../elsewhere"` answers `200` and moves the install on the next
-  restart. [P2A §2.6](docs/design/workplan/09-p2a-configuration-surface.md) argued that field into a
+  restart. [P2A §2.6](09-p2a-configuration-surface.md) argued that field into a
   read-only note precisely because editing it is *"a one-click way to appear to
   lose everything"* — and then enforced it in the browser only. **A trap that
   answers 200 cannot be avoided by asking a tester not to touch it.** *Two hours:
@@ -510,7 +510,7 @@ run three suites at once"* is a known rule rather than a rediscovery.
 **And one line for whatever briefs the tester:** `pnpm test` is `vitest run` and
 nothing else, so a green suite is not a green build — `pnpm typecheck` is a
 separate script and vitest strips types without checking them. **Done, and it
-grew:** [P2C brief §2.3](docs/design/workplan/13-p2c-brief.md) lists everything `pnpm test` does not cover,
+grew:** [P2C brief §2.3](13-p2c-brief.md) lists everything `pnpm test` does not cover,
 which is six things rather than one.
 
 ### 1.6 Nearly free, and owed
@@ -524,7 +524,7 @@ which is six things rather than one.
   is `runneradmin`, and `Layout` handed that spelling straight to chokidar. Fixed,
   with the link-root variant it also exposed — a watcher that silently indexes
   **nothing**. Both legs are now green and
-  [manual gate §4.5](docs/design/workplan/11-p2-manual-gate.md)'s owed ubuntu run is discharged.
+  [manual gate §4.5](11-p2-manual-gate.md)'s owed ubuntu run is discharged.
 
   **It is worth recording what this says about the rest of the list.** Twenty-two
   defects were found by reading. The twenty-third was found in ten minutes by
@@ -532,7 +532,7 @@ which is six things rather than one.
   it — the mechanism is in a library, on one platform, behind a native assert.
   That is the phase's own thesis arriving early and unprompted.
 - **~~A version stamp, smaller than it first looked.~~ Done, both halves.**
-  The session template in [P2C log](docs/design/workplan/14-p2c-log.md) opens every finding with
+  The session template in [P2C log](14-p2c-log.md) opens every finding with
   `git describe --tags --always --dirty` — the tester is the repo owner
   running from a working tree, so that answers the question at zero build
   cost — and [09](../09-server-multiuser-deployment.md)'s sentence now says
@@ -544,9 +544,9 @@ which is six things rather than one.
 **The line: pre-work repairs the evidence; it does not build features.** Every
 item below would improve the phase and none of them clears that.
 
-**The library error card** — [P2 §4](docs/design/workplan/08-p2-implementation.md) step 7, open since
+**The library error card** — [P2 §4](08-p2-implementation.md) step 7, open since
 P2, and the hardest one to leave out. A tester will hand-edit an actor into an
-invalid shape within the hour, because that is [manual gate §2.1](docs/design/workplan/11-p2-manual-gate.md)
+invalid shape within the hour, because that is [manual gate §2.1](11-p2-manual-gate.md)
 step 8 and the storage thesis's own demo ([10 §4.1](../10-ui-surfaces.md)) —
 and get silence, then stale content presented as current, then a conflict dialog
 blaming an editor who does not exist. **It stays out**, because it is a surface,
@@ -561,16 +561,16 @@ it is the second thing fixed. Named here because it is the one most likely to be
 argued into §1.3 on the grounds that classification is evidence: it is, and the
 log is where the phase reads it.
 
-**A cassette tier for the adapter.** [manual gate §4.1](docs/design/workplan/11-p2-manual-gate.md) calls it the
+**A cassette tier for the adapter.** [manual gate §4.1](11-p2-manual-gate.md) calls it the
 largest single gap in the suite and it is — and it **cannot** come first, because
 a cassette is a recording of an exchange nobody has had. It is the phase's
 output, and §2.2 makes it the most valuable one.
 
-**A Playwright harness.** [testing §3.5](docs/design/workplan/03-testing.md) wants a thin set of
+**A Playwright harness.** [testing §3.5](03-testing.md) wants a thin set of
 journeys and names a guess at which. Building it now encodes that guess into a
 dependency on the day before finding out; the phase produces the list.
 
-**A home screen.** [polish §5](docs/design/workplan/06-polish.md) already names it — arrival is an
+**A home screen.** [polish §5](06-polish.md) already names it — arrival is an
 arbitrary library view — and P2C.1's whole subject is what a stranger does in the
 first minute, which makes it the most tempting item on this page. **Out**, and
 the reason is that the phase is what decides what a home should contain. Building
@@ -588,7 +588,7 @@ constraint into the phase brief with a known-good model list* — ten minutes �
 rather than building a per-connection parameter dialect, which is real work with
 no design behind it yet.
 
-**Written: [P2C brief §4](docs/design/workplan/13-p2c-brief.md), and the ten minutes found two things this
+**Written: [P2C brief §4](13-p2c-brief.md), and the ten minutes found two things this
 sentence had wrong.** The shipped preset sends `temperature` as well as
 `max_tokens`, so a list vetted for one is incomplete; and `stream_options` rides
 on every request because the shipped mode always streams. The *list* is not
@@ -596,7 +596,7 @@ written and deliberately so: which models accept what is a fact about somebody
 else's API on the day, so the brief carries the rule and the check, and the list
 is an output of P2C.1.
 
-**Everything else in [polish](docs/design/workplan/06-polish.md), and [manual gate §3.6](docs/design/workplan/11-p2-manual-gate.md)'s
+**Everything else in [polish](06-polish.md), and [manual gate §3.6](11-p2-manual-gate.md)'s
 smaller ones.** That file's own framing is that its entries are *"obvious the
 moment a real person uses the app and invisible while reading the spec"*.
 Clearing it before the phase is clearing it from the spec, which is the position
@@ -634,21 +634,21 @@ import; both change what these screens sit beside and what somebody arrives at. 
 copy pass now is a copy pass to do again.
 
 So findings about how the app *reads* are recorded and deferred — to
-[polish](docs/design/workplan/06-polish.md) if they clear its bar, to PLAYABLE if they are about
+[polish](06-polish.md) if they clear its bar, to PLAYABLE if they are about
 legibility. The findings this phase acts on are the ones about whether the
 machinery *works*: the provider boundary, storage under a real session, and
 config and accounts under a second real browser.
 
 **One exception, and it is narrow.** Copy whose job is to get somebody unstuck is
 tested here rather than deferred, because its failure mode is a person who cannot
-proceed rather than a person who is mildly annoyed. [manual gate §2.4](docs/design/workplan/11-p2-manual-gate.md)
+proceed rather than a person who is mildly annoyed. [manual gate §2.4](11-p2-manual-gate.md)
 already names the three: the dead-end sentence
 ([09 §4.5](../09-server-multiuser-deployment.md) commissioned it), the removal
 dialog, and the restart banner.
 
 **And that exception is smaller than it was**, because the readiness survey ran a
 live first-contact walk and read them: the dead-end sentence appears verbatim
-where [manual gate §2.1](docs/design/workplan/11-p2-manual-gate.md) step 2 predicts it, the role table's third
+where [manual gate §2.1](11-p2-manual-gate.md) step 2 predicts it, the role table's third
 state renders as *"Nothing can do this yet, and nothing needs to"* and does the
 job it was built for, and the capability grouping and removal dialog read
 honestly. What is left for a person is the judgement a grep cannot make — whether
@@ -659,7 +659,7 @@ those sentences land — rather than whether they are there.
 **A manual phase whose output is a document is a phase that has to be run again.**
 The output that outlasts it is bytes.
 
-[testing §4.2](docs/design/workplan/03-testing.md) already asks for cassette-style record-and-replay
+[testing §4.2](03-testing.md) already asks for cassette-style record-and-replay
 for the adapter tests. It could not be built, because there was nothing to
 record: you cannot capture a real exchange before you have made one. **This phase
 is the something**, and that makes the ordering a fact rather than a preference —
@@ -696,7 +696,7 @@ manual budget for what only a person can do.
 
 **Held honestly, with [manual gate §4.1]'s caveat attached:** a recording goes stale the
 day the provider changes and nothing tells you. It is not a substitute for
-[testing §4.2](docs/design/workplan/03-testing.md)'s scheduled conformance run against the live
+[testing §4.2](03-testing.md)'s scheduled conformance run against the live
 endpoint; it is the offline half of it, and the scheduled half stays owed.
 
 ### 2.3 One hosted endpoint and one local runtime, because they fail differently
@@ -708,7 +708,7 @@ A hosted endpoint exercises authentication, rate limiting, a real `usage` block,
 and errors that arrive as structured JSON. A local runtime exercises the opposite
 half: no key at all, an endpoint that may not implement `/models`, one that
 answers `/models` with a single entry called `gpt-3.5-turbo` regardless of what is
-loaded ([P2B §2.6](docs/design/workplan/10-p2b-provider-configuration.md)), a context window the
+loaded ([P2B §2.6](10-p2b-provider-configuration.md)), a context window the
 adapter has no way to ask about, and `usage` that is frequently absent — which
 matters because [21 §1.4](../21-internal-contracts.md) calls cost
 *provider-reported, not estimated*, and an endpoint that reports nothing makes
@@ -731,7 +731,7 @@ before P3. The list, because an unbounded session finds what is in front of it,
 and what is in front of a person who just built something is the thing they just
 built.
 
-The list is [manual gate §2](docs/design/workplan/11-p2-manual-gate.md), which already exists and was written
+The list is [manual gate §2](11-p2-manual-gate.md), which already exists and was written
 by walking three gates. **§3.2 below is that list, sequenced.** What it is not is
 a script to be followed to the exclusion of noticing things — §3.3 is the half
 that exists for exactly that.
@@ -746,9 +746,9 @@ reason: afterwards, every finding argues for its own importance.
 |---|---|
 | **Stops the phase** | It means the observations already made were of a broken system. §2.6 |
 | **Fixed inside the phase** | It blocks a later scenario, or it is a defect in something this phase's own stages built |
-| **A gate correction** | It shows an exit-gate step describing behaviour the code does not have — the shape [P2B §4](docs/design/workplan/10-p2b-provider-configuration.md)'s first walk found three times |
-| **[Polish](docs/design/workplan/06-polish.md)** | User-facing, bounded, no schema change and no new contract. That file's own bar, and its own framing says these are *"obvious the moment a real person uses the app"* — which is what this phase is |
-| **[PLAYABLE](docs/design/workplan/01-work-plan.md)** or [roadmap](../24-roadmap.md) | Anything about whether the record is legible or the budgeter comprehensible is §4.1's question, not this one's. A deferred feature is the roadmap's |
+| **A gate correction** | It shows an exit-gate step describing behaviour the code does not have — the shape [P2B §4](10-p2b-provider-configuration.md)'s first walk found three times |
+| **[Polish](06-polish.md)** | User-facing, bounded, no schema change and no new contract. That file's own bar, and its own framing says these are *"obvious the moment a real person uses the app"* — which is what this phase is |
+| **[PLAYABLE](01-work-plan.md)** or [roadmap](../24-roadmap.md) | Anything about whether the record is legible or the budgeter comprehensible is §4.1's question, not this one's. A deferred feature is the roadmap's |
 
 **Nothing is allowed to have no home.** The phase does not end until every
 finding has one, which is [§4](#4-verification--the-p2c-exit-gate)'s last step
@@ -775,7 +775,7 @@ a testing phase becomes a bill.
 
 The cheap model does most of the work: the scenarios are about whether a turn
 completes, is recorded, resumes and reports its cost — not about what it wrote.
-[testing §4.3](docs/design/workplan/03-testing.md) is the standing position and it applies here:
+[testing §4.3](03-testing.md) is the standing position and it applies here:
 **test the mechanism deterministically; evaluate the writing by reading it.**
 
 ---
@@ -819,12 +819,12 @@ teardown. **Its observations are still not findings in the sense §1.2 means** �
 the boundary was misreporting itself throughout, so everything about failure
 classification is re-taken in P2C.1. What it produced is exactly what the two
 hours were for: **a reordering**, and a list of things nobody was looking for.
-Both are in [P2C log](docs/design/workplan/14-p2c-log.md).
+Both are in [P2C log](14-p2c-log.md).
 
 *And it moved four claims in this document from stated to measured, three of
 which were wrong.* Those corrections are inline above, each marked where it sits.
 
-**And the brief itself, which five items above point at: [P2C brief](docs/design/workplan/13-p2c-brief.md).**
+**And the brief itself, which five items above point at: [P2C brief](13-p2c-brief.md).**
 The runbook, the log and snapshot recipes, the model constraint, three pages of
 *what not to report*, and the triage and stop rules restated where a person will
 have them open. **Written against the source rather than against this document**,
@@ -892,12 +892,12 @@ find here — it is only a thing that has to be arranged before the day, which i
 why it is written into the stage rather than left as an aspiration.
 
 *Ends at:* one turn, from an empty directory, without opening the source. Which
-is [P2B §4](docs/design/workplan/10-p2b-provider-configuration.md) step 1, still the phase's plainest
+is [P2B §4](10-p2b-provider-configuration.md) step 1, still the phase's plainest
 statement of what it is for.
 
 ### P2C.2 — The scripted pass
 
-**[manual gate §2](docs/design/workplan/11-p2-manual-gate.md), sequenced, against both endpoints.** That list
+**[manual gate §2](11-p2-manual-gate.md), sequenced, against both endpoints.** That list
 exists, it was written by walking three exit gates, and its §2.1 is already
 ordered as a session.
 
@@ -936,14 +936,14 @@ nothing is going wrong yet: a wrong key, a model id that does not exist, a
 completion ceiling of ten tokens — **which has no UI: hand-edit the session's
 own `preset.params.maxTokens` in `session.json`, a one-line edit, since a
 created session carries a full inline preset** — an endpoint that returns HTML,
-the machine's network turned off mid-stream. [manual gate §2.2](docs/design/workplan/11-p2-manual-gate.md)
+the machine's network turned off mid-stream. [manual gate §2.2](11-p2-manual-gate.md)
 lists them, and each should surface as a *classified* failure
 ([25 E7](../25-open-questions.md)) rather than as a provider string in the UI.
 The ceiling is the one whose classification is not E7's: it surfaces as
 `outcome: 'truncated'` on the call rather than as an error class, because a
 ceiling reached is not a failure — which is itself the thing to verify.
 
-*Ends at:* every step of [manual gate §2](docs/design/workplan/11-p2-manual-gate.md) run, with an outcome
+*Ends at:* every step of [manual gate §2](11-p2-manual-gate.md) run, with an outcome
 written beside it, and the cassette corpus committed.
 
 ### P2C.3 — The long pass
@@ -962,7 +962,7 @@ slower as it gets longer, index and watcher disagreement after a lot of writes,
 SQLite lock contention, a keepalive that stops keeping alive, and the turn record
 getting harder to read as the thing it records gets longer.
 
-**Play it rather than test it.** [testing §4.3](docs/design/workplan/03-testing.md)'s position is that
+**Play it rather than test it.** [testing §4.3](03-testing.md)'s position is that
 narrative quality is evaluated by reading, and the same applies to whether an
 hour with this software is tolerable. The scripted pass answers whether a turn
 works; this answers whether forty do.
@@ -979,7 +979,7 @@ decides whether the previous three were work or entertainment.
 Three things are left behind, and each is worth more than the report:
 
 - **The cassette corpus**, and `openai-compatible.test.ts` replaying it. §2.2.
-- **The journeys worth a Playwright test.** [testing §3.5](docs/design/workplan/03-testing.md) asks for
+- **The journeys worth a Playwright test.** [testing §3.5](03-testing.md) asks for
   *"a handful of journeys that would be catastrophic to break"* and lists a guess
   at which. This phase is how that guess becomes a list — the harness is not built
   here, but the list it should encode is, and it is written from what actually
@@ -987,10 +987,10 @@ Three things are left behind, and each is worth more than the report:
 - **The gate corrections.** Any exit-gate step this phase showed to be describing
   behaviour the code does not have, corrected in place in the phase document that
   owns it — which is what
-  [P2B §4](docs/design/workplan/10-p2b-provider-configuration.md)'s first walk did three times, and the
+  [P2B §4](10-p2b-provider-configuration.md)'s first walk did three times, and the
   reason those corrections were worth more than the ticks.
 
-*Ends at:* no finding without a home, and [manual gate](docs/design/workplan/11-p2-manual-gate.md) rewritten
+*Ends at:* no finding without a home, and [manual gate](11-p2-manual-gate.md) rewritten
 against what a person actually saw rather than against what a gate walk predicted
 they would.
 
@@ -1004,7 +1004,7 @@ somebody else can check they saw it.
 
 1. **A turn against a hosted endpoint and a turn against a local runtime**, each
    from an empty data directory, with no file hand-edited at any point. *This is
-   [P2B §4](docs/design/workplan/10-p2b-provider-configuration.md) step 1, and it closes it.*
+   [P2B §4](10-p2b-provider-configuration.md) step 1, and it closes it.*
 2. **Both turns carry a token count that came from the provider**, and a cost
    of `null` rather than `0`. The first half is what §1.2 fixes;
    [21 §1.4](../21-internal-contracts.md) calls usage *provider-reported, not
@@ -1027,14 +1027,14 @@ somebody else can check they saw it.
    ([25 E7](../25-open-questions.md)) and **none puts a provider's own string in
    front of the user.** *Two corrections from walking this step against the
    code:* the ceiling has no UI — it is a one-line hand-edit of the session's
-   inline `preset.params.maxTokens`, which [P2C brief §6](docs/design/workplan/13-p2c-brief.md) spells out —
+   inline `preset.params.maxTokens`, which [P2C brief §6](13-p2c-brief.md) spells out —
    and its classification is not an error class at all but
    `outcome: 'truncated'` on the call, because a ceiling reached is not a
    failure. Four failures and one truncation is the honest count.
 5. **The model fetch, against three endpoints**: one that implements `/models`,
    one that does not, and one that answers with a single entry unrelated to what
    is loaded. All three end with a connection saved and usable, because the field
-   is free text and the fetch is an assist ([P2B §2.6](docs/design/workplan/10-p2b-provider-configuration.md)).
+   is free text and the fetch is an assist ([P2B §2.6](10-p2b-provider-configuration.md)).
 6. **The corpus replays offline.** Every exchange captured, committed with
    credentials redacted, and `openai-compatible.test.ts` asserting against it with
    `pnpm test` green and no network available. *This is the step that makes the
@@ -1056,9 +1056,9 @@ somebody else can check they saw it.
    goes back into P2C.0 rather than being waved through.
 10. **The three unstick sentences read by a person** — the dead-end warning, the
    removal dialog, the restart banner — and each either kept deliberately or
-   rewritten. [manual gate §2.4](docs/design/workplan/11-p2-manual-gate.md).
+   rewritten. [manual gate §2.4](11-p2-manual-gate.md).
 11. **`pnpm test` green on ubuntu, watched by a person**, and the result quoted.
-    [manual gate §4.5](docs/design/workplan/11-p2-manual-gate.md) has been carrying this since it was written.
+    [manual gate §4.5](11-p2-manual-gate.md) has been carrying this since it was written.
 12. **The token estimator has been calibrated once.** `estimateTokens` is
     `Math.ceil(text.length / 4)` and its own comment says the provider reports
     the real number afterwards — which nothing has ever compared it to. For ten
@@ -1076,10 +1076,10 @@ is re-run rather than ticked — because a scenario that passed before the fix a
 a scenario that passed after are two different observations, and only one of them
 is about the software that ships.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** P2C adds exactly one key —
 `limits.providerTimeoutMs`, from §1.3 — and it is discharged by machinery rather
-than by remembering: [P2A](docs/design/workplan/09-p2a-configuration-surface.md)'s install form
+than by remembering: [P2A](09-p2a-configuration-surface.md)'s install form
 generates every control from the config the server sends, including its tier
 badge, so a key added here renders with no client change at all. **What still has
 to be done by hand is the row in `LIVE_APPLIERS`**, which says whether anything
@@ -1090,7 +1090,7 @@ a new key can still be forgotten in.
 
 ## 5. Out of scope, deliberately
 
-**PLAYABLE's four hypotheses** ([§4.1](docs/design/workplan/01-work-plan.md)) — whether the record is
+**PLAYABLE's four hypotheses** ([§4.1](01-work-plan.md)) — whether the record is
 legible, whether one budgeter is comprehensible, whether inclusion reasons
 explain anything, and whether files beat a database. Three of the four need the
 workbench and a realistic imported library, which are P3 and P4. The fourth,
@@ -1098,12 +1098,12 @@ hand-editing a card mid-session, *is* exercised here — but as *does it reflect
 which P1 already asserts, rather than as *is this how one wants to work*, which
 is the hypothesis.
 
-**The Playwright harness.** [testing §3.5](docs/design/workplan/03-testing.md) wants a thin set of
+**The Playwright harness.** [testing §3.5](03-testing.md) wants a thin set of
 journeys and this phase produces the list rather than the harness — building both
 at once means encoding a guess about which journeys matter into a dependency, on
 the day before finding out.
 
-**The scheduled provider conformance run.** [testing §4.2](docs/design/workplan/03-testing.md)'s live
+**The scheduled provider conformance run.** [testing §4.2](03-testing.md)'s live
 half — nightly or weekly, against the real endpoint, catching a provider changing
 under you — stays owed. The cassettes this phase produces are its offline half
 and are not a substitute: a recording goes stale silently.
@@ -1114,12 +1114,12 @@ shared rate limits, cost attribution — are P10's, and one person with two tabs
 cannot answer them.
 
 **Deployment.** Container, upgrade-with-data-intact, backup and restore. Those
-are [§8](docs/design/workplan/01-work-plan.md)'s beta bar and P11's, and every one of them needs a
+are [§8](01-work-plan.md)'s beta bar and P11's, and every one of them needs a
 release artifact this project does not yet build.
 
 **Adapters for the four other names in `KNOWN_PROVIDERS`.** This build speaks
 OpenAI-compatible chat and refuses the rest at save time
-([P2B §2.5](docs/design/workplan/10-p2b-provider-configuration.md)). Testing an adapter that does not
+([P2B §2.5](10-p2b-provider-configuration.md)). Testing an adapter that does not
 exist is not a manual-testing question.
 
 **SSE framing, and it is worth saying so because it looks like the risk.** The
@@ -1132,7 +1132,7 @@ would be spending it on the one part of the boundary that is somebody else's
 tested code**, which is the opposite of what §2.3 says the sessions are for.
 
 **~~Everything present but deliberately unreachable, which the brief has to list
-or the finding log fills with roadmap items.~~ Done: [P2C brief §3](docs/design/workplan/13-p2c-brief.md)**,
+or the finding log fills with roadmap items.~~ Done: [P2C brief §3](13-p2c-brief.md)**,
 and it is three pages rather than half of one, because an audit of every route
 against every client caller found seven more than this paragraph names — the
 sharpest being that **a session's cast cannot be set from the browser at all**,
@@ -1144,7 +1144,7 @@ never created*; branching is a storage affordance with no route (P6's); sessions
 and library objects cannot be deleted or renamed from the UI; nothing creates a
 library object of any kind. *Both halves of that last clause were retired after
 this phase, one stage apart: the detail page deletes anything you own at P4.4,
-and the library page makes an actor at [P4.5](docs/design/workplan/16-p4-implementation.md). Kept as
+and the library page makes an actor at [P4.5](16-p4-implementation.md). Kept as
 written, like the rest of the list.*
 
 **The two errors.** *"Cannot be renamed"* is false for actors: the actor editor's
@@ -1154,15 +1154,15 @@ pre-briefing, and saying *you cannot rename* would have sent a tester past it.
 *"Nothing creates a library object"* is false by one side door: an actor save
 conflict offers *save as a copy*, which posts a new object. Both errors share a
 shape — **a claim about the UI reasoned from the absence of a route** — which is
-why [P2C brief](docs/design/workplan/13-p2c-brief.md) was written from the components.
+why [P2C brief](13-p2c-brief.md) was written from the components.
 
-Drawn from [manual gate §3](docs/design/workplan/11-p2-manual-gate.md) and [work plan §4](docs/design/workplan/01-work-plan.md)'s phase
+Drawn from [manual gate §3](11-p2-manual-gate.md) and [work plan §4](01-work-plan.md)'s phase
 list — and it is the difference between a log of findings and a log of
 rediscoveries.
 
 **And the things already checked and found sound**, listed for the same reason —
 so they do not consume session time. **Re-verified against the code for
-[P2C brief §3.5](docs/design/workplan/13-p2c-brief.md)**; all of it holds, with two caveats now written into
+[P2C brief §3.5](13-p2c-brief.md)**; all of it holds, with two caveats now written into
 the brief — nothing tests the watcher's *production* `awaitWriteFinish` value,
 and the three-call ceiling is a fact about the one shipped mode rather than a
 cap the runner enforces. Slug derivation handles Windows reserved
@@ -1179,7 +1179,7 @@ to keep session time *off* the things it names. It said the assembled prompt
 gives history turns real `user` and `assistant` roles. It did not: every
 completed turn was collapsed into **one merged block labelled `assistant`,
 which contained the player's own prose**. **Since fixed** — finding 3 in
-[P2C log](docs/design/workplan/14-p2c-log.md): history now emits two candidates per turn, the input as
+[P2C log](14-p2c-log.md): history now emits two candidates per turn, the input as
 `user` and the output as `assistant`, sharing one priority so the budgeter's
 drop-whole-turns behaviour survives the split. The paragraph is kept because
 its method note still stands: the item reached the reassurance list without

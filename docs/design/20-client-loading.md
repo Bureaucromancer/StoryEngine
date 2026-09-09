@@ -17,8 +17,8 @@ the current phase is a reason to expect that trend to reverse.
 This note gives that future work an address and compares the options. It
 changes no build setting, assigns no new implementation stage, and makes no
 claim that 676.82 kB already causes a usability failure. Read it beside
-[19 §6](docs/design/19-tech-stack.md), which owns the client stack, and
-[10](docs/design/10-ui-surfaces.md), which owns the surfaces being loaded. The review
+[19 §6](19-tech-stack.md), which owns the client stack, and
+[10](10-ui-surfaces.md), which owns the surfaces being loaded. The review
 handoff is [§7](#7-when-to-revisit-and-what-the-work-would-produce).
 
 ## 1. What the warning establishes
@@ -91,7 +91,7 @@ different kinds of pressure:
   assistance and localisation. Translation resources can have a language
   boundary as well as a feature boundary.
 - **Later surfaces:** Write's binder and prose tooling, World, and authoring.
-  Their release order remains [work plan §0](docs/design/workplan/01-work-plan.md)'s. They
+  Their release order remains [work plan §0](workplan/01-work-plan.md)'s. They
   should not become part of resuming a Play session just because one client
   hosts all of them.
 
@@ -199,7 +199,7 @@ routes and the benefit of automatic splitting. Revisit it when maintaining
 manual boundaries becomes repetitive. The loading problem alone does not
 require that migration.
 
-[19 §6](docs/design/19-tech-stack.md) keeps the framework choice reversible. A framework
+[19 §6](19-tech-stack.md) keeps the framework choice reversible. A framework
 change, server rendering or separate applications for Play and Write would be
 much larger decisions: shared navigation, drafts, query caches and deployment
 all have to survive them. Reserve those options for measured limits that the

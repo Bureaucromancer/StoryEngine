@@ -23,7 +23,7 @@ provide one.
 
 ## 1. A by-field view in the library, without opening the editor
 
-**Landed at [P5.−1](docs/design/workplan/17-p5-implementation.md)**, which is where this item stopped
+**Landed at [P5.−1](17-p5-implementation.md)**, which is where this item stopped
 being a dependency of a phase and became the first stage of one:
 [ByField.tsx](../../../packages/client/src/library/ByField.tsx) renders it, over
 a field description derived at runtime from the schema
@@ -106,7 +106,7 @@ rendering and a small piece of design.
 **Also worth doing while in there:** the Edit button is currently gated to
 `actors` and `source === 'user'`. As other kinds get editors that condition
 should come from the same place the fields do, rather than growing a second list
-of kinds. *Half paid at [P4.5](docs/design/workplan/16-p4-implementation.md), and by the route this
+of kinds. *Half paid at [P4.5](16-p4-implementation.md), and by the route this
 note predicted: Delete needed the same gate, so rather than a second copy of it
 the ownership half became one predicate both read. What is left is the part this
 note is actually about — the `actors` half, which still names a kind and should
@@ -114,11 +114,11 @@ come from wherever the fields come from.*
 
 ## 2. *As stored*, kept in the library and added to the editor as a pane
 
-**Landed at [P3.3](docs/design/workplan/15-p3-implementation.md)**, as one component on all three
+**Landed at [P3.3](15-p3-implementation.md)**, as one component on all three
 surfaces — the detail page, the workbench's library subject and the editor's
 saved-state pane — collapsed by default, with the open state in the per-user
 `prefs.json` and a copy control over the whole object. This item was struck late,
-at [P5.−1](docs/design/workplan/17-p5-implementation.md), and the lateness is worth a sentence: the
+at [P5.−1](17-p5-implementation.md), and the lateness is worth a sentence: the
 one clause it could not honestly claim was *collapsed by default is correct once
 the by-field view exists*, and §1 is what made that true.
 
@@ -138,7 +138,7 @@ is the answer to a whole class of "did that take?" doubt.
 **Collapsed by default, in both places.** An expandable pane, closed on arrival,
 its state remembered per user rather than per object — which needs somewhere to
 put a preference, and that is [25 B13](../25-open-questions.md), not this item.
-*Unblocked: B13 resolved at [P2A §2.2](docs/design/workplan/09-p2a-configuration-surface.md) and the
+*Unblocked: B13 resolved at [P2A §2.2](09-p2a-configuration-surface.md) and the
 per-user `prefs.json` store shipped with it, so this item no longer waits on
 anything.* In the library that is a
 change from today, where the block is always open — and that is correct once the
@@ -202,7 +202,7 @@ document depending on whether you can see only those four.
 
 "Send them 1.2" is the obvious thing to want once versions carry numbers, and it
 is the one part of this item that is not polish — it sets a default on the
-export flow, which is P4's ([P4](docs/design/workplan/16-p4-implementation.md)) and belongs in
+export flow, which is P4's ([P4](16-p4-implementation.md)) and belongs in
 [03 §11.6](../03-data-model.md) once settled. The intended shape:
 
 - **Native export (`.seactor`, `.sepack`) sends the active version**, with
@@ -268,14 +268,14 @@ panels are named for the kinds. What is left here is the client work.
   preference plumbing is what stands between this and shipping. Where a
   preference persists is [25 B13](../25-open-questions.md), shared with item 2;
   the surface that eventually shows them is [10 §15.1](../10-ui-surfaces.md).
-  *Both shipped at [P2A](docs/design/workplan/09-p2a-configuration-surface.md), so the escape hatch in
+  *Both shipped at [P2A](09-p2a-configuration-surface.md), so the escape hatch in
   the sentence above — delete the view rather than wait — is no longer needed.*
 - **`/` moves to home** (item 5). Landing on an arbitrarily chosen single kind
   instead — actors, because there are usually most of those — would be a worse
   answer than today's mixed list, not a better one.
 - **Each panel also supplies whether its kind can be made here**, which is the
   fourth thing alongside columns, sort and empty state.
-  [P4.5](docs/design/workplan/16-p4-implementation.md) put a **New actor** control on the merged
+  [P4.5](16-p4-implementation.md) put a **New actor** control on the merged
   list and a sentence in place of one on the five kinds with no editor to land
   in; splitting the list into panels is what turns that sentence into a
   per-panel property. [10 §5](../10-ui-surfaces.md) carries the rule — create
@@ -288,7 +288,7 @@ decision and should stay one.
 
 **One thing the panels must carry over.** P2.0 makes a shadowed duplicate-id row
 individually addressable — the row links by a path discriminator rather than by
-id alone, because id-addressing always opens the winner ([P2 §1.3](docs/design/workplan/08-p2-implementation.md),
+id alone, because id-addressing always opens the winner ([P2 §1.3](08-p2-implementation.md),
 F19). That lives in the read route and the link contract, so the panels inherit
 it by using the same detail route; what would lose it is a panel building its
 own links from `{kind, id}`. The duplicate warning without the link is the bug
@@ -350,7 +350,7 @@ that matters to this list:
 surface, and before this the honest estimate for any of them included inventing
 its colours again and getting them slightly different — which is how the play
 surface ended up at 1.01 to 1 against the shell it renders inside
-([P2C](docs/design/workplan/12-p2c-first-real-run.md)). A new surface now inherits a palette, a type
+([P2C](12-p2c-first-real-run.md)). A new surface now inherits a palette, a type
 scale, and a dark theme it does not have to think about.
 
 **What was deliberately not done.**
@@ -395,7 +395,7 @@ filter as that, not as a second box beside the link.
 
 ## 8. Five sampler settings the adapter drops
 
-**Found at [P4 §7.17](docs/design/workplan/16-p4-implementation.md), named there and fixed here.** It
+**Found at [P4 §7.17](16-p4-implementation.md), named there and fixed here.** It
 clears this file's bar exactly: it changes what a user sees — their `min_p`
 starts working — it is bounded, and it needs no schema change and no new
 contract. `GenerationParams` already declares every field involved.
@@ -492,7 +492,7 @@ box with a screen-reader-only label, and the button stays disabled until
 something is typed into it. It is a gate in front of a surface built to collect
 exactly that field, and it is the only place in the app where a control is
 disabled with nothing saying why, which is the placeholder
-[work plan §2.2](docs/design/workplan/01-work-plan.md) rejects in general and which
+[work plan §2.2](01-work-plan.md) rejects in general and which
 [10 §11.1a](../10-ui-surfaces.md) has since made a rule.
 
 **What to build.** A plain button that opens the editor on an unsaved draft. The

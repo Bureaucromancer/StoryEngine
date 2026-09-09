@@ -3,23 +3,23 @@
 **Status: historical as a brief, permanently live as the runbook.** §3’s
 scenarios are alpha-era and the file says so itself; §2.2–§2.4 is **the only
 runbook in the corpus** — the reset and seed sequence, the six measured traps,
-and the three capture recipes — and [manual testing §4](docs/design/workplan/05-manual-testing.md)’s instruction
+and the three capture recipes — and [manual testing §4](05-manual-testing.md)’s instruction
 to run every sitting under `pnpm dev:logged` is unexecutable without it.
 
 If this file is ever retired, that runbook has to move first.
 
 **What a person needs in front of them on the day, and nothing they can work
-out for themselves.** [P2C](docs/design/workplan/12-p2c-first-real-run.md) says what the phase is
+out for themselves.** [P2C](12-p2c-first-real-run.md) says what the phase is
 for and what had to be repaired first; this says what to type, where to look
 when something breaks, and — the longest part, and the point — **what not to
 report**.
 
-Five obligations in [P2C](docs/design/workplan/12-p2c-first-real-run.md) point here: the model
-constraint ([§1.7](docs/design/workplan/12-p2c-first-real-run.md)), the line about what `pnpm test`
-covers ([§1.5](docs/design/workplan/12-p2c-first-real-run.md)), the log capture recipe
-([§1.3](docs/design/workplan/12-p2c-first-real-run.md)), the half-page of things present but
+Five obligations in [P2C](12-p2c-first-real-run.md) point here: the model
+constraint ([§1.7](12-p2c-first-real-run.md)), the line about what `pnpm test`
+covers ([§1.5](12-p2c-first-real-run.md)), the log capture recipe
+([§1.3](12-p2c-first-real-run.md)), the half-page of things present but
 unreachable, and the list of things already checked and found sound
-([§4](docs/design/workplan/12-p2c-first-real-run.md)'s preamble). They are all below.
+([§4](12-p2c-first-real-run.md)'s preamble). They are all below.
 
 **Written against the source, not against the plan.** Every claim here was
 checked in the code, and the checking found four things the plan had wrong —
@@ -35,18 +35,18 @@ spends a day of a three-day phase.
 ## 1. Before the day
 
 **A key, and a bound.** A pay-as-you-go key created for this and deleted
-afterwards, with **a few dollars** on it — [P2C §2.7](docs/design/workplan/12-p2c-first-real-run.md).
+afterwards, with **a few dollars** on it — [P2C §2.7](12-p2c-first-real-run.md).
 There is no per-turn cap, no token cap and no request cap anywhere in the code,
 so the bound is the key. The cheap model does most of the work: the scenarios
 ask whether a turn completes, is recorded, resumes and reports its cost, not
 what it wrote.
 
 **Two endpoints, because they fail differently** — one hosted, one local
-runtime ([§2.3](docs/design/workplan/12-p2c-first-real-run.md)). The local one is primary: it is the
+runtime ([§2.3](12-p2c-first-real-run.md)). The local one is primary: it is the
 case with a single model slot, and two sessions at once against it is a
 scenario.
 
-**A stranger, arranged in advance.** [P2C.1](docs/design/workplan/12-p2c-first-real-run.md) is
+**A stranger, arranged in advance.** [P2C.1](12-p2c-first-real-run.md) is
 thirty to sixty minutes that only work once, and the tester is the person who
 built this. Borrow a non-author for forty-five minutes with the README and a
 URL and nothing else, and watch silently while writing. Failing that, write
@@ -54,8 +54,8 @@ down in advance what you expect each screen to do, and treat every divergence
 as a finding — a prediction made before looking is the closest an author gets
 to not knowing.
 
-**The scenario list, closed.** [manual gate §2](docs/design/workplan/11-p2-manual-gate.md) is the list and it
-is not added to during the phase. [P2C.1](docs/design/workplan/12-p2c-first-real-run.md) and the
+**The scenario list, closed.** [manual gate §2](11-p2-manual-gate.md) is the list and it
+is not added to during the phase. [P2C.1](12-p2c-first-real-run.md) and the
 long pass are the deliberately unscripted halves; the scripted pass is not the
 place to follow a hunch.
 
@@ -194,7 +194,7 @@ stop the server, then copy the **whole** data directory including the `-wal` and
 somebody will re-derive from scratch.
 
 **A finding.** Five lines, template and rules in
-[P2C log — the findings log](docs/design/workplan/14-p2c-log.md). Write `expected` **before**
+[P2C log — the findings log](14-p2c-log.md). Write `expected` **before**
 investigating: the gap between what you thought would happen and what did is
 most of what this phase is for, and it stops being visible the moment you
 understand the cause.
@@ -210,7 +210,7 @@ unless it is *worse* than described here, which is worth a line saying so.
 ### 3.1 There is no way to make anything
 
 > **Annotated 2026-08-30, after the phase.** The first two bullets stopped
-> being true at [P4.5](docs/design/workplan/16-p4-implementation.md): the library page has a **New
+> being true at [P4.5](16-p4-implementation.md): the library page has a **New
 > actor** control, and the conflict dialog's side door is no longer the only
 > thing that posts an object. The third is half retired — import (P4.4), `curl`
 > and `pnpm seed` are how the other five kinds get made. Left standing rather
@@ -246,7 +246,7 @@ unless it is *worse* than described here, which is worth a line saying so.
   refused at the door.
 - **Library objects cannot be deleted from the UI.** Route, no caller.
   *Retired at P4.4: the detail page deletes anything you own — except a
-  shadowed copy, which [P4.5](docs/design/workplan/16-p4-implementation.md) withheld on purpose,
+  shadowed copy, which [P4.5](16-p4-implementation.md) withheld on purpose,
   because a write resolves the id to the winner and would move the other file
   (§7.15).*
 - **Actors *can* be renamed** — the phase document says otherwise and it is
@@ -265,7 +265,7 @@ defect; all belong to later phases.
 | Surface | Whose it is |
 |---|---|
 | `GET /api/search` | P3's |
-| `GET /api/library/errors` | The error card, deferred at [§1.7](docs/design/workplan/12-p2c-first-real-run.md) |
+| `GET /api/library/errors` | The error card, deferred at [§1.7](12-p2c-first-real-run.md) |
 | `POST /api/admin/accounts/:handle/password` | An admin cannot reset another person's password from the screen |
 | `PUT /api/admin/bindings` | Per-role assignment. The **only** binding write reachable from the UI is the one-time first-run defaults form. The `curl` route rewrites the *whole* document — a subset body wipes the rest, intentionally |
 | `PUT /api/sessions/:id/cast` | §3.1 |
@@ -280,7 +280,7 @@ saying so.
 ### 3.4 What a failure looks like, and it is not much
 
 **This is the most likely thing to be reported repeatedly, and it is
-[§1.7](docs/design/workplan/12-p2c-first-real-run.md)'s deliberate deferral.**
+[§1.7](12-p2c-first-real-run.md)'s deliberate deferral.**
 
 - A failed turn renders exactly **"This turn did not finish."** No class, no
   reason, no remedy. The classification is already on the wire and in the
@@ -369,7 +369,7 @@ always streams.
   connection's *What this endpoint can do* override does not reach it — that
   surface feeds capabilities, never the request body. Changing the wire name
   today means editing the adapter, which is the work
-  [§1.7](docs/design/workplan/12-p2c-first-real-run.md) deliberately defers.
+  [§1.7](12-p2c-first-real-run.md) deliberately defers.
 - **So: use models that accept `max_tokens` on a chat-completions endpoint.**
   Reasoning-family models on OpenAI's own API reject it in favour of
   `max_completion_tokens` and are out of scope for this phase. Verify against
@@ -403,15 +403,15 @@ form calls *Context window*.
 ## 5. The rules
 
 **Triage — every finding gets exactly one home, decided by rule and decided
-now** ([§2.5](docs/design/workplan/12-p2c-first-real-run.md)):
+now** ([§2.5](12-p2c-first-real-run.md)):
 
 | Where | The rule |
 |---|---|
 | Stops the phase | It means the observations already made were of a broken system |
 | Fixed inside the phase | It blocks a later scenario, or it is a defect in something this phase's own stages built |
 | A gate correction | An exit-gate step describes behaviour the code does not have |
-| [Polish](docs/design/workplan/06-polish.md) | User-facing, bounded, no schema change, no new contract |
-| [PLAYABLE](docs/design/workplan/01-work-plan.md) or [roadmap](../24-roadmap.md) | Whether the record is legible or the budgeter comprehensible; or a deferred feature |
+| [Polish](06-polish.md) | User-facing, bounded, no schema change, no new contract |
+| [PLAYABLE](01-work-plan.md) or [roadmap](../24-roadmap.md) | Whether the record is legible or the budgeter comprehensible; or a deferred feature |
 
 **Nothing is allowed to have no home**, and that is the last step of the gate and
 the one most likely to be skipped.
@@ -428,7 +428,7 @@ finding, and the next finding is usually the better one.
 
 ## 6. What the gate needs you to have written down
 
-[§4](docs/design/workplan/12-p2c-first-real-run.md) is the full list. These are the ones that produce
+[§4](12-p2c-first-real-run.md) is the full list. These are the ones that produce
 nothing unless somebody writes a number down while they are there:
 
 - **Two turns from two empty data directories**, one hosted and one local, with
@@ -471,7 +471,7 @@ This brief is P2C.0 work and P2C.0 is not finished. Known to be outstanding as
 of writing:
 
 - **The library error card** and **a failed turn saying why on screen** — both
-  deferred deliberately at [§1.7](docs/design/workplan/12-p2c-first-real-run.md), both first in line
+  deferred deliberately at [§1.7](12-p2c-first-real-run.md), both first in line
   after the phase. Listed again here because they are the two things a tester
   will want most.
 - **~~The cassette corpus has no capture machinery.~~ The recorder is built**
@@ -480,9 +480,9 @@ of writing:
   `openai-compatible.test.ts`, written when the first real cassette lands.
 - **The bindings surface**: per-role assignment is a one-time first-run form and
   nothing else.
-- **~~[manual gate §2.1](docs/design/workplan/11-p2-manual-gate.md) is stale~~ Rewritten** against the UI
+- **~~[manual gate §2.1](11-p2-manual-gate.md) is stale~~ Rewritten** against the UI
   that exists — the connections form, the first-run binding offer, and the
   resolver-backed dead-end count.
-- **~~[P2C §1.2](docs/design/workplan/12-p2c-first-real-run.md) reads as though nothing landed~~
+- **~~[P2C §1.2](12-p2c-first-real-run.md) reads as though nothing landed~~
   Struck through**, all five, each with what actually shipped. The gate steps
   it made look unpassable are annotated where they stand.

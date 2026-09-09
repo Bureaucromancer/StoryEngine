@@ -2,18 +2,18 @@
 
 **Status: grounded 2026-09-08 against `v1.0.0-alpha.3`, and unscheduled.**
 Eleven notes written by the author while walking sittings A through mid-D of
-[manual testing](docs/design/workplan/05-manual-testing.md). Each was read against the code and the design corpus
+[manual testing](05-manual-testing.md). Each was read against the code and the design corpus
 before being written down here, and **eight of the eleven are not what the note
 says they are.**
 
 **This document does not schedule anything.** It says, for each note, what the
 request actually is, whether the thing already exists, which document owns it,
 and what has to be decided before it can be built. Scheduling is a separate
-decision and [manual testing §7](docs/design/workplan/05-manual-testing.md)'s rule applies to it: a thing is
+decision and [manual testing §7](05-manual-testing.md)'s rule applies to it: a thing is
 owned, or it is deferred with an owner and a reason.
 
 **Findings that are observations rather than requests go to
-[playable log](docs/design/workplan/21-playable-log.md)**, in that file's record format, under the walkthrough's
+[playable log](21-playable-log.md)**, in that file's record format, under the walkthrough's
 own session heading. This file is the plan; that file is the evidence.
 
 ---
@@ -26,15 +26,15 @@ moved a lot:
 | # | The note asked for | What it actually is |
 |---|---|---|
 | **R1** | An outline on the selected turn, and selecting earlier turns for the workbench | **A 1.0 commitment with no owner.** [10 §444](../10-ui-surfaces.md) says the panel shows any turn *"current or historical"*; it is hard-wired to the head. The reader it needs already exists and has one caller. |
-| **R2** | Duplicate + reorder connections; separate provider from model | **The data model already separates them.** The form fuses them. And the thing actually blocking *use a second model* is a role-binding editor nobody built — [P7 §1.9](docs/design/workplan/23-p7-implementation.md). |
+| **R2** | Duplicate + reorder connections; separate provider from model | **The data model already separates them.** The form fuses them. And the thing actually blocking *use a second model* is a role-binding editor nobody built — [P7 §1.9](23-p7-implementation.md). |
 | **R3** | Roll up settings sections, add a search bar, use the workbench as a table of contents | **The only item where the design argues back.** [10 §1.1](../10-ui-surfaces.md) rejects disclosure-as-reflex *for this surface by name*. The complaint is real; the remedy is refused. |
 | **R4** | Autoscroll so the prompt sits at the top when results stream | **The largest genuine blank in the corpus.** Nothing anywhere specifies where the reader's view sits. Also: the prompt is not in the DOM during streaming, and the page does not scroll — the transcript does. |
 | **R5** | Make the workbench resizable | **It has been resizable since P3.** The drag handle has been *zero pixels tall* the whole time. Fixed already, on an unmerged branch. **Nothing to build.** |
-| **R6** | Make *continue from here* predictable | **The answer to a question P6 deliberately left open** and named PLAYABLE as the place to answer — [P6 §1.8](docs/design/workplan/18-p6-implementation.md). It is a triage input, not a new item. |
+| **R6** | Make *continue from here* predictable | **The answer to a question P6 deliberately left open** and named PLAYABLE as the place to answer — [P6 §1.8](18-p6-implementation.md). It is a triage input, not a new item. |
 | **R7** | An in-flight indicator when the workbench is closed | **Specified nearly verbatim** at [10 §9](../10-ui-surfaces.md): *"a collapsed line while things go well"*. P3.5 built it only inside the panel. |
 | **R8** | Delete a turn, warning about downstream turns | **Post-1.0 and already on the roadmap** — [24 §1.4](../24-roadmap.md)'s *R4 — Curate*, *"prune a subtree"*. Its warning is specified and is **stronger** than the one requested. |
 | **R9** | Session delete, duplicate, rename, import, export, in the library | **Five verbs, five different truths, ~60% already built.** Rename is done but unpushed; delete and archive have routes and no UI; import/export is P11 and blocked. *"In library"* is a placement the object set refuses. |
-| **R10** | Visual feedback on Send; a UI pass on all buttons | **A recorded, deliberately-accepted condition** — [P2C brief §](docs/design/workplan/13-p2c-brief.md) says it almost word for word. One file, because [10 §1.2](../10-ui-surfaces.md) consolidated the look into `ui/`. |
+| **R10** | Visual feedback on Send; a UI pass on all buttons | **A recorded, deliberately-accepted condition** — [P2C brief §](13-p2c-brief.md) says it almost word for word. One file, because [10 §1.2](../10-ui-surfaces.md) consolidated the look into `ui/`. |
 | **R11** | Suggested actions, pre-1.0, per-session toggle, keep the unselected | **The author's self-diagnosis is exactly right and checkable.** The phrase appears **once** in the whole corpus, in the sentence defining Freeform — a 1.0 mode. Every downstream document dropped it. |
 
 **Three of the eleven survive as written**: R3's search bar, R8's gesture, and
@@ -47,7 +47,7 @@ R11's shape. Everything else changed on contact with the code.
 **R1, R4, R6, R7 and R10 are one absence, not five.**
 
 The client has a complete, deliberately-built vocabulary for **failure** and
-almost none for **progress**. [P6B.0](docs/design/workplan/20-p6b-playable.md) built the failure half
+almost none for **progress**. [P6B.0](20-p6b-playable.md) built the failure half
 on purpose and finished it: the most recent error across every mutation, ranked
 by `submittedAt` so a stale failure cannot outrank a fresh one, and a fatal
 stream close that names its class. That work is done and it is good.
@@ -104,13 +104,13 @@ invisible in jsdom.*
 > role. They are not wrong; they are blind, and worth a docstring saying which
 > half they cover.
 >
-> **[P3 §](docs/design/workplan/15-p3-implementation.md)'s stage record claims a browser walk that
+> **[P3 §](15-p3-implementation.md)'s stage record claims a browser walk that
 > cannot have happened** — *"open, drag to 484, reload, still open at 484"*. It
 > is uncorrected on both branches. That is a `CORRECTION` in
-> [manual testing](docs/design/workplan/05-manual-testing.md)'s sense and the most valuable thing this note
+> [manual testing](05-manual-testing.md)'s sense and the most valuable thing this note
 > produced.
 >
-> **[manual testing](docs/design/workplan/05-manual-testing.md)'s D2 tests that a size persists, never that it can
+> **[manual testing](05-manual-testing.md)'s D2 tests that a size persists, never that it can
 > be set by pointer.** The next refinement to add a pointer affordance is R2's
 > connection reorder, and it will pass the same way unless the step is written
 > to exercise the pointer.
@@ -151,9 +151,9 @@ state breaks the workbench's stateless-reader rule, stated twice in
 [10](../10-ui-surfaces.md) (*"has no state of its own"*, *"its subject is
 whatever is in the main view"*). A `?turn=<id>` search param gives the same
 outline and the same subject, keeps the rule, and makes a selection
-bookmarkable — which [P3 §7.2](docs/design/workplan/15-p3-implementation.md) already argued is what
+bookmarkable — which [P3 §7.2](15-p3-implementation.md) already argued is what
 forced Compare into a full view. The outline must also carry `aria-current`;
-*"subtle but visible"* is exactly the case [P5](docs/design/workplan/17-p5-implementation.md) already
+*"subtle but visible"* is exactly the case [P5](17-p5-implementation.md) already
 ruled on when it marked an addressed lore entry.
 
 **2. Does the settings surface get progressive disclosure?** R3's complaint is
@@ -171,7 +171,7 @@ and the ToC need the argument written or the sections corrected.
 change wearing a gesture. Order is currently whatever the filesystem returns,
 and it is *semantic* — `resolveRole` takes the first match, so reordering the
 rendered list without reordering resolution would make the `shadowed` badge lie.
-A persisted order field is a schema addition, which by [polish](docs/design/workplan/06-polish.md)'s own
+A persisted order field is a schema addition, which by [polish](06-polish.md)'s own
 house rule puts it out of polish. Likewise **duplicate cannot be a client-side
 prefill** — the same reason the author struck their own key-population clause —
 so it needs a server route that copies a credential without exposing it.
@@ -193,18 +193,18 @@ now and a migration later.
 |---|---|---|---|
 | **R5** | Merge `feat/tagging_and_search`; correct P3's stage record | **zero** | nothing |
 | **R9** rename | Push the branch | **zero** | nothing |
-| **R10** | [polish](docs/design/workplan/06-polish.md); the finding is [P6B.3](docs/design/workplan/20-p6b-playable.md)'s to route | small | nothing |
+| **R10** | [polish](06-polish.md); the finding is [P6B.3](20-p6b-playable.md)'s to route | small | nothing |
 | **R7** | Whoever owns [10 §9](../10-ui-surfaces.md) — unowned today | small | §1's shared layer |
 | **R9** delete + archive | A small client stage over routes that exist | small | decision 4's placement question |
-| **R3** search | [polish](docs/design/workplan/06-polish.md), reusing the branch's search idiom | small | nothing |
-| **R1** | Unowned; a 1.0 commitment [P11.0](docs/design/workplan/27-p11-implementation.md)'s audit exists to find | medium | decision 1 |
-| **R6** | [P6B.3](docs/design/workplan/20-p6b-playable.md) triage, against [P6 §1.8](docs/design/workplan/18-p6-implementation.md) | medium | decision 1 |
+| **R3** search | [polish](06-polish.md), reusing the branch's search idiom | small | nothing |
+| **R1** | Unowned; a 1.0 commitment [P11.0](27-p11-implementation.md)'s audit exists to find | medium | decision 1 |
+| **R6** | [P6B.3](20-p6b-playable.md) triage, against [P6 §1.8](18-p6-implementation.md) | medium | decision 1 |
 | **R4** | Needs a paragraph in [10](../10-ui-surfaces.md) first — no owner, no text | medium | a written spec |
 | **R3** roll-up + ToC | [25 E10](../25-open-questions.md) | medium | decision 2 |
-| **R2** | [P7 §1.9](docs/design/workplan/23-p7-implementation.md) for the real blocker | large | decision 3 |
-| **R11** | [P7.9](docs/design/workplan/23-p7-implementation.md) — Freeform, and its specification first | large | decision 4 |
+| **R2** | [P7 §1.9](23-p7-implementation.md) for the real blocker | large | decision 3 |
+| **R11** | [P7.9](23-p7-implementation.md) — Freeform, and its specification first | large | decision 4 |
 | **R8** | [24 §1.4](../24-roadmap.md) *R4 — Curate*, post-1.0 | medium | — |
-| **R9** import/export | [P11](docs/design/workplan/27-p11-implementation.md), blocked on a 2.0 design document | large | — |
+| **R9** import/export | [P11](27-p11-implementation.md), blocked on a 2.0 design document | large | — |
 
 **Build order has one hard constraint.** R8 subtracts what R1 and R6 add: if
 turns can be deleted, the abandoned-line problem stops being a navigation
@@ -217,7 +217,7 @@ could not find them.
 ## 5. What the walk did not produce, and what that means
 
 **Nothing about a narrow viewport**, though three of the eleven assume a wide
-one. [manual testing](docs/design/workplan/05-manual-testing.md)'s D16 is the unwalked step that would have caught
+one. [manual testing](05-manual-testing.md)'s D16 is the unwalked step that would have caught
 it. Each of R1, R3 and R5 needs a sentence about what it means at 375px, or D16
 will fail against work done because of this list. *That is a gap in the
 requests, not in the app.*

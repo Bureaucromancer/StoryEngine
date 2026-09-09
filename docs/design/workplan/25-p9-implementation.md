@@ -1,13 +1,13 @@
 # 25 — P9 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](docs/design/workplan/23-p7-implementation.md), [P8](docs/design/workplan/24-p8-implementation.md),
-[P10](docs/design/workplan/26-p10-implementation.md) and [P11](docs/design/workplan/27-p11-implementation.md); to be
-revisited before the phase starts. [P7 §0](docs/design/workplan/23-p7-implementation.md) says what a
-skeleton this far out is for. Format follows [P1](docs/design/workplan/07-p1-implementation.md);
-citation convention as [P4](docs/design/workplan/16-p4-implementation.md)'s.
+[P7](23-p7-implementation.md), [P8](24-p8-implementation.md),
+[P10](26-p10-implementation.md) and [P11](27-p11-implementation.md); to be
+revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
+skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
+citation convention as [P4](16-p4-implementation.md)'s.
 
-**P9 delivers**, from [work plan P9](docs/design/workplan/01-work-plan.md): per-turn and on-demand
+**P9 delivers**, from [work plan P9](01-work-plan.md): per-turn and on-demand
 illustration ([06 §10](../06-modes-and-turn-pipeline.md)), built against the
 general **rendition** shape so that video and speech are later *kinds* rather
 than later subsystems — **and the backdrop a scene is staged against**, which is
@@ -54,7 +54,7 @@ itself a month later. P9.1 says it again where the code is.
 
 ## 0. What this document is, six phases out
 
-[P7 §0](docs/design/workplan/23-p7-implementation.md) states the shared answer. Two things are
+[P7 §0](23-p7-implementation.md) states the shared answer. Two things are
 specific to this one, and both are about a phase whose subject does not exist
 yet in any form.
 
@@ -70,7 +70,7 @@ unusual for something this late and worth naming:
 - **P6 owes it reconstruction-at-a-node.** §1.3 — old turns rendered against
   *recorded* state rather than present state — is only answerable because P6
   makes *that turn's state* a thing you can ask for.
-  [P6 §0](docs/design/workplan/18-p6-implementation.md) now records the dependency from its end.
+  [P6 §0](18-p6-implementation.md) now records the dependency from its end.
 - **P10 owes it a router.** §1.5 is explicit that `artifact.ready` has a
   producer here and a consumer two phases later, which means this phase ships a
   signal nobody listens to and has to say so rather than quietly not emitting
@@ -81,7 +81,7 @@ unusual for something this late and worth naming:
 - **P7 also owes it a channel value it can write.** §1.7 — the backdrop
   channel P7 declares must hold a media reference able to name a rendition's
   asset, not only an uploaded file. Free there, a migration here.
-  [P7.9](docs/design/workplan/23-p7-implementation.md) records it from its end.
+  [P7.9](23-p7-implementation.md) records it from its end.
 
 ---
 ## 1. Decisions this plan has to make
@@ -98,7 +98,7 @@ unusual for something this late and worth naming:
 exists in the layout with nothing writing to it.
 
 That is the same shape of gap as
-[P2B §1](docs/design/workplan/10-p2b-provider-configuration.md)'s missing fallback layer — three
+[P2B §1](10-p2b-provider-configuration.md)'s missing fallback layer — three
 documents relying on a thing no document defines — and it is named here so it is
 found while planning rather than on the day. The remedy is small: one section in
 [21](../21-internal-contracts.md), one paragraph in
@@ -133,7 +133,7 @@ to survive an export.
 
 When this was written, export was [25 B12](../25-open-questions.md) with no
 release attached, so deciding here would have been deciding early and blind.
-**Export now ships at 1.0** ([work plan §0.5](docs/design/workplan/01-work-plan.md)) at P11, which is after
+**Export now ships at 1.0** ([work plan §0.5](01-work-plan.md)) at P11, which is after
 this phase — so the lean still holds, but it is no longer a decision that can be
 left indefinitely. **P9 owes P11 an answer rather than a lean**: what a rendition
 contributes to an exported session, and whether the recipe travels with it.
@@ -161,7 +161,7 @@ re-derive them:
   kind* is a larger claim than a second renderer and should be made
   deliberately.
 - Whatever ships must not make `image` look bound when nothing can serve it.
-  [P2B](docs/design/workplan/10-p2b-provider-configuration.md)'s dangling posture is the precedent:
+  [P2B](10-p2b-provider-configuration.md)'s dangling posture is the precedent:
   visible, named, and never a turn that fails obscurely.
 
 ### 1.3 Old turns: recorded state or present state
@@ -199,7 +199,7 @@ the shape that makes it safe is not**, and a phase that ships pixels without
 
 [09 §3.5](../09-server-multiuser-deployment.md) defines the class and names
 renditions as its only 1.0 producer; the notification **router** is
-[P10](docs/design/workplan/26-p10-implementation.md)'s. So this phase emits an event nothing routes,
+[P10](26-p10-implementation.md)'s. So this phase emits an event nothing routes,
 and the phases are in that order for good reasons on both sides.
 
 The obligation that follows is [09 §3.4](../09-server-multiuser-deployment.md)'s
@@ -249,8 +249,8 @@ back.
 [06 §7.2](../06-modes-and-turn-pipeline.md) has described Scene as *"staged
 scene, optional background and sprites"* since it was written, and has always
 said backgrounds are steps writing to channels. **No document has ever said
-where the image comes from.** [P7.9](docs/design/workplan/23-p7-implementation.md) repeats the
-channel and inherits the silence; [P4](docs/design/workplan/16-p4-implementation.md) counts
+where the image comes from.** [P7.9](23-p7-implementation.md) repeats the
+channel and inherits the silence; [P4](16-p4-implementation.md) counts
 SillyTavern's `backgrounds/` folder among the directories it *skips*, correctly,
 because thirty JPEGs are not a StoryEngine object. So at the end of P7 the
 engine has a channel that says which backdrop is showing and nothing at all that
@@ -329,8 +329,8 @@ declaration is the one that matches what P7 can actually produce — a file
 somebody uploaded — and narrowing it that way means widening a channel's schema
 under live sessions ([06 §4.2](../06-modes-and-turn-pipeline.md)) to admit the
 generated case. It is free in P7 and a migration in P9, which is the same shape
-of obligation [P6 §0](docs/design/workplan/18-p6-implementation.md) already records from its end, and
-it is recorded in [P7.9](docs/design/workplan/23-p7-implementation.md) from that end.
+of obligation [P6 §0](18-p6-implementation.md) already records from its end, and
+it is recorded in [P7.9](23-p7-implementation.md) from that end.
 
 #### The line this does not cross
 
@@ -460,7 +460,7 @@ the feature most likely to treat its own absence as an empty state.
 
 ### P9.5 — The workbench over renditions
 
-Deferred here by name from [P3 §5](docs/design/workplan/15-p3-implementation.md). Renditions are
+Deferred here by name from [P3 §5](15-p3-implementation.md). Renditions are
 worth showing for the same reason calls are: they cost money, they can fail, and
 *why did this one come out different* is answerable from two seeds. No new
 viewer — the block and call tables already exist and this is a third row kind.
@@ -513,12 +513,12 @@ Sketch; expand on revisit.
     log, because assertion 5's byte-identical request passes either way on the
     day it is written and only diverges later.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** Five settings arrive here — the per-session
 illustration mode, the per-mode default, the backdrop's own on/off, and two role
 bindings, since the moment call (P9.1) needs a `fast` binding beside the `image`
 one. Both bindings belong on
-[P2B](docs/design/workplan/10-p2b-provider-configuration.md)'s existing surface rather than a new one;
+[P2B](10-p2b-provider-configuration.md)'s existing surface rather than a new one;
 the other three do not have a surface anywhere in
 [10](../10-ui-surfaces.md) yet, and P9.4 is where that debt comes due.
 
@@ -542,7 +542,7 @@ for crossing that line and still does not cross it); the Character Studio
 therefore the nearest post-1.0 consumer of everything this phase builds, rather
 than a member of the authoring tier at 6.0; any model-quality evaluation of
 generated images
-([testing §4.3](docs/design/workplan/03-testing.md) — do not build quality evals, and an image eval is
+([testing §4.3](03-testing.md) — do not build quality evals, and an image eval is
 the most tempting version of the mistake).
 
 **The count judgement is the one deferral on that list that constrains this
@@ -568,7 +568,7 @@ because each is one step away from something this phase does build:
   §1.6's posture applies unchanged: the union is general, the implementation is
   images.
 - **SillyTavern's `backgrounds/` folder stays skipped.**
-  [P4](docs/design/workplan/16-p4-implementation.md) counts it among the directories it does not
+  [P4](16-p4-implementation.md) counts it among the directories it does not
   convert, correctly — thirty loose JPEGs are not a StoryEngine object — and
   giving backdrops a generator is not a reason to reopen an import decision. An
   uploaded backdrop reaches the channel the way any authored image does.
@@ -619,7 +619,7 @@ account of itself.
 
 - **Whether renditions are worth 1.0 at all.** Not currently asked, and it
   should be. This is the phase most easily deferred to a later release without
-  the core loop noticing, and [work plan §0.4](docs/design/workplan/01-work-plan.md)'s further-cuts
+  the core loop noticing, and [work plan §0.4](01-work-plan.md)'s further-cuts
   discipline is where that argument belongs if PLAYABLE says the loop is thin
   elsewhere. **§1.7 raises the price of that cut** without settling it: deferring
   P9 now also leaves P7 shipping a backdrop channel nothing can fill, so the cut

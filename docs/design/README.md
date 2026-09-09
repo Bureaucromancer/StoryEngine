@@ -5,29 +5,29 @@ These are design notes, not documentation of what exists — see [../](../) for
 that distinction, and treat anything here as intent rather than as a description
 of the code. Where a document still says *proposal*, it is one; the decisions
 that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
-[25](docs/design/25-open-questions.md), and the phase plans from
-[P1](docs/design/workplan/07-p1-implementation.md) through
-[P6A](docs/design/workplan/19-p6a-alpha-1.md) have been worked from rather than argued with,
+[25](25-open-questions.md), and the phase plans from
+[P1](workplan/07-p1-implementation.md) through
+[P6A](workplan/19-p6a-alpha-1.md) have been worked from rather than argued with,
 each carrying its own record of what shipped.
 
 **Phase: alpha, with Alpha 1 — the first tagged build, private and for the
 project's own use — cut 2026-09-06 as `v1.0.0-alpha.1`**
-([P6A](docs/design/workplan/19-p6a-alpha-1.md)). See the [root README](../../README.md) for
+([P6A](workplan/19-p6a-alpha-1.md)). See the [root README](../../README.md) for
 what actually runs today, and [`CHANGELOG.md`](../../CHANGELOG.md) for what
 that build says it is.
 
-**[work plan §0](docs/design/workplan/01-work-plan.md) is the only place the version cut is
+**[work plan §0](workplan/01-work-plan.md) is the only place the version cut is
 stated.** It is not restated here, deliberately: this block used to carry a copy
 and copies drift. In one line, 1.0 is the Play surface and the releases after it
 add Write, then World, then Campaign.
 
 Distribution, when there is something to distribute, is build-it-yourself until
 beta — which is defined as *feature complete to the 1.0 spec*. See
-[releases §0](docs/design/workplan/04-repo-and-releases.md). The one build before that is
-not a distribution, and [releases §0.1](docs/design/workplan/04-repo-and-releases.md) is
+[releases §0](workplan/04-repo-and-releases.md). The one build before that is
+not a distribution, and [releases §0.1](workplan/04-repo-and-releases.md) is
 the distinction.
 
-**The first checkpoint is PLAYABLE** ([work plan §4.1](docs/design/workplan/01-work-plan.md)) — well before
+**The first checkpoint is PLAYABLE** ([work plan §4.1](workplan/01-work-plan.md)) — well before
 beta, and the point at which the design gets tested by use rather than completed
 on paper.
 
@@ -35,13 +35,13 @@ These are working documents for a clean-sheet engine that takes the *feature
 territory* of Aventuras, Marinara Engine and SillyTavern without inheriting
 their accumulated structure. Infinite Worlds — closed-source, and in the same
 genre as the Freeform and Campaign modes — is a fourth reference, surveyed in
-[02](docs/design/02-infinite-worlds.md). They are deliberately **not comprehensive**. They
+[02](02-infinite-worlds.md). They are deliberately **not comprehensive**. They
 record an initial set of positions on where StoryEngine should *diverge* from
 the obvious approach — "port the three feature sets into one server" — and they
 leave large areas untouched on purpose.
 
 Where a document takes a position, it is a proposal to argue with, not a
-decision. Open questions are collected in [25-open-questions.md](docs/design/25-open-questions.md)
+decision. Open questions are collected in [25-open-questions.md](25-open-questions.md)
 and also flagged inline as **[OPEN]**.
 
 ## Two folders, and how they are cited
@@ -51,91 +51,104 @@ building it.** The split is by what a document answers. Design documents answer
 *what this is and why* — they change when a position changes. Work-plan
 documents answer *what gets built, in what order, and what is left to do* — they
 change as work lands, and several of them are worked from rather than argued
-with. [24 — the feature list](docs/design/24-roadmap.md) sits at the end of the design side
-on purpose: it is where intent stops being design and starts pointing at the
-mechanical lists next door. It holds **no release commitments** — those are all
-in [work plan §0](docs/design/workplan/01-work-plan.md).
+with. [24 — the feature list](24-roadmap.md) sits near the end of the design
+side on purpose: it is where intent stops being design and starts pointing at
+the mechanical lists next door. Only [25](25-open-questions.md) comes after it,
+because that one is a ledger you consult rather than a document you read
+through, and it is ordered by how expensive its questions are to answer late. It holds **no release commitments** — those are all
+in [work plan §0](workplan/01-work-plan.md).
 
 **Citations differ by folder, deliberately.** Design documents are cited by
 number — `[03 §5]`, `[21 §1]`. Work-plan documents are cited by **name** —
 `[P1 §1.3]`, `[work plan §4.1]`, `[triage §6.2]`, `[polish §4]`,
-`[testing §2]`, `[releases §2]` — because both folders number from `01` and a
-bare `02` would otherwise mean two different documents.
+`[testing §2]`, `[releases §2]`.
+
+**The reason is no longer that a bare `02` is ambiguous — it is that a work-plan
+number is filing order and was never a citation key.** Nothing cites one, so
+moving a work-plan document costs nothing. That is what makes the reading order
+below maintainable rather than a claim that decays, and
+[`tools/doc-links.test.ts`](../../tools/doc-links.test.ts) holds both halves: a
+label opening with two digits must name the number of the file it links to, and
+a work-plan target must be cited by a name from the registry. The convention was
+stated here from the beginning and broken in 527 places before anything checked
+it.
 
 ## Reading order
 
 Numbers are the reading order within each folder, not the order the documents
-were written in. **Start with 00, then 01.**
+were written in. **Start with 00, then 01, and keep going.**
+
+That sentence was aspirational until 2026-09-09 and is now true. Before then the
+numbers were allocation order — the next free integer at the moment of writing —
+and this file said so twenty-five lines apart from claiming otherwise.
+
+**Keeping it true has a cost, and the cost is paid by a script.** A note
+inserted in the middle renumbers everything below it, which is only tolerable
+because [`tools/renumber-docs.mjs`](../../tools/renumber-docs.mjs) does it and
+the link checker proves it landed. **Do not add a note at the end to avoid the
+renumber** — that is exactly how the previous ordering decayed, one honest
+shortcut at a time.
 
 ### Start here
 
 | Doc | What it covers |
 |---|---|
-| [00-stance.md](docs/design/00-stance.md) | Design principles, and the specific legacy patterns being dropped |
+| [00-stance.md](00-stance.md) | Design principles, and the specific legacy patterns being dropped |
 
 ### What we are building on
 
 | Doc | What it covers |
 |---|---|
-| [01-source-survey.md](docs/design/01-source-survey.md) | What Aventuras, Marinara and SillyTavern actually do |
-| [02-infinite-worlds.md](docs/design/02-infinite-worlds.md) | The fourth reference, and the authored-rules tier it exposes as missing |
-| [workplan/02-triage.md](docs/design/workplan/02-triage.md) | The base decision — standalone, not a fork — and per-subsystem verdicts: adopt, port, rebuild, discard, buy |
+| [01-source-survey.md](01-source-survey.md) | What Aventuras, Marinara and SillyTavern actually do |
+| [02-infinite-worlds.md](02-infinite-worlds.md) | The fourth reference, and the authored-rules tier it exposes as missing |
+| [workplan/02-triage.md](workplan/02-triage.md) | The base decision — standalone, not a fork — and per-subsystem verdicts: adopt, port, rebuild, discard, buy |
 
 ### The design
 
 | Doc | What it covers |
 |---|---|
-| [03-data-model.md](docs/design/03-data-model.md) | **Why** the objects are shaped as they are; storage on disk |
-| [04-schemas.md](docs/design/04-schemas.md) | **What** they are — definitions, and the stability boundary |
-| [06-modes-and-turn-pipeline.md](docs/design/06-modes-and-turn-pipeline.md) | The mode contract, the modes, channels, party, assembly, renditions |
-| [07-branching.md](docs/design/07-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
-| [08-cross-session-memory.md](docs/design/08-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
-| [09-server-multiuser-deployment.md](docs/design/09-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
-| [10-ui-surfaces.md](docs/design/10-ui-surfaces.md) | Web-only client, density stance, home, library and play, the workbench panel, file access, editors |
-| [11-lorebooks-as-a-format.md](docs/design/11-lorebooks-as-a-format.md) | Why a lorebook is worth reading, browsing and searching in its own right — and why that costs no schema |
-| [12-account-gallery.md](docs/design/12-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
-| [13-write-mode.md](docs/design/13-write-mode.md) | The Write surface and its two modes, Outline and Prose: the manuscript kind, beats, the binder layouts, and a third top-level surface |
-| [14-writing-samples.md](docs/design/14-writing-samples.md) | Prose pasted in as an exemplar of tone rather than a description of it — on actors, treatments and lorebooks |
-| [15-world.md](docs/design/15-world.md) | World: a grouping of sessions that share a continuity, and the story bible that says what one contains |
-| [16-authoring.md](docs/design/16-authoring.md) | The authoring tier: authored rules and lorebook extraction — turning what you played into what you can author with |
-| [17-character-studio.md](docs/design/17-character-studio.md) | The Character Studio: reference-set curation, structured descriptors and the consistency loop that makes a card produce the same person twice |
-| [18-session-import.md](docs/design/18-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
-| [23-randomizers.md](docs/design/23-randomizers.md) | Two agentic addons — a plot randomizer that draws an outcome before narration, and an appearance randomizer that draws descriptors before the model writes — and the eight things they ask of the design |
-| [05-tagging.md](docs/design/05-tagging.md) | Tagging: what a tag is now that lore can gate on one, and a registry that decorates names without owning them |
+| [03-data-model.md](03-data-model.md) | **Why** the objects are shaped as they are; storage on disk |
+| [04-schemas.md](04-schemas.md) | **What** they are — definitions, and the stability boundary |
+| [06-modes-and-turn-pipeline.md](06-modes-and-turn-pipeline.md) | The mode contract, the modes, channels, party, assembly, renditions |
+| [07-branching.md](07-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
+| [08-cross-session-memory.md](08-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
+| [09-server-multiuser-deployment.md](09-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
+| [10-ui-surfaces.md](10-ui-surfaces.md) | Web-only client, density stance, home, library and play, the workbench panel, file access, editors |
+| [11-lorebooks-as-a-format.md](11-lorebooks-as-a-format.md) | Why a lorebook is worth reading, browsing and searching in its own right — and why that costs no schema |
+| [12-account-gallery.md](12-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
+| [13-write-mode.md](13-write-mode.md) | The Write surface and its two modes, Outline and Prose: the manuscript kind, beats, the binder layouts, and a third top-level surface |
+| [14-writing-samples.md](14-writing-samples.md) | Prose pasted in as an exemplar of tone rather than a description of it — on actors, treatments and lorebooks |
+| [15-world.md](15-world.md) | World: a grouping of sessions that share a continuity, and the story bible that says what one contains |
+| [16-authoring.md](16-authoring.md) | The authoring tier: authored rules and lorebook extraction — turning what you played into what you can author with |
+| [17-character-studio.md](17-character-studio.md) | The Character Studio: reference-set curation, structured descriptors and the consistency loop that makes a card produce the same person twice |
+| [18-session-import.md](18-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
+| [23-randomizers.md](23-randomizers.md) | Two agentic addons — a plot randomizer that draws an outcome before narration, and an appearance randomizer that draws descriptors before the model writes — and the eight things they ask of the design |
+| [05-tagging.md](05-tagging.md) | Tagging: what a tag is now that lore can gate on one, and a registry that decorates names without owning them |
 
-15 through 22, 24 and 25 sit after 14 by number only — the slots beneath them were
-taken when they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05,
-whose lorebook and library sections it takes a position about and whose surfaces
-carry the specifications; 17 reads after 03 and 05, whose mode contract it
-extends and whose surface count it changes; 19 reads after 02 and 11, whose
-session model and memory keying it widens; 20 reads after 03 and 08, whose
-extensibility tiers it completes; 21 reads after 01 and 06, whose source survey
-it extends into the session half and whose E4 it makes checkable; 22 reads after
-03, 07 and 05, whose step contract, RNG service and field-assist path it
-arranges into two features; 24 reads after 02 and 05, whose media model and
-editor surfaces it turns into a release; 25 reads after 02 and 10, whose
-position on tags it corrects. Which is why they are all indexed here.
+The table order **is** the numbering. Where a note reads beside an earlier one
+rather than after it, its row says so.
 
-**19, 20 and 24 were promoted out of [24](docs/design/24-roadmap.md)** when their subjects
-acquired releases. That is the pattern rather than an accident: the feature list
-holds no release commitments, so anything scheduled leaves it for a design note
-of its own.
+**Three of these were promoted out of [24](24-roadmap.md)** when their subjects
+acquired releases — [15](15-world.md), [16](16-authoring.md) and
+[17](17-character-studio.md), the last of them twice. That is the pattern rather
+than an accident: the feature list holds no release commitments, so anything
+scheduled leaves it for a design note of its own.
 
 ### The technical ground
 
 | Doc | What it covers |
 |---|---|
-| [19-tech-stack.md](docs/design/19-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
-| [20-client-loading.md](docs/design/20-client-loading.md) | Deferred client-loading options: expected bundle growth, route and tool boundaries, shared schemas, caching, and what to measure before acting |
-| [21-internal-contracts.md](docs/design/21-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
-| [22-extensions.md](docs/design/22-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
+| [19-tech-stack.md](19-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
+| [20-client-loading.md](20-client-loading.md) | Deferred client-loading options: expected bundle growth, route and tool boundaries, shared schemas, caching, and what to measure before acting |
+| [21-internal-contracts.md](21-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
+| [22-extensions.md](22-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
 
 ### What comes after, and what is unresolved
 
 | Doc | What it covers |
 |---|---|
-| [24-roadmap.md](docs/design/24-roadmap.md) | The feature list — three priority tiers, no releases attached — plus desired extensions, hints for expansion authors |
-| [25-open-questions.md](docs/design/25-open-questions.md) | Every open decision, ordered by how expensive it is to answer late |
+| [24-roadmap.md](24-roadmap.md) | The feature list — three priority tiers, no releases attached — plus desired extensions, hints for expansion authors |
+| [25-open-questions.md](25-open-questions.md) | Every open decision, ordered by how expensive it is to answer late |
 
 ### Then the work plan
 
@@ -169,12 +182,12 @@ they still have to exist before code does.
 3. **Surfaces own modes, and modes are an extension point rather than a fixed
    feature set.** Play holds Scene and Freeform at 1.0 and Campaign later; Write
    is a surface of its own holding Outline and Prose
-   ([13](docs/design/13-write-mode.md)); a Social surface is proposed and undefined
-   ([24 §3.4](docs/design/24-roadmap.md)). **Which release each lands in is
-   [work plan §0](docs/design/workplan/01-work-plan.md)'s to say, not this file's.** What is
+   ([13](13-write-mode.md)); a Social surface is proposed and undefined
+   ([24 §3.4](24-roadmap.md)). **Which release each lands in is
+   [work plan §0](workplan/01-work-plan.md)'s to say, not this file's.** What is
    a commitment rather than a schedule is the consequence: a later release should
    need no change to the 1.0 portable schemas
-   ([work plan §0.2](docs/design/workplan/01-work-plan.md)) — and **Write is the real test of
+   ([work plan §0.2](workplan/01-work-plan.md)) — and **Write is the real test of
    that claim**, because it is the first thing that needs the contract to grow
    rather than to be configured.
 4. **Data objects that make sense for LLM workflows**, stored as files on disk,
@@ -187,7 +200,7 @@ they still have to exist before code does.
   actor, not separate types.
 - **Treatment** — the reusable tone/framing object that *points at* world content
   rather than containing it. A lorebook is the world; a treatment is how it is
-  handled here ([04 §6](docs/design/04-schemas.md) records why the name changed from
+  handled here ([04 §6](04-schemas.md) records why the name changed from
   *Setting*).
 - **Package** — a shareable bundle of actors, treatments, lorebooks, presets and
   mode config; the "full game setup" export.
@@ -198,6 +211,6 @@ they still have to exist before code does.
   extension (HP, quests, clock, weather, relationship, …).
 - **Manuscript** — the long-form artefact: a binder of nodes, with the prose in
   Markdown files beside it. A library kind, and internal tier
-  ([13 §5](docs/design/13-write-mode.md)).
+  ([13 §5](13-write-mode.md)).
 - **Beat** — a short instruction with a position in a manuscript. The Write
-  mode's unit of input ([13 §7](docs/design/13-write-mode.md)).
+  mode's unit of input ([13 §7](13-write-mode.md)).

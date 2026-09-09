@@ -30,9 +30,9 @@ pinned by tests, which is the useful half of having worried about them.
 
 Written immediately after P2 closed, against a
 design section that four other documents already cite as though it were built.
-Format follows [P1](docs/design/workplan/07-p1-implementation.md).
+Format follows [P1](07-p1-implementation.md).
 
-**P2A delivers**, from [work plan P2A](docs/design/workplan/01-work-plan.md): the settings surface —
+**P2A delivers**, from [work plan P2A](01-work-plan.md): the settings surface —
 [10 §15.1](../10-ui-surfaces.md) in full, [10 §15.2](../10-ui-surfaces.md) in
 full, and the half of §15.3 that has something to configure. One route, one
 navigation entry, the admin half **absent** rather than disabled.
@@ -44,17 +44,17 @@ connection, because they do.* That last clause is the phase. The surface earns
 its place by reporting the dead-end state
 ([09 §4.5](../09-server-multiuser-deployment.md)) rather than leaving it to
 arrive as a bug report from someone who cannot send a message. Fixing that state
-without a text editor is [P2B](docs/design/workplan/10-p2b-provider-configuration.md)'s demo, not
+without a text editor is [P2B](10-p2b-provider-configuration.md)'s demo, not
 this one.
 
 **P2A is where three things stop being documents.**
 [21 §4.2](../21-internal-contracts.md)'s *"the settings UI writes this file"*,
 including the self-write rule it attaches; `pendingRestart()`, which P2 built,
-tested, and left with no caller ([P2 Appendix A](docs/design/workplan/08-p2-implementation.md)); and
+tested, and left with no caller ([P2 Appendix A](08-p2-implementation.md)); and
 `Capabilities`, a persisted shape since P1 that nothing has ever honoured.
 
 **CI this phase establishes:** two checks, both the mechanised half of
-[work plan §2.3](docs/design/workplan/01-work-plan.md). The **config drift test** — `config.example.json`
+[work plan §2.3](01-work-plan.md). The **config drift test** — `config.example.json`
 declares every key `ConfigSchema` does — and the **route-table test**, which
 asserts every path under `/api/admin` refuses a non-admin without naming any of
 them. A list of admin routes maintained by hand is wrong the first time somebody
@@ -87,12 +87,12 @@ behave as though it exists**, and each is currently saying something untrue:
 
 **So this is not a P10 feature arriving early; it is a dependency that was never
 scheduled.** The distinction matters because it is exactly what
-[work plan §2.1](docs/design/workplan/01-work-plan.md)'s deferral question is meant to catch and did not.
+[work plan §2.1](01-work-plan.md)'s deferral question is meant to catch and did not.
 Asked of *the settings screen*, "what does it cost to add this a year later?"
 answers "the work itself", and the screen defers correctly. Asked of *the
 ability to configure the thing you just built*, it answers "every phase in
 between ships a feature nobody can turn on without a text editor". The question
-was right and it was asked about the wrong noun. [work plan §2.3](docs/design/workplan/01-work-plan.md) is
+was right and it was asked about the wrong noun. [work plan §2.3](01-work-plan.md) is
 the correction.
 
 **What it is not is a licence to build §15 entirely.** Half of §15.3 configures
@@ -104,7 +104,7 @@ subsystems that do not exist, and §2.6 refuses each of them by name.
 
 ### 2.1 Capability enforcement moves forward, and only one of the three bites
 
-[work plan §2.2](docs/design/workplan/01-work-plan.md) uses capability enforcement as its worked example of
+[work plan §2.2](01-work-plan.md) uses capability enforcement as its worked example of
 a correct split: the `Capabilities` record ships at P1 because it is a persisted
 shape, the enforcement waits for P10 because it is additive. That split was
 right while nothing granted capabilities. **A screen that grants them changes
@@ -124,7 +124,7 @@ the very next turn rather than at the next restart. Two instances would be two
 caches and a revocation that takes effect eventually.
 
 **Two of the three capabilities still gate nothing, and the surface says so.**
-`fileAccess` gates a file browser [work plan §4](docs/design/workplan/01-work-plan.md) moved to the roadmap;
+`fileAccess` gates a file browser [work plan §4](01-work-plan.md) moved to the roadmap;
 `enableExtensions` gates extensions, which appear in no phase list at all. Two
 dishonest options were available and both are refused: inventing a partial
 enforcement so the switch feels real, and rendering three switches as though
@@ -172,8 +172,8 @@ an unbounded write surface for any signed-in account. They bound the file; they
 do not interpret it. Without that comment the next reader improves them into a
 schema, which is the one thing B13 ruled out.
 
-This unblocks [polish §2](docs/design/workplan/06-polish.md)'s *As stored* pane state, which is hard
-blocked, and [polish §4](docs/design/workplan/06-polish.md)'s all-kinds view, which is not — §4
+This unblocks [polish §2](06-polish.md)'s *As stored* pane state, which is hard
+blocked, and [polish §4](06-polish.md)'s all-kinds view, which is not — §4
 authorises deleting that view rather than waiting, and no longer has to.
 
 ### 2.3 Removal: disable is the default, and the second choice says what it does
@@ -268,10 +268,10 @@ of what it declares is not true of the running server.**
   paths, marking each `live` key `applied` or `unread`. It ships over the wire
   and the form renders `unread` keys in a group that says so. **This is the
   mechanism that stops the settings surface ever showing a control that does
-  nothing**, which is the placeholder failure [work plan §2.2](docs/design/workplan/01-work-plan.md)
+  nothing**, which is the placeholder failure [work plan §2.2](01-work-plan.md)
   forbids — and it is cheaper than the alternative, which is remembering.
 - **`limits.maxUploadMb` is *not* re-tiered**, and this plan's first draft said
-  it should be. [P2 §3](docs/design/workplan/08-p2-implementation.md) named the tier as out of P2.0's
+  it should be. [P2 §3](08-p2-implementation.md) named the tier as out of P2.0's
   scope and gave a reason worth keeping: *"the key names uploads; there is no
   upload route yet, and re-tiering the contract to match today's shortcut would
   lock the shortcut in."* That is right. The tier describes what the key is for;
@@ -310,7 +310,7 @@ and the section is **not** marked done — [10 §15.5](../10-ui-surfaces.md) gai
 a line naming exactly which bullets closed, so P2B and P10 inherit an accurate
 remainder rather than a section that looks finished.
 
-- **System connections** — [P2B](docs/design/workplan/10-p2b-provider-configuration.md). The whole of
+- **System connections** — [P2B](10-p2b-provider-configuration.md). The whole of
   the next phase.
 - **The system library** — nothing, and this is the one place §15 asks for a
   panel that fails its own test. [10 §4.2](../10-ui-surfaces.md) makes the
@@ -367,7 +367,7 @@ with their tier comments; the route table the admin test reads.
 
 **Two of these were named as out of P2.0's scope and are now in.** The
 `config.example.json` drift test and `limits.maxUploadMb`'s tier were both left
-because neither cited a finding ([P2 §3](docs/design/workplan/08-p2-implementation.md)) — the right
+because neither cited a finding ([P2 §3](08-p2-implementation.md)) — the right
 call under that stage's rule. The drift test enters here because a settings form
 makes the example file's accuracy load-bearing rather than cosmetic; the tier
 stays where P2 left it, for P2's reason, and §2.5 records why the first draft of
@@ -519,7 +519,7 @@ could be refused. That is the difference between absent and disabled expressed
 as a mechanism, and it is directly testable.
 
 *Not done here:* any settings end-to-end journey. The Playwright tier does not
-exist ([testing §3.5](docs/design/workplan/03-testing.md)) and P2A does not create it.
+exist ([testing §3.5](03-testing.md)) and P2A does not create it.
 
 *Ends at:* one route, one navigation entry, two halves.
 
@@ -595,14 +595,14 @@ pnpm dev    # http://127.0.0.1:8080
     route-table test refuses a non-admin on every path under `/api/admin`
     without naming any of them.
 
-**And the standing line, from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line, from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** For P2A it is discharged by steps 12–14 and
 by the drift test. For every phase after it, it is a question to answer before
 calling the phase done.
 
 **Walked, 2026-08-20.** Thirteen of the seventeen steps are automated and
 falsifiable; the rest are partial with the human half in
-[manual gate §2](docs/design/workplan/11-p2-manual-gate.md).
+[manual gate §2](11-p2-manual-gate.md).
 
 **Step 15 found a real failure, and it is fixed.** One hand edit wedged the
 form until the process restarted: the `412` compared against what the process
@@ -617,14 +617,14 @@ both recoveries; both are covered from the client's side.
 **What needs a person.** Steps 1, 7, 11 and 13 have automatable cores and
 user-visible halves that do not automate — that a warning reads as a warning,
 that the removal sentence is the one somebody would want to have read before
-clicking. Following [manual gate](docs/design/workplan/11-p2-manual-gate.md)'s precedent, those halves are
+clicking. Following [manual gate](11-p2-manual-gate.md)'s precedent, those halves are
 written down rather than rounded off.
 
 ---
 
 ## 5. Out of scope, deliberately
 
-Per-user connections and role bindings ([P2B](docs/design/workplan/10-p2b-provider-configuration.md)
+Per-user connections and role bindings ([P2B](10-p2b-provider-configuration.md)
 — P2A does the enforcing that unblocks them); the system library panel, the
 extensions panel, *Restart now*, and connectivity state
 ([10 §15.3](../10-ui-surfaces.md), each refused by name in §2.6); notification

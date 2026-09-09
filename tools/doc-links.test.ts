@@ -207,6 +207,9 @@ describe('every citation says which document it means', () => {
   it('cites a work-plan document by name, never by number', () => {
     const numeric = numbered
       .filter((link) => isWorkplan(link.target))
+      // A label that *is* the filename names its target exactly, which is what
+      // the rule is for. The index tables are written that way.
+      .filter((link) => !/^\d{2}-[a-z0-9-]+\.md$/.test(link.label))
       .filter((link) => /^\d{2}(?=[\s\]\-—.]|$)/.test(link.label))
       .map((link) => `${link.file}:${String(link.line)} — "${link.label}" → ${link.target}`);
 

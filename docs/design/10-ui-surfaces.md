@@ -11,7 +11,7 @@ surface in this document is built for it. There is no desktop app, no Electron
 shell, no Tauri build and no native mobile app.
 
 **Softened from "and no plan for any", with a bar attached.** Notification-driven
-modes — Messages especially ([06 §7.1](docs/design/06-modes-and-turn-pipeline.md)) — are the
+modes — Messages especially ([06 §7.1](06-modes-and-turn-pipeline.md)) — are the
 kind of thing a native client genuinely serves better, so a blanket never is the
 wrong shape. The position instead:
 
@@ -43,7 +43,7 @@ What follows from this:
   users are on laptops has different priorities at 1.0.)
 - **No offline story.** No local cache-as-database, no sync. No service worker
   *for caching* — though a push-only one is permitted, and the distinction is
-  drawn in [09 §3.7](docs/design/09-server-multiuser-deployment.md).
+  drawn in [09 §3.7](09-server-multiuser-deployment.md).
   The server is on your LAN; if you can't reach it there is nothing to do.
   This removes an entire class of state-reconciliation problems.
 - **Nothing is installed on the client.** Bookmark a URL. That is the whole
@@ -76,7 +76,7 @@ this"*.
 who will run a server on their own LAN, hand-edit an object folder in a text
 editor and enjoy it — the crowd for whom a well-structured `.md` file is a thing
 of beauty. That audience is not incidental: the storage thesis
-([03 §5](docs/design/03-data-model.md)) recruits it directly, and designing past it to chase
+([03 §5](03-data-model.md)) recruits it directly, and designing past it to chase
 a mass-market posture would cost the users this project actually has without
 winning the ones it does not.
 
@@ -100,7 +100,7 @@ what the user is doing at that moment, not by taste:
 
 | Dense — tooling | Quiet — story and arrival |
 |---|---|
-| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([12](docs/design/12-account-gallery.md)) |
+| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([12](12-account-gallery.md)) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
 **The play surfaces have one element that tests this directly**, and it is worth
@@ -138,7 +138,7 @@ below lands.
 
 **[OPEN]** Whether the tooling surfaces eventually need a **simple/advanced
 split**, or **a user-rearrangeable layout** so density is something a user dials.
-Carried as [25 E10](docs/design/25-open-questions.md), where the caution that matters is
+Carried as [25 E10](25-open-questions.md), where the caution that matters is
 recorded: **neither is a licence to skip designing the surface now.** Themes
 move look, not information architecture, and "the user can rearrange it later"
 is how a UI ends up never having been designed at all.
@@ -186,7 +186,7 @@ every navigation. The mirror is a cache and never an authority: nothing reads it
 to decide what to save.
 
 **Dense and Quiet share the palette**, and that is a finding rather than a
-shortcut: [P2C](docs/design/workplan/12-p2c-first-real-run.md) diagnosed the dark play
+shortcut: [P2C](workplan/12-p2c-first-real-run.md) diagnosed the dark play
 surface as *"a stranded assumption rather than a theme"* — sixteen `neutral-*`
 utilities against a hundred and seventy-two `slate-*` — and its typed text
 measured **1.01 to 1**. What separates the two families is **type** (`text-story`
@@ -200,7 +200,7 @@ and no panel background, so tool chrome cannot land on one by accident.
 
 | Surface | What it is |
 |---|---|
-| **Play** | Scene, Freeform and later Campaign ([06 §7](docs/design/06-modes-and-turn-pipeline.md)), plus the affordances that make starting and managing a story quick (§2.2) |
+| **Play** | Scene, Freeform and later Campaign ([06 §7](06-modes-and-turn-pipeline.md)), plus the affordances that make starting and managing a story quick (§2.2) |
 | **Library** | Actors, lorebooks, treatments, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
 | **Workbench** | Not a surface. An inspector panel that expands over whichever surface you are in — §3 |
 
@@ -211,25 +211,25 @@ same records.
 **Surfaces own modes**, which is the relationship that decides what a surface
 *is*: Play holds Scene, Freeform and Campaign; a second surface exists when a set
 of modes wants a layout the first one cannot give them without becoming
-conditional ([06 §1](docs/design/06-modes-and-turn-pipeline.md),
-[work plan §0](docs/design/workplan/01-work-plan.md)).
+conditional ([06 §1](06-modes-and-turn-pipeline.md),
+[work plan §0](workplan/01-work-plan.md)).
 
-**A third surface arrives with Write at 2.0** ([13 §6](docs/design/13-write-mode.md)),
+**A third surface arrives with Write at 2.0** ([13 §6](13-write-mode.md)),
 holding Outline and Prose — two modes whose layout is document-shaped rather
 than session-shaped, and which therefore cannot live inside Play without making
 Play's layout conditional on the mode.
 
 **A fourth is proposed and undefined.** Social — a messenger, a feed and a board
 as three modes of one surface — sits on the feature list rather than in a release
-([24 §3.4](docs/design/24-roadmap.md)). It is named here because Messages was going to be a
+([24 §3.4](24-roadmap.md)). It is named here because Messages was going to be a
 Play mode and no longer is, and because a surface count that ignored it would be
 stale on arrival.
 
 **And one committed release has to decide what shape it is.** The Character
-Studio ships at 3.0 ([17](docs/design/17-character-studio.md)), and whether it is a panel in
+Studio ships at 3.0 ([17](17-character-studio.md)), and whether it is a panel in
 the actor editor, a mode of an existing surface, or a surface of its own is
 undecided — three answers with three different navigation costs, laid out in
-[17 §6](docs/design/17-character-studio.md). **This section is where that gets answered, and
+[17 §6](17-character-studio.md). **This section is where that gets answered, and
 it has to be answered before 3.0's scope is checkable**: a panel and a
 top-level place of its own are not the same release. It is named here rather
 than left in 24 because it is a surface argument, and surface arguments are
@@ -274,7 +274,7 @@ editor and enjoy it."* The library is the surface that audience is for.
 
 **Play carries the player-facing ergonomics** — quick setup, resuming, managing a
 story in flight, and eventually grouping sessions that share a continuity
-([15](docs/design/15-world.md)). Someone who wants to *play* should never have to learn
+([15](15-world.md)). Someone who wants to *play* should never have to learn
 the object graph to do it, and someone who wants to *author* should never have to
 see through a friendly label to find out what they are editing.
 
@@ -302,9 +302,9 @@ using it rather than by reading a shelf.
 - **Play's conveniences emit ordinary objects.** A quick setup that creates a
   Treatment creates a real one, in the library, in a folder, indistinguishable
   from a hand-written one. Never a parallel play-side store — the same
-  discipline [15 §4](docs/design/15-world.md) puts on the story bible, and the same
+  discipline [15 §4](15-world.md) puts on the story bible, and the same
   instinct already behind *"emit a Setup from this running session"*
-  ([03 §7.1](docs/design/03-data-model.md)).
+  ([03 §7.1](03-data-model.md)).
 
 **What the two claims cost each other, since they pull in opposite directions.**
 A raw library and an inspector panel both supply fidelity, and it would be easy
@@ -338,13 +338,13 @@ already thinking of, which is a different question, and answering the first with
 the second is how an app ends up opening on a list of everything you own. This
 matters more once the library is per-kind panels (§5): there is no single list
 left to land on, and picking one kind arbitrarily would be worse than the list
-was. See [polish §5](docs/design/workplan/06-polish.md) for the build-level detail.
+was. See [polish §5](workplan/06-polish.md) for the build-level detail.
 
 ### 2.3 The backdrop, and what it is not allowed to cost
 
 Play can carry a **backdrop** — a generated or uploaded image of where the story
 is happening, behind the transcript
-([06 §10.1a](docs/design/06-modes-and-turn-pipeline.md)). It is the one piece of Play's
+([06 §10.1a](06-modes-and-turn-pipeline.md)). It is the one piece of Play's
 layout that arrives from a model rather than from the design, which is why it
 gets a paragraph here rather than being left to the mode.
 
@@ -360,7 +360,7 @@ clean prose first* — and Play is on the quiet side of that table. So:
   transcript, does not push the layout around when it changes, and does not
   animate a transition the reader has to wait through. A room change is a fade,
   not an event.
-- **Off is a real setting and a common one.** [06 §7.2](docs/design/06-modes-and-turn-pipeline.md)
+- **Off is a real setting and a common one.** [06 §7.2](06-modes-and-turn-pipeline.md)
   requires text-only Scene to be first-class, and with the backdrop off Play is
   the surface it was before — not a surface with an empty frame in it. The
   temptation this feature brings is a placeholder where the picture would go, and
@@ -378,7 +378,7 @@ is all cost and no atmosphere.
 
 ## 3. Workbench — the inspector panel
 
-The turn record ([03 §8](docs/design/03-data-model.md)) is designed to be displayed. The
+The turn record ([03 §8](03-data-model.md)) is designed to be displayed. The
 workbench is its viewer and editor, and because the record is complete and
 persistent, the workbench is a *reader*, not a second implementation of the
 assembler. That is the whole trick.
@@ -403,7 +403,7 @@ which is the depth [§2.1](#21-the-library-is-the-model-play-is-the-product)
 deliberately keeps out of a browse list. **Over the library *list*, it shows
 import.**
 
-*Added 2026-08-31, decided for [P4 §7.12](docs/design/workplan/16-p4-implementation.md), and
+*Added 2026-08-31, decided for [P4 §7.12](workplan/16-p4-implementation.md), and
 this section is where the cost is admitted rather than left to a phase document.*
 The list has no selection concept, so the panel over it was the empty state and
 [P3 §7.3] left open what it should be instead. Import is the answer for that one
@@ -431,11 +431,11 @@ second one arrives the section should be rewritten around *what the main view is
 about* rather than around *the record it has*. One exception is a decision; two
 is a definition nobody updated.
 
-*The index rows*, decided at [P3 §7.4](docs/design/workplan/15-p3-implementation.md): every
+*The index rows*, decided at [P3 §7.4](workplan/15-p3-implementation.md): every
 row the index holds for the id — the winner first in portable-path order, the
 shadowed copies, and any row inside its tombstone settling window — with
 portable paths only, never native ones. The route serving them is a
-**best-effort projection, not a contract**: [21 §5](docs/design/21-internal-contracts.md)
+**best-effort projection, not a contract**: [21 §5](21-internal-contracts.md)
 keeps the index's tables an implementation detail and the migration policy is
 drop-and-rescan, so the projection restates the index and may return less after
 a schema bump until the surface catches up. The winning path is *named* here
@@ -444,7 +444,7 @@ because the path shown is the very string the shadow resolution orders by.
 What it shows for any turn, current or historical — meaning any turn that has
 been *taken*. A turn still being taken is a different subject with a different
 feed, decided at [P3.5] and specified in
-[09 §3.3](docs/design/09-server-multiuser-deployment.md): while the server is working the
+[09 §3.3](09-server-multiuser-deployment.md): while the server is working the
 panel renders the progress events — which step is running, which was skipped
 and why, which failed and with what class, what each call asked and what it
 reported — and says that is what it is showing. The record below arrives whole
@@ -455,7 +455,7 @@ when the turn commits, and the two are never on screen at once.
   location == Rain City"), token cost, and included/dropped with the rule
   responsible. Marinara's `LorebookActivationSource` and its budget skip-reason
   reporting already produce most of this data
-  ([03 §3.1–3.2](docs/design/03-data-model.md)); the workbench is where it stops being an
+  ([03 §3.1–3.2](03-data-model.md)); the workbench is where it stops being an
   amber notice in a popover and becomes the primary view.
 - **The budget verdict** — what the ceiling was, what was spent, what got
   dropped and what would drop next. "What is about to fall out of context"
@@ -467,7 +467,7 @@ when the turn commits, and the two are never on screen at once.
 - **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
   cost extra" is a number rather than a documentation note. This is displaying a
   field the record already holds. **Aggregate spend tracking is post-1.0**
-  ([24 §3](docs/design/24-roadmap.md)) — the people running this at the development stage
+  ([24 §3](24-roadmap.md)) — the people running this at the development stage
   are power users who already monitor their provider usage, and a usage
   dashboard is a very nice feature that is not core functionality.
 
@@ -478,7 +478,7 @@ What it lets you do:
   that same reply. It does not change the reply already on screen." That
   separation is correct and should be preserved. Re-running follows the same
   rewrite/reroll distinction as an ordinary swipe
-  ([19 §14.5](docs/design/19-tech-stack.md)) and defaults to **rewrite** — editing a block
+  ([19 §14.5](19-tech-stack.md)) and defaults to **rewrite** — editing a block
   is changing the input, not asking for different luck.
 - **Diff two turns**, or the same turn before and after a preset change. The
   cheapest possible answer to "it got worse and I don't know what I changed".
@@ -548,7 +548,7 @@ briefly a place, because there is no room for it to be anything else.
 ## 4. File access as a permission level
 
 **Deprioritised. Experimental at best, and on the roadmap rather than in 1.0
-([24 §3](docs/design/24-roadmap.md)).** The reasoning below stands and the feature is still
+([24 §3](24-roadmap.md)).** The reasoning below stands and the feature is still
 wanted; what changed is its position. Import and export UIs exist for a reason,
 in-app library management matters more, and a file-management UI is a
 disproportionate amount of surface — and of risk — for something most people
@@ -556,8 +556,8 @@ will never open.
 
 **Two things survive the deprioritisation and should still land at 1.0:**
 
-- **The capability field** ([09 §4.2](docs/design/09-server-multiuser-deployment.md)) and the
-  **single audited path-resolution helper** ([19 §9](docs/design/19-tech-stack.md)). The
+- **The capability field** ([09 §4.2](09-server-multiuser-deployment.md)) and the
+  **single audited path-resolution helper** ([19 §9](19-tech-stack.md)). The
   helper is needed by every filesystem-touching route regardless, and having one
   from the start is the difference between a security property and a hope.
 - **Hand-editing on disk keeps working**, because that was never about the UI.
@@ -567,7 +567,7 @@ will never open.
   in-browser route to it.
 
 The requirement, restated: since the data directory is the system of record and
-is human-navigable by design ([03 §5](docs/design/03-data-model.md)), a user with an account
+is human-navigable by design ([03 §5](03-data-model.md)), a user with an account
 on the server but no shell on the box should be able to reach their own files
 *through the web UI*.
 
@@ -585,7 +585,7 @@ schema. A file browser is a view onto the truth rather than a back door around
 it.
 
 **Precisely:** the server indexes its own writes synchronously and the watcher
-handles foreign ones ([03 §5.1.1](docs/design/03-data-model.md)), so the two do not share a
+handles foreign ones ([03 §5.1.1](03-data-model.md)), so the two do not share a
 *code path* — they share the loader, the schema and the index. That is the part
 that matters here, and it is what makes hand-editing safe rather than merely
 tolerated. Hand edits are the watcher's actual job rather than a side effect of
@@ -603,7 +603,7 @@ type FileAccess = "none" | "read" | "write"
 ```
 
 One of the named account capabilities
-([09 §4.2](docs/design/09-server-multiuser-deployment.md)), admin-granted, default `none`.
+([09 §4.2](09-server-multiuser-deployment.md)), admin-granted, default `none`.
 Scoped roots, resolved and enforced server-side:
 
 | Root | `read` | `write` |
@@ -614,7 +614,7 @@ Scoped roots, resolved and enforced server-side:
 | `/data/users/<own handle>/account.json` | **never** | **never** — §4.2.1 |
 | `/data/users/<own handle>/connections/` | never (listing only) | yes |
 | `/data/system/library/` | yes | never — app-shipped, and an update would overwrite edits anyway |
-| `/data/system/connections/` | **never** | never — system connections are usable, not readable ([09 §4.5](docs/design/09-server-multiuser-deployment.md)) |
+| `/data/system/connections/` | **never** | never — system connections are usable, not readable ([09 §4.5](09-server-multiuser-deployment.md)) |
 | `/data/users/<other>/` | never | never |
 | `/data/config.json`, `/data/index/`, operational state | never | never |
 | Any path **outside `/data`**, named by the user, read-only, import only | yes — §4.2.2 | n/a |
@@ -625,7 +625,7 @@ break. That was wrong, and §4.2.1 is why.
 
 #### 4.2.2 The import sweep widens `read`, deliberately — and `/data` is carved out
 
-*Added 2026-08-30, decided for [P4 §1.3](docs/design/workplan/16-p4-implementation.md).*
+*Added 2026-08-30, decided for [P4 §1.3](workplan/16-p4-implementation.md).*
 P4's server-side directory sweep points the server at a SillyTavern or Marinara
 data directory somewhere on the host and reads it. Nothing in the table above
 covers that: every row is a path under `/data`, and the capability was written
@@ -642,12 +642,12 @@ blank one:
   whatever the table above says about the user's own content. Otherwise
   `fileAccess: "read"` would become a route to `/data/users/<other>/library/` —
   which the table says `never`, and which the 404-for-everything posture
-  ([09 §4.4](docs/design/09-server-multiuser-deployment.md)) exists to prevent. The file
+  ([09 §4.4](09-server-multiuser-deployment.md)) exists to prevent. The file
   browser reaches the user's own content; the sweep reaches foreign apps. They
   do not overlap, and the code enforces the gap rather than trusting the two
   rules to stay compatible.
 - **Read-only, and the report is relative.** The sweep never writes to the
-  source, and [21 §4.1](docs/design/21-internal-contracts.md)'s foreign-path doctrine names
+  source, and [21 §4.1](21-internal-contracts.md)'s foreign-path doctrine names
   files relative to the sweep root rather than absolutely, so the review does
   not become a filesystem map.
 
@@ -665,19 +665,19 @@ inferred from a phase document.
 capability `No file browser` / `May read their own files` / `May edit their own
 files` — three labels that describe only the browser. A widened permission
 behind unchanged labels is worse than no permission at all, so the relabel ships
-with the sweep ([P4 §2](docs/design/workplan/16-p4-implementation.md), P4.4), not after it.
+with the sweep ([P4 §2](workplan/16-p4-implementation.md), P4.4), not after it.
 
 #### 4.2.1 `account.json` is not content
 
-It lives under the user's own directory ([03 §5.1](docs/design/03-data-model.md)) and holds
+It lives under the user's own directory ([03 §5.1](03-data-model.md)) and holds
 `role: "admin" | "user"` alongside the password hash
-([09 §4.2](docs/design/09-server-multiuser-deployment.md)). Rooting file access at the
+([09 §4.2](09-server-multiuser-deployment.md)). Rooting file access at the
 directory therefore handed **any user with `fileAccess: "write"` a one-line path
 to `role: "admin"`** — and admin is what gates extension installation and the
-system connection scope ([09 §4.5](docs/design/09-server-multiuser-deployment.md)).
+system connection scope ([09 §4.5](09-server-multiuser-deployment.md)).
 
 That is worth naming precisely rather than filing under "not a security
-product". [00 §4](docs/design/00-stance.md) says multi-user is access separation among people
+product". [00 §4](00-stance.md) says multi-user is access separation among people
 who trust each other, and that stands — it means we do not defend against a
 determined attacker on the LAN. **It does not mean a documented feature should
 hand out privilege escalation**, because the failure is not an attack, it is a
@@ -689,7 +689,7 @@ roots**, and account, credential, job and operational state are outside it.
 may change their display name and password and not their role.
 
 **The general rule this establishes**, since more operational state is coming
-([21 §5](docs/design/21-internal-contracts.md)): *the file browser exposes what the user
+([21 §5](21-internal-contracts.md)): *the file browser exposes what the user
 authored, never what the server decides with.* Anything the engine reads to make
 an authorisation or scheduling decision is out of scope by construction, and new
 files under the user directory are excluded by default rather than included by
@@ -704,7 +704,7 @@ Two exclusions worth stating explicitly, both about credentials:
 - **`system/connections/` is excluded outright**, and this is the one place the
   system scope is *not* readable the way `system/library/` is. System
   connections are usable, never readable
-  ([09 §4.5](docs/design/09-server-multiuser-deployment.md)) — an admin who wants to inspect
+  ([09 §4.5](09-server-multiuser-deployment.md)) — an admin who wants to inspect
   one has shell access to the box, which is the right gate.
 
 ### 4.3 What it is, concretely
@@ -743,14 +743,14 @@ Honest accounting, because the user is right that this is a pain:
   the rest. An earlier draft here proposed shipping read-only download-and-zip
   early and holding only write and the text editor back to a “1.x” point
   release. That is superseded by the section header: the *whole* feature is on
-  the feature list ([24 §3.3](docs/design/24-roadmap.md), [25 D3](docs/design/25-open-questions.md)),
-  there is no 1.x line in the release model ([releases §2](docs/design/workplan/04-repo-and-releases.md)),
+  the feature list ([24 §3.3](24-roadmap.md), [25 D3](25-open-questions.md)),
+  there is no 1.x line in the release model ([releases §2](workplan/04-repo-and-releases.md)),
   and a half-shipped file browser is the version most likely to be cited as a
   reason not to finish it.
 
 **[OPEN]** Whether `write` should require re-entering the password, the way
 admin actions sometimes do. Probably overkill given the threat model in
-[09 §4.1](docs/design/09-server-multiuser-deployment.md), but worth one conversation.
+[09 §4.1](09-server-multiuser-deployment.md), but worth one conversation.
 
 ---
 
@@ -771,7 +771,7 @@ in. What that missed is that it is not a path which can be *absent*: an empty
 library and nothing to import from is what a new install without a
 SillyTavern folder has, and for four phases the answer to *make me an actor*
 was `curl` ([api.md](../api.md)). Both verbs are in the list now — delete at
-P4.4, create at [P4.5](docs/design/workplan/16-p4-implementation.md).
+P4.4, create at [P4.5](workplan/16-p4-implementation.md).
 
 **They are not symmetrical, and the asymmetry is a rule rather than an
 accident of what got built first.** Delete belongs to any kind a user owns,
@@ -780,20 +780,20 @@ editor to land in — §11.2d's *the first editor owes create*, read from this
 side — because a New button for a kind with no editor hands somebody an empty
 object and no way to fill it, and a blank-page dead end teaches worse than no
 button. So creation arrives per kind, with that kind's editor, and never as a
-row of six buttons. Which panel carries which is [polish §4](docs/design/workplan/06-polish.md)'s
+row of six buttons. Which panel carries which is [polish §4](workplan/06-polish.md)'s
 to place.
 
 Where it should differ:
 
 - **One library, one panel per portable kind.** Not one merged list with a kind
-  filter. ("Portable" as in exportable ([04 §1](docs/design/04-schemas.md)); libraries
+  filter. ("Portable" as in exportable ([04 §1](04-schemas.md)); libraries
   themselves are per-user and nothing is shared between accounts on one
   install.) **The kinds
   are distinct on purpose and the browsing surface should say so.** An Actor is
-  deliberately not a prompt configuration file ([00 §2.4](docs/design/00-stance.md));
+  deliberately not a prompt configuration file ([00 §2.4](00-stance.md));
   personas and NPCs are flags on one kind rather than separate types
-  ([03 §2.2](docs/design/03-data-model.md)); Treatment and Setup are split because conflating
-  them is the mistake every source made ([04 §7](docs/design/04-schemas.md)). A single
+  ([03 §2.2](03-data-model.md)); Treatment and Setup are split because conflating
+  them is the mistake every source made ([04 §7](04-schemas.md)). A single
   undifferentiated table puts that mush straight back, at the exact moment a
   user is forming their model of what these things are — and it is also the one
   view where no column but *Kind* can be load-bearing, because an actor, a
@@ -813,20 +813,20 @@ Where it should differ:
   yours and the system's appear together. Hunting in two places to find a
   character is worse than a badge. Read-only system objects show a **Copy to my
   library** action in place of edit — which forks a real copy they own
-  ([09 §4.3](docs/design/09-server-multiuser-deployment.md)). Objects link across kinds constantly and the
+  ([09 §4.3](09-server-multiuser-deployment.md)). Objects link across kinds constantly and the
   cross-links should be navigable inline.
 - **A mixed all-kinds list is a preference, off by default — and really it
   belongs to search.** There is a genuine use for one list of everything, but
   its organising principle is a query rather than "everything you own": a search
   result set is a mixed list nobody has to be taught to read. FTS5 is already in
-  the stack for library search ([19 §7.1](docs/design/19-tech-stack.md)). So *browse* takes
+  the stack for library search ([19 §7.1](19-tech-stack.md)). So *browse* takes
   a kind and *find* does not, and the unfiltered browse view is kept as a
   machinery-visible preference alongside the rest of them. None of this is a
   contract change: the API goes on accepting an absent kind
   ([api.md](../api.md)), because cross-kind queries are a real thing to want.
 - **Links are visible and bidirectional.** From a lorebook: which treatments,
   actors and packages reference this. From an actor: which lorebooks it links.
-  Missing links show as missing, inline, non-blocking ([00 §3.3](docs/design/00-stance.md)).
+  Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
   **Specified in §5.2** — the inbound direction carries a relationship the
   schemas deliberately leave unencoded, so it is not left to the page.
 - **The disk layout is legible.** Since the folder *is* the object, show the path
@@ -834,7 +834,7 @@ Where it should differ:
   location. This is a rare case where exposing the storage mechanism is the
   feature: it is how a user learns that drag-and-drop export works at all.
 - **Export produces one file**, not a folder the user has to zip themselves
-  ([03 §5.2.3](docs/design/03-data-model.md)) — singly and in bulk. On disk everything stays
+  ([03 §5.2.3](03-data-model.md)) — singly and in bulk. On disk everything stays
   a folder; the single-file form exists for exchange only.
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
   what went to `compat`, what resolved, what dangled, ~~and let the user fix it
@@ -844,7 +844,7 @@ Where it should differ:
 
   *Amended at P4.4, by strike rather than quietly, because the old words were
   load-bearing for anyone reading this section next
-  ([P4 §1.4](docs/design/workplan/16-p4-implementation.md) argues it in full).* The original
+  ([P4 §1.4](workplan/16-p4-implementation.md) argues it in full).* The original
   clause predates the machinery that makes post-hoc the better answer. A staging
   area is a second library to maintain — [work plan §2.2]'s
   nothing-built-to-be-discarded, in miniature. Dangling references are
@@ -860,7 +860,7 @@ Where it should differ:
   history make it reversible* was true on disk and false in the app for three
   phases.
 
-  *Narrowed again at [P4 §7.17](docs/design/workplan/16-p4-implementation.md), and by strike
+  *Narrowed again at [P4 §7.17](workplan/16-p4-implementation.md), and by strike
   for the same reason.* **All three of P4.4's arguments are about scale and
   staging, and none of them reaches one file somebody has just chosen in a
   dialog.** There is nothing to maintain, nothing to reap, and the cost of asking
@@ -896,19 +896,19 @@ Where it should differ:
   it belongs to the editor.** That is §2.1's *browse and inspect are raw; editing
   is assisted* restated one level down, and it is the same division, not a new
   one. A lorebook is the only kind this arises for, because it is the only kind
-  whose object is a collection ([11 §1.1](docs/design/11-lorebooks-as-a-format.md)).
+  whose object is a collection ([11 §1.1](11-lorebooks-as-a-format.md)).
 
 ### 5.1 Eight kinds is a lot to arrive at — and the library is not where that gets solved
 
 Worth stating as a presentation position, because the data model does not solve
 it and pretending otherwise is how it gets ignored.
 
-[03 §1](docs/design/03-data-model.md) defines eight persistent kinds. Someone arriving from
+[03 §1](03-data-model.md) defines eight persistent kinds. Someone arriving from
 SillyTavern has priors for exactly two of them — a character card and world info
 — and no prior at all for Treatment, Setup, Preset or Package. Every one of those
 splits is *correct* and none should be undone; the Treatment/Setup split in
 particular is what Marinara's own scenario design identified and never built
-([04 §7](docs/design/04-schemas.md)). But correct is not the same as learnable.
+([04 §7](04-schemas.md)). But correct is not the same as learnable.
 
 **The earlier answer here was a translation layer, and it is withdrawn.** This
 section used to rename the panels — *Worlds* for Treatment, *Games* for Setup —
@@ -955,12 +955,12 @@ inbound view is not a convenience on a detail page, it is **the surface that
 carries a relationship the data model deliberately does not encode**, and it
 should be specified rather than left to whoever builds the page.
 
-A Treatment links lorebooks and never the reverse ([03 §4](docs/design/03-data-model.md)) —
+A Treatment links lorebooks and never the reverse ([03 §4](03-data-model.md)) —
 which is what allows many treatments over one lorebook, and many lorebooks under
 one treatment. The cost of that freedom is that a lorebook, on its own, looks like
 an orphan: nothing in the file says *Rain City is played three ways*. The
 recurring proposal that follows is to fold Treatment into the lorebook as a child
-array. It is refused for the reasons in [03 §4](docs/design/03-data-model.md), and this
+array. It is refused for the reasons in [03 §4](03-data-model.md), and this
 panel is what pays the refusal off — the cohesion the fold was reaching for,
 delivered as a view, where it costs no schema.
 
@@ -972,7 +972,7 @@ rows.
 
 **With a *New treatment on this world* action in that section**, creating a
 Treatment prefilled with a `LoreLink` to this book. This is the affordance the
-primary-lorebook relationship would have bought ([25 B2](docs/design/25-open-questions.md)),
+primary-lorebook relationship would have bought ([25 B2](25-open-questions.md)),
 without buying the relationship: authoring flows from the world you are looking
 at, and the result is still an independent object linking N books.
 
@@ -982,14 +982,14 @@ setups as inbound. Same data, two different jobs: outbound is a thing you
 arrange, inbound is a thing you discover.
 
 **Dangling references render in place**, named, non-blocking, with a resolve
-action — [00 §3.3](docs/design/00-stance.md), applied to whichever direction the break shows
+action — [00 §3.3](00-stance.md), applied to whichever direction the break shows
 up in.
 
 **It costs no new machinery.** The derived index answers "which treatments link
-this lorebook" already ([03 §5.1](docs/design/03-data-model.md)); this is the third consumer
+this lorebook" already ([03 §5.1](03-data-model.md)); this is the third consumer
 of one query, alongside the delete confirmation's reference counts
-([03 §10.1](docs/design/03-data-model.md)) and the package closure
-([04 §9.1](docs/design/04-schemas.md)). Anything that makes the index cheaper or staler is
+([03 §10.1](03-data-model.md)) and the package closure
+([04 §9.1](04-schemas.md)). Anything that makes the index cheaper or staler is
 therefore a decision about all three at once.
 
 ### 5.3 The Lorebooks panel, and the book as a document
@@ -998,11 +998,11 @@ therefore a decision about all three at once.
 wants. This is that, for the kind where it is not a preference but a
 correction** — a lorebook is the only library kind whose object is a collection,
 so a surface that addresses only the container is off by one level for this kind
-and no other. The position is [11](docs/design/11-lorebooks-as-a-format.md); this section is
+and no other. The position is [11](11-lorebooks-as-a-format.md); this section is
 what it asks the library to build, and it holds the whole design rather than
 leaving it to whoever builds the page, for the same reason §5.2 does.
 
-The governing rule, from [11 §3](docs/design/11-lorebooks-as-a-format.md), because every
+The governing rule, from [11 §3](11-lorebooks-as-a-format.md), because every
 decision below is an application of it:
 
 > **Raw is a claim about the words, not about the layout.** The reading view may
@@ -1035,7 +1035,7 @@ three-entry book from a three-hundred-entry one**, and almost everything a perso
 wants to decide about a book — open it, search it, export it, trust it — depends
 on which of those it is.
 
-**`tags` gets its documented consumer at last.** [04 §5](docs/design/04-schemas.md) says tags
+**`tags` gets its documented consumer at last.** [04 §5](04-schemas.md) says tags
 are *"what the library's filters read"*, and nothing has ever read them.
 
 **Refused as columns, by name:** `tokenBudget`, `scanDepth`, `entryLimit`,
@@ -1046,7 +1046,7 @@ Filters: tags, scope, enabled, source. Sorts: name, updated, entry count.
 
 **A cover from `primaryMediaId` is right in principle and should be expected to
 arrive late.** The field's documented purpose is the library card's picture
-([04 §5.1](docs/design/04-schemas.md), corrected there), so this is not an invention — but
+([04 §5.1](04-schemas.md), corrected there), so this is not an invention — but
 there is no asset-serving route today, and adding one means owner scoping and
 path containment rather than a presentation decision. A text row is not a
 failure.
@@ -1072,7 +1072,7 @@ which entry is in focus.
 selection: it cannot hand the view a focused state and it is invisible to the
 layer that would act on one. A child route addresses beautifully and creates a
 second detail route for one kind, which then has to thread the shadowed-copy
-discriminator through two places — the failure [polish §4](docs/design/workplan/06-polish.md)
+discriminator through two places — the failure [polish §4](workplan/06-polish.md)
 names directly. A search param is what the library already uses to make a
 filtered view a link like any other, and the existing posture for a malformed one
 applies unchanged: **dropped rather than rejected**, degrading to the whole book,
@@ -1086,7 +1086,7 @@ disambiguator.
 **The layout.** A header carrying the book's own fields — name, badges,
 `description`, tags, the real folder path (§5's legible disk layout), *Used by*
 per §5.2 — and the book-level activation settings as one quiet strip.
-[03 §3.1](docs/design/03-data-model.md)'s *each flag is a direct UI control* is satisfied by
+[03 §3.1](03-data-model.md)'s *each flag is a direct UI control* is satisfied by
 **reachable, not by prominent**, and this is the first place that distinction has
 to be made explicitly. Then a rail for the folder tree, the filters and the
 search box; then the entries.
@@ -1097,7 +1097,7 @@ measure and clamped with an expand — and, folded beneath, *as configured*,
 carrying every remaining field in the schema's own groups. The fold is the same
 component §11.2d specifies for the editor, in its read-only mode, so that a field
 added to the schema appears in both without a second edit
-([polish §1](docs/design/workplan/06-polish.md)).
+([polish §1](workplan/06-polish.md)).
 
 **The default density is the readable one, clamped, with an expand-all.** Compact
 is one click away. Defaulting to compact would look more sensible and would be
@@ -1114,10 +1114,10 @@ rather than assumed.
 
 > **Turning a folder off must never look like turning its entries off.**
 
-[04 §5](docs/design/04-schemas.md) is explicit that a folder gate leaves each entry's own
+[04 §5](04-schemas.md) is explicit that a folder gate leaves each entry's own
 `enabled` *preserved rather than mutated*. So an entry has three distinct ways of
 being off, and it must say **which, in words**: *off*, *off: its folder is off*,
-*off: the book is off*. This is [00 §3.3](docs/design/00-stance.md)'s legibility rule applied
+*off: the book is off*. This is [00 §3.3](00-stance.md)'s legibility rule applied
 at the single likeliest source of *why doesn't this fire*, and getting it wrong
 costs a user an afternoon. `folderId: null` gets a real **Ungrouped** node rather
 than being quietly omitted, because a nullable field that renders as nothing
@@ -1139,7 +1139,7 @@ immediate, and needs nothing from the server. Half of *searchable in its own
 right* has already been paid for and never spent.
 
 **Clicking a key chip filters the book to the entries carrying that key.** One
-small behaviour, and it is what turns [11 §2](docs/design/11-lorebooks-as-a-format.md)'s soft
+small behaviour, and it is what turns [11 §2](11-lorebooks-as-a-format.md)'s soft
 indexing from an observation into a working index — keywords stop being trigger
 configuration the moment they are clickable.
 
@@ -1217,14 +1217,14 @@ unchanged.
 §5.2 is most of the answer already: *Used by* is what tells a lorebook it is not
 an orphan. **Do not re-inherit its overstatement** — that section says the panel
 *costs no new machinery* because the derived index answers it already, and
-[P3 §5](docs/design/workplan/15-p3-implementation.md) records the audit finding that no link
+[P3 §5](workplan/15-p3-implementation.md) records the audit finding that no link
 table exists. It is schema work, a query and a surface, and it is not this
 section's to unblock.
 
 One addition that costs no field: **a *played alongside* line** — which other
 lorebooks appear beside this one in the same Treatment's or Package's links.
 Co-occurrence computed rather than compatibility declared, so it is always
-current and cannot decay, which is why [11 §4.2](docs/design/11-lorebooks-as-a-format.md)
+current and cannot decay, which is why [11 §4.2](11-lorebooks-as-a-format.md)
 refuses the field version. Free once the link table exists, and impossible
 before it.
 
@@ -1255,11 +1255,11 @@ Both sources use wizards and both wizards are good. Worth taking:
 - **From Marinara:** the immutable setup snapshot, so a good combination can be
   shared *after* playing rather than by remembering to record it beforehand. Here
   it is stronger, because the snapshot is a real **Setup** object
-  ([04 §7](docs/design/04-schemas.md)) rather than a text file — editable, re-runnable, and
+  ([04 §7](04-schemas.md)) rather than a text file — editable, re-runnable, and
   shareable by dropping it in a package.
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
-([06 §2](docs/design/06-modes-and-turn-pipeline.md)) is a schema the shell renders, so an
+([06 §2](06-modes-and-turn-pipeline.md)) is a schema the shell renders, so an
 extension mode gets a first-class setup flow without writing UI. Aventuras' pack
 `CustomVariable` — typed, enum options, required flag, defaults, sort order, help
 text — is a working precedent and close to the right vocabulary.
@@ -1280,7 +1280,7 @@ as a fresh trip through six steps.
 
 ## 7. The assistant surface
 
-Specified in [06 §7.4](docs/design/06-modes-and-turn-pipeline.md), which covers why it is a
+Specified in [06 §7.4](06-modes-and-turn-pipeline.md), which covers why it is a
 session rather than a bespoke thing. The UI side:
 
 - **Summonable from anywhere**, including mid-session, without losing your
@@ -1305,7 +1305,7 @@ session rather than a bespoke thing. The UI side:
 ## 8. Extension-contributed UI
 
 Resolved here because it is what decouples the frontend framework choice from
-everything else (see [19 §6](docs/design/19-tech-stack.md)).
+everything else (see [19 §6](19-tech-stack.md)).
 
 **Extensions do not ship UI components.** They declare widgets from a versioned
 vocabulary that the host renders: HUD widgets, side panels, message decorations,
@@ -1351,7 +1351,7 @@ result consistent.
 
 **The signal to build it anyway** is a genuine class of thing the vocabulary
 cannot reach without becoming a rendering engine in disguise. Tactical combat and
-anything map-shaped are the likely triggers ([24 §4.3](docs/design/24-roadmap.md)) — and
+anything map-shaped are the likely triggers ([24 §4.3](24-roadmap.md)) — and
 both are things we have already decided not to build ourselves, so the pressure
 would be coming from outside, which is the right kind of evidence to act on.
 
@@ -1364,7 +1364,7 @@ how this decision would be undone by accident rather than on purpose.
 ## 9. Turn status, notification, and sounds
 
 **The live turn view is the turn record being written**
-([09 §3.3](docs/design/09-server-multiuser-deployment.md)) — the same component that renders
+([09 §3.3](09-server-multiuser-deployment.md)) — the same component that renders
 a finished turn in the workbench, fed by progress events instead of a file. A
 collapsed line while things go well; expanded, the whole chain with per-step
 timing, what each step contributed, what was skipped and why, and any failure
@@ -1374,7 +1374,7 @@ That is deliberately more verbose than either source: Marinara names a failed
 agent, Aventuras emits phase events as diagnostics, and neither lets you watch
 the chain. It costs nothing extra because the record already carries it.
 
-The rest is the client half of [09 §3](docs/design/09-server-multiuser-deployment.md). Routing is
+The rest is the client half of [09 §3](09-server-multiuser-deployment.md). Routing is
 server-side; the client renders sound, toast, unread badges and the document
 title.
 
@@ -1405,7 +1405,7 @@ thing to configure per card.
 ## 10. The guidance box
 
 Every session input carries an expandable guidance box, collapsed and empty by
-default, specified in [06 §5.1](docs/design/06-modes-and-turn-pipeline.md). It is the
+default, specified in [06 §5.1](06-modes-and-turn-pipeline.md). It is the
 supported place for "keep this short", "focus on Vera's reaction", "don't
 resolve the fight yet" — the meta-instruction people currently smuggle in as
 `(OOC: …)` inside their action.
@@ -1414,7 +1414,7 @@ UI notes:
 
 - **Collapsed by default, and visibly empty when collapsed.** A guidance box
   that silently retains last turn's text becomes a standing instruction by
-  accident, which is exactly what [06 §5.1](docs/design/06-modes-and-turn-pipeline.md) says
+  accident, which is exactly what [06 §5.1](06-modes-and-turn-pipeline.md) says
   it must not be. Clear on send.
 - **[OPEN]** Offer the previous guidance as a one-click refill. Convenient for
   repeated nudges, and one step from the accidental-standing-instruction
@@ -1425,12 +1425,12 @@ UI notes:
 - **The `advisory` marker should be visible**, not just internal. A user typing
   "she fails the check" into the box should be able to see that this text
   reached the narrator and not the resolver — otherwise the guarantee in
-  [06 §5.2](docs/design/06-modes-and-turn-pipeline.md) is invisible and nobody trusts it.
+  [06 §5.2](06-modes-and-turn-pipeline.md) is invisible and nobody trusts it.
 - **A redo has its own field, on the turn.** *Redo with guidance* reveals a
   one-line field under the message; what is typed there goes with whichever of
   Redo and Reroll is pressed next, together with that attempt's words for the
-  model to change ([06 §5.1](docs/design/06-modes-and-turn-pipeline.md),
-  [07 §7](docs/design/07-branching.md)). Same rules as the box: one-shot, cleared when the
+  model to change ([06 §5.1](06-modes-and-turn-pipeline.md),
+  [07 §7](07-branching.md)). Same rules as the box: one-shot, cleared when the
   gesture fires, and forgotten when the field is closed, so a note typed and
   then hidden cannot ride along with a later plain Redo. It is not the refill
   above — a redo's instruction is about *this* attempt, a fresh thing to say —
@@ -1439,7 +1439,7 @@ UI notes:
 ### 10.1 The hook panel, which is the same slot from the other side
 
 Plot hooks have had no surface in this document, while
-[06 §6.1](docs/design/06-modes-and-turn-pipeline.md) has said since it was written that
+[06 §6.1](06-modes-and-turn-pipeline.md) has said since it was written that
 authoring affordances for them are *"part of the feature, not polish"*. This is
 that surface, and it belongs here rather than in a section of its own for a
 structural reason: **a fired hook enters the prompt through the guidance slot**,
@@ -1451,7 +1451,7 @@ which was the other candidate. That section is two views of one observation abou
 identity resolution, and a hook panel shares neither the observation nor the
 subject.
 
-**What it shows**, which is [06 §6.1](docs/design/06-modes-and-turn-pipeline.md)'s list made
+**What it shows**, which is [06 §6.1](06-modes-and-turn-pipeline.md)'s list made
 concrete: which hooks have fired and when, which are eligible right now, and
 which are blocked **with the clause that blocked them** — *waiting on turn 40*,
 *Vera is not in this session*, *superseded by a lorebook hook naming the same
@@ -1477,7 +1477,7 @@ there the moment the selector names one — the panel here is for the hooks that
 have *not* fired, which is the half nothing else can show.
 
 *Entrances are shown by label, never by text.* An unfired entrance is hidden
-content ([08 §6](docs/design/08-cross-session-memory.md)), and a panel that spoils the
+content ([08 §6](08-cross-session-memory.md)), and a panel that spoils the
 arrival to the person about to read it defeats the feature.
 
 ---
@@ -1547,7 +1547,7 @@ mark every field, which is the same as marking none.
 Nor does the server back the rule up. No portable schema constrains a string's
 length except an id, so `name: ""` validates and stores. **This is a client
 convention with nothing underneath it**, which is the argument for keeping the
-set very small — [04 §6.1a](docs/design/04-schemas.md) makes the same point from the other
+set very small — [04 §6.1a](04-schemas.md) makes the same point from the other
 side, that a required field with no good answer is what makes an author distrust
 the form. A name, and little else.
 
@@ -1562,7 +1562,7 @@ of a field that is always rendered whatever the control underneath it is.
 **A save that cannot proceed is refused, not prevented**, and the distinction is
 the whole of this paragraph. A disabled Save is a control that does nothing and
 says nothing about why — the placeholder
-[work plan §2.2](docs/design/workplan/01-work-plan.md) rejects in general, because it
+[work plan §2.2](workplan/01-work-plan.md) rejects in general, because it
 promises a control that cannot work and teaches nothing. So the button stays
 live, the write is refused, focus moves to the first field that needs an answer,
 and the refusal is a sentence. Where that sentence goes is already settled —
@@ -1603,23 +1603,23 @@ It buys three things, the third of which is the interesting one:
 ### 11.2a Version history, in every editor
 
 Every library object keeps an edit history automatically
-([03 §11](docs/design/03-data-model.md)), and the editor is where it surfaces. Marinara's
+([03 §11](03-data-model.md)), and the editor is where it surfaces. Marinara's
 character editor is the model here and the interaction is worth copying closely.
 
 **A history panel listing revisions**, newest first, with the live object pinned
 at the top as *current*. Each entry shows its authored date, the author's own
-version string if set ([03 §11.5](docs/design/03-data-model.md)), what made the change, and
+version string if set ([03 §11.5](03-data-model.md)), what made the change, and
 its reason.
 
 Four actions, three of them Marinara's:
 
 - **Restore.** Non-destructive — restoring snapshots the current state first, so
-  the thing you were on is one entry away ([03 §11.1](docs/design/03-data-model.md)).
+  the thing you were on is one entry away ([03 §11.1](03-data-model.md)).
 - **Rename**, which sets the entry's reason. History becomes useful when the
   entries are labelled *"before I rewrote her backstory"* rather than
   timestamped, and only the author can write that.
 - **Pin**, so a version survives retention pruning
-  ([03 §11.3](docs/design/03-data-model.md)). The escape hatch that makes a cap acceptable.
+  ([03 §11.3](03-data-model.md)). The escape hatch that makes a cap acceptable.
 - **Diff**, which is ours and nearly free. The workbench already diffs two turn
   records (§3); two versions of an object are the same problem with a simpler
   payload, and *"what actually changed between these"* is the question a list of
@@ -1629,7 +1629,7 @@ Four actions, three of them Marinara's:
 Marinara — a field assist, an extension proposal, an import that overwrote, a
 hand-edit picked up from disk. *"Who changed my character"* has several possible
 answers and this is where it gets one, which puts it squarely under
-[00 §3.6](docs/design/00-stance.md): the engine showing what it did, where it can be
+[00 §3.6](00-stance.md): the engine showing what it did, where it can be
 corrected.
 
 **Not shown by default.** The panel is behind a control, because the common case
@@ -1640,7 +1640,7 @@ prominence.
 
 ### 11.2b Lore galleries
 
-Lorebooks and their entries carry images ([03 §3.6](docs/design/03-data-model.md)), and the
+Lorebooks and their entries carry images ([03 §3.6](03-data-model.md)), and the
 editor is the only thing that reads them at 1.0.
 
 - **The book gets a gallery**, one image designated as the library card's
@@ -1653,9 +1653,9 @@ editor is the only thing that reads them at 1.0.
   author organises by. Getting this wrong in the UI produces tag soup in the role
   field.
 - **No assist.** Generating a location image is a rendition
-  ([06 §10](docs/design/06-modes-and-turn-pipeline.md)) and wants providers, so it arrives
+  ([06 §10](06-modes-and-turn-pipeline.md)) and wants providers, so it arrives
   with them and not before. When they arrive it is the **backdrop**
-  ([06 §10.1a](docs/design/06-modes-and-turn-pipeline.md), §2.3) — a picture of a place,
+  ([06 §10.1a](06-modes-and-turn-pipeline.md), §2.3) — a picture of a place,
   generated from what the session knows about where it is rather than from this
   entry. Which is the distinction to hold on to while reading the next
   paragraph: a backdrop of the place an entry describes is not the same thing as
@@ -1713,15 +1713,15 @@ own drag scrolls the page and not a list inside it, and a book two hundred
 entries tall is one the pointer could not otherwise cross with a row in hand.
 
 **An entry export is a lorebook.** Same `storyengine.lorebook/1`
-([04 §5](docs/design/04-schemas.md)) with `entries` holding the selection — no fragment
+([04 §5](04-schemas.md)) with `entries` holding the selection — no fragment
 schema, nothing new to version, and the file opens in anything that reads a
 lorebook, ours or otherwise. The schema-side rules are at
-[04 §5.2](docs/design/04-schemas.md); what the editor owes the user is here.
+[04 §5.2](04-schemas.md); what the editor owes the user is here.
 
 **The symmetry pays on the way in.** Since the thing being imported is a
 lorebook, *import entries* is also how someone cherry-picks from a book they
 downloaded whole — including a foreign one, because the format converters are
-already there ([P4](docs/design/workplan/16-p4-implementation.md)) and they produce a
+already there ([P4](workplan/16-p4-implementation.md)) and they produce a
 lorebook. Four entries out of a two-hundred-entry book, without a book nobody
 wanted arriving in the library to be cleaned up afterwards.
 
@@ -1733,11 +1733,11 @@ way out:
   arriving flat at the root have lost it.
 - **Entry media** (§11.2b), in whichever container the book itself would use —
   plain JSON where the selection carries no images, the zip form where it does
-  ([03 §5.2.3](docs/design/03-data-model.md)). One container rule, the book's; a partial
+  ([03 §5.2.3](03-data-model.md)). One container rule, the book's; a partial
   export does not get a second one.
 - **`stateSchema`, and never state.** The declaration is authored content and
   travels; the values live in a session channel and were never in the book
-  ([03 §3.3](docs/design/03-data-model.md)). That an export must not carry somebody's
+  ([03 §3.3](03-data-model.md)). That an export must not carry somebody's
   playthrough is inherited here for free, which is the same split paying off in a
   second place.
 
@@ -1745,7 +1745,7 @@ way out:
 down and rendered in the entry list rather than as a modal: what arrived, which
 folder it landed in, what collided, and what now refers to nothing, an
 `actorFilter` naming an actor this install does not have being the common case.
-Non-blocking, per [00 §3.3](docs/design/00-stance.md), and fixable before committing.
+Non-blocking, per [00 §3.3](00-stance.md), and fixable before committing.
 
 **Ids are book-local, so the default is add and never overwrite.** An incoming
 entry whose id already exists takes a fresh one, and its name takes a suffix if
@@ -1757,7 +1757,7 @@ of shared ancestry rather than permission to overwrite an edit.
 **The book's history is the record of the import.** `LoreEntry` carries no
 provenance of its own and should not gain one for this: the merge goes through
 the same write path as every other edit, so the book takes a history entry with
-`source: "import"` (§11.2a, [03 §11](docs/design/03-data-model.md)) naming what came in and
+`source: "import"` (§11.2a, [03 §11](03-data-model.md)) naming what came in and
 from where. That answers *where did these twelve entries come from* at the level
 that owns the file, and it makes undoing a bad import one restore rather than
 twelve deletions.
@@ -1779,7 +1779,7 @@ menu is one people forget they have.
 
 **What this is not: a link.** An imported entry is a copy and forgets where it
 came from — no transclusion, no live pointer at the source book, no sync back.
-The same invariant sessions are held to ([00 §3.1](docs/design/00-stance.md)), for the same
+The same invariant sessions are held to ([00 §3.1](00-stance.md)), for the same
 reason: content that keeps changing under the author is worse than content that
 is visibly stale.
 
@@ -1788,7 +1788,7 @@ is visibly stale.
 **A `LoreEntry` has around forty fields, four of which are what an author came to
 write.** The editor therefore has a disclosure problem, and the tempting solution
 — promote a friendly handful, hide the rest behind *advanced* — is the one
-[03 §3.1](docs/design/03-data-model.md) forecloses when it says *each flag is a direct UI
+[03 §3.1](03-data-model.md) forecloses when it says *each flag is a direct UI
 control*, and the one §2.1 forecloses again when it forbids hidden fields.
 
 **The answer is that the structure already exists, in the schema file, and the
@@ -1806,12 +1806,12 @@ section's help text, written by the person who chose the fields.
 That answers the invented-vocabulary objection completely, because the vocabulary
 is the file's. It also means a field added to the schema lands in the editor and
 in §5.3's read-only fold without a second edit, which is
-[polish §1](docs/design/workplan/06-polish.md)'s constraint met by construction rather than
+[polish §1](workplan/06-polish.md)'s constraint met by construction rather than
 by remembering.
 
 **Open by default: Matching and Firing.** That puts `name`, `content`,
 `description`, `keys` and `enabled` on screen without scrolling — which is the
-durable core of the format ([11 §2](docs/design/11-lorebooks-as-a-format.md)) — while leaving
+durable core of the format ([11 §2](11-lorebooks-as-a-format.md)) — while leaving
 the schema's grouping and order **verbatim**. The core is made loud without being
 *lifted*, and lifting is the thing that would have broken the verbatim claim.
 
@@ -1856,7 +1856,7 @@ unchanged until re-edited — a good pattern to copy when this format inevitably
 changes.
 
 **One tension to resolve deliberately, because our storage decision creates it.**
-[03 §5.2](docs/design/03-data-model.md) makes `card.png` canonical *and* requires that
+[03 §5.2](03-data-model.md) makes `card.png` canonical *and* requires that
 dragging it out yields a usable character in another tool. A crop stored only as
 metadata means other tools render the uncropped source — often badly framed,
 sometimes absurdly. That undercuts the interop commitment we already made.
@@ -1879,14 +1879,14 @@ running outside any session, and that has three consequences worth stating
 before they are discovered:
 
 - **They need a connection**, and it should not silently be the chat one. This
-  is what `ModelHint.role` ([03 §2.6](docs/design/03-data-model.md)) is for — assist work
+  is what `ModelHint.role` ([03 §2.6](03-data-model.md)) is for — assist work
   wants the `fast` role, image work wants an image connection, and a household
   server needs those resolvable per user.
 - **They cost money, and must be *recorded* even though nothing displays it at
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
-  to [24 §3](docs/design/24-roadmap.md).
+  to [24 §3](24-roadmap.md).
 - **They produce no turn record.** §8.2's provenance is the record, which is
   another reason it is not optional.
 
@@ -1981,12 +1981,12 @@ should drift toward the other.
   abandoned, or the story as it stood forty turns ago.
 - **Live, not an export step.** Openable at any time on any session, including
   one still in progress.
-- **Renditions inline**, where they exist ([06 §10](docs/design/06-modes-and-turn-pipeline.md)) —
+- **Renditions inline**, where they exist ([06 §10](06-modes-and-turn-pipeline.md)) —
   the illustrations, and **not the backdrop**. This view strips chrome and a
   backdrop is chrome (§2.3); a location change reads here as the prose saying so,
   which is how it reads in a book. *Inline* is meant literally: an illustration
   renders at its anchor, the sentence it is of
-  ([06 §10.4a](docs/design/06-modes-and-turn-pipeline.md)), and falls to the end of the
+  ([06 §10.4a](06-modes-and-turn-pipeline.md)), and falls to the end of the
   message when the anchor no longer resolves — §13.1's rule, with a quote where
   mentions use a span, and for the reason §10.4a gives.
 
@@ -2007,7 +2007,7 @@ and it round-trips into every other tool people already use.
 
 Worth separating before they get conflated:
 
-| | **Reading view** | **Session export** ([25 B12](docs/design/25-open-questions.md)) |
+| | **Reading view** | **Session export** ([25 B12](25-open-questions.md)) |
 |---|---|---|
 | For | A person to read | Another install to load |
 | Fidelity | Lossy by design — the machinery is stripped | Lossless |
@@ -2019,7 +2019,7 @@ records would be broken; a reading view that included them would be unreadable.
 ### 12.4 Why it belongs at 1.0
 
 Beyond being cheap: **"full readability and rollback" is the pair that makes a
-long session feel safe.** Rollback is branching ([07](docs/design/07-branching.md)) — you can
+long session feel safe.** Rollback is branching ([07](07-branching.md)) — you can
 always go back. Readability is this — you can always see what you have. Together
 they are what makes someone willing to commit two hundred turns to a story, and
 either one alone is noticeably less reassuring.
@@ -2037,7 +2037,7 @@ obvious convenience justification and a better diagnostic one, and the
 diagnostic is what earns them a place at 1.0.
 
 Together with the workbench they are the three instances that made
-[00 §3.6](docs/design/00-stance.md) a stated principle rather than three coincidences — *the
+[00 §3.6](00-stance.md) a stated principle rather than three coincidences — *the
 engine's understanding is visible, and correctable*. What follows is that
 principle applied to identity and presence.
 
@@ -2075,7 +2075,7 @@ obvious at a glance once mentions are marked.
 canonical plain prose with no markup injected into it. Editing a message
 recomputes the spans; the reading view (§12) may render or drop them; a branch
 inherits them with the turn. Same rule as renditions
-([06 §10.7](docs/design/06-modes-and-turn-pipeline.md)) and provenance (§11.2): the artefact
+([06 §10.7](06-modes-and-turn-pipeline.md)) and provenance (§11.2): the artefact
 is annotated, the authored bytes are not touched.
 
 **Three resolution methods, and they must look different:**
@@ -2083,7 +2083,7 @@ is annotated, the authored bytes are not touched.
 | Method | Source | Rendering |
 |---|---|---|
 | `explicit` | The user typed it with `@` | Certain — full-strength link |
-| `matched` | Exact hit on `name` or `aliases` ([04 §4](docs/design/04-schemas.md)) | Confident |
+| `matched` | Exact hit on `name` or `aliases` ([04 §4](04-schemas.md)) | Confident |
 | `proposed` | Fuzzy, or a model-proposed resolution | **Visibly tentative**, clickable to confirm or reject |
 
 Collapsing these into one appearance throws away the whole diagnostic value. A
@@ -2094,15 +2094,15 @@ highlighting at all, because it reports confidence the engine does not have.
 come from: materialising a record on first mention, repeatedly, for the same
 person under three names. So an unresolved capitalised name is an **offer** —
 *create actor? link to an existing one?* — never a write. Model proposes, user
-disposes, which is the channel policy ([06 §4](docs/design/06-modes-and-turn-pipeline.md))
+disposes, which is the channel policy ([06 §4](06-modes-and-turn-pipeline.md))
 applied to entity resolution rather than a new principle.
 
 **An unresolved mention is not an error.** Most names in prose are scenery, and a
 UI that nags about every one is a UI people switch off. Visible, non-blocking,
-ignorable ([00 §3.3](docs/design/00-stance.md)).
+ignorable ([00 §3.3](00-stance.md)).
 
 **It shares the lorebook keyword pass.** `Actor.aliases` is already specified as
-the default keyword set for lore matching ([04 §4](docs/design/04-schemas.md)), so mention
+the default keyword set for lore matching ([04 §4](04-schemas.md)), so mention
 resolution and lorebook keyword activation are scanning the same text for the
 same strings. One pass, two consumers. Two matchers that can disagree about
 whether *the fixer* means Vera is a bug waiting to happen — and the shared pass
@@ -2128,7 +2128,7 @@ along as for playing.
 
 It lists the actors in the session with their current state, and it is the
 natural home for per-actor model bindings under `per-actor` dispatch
-([06 §3](docs/design/06-modes-and-turn-pipeline.md)).
+([06 §3](06-modes-and-turn-pipeline.md)).
 
 **Two axes, not one enum.** Aventuras' *active / inactive / dead* squashes
 together two things that behave differently:
@@ -2147,16 +2147,16 @@ unpleasant to retrofit once sessions carry the squashed value.
 matrix is the wrong thing to put in a sidebar. The split is in the data, not on
 the screen.
 
-**Presence and status are channels** ([06 §4](docs/design/06-modes-and-turn-pipeline.md)),
+**Presence and status are channels** ([06 §4](06-modes-and-turn-pipeline.md)),
 model-proposed and engine-decided, which buys three properties with no new
 machinery: changes are effects in the turn record, invertible at the tip and
-otherwise revisited by branching ([21 §1.2.1](docs/design/21-internal-contracts.md));
+otherwise revisited by branching ([21 §1.2.1](21-internal-contracts.md));
 panel state is reconstructible at any node; and **a branch gets it right** —
 someone dead on one line and alive on another is a requirement, not a bug, and it
-falls out of effects being per-node ([07 §4](docs/design/07-branching.md)).
+falls out of effects being per-node ([07 §4](07-branching.md)).
 
 **Party is a subset, not a second list.** The party already exists as a timeline
-([06 §8](docs/design/06-modes-and-turn-pipeline.md)). The panel marks party members
+([06 §8](06-modes-and-turn-pipeline.md)). The panel marks party members
 distinctly and introduces no parallel membership concept — a second source of
 truth about who is in the story is exactly the class of bug this section exists
 to surface.
@@ -2167,7 +2167,7 @@ one click; a false one silently removes someone from the story, and every
 subsequent turn is then assembled around their absence. So a proposed status
 change to `dead` is surfaced prominently rather than applied as a quiet badge
 change, and it is reversible from the effect log. Same reasoning as
-[25 C12](docs/design/25-open-questions.md), same bias: under-fire, and keep the manual path
+[25 C12](25-open-questions.md), same bias: under-fire, and keep the manual path
 always available.
 
 **The panel must be editable, and this is what makes it worth building.** If it
@@ -2176,7 +2176,7 @@ it:
 
 - **Merge** two records that are one person. Leaves a redirect rather than
   breaking references — turn records point at actor ids and history must not rot
-  ([00 §3.3](docs/design/00-stance.md)).
+  ([00 §3.3](00-stance.md)).
 - **Split** one record being used for two people.
 - **Correct presence and status** directly.
 - **Link an unresolved mention** to an existing actor, which is §13.1's offer
@@ -2198,7 +2198,7 @@ their own history, and none of the three sources answers it well — SillyTavern
 has no session search at all, and scrolling is the interface. It is also, given
 this architecture, close to free: turns are on disk, the index is derived and
 rebuildable, FTS5 is already in the stack for library search
-([19 §7.1](docs/design/19-tech-stack.md)), and the tree walk already produces reading order.
+([19 §7.1](19-tech-stack.md)), and the tree walk already produces reading order.
 
 **Argued for 1.0** on the grounds that it is small, that it is a differentiator
 on a dimension nobody competes on, and that the alternative — scrolling a
@@ -2220,10 +2220,10 @@ on the current path.
 The one genuinely tricky part, and the answer follows an existing rule rather
 than a new one.
 
-Abandoned branches are still real history — [07 §6](docs/design/07-branching.md) makes
+Abandoned branches are still real history — [07 §6](07-branching.md) makes
 discarded swipes permanently recoverable, which is a feature none of the sources
 offers, and a search that pretends they do not exist throws it away. But
-[07 §7](docs/design/07-branching.md) is equally clear that content from a discarded line
+[07 §7](07-branching.md) is equally clear that content from a discarded line
 must not surface as though it were current.
 
 **So: hits off the current path are returned, visually distinguished, and
@@ -2234,7 +2234,7 @@ someone acting on something that never happened in their story.
 
 ### 14.3 Why this and not embeddings
 
-[25 E2](docs/design/25-open-questions.md) puts semantic retrieval post-1.0 and aims it at
+[25 E2](25-open-questions.md) puts semantic retrieval post-1.0 and aims it at
 cross-session memory rather than at lorebooks. Text search is the complement, not
 a lesser version of it:
 
@@ -2254,11 +2254,11 @@ same results list, one more retriever behind it.
 ### 14.4 What it is not
 
 - **Not a replacement for memory.** Search is what *you* do; summarisation and
-  retrieval are what the *engine* does ([25 E1](docs/design/25-open-questions.md),
-  [08](docs/design/08-cross-session-memory.md)). They meet at the index and nowhere else, and
+  retrieval are what the *engine* does ([25 E1](25-open-questions.md),
+  [08](08-cross-session-memory.md)). They meet at the index and nowhere else, and
   a search result never enters a prompt because a search happened.
 - **Not full-corpus search over other people's libraries.** Per-user scoping
-  ([09 §4.3](docs/design/09-server-multiuser-deployment.md)) applies unchanged; the system
+  ([09 §4.3](09-server-multiuser-deployment.md)) applies unchanged; the system
   library is searchable because it is readable, and another account's sessions
   are neither.
 
@@ -2300,7 +2300,7 @@ prohibition on searching from where you happen to be standing.
 
 **Nothing here changes §14.3.** Lexical, verifiable, no provider, and embeddings
 would extend this surface rather than replace it — for lore entries exactly as
-for turns, and [25 E2](docs/design/25-open-questions.md)'s judgement that semantic retrieval
+for turns, and [25 E2](25-open-questions.md)'s judgement that semantic retrieval
 is worth less for lorebooks than it looks applies with its original force.
 
 ---
@@ -2308,12 +2308,12 @@ is worth less for lorebooks than it looks applies with its original force.
 ## 15. Administration, accounts and settings
 
 **Written because four other documents already refer to "the admin screen" as
-though it were specified.** [09 §4.5](docs/design/09-server-multiuser-deployment.md) wants it
-to say *"2 users have no usable connection"*; [09 §6.3](docs/design/09-server-multiuser-deployment.md)
-puts the restart control there; [09 §6.5](docs/design/09-server-multiuser-deployment.md)
-routes connectivity failures to admins; [09 §7](docs/design/09-server-multiuser-deployment.md)
+though it were specified.** [09 §4.5](09-server-multiuser-deployment.md) wants it
+to say *"2 users have no usable connection"*; [09 §6.3](09-server-multiuser-deployment.md)
+puts the restart control there; [09 §6.5](09-server-multiuser-deployment.md)
+routes connectivity failures to admins; [09 §7](09-server-multiuser-deployment.md)
 says the Source link must *not* be buried in it. The capability model
-([09 §4.2](docs/design/09-server-multiuser-deployment.md)) is enumerated and admin-granted
+([09 §4.2](09-server-multiuser-deployment.md)) is enumerated and admin-granted
 and never says where the granting happens. This section is that where.
 
 **It is one surface with two halves**, not two surfaces. Everyone gets *Treatments*
@@ -2326,32 +2326,32 @@ people who do not have it.
 Available to every account, admin or not.
 
 - **Display name, and locale.** Both already on `Account`
-  ([09 §4.2](docs/design/09-server-multiuser-deployment.md)); locale defaults from
+  ([09 §4.2](09-server-multiuser-deployment.md)); locale defaults from
   `Accept-Language` on first login and this is where it stops being a guess.
-- **Shown on the sign-in gallery, or not** ([12 §4](docs/design/12-account-gallery.md)).
+- **Shown on the sign-in gallery, or not** ([12 §4](12-account-gallery.md)).
   An `Account` field rather than a preference, by this section's own test:
   the server reads it before you are signed in. The toggle carries its
   consequence beside it, and says so plainly when the install's arrival
   screen means it currently changes nothing.
 - **Change your own password.** Requires the current one. **This is not account
   recovery** and does not weaken the position that there is none
-  ([09 §5.1](docs/design/09-server-multiuser-deployment.md)): it is a logged-in user
+  ([09 §5.1](09-server-multiuser-deployment.md)): it is a logged-in user
   rotating a secret they already hold. Someone locked out is still recovered
   from the console with `--reset-password`, which is the whole design.
   The form states *this install's* length rule
-  ([09 §4.1](docs/design/09-server-multiuser-deployment.md)) rather than a number this build
+  ([09 §4.1](09-server-multiuser-deployment.md)) rather than a number this build
   carries, and reports a refusal against the same number — the two used to be
   separate literals, and one of them was a guess about why any failure happened.
-- **Your connections** ([09 §4.5](docs/design/09-server-multiuser-deployment.md)) and role
+- **Your connections** ([09 §4.5](09-server-multiuser-deployment.md)) and role
   bindings, if `privateConnections` is granted. The one place a user sees which
   of their bindings are personal and which fall back to system defaults.
 - **Preferences** — the presentation choices the app accumulates. §1.1's
   density question will eventually land here, and two more are waiting: the
-  *As stored* pane state ([polish §2](docs/design/workplan/06-polish.md)) and the all-kinds
-  library view ([polish §4](docs/design/workplan/06-polish.md)). **Where these persist was
-  [25 B13](docs/design/25-open-questions.md)**, and the answer is a per-user `prefs.json`
+  *As stored* pane state ([polish §2](workplan/06-polish.md)) and the all-kinds
+  library view ([polish §4](workplan/06-polish.md)). **Where these persist was
+  [25 B13](25-open-questions.md)**, and the answer is a per-user `prefs.json`
   rather than a field on `Account`, settled at
-  [P2A §2.2](docs/design/workplan/09-p2a-configuration-surface.md) — the question had to
+  [P2A §2.2](workplan/09-p2a-configuration-surface.md) — the question had to
   close before the first preference shipped, not before this surface did.
 
   **The theme is that first preference**, and the pane exists now because of it:
@@ -2368,15 +2368,15 @@ Available to every account, admin or not.
 - **About: what build this is** — the name (*1.0-alpha 2*), the version string
   and the commit, at the top of the page and for every account, because the
   data is `auth/state`'s rather than the admin route's
-  ([P6A §1.5](docs/design/workplan/19-p6a-alpha-1.md); built at alpha.2, ahead of P11.6,
+  ([P6A §1.5](workplan/19-p6a-alpha-1.md); built at alpha.2, ahead of P11.6,
   after the first install could not name the build it was running). The same
   name ends every page, login and setup included. The update badge
-  ([09 §6.5](docs/design/09-server-multiuser-deployment.md)) and the licence boundary
-  ([09 §7](docs/design/09-server-multiuser-deployment.md)) join this block when they ship;
+  ([09 §6.5](09-server-multiuser-deployment.md)) and the licence boundary
+  ([09 §7](09-server-multiuser-deployment.md)) join this block when they ship;
   the Source link does not — see the next bullet.
 - **What is deliberately not here:** the Source link. It is required to be
   visible to every logged-in user without hunting
-  ([09 §7](docs/design/09-server-multiuser-deployment.md)), which a settings page is not —
+  ([09 §7](09-server-multiuser-deployment.md)), which a settings page is not —
   the footer that names the build on every page is where it goes.
 
 ### 15.2 The admin half: accounts
@@ -2384,14 +2384,14 @@ Available to every account, admin or not.
 **The list is the surface.** Every account, with handle, display name, role,
 enabled state, and — the part that makes it worth building — *what is wrong with
 this account*, inline. The dead-end state from
-[09 §4.5](docs/design/09-server-multiuser-deployment.md) is the motivating case: a user with
+[09 §4.5](09-server-multiuser-deployment.md) is the motivating case: a user with
 no private connections allowed and no system connection available cannot do
 anything at all, and today that is discovered as a bug report from someone who
 cannot send a message.
 
 - **Create an account.** Handle, display name, initial password, role,
   capabilities. All accounts are manually provisioned
-  ([09 §4.2](docs/design/09-server-multiuser-deployment.md)) — no invites, no
+  ([09 §4.2](09-server-multiuser-deployment.md)) — no invites, no
   self-registration — so this is the only way anyone but the first admin exists.
   The password field states the install's minimum, and says plainly what a blank
   box does where the minimum is `0`: it creates an account that signs in with an
@@ -2401,7 +2401,7 @@ cannot send a message.
   §4.2), `enableExtensions`. Each with the consequence written next to it rather
   than in a manual — *"may add their own provider keys"*, *"may browse and edit
   their own files in the app"*.
-- **The gallery flag is set here too** ([12 §4](docs/design/12-account-gallery.md)),
+- **The gallery flag is set here too** ([12 §4](12-account-gallery.md)),
   beside the capabilities but deliberately not one of them — it grants
   nothing (§15.4). It decides whether the account appears on the sign-in
   gallery, and the control says so, with the same consequence-beside-it
@@ -2410,8 +2410,8 @@ cannot send a message.
   the console reset stays the break-glass for the admin who cannot log in.
 - **Removing an account is a deletion of a person's library**, and the surface
   has to say so in those words, with the same honesty the trash gets
-  ([03 §10.2](docs/design/03-data-model.md)). ~~**[OPEN]**~~ **Closed at
-  [P2A §2.3](docs/design/workplan/09-p2a-configuration-surface.md):** *disable the login,
+  ([03 §10.2](03-data-model.md)). ~~**[OPEN]**~~ **Closed at
+  [P2A §2.3](workplan/09-p2a-configuration-surface.md):** *disable the login,
   keep the data* is the default, hard removal is the deliberate second choice,
   and they are **two verbs rather than one verb with a flag** — a `keepData`
   toggle that turns a delete into a not-delete is what makes a dangerous control
@@ -2419,7 +2419,7 @@ cannot send a message.
   erasing it, and says so: the handle frees up immediately, the data does not
   come back through it, and nothing deletes it but a person.
 - **Revoking `privateConnections` disables rather than deletes**, and the user
-  is told ([09 §4.5](docs/design/09-server-multiuser-deployment.md)). The surface that does
+  is told ([09 §4.5](09-server-multiuser-deployment.md)). The surface that does
   the revoking is the one that owes that explanation.
 
 ### 15.3 The admin half: the install
@@ -2427,22 +2427,22 @@ cannot send a message.
 The system-scope and server controls, which are admin capabilities rather than
 account ones:
 
-- **System connections** ([09 §4.5](docs/design/09-server-multiuser-deployment.md)) — the
+- **System connections** ([09 §4.5](09-server-multiuser-deployment.md)) — the
   household's shared keys, and the default role bindings everyone inherits.
-- **The system library** ([09 §4.3](docs/design/09-server-multiuser-deployment.md)) — a scope
+- **The system library** ([09 §4.3](09-server-multiuser-deployment.md)) — a scope
   an admin administers, explicitly **not** an account and with no system login.
 - **Extensions**: install is admin-only, enable is per-user
-  ([22 §7](docs/design/22-extensions.md)). Both halves of that live in their respective
+  ([22 §7](22-extensions.md)). Both halves of that live in their respective
   halves of this surface.
-- **Restart, and server notices** ([09 §6.3](docs/design/09-server-multiuser-deployment.md)) —
+- **Restart, and server notices** ([09 §6.3](09-server-multiuser-deployment.md)) —
   including the two things restart must not do naively.
-- **Connectivity and bind state** ([09 §6.5](docs/design/09-server-multiuser-deployment.md)),
+- **Connectivity and bind state** ([09 §6.5](09-server-multiuser-deployment.md)),
   shown here because a regular user cannot act on it.
 - **The config form**, generated from what the server sends rather than from a
   list of fields kept here. Its numeric inputs carry the server's own bounds, and
   it says so when a save is refused — for a while it rendered only success, so a
   value past its range looked exactly like a value that had been accepted. That
-  is where `auth.minPasswordLength` ([09 §4.1](docs/design/09-server-multiuser-deployment.md))
+  is where `auth.minPasswordLength` ([09 §4.1](09-server-multiuser-deployment.md))
   is set.
 
 ### 15.4 What this is not
@@ -2452,7 +2452,7 @@ test for a panel here is that an admin has an *action*: grant, revoke, create,
 disable, restart, install. Statistics that lead to no action belong in the
 workbench (§3) or nowhere.
 
-**Not a permission system.** [09 §4.2.1](docs/design/09-server-multiuser-deployment.md)
+**Not a permission system.** [09 §4.2.1](09-server-multiuser-deployment.md)
 enumerates three capabilities and two roles on purpose — no groups, no
 per-object ACLs, no custom roles. If this surface starts to want a matrix, the
 answer is that the model is right and the matrix is wrong.
@@ -2464,38 +2464,38 @@ visible at all.
 
 ### 15.5 When it gets built
 
-**The core is [P2A](docs/design/workplan/09-p2a-configuration-surface.md)**, immediately
+**The core is [P2A](workplan/09-p2a-configuration-surface.md)**, immediately
 after P2. An earlier revision of this section homed the whole surface at P10 and
 then observed that two pieces were wanted earlier; what changed is the reason.
 It is not that the user half is small — it is that five shipped artifacts
 already describe this surface as existing, from `config.example.json` calling it
-*"the primary path"* to [21 §4.2](docs/design/21-internal-contracts.md) contracting the
+*"the primary path"* to [21 §4.2](21-internal-contracts.md) contracting the
 write against it. That makes it a missing dependency rather than an early
-feature, and [work plan §2.3](docs/design/workplan/01-work-plan.md) is the rule written so
+feature, and [work plan §2.3](workplan/01-work-plan.md) is the rule written so
 the same gap does not open again.
 
 **What P2A closes:** §15.1 entire, §15.2 entire — including capability
 *granting*, with enforcement pulled forward from P10 so the grant is not a false
 front — and two of §15.3's five bullets, the config form and the restart notice.
-It also closes [25 B13](docs/design/25-open-questions.md), because a preferences pane needs
+It also closes [25 B13](25-open-questions.md), because a preferences pane needs
 somewhere to put a preference.
 
-**What [P2B](docs/design/workplan/10-p2b-provider-configuration.md) closes:** system
+**What [P2B](workplan/10-p2b-provider-configuration.md) closes:** system
 connections and the default role bindings, admin-only. The *your connections*
 bullet in §15.1 waits with it, because a personal-connection surface that
 predates the `privateConnections` check is the trivial bypass
-[09 §4.5](docs/design/09-server-multiuser-deployment.md) warns about, wearing a UI.
+[09 §4.5](09-server-multiuser-deployment.md) warns about, wearing a UI.
 
 **What genuinely remains at P10**, and not by default — each has a named
 blocker: the extensions panel (installation does not exist); *Restart now*
-(supervisor detection and drain, [09 §6.4](docs/design/09-server-multiuser-deployment.md));
+(supervisor detection and drain, [09 §6.4](09-server-multiuser-deployment.md));
 connectivity state (its producer is P11's update check); and the notification
-preference rows [09 §3.5](docs/design/09-server-multiuser-deployment.md) asks for (no class
+preference rows [09 §3.5](09-server-multiuser-deployment.md) asks for (no class
 has a producer, and the router is P10's).
 
 **And §15.3's system-library bullet has no owner, which is a defect in this
 section rather than a scheduling question.** §4.2 makes that scope
-never-writable and [09 §4.3](docs/design/09-server-multiuser-deployment.md) withholds admin
+never-writable and [09 §4.3](09-server-multiuser-deployment.md) withholds admin
 write at 1.0 deliberately, so there is no *action* an admin takes there — and
 §15.4 says a panel without one does not belong. Either the bullet goes or 1.0's
 position on admin write changes; it should not sit here looking scheduled.

@@ -1,7 +1,7 @@
 # 11 — what the machine cannot check
 
 **Status: historical, and still cited.** The P2-era record, superseded as a
-working list by [manual testing](docs/design/workplan/05-manual-testing.md) on 2026-09-08: §2 is walked through
+working list by [manual testing](05-manual-testing.md) on 2026-09-08: §2 is walked through
 that file's sittings A–D and H, and §4 is absorbed into its §9, because a
 should-be-a-test list stranded in a document marked historical is a list nobody
 reads.
@@ -12,9 +12,9 @@ carry. §1's anchor reads 1,186 tests and is four phases stale — left alone
 deliberately, because that anchor records when the gate was walked and moving it
 would be a claim nobody made.
 
-The exit gates for [P2](docs/design/workplan/08-p2-implementation.md#4-verification--the-p2-exit-gate),
-[P2A](docs/design/workplan/09-p2a-configuration-surface.md#4-verification--the-p2a-exit-gate) and
-[P2B](docs/design/workplan/10-p2b-provider-configuration.md#4-verification--the-p2b-exit-gate) are
+The exit gates for [P2](08-p2-implementation.md#4-verification--the-p2-exit-gate),
+[P2A](09-p2a-configuration-surface.md#4-verification--the-p2a-exit-gate) and
+[P2B](10-p2b-provider-configuration.md#4-verification--the-p2b-exit-gate) are
 forty-eight steps between them. This file is what is left after the automatable
 part of each was written, and it stays three lists rather than one, because
 "manual test" does three different jobs and they need different answers.
@@ -109,7 +109,7 @@ pnpm build && pnpm dev
 3. **A connection.** Add one, with a real key, in **Settings →
    Administration → Connections → Add a connection**. *This step said "blocked
    today: there is no form" long after P2B.3 shipped one — the kind of stale
-   instruction [P2C §1](docs/design/workplan/12-p2c-first-real-run.md) exists to catch.* The form
+   instruction [P2C §1](12-p2c-first-real-run.md) exists to catch.* The form
    fetches the endpoint's model list as an assist and saves without it; a
    refused key now says so in its own sentence rather than reading as an
    unreachable endpoint.
@@ -129,7 +129,7 @@ pnpm build && pnpm dev
 ### 2.2 A real provider
 
 **Every automated test in this repository runs against `FakeProvider`.** That is
-the right default — [testing §4](docs/design/workplan/03-testing.md) argues it, and an E2E suite calling a
+the right default — [testing §4](03-testing.md) argues it, and an E2E suite calling a
 real model would be slow, flaky, expensive and would test the model rather than
 the app. It means the shipped adapter's wire format is asserted only against a
 stub this repo wrote, and a stub agrees with whatever it was written to agree
@@ -248,7 +248,7 @@ refused by a conflict dialog blaming a concurrent editor.
 ### 3.6 Smaller ones, all still open
 
 - **~~A killed turn names no model call~~ — half closed at
-  [P2C §1](docs/design/workplan/12-p2c-first-real-run.md), and the halves are different failures.** A
+  [P2C §1](12-p2c-first-real-run.md), and the halves are different failures.** A
   person's *Stop* now records the interrupted call: `Cancelled` carries it with
   `outcome: 'cancelled'`, the model that was asked, the wall time, and the
   streamed words — finding 2, and the failure a tester produces most often. A
@@ -263,7 +263,7 @@ refused by a conflict dialog blaming a concurrent editor.
 - **Two constructors of the clock effect disagree** about `before` on a
   session's first effect, and `channels.ts`'s `clockEffect` has no production
   caller.
-- **~~Log bindings~~ Closed at [P2C §1.3](docs/design/workplan/12-p2c-first-real-run.md).**
+- **~~Log bindings~~ Closed at [P2C §1.3](12-p2c-first-real-run.md).**
   `job.committed` carried no `sessionId` and `job.unstartable` and `job.lost`
   carried neither, because the child logger was built inside `#body` and all
   three are written outside it. It is built in `start()` now, which is what
@@ -333,7 +333,7 @@ something shared would let one tab's state leak into the other's render. Two
 
 ~~Four concurrent `pnpm test` runs produced two file failures —
 `history.test.ts` hitting vitest's 5000ms default.~~ **Fixed at
-[P2C §1.5](docs/design/workplan/12-p2c-first-real-run.md):** a declared `testTimeout` per vitest
+[P2C §1.5](12-p2c-first-real-run.md):** a declared `testTimeout` per vitest
 project (projects do not inherit the top-level one, which is how the first
 attempt silently did nothing), and the measured ladder now holds from one to
 four concurrent runs. The property this section names is still worth watching
@@ -344,7 +344,7 @@ fresh test that parsed a chunk-split log line and failed one full run in four.
 ### 4.5 The ubuntu leg has never been watched
 
 ~~Every number in §1 is from Windows.~~ **Discharged at
-[P2C §1.6](docs/design/workplan/12-p2c-first-real-run.md):** the first draft PR ran the matrix,
+[P2C §1.6](12-p2c-first-real-run.md):** the first draft PR ran the matrix,
 ubuntu passed, and Windows — the development platform — failed on a native
 libuv abort that no amount of reading would have found. Both legs green since.
 `ci-shape.test.ts` still asserts the matrix exists, which stops it being

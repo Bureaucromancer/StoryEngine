@@ -4,7 +4,7 @@
 here on purpose: a solo project with unknown availability makes them fiction, and
 fiction in a plan is worse than an ordering with honest dependencies.
 
-**Beta is defined as feature-complete to the 1.0 spec** ([releases §0](docs/design/workplan/04-repo-and-releases.md)).
+**Beta is defined as feature-complete to the 1.0 spec** ([releases §0](04-repo-and-releases.md)).
 That definition is about to widen — release engineering, automation and workflow
 stabilisation belong in it too, and §8 holds the space for that rather than
 guessing at it.
@@ -81,7 +81,7 @@ what deferring it costs, which is more than the mode.
 **The release line is therefore: alpha → beta → 1.0 → 2.0 → 3.0 → 4.0 → 5.0 →
 6.0.**
 1.0 is a real release with a `release/1.0` branch that persists
-([releases §2](docs/design/workplan/04-repo-and-releases.md)); each series after it continues on `main`
+([releases §2](04-repo-and-releases.md)); each series after it continues on `main`
 while the previous release branch takes fixes.
 
 ### 0.1 What deferring a mode removes
@@ -214,7 +214,7 @@ substantially the job of *unifying* three mini-vocabularies that all ship inside
 
 | Dialect | Ships | Scope, and the guard already written against it |
 |---|---|---|
-| Lorebook `activationConditions` and `schedule`, unified as channel predicates ([03 §3.3](../03-data-model.md)) | ~~P5~~ **P7** | The minimal comparison set. *"Anything richer waits for the rule vocabulary and must not leak in here early"* ([P5 §1.4](docs/design/workplan/17-p5-implementation.md)). **Moved 2026-09-07 at [P6B.1](docs/design/workplan/20-p6b-playable.md):** P5 decided in the code not to build it — the schema lists `activationConditions` as deliberately absent and the importer discards it — and no document followed, so this cell read P5 for a thing P5 had declined. A predicate needs a channel to be about, and channels become a contract at P7. |
+| Lorebook `activationConditions` and `schedule`, unified as channel predicates ([03 §3.3](../03-data-model.md)) | ~~P5~~ **P7** | The minimal comparison set. *"Anything richer waits for the rule vocabulary and must not leak in here early"* ([P5 §1.4](17-p5-implementation.md)). **Moved 2026-09-07 at [P6B.1](20-p6b-playable.md):** P5 decided in the code not to build it — the schema lists `activationConditions` as deliberately absent and the importer discards it — and no document followed, so this cell read P5 for a thing P5 had declined. A predicate needs a channel to be about, and channels become a contract at P7. |
 | `StepCondition` | P7 | A small closed set — a cadence, a stage flag, an explicit arm. *"Deliberately not an expression language… the tempting move once rules arrive is to let steps take rule predicates, and that quietly makes an internal shape depend on a portable one"* ([06 §6](../06-modes-and-turn-pipeline.md)). |
 | `PlotHook.involves`, `notBefore`, `blockedBy` | P7 | Mechanical filters that need no vocabulary at all, and carry most authored hooks (§0.4). |
 
@@ -340,9 +340,9 @@ has.
 
 The reasoning that put them on the list is unchanged and right — a home server
 product people cannot install is a home server product nobody uses. What changes
-is that **P11 owns all six** ([P11](docs/design/workplan/27-p11-implementation.md)), while the beta
+is that **P11 owns all six** ([P11](27-p11-implementation.md)), while the beta
 gate keeps its narrower requirement of the OCI image and the tarball
-([releases §0](docs/design/workplan/04-repo-and-releases.md)). Enough to have users is the beta test;
+([releases §0](04-repo-and-releases.md)). Enough to have users is the beta test;
 enough to be installed by people who are not us is the 1.0 test.
 
 **Session export ships at 1.0** ([25 B12](../25-open-questions.md)).
@@ -365,7 +365,7 @@ question rather than a far one.
 Small — quiesce, archive the data directory excluding the index, restore and
 rebuild — and in the same class as the two above. Files on disk means `rsync`
 works today and should be documented. The part that matters is the CI restore
-test ([testing testing](docs/design/workplan/03-testing.md)); an untested restore is not a backup, and
+test ([testing testing](03-testing.md)); an untested restore is not a backup, and
 shipping a self-hosted data product without one is a gap rather than a deferral.
 
 **The three lore-entry fields land at 1.0** ([13 §13](../13-write-mode.md)).
@@ -422,14 +422,14 @@ author what you have been playing* is still the sentence.
 visualiser stay on the feature list ([24](../24-roadmap.md)) — both are readers
 rather than authoring surfaces, and folding them in would make this a release
 about "everything left", which is how a scope stops being checkable
-([releases §0](docs/design/workplan/04-repo-and-releases.md)).
+([releases §0](04-repo-and-releases.md)).
 
 **One decision this release inherits half-made.**
 [02 §6](../02-infinite-worlds.md) argues that one expression language should
 serve both template rendering and rule conditions — one thing for authors to
 learn, one evaluator to sandbox. Liquid is already chosen for block templating
 and P4 proceeds on it, deliberately leaving the other half of
-[25 C6](../25-open-questions.md) open ([P4 §6.1](docs/design/workplan/16-p4-implementation.md)).
+[25 C6](../25-open-questions.md) open ([P4 §6.1](16-p4-implementation.md)).
 Deferring rules to 6.0 does not defer that choice; it extends how long the
 project runs on a half-made one. **The revisit should ask whether Liquid still
 looks right for conditions after five releases of using it for templates**, and
@@ -446,7 +446,7 @@ is refused either. An item on that list is **unscheduled, not unwanted**, and an
 of them can be pulled forward by whoever wants to build it.
 
 The boundary is simply this: **a committed version has a number, a scope, and a
-gate it is checkable against ([releases §0](docs/design/workplan/04-repo-and-releases.md)). Everything else
+gate it is checkable against ([releases §0](04-repo-and-releases.md)). Everything else
 has a priority.**
 
 ---
@@ -460,7 +460,7 @@ that have never met.
 
 **Order by what unblocks learning, not by what sounds foundational.** Two items
 land far earlier here than instinct suggests, both flagged in
-[triage §8](docs/design/workplan/02-triage.md):
+[triage §8](02-triage.md):
 
 - **Import**, because it is how a realistic library exists to test retrieval and
   budgeting against. Synthetic fixtures will not surface what real cards do.
@@ -604,7 +604,7 @@ The two halves are easy to confuse, so the distinction is worth drawing sharply:
 
 - **A minimal demonstration is the real thing, scoped small.** It is not
   discarded later; it grows. P1's actor editor
-  ([P1 §P1.7](docs/design/workplan/07-p1-implementation.md)) has a real write path and an empty slot
+  ([P1 §P1.7](07-p1-implementation.md)) has a real write path and an empty slot
   where assist will attach — not a mock editor, an editor missing a feature that
   cannot exist yet. The `system/library/` merge ships in P1 with nothing in it:
   the query is real, the content is absent. Neither gets rewritten when the phase
@@ -617,7 +617,7 @@ The two halves are easy to confuse, so the distinction is worth drawing sharply:
 **The test to apply before writing a placeholder: cost the real thing first.**
 Often it is not much larger, because the placeholder has to satisfy the same
 callers. Auth is the case that made this explicit and is worth carrying as the
-worked example ([P1 §1.3](docs/design/workplan/07-p1-implementation.md)): a stub user context was one
+worked example ([P1 §1.3](07-p1-implementation.md)): a stub user context was one
 file, but it would have been threaded through every route in P1 through P9 and
 then torn out at P10, which is every one of those routes written twice. The real
 thing — scrypt, a session cookie, CSRF, a first-run admin — is not much more code
@@ -634,7 +634,7 @@ Three qualifications, because this rule is the easiest one here to abuse:
   in P1: the record is a persisted shape (§2's first cost), the enforcement is
   additive (§2.1). Splitting on that line is the point.
 
-  *Enforcement moved to [P2A](docs/design/workplan/09-p2a-configuration-surface.md), and the example
+  *Enforcement moved to [P2A](09-p2a-configuration-surface.md), and the example
   is better for it rather than spoiled. The split was correct while nothing
   granted a capability. What changed is that P2A builds the screen that grants
   them — and this same section forbids a system whose only purpose is to be
@@ -642,7 +642,7 @@ Three qualifications, because this rule is the easiest one here to abuse:
   becomes when nothing reads it. The line is still record-versus-enforcement;
   it just turned out that the phase which grants is the phase that owes.*
 - **Test doubles are exempt.** Fakes, fixtures and harnesses are supposed to be
-  disposable, and [testing](docs/design/workplan/03-testing.md) governs them. This is about production
+  disposable, and [testing](03-testing.md) governs them. This is about production
   scaffolding only.
 
 **The real counter-argument, recorded rather than dismissed:** a placeholder
@@ -683,8 +683,8 @@ with no way to manage one; P2 shipped a provider layer whose connections and
 role bindings are hand-written JSON, and a `pendingRestart()` that is correct,
 tested and reachable from nothing. A fresh install could not take a turn without
 a text editor, and no phase had failed — each had shipped exactly what it said.
-[P2A](docs/design/workplan/09-p2a-configuration-surface.md) is the repair;
-[P2B](docs/design/workplan/10-p2b-provider-configuration.md) is the rest of it.
+[P2A](09-p2a-configuration-surface.md) is the repair;
+[P2B](10-p2b-provider-configuration.md) is the rest of it.
 
 Three qualifications, because a rule about surfaces attracts surface work:
 
@@ -699,7 +699,7 @@ Three qualifications, because a rule about surfaces attracts surface work:
   person who sets it is editing the file already.
 
 **And it gets a check rather than only a paragraph.**
-[testing §2](docs/design/workplan/03-testing.md)'s whole argument is that a lint rule is worth more
+[testing §2](03-testing.md)'s whole argument is that a lint rule is worth more
 than a paragraph in a document nobody re-reads, and the mechanically checkable
 core here is that **`config.example.json` declares every key the schema does** —
 a test that would have caught the four keys that had already drifted out of it.
@@ -779,7 +779,7 @@ beyond P4, it has been misunderstood.
 
 ### P1 — Skeleton and storage spine
 
-**Expanded into a working plan: [P1](docs/design/workplan/07-p1-implementation.md)** — stages, the
+**Expanded into a working plan: [P1](07-p1-implementation.md)** — stages, the
 decisions the design documents left open (folder naming and rename, duplicate ids
 on disk), the phasing revision that pulls auth forward from P10, and the exit
 gate.
@@ -790,13 +790,13 @@ headers. Then the part everything else stands on:
 - Portable object schemas ([04](../04-schemas.md)) as TypeBox, emitting JSON Schema.
 - Files on disk, atomic writes, per-user layout, the PNG card envelope.
 - Derived index, filesystem watcher, **rebuild-from-disk as a startup option**.
-- Library CRUD, with accounts and login ([P1 §1.3](docs/design/workplan/07-p1-implementation.md)).
+- Library CRUD, with accounts and login ([P1 §1.3](07-p1-implementation.md)).
 - **Version history on write** ([03 §11](../03-data-model.md)) — cheap here and
   awkward later, because the trigger points are every write path there will ever
   be. The watcher makes *hand-edits* snapshot too, which no source can offer and
   which this phase's demo exercises directly.
 - A library list, and **a prototype actor editor**
-  ([P1 §P1.7](docs/design/workplan/07-p1-implementation.md)) — actor only, real write path, no assist.
+  ([P1 §P1.7](07-p1-implementation.md)) — actor only, real write path, no assist.
   The editor is also where the history panel first appears
   ([10 §11.2a](../10-ui-surfaces.md)): restore and diff are the parts worth having
   early, since they are what make a prototype editor safe to experiment in.
@@ -817,7 +817,7 @@ anyone uses it. It is the reason P1 carries an editor at all.
 
 ### P2 — One turn, end to end
 
-**Expanded into a working plan: [P2](docs/design/workplan/08-p2-implementation.md)** — the P1 audit
+**Expanded into a working plan: [P2](08-p2-implementation.md)** — the P1 audit
 and hardening stage, the turn pipeline, and the exit gate.
 
 The spine. Deliberately with the crudest possible mode.
@@ -840,11 +840,11 @@ and reattach to the finished result. Read the whole turn record as JSON.
 **CI from here on:** golden-file assembly tests. Given a fixture library and
 session, assemble and snapshot the turn record. This is the highest-value test
 surface in the project and it exists as soon as the record does
-([testing](docs/design/workplan/03-testing.md)).
+([testing](03-testing.md)).
 
 ### P2A — The configuration surface
 
-**Expanded into a working plan: [P2A](docs/design/workplan/09-p2a-configuration-surface.md).**
+**Expanded into a working plan: [P2A](09-p2a-configuration-surface.md).**
 
 [10 §15](../10-ui-surfaces.md)'s core, pulled forward from P10 — not because it
 would be nice this early, but because §2.3 found that five shipped artifacts
@@ -862,7 +862,7 @@ have no usable connection.
 
 ### P2B — Provider configuration
 
-**Expanded into a working plan: [P2B](docs/design/workplan/10-p2b-provider-configuration.md)**, with a
+**Expanded into a working plan: [P2B](10-p2b-provider-configuration.md)**, with a
 §6 naming what P2A has to settle before its last questions close.
 
 System connections and the install default bindings through the UI, admin-only
@@ -887,7 +887,7 @@ that is not ours — see P2C.*
 
 ### P2C — The first real run
 
-**Expanded into a working plan: [P2C](docs/design/workplan/12-p2c-first-real-run.md).**
+**Expanded into a working plan: [P2C](12-p2c-first-real-run.md).**
 
 **Four phases are built and nobody has used any of them.** Every test in this
 repository calls a provider it wrote to agree with an adapter it also wrote, and
@@ -905,7 +905,7 @@ whose only witness is a stub.
 them blocking, and that is the argument for running it rather than against: every
 one was missable precisely because nothing had ever exercised the path. The
 preparation is the larger half — five or six days against two or three of
-sessions — and [P2C §1.8](docs/design/workplan/12-p2c-first-real-run.md) says what it costs to cut.
+sessions — and [P2C §1.8](12-p2c-first-real-run.md) says what it costs to cut.
 
 **Demonstrable:** the P2B demo, finished. A turn against a real endpoint, from an
 empty directory, with the exchange committed as a fixture the suite replays
@@ -920,7 +920,7 @@ effects, per-turn cost, diff between two turns.
 free at this point, because the turn record already holds everything — the
 workbench is a *reader*, not a second assembler ([10 §3](../10-ui-surfaces.md)).
 
-**Expanded into a working plan: [P3](docs/design/workplan/15-p3-implementation.md)**, revised against
+**Expanded into a working plan: [P3](15-p3-implementation.md)**, revised against
 the record as built rather than as designed. It holds almost everything the
 workbench renders; the exceptions are named there, and two of them are one field
 each in P2's record rather than work for this phase.
@@ -930,11 +930,11 @@ argument for building it early.*
 
 ### P4 — Import
 
-**Expanded into a working plan: [P4](docs/design/workplan/16-p4-implementation.md)**, the revisit its
+**Expanded into a working plan: [P4](16-p4-implementation.md)**, the revisit its
 skeleton asked for, performed against the repo rather than against the design.
 
 Cards, lorebooks and presets from SillyTavern, Marinara and Aventuras. The
-largest PORT in the triage ([triage §4](docs/design/workplan/02-triage.md)) and the reason to do it now:
+largest PORT in the triage ([triage §4](02-triage.md)) and the reason to do it now:
 it turns an empty install into a realistic library.
 
 **Presets are the load-bearing half and the one to sequence first**, because they
@@ -952,7 +952,7 @@ showing what resolved, what went to `compat`, and what dangled — and a convert
 preset whose block list, read in the workbench, is recognisably the preset that
 went in.
 
-*The second arm was added 2026-08-29 ([P4 §1.5](docs/design/workplan/16-p4-implementation.md)).*
+*The second arm was added 2026-08-29 ([P4 §1.5](16-p4-implementation.md)).*
 Marinara's library is a relational store rather than a folder of files, so a
 second folder source is not a second helping of the same work — it is what
 decides the shape of the sweep engine, which is why it was settled before P4.0
@@ -961,17 +961,17 @@ rather than during P4.3.
 **Then stop — this is where PLAYABLE falls (§4.1).**
 
 *Built and merged, and the import previews what it would do before it writes
-([P4 §7](docs/design/workplan/16-p4-implementation.md)). Nobody stopped: PLAYABLE has not run, and a
+([P4 §7](16-p4-implementation.md)). Nobody stopped: PLAYABLE has not run, and a
 private Alpha 1 is being cut first, under the rule
-[P6A §5](docs/design/workplan/19-p6a-alpha-1.md) sets. **Three phases later it has a phase of its
-own** — [P6B](docs/design/workplan/20-p6b-playable.md), opened 2026-09-07, because the reason nobody
+[P6A §5](19-p6a-alpha-1.md) sets. **Three phases later it has a phase of its
+own** — [P6B](20-p6b-playable.md), opened 2026-09-07, because the reason nobody
 could stop turned out to be a missing surface rather than a missing intention:
 nothing anywhere chooses a session's lorebooks, so the checkpoint's own subject
 could not be put under pressure.*
 
 ### P5 — Lorebooks and retrieval
 
-**Expanded into a working plan: [P5](docs/design/workplan/17-p5-implementation.md)**, restructured
+**Expanded into a working plan: [P5](17-p5-implementation.md)**, restructured
 into two halves — the book as a *document* first, the retriever second, because
 half of *why doesn't this entry fire* is a reading problem before it is a
 matching one.
@@ -989,12 +989,12 @@ reporting. Now testable against P4's real library rather than fixtures.
 they cost, and what the budget dropped.
 
 *Built and merged (`a27be5b`). The exit gate is unwalked, and
-[P5 §0.5](docs/design/workplan/17-p5-implementation.md) says what walking it would meet — including
+[P5 §0.5](17-p5-implementation.md) says what walking it would meet — including
 that the browser still has no way to choose a session's lorebooks.*
 
 ### P6 — The turn tree
 
-**~~Skeleton~~ Plan, and now the record: [P6](docs/design/workplan/18-p6-implementation.md)** —
+**~~Skeleton~~ Plan, and now the record: [P6](18-p6-implementation.md)** —
 mostly sequencing, unusually, because [07](../07-branching.md) and
 [19 §14.5](../19-tech-stack.md) already decided the tree model,
 swipes-as-branches, snapshots-as-cache and the tape.
@@ -1005,13 +1005,13 @@ Branching, rewrite/reroll, the RNG tape, sibling navigation.
 built after it inherits the behaviour for free. Built after modes, it is a
 migration.
 
-*Built and merged (`a6f78c3`). [P6 §3](docs/design/workplan/18-p6-implementation.md) marks what the
+*Built and merged (`a6f78c3`). [P6 §3](18-p6-implementation.md) marks what the
 suite covers; the demo that defines done, and the three questions §5 there hands
 to PLAYABLE, wait on a person.*
 
 ### P6A — Alpha 1
 
-**Expanded into a working plan: [P6A](docs/design/workplan/19-p6a-alpha-1.md)**, written at its phase
+**Expanded into a working plan: [P6A](19-p6a-alpha-1.md)**, written at its phase
 rather than ahead of it — P6 merged the morning it was drafted.
 
 **The first build you can go back to.** Six phases in, the only record of a
@@ -1020,11 +1020,11 @@ the budgeter changed* is archaeology rather than something anyone can run. Alpha
 1 is that state tagged, changelogged, built from the tag, and started with one
 command.
 
-**It is an artifact, not a distribution**, and [P6A §0](docs/design/workplan/19-p6a-alpha-1.md) makes
+**It is an artifact, not a distribution**, and [P6A §0](19-p6a-alpha-1.md) makes
 that the load-bearing distinction. The repository and the registry package are
 both private, the unraid template is written and committed rather than submitted,
 and nothing about `latest`, `nightly` or the other five packaging artifacts
-moves — so [releases §0](docs/design/workplan/04-repo-and-releases.md)'s argument that alpha should
+moves — so [releases §0](04-repo-and-releases.md)'s argument that alpha should
 not be *maintaining a distribution for software that has no users* survives
 intact. AGPL §13 attaches on distribution and therefore does not attach here,
 which is what keeps the About surface and the source link where P10 and P11
@@ -1036,12 +1036,12 @@ reads one environment variable in the whole codebase and has no `--host`, so an
 image binds the container's own loopback and is unreachable however its port is
 mapped. It serves no static files, so an image is an API and a 404. And the setup
 token and the cookie hardening were both deferred on a premise — *the loopback
-default* — that a container removes at a stroke, so [P2 §2.11](docs/design/workplan/08-p2-implementation.md)'s
+default* — that a container removes at a stroke, so [P2 §2.11](08-p2-implementation.md)'s
 F10 comes forward here whole rather than in halves.
 
 **Why after P6 specifically:** it is the first point at which there is something
 worth freezing — a turn tree, a library, retrieval and branching — and it lands
-before [P7](docs/design/workplan/23-p7-implementation.md), the largest phase in the plan and the one
+before [P7](23-p7-implementation.md), the largest phase in the plan and the one
 that most wants a known-good baseline to measure against.
 
 **Demonstrable:** pull a tagged image, map a port, take the setup token out of
@@ -1052,13 +1052,13 @@ state at all, and the running build able to name the commit it came from.
 `v1.0.0-alpha.1`, and the image the on-tag workflow built from it on its second
 run — the first found that the base no longer ships corepack. The
 demonstration above is still a person's: pull, token, admin, a session, from a
-machine with Docker; [P6A §3](docs/design/workplan/19-p6a-alpha-1.md) says what the suite and the
+machine with Docker; [P6A §3](19-p6a-alpha-1.md) says what the suite and the
 workflow have proved of it. Alpha 2 followed on 2026-09-07.*
 
 ### P6B — The close-out, and the first real play
 
-**Expanded into a working plan: [P6B](docs/design/workplan/20-p6b-playable.md)**, with
-[playable log](docs/design/workplan/21-playable-log.md) as the findings log [P5 §0.4](docs/design/workplan/17-p5-implementation.md)
+**Expanded into a working plan: [P6B](20-p6b-playable.md)**, with
+[playable log](21-playable-log.md) as the findings log [P5 §0.4](17-p5-implementation.md)
 noticed had never been created.
 
 **This is PLAYABLE (§4.1), three phases late, plus the smallest set of repairs
@@ -1067,8 +1067,8 @@ supposed to be tested by, and the close-out of the phase that built the
 subsystem it tests.
 
 **Why it did not happen on time, which is the finding that shaped the phase.**
-Two audits five days apart — [P5 §0.5](docs/design/workplan/17-p5-implementation.md) and
-[P7 §0.1](docs/design/workplan/23-p7-implementation.md) — name one obstacle: **nothing anywhere
+Two audits five days apart — [P5 §0.5](17-p5-implementation.md) and
+[P7 §0.1](23-p7-implementation.md) — name one obstacle: **nothing anywhere
 chooses a session's lorebooks.** `POST /api/sessions` has accepted a treatment
 and a book list since P5.6 and the client sends neither; `PUT
 /api/sessions/:id/lore` has no caller outside tests; `pnpm seed` builds a
@@ -1077,10 +1077,10 @@ two of §4.1's four hypotheses — the budgeter under pressure, and whether
 inclusion reasons explain anything — have had nothing to be about.
 
 **P5's gate comes with it**, because it is the same subsystem: that gate has
-never been walked, [P5 §0.5](docs/design/workplan/17-p5-implementation.md) says walking it today
+never been walked, [P5 §0.5](17-p5-implementation.md) says walking it today
 would fail, and walking it separately would find what playing should have.
 
-**Why before P7 and not during:** [P7 §5](docs/design/workplan/23-p7-implementation.md) says
+**Why before P7 and not during:** [P7 §5](23-p7-implementation.md) says
 whatever the record got wrong *"lands in the middle of this phase's channel and
 effect work"* — the phase that publishes the contract as an SDK — and no
 document describes a recovery from that. §7 calls skipping this checkpoint the
@@ -1092,9 +1092,9 @@ ever been able to do that.
 
 ### P7 — Modes and channels
 
-**Skeleton: [P7](docs/design/workplan/23-p7-implementation.md)**, whose §0 states what a skeleton
-several phases out is for and applies to [P8](docs/design/workplan/24-p8-implementation.md) through
-[P11](docs/design/workplan/27-p11-implementation.md) as well. Its first finding: the move of the Scene
+**Skeleton: [P7](23-p7-implementation.md)**, whose §0 states what a skeleton
+several phases out is for and applies to [P8](24-p8-implementation.md) through
+[P11](27-p11-implementation.md) as well. Its first finding: the move of the Scene
 mode behind the SDK is a *move* or a *rewrite*, and `modes/contract.ts` already
 knows which.
 
@@ -1146,7 +1146,7 @@ retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P8 — Memory
 
-**Skeleton: [P8](docs/design/workplan/24-p8-implementation.md)**, which found the phase's one storage
+**Skeleton: [P8](24-p8-implementation.md)**, which found the phase's one storage
 decision hiding outside both design documents: `memories/` sits beside `library/`
 and outside everything the index walks, while [08 §7](../08-cross-session-memory.md)
 asks for the ordinary lorebook editor, which needs a library address.
@@ -1168,7 +1168,7 @@ safe. Chapterisation is roadmap ([24 §3](../24-roadmap.md)), not P8.
 
 ### P9 — Renditions
 
-**Skeleton: [P9](docs/design/workplan/25-p9-implementation.md)**, and its first stage is a contract
+**Skeleton: [P9](25-p9-implementation.md)**, and its first stage is a contract
 rather than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
 all. The provider layer speaks chat and no image endpoint does, which is the
@@ -1179,7 +1179,7 @@ built against the general rendition shape so video and speech are later kinds.
 
 **And backdrops**, which are the same shape under a second *purpose* rather than
 a second feature ([06 §10.1a](../06-modes-and-turn-pipeline.md),
-[P9 §1.7](docs/design/workplan/25-p9-implementation.md)). This closes an absence older than the phase
+[P9 §1.7](25-p9-implementation.md)). This closes an absence older than the phase
 documents: [06 §7.2](../06-modes-and-turn-pipeline.md) has always said Scene has
 an optional background written by a step, and no document has ever said where the
 image comes from — so without this, P7 ships a backdrop channel that nothing can
@@ -1189,19 +1189,19 @@ subsystem that spends money on its own from spending it per turn.
 
 ### P10 — Multi-user, notifications, deployment
 
-**Skeleton: [P10](docs/design/workplan/26-p10-implementation.md)**, which gives a remainder phase the
+**Skeleton: [P10](26-p10-implementation.md)**, which gives a remainder phase the
 spine it does not have by default: *this is the phase that makes the install
 reachable, and safe, for someone who is not the developer.* Anything here off
 that line gets checked against P11 before it is built.
 
-**Accounts, login and first-run moved to P1** ([P1 §1.3](docs/design/workplan/07-p1-implementation.md))
+**Accounts, login and first-run moved to P1** ([P1 §1.3](07-p1-implementation.md))
 — they were always small, and the alternative was a stub identity threaded
 through every route until this phase. The per-user *storage layout* was already
 in P1 because that part is not retrofittable; auth turned out to be cheaper to
 build than to fake.
 
 **And account management and capability enforcement moved to
-[P2A](docs/design/workplan/09-p2a-configuration-surface.md)**, for the reason §2.3 gives: five
+[P2A](09-p2a-configuration-surface.md)**, for the reason §2.3 gives: five
 already-shipped things described that surface as existing. What lands here is
 the remainder of [10 §15](../10-ui-surfaces.md) — the extensions panel, the
 system library panel if it ever earns an admin action, *Restart now* with the
@@ -1210,12 +1210,12 @@ update check produces the signal. Plus the notification router and delivery
 channels, ~~the loopback bind and its container inversion, the setup token,~~
 mDNS, the account-gallery arrival screen ([12](../12-account-gallery.md)), the
 About surface and §13 source link. *The struck pair went to
-[P6A](docs/design/workplan/19-p6a-alpha-1.md), which shipped the image their deferral was scheduled
-against; [P10.0](docs/design/workplan/26-p10-implementation.md) is what is left.*
+[P6A](19-p6a-alpha-1.md), which shipped the image their deferral was scheduled
+against; [P10.0](26-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-**Skeleton: [P11](docs/design/workplan/27-p11-implementation.md)**, whose exit gate *is* the beta gate
+**Skeleton: [P11](27-p11-implementation.md)**, whose exit gate *is* the beta gate
 — the one structural difference from every other phase document. Its first stage
 is the audit that produces the list, because the list exists today only as *home
 P11* scattered across the phase documents. And §8 below is what it rewrites.
@@ -1228,9 +1228,9 @@ update check, and the localisation catalogue extraction sweep (§0.4).
 
 **Plus the three things §0.5 moved into 1.0**: session export
 ([25 B12](../25-open-questions.md)), backup and restore with its CI restore test
-([25 E6](../25-open-questions.md), [testing](docs/design/workplan/03-testing.md)), and the four packaging
+([25 E6](../25-open-questions.md), [testing](03-testing.md)), and the four packaging
 artifacts that previously had a requirement and no builder. This is a real
-increase in the last phase's load, and [P11](docs/design/workplan/27-p11-implementation.md) is where
+increase in the last phase's load, and [P11](27-p11-implementation.md) is where
 it gets sized rather than here.
 
 **The plot-hook selector here is the *tuning*, not the build** — a correction,
@@ -1243,7 +1243,7 @@ pool authorable. §2 already lists *that hook pacing works at all* among the
 hypotheses nothing has tested, and this is the phase that tests it.
 
 **Packaging here is all six artifacts** (§0.5). The container and the tarball
-are what the *beta gate* requires ([releases §0](docs/design/workplan/04-repo-and-releases.md)); the other
+are what the *beta gate* requires ([releases §0](04-repo-and-releases.md)); the other
 four ([09 §5.4](../09-server-multiuser-deployment.md)) are a 1.0 requirement, and
 this is the phase that owns them — which is the correction, because previously
 nothing did.
@@ -1340,7 +1340,7 @@ Things that are wrong to schedule because they must happen inside every phase:
 
 ## 8. What "beta" means — to be expanded
 
-[releases §0](docs/design/workplan/04-repo-and-releases.md) currently defines beta as **feature complete to
+[releases §0](04-repo-and-releases.md) currently defines beta as **feature complete to
 the 1.0 spec**, which is a good completeness gate and an incomplete definition of
 readiness.
 
@@ -1348,7 +1348,7 @@ The other half is release engineering, and it belongs in the beta bar rather
 than after it: build chains, release automation, and the workflows that make
 shipping repeatable rather than an event. Sketched here only to hold the shape —
 **this section is awaiting expansion** and should be rewritten rather than
-extended. **[P11](docs/design/workplan/27-p11-implementation.md) names that rewrite as P11's** — its
+extended. **[P11](27-p11-implementation.md) names that rewrite as P11's** — its
 §1.1 and its P11.9 stage — because a hardening phase that does not know what it
 is hardening toward ends when someone gets tired:
 
@@ -1358,15 +1358,15 @@ is hardening toward ends when someone gets tired:
   standing up four more build chains is exactly the kind of work that reads as
   progress while delaying the thing being packaged.
 - The release cut itself automated: tag → build → publish → changelog.
-  **Partly taken early at [P6A](docs/design/workplan/19-p6a-alpha-1.md)** — one artifact's chain,
+  **Partly taken early at [P6A](19-p6a-alpha-1.md)** — one artifact's chain,
   built once for real; five to go.
 - Channels wired (`latest`, `testing`, `nightly`) and *boring* — a nightly that
-  is often broken is worse than none ([releases §4](docs/design/workplan/04-repo-and-releases.md)).
+  is often broken is worse than none ([releases §4](04-repo-and-releases.md)).
   **Untouched by P6A**, deliberately: a private immutable tag is not a channel,
   and P6A moves no alias.
 - Version and commit embedded in the build, which AGPL §13 already requires
   ([09 §7](../09-server-multiuser-deployment.md)). **Taken early at
-  [P6A](docs/design/workplan/19-p6a-alpha-1.md)**, for a reason of its own rather than §13's — a
+  [P6A](19-p6a-alpha-1.md)**, for a reason of its own rather than §13's — a
   frozen build that cannot say what it is defeats its own purpose. The §13
   *surface* is not built there, because §13 attaches on distribution and P6A
   distributes nothing.
@@ -1376,9 +1376,9 @@ is hardening toward ends when someone gets tired:
 
 ~~The plan above front-loads none of this, which is defensible during alpha and
 would be a mistake to carry into beta.~~ **The plan above now front-loads three
-of these seven, at [P6A](docs/design/workplan/19-p6a-alpha-1.md).** The original sentence was written
+of these seven, at [P6A](19-p6a-alpha-1.md).** The original sentence was written
 when nothing did, and its argument is unchanged for the other four: front-loading
 release engineering during alpha is defensible only where the artifact is for the
 project rather than for an audience, which is the distinction
-[releases §0](docs/design/workplan/04-repo-and-releases.md) now draws. What would be a mistake is
+[releases §0](04-repo-and-releases.md) now draws. What would be a mistake is
 carrying the *deferral* into beta, and this list is still what retires it.

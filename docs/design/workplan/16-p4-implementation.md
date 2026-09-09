@@ -6,12 +6,12 @@ reopened twice.
 
 **Fifteen gate steps and no record of a walk.** Step 1 wants a real imported
 library, which the repository does not have and cannot synthesise: it is
-person-blocked with lead time, and [manual testing §3.4](docs/design/workplan/05-manual-testing.md) is where it
-waits with [P5 §3](docs/design/workplan/17-p5-implementation.md) step 6, which wants the same
+person-blocked with lead time, and [manual testing §3.4](05-manual-testing.md) is where it
+waits with [P5 §3](17-p5-implementation.md) step 6, which wants the same
 thing.
 
 *(This status line was written 2026-09-07 at
-[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
@@ -21,8 +21,8 @@ against the repo at `693b266` (branch `p3`, P3.−1 through P3.6 Landed). The
 skeleton was drafted during P1 and said so; nearly every one of its "to decide
 on revisit" items is decided below, several against ground that moved under it,
 and the deviations from its leans are named where they happen. Format follows
-[P1](docs/design/workplan/07-p1-implementation.md); the readiness audit, honest-size and
-still-to-settle sections follow [P3](docs/design/workplan/15-p3-implementation.md)'s.
+[P1](07-p1-implementation.md); the readiness audit, honest-size and
+still-to-settle sections follow [P3](15-p3-implementation.md)'s.
 
 **Amended 2026-08-29, after the plan was written and before P4.0 started:**
 Marinara is imported by folder too, on the same footing as SillyTavern. That is
@@ -32,19 +32,24 @@ amendment touches §0, §1.2, §1.3, §1.5, §1.8, the stages, the gate and the
 honest size, and every place it overturns a decision says so rather than
 quietly reading as if it had always said this.
 
-**Citation convention, adopted because the skeleton tripped over it:** two
-documents are "10". `10 §N` means [04-schemas](../04-schemas.md); **`testing
-§N`** means [testing-testing](docs/design/workplan/03-testing.md) — the convention [work plan](docs/design/workplan/01-work-plan.md)
-and [P2C](docs/design/workplan/12-p2c-first-real-run.md) already use. Likewise **`survey §N`** means
-[01-source-survey](../01-source-survey.md), because "01" is otherwise the work
-plan. The skeleton labelled the fixture-pair citation "[04 §5.1]" — a label
-that reads as the schemas doc, whose §5.1 is *Images on lore* — even though
-its hyperlink happened to resolve to the testing doc; the label is the thing
-people quote, so the convention fixes the label.
+**A local citation convention used to live here, and it is worth recording why
+it is gone.** Two documents were "10" — the schemas note and the testing note —
+so this phase invented `testing §N` and `survey §N` to say which it meant. The
+skeleton had labelled a citation "[10 §5.1]", which reads as the schemas
+document, whose §5.1 is *Images on lore*, while its hyperlink resolved to the
+testing document instead.
 
-**P4 delivers**, from [work plan P4](docs/design/workplan/01-work-plan.md): import of cards, lorebooks and
+**The label is the thing people quote, so the convention fixes the label.** That
+sentence is now a test rather than a paragraph: rule (b) of
+[`tools/doc-links.test.ts`](../../../tools/doc-links.test.ts) holds every
+number-labelled link to the number of the file it points at. The collision it
+was invented against is gone too — the folders were renumbered on 2026-09-09 and
+work-plan documents are cited by name, so a bare number is a design document and
+nothing else.
+
+**P4 delivers**, from [work plan P4](01-work-plan.md): import of cards, lorebooks and
 presets from SillyTavern, Marinara and Aventuras — the largest PORT in the
-triage ([triage §4](docs/design/workplan/02-triage.md): Marinara's `import/`, 4,666 lines, "the
+triage ([triage §4](02-triage.md): Marinara's `import/`, 4,666 lines, "the
 single largest body of 'someone already found the edge cases' in any of the
 three") — turning an empty install into a realistic library.
 
@@ -63,7 +68,7 @@ Marinara's library is a relational store where an object is a join across files
 abstract file source" as a walker would have meant rewriting the engine in the
 stage that depends on it most.
 
-**And then stop: PLAYABLE falls here** ([work plan §4.1](docs/design/workplan/01-work-plan.md)). P4 is
+**And then stop: PLAYABLE falls here** ([work plan §4.1](01-work-plan.md)). P4 is
 sequenced before retrieval precisely because synthetic fixtures will not
 surface what real cards do, and the four PLAYABLE hypotheses are only testable
 against a real library. The checkpoint is a small amount of wiring beyond P4 by
@@ -80,10 +85,10 @@ only bytes, and it is why the template renderer lands in this phase.
 **CI this phase establishes:** the fixture-pair assertion — import the fixture
 SillyTavern directory containing both cards and a **chat-completion** preset,
 assemble one turn, and assert over `ModelCall.notFilled` that no slot the pair
-should have fed went unfed ([testing §5.1](docs/design/workplan/03-testing.md), restated in §3 step
+should have fed went unfed ([testing §5.1](03-testing.md), restated in §3 step
 2 — the skeleton's "no slot resolves empty" is unimplementable as written,
 §1.1); plus the wild corpus, which must import without crashing
-([testing §3.4](docs/design/workplan/03-testing.md)). §1.2 settles which corpus CI can actually
+([testing §3.4](03-testing.md)). §1.2 settles which corpus CI can actually
 reach.
 
 ---
@@ -227,7 +232,7 @@ leans on rather than the design it cites:*
   it, so the design is readable, and `scenarios` is a table name an install may
   carry and the dispositions must therefore cover.
 - **A hazard on the exact path imports bulk-use:** finding 8 in the P2C log
-  ([P2C log](docs/design/workplan/14-p2c-log.md)) — a broken library file becomes permanently
+  ([P2C log](14-p2c-log.md)) — a broken library file becomes permanently
   unwritable *and* undeletable (three
   successive 412s with a byte-identical hash; the only exit is a text editor).
   P4.0 verifies it fixed or adopts the fix, because a wild-corpus object that
@@ -239,7 +244,7 @@ leans on rather than the design it cites:*
 
 ### 1.1 Presets are sequenced first — kept, and the tables sharpened
 
-[work plan P4](docs/design/workplan/01-work-plan.md) decides this and it holds: presets are what make an
+[work plan P4](01-work-plan.md) decides this and it holds: presets are what make an
 imported library *playable* rather than merely present, and the conversion is
 designed against ST's actual format ([04 §8.4]). The three obligations from the
 first version stand — each a silent-failure class:
@@ -315,7 +320,7 @@ Corrections and closures the revisit makes to the conversion contract itself:
 
 ### 1.2 The corpus licensing question is settled before code — and the CI split decided
 
-[testing §5](docs/design/workplan/03-testing.md)'s answer stands: synthesised cards for structural
+[testing §5](03-testing.md)'s answer stands: synthesised cards for structural
 edge cases in the repo, a handful of explicitly-permissive real ones, and a
 larger private local corpus for manual verification that never enters the
 repository. A prerequisite task, not a during-P4 discovery.
@@ -328,7 +333,7 @@ nightly for the full import run; **the private corpus is walked by hand** at
 gate time and whenever fidelity bugs arrive, findings triaged into synthesised
 fixtures that *can* enter the repo. A clarifying sentence goes into testing
 §5/§6 with P4.0. The parses-but-is-wrong table pattern
-([manual gate §4.2](docs/design/workplan/11-p2-manual-gate.md) — `null`, a string, a number, an array, an
+([manual gate §4.2](11-p2-manual-gate.md) — `null`, a string, a number, an array, an
 object missing each required field, asserting a status rather than a throw) is
 the test shape for every import parser.
 
@@ -344,7 +349,7 @@ discovered missing at PLAYABLE. Gate step 1 is restated accordingly (§3).
 *And it now has an owner, which it did not on the day it was written
 (2026-08-30).* A task recorded only in the phase that cannot supply it is a task
 nobody owns, so the prerequisite is written into
-[P5 §1.6](docs/design/workplan/17-p5-implementation.md) — the document whose own argument for its
+[P5 §1.6](17-p5-implementation.md) — the document whose own argument for its
 shape depends on having real books — and [11 §6](../11-lorebooks-as-a-format.md)
 records that its falsification counts wait for it. P4 is unaffected either way;
 what changed is that the phase after this one has stopped assuming this one
@@ -360,7 +365,7 @@ are both exercised. The three local source checkouts
 never vendored**: the shapes come from reading them, the rows are ours. This
 matters beyond tidiness — a Marinara install ships with a default character, and
 copying it into our fixtures would be redistributing somebody's authored card
-under cover of a test, which is the exact thing [testing §5](docs/design/workplan/03-testing.md)'s
+under cover of a test, which is the exact thing [testing §5](03-testing.md)'s
 licensing answer exists to prevent.
 
 ### 1.3 Where import runs, what a unit of import is, and how bytes arrive
@@ -653,10 +658,10 @@ because the fix is a sentence rather than a dependency. `format.ts` is `Intl`
 for dates, numbers and durations; there is no message catalogue, no ICU
 formatter and no i18n dependency anywhere in the workspace, and the label maps
 are literal English objects. The catalogue extraction that would change that is
-[P11 §1.3](docs/design/workplan/27-p11-implementation.md)'s pre-beta sweep. So P4 renders through
+[P11 §1.3](27-p11-implementation.md)'s pre-beta sweep. So P4 renders through
 the label maps this codebase already has — and the decision above is what keeps
 **the largest body of user-facing prose any phase has added** off that sweep's
-debt list, where [P3 §3](docs/design/workplan/15-p3-implementation.md)'s free-English block `reason`
+debt list, where [P3 §3](15-p3-implementation.md)'s free-English block `reason`
 already sits. Emitting `{key, params}` now is the cheap half; it is only cheap
 before the strings are written.
 
@@ -933,7 +938,7 @@ than prose:
 |---|---|
 | **Convert** | `characters`, `character_images`, `personas`, `persona_images`; `lorebooks`, `lorebook_entries`, `lorebook_folders`, `lorebook_character_links`, `lorebook_persona_links`; `prompt_presets`, `prompt_sections`, `prompt_groups`, `choice_blocks`; `library_folders`, as tags on what it organises |
 | **Credential — never lands, not even in `compat`** | `api_connections`, `api_connection_folders`, and the data root's `.encryption-key` |
-| **Record, not converted** | Session-shaped: `chats`, `messages`, `message_swipes`, `chat_folders`, `chat_presets`, `conversation_notes`, `ooc_influences`. Party- and mode-shaped, P7: `character_groups`, `persona_groups`, the six `game_*` tables, `spatial_context_snapshots`. Agent- and extension-shaped: `agent_configs`, `agent_runs`, `agent_memory`, `capability_documents`. Rule-shaped, deferred with the rule vocabulary: `regex_scripts`, `prompt_overrides`. History-shaped: `character_card_versions`, `persona_card_versions` — ours are files per version and a first import writes no version record (§1.3), so there is no writer for a foreign history and inventing one would fabricate dates. Configuration: `app_settings`, which has its own surface here ([P2A](docs/design/workplan/09-p2a-configuration-surface.md)) |
+| **Record, not converted** | Session-shaped: `chats`, `messages`, `message_swipes`, `chat_folders`, `chat_presets`, `conversation_notes`, `ooc_influences`. Party- and mode-shaped, P7: `character_groups`, `persona_groups`, the six `game_*` tables, `spatial_context_snapshots`. Agent- and extension-shaped: `agent_configs`, `agent_runs`, `agent_memory`, `capability_documents`. Rule-shaped, deferred with the rule vocabulary: `regex_scripts`, `prompt_overrides`. History-shaped: `character_card_versions`, `persona_card_versions` — ours are files per version and a first import writes no version record (§1.3), so there is no writer for a foreign history and inventing one would fabricate dates. Configuration: `app_settings`, which has its own surface here ([P2A](09-p2a-configuration-surface.md)) |
 | **Skipped and counted** | The `noodle_*` and `slurp_*` families — twenty-four tables, **nearly a third of the store**, and [triage §4] discards the subsystem outright. `memory_chunks` (embeddings, [00 §2.8]), `achievement_unlocks`, the three `conversation_call_*` tables, the media libraries with no object to hang on (`assets`, `chat_images`, `gallery_folders`, `global_images`, `custom_emojis`, `custom_stickers`), and the four Marinara's own profile importer quarantines rather than trusts — `custom_tools`, `mari_instructions`, `installed_extensions`, `custom_themes` — plus `mari_workspace_context` |
 
 Beside the tables, the seventeen asset directories: `avatars`, `sprites`,
@@ -1195,7 +1200,7 @@ it pass is the mechanism P4.0 wired for, working.
 §1.10's card converter — V2/V3 PNG, CHARX, JSON card, ~~`.seactor`~~ (struck at
 §7.5: our own format, and [§4]'s) — checked
 **against** P4.1's slot targets, which is the whole point of
-[testing §5.1](docs/design/workplan/03-testing.md): the card importer and the preset importer
+[testing §5.1](03-testing.md): the card importer and the preset importer
 convert opposite ends of one format and must be checked against each other.
 Scenario→Treatment creation with sweep-level dedupe; `character_book`
 extraction and linking; personas. §1.11's lorebook converter with the decode
@@ -1325,13 +1330,13 @@ word "import" and in the same breath sent anyone wanting a single new object to
 the API; this stage is what stops that sentence being true.
 
 **Not a stage the plan called for, and it belongs here rather than in
-[polish](docs/design/workplan/06-polish.md) for [work plan §2.3]'s reason.** The surface ships with the
+[polish](06-polish.md) for [work plan §2.3]'s reason.** The surface ships with the
 thing it serves. P4.4 shipped the way out and the bulk way in, and left the
 single way in as `curl` — a strange place to stop, with the Library page
 already open on the bench and the machinery complete since P1.7.
 `api.createObject` and `useCreateObject` have existed since then with exactly
 one caller: the conflict dialog's *save as a copy*, the side door
-[P2C brief §3.1](docs/design/workplan/13-p2c-brief.md) had to pre-brief testers about so they would not
+[P2C brief §3.1](13-p2c-brief.md) had to pre-brief testers about so they would not
 file it as a bug.
 
 **Actors only, and that is the rule rather than the shortcut.**
@@ -1360,7 +1365,7 @@ everything above it is in the tree and under test.
 Not a stage of P4 and listed so it is not forgotten: wire the crude Scene mode
 to the imported library — the preset picker from P4.1 is the wiring — sit
 down, and play ([work plan §4.1]). The four hypotheses get their answers here, the
-answers feed the revisit of [P5](docs/design/workplan/17-p5-implementation.md) before P5 starts,
+answers feed the revisit of [P5](17-p5-implementation.md) before P5 starts,
 ~~and [11 §6](../11-lorebooks-as-a-format.md)'s two corpus counts (Mentions and
 folders across the imported corpus) run shortly after import lands, as that
 document asks.~~ **PLAYABLE needs the P2C sessions to have run** (§0) — a real
@@ -1375,7 +1380,7 @@ hand — so P4 imports the corpus it synthesised, and counting Mentions across
 fixtures we authored measures our own assumptions rather than anybody's books.
 The tests are not failed, and they are not quietly skipped: they wait, and
 **acquiring a real library is now a named prerequisite of P5's document half**
-([P5 §1.6](docs/design/workplan/17-p5-implementation.md)), person-blocked with lead time in the same
+([P5 §1.6](17-p5-implementation.md)), person-blocked with lead time in the same
 way the P2C sessions are. P4 still closes without it; what changes is that the
 phase after this one no longer assumes this one produced it.
 
@@ -1451,7 +1456,7 @@ phase after this one no longer assumes this one produced it.
     *Corrected 2026-08-30:* there is no ICU message layer in this repository —
     `format.ts` is `Intl` for dates, numbers and durations, the label maps are
     literal English objects, and the catalogue extraction that would change
-    that is [P11 §1.3](docs/design/workplan/27-p11-implementation.md)'s. The decision §1.4 makes is
+    that is [P11 §1.3](27-p11-implementation.md)'s. The decision §1.4 makes is
     unaffected and is the point: emitting `{key, params}` rather than sentences
     is what keeps this phase's large new body of user-facing prose **off**
     P11's sweep debt, beside the workbench `reason` field that is already on
@@ -1513,7 +1518,7 @@ twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
   writes the target*, and [18](../18-session-import.md) is the survey that makes
   the condition checkable. Its §1 reaches this document's own `.seactor` rule
   for the reason: an importer for a format with no writer is what
-  [work plan §2.2](docs/design/workplan/01-work-plan.md) forbids.
+  [work plan §2.2](01-work-plan.md) forbids.
 - **Package (`.sepack`) import/export** — our own format, not a port; P11-ish.
   The stale comment at layout.ts:74–79 promising the package folder shape "is
   settled at P4" is corrected at P4.0 rather than left dangling.
@@ -1605,7 +1610,7 @@ fence says so in place.
 [02 §6](../02-infinite-worlds.md) wants one language for templates *and*
 conditions; picking Liquid here commits the template half now and leaves the
 condition half running on that commitment for five releases.
-[work plan §0.6](docs/design/workplan/01-work-plan.md) records the revisit this owes: whether Liquid still
+[work plan §0.6](01-work-plan.md) records the revisit this owes: whether Liquid still
 looks right for conditions after five releases of using it for templates.
 
 **6.2 Whether Provenance grows structured import fields.** Today
@@ -1616,7 +1621,7 @@ tag and a source-content hash — legal additive changes to a stable shared
 substructure ([04 §2]), decided then, against evidence, in [04 §3].
 
 **6.3 The review's relationship to `GET /api/library/errors`.** The file-error
-surface still has no client caller ([manual gate §3.5](docs/design/workplan/11-p2-manual-gate.md)); the review report is adjacent
+surface still has no client caller ([manual gate §3.5](11-p2-manual-gate.md)); the review report is adjacent
 but distinct — the sweep's record versus the index's present-tense complaints.
 P4.4 keeps them separate and links where a written object landed broken; a
 "this file looks like an ST card — import it?" affordance on the errors
@@ -1652,8 +1657,8 @@ source facts rather than consequences of building something:*
 and the three export shapes; [survey §3](../01-source-survey.md) gained where ST
 personas live and the compressed-chunk card fact; [triage §2A.3] and
 [triage §4] were corrected on the deleted branch and the measured line count;
-[work plan P4](docs/design/workplan/01-work-plan.md)'s demonstrable line gained the second arm; and
-[testing §5/§6](docs/design/workplan/03-testing.md) took the corpus-split sentence early, because
+[work plan P4](01-work-plan.md)'s demonstrable line gained the second arm; and
+[testing §5/§6](03-testing.md) took the corpus-split sentence early, because
 the private corpus's absence is true now and P4.0 would only have re-derived it.
 *Two more are owed and scheduled:* [21 §5.1](../21-internal-contracts.md) gains
 the import-job tables beside the turn-job ones (with P4.0), and
@@ -2413,7 +2418,7 @@ question reached from a third direction.
 *Numbered 7.15 and 7.16 rather than 7.10 and 7.11, at the merge. Three sessions
 wrote into §7 on the same day and each reached for the next free number it could
 see; main already had both. The findings are untouched — only the numbers moved,
-and [P2C brief §3](docs/design/workplan/13-p2c-brief.md)'s citation moved with them.*
+and [P2C brief §3](13-p2c-brief.md)'s citation moved with them.*
 
 `ObjectDetailPage.tsx`. Edit is gated on `source === 'user' && !object.shadowed`.
 P4.4's Delete, written directly beneath it, was gated on `source` alone. Two
@@ -2427,7 +2432,7 @@ exactly what it asks. This is F19 a third time, with the stakes raised from
 *shows the wrong object* to *removes the wrong object* — and a third occurrence
 is the argument for the condition being one predicate rather than two
 hand-written copies that drift apart. It is one predicate now, which is also
-[polish §1](docs/design/workplan/06-polish.md)'s closing note half paid.
+[polish §1](06-polish.md)'s closing note half paid.
 
 ### 7.16 A refused delete rendered nothing at all
 
@@ -2472,7 +2477,7 @@ posture rather than a gap, the alternative being the server-side scratch copy
 to `/api/library/presets` would have been less work and cost four things at once:
 `stampImported` never runs, so re-import identity is dead for that object;
 `identify` never runs, so every later re-import doubles; nothing reaches the job
-ledger, so `importNotesFor` — which [P5 §1.8](docs/design/workplan/17-p5-implementation.md) is built
+ledger, so `importNotesFor` — which [P5 §1.8](17-p5-implementation.md) is built
 on — can never find the object's own review; and the credential rule moves from
 the converter to the client. There is one write path, and this is a way of
 looking at it rather than a second one.
@@ -2508,7 +2513,7 @@ is that no route carries the value.
 `repetitionPenalty` and `n` are not among them, and all five convert faithfully
 from a SillyTavern preset — so *"6 of 41 sampler settings carried over"* has been
 true and misleading since P4.1. Named here and fixed at
-[polish §8](docs/design/workplan/06-polish.md), because closing it needs a provider-specific escape
+[polish §8](06-polish.md), because closing it needs a provider-specific escape
 hatch and that is the generation path rather than import.
 
 *The list is read off the request body by a test rather than off the adapter, and
@@ -2566,4 +2571,4 @@ start saying different things about the same kind. The doc is corrected.
 - **`POST /import/file` still records no job.** Single-file uploads appear in no
   *Earlier imports* list, and `importNotesFor` can never find an uploaded
   object's own review. One `recordImport` call; it belongs to whoever needs
-  [P5 §1.8](docs/design/workplan/17-p5-implementation.md).
+  [P5 §1.8](17-p5-implementation.md).

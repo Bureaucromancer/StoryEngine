@@ -7,11 +7,11 @@ the outstanding P2 record items adopted into P3.0 the same day.*
 **Fifteen gate steps and no record of a walk.** Step 12 — *somebody who did
 not build the turn explains it from the panel* — is PLAYABLE’s fourth
 hypothesis wearing a step number, which is why
-[manual testing §3.3](docs/design/workplan/05-manual-testing.md) sequences it immediately after
-[P6B.2](docs/design/workplan/20-p6b-playable.md) rather than as a pass of its own.
+[manual testing §3.3](05-manual-testing.md) sequences it immediately after
+[P6B.2](20-p6b-playable.md) rather than as a pass of its own.
 
 *(This status line was written 2026-09-07 at
-[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
@@ -54,7 +54,7 @@ a shell that is one centred column with three nested `<main>` tags, an app where
 nothing is a scroll container, zero breakpoints, and no pointer handling
 anywhere. None of it is hard. Together it is more than the viewer — §5.
 
-**Edit-and-re-run leaves for P6**, where [work plan P6](docs/design/workplan/01-work-plan.md) already puts
+**Edit-and-re-run leaves for P6**, where [work plan P6](01-work-plan.md) already puts
 rewrite, reroll, the RNG tape and sibling navigation. §1.8.
 
 **And the phase gains a stage it never had**, because the client has no typed turn
@@ -63,7 +63,7 @@ workbench as the phase that owes the fix. §1.9.
 
 **Why the phase is still early and still small.** Everything after P3 is debugged
 through it, and the record already holds what it displays
-([work plan P3](docs/design/workplan/01-work-plan.md)). If a *turn view* here grows large, something is being
+([work plan P3](01-work-plan.md)). If a *turn view* here grows large, something is being
 computed that should have been recorded. That test still applies to the reader; it
 does not excuse the dock, and §5 says so in the plan's own words rather than
 inheriting a sentence that has stopped being true.
@@ -89,7 +89,7 @@ still describes a greenfield.
 
 **The record is more ready than §3 says.** Two of §3(a)'s five bullets landed
 at the P2C.0 closeout and are marked **Done** there: the cancelled turn's
-`ModelCall` (finding 2 in [P2C log](docs/design/workplan/14-p2c-log.md), which P2C adopted exactly as
+`ModelCall` (finding 2 in [P2C log](14-p2c-log.md), which P2C adopted exactly as
 this plan asked), and all four provider-boundary items — truthful
 `resolved.modelId`, recorded `finishReason`, provider-reported `usage`, and a
 per-connection context window that arrived *with* a surface, a form field
@@ -104,14 +104,14 @@ carries the work and its ordering.
 **Two of §6's four P2C handoffs do not exist, and they are the two only a real
 session can produce.** The honest provider boundary is real and verifiable in
 code, and the gate-correction habit is demonstrably alive —
-[P2C](docs/design/workplan/12-p2c-first-real-run.md) is dense with struck-through corrected claims.
+[P2C](12-p2c-first-real-run.md) is dense with struck-through corrected claims.
 But the cassette *corpus* is empty: the recorder shipped
 (`providers/capture.ts`, on by default under `pnpm dev:logged`, and
 `pnpm test:live` records every live exchange), `captures/` is gitignored as
 designed, and `packages/server/src/providers/fixtures/` **does not exist** —
 the machine for producing cassettes exists and the bytes do not, because
 P2C.1 through P2C.4 have not run. The journeys list is a P2C.4 output and
-P2C.4 has not begun: the triage table in [P2C log](docs/design/workplan/14-p2c-log.md) is empty against
+P2C.4 has not begun: the triage table in [P2C log](14-p2c-log.md) is empty against
 fourteen findings, and the only session in the log is the automated stub run,
 whose own entry says it is not a person's session. The calibration that P3.2
 "makes continuous" was never taken once.
@@ -354,7 +354,7 @@ tester is a text box over machinery that already exists.
 **The surface moves; the risk it was carrying stays here as a test, and the test
 is downgraded.**
 
-[work plan P3](docs/design/workplan/01-work-plan.md) does not list edit-and-re-run — [work plan P6](docs/design/workplan/01-work-plan.md)
+[work plan P3](01-work-plan.md) does not list edit-and-re-run — [work plan P6](01-work-plan.md)
 owns rewrite, reroll, the RNG tape and sibling navigation. The old plan attributed
 it to 01 anyway.
 
@@ -371,7 +371,7 @@ site anywhere in the server and every committed tape is empty, so *"identical
 draws (rewrite)"* would replay nothing against nothing. P3's gate claims the
 plumbing; the reproduction claim moves to P5, whose gate already asserts it
 against activations that actually draw. A gate correction in
-[P2C.4](docs/design/workplan/12-p2c-first-real-run.md)'s own habit, and labelled as one.
+[P2C.4](12-p2c-first-real-run.md)'s own habit, and labelled as one.
 
 *And the inherited contradiction is resolved rather than carried:* the old §1.2
 said *"the UI simply shows the newest"*, and §3 preserves Marinara's rule that
@@ -523,7 +523,7 @@ churning the shapes is only keepable once they have stopped churning.
 First the repairs, golden files and all:
 
 - **`advisory` on `AssembledBlock` and `purpose` on `ModelCall`** — §3(a)'s
-  invariant pair, which makes [testing §1](docs/design/workplan/03-testing.md)'s invariant
+  invariant pair, which makes [testing §1](03-testing.md)'s invariant
   expressible over a committed record for the first time.
 - **An honestly stamped budget `limit.source`** — §3(a).
 - **Blocks and budget move onto each `ModelCall`**, and *the turn's blocks*
@@ -673,7 +673,7 @@ tokens and wall time.
 
 **And per-block estimate beside per-call reported** — the one place a person sees
 the estimator disagree with the provider, which is what
-[P2C](docs/design/workplan/12-p2c-first-real-run.md)'s calibration measures once and this makes
+[P2C](12-p2c-first-real-run.md)'s calibration measures once and this makes
 continuous. *Noting §0:* the once has not happened — no real run has — so until
 P2C.1 delivers a baseline, this view is the first measurement rather than the
 continuation of one.
@@ -757,12 +757,12 @@ the same way.
 ### P3.3 — The library subject
 
 The as-stored view, collapsed by default with a copy control and a bounded height
-— this is [polish §2](docs/design/workplan/06-polish.md)'s component, and building it here discharges
+— this is [polish §2](06-polish.md)'s component, and building it here discharges
 that item rather than colliding with it. The real folder path. Object-level
 provenance as rows rather than two timestamps. The read-only revision list. The
 index-rows projection behind one new route.
 
-The detail page keeps its own embed per [polish §2](docs/design/workplan/06-polish.md); the panel's win
+The detail page keeps its own embed per [polish §2](06-polish.md); the panel's win
 is depth without the visit.
 
 *Ends at:* opening the panel over a **shadowed** object names the winning path —
@@ -1068,7 +1068,7 @@ landed at the P2C.0 closeout and are marked **Done** below; the other three
 are adopted into P3.0's repair list.
 
 - **`advisory` on `AssembledBlock`.** It carries
-  [testing §1](docs/design/workplan/03-testing.md)'s invariant — *no advisory block ever appears in an
+  [testing §1](03-testing.md)'s invariant — *no advisory block ever appears in an
   effect-producing call* — which is **not expressible over a committed record at
   all** today. The gate test settles for the block's source kind and says in its
   own header that this is *"deliberately the weaker, true thing"*. That proxy does
@@ -1078,7 +1078,7 @@ are adopted into P3.0's repair list.
   it is computed from the step's declared contributions and writes, and
   `StepOutcome` records neither.
 - ~~**A `ModelCall` for a cancelled turn.**~~ **Done, and P2C adopted it exactly
-  as asked** — finding 2 in [P2C log](docs/design/workplan/14-p2c-log.md): a Stop mid-call now writes the
+  as asked** — finding 2 in [P2C log](14-p2c-log.md): a Stop mid-call now writes the
   interrupted call with `outcome: 'cancelled'`, the model that was *asked*
   (because nothing answered), a real `wallMs`, and `usage`, `finishReason` and
   `error` null rather than invented; a Stop between attempts stays bare, because
@@ -1234,8 +1234,8 @@ that most of a gate like this is not automatable and that is the point.
     panel on a real turn they did not script and says why it came out that way —
     without the log, without the source, without a JSON pretty-printer. **And its
     honest counterpart:** at least one turn where the answer is *I could not tell*,
-    written into [P2C log](docs/design/workplan/14-p2c-log.md) with what was missing, rather than waved
-    through. This is [work plan §4.1](docs/design/workplan/01-work-plan.md)'s fourth PLAYABLE hypothesis — the
+    written into [P2C log](14-p2c-log.md) with what was missing, rather than waved
+    through. This is [work plan §4.1](01-work-plan.md)'s fourth PLAYABLE hypothesis — the
     one it calls likeliest to be wrong and cheapest to fix here.
 13. **The density check** ([10 §1.1](../10-ui-surfaces.md), *depth is a cost paid
     for by the user, and it is charged per visit*): a turn with thirty blocks
@@ -1250,7 +1250,7 @@ that most of a gate like this is not automatable and that is the point.
     nothing — so this needs a fixture, or it belongs to the phase that ships an
     effect-producing step. Do not leave it reading as performable.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** P3 introduces two stored values — the panel's
 open state and its size — and their surface is the panel's own toggle and drag
 handle. Written down rather than assumed, because this is the first phase with a
@@ -1278,7 +1278,7 @@ the server.
   [10 §2.1](../10-ui-surfaces.md) has already answered it: browse and inspect are
   raw, editing is assisted, and the assisted surface is the editor. No field
   edits, no restore, no rename, no pin.
-- **The by-field read view** ([polish §1](docs/design/workplan/06-polish.md)). That is the *assisted*
+- **The by-field read view** ([polish §1](06-polish.md)). That is the *assisted*
   rendering, derived from the editor's schema-driven form; the panel's job is the
   raw truth beneath it. Already handed to polish, and this plan stays consistent
   with itself.
@@ -1287,7 +1287,7 @@ the server.
   surface. *And record that §5.2 overstates what P1 built* when it says the
   derived index answers it already, so nobody plans against the overstatement.
 - **A second JSON viewer.** One component, shared with the detail page and
-  [polish §2](docs/design/workplan/06-polish.md)'s editor pane — or two ship and disagree about
+  [polish §2](06-polish.md)'s editor pane — or two ship and disagree about
   wrapping and copy. *Audit correction: too late to prevent — two already ship
   and already disagree.* The detail page's unbounded `<pre>` and the turn
   disclosure's bounded one differ on background, radius and height, and neither

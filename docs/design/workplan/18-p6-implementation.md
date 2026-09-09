@@ -16,7 +16,7 @@ and the deferrals collected; re-audited 2026-09-01 at P5's document half (§0.1)
 re-audited 2026-09-02 once all eleven P5 stages had landed (§0.1a); and **§2
 expanded the same day from a four-line sketch into a staged plan with orderings
 and proof obligations**, on the back of P5's close-out audit
-([P5 §0.5](docs/design/workplan/17-p5-implementation.md)). ~~Drafted during P1; to be revisited before the phase starts.~~
+([P5 §0.5](17-p5-implementation.md)). ~~Drafted during P1; to be revisited before the phase starts.~~
 
 **Read §0.1a, §0.3 and §2, in that order, and you can start.** §0 and §0.1 are
 superseded audits kept for their arguments rather than their findings; §1 is the
@@ -38,9 +38,9 @@ swipes-as-branches, snapshots-as-cache and the tape are settled in
 [07](../07-branching.md) and [19 §14.5](../19-tech-stack.md) — so this document is
 mostly sequencing plus the two open questions those documents left (C8, C9)
 **and the four decisions other phases have since handed here** (§1.7–§1.9).
-Format follows [P1](docs/design/workplan/07-p1-implementation.md).
+Format follows [P1](07-p1-implementation.md).
 
-**P6 delivers**, from [work plan P6](docs/design/workplan/01-work-plan.md): branching, rewrite/reroll, the
+**P6 delivers**, from [work plan P6](01-work-plan.md): branching, rewrite/reroll, the
 RNG tape in anger, and sibling navigation. **Why before modes:** it changes the
 shape of the turn store's *use*, and every mode built after it inherits the
 behaviour for free; built after modes, it is a migration.
@@ -53,7 +53,7 @@ no checkpoint precondition, no branching mode, cheap enough to be casual
 ([07 §1](../07-branching.md)).
 
 **What P2 already bought.** `parentTurnId` is on every turn from the first
-([P2 §2.5](docs/design/workplan/08-p2-implementation.md)), segments append in creation order
+([P2 §2.5](08-p2-implementation.md)), segments append in creation order
 ([03 §5.5](../03-data-model.md)), effects are complete and reversible, and the
 tape is recorded keyed by site. P6 builds no storage; it builds **navigation,
 reconstruction performance, and the two-gesture UI** over storage that was
@@ -62,7 +62,7 @@ its contract.
 
 **CI this phase establishes:** the replay property test —
 *for a fixture session, state at every index is identical reconstructed from
-zero or from the nearest snapshot* ([testing §3.3](docs/design/workplan/03-testing.md),
+zero or from the nearest snapshot* ([testing §3.3](03-testing.md),
 [07 §4](../07-branching.md)). One property protecting branching, regeneration and
 undo simultaneously.
 
@@ -113,7 +113,7 @@ eventually looks.
   provisional answer to C8 already ships as a settable number that changes
   nothing — which makes flipping it to `applied` a **named gate line** for this
   phase rather than a detail, under the standing rule from
-  [work plan §2.3](docs/design/workplan/01-work-plan.md).
+  [work plan §2.3](01-work-plan.md).
 
 **Ground that moved under this document:**
 
@@ -127,7 +127,7 @@ eventually looks.
   reconstructing at an old node is a replay-from-zero test before P6 and a
   branch test after. Like the fixture-pair gate at P5.6, it wants editing in the
   stage that changes it, not repairing when it goes red.
-- **P9 depends on reconstruction-at-a-node** ([P9 §1](docs/design/workplan/25-p9-implementation.md)
+- **P9 depends on reconstruction-at-a-node** ([P9 §1](25-p9-implementation.md)
   reasons from *"P6 shipped reconstruction at a node — so that turn's state is a
   thing that can be asked for"*). P6 is not the last phase to care about this
   machinery, which is an argument for the property test being the real
@@ -291,7 +291,7 @@ building it, and §1.9's headline consequence — *"somebody widens the effect l
 key space"* — was answered by the other phase. The finding is kept because it is
 the argument that decided which one paid.
 
-P5's own re-audit ([P5 §0.4](docs/design/workplan/17-p5-implementation.md)) found two mechanical
+P5's own re-audit ([P5 §0.4](17-p5-implementation.md)) found two mechanical
 blockers to its §1.1 lean and labelled them P6-adjacent. Both verified here.
 
 `applyEffects` keys the channel map by `channelId` alone and **never reads
@@ -320,7 +320,7 @@ because the two blockers give the check a concrete address rather than a worry.
 
 #### Two names in the code that encode models the design discarded
 
-Both are the shape [P4 §7.4](docs/design/workplan/16-p4-implementation.md) had before it was closed —
+Both are the shape [P4 §7.4](16-p4-implementation.md) had before it was closed —
 a schema written for a plan, and then nothing wrote it.
 
 - **`turn.branch_id`** exists in the index (`index-db/migrations.ts:212`), is
@@ -407,7 +407,7 @@ real consumer~~ — so a rewrite that takes a slightly different path replays th
 draws it can and draws fresh for the rest, which is the behaviour §1.3 needs to be
 able to test at all.
 
-> **Half wrong, corrected 2026-09-02 at [P5 §0.5](docs/design/workplan/17-p5-implementation.md).** The
+> **Half wrong, corrected 2026-09-02 at [P5 §0.5](17-p5-implementation.md).** The
 > *site keys* are stable — entry id, and book-and-group — and that half is what
 > [19 §14] asks for. **But `weightedPick`'s payload is a position.**
 > `rng/rng.ts:196-213` records `index`, an offset into the candidate list, and
@@ -584,7 +584,7 @@ now because getting it wrong is the expensive kind.*
 
 #### Genuinely blocking, and only these
 
-> **Amended 2026-09-02 by [P5 §0.5](docs/design/workplan/17-p5-implementation.md), which added one and
+> **Amended 2026-09-02 by [P5 §0.5](17-p5-implementation.md), which added one and
 > took none away.** **P5's exit gate has never been walked**, and five of its
 > eighteen steps cannot be passed as written. Two of those five are already
 > this phase's: step 11's reproduction half is §3's step 3 here, and step 14's
@@ -781,7 +781,7 @@ reverted, and abandoning a line says plainly that N library writes from it
 still exist. Small, and it pre-empts a confusing class of bug reports.
 **Closed at the P2 revisit, the way it leaned:** `scope` was added to
 `ChannelEffect` in [21 §1.2](../21-internal-contracts.md) and P2 writes only
-`"session"` ([P2 §2.7](docs/design/workplan/08-p2-implementation.md)) — P6 gets a field, not a
+`"session"` ([P2 §2.7](08-p2-implementation.md)) — P6 gets a field, not a
 migration. *And a second clause, from §0.1:* the field has **no producer** —
 `escaped` appears nowhere outside a test — so the work is a writer plus the
 abandonment banner, not a reader over data that is already there.
@@ -818,7 +818,7 @@ Collected 2026-08-31, because a deferral nobody collects is one that gets lost
 and this document had four sitting outside it. Each is a decision or a piece of
 work, not a mention.
 
-- **The stale-head sibling** ([P2 §2.10](docs/design/workplan/08-p2-implementation.md)). Submitting a
+- **The stale-head sibling** ([P2 §2.10](08-p2-implementation.md)). Submitting a
   turn refuses any parent that is not the head, and idempotency retains a key so
   a retry cannot charge twice. P2's note reads: *"P6 may turn the stale-head
   case into an explicit sibling; P2 must not manufacture one by race."* That is
@@ -833,7 +833,7 @@ work, not a mention.
   is what keeps a stale client from becoming a branch nobody asked for; the
   field is what lets somebody ask. `busy` is unchanged, so two branches arriving
   together are still one turn at a time.
-- **The tape's first real use** ([P2 §2.13](docs/design/workplan/08-p2-implementation.md)). The tape
+- **The tape's first real use** ([P2 §2.13](08-p2-implementation.md)). The tape
   is recorded from P2 *"though nothing rerolls until P6"*, and P3 §1.8 records
   the consequence: every committed tape is empty because there is no production
   draw site. P5 introduces the first — activation draws — so the tape is
@@ -845,12 +845,12 @@ work, not a mention.
   P2 §2.13's prediction came true almost exactly — activation draws are the
   tape's first real use.*** The one word P2 could not have known is *sometimes*:
   the tape is non-empty on a turn that rolled, not on every turn.
-- **Branching has no route** ([P2C §5](docs/design/workplan/12-p2c-first-real-run.md)): *"branching
+- **Branching has no route** ([P2C §5](12-p2c-first-real-run.md)): *"branching
   is a storage affordance with no route."* Named in the first-real-run brief as
   something a tester will not find, so it is not a bug report to expect. P6 is
   where it acquires one.
 - **Reconstruction-at-a-node is P9's input too**
-  ([P9 §1](docs/design/workplan/25-p9-implementation.md)). Worth knowing while building it: the
+  ([P9 §1](25-p9-implementation.md)). Worth knowing while building it: the
   consumer is not only this phase's UI.
 
 ### 1.8 Which reply an edit changes — the contradiction P3 handed here
@@ -887,7 +887,7 @@ this is a use question and PLAYABLE is where the answer is.
 
 ### 1.9 P5's timing state, and which phase pays for it
 
-[P5 §1.1](docs/design/workplan/17-p5-implementation.md) leans toward timing state living in channels
+[P5 §1.1](17-p5-implementation.md) leans toward timing state living in channels
 rather than on entries, and its §6 flags the lean as contingent on this phase in
 a way worth restating precisely, because the dependency runs **both ways**:
 
@@ -930,7 +930,7 @@ ordering was lucky.
 ## 2. Stages
 
 *Expanded 2026-09-02 from a four-line sketch per stage, at the close-out audit
-([P5 §0.5](docs/design/workplan/17-p5-implementation.md)). The sketches said what each stage builds;
+([P5 §0.5](17-p5-implementation.md)). The sketches said what each stage builds;
 they did not say what it must **prove**, or what it may not start before — and
 §0.3 spends four paragraphs arguing that the ordering inside P6.0 is what decides
 whether the phase spends its first week debugging state belonging to a branch
@@ -1007,7 +1007,7 @@ this fixture. Also outside it, and outside the contract: `delay`, whose
 counter is path depth rather than a stored value, and two effects on one key
 in one turn.
 
-**[P5 §3](docs/design/workplan/17-p5-implementation.md) step 14 is discharged** in the first test,
+**[P5 §3](17-p5-implementation.md) step 14 is discharged** in the first test,
 as written: replay from zero to the file's own head pointer against
 `session.channels`, three counters by name. It is legitimate there and only
 there, because before the fork every append's parent was the previous head.
@@ -1048,7 +1048,7 @@ second implementation exists to compare against.
 > `left.fired === right.fired` clause (`retrieve.ts:239`) is protected — today
 > deleting it leaves the suite green and makes an ephemeral entry fire forever.
 >
-> **This sub-step is also [P5 §3](docs/design/workplan/17-p5-implementation.md) step 14 discharged**,
+> **This sub-step is also [P5 §3](17-p5-implementation.md) step 14 discharged**,
 > which is why it comes first rather than last: P5's pre-P6 escape clause was
 > *"replay-from-zero covers it"* and that was never written, so this phase inherits
 > an obligation rather than a step that changed meaning.
@@ -1432,7 +1432,7 @@ advertised branch refs the interface did not have and had stopped mentioning
 > (`sessions/types.ts:42`) while there, which advertises branch refs the interface
 > does not have *and* omits `treatment` and `lore`, added at P5.6 (§0.3 item 1: one
 > edit closes both). Move-head in `sessions/store.ts`; the route in
-> `routes/sessions.ts`, since branching has had no route since [P2C §5](docs/design/workplan/12-p2c-first-real-run.md).
+> `routes/sessions.ts`, since branching has had no route since [P2C §5](12-p2c-first-real-run.md).
 > **`state/commit.ts:346` already builds the parent→children index this stage
 > needs** and refuses to guess at a node with two children — reuse it rather than
 > writing a second.
@@ -1535,7 +1535,7 @@ reroll affordance is absent on a turn with an empty tape. (iv) §1.8 above.
 > `RunnerOptions` or `TurnPayload`. `turns/preview.ts:135` is the second bare
 > construction and belongs in the same pass. P3's edit-and-re-run reconciles onto
 > the same sibling mechanism — it already writes siblings
-> ([P3 §1.2](docs/design/workplan/15-p3-implementation.md)).
+> ([P3 §1.2](15-p3-implementation.md)).
 >
 > **Fix the group draw's payload before any of this can mean anything.**
 > `weightedPick` (`rng/rng.ts:196-213`) records an *index* into a candidate list
@@ -1717,7 +1717,7 @@ actually landed and the gate could name real state instead of hypothetical.*
    **key** rather than per turn, which is what [21 §1.2.1] says and what makes
    a deeper turn nothing has written over still undoable.
 5. A character dead on one line is alive on the other; timing counters
-   ([P5 §1.1](docs/design/workplan/17-p5-implementation.md)) diverge per line correctly.
+   ([P5 §1.1](17-p5-implementation.md)) diverge per line correctly.
    **Covered at P6.3**, through the replay and through the head.
 6. Delete every snapshot → everything still works, slower; the property test
    asserts equality at every index.
@@ -1784,14 +1784,14 @@ actually landed and the gate could name real state instead of hypothetical.*
     before P6 and a branch test after; it changes meaning here, and the
     fixture-pair precedent from P5.6 is that such a step is edited deliberately
     rather than repaired when it reddens.
-    **Sharpened by [P5 §0.5](docs/design/workplan/17-p5-implementation.md): it arrives undischarged,
+    **Sharpened by [P5 §0.5](17-p5-implementation.md): it arrives undischarged,
     not changed.** The pre-P6 replay-from-zero test was never written — every
     `replayChannels` call site in P5's suite folds a clock-only path — so P6.0a
     *is* that discharge, generalised. Edit the step to say so rather than ticking
     it. **And P5's step 11 is subsumed by step 3 above**: P5 discharged the
     keying, this phase owns the reproduction, and P5's record now says so.
     **Edited at P6.0a, 2026-09-02:** step 14 is struck in
-    [P5 §3](docs/design/workplan/17-p5-implementation.md) and names the test; its branch half is
+    [P5 §3](17-p5-implementation.md) and names the test; its branch half is
     step 10 above.
 
 14. **Reconstruction stays affordable against a real lorebook** *(added
@@ -1811,7 +1811,7 @@ actually landed and the gate could name real state instead of hypothetical.*
     the answer is the snapshot cache doing its job, which is P6.0 — not
     loosening the filter, which would trade a replay cost for a storage one.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
 needs a value set, name where someone sets it before calling the phase done.
 Step 9 is that line with one key already named; it is not the whole of it.

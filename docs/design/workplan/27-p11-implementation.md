@@ -1,26 +1,26 @@
 # 27 — P11 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](docs/design/workplan/23-p7-implementation.md) through [P10](docs/design/workplan/26-p10-implementation.md); to be
-revisited before the phase starts. [P7 §0](docs/design/workplan/23-p7-implementation.md) says what a
+[P7](23-p7-implementation.md) through [P10](26-p10-implementation.md); to be
+revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for, and this is the furthest one — so it is the most a
 *register of deferrals* and the least a plan. Format follows
-[P1](docs/design/workplan/07-p1-implementation.md); citation convention as
-[P4](docs/design/workplan/16-p4-implementation.md)'s.
+[P1](07-p1-implementation.md); citation convention as
+[P4](16-p4-implementation.md)'s.
 
-**P11 delivers**, from [work plan P11](docs/design/workplan/01-work-plan.md): everything the 1.0 spec commits
+**P11 delivers**, from [work plan P11](01-work-plan.md): everything the 1.0 spec commits
 to that the phases above did not absorb — the assistant,
 editors-are-not-dumb-forms across every editor, the reading view
 ([10 §12](../10-ui-surfaces.md)), impersonation in Scene
 ([06 §3.1](../06-modes-and-turn-pipeline.md)), the plot-hook selector's *tuning*,
 the in-app update check, the localisation catalogue extraction sweep
-([work plan §0.4](docs/design/workplan/01-work-plan.md)), trash retention and restore, the systematic
+([work plan §0.4](01-work-plan.md)), trash retention and restore, the systematic
 accessibility audit, and **packaging as all six artifacts**.
 
-**Plus three things [work plan §0.5](docs/design/workplan/01-work-plan.md) moved into 1.0 after this document
+**Plus three things [work plan §0.5](01-work-plan.md) moved into 1.0 after this document
 was first written**: session export ([25 B12](../25-open-questions.md)), backup
 and restore with its CI restore test ([25 E6](../25-open-questions.md),
-[testing](docs/design/workplan/03-testing.md)), and the four packaging artifacts that used to sit at a
+[testing](03-testing.md)), and the four packaging artifacts that used to sit at a
 "1.0 bar" nothing owned. §1.8 covers what that does to this phase's size, which
 is the honest question.
 
@@ -30,16 +30,16 @@ container built reproducibly from a tag, running in French.* Two halves that
 have nothing to do with each other, which is honest about what this phase is.
 
 **What "beta" means, and why this phase is where it gets defined rather than
-assumed.** [releases §0](docs/design/workplan/04-repo-and-releases.md) defines beta as **feature
+assumed.** [releases §0](04-repo-and-releases.md) defines beta as **feature
 complete to the 1.0 spec** — a completeness gate, checkable against the design
 documents rather than negotiable — *and* names release engineering as the other
-half of the same bar. [work plan §8](docs/design/workplan/01-work-plan.md) sketches that half and says
+half of the same bar. [work plan §8](01-work-plan.md) sketches that half and says
 explicitly that it **awaits expansion and should be rewritten rather than
 extended**. This phase does the rewriting. A hardening phase that does not know
 what it is hardening toward ends when someone gets tired.
 
 **CI this phase establishes:** the thin Playwright tier
-([testing §3.5](docs/design/workplan/03-testing.md)) — first-run setup, create an actor, import a
+([testing §3.5](03-testing.md)) — first-run setup, create an actor, import a
 card, start a session, take a turn, branch, open the workbench — against the
 fake provider, so it is deterministic and free; and the release pipeline itself
 as a check, since a build chain that is not run on every merge is a build chain
@@ -49,7 +49,7 @@ that is broken on the day it matters.
 
 ## 0. What this document is, and why it is the odd one
 
-[P7 §0](docs/design/workplan/23-p7-implementation.md) states the shared answer for a skeleton written
+[P7 §0](23-p7-implementation.md) states the shared answer for a skeleton written
 far ahead of its phase. This one differs in a way worth naming, because it
 changes what "fleshing it out" can even mean here:
 
@@ -95,7 +95,7 @@ revisit intact:
 > complete.** An item that cannot name both is not a hardening item; it is a
 > feature, and it goes to the roadmap or to a phase.
 
-[work plan §8](docs/design/workplan/01-work-plan.md)'s bar plus [releases §0](docs/design/workplan/04-repo-and-releases.md)'s gate
+[work plan §8](01-work-plan.md)'s bar plus [releases §0](04-repo-and-releases.md)'s gate
 is what the list is checked against — not against a sense that things feel
 finished.
 
@@ -104,7 +104,7 @@ finished.
 **P11.0 is a pass over the design documents producing the list**, because the
 list does not exist anywhere today. It is scattered across every phase document
 as *home P11*, and one of those homings is already a warning:
-[P2 §2.11](docs/design/workplan/08-p2-implementation.md) says what P11 owns for accessibility is *the
+[P2 §2.11](08-p2-implementation.md) says what P11 owns for accessibility is *the
 audit — a systematic pass over surfaces built to the habit, not a rescue of
 surfaces built without it*, and adds that **a phase that defers the habit has
 already made P11's pass a rewrite.** That sentence generalises to nearly
@@ -113,14 +113,14 @@ morning.
 
 ### 1.3 The i18n sweep is extraction, and only the discipline made it mechanical
 
-[work plan §0.4](docs/design/workplan/01-work-plan.md) reduced the i18n obligation to three things that
+[work plan §0.4](01-work-plan.md) reduced the i18n obligation to three things that
 cannot be retrofitted — never assemble a sentence from fragments, never branch on
 displayed text, CSS logical properties and `Intl` — and moved **catalogue
 extraction** here as a pre-beta sweep. The trade is explicit: *extraction over a
 codebase that never concatenated is mechanical work; extraction over one that did
 is a rewrite.*
 
-[P2 §1.4](docs/design/workplan/08-p2-implementation.md) narrowed [testing §2](docs/design/workplan/03-testing.md)'s strings
+[P2 §1.4](08-p2-implementation.md) narrowed [testing §2](03-testing.md)'s strings
 rule to match, and recorded the count of real violations as **two** rather than
 the ninety the wide rule flagged. **So the sweep's size is measurable before the
 phase starts**, and re-running that count at the revisit is the cheapest possible
@@ -130,7 +130,7 @@ stage is a different size than planned.
 Two things the sweep must do beyond extraction, both already latent:
 [09 §3.4](../09-server-multiuser-deployment.md)'s notification summaries are
 `{ key, params }` and the params must carry everything the sentence needs; and
-[P3 §3](docs/design/workplan/15-p3-implementation.md) records the key-and-params conversion of the
+[P3 §3](15-p3-implementation.md) records the key-and-params conversion of the
 workbench's collector as P11 sweep debt — *a block's `reason` is free English
 prose in a durable record* — with one line pointing here so P3 is not the phase
 that quietly ratifies it.
@@ -150,7 +150,7 @@ shape extraction wants: the sweep's job becomes moving ten maps into a
 catalogue, not finding sentences hidden in server code.
 
 **P4 is the worked example, and it was deliberate.**
-[P4 §7.14](docs/design/workplan/16-p4-implementation.md) records that the import review emits classes
+[P4 §7.14](16-p4-implementation.md) records that the import review emits classes
 rather than sentences *specifically* to keep this phase's debt from growing —
 and P4 also shipped `note-labels.test.ts`, which fails the build when the server
 emits a class the client has no sentence for, **and** when the client holds a
@@ -185,7 +185,7 @@ thing it is the opposite of.
 [06 §7.4](../06-modes-and-turn-pipeline.md): *it is a session, in a mode, with an
 actor card — that is the whole design*, and **if building it requires a parallel
 chat implementation, something in the mode contract is wrong.**
-[P7 §1.8](docs/design/workplan/23-p7-implementation.md) raises the consequence from the other end: 1.0
+[P7 §1.8](23-p7-implementation.md) raises the consequence from the other end: 1.0
 ships the more similar pair of modes, so the contract gets a weaker test than the
 design assumed, and the assistant is the least similar consumer available.
 
@@ -197,7 +197,7 @@ documents leaving it to the other.
 
 ### 1.6 The update check produces a signal P10 already ships a surface for
 
-[P10 §1.7](docs/design/workplan/26-p10-implementation.md) states this from the other side and leans to
+[P10 §1.7](26-p10-implementation.md) states this from the other side and leans to
 moving the check into P10. Recorded here so the two plans do not both defer it:
 **the check is small**, [09 §6.5](../09-server-multiuser-deployment.md) argues
 the connectivity signal is free because the request is being made anyway, and its
@@ -215,30 +215,30 @@ both wrong and irritating.
 
 Both the P7 line and the P11 line have read as owning the plot-hook selector, and
 two homes for one job is a scheduling argument waiting to be had.
-[P7](docs/design/workplan/23-p7-implementation.md) ships the mechanism. **What is left here is the
+[P7](23-p7-implementation.md) ships the mechanism. **What is left here is the
 part that can only be done by playing**: what the four pacing levels resolve to,
 how long a commitment should wait, how the judgement prompt is worded, and the
 hook panel affordances that make a large pool authorable
-([10 §10.1](../10-ui-surfaces.md)). [work plan §2.1](docs/design/workplan/01-work-plan.md) lists *that hook
+([10 §10.1](../10-ui-surfaces.md)). [work plan §2.1](01-work-plan.md) lists *that hook
 pacing works at all* among the hypotheses nothing has tested — every claim in
 these documents is a hypothesis, and none is tested by being written down — and
 this is the phase that tests this one.
 
 ### 1.8 This phase grew by three, and the growth should be sized rather than absorbed
 
-[work plan §0.5](docs/design/workplan/01-work-plan.md) moved three things into 1.0 and gave all three to this
+[work plan §0.5](01-work-plan.md) moved three things into 1.0 and gave all three to this
 phase. None was a scope increase for the *product* — each was already wanted —
 but all three were previously outside any phase, which is a different thing from
 being cheap.
 
 **Packaging is now all six artifacts, not two.**
-[releases §0](docs/design/workplan/04-repo-and-releases.md) still requires only the OCI image and the
+[releases §0](04-repo-and-releases.md) still requires only the OCI image and the
 tarball *for beta to count*, and that is unchanged. What changed is that `.deb`,
 AUR, Homebrew and the Windows service are owned here rather than by a "1.0 bar" —
 a bar this phase had itself put out of scope, which left four required artifacts
 with a requirement and no builder.
 
-*Corrected at [P6A](docs/design/workplan/19-p6a-alpha-1.md), which had to count them.* This paragraph
+*Corrected at [P6A](19-p6a-alpha-1.md), which had to count them.* This paragraph
 listed **five** names as those four, by including the unraid template
 ([09 §5.3](../09-server-multiuser-deployment.md)) — which is not one of the six.
 [25 D0b](../25-open-questions.md)'s canonical enumeration is OCI image, tarball,
@@ -251,7 +251,7 @@ it with the thing it wraps, which is what P6A does.
 
 **So this phase owns five, not six.** P6A builds the OCI image, its compose file
 and the unraid template as a private artifact
-([releases §0.1](docs/design/workplan/04-repo-and-releases.md)); what lands here is the tarball, the
+([releases §0.1](04-repo-and-releases.md)); what lands here is the tarball, the
 other four, and the step P6A explicitly did not take — **public distribution**,
 with the AGPL §13 surface, the About page and the channels that come with having
 an audience.
@@ -300,7 +300,7 @@ this stage's business.
 
 **Backup and restore is the smallest.** Quiesce, archive excluding the index,
 restore and rebuild ([25 E6](../25-open-questions.md)). The part that matters is
-the CI restore test, which belongs to [testing](docs/design/workplan/03-testing.md) rather than here.
+the CI restore test, which belongs to [testing](03-testing.md) rather than here.
 
 **What this means for the phase.** P11 was already the largest and least
 well-specified phase in the plan, and this makes it larger. The response is not
@@ -347,7 +347,7 @@ print stylesheet plus Markdown and plain text. §1.4's fence enforced.
 P5's entry editor and P7's panels each stopped short: the field assist contract,
 provenance ([10 §11.2](../10-ui-surfaces.md)), image slots, and
 [10 §11.2c](../10-ui-surfaces.md)'s entry-level import and export. The polish
-half of this is [polish §1–§2](docs/design/workplan/06-polish.md)'s and lands there or here but not
+half of this is [polish §1–§2](06-polish.md)'s and lands there or here but not
 twice.
 
 ### P11.3 — The assistant
@@ -361,7 +361,7 @@ carrying `GeneratedFieldProvenance`.
 ### P11.4 — Scene's remainder, and impersonation
 
 [06 §3.1](../06-modes-and-turn-pipeline.md)'s impersonation, which
-[P2's P2.6 stage](docs/design/workplan/08-p2-implementation.md) recorded as shipping in Scene *at
+[P2's P2.6 stage](08-p2-implementation.md) recorded as shipping in Scene *at
 P7/P11 scope* — so this stage is whatever half of that P7 did not take, and
 the revisit should start by finding out which.
 
@@ -377,7 +377,7 @@ and the error-message improvement that is the feature's actual value.
 
 ### P11.7 — Trash retention and restore, and the accessibility audit
 
-[P2 §2.11](docs/design/workplan/08-p2-implementation.md)'s F7 second half — delete already *moves* to
+[P2 §2.11](08-p2-implementation.md)'s F7 second half — delete already *moves* to
 `users/<h>/trash/`, history and all, so what is missing is the retention sweep
 and the restore UI ([03 §10.2](../03-data-model.md)). And §1.2's accessibility
 pass, which is an audit over surfaces built to the habit or it is a rewrite.
@@ -391,23 +391,23 @@ broken.
 
 ### P11.9 — Release engineering, which is the other half of the bar
 
-[work plan §8](docs/design/workplan/01-work-plan.md) rewritten rather than extended, and then built: CI that
+[work plan §8](01-work-plan.md) rewritten rather than extended, and then built: CI that
 builds, tests and produces artifacts on every merge; reproducible builds of the
 container and the tarball from a tag; the release cut automated — tag, build,
 publish, changelog; channels wired and *boring*, because a nightly that is often
-broken is worse than none ([releases §4](docs/design/workplan/04-repo-and-releases.md)); version and
+broken is worse than none ([releases §4](04-repo-and-releases.md)); version and
 commit embedded in the build, which AGPL §13 requires anyway and which
-[P10](docs/design/workplan/26-p10-implementation.md) needs for its About surface.
+[P10](26-p10-implementation.md) needs for its About surface.
 
-**Written once already, at [P6A](docs/design/workplan/19-p6a-alpha-1.md), and that changes what this
-stage is.** Three of [work plan §8](docs/design/workplan/01-work-plan.md)'s seven bullets were taken there on
+**Written once already, at [P6A](19-p6a-alpha-1.md), and that changes what this
+stage is.** Three of [work plan §8](01-work-plan.md)'s seven bullets were taken there on
 one artifact: the release cut automated end to end, version and commit embedded,
 and an on-tag CI tier that exists — *exists*, and at P6A's close had not run,
 because the first `v*` tag is the rehearsal and it is a person's to push. So
 this stage is no longer standing a release
 process up from nothing — it is **widening a working one to five more artifacts
 and to an audience**, which is a different and better-understood job. The
-rewrite of [work plan §8](docs/design/workplan/01-work-plan.md) that §1.1 owns should say what the rehearsal
+rewrite of [work plan §8](01-work-plan.md) that §1.1 owns should say what the rehearsal
 actually taught rather than restating the list.
 
 **What P6A deliberately left here is the audience half**, and it is the half with
@@ -432,7 +432,7 @@ structural difference from every other phase document here.
    Markdown that pastes usefully elsewhere.
 3. Every editor in the app offers assist, provenance and history — and a
    collapsed section names what inside it is not at its default, the invariant
-   [P5 §2](docs/design/workplan/17-p5-implementation.md) refused to cut.
+   [P5 §2](17-p5-implementation.md) refused to cut.
 4. The assistant answers a question about the user's own library, proposes a
    change as a diff, and the applied change carries provenance. **And no part of
    it is a second chat implementation** (§1.5) — the check is a grep and it
@@ -449,11 +449,11 @@ structural difference from every other phase document here.
    artifact reports the tag's commit.
 10. **Only a person can walk, and it is the whole gate:** read the 1.0 design
     documents and say, capability by capability, whether it exists and works.
-    That is what [releases §0](docs/design/workplan/04-repo-and-releases.md) means by feature
+    That is what [releases §0](04-repo-and-releases.md) means by feature
     complete, and it is deliberately checkable against documents rather than
     negotiable.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** By this phase the line is not a per-phase
 check but a **completeness claim** — there is no later phase to defer to, so
 anything still configurable only by text editor either gets a surface here or
@@ -471,14 +471,14 @@ rather than a feature-list entry; the prologue
 packages that unblock once export lands ([25 B10](../25-open-questions.md));
 chapterisation and embeddings ([24 §3](../24-roadmap.md),
 [25 E2](../25-open-questions.md)); quality evals of any kind
-([testing §4.3](docs/design/workplan/03-testing.md)); and every committed release after 1.0 — the
+([testing §4.3](03-testing.md)); and every committed release after 1.0 — the
 Write surface, World, Campaign and the authored-rule tier — which are scheduled
-rather than deferred ([work plan §5](docs/design/workplan/01-work-plan.md)) and whose arrival answers
-[work plan §0.2](docs/design/workplan/01-work-plan.md)'s checks.
+rather than deferred ([work plan §5](01-work-plan.md)) and whose arrival answers
+[work plan §0.2](01-work-plan.md)'s checks.
 
 **No longer out of scope, and moved into §1.8:** session export, backup and
 restore, and the four packaging artifacts. All three were listed here when they
-had no release; [work plan §0.5](docs/design/workplan/01-work-plan.md) gave them one, and it is this one.
+had no release; [work plan §0.5](01-work-plan.md) gave them one, and it is this one.
 
 **One item here is a design dependency rather than a deferral.**
 [13](../13-write-mode.md) is a 2.0 document, and export cannot freeze the turn
@@ -486,7 +486,7 @@ record until its §4 is settled. That does not put Write in this phase; it puts
 *settling 17* on the critical path to a stage in it.
 
 **And the one thing a hardening phase most wants to add and must not:** polish.
-[polish-polish.md](docs/design/workplan/06-polish.md) is a working todo list with its own bar, and its
+[06-polish.md](06-polish.md) is a working todo list with its own bar, and its
 items are user-facing, bounded, and need no schema change and no new contract.
 Items graduate *out* of it when they clear the roadmap bar; they do not graduate
 into a release gate because the gate happened to be open.
@@ -505,7 +505,7 @@ is that **P11.0's output may be two phases**, and the revisit should decide in
 advance what it would split *along*. The natural seam is already visible in the
 stage list: P11.1 through P11.5 are product completion, and P11.6 through P11.9
 are release engineering plus sweeps. Those have different audiences, different
-kinds of done, and only one of them is what [releases §0](docs/design/workplan/04-repo-and-releases.md)
+kinds of done, and only one of them is what [releases §0](04-repo-and-releases.md)
 requires for beta to count.
 
 **Three things the revisit cannot settle from this document and must go and
@@ -516,7 +516,7 @@ read:**
   a 2.0 document that has to be settled first. If it is not settled when the
   stage arrives, the stage blocks. Worth checking early rather than at the
   stage, because the fix is a design session and not a day.
-- **[P2C log](docs/design/workplan/14-p2c-log.md) and whatever PLAYABLE produced.** A hardening phase's
+- **[P2C log](14-p2c-log.md) and whatever PLAYABLE produced.** A hardening phase's
   real list is *what people hit*, and by then there will be two sources of that
   — the P2C sessions and everything since. An audit that reads only the code
   will find the defects nobody minded and miss the ones everybody did.

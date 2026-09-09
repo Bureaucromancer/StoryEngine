@@ -4,11 +4,9 @@
 a gallery of avatar tiles, one per account, where clicking a face asks for
 that account's password. It is opt-in per install, opt-out per account, and it
 changes nothing about how anyone authenticates. This note is the design; the
-build is P10's (§8). It reads beside [09](docs/design/09-server-multiuser-deployment.md)
-and [10](docs/design/10-ui-surfaces.md) in the index's "The design" group, and carries the
-number 15 only because 00–14 were taken when it was written —
-[24](docs/design/24-roadmap.md) remains the end of the design side in the sense the README
-means, and this note hands off to the work plan like any other.
+build is P10's (§8). It reads beside [09](09-server-multiuser-deployment.md)
+and [10](10-ui-surfaces.md), which is why it sits where it does, and it hands
+off to the work plan like any other note.
 
 > **Exposure is an explicit act, twice.** The install shows a gallery because
 > an admin chose to; an account appears on it because nobody chose otherwise —
@@ -33,10 +31,10 @@ on the next arrival with no restart. The union type does quiet work — the
 admin config form renders string-literal unions as selects from the server's
 own schema, so the control ships with the key and there is no client change
 to forget: the configuration-ships-with-its-surface rule
-([P2A](docs/design/workplan/09-p2a-configuration-surface.md)) satisfied by construction.
+([P2A](workplan/09-p2a-configuration-surface.md)) satisfied by construction.
 
 **The default is `"form"` because exposure is an explicit act.** The
-precedent is the bind address ([09 §5.1](docs/design/09-server-multiuser-deployment.md)):
+precedent is the bind address ([09 §5.1](09-server-multiuser-deployment.md)):
 the server listens on loopback until someone deliberately opens it up,
 because a disclosure should be a decision with a person attached. The same
 reasoning lands harder here, since §3 is about to concede that the gallery
@@ -44,7 +42,7 @@ discloses something. A fresh install, and every existing install, shows
 exactly the screen it shows today and keeps the unauthenticated surface it
 has today, until an admin picks the other door.
 
-The key's row in [21 §4](docs/design/21-internal-contracts.md)'s table, its tier entry
+The key's row in [21 §4](21-internal-contracts.md)'s table, its tier entry
 and its applier land with the build, per the precedent of every key before
 it; until then this note owns the name.
 
@@ -61,8 +59,8 @@ whether the house has an owner.
 ## 2. The gallery surface
 
 **A Quiet surface: faces, names, and nothing else.**
-[10 §1.1](docs/design/10-ui-surfaces.md) splits the surfaces into dense tooling and quiet
-arrival, and [25 E10](docs/design/25-open-questions.md) already placed sign-in on the
+[10 §1.1](10-ui-surfaces.md) splits the surfaces into dense tooling and quiet
+arrival, and [25 E10](25-open-questions.md) already placed sign-in on the
 quiet side — a Quiet surface that must be styled before anyone has
 authenticated. The gallery is that screen with the typing removed: a grid of
 avatar tiles, each with the account's display name beneath it, centred in the
@@ -77,7 +75,7 @@ only; the gallery joins the login and setup forms as a third gate screen,
 chosen by `loginScreen`, with the gallery/by-name switch as local state
 exactly the way setup and login swap today. It is also the client's first
 tile grid — there is no grid layout anywhere in the client yet — and the
-pattern lands in the appearance layer's terms ([10 §1.2](docs/design/10-ui-surfaces.md)):
+pattern lands in the appearance layer's terms ([10 §1.2](10-ui-surfaces.md)):
 semantic tokens, the look in `ui/`, no `dark:` variants, rather than a
 one-off.
 
@@ -122,16 +120,16 @@ of listed, enabled accounts are readable by anyone who can reach the port,
 before authentication.
 
 **On this threat model, that is the doorbell nameplate, not the keys.**
-[09 §4.1](docs/design/09-server-multiuser-deployment.md) frames multi-user as access
+[09 §4.1](09-server-multiuser-deployment.md) frames multi-user as access
 separation among people who already trust each other, on a network they
-control; [00 §4](docs/design/00-stance.md) says plainly that this is not a security
+control; [00 §4](00-stance.md) says plainly that this is not a security
 product. The people who can reach the port on the intended deployment are the
 household, and the household already knows who lives there — SillyTavern has
 shipped this screen to the same audience for years without it being the thing
 anyone regrets. What would be regretted is the failure mode 04 already names:
 the port-forwarded install. An admin who exposes a gallery-mode install to
 the internet has published their household's names and faces to it. That is
-the same person [09 §4.1](docs/design/09-server-multiuser-deployment.md) already worries
+the same person [09 §4.1](09-server-multiuser-deployment.md) already worries
 about, and the same answer applies — the default, and the warning at the
 moment of binding, not a mechanism this product has forsworn.
 
@@ -174,15 +172,15 @@ would brick every existing install on upgrade.
 
 **It is not a fourth capability.** Capabilities are what an account *may
 do*, enumerated so an admin can be shown each one with its consequence
-([09 §4.2.1](docs/design/09-server-multiuser-deployment.md)), and
-[10 §15.4](docs/design/10-ui-surfaces.md)'s rule guards the enumeration: if the surface
+([09 §4.2.1](09-server-multiuser-deployment.md)), and
+[10 §15.4](10-ui-surfaces.md)'s rule guards the enumeration: if the surface
 starts to want a matrix, the model is right and the matrix is wrong.
 `hiddenFromGallery` grants nothing and withholds nothing — the account signs
 in identically either way. It is kin to `displayName`: a fact about how the
 account is *shown*, not about what it can do.
 
 **It lives on `Account` because the server reads it before anyone is signed
-in.** [10 §15.1](docs/design/10-ui-surfaces.md) already draws this line for the theme:
+in.** [10 §15.1](10-ui-surfaces.md) already draws this line for the theme:
 what only your own browser reads goes in `prefs.json`; what other people and
 the server read is an `Account` field. The gallery is built by the server for
 a reader who is nobody yet — there is no session to have preferences — so the
@@ -192,12 +190,12 @@ design working as intended.
 
 **Both the person and the admin can set it.** The account holder toggles
 their own visibility — it is a privacy preference about their own face — in
-[10 §15.1](docs/design/10-ui-surfaces.md)'s *You* form, as *Shown on the sign-in screen*
+[10 §15.1](10-ui-surfaces.md)'s *You* form, as *Shown on the sign-in screen*
 with the consequence written beside it. `updateSelf` grows the field, which
 is the deliberate act its shape demands: that method rebuilds its patch
 field by field precisely so a widening is a decision, and this is one.
 Admins get the same toggle on the account list
-([10 §15.2](docs/design/10-ui-surfaces.md)), where the rule is already that a control
+([10 §15.2](10-ui-surfaces.md)), where the rule is already that a control
 carries its consequence — and where, on an install whose `loginScreen` is
 `"form"`, the toggle says it currently changes nothing, the same honesty
 `fileAccess` and `enableExtensions` practise about gating features that have
@@ -213,11 +211,11 @@ today. This section adds one.
 **`data/users/<handle>/avatar.<ext>` — inside the user's own directory.**
 `accounts.json` sits *outside* every user directory for a stated reason: it
 holds password hashes, and a future file browser over a user's directory must
-never be able to serve a secret ([P1 §1.3](docs/design/workplan/07-p1-implementation.md)).
+never be able to serve a secret ([P1 §1.3](workplan/07-p1-implementation.md)).
 An avatar is that reasoning's mirror image — user-authored, not secret, and
 uploaded specifically to be shown — so it belongs with the user's other
 authored things, where the file browser's own rule is that what the user
-authored is exactly what it may expose ([10 §4.2](docs/design/10-ui-surfaces.md)).
+authored is exactly what it may expose ([10 §4.2](10-ui-surfaces.md)).
 
 The clinching argument is removal. Removing an account moves the user's whole
 directory to `data/removed/<handle>-<uuid>` before the record goes, and that
@@ -237,11 +235,11 @@ and `limits.maxUploadMb` has never been read. The route brings three
 obligations with it:
 
 - **Sniff the bytes, never trust the extension** — the rule
-  [10 §4.4](docs/design/10-ui-surfaces.md) already states for the file browser. PNG,
+  [10 §4.4](10-ui-surfaces.md) already states for the file browser. PNG,
   JPEG and WebP by sniffed type, stored as received with the type recorded.
   The server has no raster re-encoder and should not grow one for this;
   contrast the actor card, which is PNG-only because the card *is* the
-  object ([03 §5.2](docs/design/03-data-model.md)) — a constraint with no purchase here.
+  object ([03 §5.2](03-data-model.md)) — a constraint with no purchase here.
 - **Bound the size** by `limits.maxUploadMb` — its first honest reader —
   plus a fixed sanity cap in the handler, because an avatar that large is a
   mistake whatever the config says. No new config key: nobody tunes avatar
@@ -298,7 +296,7 @@ code picks it, and a test holds the projection to exactly these three.
 **Filter: enabled and not hidden. Nothing else.**
 
 **Order: file order**, which is creation order, the convention the storage
-model already keeps ([03 §5.5](docs/design/03-data-model.md)) — deterministic, stable
+model already keeps ([03 §5.5](03-data-model.md)) — deterministic, stable
 under display-name changes, and free of collation. Alphabetical order would
 have to pick a locale's collation rules for a response addressed to nobody in
 particular, which is a decision this feature has no business making.
@@ -306,7 +304,7 @@ particular, which is a decision this feature has no business making.
 **It does not join the setup gate's allowlist.** Before first-run the client
 renders the setup form before it would ever ask for a gallery, and the
 pre-setup surface is a claim window
-([09 §5.1](docs/design/09-server-multiuser-deployment.md)) kept deliberately small — two
+([09 §5.1](09-server-multiuser-deployment.md)) kept deliberately small — two
 routes. This note declines to widen it. And when `loginScreen` is `"form"`,
 the family answers 404: a default install's unauthenticated surface is
 byte-for-byte what it is today, which is the sentence §1.1's default exists
@@ -315,14 +313,14 @@ to make true.
 ## 7. Deferred: the live filter, and what it does to the clickthrough
 
 **A type-to-filter box over the tiles is deferred, and its home is the
-polish list ([polish §7](docs/design/workplan/06-polish.md)).** The account store's own
+polish list ([polish §7](workplan/06-polish.md)).** The account store's own
 comment sets the scale: *"a household has single-digit accounts."* A filter
 over six tiles is chrome, and it earns its place when tile count defeats
 scanning — which is observable on a real install rather than predictable from
 here. It clears the polish bar exactly: it changes what a user sees, it is
 bounded, and it needs no schema change and no new contract, because the
 listing already carries everything a client-side filter needs. It is
-deliberately not a [24 §3](docs/design/24-roadmap.md) row — that table's bar is a feature
+deliberately not a [24 §3](24-roadmap.md) row — that table's bar is a feature
 deferred past 1.0 that is additive to the data model, and this is neither.
 
 **When it lands, the by-name clickthrough may fold into it.** A filter box is
@@ -338,17 +336,17 @@ argues otherwise.
 **P10 owns the build**, by argument rather than by default: P10 — multi-user,
 notifications, deployment — already owns the rest of the arrival story (the
 loopback bind and its container inversion, the setup token, mDNS) and the
-remainder of [10 §15](docs/design/10-ui-surfaces.md), which is where both toggles land.
+remainder of [10 §15](10-ui-surfaces.md), which is where both toggles land.
 The gallery is deployment-facing work on the same front door. P3, in flight,
 does not touch auth; P2A, which built the account surfaces the toggles
 extend, is closed. Recording the owner here rather than leaving the feature
 described and unowned is the lesson
-[work plan §2.3](docs/design/workplan/01-work-plan.md) exists to teach.
+[work plan §2.3](workplan/01-work-plan.md) exists to teach.
 
 What the build obliges, so P10's planning is not surprised:
 
 - `auth.loginScreen` end to end: the schema entry, tier row and applier the
-  config tests enforce, the [21 §4](docs/design/21-internal-contracts.md) table row, and
+  config tests enforce, the [21 §4](21-internal-contracts.md) table row, and
   the select the admin config form derives from the union.
 - `hiddenFromGallery` end to end: the optional field, `toPublic`,
   `updateSelf` and `update`, the client's hand-written account types, and
@@ -375,13 +373,13 @@ The tests that keep it honest, named now:
 ## 9. What this is not
 
 - **Not self-registration.**
-  [09 §4.2](docs/design/09-server-multiuser-deployment.md) stands: the gallery shows
+  [09 §4.2](09-server-multiuser-deployment.md) stands: the gallery shows
   accounts, it does not mint them, and there is no *new account* tile.
 - **Not roles.** Nothing here moves
-  [09 §4.2.1](docs/design/09-server-multiuser-deployment.md). The flag is presentation
+  [09 §4.2.1](09-server-multiuser-deployment.md). The flag is presentation
   (§4), and the answer to "can we hide accounts from *some* viewers" is that
   the question describes a permission matrix, and
-  [10 §15.4](docs/design/10-ui-surfaces.md) already answered it.
+  [10 §15.4](10-ui-surfaces.md) already answered it.
 - **Not passwordless entry.** SillyTavern lets a passwordless user click
   straight through their tile. StoryEngine refuses this even though
   effectively-passwordless accounts exist — `auth.minPasswordLength: 0`
@@ -392,6 +390,6 @@ The tests that keep it honest, named now:
   authenticates you: `POST /api/auth/login` is byte-for-byte the same
   contract from either door, which is what keeps §3's reversal narrow.
 - **Not multi-tenant hardening.**
-  [09 §4.2.2](docs/design/09-server-multiuser-deployment.md)'s decision rule applies
+  [09 §4.2.2](09-server-multiuser-deployment.md)'s decision rule applies
   unchanged. A gallery with real access control between viewers is a hosted
   product's feature, and this is not a hosted product.

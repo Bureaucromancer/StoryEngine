@@ -40,9 +40,9 @@ Every one of those is machinery for branching *mutable rows*.
 The requirement looks expensive and mostly isn't, because of a decision already
 made for other reasons.
 
-[03 §8](docs/design/03-data-model.md) makes the turn log **append-only**, and records each
+[03 §8](03-data-model.md) makes the turn log **append-only**, and records each
 turn's `effects: ChannelEffect[]` — the state changes it caused, individually
-reversible. [00 §2.8](docs/design/00-stance.md) chose that over Aventuras'
+reversible. [00 §2.8](00-stance.md) chose that over Aventuras'
 `PersistentRetryState` precisely to avoid hand-maintained snapshots.
 
 The consequence: **session state at turn N is a pure function of the effect log
@@ -137,17 +137,17 @@ Snapshotting at fork points is the cheap win: a node with several children is a
 node whose state will be materialised repeatedly, once per sibling explored.
 
 Snapshots follow the same rule as the SQLite index
-([03 §5.1](docs/design/03-data-model.md)): **derived, disposable, never authoritative.**
+([03 §5.1](03-data-model.md)): **derived, disposable, never authoritative.**
 Deleting every snapshot must cost time and nothing else.
 
 **Including the one in `session.json`.** That file carries channel state at the
 head, which reads like the session's canonical state and is not — it is a
 snapshot like any other, materialised there because a human opening the file
-should be able to read the clock ([03 §8.1](docs/design/03-data-model.md)). Treating it as
+should be able to read the clock ([03 §8.1](03-data-model.md)). Treating it as
 authoritative would mean branch switching rewrites it, which puts mutable state
 back in the middle of the one mechanism this document exists to keep cheap. The
 reconciliation, including what happens when someone hand-edits it, is in
-[03 §8.1](docs/design/03-data-model.md). A snapshot that
+[03 §8.1](03-data-model.md). A snapshot that
 disagrees with a replay is a bug in the effects, and CI should check exactly
 that on a fixture session — replay-from-zero must equal snapshot-plus-replay at
 every index.
@@ -198,7 +198,7 @@ time. Summaries must be *values keyed by their inputs*, not *a running total*.
 
 ### 5.1 The rolling summary is a chain, not a blob
 
-[25 E1](docs/design/25-open-questions.md) settles the rolling summary as the default
+[25 E1](25-open-questions.md) settles the rolling summary as the default
 in-session memory, which reads like a collision with the paragraph above. It is
 not, provided one thing holds: **"rolling" describes the chain, not mutation.**
 
@@ -238,7 +238,7 @@ What this buys, beyond one mechanism instead of two:
   gone. Here nothing is destroyed unless someone asks. "I liked the second
   version from an hour ago" becomes answerable.
 - **Swipe alternatives carry their full turn record** — the assembled blocks,
-  the budget verdict, the cost ([03 §8](docs/design/03-data-model.md)). Comparing two swipes
+  the budget verdict, the cost ([03 §8](03-data-model.md)). Comparing two swipes
   can therefore compare *why they differed*, not just their text. No tool in the
   survey can do this, and it falls out for free.
 - **Effects are per-attempt.** A swipe whose channel effects differ from its
@@ -246,7 +246,7 @@ What this buys, beyond one mechanism instead of two:
   its own effects. The sources' swipe arrays cannot express this at all — which
   is why swiping in a game-like mode tends to corrupt tracked state in practice.
 - **Rewrite and reroll are separable, and rewrite is the default.** Each node
-  records the draws it consumed ([19 §14.5](docs/design/19-tech-stack.md)), so a sibling can
+  records the draws it consumed ([19 §14.5](19-tech-stack.md)), so a sibling can
   either replay that tape — *rewrite*: same mechanical outcome, different
   writing — or draw fresh — *reroll*: new outcome. Without the distinction,
   swiping past a failed check is save-scumming by accident. Both siblings are
@@ -258,11 +258,11 @@ What this buys, beyond one mechanism instead of two:
 The cost is UI, not storage. A long session accumulates many unnamed siblings,
 so the history view must default to the selected path and surface siblings as an
 inline affordance on the node, with the full tree behind a deliberate action.
-Retention is [25 C9](docs/design/25-open-questions.md); the storage argument for keeping
+Retention is [25 C9](25-open-questions.md); the storage argument for keeping
 everything is strong, so the question is really about presentation.
 
 That "deliberate action" is the branch tree visualiser, specified as a post-1.0
-item in [24 §1](docs/design/24-roadmap.md). It is pure addition — everything it draws is
+item in [24 §1](24-roadmap.md). It is pure addition — everything it draws is
 already recorded — with one obligation on 1.0: turn storage must tolerate
 removal, so pruning is possible later without a migration.
 
@@ -296,17 +296,17 @@ off-by-one, which they are not.
 **Redo may carry an instruction — DECIDED.** *Redo this* is often *redo this,
 but change X*, and a redo that cannot say so sends the user back to typing the
 instruction into their action, which is the habit the guidance box exists to
-end ([06 §5.1](docs/design/06-modes-and-turn-pipeline.md)). So the per-turn controls carry
+end ([06 §5.1](06-modes-and-turn-pipeline.md)). So the per-turn controls carry
 a field for it, and what is typed there rides with whichever of rewrite and
 reroll is pressed next — a modifier on the gesture, not a third gesture,
 because "not that sentence" and "not that outcome" are still different
-requests ([19 §14.5](docs/design/19-tech-stack.md)). With an instruction the model is also
+requests ([19 §14.5](19-tech-stack.md)). With an instruction the model is also
 shown the attempt it is about: a sibling is an ordinary node with a full
 record, so the redo's record says which attempt was shown and what was asked,
 and the attempt itself is never history. Empty, the field changes nothing.
 
 **Branching within a multi-message turn.** Under `per-actor` dispatch
-([06 §3](docs/design/06-modes-and-turn-pipeline.md)) one turn produces several messages. A
+([06 §3](06-modes-and-turn-pipeline.md)) one turn produces several messages. A
 turn is still **one node**, because the turn is the atomic unit for effects — so
 "branch from message 2 of 3" resolves to an operation on that turn's node.
 Turn-granular, and now obviously so rather than by convention.
@@ -320,7 +320,7 @@ thing discovered late.
 
 ## 8. Correction to the triage
 
-[triage](docs/design/workplan/02-triage.md) lists Aventuras' branching (COW + tombstones) as
+[triage](workplan/02-triage.md) lists Aventuras' branching (COW + tombstones) as
 **PORT — "best-in-class among the three; nothing comparable elsewhere"**.
 
 **That verdict was wrong for this requirement, and is revised to REBUILD.**
@@ -343,7 +343,7 @@ The UX to port is **Marinara's**: one button, any message, any time.
 
 ## 9. Open questions
 
-Added to [25](docs/design/25-open-questions.md) as C8–C10. C11 (branch anchor within a
+Added to [25](25-open-questions.md) as C8–C10. C11 (branch anchor within a
 multi-message turn) is **resolved** by §3 — a turn is one node.
 
 - **C8. Snapshot interval and eviction.** Every N turns of depth, plus at nodes

@@ -1,25 +1,23 @@
 # 20 — P6B implementation plan: the close-out, and the first real play
 
 **Status: plan, opened 2026-09-07 at `7b6a0d9`**, main's tip after Alpha 2 was
-cut. Written the day it opens, like [P6A](docs/design/workplan/19-p6a-alpha-1.md) and for the same
+cut. Written the day it opens, like [P6A](19-p6a-alpha-1.md) and for the same
 reason: every precondition is checkable today rather than on the day, because
 two audits have already checked them.
 
 **P6B delivers one thing, and the rest is what that thing needs:** *PLAYABLE,
-actually run.* [work plan §4.1](docs/design/workplan/01-work-plan.md) scheduled it at the end of P4 and
+actually run.* [work plan §4.1](01-work-plan.md) scheduled it at the end of P4 and
 called it the milestone that matters most. P5, P6 and P6A have landed since. It
 has still not happened, and this document exists because the reason it has not
 is now known, small, and written down twice.
 
 **The demo that defines done:** *a person sits down with an imported library,
 plays for several sittings, and the four hypotheses in
-[work plan §4.1](docs/design/workplan/01-work-plan.md) come back answered — with every finding in
-[playable log](docs/design/workplan/21-playable-log.md) and every finding given a home.*
+[work plan §4.1](01-work-plan.md) come back answered — with every finding in
+[playable log](21-playable-log.md) and every finding given a home.*
 
-**Citation convention** follows [P6A](docs/design/workplan/19-p6a-alpha-1.md): **`releases §N`** is
-[releases-repo-and-releases](docs/design/workplan/04-repo-and-releases.md), **`testing §N`** is
-[testing-testing](docs/design/workplan/03-testing.md), bare numbers are design documents one level up.
-Code paths are relative to `packages/<pkg>/src`.
+**Citations follow the corpus convention**; code paths are relative to
+`packages/<pkg>/src`.
 
 ---
 
@@ -32,20 +30,20 @@ trustworthy. Every stage below is either *the thing that was already owed* or
 [§0.3](#03-the-bar-for-pre-work-and-the-line-it-must-not-cross) is the bar that
 keeps it that way.
 
-**The one-sentence history.** [work plan §4.1](docs/design/workplan/01-work-plan.md) says *at the end of P4,
+**The one-sentence history.** [work plan §4.1](01-work-plan.md) says *at the end of P4,
 stop and play with it*, and calls skipping it
 *"the single most expensive economy available in this plan"*
-([work plan §7](docs/design/workplan/01-work-plan.md)). Nobody stopped. P5 built the retriever, P6 built the
+([work plan §7](01-work-plan.md)). Nobody stopped. P5 built the retriever, P6 built the
 tree, P6A cut a release. The checkpoint is now three phases overdue and the
-phase in front of it — [P7](docs/design/workplan/23-p7-implementation.md) — is the one that
+phase in front of it — [P7](23-p7-implementation.md) — is the one that
 publishes the mode contract as an SDK.
 
 ### 0.1 Readiness — why it has not run, audited 2026-09-07 at `7b6a0d9`
 
 **Two independent audits name the same obstacle, twelve weeks apart in document
-time and five days apart in real time.** [P5 §0.5](docs/design/workplan/17-p5-implementation.md)
+time and five days apart in real time.** [P5 §0.5](17-p5-implementation.md)
 (2026-09-02) calls it *"the single largest thing between this phase and an
-honest close"*; [P7 §0.1](docs/design/workplan/23-p7-implementation.md) (2026-09-07) re-checked it
+honest close"*; [P7 §0.1](23-p7-implementation.md) (2026-09-07) re-checked it
 and found it unchanged. It is this:
 
 **Nothing anywhere chooses a session's lorebooks.**
@@ -68,7 +66,7 @@ deliberate rule that a session using no book should not be told about a
 subsystem it is not using.
 
 **Which makes the checkpoint's own subject untestable.** Two of the four
-hypotheses [work plan §4.1](docs/design/workplan/01-work-plan.md) lists — *one budgeter over everything is
+hypotheses [work plan §4.1](01-work-plan.md) lists — *one budgeter over everything is
 comprehensible* and *inclusion reasons are a product feature* — are about
 retrieval under pressure. There is nothing to put under pressure. The fourth is
 the one 01 calls likeliest to be wrong and cheapest to fix here.
@@ -84,7 +82,7 @@ over-scoping:
 
 - **The provider boundary is wired.** This checkout has two configured
   connections under `data/system/connections`, a `data/system/bindings.json`,
-  and three sessions with recorded turns. [P4 §0](docs/design/workplan/16-p4-implementation.md)'s
+  and three sessions with recorded turns. [P4 §0](16-p4-implementation.md)'s
   *"PLAYABLE does not happen against a stub"* was written when that was not
   true; it is stale. What never happened is the *capture* half —
   [§1.6](#16-what-p2c14s-status-actually-is).
@@ -99,12 +97,12 @@ over-scoping:
   at.
 - **A known-good baseline exists.** Alpha 2 is tagged, built and installable,
   and the data-directory stamp refuses an older build against a newer volume
-  ([P6A §1.7](docs/design/workplan/19-p6a-alpha-1.md)). Playing against a build that can name itself
+  ([P6A §1.7](19-p6a-alpha-1.md)). Playing against a build that can name itself
   is what makes a finding attributable.
 
 ### 0.3 The bar for pre-work, and the line it must not cross
 
-Taken verbatim in spirit from [P2C §1](docs/design/workplan/12-p2c-first-real-run.md), which is this
+Taken verbatim in spirit from [P2C §1](12-p2c-first-real-run.md), which is this
 phase's precedent in every respect:
 
 > An item is pre-work only if leaving it undone would make the phase's own
@@ -127,10 +125,10 @@ checkpoint reads.
 
 ### 1.1 Selection lands on the create form and a mid-session panel
 
-**Not a session-settings surface.** That is [P7.2](docs/design/workplan/23-p7-implementation.md)'s
-stage, and [P7 §1.6](docs/design/workplan/23-p7-implementation.md) turns `cast` from a field into a
+**Not a session-settings surface.** That is [P7.2](23-p7-implementation.md)'s
+stage, and [P7 §1.6](23-p7-implementation.md) turns `cast` from a field into a
 channel — so a settings page built now would be built against a shape P7
-replaces, which is exactly the placeholder [work plan §2.2](docs/design/workplan/01-work-plan.md) forbids.
+replaces, which is exactly the placeholder [work plan §2.2](01-work-plan.md) forbids.
 
 **The create form, because the server is already there.** `POST /api/sessions`
 takes `name`, `mode`, `preset`, `cast`, `treatment` and `lore`
@@ -151,7 +149,7 @@ question about what a session's preset *is*.
 
 ### 1.2 P5's close-out is inside this phase
 
-[P5 §0.5](docs/design/workplan/17-p5-implementation.md) is a close-out audit that concludes the phase
+[P5 §0.5](17-p5-implementation.md) is a close-out audit that concludes the phase
 does not close: *"§3 has never been walked, and walking it today would fail."*
 Five gate steps cannot be passed as written, one fails its own amendment, there
 are two live defects and two more the audit itself missed.
@@ -167,7 +165,7 @@ person-blocked item, and that estimate is the one this phase adopts.
 
 ### 1.3 The four contradictions, settled before anybody walks
 
-[P5 §0.5](docs/design/workplan/17-p5-implementation.md) names four document-versus-code
+[P5 §0.5](17-p5-implementation.md) names four document-versus-code
 contradictions, *"each an argument waiting to happen mid-walk"*. A walk that has
 to settle one mid-stride is a walk that edits the gate until it passes, which is
 the failure the gate's own provenance note warns about.
@@ -181,15 +179,15 @@ the failure the gate's own provenance note warns about.
    the format's convention and not ours to improve"*, and the importer clamps
    `entryLimit` while leaving `tokenBudget` alone. **Settle toward the
    documents**: zero means unlimited, in both fields, spelled once.
-2. **Step 12's ownership.** [§1.4 of P5](docs/design/workplan/17-p5-implementation.md) and
-   [work plan §195](docs/design/workplan/01-work-plan.md) assign channel-conditioned entries to P5; the
+2. **Step 12's ownership.** [§1.4 of P5](17-p5-implementation.md) and
+   [work plan §195](01-work-plan.md) assign channel-conditioned entries to P5; the
    schema lists `activationConditions` as *deliberately absent* and the importer
    discards it. Three documents disagree about whether a feature exists. **The
    code is right and the documents are wrong** — the deferral was taken and
    neither section followed. Amend the step to say so and move the capability to
-   where the rule vocabulary lives ([work plan §0.6](docs/design/workplan/01-work-plan.md)'s 5.0).
+   where the rule vocabulary lives ([work plan §0.6](01-work-plan.md)'s 5.0).
 3. **Step 11's ownership.** P5 says it is P3's edit-and-re-run gesture; P3
-   disclaims it; [P6 §3](docs/design/workplan/18-p6-implementation.md) step 3 has since absorbed the
+   disclaims it; [P6 §3](18-p6-implementation.md) step 3 has since absorbed the
    reproduction half. **Already resolved in P6's favour** — record it in P5's
    step rather than leaving the contradiction addressed in only one direction.
 4. **Step 6's stated means.** It says the step is satisfied by *"the handful of
@@ -226,7 +224,7 @@ immediately after the history splice**, mirroring the source engines' own
 placement, with the priority argued in the preset beside the existing one. And
 whatever is decided, **an entry that activates and lands nowhere must be
 reported** rather than dropped silently — that is the same *no silent refusal*
-line [work plan §2.2](docs/design/workplan/01-work-plan.md) draws, and it is the half that protects the next
+line [work plan §2.2](01-work-plan.md) draws, and it is the half that protects the next
 version of this bug.
 
 ### 1.5 `scanDepth`, the recursion haystack, and what is person-blocked
@@ -259,11 +257,11 @@ time. §0.5 says recording it as person-blocked is fine and pretending is not.
 This phase records it. It does not hold the gate open on it, because the step
 asks whether a book *reads as a document*, and a synthesised book of three
 hundred entries answers the layout half — which
-[P5 §1.6](docs/design/workplan/17-p5-implementation.md) already settled for step 1.
+[P5 §1.6](17-p5-implementation.md) already settled for step 1.
 
 ### 1.6 What P2C.1–.4's status actually is
 
-[P4 §0](docs/design/workplan/16-p4-implementation.md) says *"P2C.1–P2C.4 still have not run"* and
+[P4 §0](16-p4-implementation.md) says *"P2C.1–P2C.4 still have not run"* and
 *"PLAYABLE does not happen against a stub"*. **Half of that is now stale and
 half is exactly true**, and the phase should say which is which rather than
 inherit an obligation it has already met or claim one it has not.
@@ -274,7 +272,7 @@ inherit an obligation it has already met or claim one it has not.
 - **True:** no exchange was ever captured or promoted. There is no `captures/`,
   no `packages/server/src/providers/fixtures/`, and no `.env` on this machine,
   so `pnpm test:live` has never run here and
-  [P2C §2.2](docs/design/workplan/12-p2c-first-real-run.md)'s *"every real call becomes a fixture,
+  [P2C §2.2](12-p2c-first-real-run.md)'s *"every real call becomes a fixture,
   and that is the phase's best output"* never happened.
 
 **Decision: capture during P6B.2 rather than staging a separate pass.** The
@@ -289,14 +287,14 @@ still empty, which is [P6B.3](#p6b3--triage)'s to notice, not to redo.
 
 *Added 2026-09-07, after §0.1's audit was widened from "why can PLAYABLE not
 run" to "what else was made and never discharged".*
-[manual testing](docs/design/workplan/05-manual-testing.md) is the ledger it produced and the place the answer
+[manual testing](05-manual-testing.md) is the ledger it produced and the place the answer
 lives; this section is only the part that lands **here**, because it is cheap
 and because this phase is already in the files.
 
 **Four things this phase absorbs**, none of them a feature:
 
 1. **F22's leftover gets an owner.** The rebuild/watcher divergence over a
-   refused path is assigned in [P2 §782](docs/design/workplan/08-p2-implementation.md) to **`P2.7`,
+   refused path is assigned in [P2 §782](08-p2-implementation.md) to **`P2.7`,
    a stage that does not exist** — P2 has P2.0 through P2.6. It was moved off a
    closed stage precisely so it would not become nobody's, and became nobody's
    by the other route. [P6B.1](#p6b1--p5s-close-out) is already opening the
@@ -305,31 +303,31 @@ and because this phase is already in the files.
 2. **Five phase documents still say `plan`.** 03 (P1), 04 (P2), 05 (P3), 06 (P4)
    and 14 (P2B) all landed and none of their status lines says so; 15 (P2C) has
    no status line at all and is half-run. The same defect
-   [P6A](docs/design/workplan/19-p6a-alpha-1.md)'s close fixed for 07 and 08, in five more places,
+   [P6A](19-p6a-alpha-1.md)'s close fixed for 07 and 08, in five more places,
    and it costs a paragraph each.
-3. **[P2C log](docs/design/workplan/14-p2c-log.md)'s triage table is empty** under fourteen findings, and
+3. **[P2C log](14-p2c-log.md)'s triage table is empty** under fourteen findings, and
    that phase's own rule is that it does not end while the table is shorter than
    the list. [P6B.3](#p6b3--triage) already says it takes them.
-4. **[manual gate §1](docs/design/workplan/11-p2-manual-gate.md)'s anchor reads 1186 tests**, two phases
+4. **[manual gate §1](11-p2-manual-gate.md)'s anchor reads 1186 tests**, two phases
    stale. Left alone deliberately — an anchor records when a gate was walked and
-   moving it would claim a walk nobody made — but [manual testing §1](docs/design/workplan/05-manual-testing.md)
+   moving it would claim a walk nobody made — but [manual testing §1](05-manual-testing.md)
    re-anchors beside it, which is the honest repair.
 
 **And what it explicitly does not absorb**, so that the choice is visible rather
 than silent: the permissive corpus (person-blocked, and §3 step 6 records it as
 such), the four smaller P2-era defects in
-[manual gate §3.6](docs/design/workplan/11-p2-manual-gate.md), and the five should-be-tests in
-[manual gate §4](docs/design/workplan/11-p2-manual-gate.md). Each has a row and an owner in
-[manual testing §4](docs/design/workplan/05-manual-testing.md), which is what makes deferring them a decision.
+[manual gate §3.6](11-p2-manual-gate.md), and the five should-be-tests in
+[manual gate §4](11-p2-manual-gate.md). Each has a row and an owner in
+[manual testing §4](05-manual-testing.md), which is what makes deferring them a decision.
 
 ### 1.8 The log, and the rule that keeps it honest
 
-[P5 §0.3](docs/design/workplan/17-p5-implementation.md) wrote observation prompts for the run-up to
-this checkpoint and [§0.4](docs/design/workplan/17-p5-implementation.md) then recorded that
-*"§0.3's instruction has no receptacle"*. [playable log](docs/design/workplan/21-playable-log.md) is the
-receptacle, in [P2C log](docs/design/workplan/14-p2c-log.md)'s shape and record format.
+[P5 §0.3](17-p5-implementation.md) wrote observation prompts for the run-up to
+this checkpoint and [§0.4](17-p5-implementation.md) then recorded that
+*"§0.3's instruction has no receptacle"*. [playable log](21-playable-log.md) is the
+receptacle, in [P2C log](14-p2c-log.md)'s shape and record format.
 
-Two rules, both [P2C log](docs/design/workplan/14-p2c-log.md)'s and both load-bearing:
+Two rules, both [P2C log](14-p2c-log.md)'s and both load-bearing:
 
 - **`expected` before `observed`, written before investigating.** What a person
   thought would happen is not reconstructible once they know what did.
@@ -358,7 +356,7 @@ without one is on the built-in default forever.
 
 **Not the cast**, per §1.1, and worth restating because it was the tempting
 addition: the same form could have grown one in four lines, and
-[P7 §1.6](docs/design/workplan/23-p7-implementation.md) turns `cast` from a field into a channel.
+[P7 §1.6](23-p7-implementation.md) turns `cast` from a field into a channel.
 
 **The other half was failures nobody could see**, and it is the half
 [§0.3](#03-the-bar-for-pre-work-and-the-line-it-must-not-cross) most directly
@@ -432,7 +430,7 @@ because `snapshot` compared what got indexed and the disagreement was about
 what did not. Both producers now ask the same function, the refusal is a
 `file_error` row rather than a number nobody stored, and the snapshot reads that
 table. Its stated owner was `P2.7`, a stage that was never created — which is
-the dangling owner [manual testing §4.1](docs/design/workplan/05-manual-testing.md) opened on.
+the dangling owner [manual testing §4.1](05-manual-testing.md) opened on.
 
 **And step 8's two plumbing complaints, which were cheap and would otherwise
 have failed the walk for a reason the walker could not act on.** `Activation`
@@ -441,19 +439,19 @@ carries the sticky count, `reasonFor` spends it, and the effect list prints
 complaint — `delay` has no trace in the turn record — is a design gap and the
 step now asks it as one rather than as something to hunt for.
 
-**The five stale status lines are rewritten**, and [P2C](docs/design/workplan/12-p2c-first-real-run.md)
+**The five stale status lines are rewritten**, and [P2C](12-p2c-first-real-run.md)
 had none at all, which is worse than a stale one: a reader had to reconstruct
 from the stage records that four fifths of P2C never ran.
 
 **What the walker inherits, and what is already decided so nothing is argued
 mid-walk.** Steps 6, 8, 11 and 12 are amended. Step 6 is **person-blocked** and
 that is its outcome — the book is supplied by the walker or the step is
-deferred, and it is counted with [P4 §3](docs/design/workplan/16-p4-implementation.md) step 1 at
-[manual testing §3.4](docs/design/workplan/05-manual-testing.md), which wants the same book. Step 11's
+deferred, and it is counted with [P4 §3](16-p4-implementation.md) step 1 at
+[manual testing §3.4](05-manual-testing.md), which wants the same book. Step 11's
 reproduction half is **P6's** and there is no replay entry point to look for.
-Step 12 is **P7's**: [work plan §195](docs/design/workplan/01-work-plan.md)'s row moved,
-[P5 §1.4](docs/design/workplan/17-p5-implementation.md) is corrected, and
-[P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it — so a walker records it deferred
+Step 12 is **P7's**: [work plan §195](01-work-plan.md)'s row moved,
+[P5 §1.4](17-p5-implementation.md) is corrected, and
+[P7 §0.1](23-p7-implementation.md) carries it — so a walker records it deferred
 with an owner rather than failed, because a failed step is a defect and a
 deferred one is a plan.
 
@@ -489,23 +487,23 @@ a precise answer available to it either way.
 ### P6B.2 — Play
 
 The checkpoint. Unscripted, against a real imported library, over several
-sittings — [work plan §4.1](docs/design/workplan/01-work-plan.md)'s *stop and play with it*, and
-[P2C.3](docs/design/workplan/12-p2c-first-real-run.md)'s distinction: a scripted pass answers whether
+sittings — [work plan §4.1](01-work-plan.md)'s *stop and play with it*, and
+[P2C.3](12-p2c-first-real-run.md)'s distinction: a scripted pass answers whether
 a turn works, and this answers whether forty do.
 
 **What to watch for**, and it is written down because a session that watches for
 nothing produces a memory rather than a finding:
 
-- **The four hypotheses** ([work plan §4.1](docs/design/workplan/01-work-plan.md)) — is the record legible;
+- **The four hypotheses** ([work plan §4.1](01-work-plan.md)) — is the record legible;
   does hand-editing a card mid-session take; is one budgeter comprehensible
   under pressure; do inclusion reasons explain anything. The fourth is the one
   01 calls likeliest to be wrong.
-- **P5's four held-open questions** ([P5 §1.11](docs/design/workplan/17-p5-implementation.md), with
-  observation prompts already written at [§0.3](docs/design/workplan/17-p5-implementation.md)): the
+- **P5's four held-open questions** ([P5 §1.11](17-p5-implementation.md), with
+  observation prompts already written at [§0.3](17-p5-implementation.md)): the
   trim order, whether the per-book budget tier earns its keep, whether recursion
   depth needs a surface, and whether the keyword tester is the diagnostic or a
   consolation.
-- **P6's two** ([P6 §5](docs/design/workplan/18-p6-implementation.md)): which reply an edit changes,
+- **P6's two** ([P6 §5](18-p6-implementation.md)): which reply an edit changes,
   and whether the sibling affordance is enough to find a line abandoned twenty
   turns ago.
 
@@ -516,23 +514,23 @@ corpus behind — §1.6.
 
 ### P6B.3 — Triage
 
-[P2C §2.5](docs/design/workplan/12-p2c-first-real-run.md)'s five destinations, decided in advance
+[P2C §2.5](12-p2c-first-real-run.md)'s five destinations, decided in advance
 because afterwards every finding argues for its own importance: **stops the
 phase / fixed inside it / a gate correction / polish / P7 or the roadmap.**
 Nothing is allowed to have no home.
 
-Plus one piece of inherited bookkeeping: [P2C log](docs/design/workplan/14-p2c-log.md) holds fourteen
+Plus one piece of inherited bookkeeping: [P2C log](14-p2c-log.md) holds fourteen
 findings from P2C.0's smoke run under an empty *Triage* heading. They get homes
 too, or a recorded reason why not.
 
 **And the ledger is updated rather than left to go stale** —
-[manual testing §1](docs/design/workplan/05-manual-testing.md) gains P5's and PLAYABLE's rows in their walked
+[manual testing §1](05-manual-testing.md) gains P5's and PLAYABLE's rows in their walked
 state, and anything this phase defers gains a row with a name beside it in §4.
 That is the file's own standing rule, and this is the first phase that closes
 under it.
 
 *Ends at:* an empty log, six questions answered or re-deferred with reasons,
-[manual testing](docs/design/workplan/05-manual-testing.md) current, and [P7 §0.1](docs/design/workplan/23-p7-implementation.md) given
+[manual testing](05-manual-testing.md) current, and [P7 §0.1](23-p7-implementation.md) given
 the follow-up it asks for.
 
 ---
@@ -562,7 +560,7 @@ the follow-up it asks for.
    is the phase's most valuable possible output.
 10. **The log is empty**, because everything in it has a home.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** This phase is that line being paid off for
 the retriever, three phases late.
 
@@ -571,12 +569,12 @@ the retriever, three phases late.
 ## 4. Out of scope, deliberately
 
 **The cast panel and any session-settings surface.**
-[P7.2](docs/design/workplan/23-p7-implementation.md) owns them and [P7 §1.6](docs/design/workplan/23-p7-implementation.md)
+[P7.2](23-p7-implementation.md) owns them and [P7 §1.6](23-p7-implementation.md)
 turns `cast` into a channel. Seed sets a cast; the create form does not need to.
 
 **Changing a preset after creation.** No route exists, and adding one is a
 question about what a session's preset *is* — copied at creation today
-([P4 §1.9](docs/design/workplan/16-p4-implementation.md)), which P7's surface revisits.
+([P4 §1.9](16-p4-implementation.md)), which P7's surface revisits.
 
 **The permissive book corpus** — person-blocked with lead time (§1.5).
 
@@ -590,7 +588,7 @@ is the deliverable.
 
 ## 5. What not to report
 
-*The brief-substitute, and the longest section [P2C's](docs/design/workplan/13-p2c-brief.md) has for
+*The brief-substitute, and the longest section [P2C's](13-p2c-brief.md) has for
 a reason: a wrong "do not report" sends somebody past a real bug, and a wrong
 "this is broken" spends a sitting of a short phase.*
 
@@ -608,15 +606,15 @@ log its signal:
   provider; only an admin can, and that is P10's.
 - **No branch tree visualiser.** Siblings are a count and two arrows, and
   whether that is *enough* is one of the questions being asked
-  ([P6 §1.2](docs/design/workplan/18-p6-implementation.md)) — so report the judgement, not the
+  ([P6 §1.2](18-p6-implementation.md)) — so report the judgement, not the
   absence.
 - **No About surface beyond the version block**, no AGPL §13 source link:
   P10's and P11's.
 - **The workbench is a reader.** It holds no state and offers no force-fire;
-  that is deliberate ([P3](docs/design/workplan/15-p3-implementation.md)).
+  that is deliberate ([P3](15-p3-implementation.md)).
 
 **Report anyway, always:** anything that made you consult the source instead of
-the screen. That is [P2C.1](docs/design/workplan/12-p2c-first-real-run.md)'s signal and it is the one
+the screen. That is [P2C.1](12-p2c-first-real-run.md)'s signal and it is the one
 a second pass cannot produce, because a second pass is made by somebody who
 already knows.
 
@@ -634,7 +632,7 @@ to argue, the migration and `orphan-fts` tests are small, and the walk itself is
 eighteen steps against a running install.
 
 **P6B.2 is sittings, not days**, and it is the one part that cannot be
-compressed by working harder. [P2C §2.4](docs/design/workplan/12-p2c-first-real-run.md)'s box
+compressed by working harder. [P2C §2.4](12-p2c-first-real-run.md)'s box
 applies — a manual phase with no end stops when somebody gets bored, which
 correlates with nothing.
 
@@ -642,7 +640,7 @@ correlates with nothing.
 the one that decides whether the other three were work or entertainment.
 
 **The largest risk is that P6B.2 finds something structural**, and that is the
-entire point. [triage §5](docs/design/workplan/02-triage.md) contemplates PLAYABLE falsifying the core
+entire point. [triage §5](02-triage.md) contemplates PLAYABLE falsifying the core
 hypotheses as project-altering rather than as an in-flight patch — which is the
-argument for running it before [P7](docs/design/workplan/23-p7-implementation.md) publishes the
+argument for running it before [P7](23-p7-implementation.md) publishes the
 contract, rather than during.

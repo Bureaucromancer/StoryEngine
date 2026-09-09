@@ -1,14 +1,13 @@
 # 24 — P8 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](docs/design/workplan/23-p7-implementation.md), [P9](docs/design/workplan/25-p9-implementation.md),
-[P10](docs/design/workplan/26-p10-implementation.md) and [P11](docs/design/workplan/27-p11-implementation.md); to be
-revisited before the phase starts. [P7 §0](docs/design/workplan/23-p7-implementation.md) says what a
+[P7](23-p7-implementation.md), [P9](25-p9-implementation.md),
+[P10](26-p10-implementation.md) and [P11](27-p11-implementation.md); to be
+revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for, and it applies unchanged here. Format follows
-[P1](docs/design/workplan/07-p1-implementation.md); citation convention as
-[P4](docs/design/workplan/16-p4-implementation.md)'s.
+[P1](07-p1-implementation.md); citations follow the corpus convention.
 
-**P8 delivers**, from [work plan P8](docs/design/workplan/01-work-plan.md), two features that share the word
+**P8 delivers**, from [work plan P8](01-work-plan.md), two features that share the word
 *memory* and share one mechanism:
 
 - **Cross-session memory as an auto-maintained lorebook**
@@ -38,7 +37,7 @@ which was built, which is exactly why it belongs in the plan.
 summariser is a regeneration rather than lost history. That is the argument for
 shipping a simple version here rather than designing a good one first.
 
-**CI this phase establishes:** the [testing §1](docs/design/workplan/03-testing.md) invariant that has
+**CI this phase establishes:** the [testing §1](03-testing.md) invariant that has
 been waiting for a producer — *summaries shared across a fork are byte-identical
 to the parent's* — which is the chain constraint above expressed as a property
 rather than a paragraph. Plus the second real consumer of *no advisory block ever
@@ -48,14 +47,14 @@ appears in an effect-producing call* (§1.6).
 
 ## 0. What this document is, five phases out
 
-[P7 §0](docs/design/workplan/23-p7-implementation.md) states the shared answer and it is not
+[P7 §0](23-p7-implementation.md) states the shared answer and it is not
 restated here: collect the deferrals, name the decisions, hold the gate shape.
 Two things are specific to this one.
 
 **One claim in it is auditable today, and it audits clean.**
 `Layout.memoriesRoot(handle)` exists (`storage/layout.ts:321`) and **nothing
 calls it** — the directory is never created, which is what
-[P2C §5](docs/design/workplan/12-p2c-first-real-run.md) and [P2C brief](docs/design/workplan/13-p2c-brief.md) both record so a
+[P2C §5](12-p2c-first-real-run.md) and [P2C brief](13-p2c-brief.md) both record so a
 tester does not report it as a bug. §1.1 is written knowing that: the path
 helper is a lean, not a commitment, and §1.1 ends with *whichever wins,
 `memoriesRoot()` is either the answer or is deleted.* That is the right shape
@@ -64,7 +63,7 @@ early and defended late.
 
 **Everything else here waits on three phases rather than on time.** The rolling
 summary must arrive as [07 §5.1](../07-branching.md)'s content-addressed chain,
-which is P6's handoff and [P6 §4](docs/design/workplan/18-p6-implementation.md) names as the thing
+which is P6's handoff and [P6 §4](18-p6-implementation.md) names as the thing
 to re-read; memory books are lorebooks, so P5 owns the machinery this phase
 *consumes* rather than builds; and §1.5's spoiler defence is explicitly a P7
 dependency. A revisit that runs before those three have landed will re-derive
@@ -79,8 +78,8 @@ them rather than plan.
 is first.** The user layout ([03 §5](../03-data-model.md)) puts `memories/`
 **beside** `library/`, not inside it, and `Layout.memoriesRoot()` has existed
 since P1 with no caller and no directory ever created — recorded as P8's in
-[P2C §5](docs/design/workplan/12-p2c-first-real-run.md) and again in
-[P2C brief §3.3](docs/design/workplan/13-p2c-brief.md). The index's rebuild walks
+[P2C §5](12-p2c-first-real-run.md) and again in
+[P2C brief §3.3](13-p2c-brief.md). The index's rebuild walks
 `kindRoot(owner, schemaId)` under `library/` and nothing else, so a book under
 `memories/` is **unindexed, unsearchable and unaddressable** — while
 [08 §7](../08-cross-session-memory.md) asks for *a link to the memory book
@@ -96,7 +95,7 @@ Three ways out, and the phase must pick one before anything is extracted:
   content* becomes a marking rather than a location. **Lean.**
 - **`memories/` becomes a second indexed root**, with its own ingest branch. The
   separation is honest and the cost is real: the ingest path grows a second
-  shape, and [P5 §1.7](docs/design/workplan/17-p5-implementation.md)'s warning about delete sites
+  shape, and [P5 §1.7](17-p5-implementation.md)'s warning about delete sites
   applies again.
 - **Books in `memories/`, unindexed**, with a bespoke reader. Rejected on sight —
   it is a second representation of a lorebook, which is
@@ -152,7 +151,7 @@ hook's entrances ([04 §6.1a](../04-schemas.md)), a hidden channel, GM-only stat
 Filtering later is not equivalent, because the extraction has already written the
 sentence down.
 
-**All four of those things arrive in [P7](docs/design/workplan/23-p7-implementation.md).** So this
+**All four of those things arrive in [P7](23-p7-implementation.md).** So this
 defence cannot be built before P7 and must not be deferred past this phase — an
 extractor that ships without it is an extractor that has to be re-run over its
 own output later. The cheaper mitigation, warning at session creation when a new
@@ -172,7 +171,7 @@ silently inherits state from one the player may not remember. Memory blocks are
 `advisory: true` and inadmissible to evaluation steps, rule conditions and
 engine-computed updates.
 
-The good news is that this needs no new machinery: [testing §1](docs/design/workplan/03-testing.md)
+The good news is that this needs no new machinery: [testing §1](03-testing.md)
 already carries *no advisory block ever appears in an effect-producing call* as
 a property, with guidance as its first consumer. This phase gives it a second,
 and a second consumer is what turns a property test into a general rule.
@@ -190,12 +189,12 @@ deleted session is a moved folder rather than an erasure
 
 **Added 2026-08-30**, discharging §0's collecting job for the one document that
 had sent something here without this one knowing: this skeleton and
-[P4](docs/design/workplan/16-p4-implementation.md)'s amendment were written the same day on
+[P4](16-p4-implementation.md)'s amendment were written the same day on
 different branches.
 
 **Deferred here, and it is small:** Marinara's prompt sections carry a
 `chat_summary` marker among their ten marker types
-([P4 §1.5](docs/design/workplan/16-p4-implementation.md)). Nine of the ten map onto our slot sources
+([P4 §1.5](16-p4-implementation.md)). Nine of the ten map onto our slot sources
 or are refused outright; this one has no home until the summary chain exists,
 so an imported Marinara preset carrying it lands with that block recorded under
 *not yet importable* and the review naming this phase. **What the revisit owes
@@ -286,7 +285,7 @@ Sketch; expand on revisit.
 1. A long session assembles inside budget with the chain in place, and the
    workbench shows which summary links covered which turns.
 2. Fork at turn 300: the shared links are byte-identical to the parent's — the
-   [testing §1](docs/design/workplan/03-testing.md) property, green.
+   [testing §1](03-testing.md) property, green.
 3. Delete every summary and regenerate: the session still works and the story is
    unchanged. Derived means disposable, and this is the check that it is true.
 4. Session two with the same actor and persona recalls something from session
@@ -303,7 +302,7 @@ Sketch; expand on revisit.
 10. Delete an origin session: §1.7's chosen behaviour happens, and it is the
     behaviour the plan chose rather than the one the code happened to do.
 
-**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** Two toggles, a tri-state list and a
 persona-widening setting all arrive here, and [08 §7](../08-cross-session-memory.md)
 is where they live.
@@ -344,7 +343,7 @@ correct under branching — [07 §5.1](../07-branching.md)'s content-addressed
 chain is the form, and the reason it is content-addressed is that two lines of
 story must be able to share a prefix of summary without one of them being able
 to change what the other reads. That is a P6 property arriving one phase late,
-which is why [P6 §4](docs/design/workplan/18-p6-implementation.md) names this as its handoff and why
+which is why [P6 §4](18-p6-implementation.md) names this as its handoff and why
 this phase's revisit should read that section before its own §1.
 
 **What is smaller than it looks:** §1.6's advisory rule (*memories never
@@ -365,7 +364,7 @@ memory with the defence half-built has shipped the failure.
 - **Cadence** (§1.3) — one pass or two — which is a cost question and needs
   PLAYABLE's turn volumes plus P5's retriever budget to answer honestly.
 - **Whether extraction earns a model call at all.** Not currently framed as a
-  question, and it should be: [work plan P8](docs/design/workplan/01-work-plan.md) argues a simple version
+  question, and it should be: [work plan P8](01-work-plan.md) argues a simple version
   is safe because the record is the truth and the summary is convenience. If
   PLAYABLE shows the summary rarely reaching the prompt under budget pressure,
   the cheapest correct version of this phase is smaller than any stage list here

@@ -2,13 +2,13 @@
 
 **Status: position.** This document argues a stance about what a lorebook *is*;
 it defines nothing and changes no schema. The surfaces it calls for are specified
-in [10 §5.3](docs/design/10-ui-surfaces.md), [10 §11.2d](docs/design/10-ui-surfaces.md) and
-[10 §14.5](docs/design/10-ui-surfaces.md), and the work is sequenced as the document half of
-[P5](docs/design/workplan/17-p5-implementation.md). It sits here rather than folded into
-[03 §3](docs/design/03-data-model.md) because it is a claim about the format's *audience*
+in [10 §5.3](10-ui-surfaces.md), [10 §11.2d](10-ui-surfaces.md) and
+[10 §14.5](10-ui-surfaces.md), and the work is sequenced as the document half of
+[P5](workplan/17-p5-implementation.md). It sits here rather than folded into
+[03 §3](03-data-model.md) because it is a claim about the format's *audience*
 rather than about its shape, and because it cuts across the data model, the
 library and the exchange story at once — the same reason
-[08](docs/design/08-cross-session-memory.md) is its own document.
+[08](08-cross-session-memory.md) is its own document.
 
 ---
 
@@ -27,7 +27,7 @@ enough that a setting can be rearranged without tearing up a manuscript. The
 niche it occupies is the one between `setting-notes.txt` and *I suppose I have to
 install MediaWiki now*, and nothing else occupies it well.
 
-[03 §3](docs/design/03-data-model.md) already says the format has converged and should be
+[03 §3](03-data-model.md) already says the format has converged and should be
 taken essentially unchanged. That was argued on interchange grounds — every
 lorebook anyone has is shaped like this, so diverging costs import fidelity and
 buys nothing users can perceive. This document reaches the same conclusion from
@@ -45,7 +45,7 @@ a Setup is a starting configuration, a Package is a manifest. A Lorebook is a
 record with a corpus inside it — and the library, which addresses objects, is
 therefore off by one level for exactly this kind and no other.
 
-[10 §11.2c](docs/design/10-ui-surfaces.md) already wrote half of this, in order to justify
+[10 §11.2c](10-ui-surfaces.md) already wrote half of this, in order to justify
 entry-level import and export:
 
 > *"the book is the unit of play and frequently not the unit of authorship."*
@@ -68,7 +68,7 @@ the constraint is what keeps the pass safe:
 
 > **The reading surface must be legible to someone who never runs a model.**
 
-Which is [10 §2.1](docs/design/10-ui-surfaces.md)'s *no invented vocabulary* rule arriving
+Which is [10 §2.1](10-ui-surfaces.md)'s *no invented vocabulary* rule arriving
 from the opposite direction, and it lands in the same place: the surface shows
 the file, and helps by arranging it rather than by translating it.
 
@@ -106,14 +106,14 @@ need *showing*.
   model: both meet the entry independently.
 - **One file.** A much larger advantage than it sounds. *Here is the setting* can
   mean one file rather than a vault, a repository, or an account on something.
-  [03 §5.1](docs/design/03-data-model.md) already stores a book as one JSON document and
-  [10 §5](docs/design/10-ui-surfaces.md) already commits that export produces one file.
+  [03 §5.1](03-data-model.md) already stores a book as one JSON document and
+  [10 §5](10-ui-surfaces.md) already commits that export produces one file.
 - **Composability.** A scenario takes the subset of books it needs, and *this
   work is compatible with A and B but does not require C* is a useful thing to be
   able to say even if no model ever reads the files. The mechanism is already
   right: books do not point at books, consumers link books
-  ([25 B2](docs/design/25-open-questions.md)), and the cohesion is delivered as a view
-  ([10 §5.2](docs/design/10-ui-surfaces.md)) rather than bought with a schema.
+  ([25 B2](25-open-questions.md)), and the cohesion is delivered as a view
+  ([10 §5.2](10-ui-surfaces.md)) rather than bought with a schema.
 
 ### 2.1 The corollary about the machinery, and the misreading it prevents
 
@@ -125,13 +125,13 @@ to somebody reading a book.
 
 **This is not a demotion, and the distinction matters because the obvious
 misreading of this document is that the activation fields are unimportant.** They
-are the reason the format exists, and [03 §3.1](docs/design/03-data-model.md) is explicit
+are the reason the format exists, and [03 §3.1](03-data-model.md) is explicit
 that *each flag is a direct UI control* — which this document does not reopen and
-[10 §11.2d](docs/design/10-ui-surfaces.md) honours field by field. The claim is narrower and
+[10 §11.2d](10-ui-surfaces.md) honours field by field. The claim is narrower and
 concerns **prominence** only: a surface for reading a setting should lead with
 what the setting says, and a surface for tuning activation should lead with the
 tuning. Those are two jobs, and the library already knows how to hold both —
-[10 §2.1](docs/design/10-ui-surfaces.md)'s *browse and inspect are raw; editing is assisted*
+[10 §2.1](10-ui-surfaces.md)'s *browse and inspect are raw; editing is assisted*
 is the same split one level up.
 
 ---
@@ -142,14 +142,14 @@ is the same split one level up.
 
 An entry rendered as a titled article — index terms under the heading, a summary
 line set apart, the body in reading measure — is *exactly* the translation layer
-[10 §5.1](docs/design/10-ui-surfaces.md) withdrew. That section killed *Worlds* and *Games*
+[10 §5.1](10-ui-surfaces.md) withdrew. That section killed *Worlds* and *Games*
 as panel names for being friendlier than the schema, and concluded that the
 library's one job is *"saying plainly what the thing on disk is called."* A
 reading view is friendliness with a better haircut, and it deserves to be
 suspected on precisely those grounds.
 
 **The licence, and it is one sentence inside the same section that raises the
-objection** — [10 §2.1](docs/design/10-ui-surfaces.md):
+objection** — [10 §2.1](10-ui-surfaces.md):
 
 > *"Raw means no invented vocabulary, no hidden fields, no lossy summary — it
 > does not mean no information architecture."*
@@ -163,7 +163,7 @@ case for its own rule:
 The document already knew which kind would test the principle. It did not follow
 through, and this is the follow-through.
 
-**The rule, from which everything in [10 §5.3](docs/design/10-ui-surfaces.md) derives:**
+**The rule, from which everything in [10 §5.3](10-ui-surfaces.md) derives:**
 
 > **Raw is a claim about the words, not about the layout.** The reading view may
 > re-arrange, and it may not re-word.
@@ -184,7 +184,7 @@ make differently:
 
 And one boundary that reads like a violation and is not: **content may be clamped
 with an expand.** A clamp is a scroll boundary, not a lossy summary;
-[10 §2.1](docs/design/10-ui-surfaces.md) forbids rewriting, not pagination. Said out loud
+[10 §2.1](10-ui-surfaces.md) forbids rewriting, not pagination. Said out loud
 because it is the first thing a careful reader of that section would challenge.
 
 **The cost, stated.** The result is less handsome than the *EPUB for fictional
@@ -196,7 +196,7 @@ model, and it is the right price.
 
 ## 4. The schema verdict: ~~no changes~~ one change, and it is recorded
 
-> **Overridden once, deliberately, by [14](docs/design/14-writing-samples.md).**
+> **Overridden once, deliberately, by [14](14-writing-samples.md).**
 > `Lorebook.writingSamples` was added after this section refused it. The
 > override is written here rather than only there because §4.2 below asks that
 > refusals be recorded with their reasons "so that they get re-checked rather
@@ -223,10 +223,10 @@ model, and it is the right price.
 The schema is currently *ahead* of the interface by eleven fields that ship,
 validate, round-trip, and that **nothing reads as the field it is**:
 
-| Field | Reader today | Reader once [10 §5.3](docs/design/10-ui-surfaces.md) exists |
+| Field | Reader today | Reader once [10 §5.3](10-ui-surfaces.md) exists |
 |---|---|---|
 | `Lorebook.description` | none | the book's header |
-| `Lorebook.tags` | none | the panel's filter — its documented consumer ([04 §5](docs/design/04-schemas.md)) |
+| `Lorebook.tags` | none | the panel's filter — its documented consumer ([04 §5](04-schemas.md)) |
 | `Lorebook.enabled` | none | a panel badge; an entry's reason for being off |
 | `Lorebook.primaryMediaId` | none | the library card's picture — its documented consumer |
 | `Lorebook.folders` | none | the tree, and the gate panel |
@@ -239,7 +239,7 @@ validate, round-trip, and that **nothing reads as the field it is**:
 
 **The pedantic objection, and it is worth answering because it is true.** Every
 field in that table *is* on screen today, inside the serialised object the detail
-page prints ([polish §2](docs/design/workplan/06-polish.md)'s *as stored*). That is not a
+page prints ([polish §2](workplan/06-polish.md)'s *as stored*). That is not a
 reader and the distinction is the whole point: a JSON dump displays a field
 without knowing the field exists, so it cannot filter on `tags`, cannot say an
 entry is off because its folder gate is, and cannot make `keys` clickable. It
@@ -252,8 +252,8 @@ override above; it proposed none, and exactly one was added later against it. A
 pass that added one while eleven went unread would be buying machinery to avoid
 building a surface, and that remains the test any *next* field has to pass. It is also the advice the idea arrived with — *do not invent some grand
 new schema to accomplish it* — and it agrees with this project's own precedent:
-[03 §3.4](docs/design/03-data-model.md) removed `category` rather than renaming it, on the
-grounds that `tags` already did the job openly, and [04 §5](docs/design/04-schemas.md) keeps
+[03 §3.4](03-data-model.md) removed `category` rather than renaming it, on the
+grounds that `tags` already did the job openly, and [04 §5](04-schemas.md) keeps
 a *deliberately absent* list precisely so that absences stay decisions rather
 than oversights.
 
@@ -262,7 +262,7 @@ than oversights.
 Each of these looks like a missing field. None of them is.
 
 **A stable anchor for an entry deep link.** `LoreEntry.id` exists, but
-[04 §5.2](docs/design/04-schemas.md) says it *"is unique within one book and carries no
+[04 §5.2](04-schemas.md) says it *"is unique within one book and carries no
 meaning beyond it"*, and that an importer may renumber freely. So a link to an
 entry survives edits and does not survive a re-import. *Not a gap* — this is
 exactly the property a session-local id has, the route already degrades an
@@ -275,7 +275,7 @@ order. A reading list sorted by it would be sorted by something that has nothing
 to do with reading, and the tempting fix is a second field. *Not a gap* — the
 array is the order and the array is the file. A `displayOrder` creates two orders
 and a synchronisation problem between them, which is
-[00 §2.8](docs/design/00-stance.md)'s derived-data-as-truth failure in miniature. The reading
+[00 §2.8](00-stance.md)'s derived-data-as-truth failure in miniature. The reading
 view uses array order and offers injection order as an explicitly labelled sort.
 
 **`LoreEntry.description` gaining a second consumer.** Its docstring reserves it
@@ -286,7 +286,7 @@ that eventually reads it wants exactly that. A field nobody fills is a field tha
 does not work when its real consumer arrives.
 
 **A non-shareable mark for memory books.**
-[08 §2](docs/design/08-cross-session-memory.md) requires that an auto-maintained memory
+[08 §2](08-cross-session-memory.md) requires that an auto-maintained memory
 lorebook be *"marked non-shareable by default"*, with a warning on any export
 path, and no field carries that today. **This is the one place a field may
 genuinely be needed, and it is not this document's to open** — it belongs to the
@@ -307,7 +307,7 @@ a set of them — *IDT with the airborne carrier*, *IDT without*. It loses three
 ways. It duplicates folders, which already are the mechanism. A named toggle set
 is a fact about how *you* like this book rather than a fact about the book, which
 is precisely the portability argument that moved state out of entries in
-[03 §3.3](docs/design/03-data-model.md) — a lorebook you export must not carry your
+[03 §3.3](03-data-model.md) — a lorebook you export must not carry your
 preferences any more than it carries your playthrough. And it is machinery
 proposed in place of a rendering that does not exist yet: **build the folder
 panel, then find out whether anybody wants the field.**
@@ -315,11 +315,11 @@ panel, then find out whether anybody wants the field.**
 **`requires` or `compatibleWith` on the book.** The composability property in §2
 invites a declared compatibility list. It loses because books do not point at
 books by design, and reopening that reopens the ownership question
-[25 B2](docs/design/25-open-questions.md) closed. It also loses on its own terms: a declared
+[25 B2](25-open-questions.md) closed. It also loses on its own terms: a declared
 list **decays silently** as both books change, where a derived one cannot. The
 honest version is co-occurrence — which other books appear beside this one in the
 same Treatment's or Package's links — which is a query rather than a field, and
-is specified in [10 §5.3](docs/design/10-ui-surfaces.md). The escape hatch already exists
+is specified in [10 §5.3](10-ui-surfaces.md). The escape hatch already exists
 besides: `tags`, `description` and `metadata` all travel, and *works with IDT
 Core* as a tag is exactly what tags are for.
 
@@ -328,12 +328,12 @@ Core* as a tag is exactly what tags are for.
 ## 5. What this is not
 
 - **Not an elevation above the library.** Lorebooks stay one kind among six, in
-  the panels [10 §5.1](docs/design/10-ui-surfaces.md) named for the kinds, reached through
+  the panels [10 §5.1](10-ui-surfaces.md) named for the kinds, reached through
   the one detail route. No second surface, no mode, no promotion in the
   navigation. Everything here happens inside the library.
 - **Not a wiki.** No page hierarchy, no namespaces, no link maintenance, no
   templates — and specifically no transclusion, since an entry copied between
-  books forgets where it came from ([10 §11.2c](docs/design/10-ui-surfaces.md)). The appeal
+  books forgets where it came from ([10 §11.2c](10-ui-surfaces.md)). The appeal
   of the format is that it stops short of wiki-ness, and a reader that
   reintroduces it has spent the thing it was built to read.
 - **Not a second store.** The reading view renders `lorebook.json` and nothing
@@ -346,7 +346,7 @@ Core* as a tag is exactly what tags are for.
 - **Not a rendering that predicts behaviour.** Nothing in the reading view may
   say *will fire*. It describes configuration; only the assembler describes
   behaviour, and the distance between those two is the whole subject of the
-  workbench ([10 §3](docs/design/10-ui-surfaces.md)).
+  workbench ([10 §3](10-ui-surfaces.md)).
 
 ---
 
@@ -354,11 +354,11 @@ Core* as a tag is exactly what tags are for.
 
 Every test here is cheap, and all four run against the imported library rather
 than against fixtures — which means none can be run before
-[P4](docs/design/workplan/16-p4-implementation.md), ~~and all of them should be run shortly
+[P4](workplan/16-p4-implementation.md), ~~and all of them should be run shortly
 after~~.
 
 > **Amended 2026-08-30: "shortly after P4" was written expecting P4 to produce a
-> corpus, and it will not.** [P4 §1.2](docs/design/workplan/16-p4-implementation.md)
+> corpus, and it will not.** [P4 §1.2](workplan/16-p4-implementation.md)
 > established that no used SillyTavern or Marinara install is on hand, so P4
 > imports fixtures that were synthesised for it. Running these counts over those
 > fixtures would confirm whatever the fixtures were built to contain — the
@@ -369,7 +369,7 @@ after~~.
 > that is a weaker position than this section wanted: the warrant in §2 stays
 > unfalsified for longer than intended, and this document should be read as
 > holding an untested premise rather than a tested one. Acquiring a library is a
-> named prerequisite of [P5 §1.6](docs/design/workplan/17-p5-implementation.md)'s document
+> named prerequisite of [P5 §1.6](workplan/17-p5-implementation.md)'s document
 > half — person-blocked, with lead time — and the two counts run when it lands.
 > The instrument itself is not deferred: P5.3 writes the script and runs it over
 > whatever is to hand, recording what it ran against, so the real reading has a
@@ -385,7 +385,7 @@ after~~.
   *portable toggles* is a StoryEngine aspiration rather than an observed
   practice, and the folder gate panel is speculative rather than overdue.
 - **Watch whether people still open the JSON.** *As stored*
-  ([polish §2](docs/design/workplan/06-polish.md)) is the thing the reading view exists to
+  ([polish §2](workplan/06-polish.md)) is the thing the reading view exists to
   replace. If it stays what people reach for, the view did not do its job.
 - **Watch what within-book search gets used for.** If it is overwhelmingly a way
   to find an entry in order to *edit* it, then the value was mis-sited and this
