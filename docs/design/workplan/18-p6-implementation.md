@@ -1,13 +1,32 @@
 # 18 — P6 implementation plan
 
-**Status: ~~skeleton~~ ~~startable~~ ~~in progress~~ landed, and merged into
-`main` 2026-09-03 at `a6f78c3`; the exit gate is unwalked.** Every stage in §2
+**Status: ~~skeleton~~ ~~startable~~ ~~in progress~~ ~~landed; the exit gate is
+unwalked~~ landed, merged into `main` 2026-09-03 at `a6f78c3`, and **closed
+2026-09-09** with its exit gate standing as
+[sitting J](05-manual-testing.md).** Every stage in §2
 reads Landed. §3 marks steps 2 through 14 as covered by tests written with the
 stages that satisfy them; what still wants a person against HEAD is step 1, the
 wall-clock half of 14, and the demo that defines done — and PLAYABLE, which §5
 names as the gate on §1.1, §1.2 and §1.8, has not run. *(Written 2026-09-05, at
 P6A's close, because this line still said* in progress *two days after the
-merge.)* Opened 2026-09-02 on branch
+merge.)*
+
+**What the close hands over, and the one answer it collects on the way.**
+[Sitting J](05-manual-testing.md) is two items and one prerequisite: step 1
+against a real tree, and 14 measured on a clock rather than asserted. Both
+want a session two hundred turns deep (R9), and **only
+[G](05-manual-testing.md) has ever produced one** — which is why J is written
+to be walked *in the same sitting as G* rather than scheduled against a session
+somebody would first have to build on purpose. That is also why this gate is
+standing rather than critical under
+[manual testing §0](05-manual-testing.md): it is not cheaper today than in
+November, so clause (ii) has nothing to say about it.
+
+**Collected at the close, with no new walking.** §5 asks whether the sibling
+affordance is enough, and [F-06](21-playable-log.md) answers it — a recorded
+judgement from a person using the thing, which is the only kind of evidence
+that question admits. Its two neighbours are not answered: what *N* should be,
+and which reply an edit changes, both stay open and both are still §5's. Opened 2026-09-02 on branch
 `p6` at `cb19ab5`, main's tip after the P5 merge, with §0.1a as the opening
 audit: nothing it cites has moved — the engine diff since `347815e` is one
 comment in `turns/preview.ts` — so a fourth audit would have re-read a day-old

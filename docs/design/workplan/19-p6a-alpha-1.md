@@ -1,8 +1,9 @@
 # 19 — P6A implementation plan: Alpha 1
 
-**Status: ~~plan~~ ~~in progress~~ ~~built, unwalked~~ landed; the phase closes
-on its merge into `main`, and the exit gate is the Alpha 1 cut, which waits on a
-person with Docker.** All five stages in §2 are landed on branch `p6a` at
+**Status: ~~plan~~ ~~in progress~~ ~~built, unwalked~~ landed; the phase closed
+on its merge into `main`, and its exit gate stands as
+[sitting I](05-manual-testing.md) — steps 3 through 12, which want a person
+with Docker.** All five stages in §2 are landed on branch `p6a` at
 `90b282c`, and the full gate is green there: typecheck, lint, format, the suite
 twice (2581 tests, 2 skipped), `test:gate` and `test:fixture-pair`. The merge is
 the close, as it was for P5 and P6 — `--no-ff`, so the stage commits this
@@ -13,6 +14,16 @@ in from, and **no image has been built**, because there was no daemon on the
 machine that wrote it. §3 is annotated step by step with what the suite proves
 and what only the container can, so that whoever walks it starts from the record
 rather than from the list. *(Status written 2026-09-05, at the close.)*
+
+**This document set the precedent the project has now made a rule, 2026-09-09.**
+The line above — *the phase closes on its merge into* `main`*, and the exit
+gate waits on a person with Docker* — was written as an exception, and it is
+now [manual testing §0](05-manual-testing.md)'s ordinary case. What the rule
+adds is the half this document left implicit: **the waiting part needs a named
+sitting**, or *waits on a person* is indistinguishable from *nobody*. It is
+[sitting I](05-manual-testing.md), it wants R8, and the first install on
+2026-09-07 has already partly walked it — which is the other half, that a
+standing sitting accumulates results between phases instead of waiting for one.
 
 *Alpha 1 was cut 2026-09-06: the tag `v1.0.0-alpha.1`, on `8dcd155` after one
 move — its first commit's Dockerfile asked for corepack, which the base no

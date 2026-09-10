@@ -129,12 +129,22 @@ running" becomes "manual testing, accumulating."
 
 ---
 
-## 0. Where this stands, 2026-09-08
+## 0. Where this stands, 2026-09-09
 
-**Thirty-six items walked, forty-five with a result, forty-three still blank**,
-across ten sittings of which three are complete and one is half done. **No gate
-in this project's history has ever been closed by a person.** P1's is closed by
-CI and is the only row in §6 with nothing owed.
+**One hundred and ten items across eleven sittings; forty-nine have a result
+and sixty-one are blank.** Of the forty-nine: 37 `PASS`, 4 `PART`, 4 `BLOCKED`,
+3 `AUTO`, 1 `DEFERRED`, and **no `FAIL`** — which says less than it looks like,
+because a `FAIL` needs a walk. Two sittings are swept clean (A, C); B stands at
+six of nine.
+
+**No gate in this project's history has ever been closed by a person.** P1's is
+closed by CI and is the only row in §6 with nothing owed. **Three more phases
+closed on 2026-09-09 without theirs being walked** — P5, P6 and P6A, under the
+model in the section above — and the twenty-two steps that made them close
+arrived here as F, J and I. **The item count grew by twenty-two on the day the
+model was adopted**, and that number is the model on trial: if it is bigger
+again next quarter with the same forty-nine results under it, the answer is to
+say so here rather than to add a twelfth sitting.
 
 The walk so far has produced six findings in [playable log](21-playable-log.md) and eleven
 graded refinements in [refinements](22-walkthrough-refinements.md), and its sharpest
@@ -541,6 +551,32 @@ and a setup token nobody could find. All three are fixed.
 (restart with the volume), step 10 (the stamp refusing an older build), and step
 12 (an unauthenticated pull failing).
 
+**The steps, as rows, because [P6A](19-p6a-alpha-1.md) closed on 2026-09-09 and
+handed them here.** A sitting that is only prose has no cell to write in, so
+nothing it half-answers can be recorded and nothing can visibly drain — which
+is the failure [§0](#the-two-tier-gate)'s third honesty condition names. These
+are [P6A §3](19-p6a-alpha-1.md) steps 3–12 verbatim; **the gate document is not
+edited**, and the results below are this sheet's, not its.
+
+| # | Do ([P6A §3](19-p6a-alpha-1.md)) | Clears | Result |
+|---|---|---|---|
+| **I1** | **Fresh container, no volume.** Comes up reachable on the mapped port with no prior state. | P6A 3 | **PART** — came up 2026-09-07; appdata was root-owned, fixed |
+| **I2** | **The UI is served.** The mapped port serves the client rather than a 404. | P6A 4 | **PASS**, 2026-09-07 |
+| **I3** | **Refusal before setup.** Every route but setup refuses until setup has run. | P6A 5 | |
+| **I4** | **The token is required and checked.** Setup with no token fails; with the right one succeeds. | P6A 6 | **PART** — walked 2026-09-07; the token was unfindable, fixed |
+| **I5** | **A turn, from another machine.** Sign in from a host that is not the container's and play. | P6A 7; R5 | |
+| **I6** | **Identity.** The running server reports a version and commit matching the image. | P6A 8 | |
+| **I7** | **Restart with the volume.** Stop, start again against the same volume, and nothing is lost. | P6A 9 | |
+| **I8** | **The stamp refuses.** A build older than the volume's stamp declines to open it. | P6A 10 | |
+| **I9** | **The template installs.** On unraid, with a registry credential configured. | P6A 11 | **PART** — installed 2026-09-07; the icon cannot exist while private |
+| **I10** | **The package is private.** An unauthenticated `docker pull` fails. | P6A 12 | |
+
+**Three of the ten carry a `PART` from the same afternoon, and all three
+findings are fixed** — so re-walking I1, I4 and I9 against a current image is
+the cheapest thing in this file and turns three halves into three results.
+**I2 is the only outright `PASS`**, which is worth saying plainly: one install
+on one host has confirmed one step of thirteen.
+
 **Answers:** whether the artifact this project cuts is installable by somebody
 who is not its author. **Unblocks:** [P10.0](26-p10-implementation.md), which
 re-verifies this path against an artifact it inherits rather than one it built.
@@ -553,6 +589,19 @@ depth in a time a person would accept* — deliberately not a CI assertion,
 because a threshold on a busy runner is a flake waiting to happen.
 
 **Do this in the same sitting as G**, while a deep session exists.
+
+| # | Do ([P6 §3](18-p6-implementation.md)) | Clears | Result |
+|---|---|---|---|
+| **J1** | **Branch from a message two hundred turns back**, in one action, with the state at the fork correct. | P6 1; R9 | |
+| **J2** | **Reconstruct at that depth in a time a person would accept.** A clock, not an assertion — a threshold on a busy runner is a flake waiting to happen, which is why the suite covers the other half of 14 and not this one. | P6 14, wall-clock half; R9 | |
+
+**Two rows, and [P6](18-p6-implementation.md) closed on 2026-09-09 with both of
+them blank.** They are here rather than in the phase document for the reason
+[§0](#the-two-tier-gate) gives: neither is cheaper today than in November, so
+neither meets clause (ii), and a phase held open on them is a phase that does
+not close. What makes that safe rather than convenient is R9 — **only G has
+ever produced a session this deep**, so the honest schedule for J is *the
+afternoon G happens*, and the honest state until then is blank.
 
 **Answers:** whether the snapshot cache earns its complexity under real depth.
 **Unblocks:** [P6 §5](18-p6-implementation.md)'s snapshot-interval question and
@@ -643,16 +692,19 @@ a claim nobody made.*
 | **P2C** | 4 stages | P2C.0 only | **P2C.1**, 2026-09-08 | .2 is A–D, .3 is G, .4 is the triage. The boundary has since been crossed by ordinary use; what was never done is *capture* |
 | **P3** | 15 | most | **steps 1–10**, 2026-09-08, plus one gate correction | D11–D20. Step 12 is PLAYABLE's fourth hypothesis wearing a step number |
 | **P4** | 15 | most | — | E. Step 1 wants R1 |
-| **P5** | 18 | partly | — | F. Step 6 is person-blocked on R1; step 12 is deferred to P7 |
-| **P6** | 14 | steps 2–14 | **unwalked** | J — step 1 and the wall-clock half of 14 |
-| **P6A** | 13 | 1, 2, 13 partly | **steps 3–12 unwalked** | I. Partly walked 2026-09-07 by the first install |
+| **P5** | 18 | 14, 17, 18 — §5 | **none; closed 2026-09-09 anyway** | **F**, and the criterion returned an empty critical list because clause (ii) had expired seven days and four phases ago. Step 6 is person-blocked on R1; step 12 is P7's |
+| **P6** | 14 | steps 2–14 | **none; closed 2026-09-09** | **J**, two rows, both wanting R9 — and only G has ever produced one. §5's sibling question closed at the same time on [F-06](21-playable-log.md), a recorded judgement rather than a walk |
+| **P6A** | 13 | 1, 2, 13 partly | **1 walked; closed 2026-09-09** | **I**, now ten rows rather than a paragraph: one `PASS`, three `PART` from the first install with all three findings fixed, six blank. It set the precedent §0 made a rule |
 | **P6B** | 10 | **6, 7** — §5 | **K, pending** | **The first gate to split under [§0](#the-two-tier-gate).** Steps 1–5, 9 and 10 are sitting **K**, the critical list, and the phase does not close until they have results. Step 8 is P5's eighteen wearing P6B's number — criterion (i) — and is **F** |
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
 | **P7 … P11** | 10 / 10 / 15 / 10 / 10 | — | not yet opened | **55 person-walked steps still to arrive.** P7, P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim |
 
 **Two things this table makes plain and no single document did.** Every gate
-from P3 onward is unwalked, and each phase document says so about itself while
-none says it about the sequence. And **the walks are not independent**: P3 step
+from P3 onward is unwalked — and until this table existed, each phase document
+said so about itself while none said it about the sequence. **Saying it about
+the sequence is what produced [§0](#the-two-tier-gate)**: five in a row is not
+five oversights, it is a rule that does not work. And **the walks are not
+independent**: P3 step
 12, P4 step 1, P5 step 6, P6 step 1 and PLAYABLE's four hypotheses all want a
 real imported library and a long session played by a person. One arrangement
 answers five obligations.

@@ -988,9 +988,13 @@ reporting. Now testable against P4's real library rather than fixtures.
 **Demonstrable:** the workbench showing exactly which entries fired, why, what
 they cost, and what the budget dropped.
 
-*Built and merged (`a27be5b`). The exit gate is unwalked, and
-[P5 §0.5](17-p5-implementation.md) says what walking it would meet — including
-that the browser still has no way to choose a session's lorebooks.*
+*Built and merged (`a27be5b`), and **closed 2026-09-09 with its exit gate
+unwalked** — the eighteen steps stand as
+[manual testing sitting F](05-manual-testing.md), which is what the two-tier
+gate does with a gate whose moment has passed.
+[P5 §0.5](17-p5-implementation.md) says what walking it would have met —
+including that the browser still had no way to choose a session's lorebooks,
+which [P6B.0](20-p6b-playable.md) then fixed without the walk having happened.*
 
 ### P6 — The turn tree
 
@@ -1005,9 +1009,12 @@ Branching, rewrite/reroll, the RNG tape, sibling navigation.
 built after it inherits the behaviour for free. Built after modes, it is a
 migration.
 
-*Built and merged (`a6f78c3`). [P6 §3](18-p6-implementation.md) marks what the
-suite covers; the demo that defines done, and the three questions §5 there hands
-to PLAYABLE, wait on a person.*
+*Built and merged (`a6f78c3`), and **closed 2026-09-09**.
+[P6 §3](18-p6-implementation.md) marks what the suite covers; what it does not
+is two rows — a branch two hundred turns back and a clock on the
+reconstruction — standing as [sitting J](05-manual-testing.md), both waiting on
+a session that only a long play produces. Of §5's three questions for PLAYABLE,
+one is answered: the sibling affordance, at [F-06](21-playable-log.md).*
 
 ### P6A — Alpha 1
 
@@ -1053,7 +1060,11 @@ state at all, and the running build able to name the commit it came from.
 run — the first found that the base no longer ships corepack. The
 demonstration above is still a person's: pull, token, admin, a session, from a
 machine with Docker; [P6A §3](19-p6a-alpha-1.md) says what the suite and the
-workflow have proved of it. Alpha 2 followed on 2026-09-07.*
+workflow have proved of it. Alpha 2 followed on 2026-09-07, and alpha 3 on
+2026-09-08. **The phase closed on its merge — the precedent the project made a
+rule on 2026-09-09** — and steps 3 through 12 stand as
+[sitting I](05-manual-testing.md), where the first install has already turned
+three of them into halves.*
 
 ### P6B — The close-out, and the first real play
 

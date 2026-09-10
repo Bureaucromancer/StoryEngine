@@ -1,7 +1,10 @@
 # 17 — P5 implementation plan
 
-**Status: ~~plan~~ landed, and merged into `main` 2026-09-02 at `a27be5b`; the
-phase does not close, and §0.5 is why.** Every stage in §2 reads Landed. §0.5 is
+**Status: ~~plan~~ ~~landed; the phase does not close~~ landed, merged into
+`main` 2026-09-02 at `a27be5b`, and **closed 2026-09-09** with its exit gate
+standing as [sitting F](05-manual-testing.md) — nine of its eighteen steps
+still blank and a name beside every one of them.** Every stage in §2 reads
+Landed. §0.5 is
 the close-out audit: the gate has never been walked, and it names what a walk
 would have met on the day — among them the retriever half unreachable through
 the product, because nothing in the client selects a lorebook for a session.
@@ -13,8 +16,8 @@ builds, and the whole path was checked against a real server rather than only in
 jsdom. The **[AWAITS PLAYABLE]** questions are still open, because PLAYABLE
 still has not run.
 
-**What holds this phase open, as of 2026-09-07, is now exactly two things and
-they are both a person's.** [P6B.1](20-p6b-playable.md) discharged §0.5's list:
+**What held this phase open, as of 2026-09-07, was exactly two things and both
+were a person's.** [P6B.1](20-p6b-playable.md) discharged §0.5's list:
 six silent defects fixed with tests that redden without them, the four
 contradictions settled and recorded, and steps 6, 8, 11 and 12 amended to ask
 what is actually being asked. What is left is **the walk itself** — eighteen
@@ -23,7 +26,30 @@ four [AWAITS PLAYABLE] questions**, which want [P6B.2](20-p6b-playable.md). Two
 of the eighteen already have their answers written down: step 6 is
 person-blocked on a corpus with lead time ([manual testing §3.4](05-manual-testing.md)), and
 step 12 is deferred to P7 with the row moved and the receiving document told.
-Neither is a failure and neither is a blank. Audited 2026-08-30 at `09ea758`, re-audited
+Neither is a failure and neither is a blank.
+
+**Why it closes anyway, 2026-09-09, and what the close does not claim.** The
+project adopted the two-tier gate ([manual testing §0](05-manual-testing.md)):
+a phase closes on a small **critical list** walked now, and its remainder
+extends the standing list. **Applied to P5 the criterion returns an empty
+critical list**, and that is the criterion working rather than being waived —
+clause (ii) asks whether a wrong answer *compounds from here*, and P5 merged a
+week and four phases ago. Whatever its eighteen steps would have caught cheaply
+has already been built on; six of the defects they were meant to catch,
+[P6B.1](20-p6b-playable.md) caught by reading the code instead. The moment
+those steps were worth holding a phase for has passed, and pretending otherwise
+is what kept this document saying *does not close* through two later merges.
+
+**So the close is a statement about scheduling, not about evidence.** The
+eighteen steps are unwalked, they are [sitting F](05-manual-testing.md), and F
+is in a queue rather than behind a phase boundary nobody was going to cross.
+Six of them are cheap and get walked with the lore sitting; step 6 is
+person-blocked on R1 and step 12 belongs to P7. The **[AWAITS PLAYABLE]**
+questions stay open and marked, because closing them now would be inventing
+evidence and a phase can close with marked questions on it. **What this line
+must never be read as saying is that P5 was verified.**
+
+Audited 2026-08-30 at `09ea758`, re-audited
 2026-08-31 after P4's own audit closed, and re-audited again at `12a28d9` on the
 day the phase opened — see §0.4, which corrects §1.3, §1.7 and §1.8, and then
 §0.5. *(This status line was written 2026-09-05, at P6A's close; it had said*
@@ -507,6 +533,13 @@ says is worth less. If it has not, the file is worth making before it does.
 
 ### 0.5 The close-out audit — 2026-09-02, at `a01e2d8`, and the phase does not close
 
+*The heading is the date's claim and stays as written. **The phase closed on
+2026-09-09** — see the status line, and
+[manual testing §0](05-manual-testing.md) for why an audit like this one now
+produces a standing sitting rather than an open phase. What follows held P5
+open for seven days and was right to; what it could not do was get itself
+walked.*
+
 Every stage reads Landed and the suite is green: 2343 tests, plus `test:gate`
 and `test:fixture-pair`. **That is not the same as the phase being done, and this
 section is the difference.** Ten auditors were run over the gate, the stage
@@ -926,7 +959,7 @@ What survives, and what does not:
   *Corrected at §0.4:* “keyed by the object they produced” holds for a standalone
   book and not for a card-carried one, which is the common case — that row is
   keyed to the **actor**, and two of the three import routes record no row at
-  all. Splitting `#card` into two item rows is the honest fix and is P5’s.
+  all. Splitting `#card` into two item rows is the honest fix and is P5's.
 - **What is left is the surface**, which was always the interesting half: which
   of a book's notes belong on the page, where, and how an entry-level note finds
   its entry. `importNotesFor` answers per *object*; an entry-level fact is inside
@@ -962,10 +995,10 @@ P5 opens, this stage is *verify and move on*, and the document half starts where
 
 *Checked, at the opening — §0.4:* **it has not landed, and this stage is build.**
 The detail page is the header, a seven-row metadata list and `AsStored`; the only
-by-field rendering in the repository is the actor editor’s hand-written `<Field>`
+by-field rendering in the repository is the actor editor's hand-written `<Field>`
 elements, and no client file imports a schema object at all. The concurrent
 branch paid the ownership half of the companion clause and nothing else, so the
-`actors` half of the Edit gate is still this stage’s too.
+`actors` half of the Edit gate is still this stage's too.
 
 ### 1.10 The regex timeout is the retriever's first task, and two other things move with it
 
@@ -1305,7 +1338,7 @@ reintroduces F19 and [polish §4](06-polish.md) says so.
 
 **And “the panel” presumes a panel** — [polish §4](06-polish.md) has not landed,
 so the library is still one merged table with a kind filter (§0.4). This stage
-builds the Lorebooks panel as the **first** of that item’s six, on its own
+builds the Lorebooks panel as the **first** of that item's six, on its own
 *shared machinery, per-kind surfaces* rule, and leaves the other five and the
 all-kinds preference to it. Decided here rather than discovered, because the
 alternative — a lorebook-shaped detour inside the merged table — is the shape
