@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Accounts } from './auth/accounts.js';
 import { Layout } from './storage/layout.js';
+import { tempRoot } from './test-server.js';
 
 /**
  * The command line, as a person types it — F21 and F24.
@@ -77,7 +78,9 @@ async function run(argv: string[], stdin = ''): Promise<RunResult> {
 let dataDir: string;
 
 beforeEach(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), 'se-cli-'));
+  // F26: the CLI resolves what it is given, so the two sides have to start
+  // from the same string — see `tempRoot`.
+  dataDir = await tempRoot('se-cli-');
 });
 
 afterEach(async () => {

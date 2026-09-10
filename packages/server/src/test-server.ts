@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,6 +25,27 @@ import { Layout } from './storage/layout.js';
  * blunt: *do not mock the filesystem* — the storage layer is the thing under
  * test.
  */
+
+/**
+ * A temporary directory whose path is the one the filesystem actually uses.
+ *
+ * **This is F26, at its source rather than at one of its symptoms.** `mkdtemp`
+ * returns `tmpdir()` with a suffix, and `tmpdir()` is whatever `TMP` says. On
+ * the GitHub Windows runner `TMP` holds the **8.3 alias** —
+ * `C:\Users\RUNNER~1\AppData\Local\Temp` — while every path the server
+ * resolves comes back long, as `C:\Users\runneradmin\...`. A test that
+ * compares one against the other passes on a developer machine and fails on the
+ * runner, which is the shape of bug that is only ever seen in CI.
+ *
+ * `TestServer.dataDir` already answers this for a server built here. **Use this
+ * for any other directory a test hands to the server or compares a
+ * server-derived path against** — a fixture root posted to `/api/import`, a
+ * `--data` flag, an `SE_DATA_DIR`. A directory a test only reads and writes
+ * itself does not need it, because both sides are then the same string.
+ */
+export async function tempRoot(prefix: string): Promise<string> {
+  return await realpath(await mkdtemp(join(tmpdir(), prefix)));
+}
 
 export interface TestServer {
   app: FastifyInstance;

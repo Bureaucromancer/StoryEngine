@@ -820,6 +820,23 @@ that only grows. Their state today:
   with both page tests passing, because they mock the function. Every other
   client call whose body is assembled from optional fields has the same shape
   and no equivalent test.
+- **Nothing tells anybody when `main` goes red, and it had been red for three
+  days.** Found 2026-09-09 while watching the alpha 4 tag build: **every CI run
+  on `main` since 2026-09-07 had failed**, across five pushes including two
+  release cuts, on two tests that only fail on the GitHub Windows runner. The
+  cause is [F26] one layer out — the runner's `TMP` holds the **8.3 alias**
+  `C:UsersRUNNER~1...` while every path the server resolves comes back long,
+  so a test comparing the two passes here and fails there. Fixed at its source
+  (`test-server.ts`'s `tempRoot`), and **proved by pointing `TMP` at a directory
+  with a real 8.3 alias**, which is the only way this class can be watched to
+  fail on a developer machine.
+
+  **The test-shaped half is done; the watching half is not.** A suite that is
+  green locally and red in CI is indistinguishable from a green one to anybody
+  who does not open the tab, and this file's whole subject is the difference
+  between *checked* and *believed*. **Sixty-three other temp roots in the suite
+  still call `mkdtemp` directly**; none of them compares a path across the
+  server boundary today, and nothing stops the next one doing so.
 
 
 ---

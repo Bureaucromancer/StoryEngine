@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, setUpAdmin, tempRoot, type TestServer } from '../test-server.js';
 import { makeZip } from '../storage/test-zip.js';
 
 /**
@@ -431,7 +430,7 @@ describe('pointing the server at a directory', () => {
 
   it('sweeps a real directory and answers with the report', async () => {
     await grantFileAccess();
-    const root = await mkdtemp(join(tmpdir(), 'se-sweep-'));
+    const root = await tempRoot('se-sweep-');
     await mkdir(join(root, 'OpenAI Settings'), { recursive: true });
     await mkdir(join(root, 'characters'), { recursive: true });
     await mkdir(join(root, 'worlds'), { recursive: true });
@@ -461,7 +460,7 @@ describe('pointing the server at a directory', () => {
     // description of their filesystem. The root lives on the job record; the
     // rows do not repeat it.
     await grantFileAccess();
-    const root = await mkdtemp(join(tmpdir(), 'se-sweep-'));
+    const root = await tempRoot('se-sweep-');
     await mkdir(join(root, 'OpenAI Settings'), { recursive: true });
     await mkdir(join(root, 'characters'), { recursive: true });
     await mkdir(join(root, 'worlds'), { recursive: true });
@@ -499,7 +498,10 @@ describe('asking what a folder is, without importing from it', () => {
    * this code. One extra level makes the parent something the test controls.
    */
   async function inSandbox(build: (root: string) => Promise<void>): Promise<string> {
-    const container = await mkdtemp(join(tmpdir(), 'se-inspect-'));
+    // F26: this root is posted to `/api/import/inspect` and the suggestion
+    // that comes back is an absolute path the server resolved, so the two
+    // have to agree about how the temp directory is spelled.
+    const container = await tempRoot('se-inspect-');
     const root = join(container, 'fixture');
     await mkdir(root, { recursive: true });
     await build(root);
