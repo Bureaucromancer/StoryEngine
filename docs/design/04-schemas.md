@@ -1459,7 +1459,7 @@ The marker identifiers map one to one:
 | `charDescription` | `{ of: "actor", sectionId: "se.summary" }` |
 | `charPersonality` | `{ of: "actor", field: "traits" }` — see below |
 | `personaDescription` | `{ of: "persona" }` |
-| `dialogueExamples` | ~~`{ of: "examples" }`~~ `{ of: "samples" }` — the arm was renamed when dialogue examples stopped being a `Section` ([§3.1](#31-writing-samples)); corrected at P4.1 |
+| `dialogueExamples` | ~~`{ of: "examples" }`~~ `{ of: "samples" }` — the arm was renamed when dialogue examples stopped being a `Section` ([§3.1](#31-writingsample)); corrected at P4.1 |
 | `scenario` | `{ of: "treatment", part: "framing" }` |
 
 The `scenario` row is the interesting one, and it is the same move

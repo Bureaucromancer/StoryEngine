@@ -193,7 +193,7 @@ the failure the gate's own provenance note warns about.
 4. **Step 6's stated means.** It says the step is satisfied by *"the handful of
    explicitly-permissive real books the corpus policy already keeps in the
    repository"*, and the repository keeps none. **Person-blocked with lead time**
-   — see [§1.5](#15-what-is-person-blocked-and-stays-that-way).
+   — see [§1.5](#15-scandepth-the-recursion-haystack-and-what-is-person-blocked).
 
 ### 1.4 The single lore slot is a decision about the preset
 
@@ -297,7 +297,7 @@ and because this phase is already in the files.
    refused path is assigned in [P2 §782](08-p2-implementation.md) to **`P2.7`,
    a stage that does not exist** — P2 has P2.0 through P2.6. It was moved off a
    closed stage precisely so it would not become nobody's, and became nobody's
-   by the other route. [P6B.1](#p6b1--p5s-close-out) is already opening the
+   by the other route. [P6B.1](#p6b1--p5s-close-out--prepared-the-walk-is-the-one-part-a-person-does) is already opening the
    index and storage code for the `orphan-fts` assertion and the migration test,
    so it takes this with them.
 2. **Five phase documents still say `plan`.** 03 (P1), 04 (P2), 05 (P3), 06 (P4)

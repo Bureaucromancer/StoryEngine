@@ -150,20 +150,28 @@ thin for progress.
 *Rewritten whenever something is walked or a prerequisite lands. Everything else
 is below; this is the afternoon.*
 
-1. **D11–D20** — needs only the running app and a text editor (R7). D18, D19 and
+1. **K, entire** — and it is not an afternoon. **This is the only item on this
+   list holding a phase open:** under [§0](#the-two-tier-gate)'s model K *is*
+   [P6B](20-p6b-playable.md)'s gate, so P6B does not close until K1–K9 have
+   results. K0 cuts alpha 4 before anything is recorded. Two sittings and 45
+   minutes of desk work.
+2. **D11–D20** — needs only the running app and a text editor (R7). D18, D19 and
    D20 are the three storage scenarios no other document has a home for, and
    D17 needs a re-check first: it was flagged unperformable, and P5.6 may have
    made it performable.
-2. **E3–E5, E7–E13** — the fixture arm of import, walkable without the corpus.
+3. **E3–E5, E7–E13** — the fixture arm of import, walkable without the corpus.
    Only E1, E2 and part of E6 want R1.
-3. **F0–F5, F7–F10, F13, F15, F16** — lore against a seeded install. F0 is the
+4. **F0–F5, F7–F10, F13, F15, F16** — lore against a seeded install. F0 is the
    entry point and the walk nobody could do before [P6B.0](20-p6b-playable.md).
-4. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
+   **Walk K first regardless:** K1 and K2 build the install F wants, so F is
+   cheaper after K and duplicated work before it — and K1 discharges F0 outright.
+5. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
    machine (R5) is; **H1 and H2** when there is an ubuntu box (R6).
 
-**Not next, and deliberately:** G, which wants hours and is also
-[P6B.2](20-p6b-playable.md); and I and J, which want a container and a
-two-hundred-turn session respectively.
+**Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
+sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
+what G is for; and I and J, which want a container and a two-hundred-turn
+session respectively.
 
 ---
 
@@ -242,15 +250,34 @@ that three separate gates each ask for in their own words — and
 [P2C.1](12-p2c-first-real-run.md), the first-contact stage that had never run.
 
 **A8 passed with nothing written in the *what did you have to guess* column**,
-which is the answer [work plan §4.1](01-work-plan.md)’s fourth hypothesis wanted and
+which is the answer [work plan §4.1](01-work-plan.md)'s fourth hypothesis wanted and
 the one it calls likeliest to be wrong. Worth saying plainly rather than
-ticking: the hypothesis survived its first contact with a real turn. It has not
-yet met a long one, which is [G](#g--the-long-pass--hours-unscripted-and-it-is-also-p6b2)
-and is where P3 step 12 expects it to get harder.
+ticking — with one correction under it that is the reason this file keeps a
+result and a date rather than a tick.
+
+**CORRECTION, 2026-09-09.** This paragraph read *"the hypothesis survived its
+first contact with a real turn."* **It did not have one.** A8's session
+**resolved zero books** — the defect [P6B.0](20-p6b-playable.md) found and
+fixed — so the turn behind that record carried no retrieved blocks at all, and
+the page A8 read therefore showed none of the retriever's vocabulary: no
+`keyword match`, no refusal row, no activated-but-unplaced entry. What A8 does
+evidence is the **static** record — the prompt, the call, the usage, the reasons
+that do not come from retrieval — which is hypothesis 1's territory and a real
+result worth keeping. **Hypothesis 4 has never been in contact with anything.**
+
+**Why the error is worth writing down rather than quietly fixing:** it made a
+question look half-answered for three weeks, and a half-answered question is
+not scheduled. That is [§7](#7-closing-a-gate-and-closing-a-phase)'s third step
+— the one it says gets skipped — arriving as its own example.
+
+Its first real contact is **K8**, on a turn built to carry retrieved lore, a
+budget refusal and an unplaced entry at once. Even a pass there is narrow,
+because the walker arranged the turn; the wide one is [G](#g--the-long-pass--hours-unscripted-playables-second-sitting),
+where P3 step 12 expects it to get harder.
 
 *Walked against a `pnpm dev` install on Windows.* The same nine run again on
-Docker as the first half of [B](#b--the-scripted-session-against-both-endpoints--about-two-hours),
-because a container is a different install and A1’s *open the address the
+Docker as the first half of [B](#b--the-scripted-session-against-both-endpoints-walked-2026-09-08--six-of-nine-three-unconfirmed),
+because a container is a different install and A1's *open the address the
 server prints* is exactly the line that was wrong on the first unraid install
 ([P6A §3](19-p6a-alpha-1.md)).
 
@@ -468,7 +495,7 @@ to everything below.
 
 ---
 
-### G — The long pass — *hours, unscripted, and it is also [P6B.2](20-p6b-playable.md)*
+### G — The long pass — *hours, unscripted; PLAYABLE's second sitting*
 
 **Not a second scripted pass with a different list.** The point is duration and
 accumulation: forty turns, a library with things in it that were made rather than
@@ -531,6 +558,52 @@ because a threshold on a busy runner is a flake waiting to happen.
 **Unblocks:** [P6 §5](18-p6-implementation.md)'s snapshot-interval question and
 [P8](24-p8-implementation.md)'s cadence sizing, which wants real turn volumes.
 
+### K — P6B's critical list — *two sittings and an hour of desk work; the one that closes a phase*
+
+**The first critical list under [§0](#the-two-tier-gate)'s model, and the
+reason the model exists.** P6B is the hardest case it will meet: P6B.2 *is*
+PLAYABLE, the checkpoint [work plan §7](01-work-plan.md) calls skipping *"the
+single most expensive economy available in this plan"*. So P6B does not close
+on its buildable work — it closes on this, and everything else in its gate
+extends the sittings above.
+
+**Derived, not chosen.** Gate steps 6 and 7 are suite-covered and go to §5.
+Step 8 is *"P5's eighteen steps, walked by a person"* — P5's claim living in
+P6B's gate, which fails criterion (i) and goes to **F**. What is left is five
+steps that each name a code path P6B itself built or repaired, none of them
+covered by a test, plus the two the checkpoint owes.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **K0** | **Cut and build 1.0-alpha 4 first.** Not a check — a precondition. [playable log](21-playable-log.md)'s record format opens with `git describe --tags --always --dirty`, and a finding recorded against a dirty tree is not attributable. 389 files of code have landed since alpha 3, including the fix for **F-04**; walking without cutting means re-finding a defect already fixed. | — | |
+| **K1** | `pnpm reset-data && pnpm build && pnpm dev:logged`, then `pnpm seed`. Add a connection with the real key, answer the binding form, open the seeded session, take **one turn**, open the workbench lore report. **Expect** the treatment's entries as blocks with `keyword match` reasons, sourced *linked by the treatment*. | P6B 3; **F0** entire | |
+| **K2** | **Hand-author a twelve-entry SillyTavern world** across the `position` map in `import/sillytavern/lorebook.ts:51-60` — three `before_char`, three `after_char`, two flagged-collapse, one `at_depth: 4`, one outlet naming nothing, a width-2 recursion chain, one `constant`, one `disable`. Import it through the single-file pick and read the review. **The shipped fixture will not do:** `RAIN_CITY_BOOK` has only positions 0 and 4, so it never exercises the `after_char` defect P6B.1 fixed. **Record it as a format probe, not R1** — you wrote it, so it cannot answer what limits real authors set. | sets up P6B 5, **F7** | |
+| **K3** | Create a session **in the browser** naming the treatment *and* the imported book; confirm the report distinguishes *linked by the treatment* from *linked by this session*. Take several turns, then attach a third book mid-session through the panel and take the next turn. | P6B 1, 2 | |
+| **K4** | **The single most critical item.** Play turns hitting keys at each position group. Reconcile **every** activation in the lore report against either a block in the right phase or a refusal row naming its rule. **Nothing may activate, be charged, and disappear.** Confirm the `at_depth` entry sits four *messages* from the end and the width-2 chain fires both children. | P6B 5; **F7**, **F9**'s person half | |
+| **K5** | Set the imported book's `tokenBudget` to a value that cuts; read the drop order and the skip rows. Set it to `0` and confirm it means unlimited. Then make the **global** arbiter cut and read the verdict. | **F10**; hypothesis 3's answerable half | |
+| **K6** | Two tabs on one session, force a `412 stale-head`; then unbind the `prose` role and send. Both must say something on screen. **This is the play page's rendering**, not the settings 412 that B9 already passed. | P6B 4 | |
+| **K7** | Hand-edit an actor's `description` on disk mid-session. Take the next turn; the block table shows the new text. | **hypothesis 2**, in full | |
+| **K8** | With the workbench open on a turn carrying retrieved lore, a budget refusal and an unplaced entry, **write answers to the four hypotheses** in [playable log](21-playable-log.md)'s record format — `expected` before `observed`. **Include one honest *I could not tell*** if it is true. Record which of A9's three mitigations you used. | P6B 9; **D14** | |
+| **K9** | **Desk work, 45 minutes, no install.** Route every finding — the six in the playable log, whatever K1–K8 produced, and [P2C log](14-p2c-log.md)'s fourteen — to one of [P2C §2.5](12-p2c-first-real-run.md)'s five destinations. Then update §6, add the date beside R1 in §3, and write the status lines. | P6B 10 | |
+
+**What this list cannot reach, stated so nobody mistakes a pass for a finish.**
+Every item here is one turn long and none leaves anything behind, so a defect of
+*accumulation* survives it intact — G1's index-and-watcher disagreement after an
+afternoon of writes, G2's record becoming unreadable as it grows, J's snapshot
+cache at depth. **And the sharpest one is a property of this design rather than
+of the code: the budgeter may look comprehensible precisely because the walker
+chose the book, the budget and the turn.** A controlled experiment answering a
+question about uncontrolled use is what a full walk exists to avoid, and this
+list is a controlled experiment by construction.
+
+**A second way it could pass and be worthless: it cannot fail the way C did.**
+Sitting C ran eleven deliberate breakages, passed eleven, and produced **no
+refinement note at all**, while the quiet sittings produced five. K1–K7 are all
+built around something going wrong or being made to go wrong — the shape that
+has so far produced nothing. **Keep [refinements](22-walkthrough-refinements.md)
+open beside the log, and treat a sitting that adds no row to it as a signal
+rather than a clean sweep.**
+
 ---
 
 
@@ -546,6 +619,8 @@ Listed so the count is honest. **Nobody walks these.**
 | **P5 14** | **AUTO** | See F14. |
 | **P5 17** | **AUTO** | See F17. |
 | **P5 18** | **AUTO** | See F18. |
+| **P6B 6** | **AUTO in part** | `retrieval/activate.test.ts` — *"feeds every entry that activated into the next pass, not the first `scanDepth` of them"*, the width-three chain [P6B.1](20-p6b-playable.md) added at the default depth. **Its carrier is the third entry in scan order**, so the step's second clause — raising an `order` does not remove text from the haystack — is covered in substance and by nothing that says so: no test raises an `order` and re-checks. K4's width-2 chain is the person-side residue; **do not open a sitting for it.** |
+| **P6B 7** | **AUTO** | `state/migrations.test.ts` — *"carries every import item across the step that rebuilds its table"*, written at the version the step leaves *from* and asserting every column rather than a count. The step asks for a **mutation** rather than a pass, and it was run at [P6B.1](20-p6b-playable.md) (`a6d3eb4`, `0e228ec`, `39f9ee1`): deleting the `insert into import_item_new … select` reddens it, where before P6B.1 it left the whole suite green. Re-running it is a minute at a terminal. |
 | **P2 / P2A / P2B** | **AUTO in part** | 8 of 20, 13 of 17+2, and 9 of 11 respectively. The residue is [manual gate §2](11-p2-manual-gate.md), which is sittings A–D above. |
 | **P3 1–11** | *Assertable, coverage unaudited* | Marked "assertable" by [P3 §4](15-p3-implementation.md), but **which of them a test actually asserts has never been checked.** They are in sitting D as browser checks because confirming one takes a minute and auditing eleven takes an afternoon — and a step believed covered is exactly what [P6B.1](20-p6b-playable.md) found four of. |
 
@@ -571,8 +646,8 @@ a claim nobody made.*
 | **P5** | 18 | partly | — | F. Step 6 is person-blocked on R1; step 12 is deferred to P7 |
 | **P6** | 14 | steps 2–14 | **unwalked** | J — step 1 and the wall-clock half of 14 |
 | **P6A** | 13 | 1, 2, 13 partly | **steps 3–12 unwalked** | I. Partly walked 2026-09-07 by the first install |
-| **P6B** | 10 | partly | **unwalked** | Step 8 is P5's eighteen walked by a person; steps 9 and 10 are G's |
-| **PLAYABLE** | the four hypotheses | none, by definition | **never run** | G. The fourth survived its first contact at A8 and has not met a long session |
+| **P6B** | 10 | **6, 7** — §5 | **K, pending** | **The first gate to split under [§0](#the-two-tier-gate).** Steps 1–5, 9 and 10 are sitting **K**, the critical list, and the phase does not close until they have results. Step 8 is P5's eighteen wearing P6B's number — criterion (i) — and is **F** |
+| **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
 | **P7 … P11** | 10 / 10 / 15 / 10 / 10 | — | not yet opened | **55 person-walked steps still to arrive.** P7, P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim |
 
 **Two things this table makes plain and no single document did.** Every gate
@@ -700,6 +775,7 @@ Anything that loses its owner comes back to §0's rule.*
 | Restore test, upgrade test | [work plan §8](01-work-plan.md), [25 E6](../25-open-questions.md) | [P11](27-p11-implementation.md) | "An untested restore is not a backup" — and it is 1.0 scope |
 | Release-line support window; release-branch cut point | [releases §8](04-repo-and-releases.md) | [P11](27-p11-implementation.md) | Cheap to declare now, awkward later; no release line exists yet |
 | The ten polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
+| **What sitting K cannot reach** — hypothesis 3 under a real library's pressure, hypothesis 4 under a long session, and any defect of *accumulation* | [K](#k--p6bs-critical-list--two-sittings-and-an-hour-of-desk-work-the-one-that-closes-a-phase), on the day it was derived | **[G](#g--the-long-pass--hours-unscripted-playables-second-sitting) and J**, which is a named sitting rather than a person — and R1 and R9 are what they wait on | **This row exists because the two-tier gate owes it.** A critical list closes a phase on the part that compounds; the part it drops has to land somewhere with a name, or the model is just a smaller gate with the same silence. Every K item is one turn long and leaves nothing behind, so nothing in it can see a leak at turn forty |
 
 ### 10.1 The dangling owner, which is the finding this sweep exists to have produced
 

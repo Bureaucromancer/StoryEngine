@@ -1920,7 +1920,7 @@ folder still reads `unrecognised`, though the same file uploaded alone converts 
 whole profile and is therefore a *source* rather than an item, and giving a loose
 sweep a nested sweep is a bigger change than this finding. And re-import identity
 stays root-relative, so sweeping `~/cards` and then `~/cards/august` gives two
-copies of the same card: [§6.2](#62)'s open question about filename identity,
+copies of the same card: [§6.2](#6-what-the-design-still-has-to-settle)'s open question about filename identity,
 reached from a third direction.
 
 ### 7.9 What the fix changed — 2026-08-30
@@ -1988,7 +1988,7 @@ walker's folder routing kept contents unconverted, which is one `switch` arm awa
 from not being true either.
 
 This predates P4.4 and is the kind of gap a phase can carry without noticing.
-What made it *this* change's problem is that [§7.2](#72) had just written three
+What made it *this* change's problem is that [§7.2](#72-the-fileaccess-control-still-describes-the-permission-it-used-to-be) had just written three
 sentences — the admin hint, the block comment above it, and `accounts.ts`'s
 paragraph — telling an administrator that the carve-out is why the grant is safe.
 A widened permission behind a containment claim that is not enforced is worse
@@ -2030,14 +2030,14 @@ Two findings were left alone deliberately. Re-import identity keys on
 `Provenance.originalFilename`, so a card swept from a folder is
 `characters/Vera.png` while the same card uploaded is `Vera.png` — importing both
 ways gives two actors, and two unrelated files sharing a name replace each other.
-That is [§6.2](#62)'s open question about filename identity, reached from a new
+That is [§6.2](#6-what-the-design-still-has-to-settle)'s open question about filename identity, reached from a new
 direction rather than a new defect, and the answers it already names — a
 source-app tag, a content hash — are the answers here too.
 
 ### 7.11 The wrong folder inside the right install — 2026-08-31
 
 **`classifyRoot` has never failed on a folder that is merely wrong**, and
-[§7.8](#78) made that worse rather than better. Every directory matching no probe
+[§7.8](#78-a-folder-of-loose-cards-converts-nothing--found-while-fixing-71) made that worse rather than better. Every directory matching no probe
 answers `loose-files`, which was the correct call for the folder of cards
 somebody assembled by hand and is the wrong shape of answer for somebody who
 pointed at `C:\SillyTavern` instead of `C:\SillyTavern\data\default-user`. Before
@@ -2048,7 +2048,7 @@ included — and still cannot see the personas, because those are a join between
 `settings.json` and `User Avatars/` that only the positional reader makes.
 
 **A successful-looking import of the wrong things is worse than an empty one**,
-and it is exactly the case [§1.3](#13)'s own sentence names: *"I pointed it at my
+and it is exactly the case [§1.3](#13-where-import-runs-what-a-unit-of-import-is-and-how-bytes-arrive)'s own sentence names: *"I pointed it at my
 Marinara folder and it found four cards" is otherwise indistinguishable from
 success.* The verdict was made visible; what was missing is the advice.
 
@@ -2117,7 +2117,7 @@ not be grounded, and it would have been the one rule guessing.
 
 #### What an adversarial review of the near miss found
 
-Reviewed the way [§7.10](#710) was, by readers told to refute rather than
+Reviewed the way [§7.10](#710-what-an-adversarial-review-of-the-fix-found--2026-08-30) was, by readers told to refute rather than
 confirm, across four lenses — security, rule correctness, test honesty, and
 whether the citations in the table check out. Twenty-four candidates, eleven
 upheld. One was a defect in the code; the rest divide almost evenly between
@@ -2143,7 +2143,7 @@ mark is a common name, so every one of those mutations turns the module into
 something that diagnoses ordinary Node projects as somebody's library. In every
 case the only fixture reaching the rule supplied all its marks at once, which is
 the *"a test written beside its fix is the easiest kind to write green"* class
-[§7.10](#710) already named, arriving through a different door.
+[§7.10](#710-what-an-adversarial-review-of-the-fix-found--2026-08-30) already named, arriving through a different door.
 
 **Two suppressions and the already-a-source gate were deletable with the suite
 green**, for the same reason: no fixture was a complete install root, and both
@@ -2253,7 +2253,7 @@ for that path at all** before this; it has three now.
 
 ### 7.13 The browser directory upload, un-cut — 2026-08-31
 
-**[§5](#5) cut this and named it first-to-cut, so reversing it needs a reason
+**[§5](#5-the-honest-size) cut this and named it first-to-cut, so reversing it needs a reason
 rather than an appetite.** The cut's argument was that *the server-path sweep
 alone still pays the demo on the install the demo describes; the upload variant
 is reach, not core*, and that was right about the demo. What it did not weigh is
@@ -2300,7 +2300,7 @@ the six directories the reader opens — `characters`, `worlds`, `OpenAI Setting
 `TextGen Settings`, `sysprompt`, `User Avatars` — are exactly the six the
 registry marks `converted`, plus `settings.json`, which is read because a persona
 is a join between it and `User Avatars/`. A loose root wants everything, honestly:
-[§7.8](#78) made it probe every file by content, so there are no positions to
+[§7.8](#78-a-folder-of-loose-cards-converts-nothing--found-while-fixing-71) made it probe every file by content, so there are no positions to
 narrow by and the size budget is the only bound.
 
 **The defect found on review, which is the one worth recording.** The two halves

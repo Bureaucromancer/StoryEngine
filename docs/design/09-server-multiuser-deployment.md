@@ -160,7 +160,7 @@ the disposable index. A notification that vanishes when someone deletes
 The session stream keeps a **cursor too**, for a different reason: a client that
 drops mid-turn and reattaches needs the turn's state *now* plus everything since,
 not a replay from the beginning. Snapshot-plus-cursor is the same shape the turn
-record already has ([§3.3](#33-progress-events-the-live-view-is-the-turn-record-being-built)).
+record already has ([§3.3](#33-progress-events-what-the-live-view-is-and-what-it-is-not)).
 
 ### 3.3 Progress events: what the live view is, and what it is not
 
@@ -322,7 +322,7 @@ collision:
 |---|---|
 | **The server box itself** (`localhost`) | Everything. Secure context by definition. |
 | **LAN over plain HTTP — the default** | **In-app only**: sound, toast, badge, title. No browser notifications. |
-| **HTTPS by reverse proxy, or Tailscale** ([§5.2](#52-tailscale-and-getting-to-it)) | Everything, including Web Push whenever it arrives. |
+| **HTTPS by reverse proxy, or Tailscale** ([§5.2](#52-tailscale)) | Everything, including Web Push whenever it arrives. |
 
 **In-app is therefore the 1.0 notification story, and it has to be good enough
 on its own** — which it nearly is, since the feature that motivated the small
@@ -337,7 +337,7 @@ Three obligations follow:
   reason is the worst version of this.
 - **Do not treat HTTPS as exotic.** A reverse-proxy guide already exists in
   §5.1's position; it now has a second reason to exist, and Tailscale
-  ([§5.2](#52-tailscale-and-getting-to-it)) gets HTTPS more or less for free,
+  ([§5.2](#52-tailscale)) gets HTTPS more or less for free,
   which strengthens the case for its Level 1.
 - **Messages has to know this whenever it is built.** A mode whose premise is being reached
   when you are not looking is substantially weaker on plain HTTP, so the

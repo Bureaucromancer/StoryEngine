@@ -108,6 +108,19 @@ const DOC_LINKS = LINKS.filter((link) => /\.md(#|$)/.test(link.href)).filter(
   (link) => !/^(https?:|mailto:)/.test(link.href),
 );
 
+/**
+ * Links that are a bare `#fragment`, pointing within their own file.
+ *
+ * `DOC_LINKS` cannot hold these: they carry no `.md`, and `resolveTarget`
+ * returns null for them by design. So until 2026-09-09 **nothing checked them
+ * at all** — which is how `05-manual-testing.md` came to point at
+ * `#g--the-long-pass--hours-unscripted-and-it-is-also-p6b2` after that heading
+ * was retitled, with the whole file green. A same-file anchor is the one most
+ * likely to rot, because renaming a heading is a thing people do casually and
+ * the link sits somewhere else in the same document.
+ */
+const SELF_LINKS = LINKS.filter((link) => link.href.startsWith('#'));
+
 describe('every documentation link resolves', () => {
   /**
    * **(a)** The check that was missing. A link into `docs/` whose file is not
@@ -140,7 +153,7 @@ describe('every documentation link resolves', () => {
     const headingsOf = new Map<string, Set<string>>();
     const dangling: string[] = [];
 
-    for (const link of DOC_LINKS) {
+    for (const link of [...DOC_LINKS, ...SELF_LINKS]) {
       const fragment = link.href.split('#')[1];
       if (!fragment) continue;
       const target = resolveTarget(link.file, link.href) ?? link.file;
@@ -288,6 +301,9 @@ describe('the checker checked something', () => {
     expect(FILES.length, 'git ls-files returned almost nothing').toBeGreaterThan(300);
     expect(DOC_LINKS.length, 'the markdown-link pattern matched almost nothing').toBeGreaterThan(
       4000,
+    );
+    expect(SELF_LINKS.length, 'the same-file anchor pattern matched nothing').toBeGreaterThan(
+      10,
     );
   });
 
