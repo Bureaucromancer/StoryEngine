@@ -17,6 +17,71 @@ the string by the rule in [releases §7.1](docs/design/workplan/04-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
+## 1.0.0-alpha.4 — 1.0-alpha 4 — 2026-09-09
+
+The build the walk gets walked against. Alpha 3 made the retrieval half
+reachable; this one is what a person needs in front of them before
+[sitting K](docs/design/workplan/05-manual-testing.md) can produce a finding
+that is worth anything — including the fix for a control that has never worked
+with a pointer.
+
+### Added
+
+- **Tags, and a registry behind them.** A tag has a home on disk, an API over
+  it, a manager, and eight colours proven legible rather than chosen. Objects
+  reference a tag **by id** and names resolve through the registry, so renaming
+  a tag renames it everywhere instead of orphaning what carried the old name —
+  and a rename is only offered once the library has been linked to the
+  registry, because a half-linked library is where a rename loses things. Tags
+  are typed into a combobox rather than a textarea of one per line.
+- **A tag can be a folder.** Entering one is applying its filter, and the
+  filter is three-state: **hidden means only what it says**, which is the
+  distinction a two-state filter cannot make.
+- **Every shelf can be searched and sorted**, not just Lorebooks.
+- **A session need not be named**, and can be renamed whenever you know what it
+  is. *Start* just starts. Unnamed is a state a session may stay in rather than
+  a gap to be filled with a placeholder.
+- **A field says it is required**, and a save that cannot proceed says why
+  rather than leaving a control disabled with nothing beside it. **New actor is
+  a button** now: the editor opens on an unsaved draft, and nothing is written
+  to disk until the name exists — so an abandoned attempt leaves no `untitled`
+  folder in the one part of this design meant to be legible in a file browser.
+
+### Fixed
+
+- **The workbench resize handle had no height, and nothing could have said so.**
+  It carried `inset-block-0`, which is not a Tailwind utility, so no rule was
+  emitted and an absolutely-positioned element with no block inset is zero
+  pixels tall. **The panel has been resizable since P3 and grabbable by pointer
+  never** — only the keyboard half ever worked. The fix ships with a test that
+  reads the *built stylesheet* and fails on a class that emits no rule, which is
+  the gate this class of bug has never had.
+
+### Changed
+
+- **Nothing user-facing**, but the corpus this project is steered by was
+  renumbered into reading order and every citation in it repointed — 4,573
+  links across 330 files. Work-plan documents are now cited **by name**, so
+  their numbers are pure filing order. A test (`tools/doc-links.test.ts`) holds
+  it: links resolve, fragments name real headings, and the one citation shape
+  nothing can verify is forbidden rather than tolerated.
+
+### Known
+
+- **The manual test list is a standing project now, not a phase gate.** A phase
+  closes on a small **critical list** walked before the close; the remainder
+  extends [the standing list](docs/design/workplan/05-manual-testing.md) and
+  drains continuously. The reason is in that file: **five phase gates
+  accumulated unwalked, and no gate in this project has ever been closed by a
+  person.** P5, P6 and P6A closed on 2026-09-09 under that rule, with their
+  gates standing as sittings F, J and I.
+- **This image is what sitting K wants.** 110 items are on the standing list;
+  49 have a result. K is ten of them and it is what closes P6B.
+- **PLAYABLE has still not run.** The instrument is repaired and the checkpoint
+  has begun. Four hypotheses are open, and the fourth has never been in contact
+  with anything — an earlier record claiming otherwise is corrected in that
+  file.
+- **No compatibility promise between alpha builds**, unchanged from Alpha 2.
 ## 1.0.0-alpha.3 — 1.0-alpha 3 — 2026-09-08
 
 The build that makes the retrieval half reachable. Alpha 1 and 2 shipped a
