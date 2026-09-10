@@ -688,7 +688,20 @@ way to get data in — records a user-attributed effect whose `channelId` does n
 resolve through `channelDefinition()` and whose `scopeKey` is null. It round-trips
 **by accident**, because `applyEffects` re-derives the same map key, which is why
 nothing has noticed. Shipped in Alpha 1 with `se.lore.timing`, and **P7.1
-multiplies scoped channels**. §0.2 has the disposition.
+multiplies scoped channels**.
+
+***Fixed 2026-09-10, before the phase rather than inside it.*** `channelKey` now
+has a declared inverse — `splitChannelKey`, beside it, splitting at the first
+separator on the same assumption `channelKey` makes in reverse — and
+`divergenceEffects` decomposes each map key rather than passing it through as an
+id. **The map is unchanged**, which is the point: `applyEffects` rebuilt the same
+string either way, so nothing on disk moves and no session needs migrating. What
+changes is that the recorded effect now names a channel `channelDefinition` can
+resolve and a scope key a reader can render. Four tests cover it — a scoped edit,
+two scoped edits kept apart, a scoped delete, and the reversal path that carries
+`channelId` and `scopeKey` through unchanged — and all four are red against the
+old function, one of them reading `expected 'se.lore.timing#e-1' to be
+'se.lore.timing'`, which is the defect stated exactly.
 
 #### The deferrals this phase had not collected
 
@@ -920,14 +933,13 @@ otherwise stop to argue about:
    party timeline's payload, per that stage.
 7. **03 §8's `MentionSpan`**, which is §1.7's forbidden shape written into the
    data model (§1.7).
-8. **`divergenceEffects`' scoped-channel defect.** By the bar
-   [P6B §0.3](20-p6b-playable.md) and [P2C §1](12-p2c-first-real-run.md) set — an
-   item is pre-work only if leaving it undone makes the phase's own work
-   untrustworthy, not merely if it would be convenient — this **qualifies**: it is
-   a live defect in the exact function P7.1 rewrites, under a type P7.1 is
+8. ~~**`divergenceEffects`' scoped-channel defect.**~~ **Done 2026-09-10.** By the
+   bar [P6B §0.3](20-p6b-playable.md) and [P2C §1](12-p2c-first-real-run.md) set —
+   an item is pre-work only if leaving it undone makes the phase's own work
+   untrustworthy, not merely if it would be convenient — it **qualified**: a live
+   defect in the exact function P7.1 rewrites, under a type P7.1 is
    simultaneously growing `schema`, `init` and `migrate` on, and after P7.1 every
-   mode-declared scoped channel is on the same path. `scopeKeyOf` already exists.
-   Hours, with a test.
+   mode-declared scoped channel is on the same path. §0.1a records what landed.
 9. **Repointing the ten server test files that use the mode's internals as generic
    fixtures.** After the move these are server → modes imports, which the graph
    forbids. Doing it inside P7.0 buries a large mechanical diff inside the stage

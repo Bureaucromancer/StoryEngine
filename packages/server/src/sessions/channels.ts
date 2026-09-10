@@ -175,6 +175,33 @@ export function channelKey(channelId: string, scopeKey: string | null | undefine
 }
 
 /**
+ * The inverse of {@link channelKey}: a map key back into the pair that built it.
+ *
+ * **Distinct from {@link scopeKeyOf}, which answers a different question.** That
+ * one takes a channel id you already know and asks *is this key one of yours*;
+ * this one has only the key — the case anything iterating
+ * `SessionFile.channels` is in, because a map's keys are all it has. Without it
+ * the only way out of a composite key is string surgery at the call site, which
+ * is what `retrieve.ts` already refuses to do for the other direction.
+ *
+ * **Splitting at the *first* separator is the whole of the contract**, and it is
+ * the same assumption {@link channelKey} makes in reverse: a channel id is a
+ * dotted reverse-domain name and a scope key is a uuid or an import id, so
+ * neither carries a `#`. If one ever does, {@link SCOPE_SEPARATOR}'s docstring
+ * is the single line to argue with and this is the second.
+ *
+ * An unscoped key round-trips to `scopeKey: null` rather than to an empty
+ * string, because *absent* and *empty* are different claims here exactly as they
+ * are on the wire ([03 §8](../../../../docs/design/03-data-model.md)).
+ */
+export function splitChannelKey(key: string): { channelId: string; scopeKey: string | null } {
+  const at = key.indexOf(SCOPE_SEPARATOR);
+  return at === -1
+    ? { channelId: key, scopeKey: null }
+    : { channelId: key.slice(0, at), scopeKey: key.slice(at + SCOPE_SEPARATOR.length) };
+}
+
+/**
  * Whether a key in the map belongs to this channel — its own value, or any of
  * its scoped ones.
  *
@@ -287,18 +314,38 @@ export function divergenceEffects(
   onDisk: Record<string, ChannelState>,
 ): ChannelEffect[] {
   const effects: ChannelEffect[] = [];
-  const channelIds = new Set([...Object.keys(replayed), ...Object.keys(onDisk)]);
+  /**
+   * **These are map keys, not channel ids**, and for a scoped channel the two
+   * are different strings — `se.lore.timing#<entryId>` against `se.lore.timing`.
+   * Iterating them as ids is what produced an effect whose `channelId` resolved
+   * through {@link channelDefinition} to nothing and whose `scopeKey` was null
+   * however deeply scoped the value was. It round-tripped, because
+   * `applyEffects` rebuilds the key with {@link channelKey} and
+   * `channelKey('se.lore.timing#e-1', null)` is the same string — so the map
+   * came out right and the *record* was malformed, which is the failure this
+   * mechanism exists to make visible rather than the one it exists to survive.
+   */
+  const keys = new Set([...Object.keys(replayed), ...Object.keys(onDisk)]);
 
-  for (const channelId of [...channelIds].sort()) {
-    const was = replayed[channelId];
-    const now = onDisk[channelId];
+  for (const key of [...keys].sort()) {
+    const was = replayed[key];
+    const now = onDisk[key];
+    const { channelId, scopeKey } = splitChannelKey(key);
 
     if (now === undefined) {
       // Removed from the file. A deletion is as much an intent as an edit, and
       // it is the one divergence that a re-derive-and-overwrite would treat as
       // "nothing changed".
       effects.push(
-        effect(turnId, channelId, { type: 'delete', path: '/' }, was?.value ?? null, null, was),
+        effect(
+          turnId,
+          channelId,
+          scopeKey,
+          { type: 'delete', path: '/' },
+          was?.value ?? null,
+          null,
+          was,
+        ),
       );
       continue;
     }
@@ -306,7 +353,15 @@ export function divergenceEffects(
     if (was !== undefined && same(was.value, now.value)) continue;
 
     effects.push(
-      effect(turnId, channelId, { type: 'set', path: '/' }, was?.value ?? null, now.value, now),
+      effect(
+        turnId,
+        channelId,
+        scopeKey,
+        { type: 'set', path: '/' },
+        was?.value ?? null,
+        now.value,
+        now,
+      ),
     );
   }
 
@@ -316,6 +371,7 @@ export function divergenceEffects(
 function effect(
   turnId: string,
   channelId: string,
+  scopeKey: string | null,
   op: ChannelEffect['op'],
   before: unknown,
   after: unknown,
@@ -325,7 +381,7 @@ function effect(
     id: uuidv7(),
     turnId,
     channelId,
-    scopeKey: null,
+    scopeKey,
     op,
     before,
     after,

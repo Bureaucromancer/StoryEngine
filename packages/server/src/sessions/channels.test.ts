@@ -12,6 +12,7 @@ import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import {
   advance,
+  channelDefinition,
   channelKey,
   clockEffect,
   keyBelongsTo,
@@ -19,6 +20,7 @@ import {
   scopeKeyOf,
   SE_CLOCK,
   SE_LORE_TIMING,
+  splitChannelKey,
 } from './channels.js';
 import { walkPath } from './segments.js';
 import {
@@ -253,6 +255,108 @@ describe('a hand edit lands as a user-attributed effect', () => {
     expect((await onDisk()).channels[SE_CLOCK]).toBeUndefined();
   });
 
+  /**
+   * **A hand edit to a *scoped* channel names the channel and the key, not the
+   * composite** — the defect [P7 §0.1a] found, and the reason it survived.
+   *
+   * `divergenceEffects` iterated `Object.keys(channels)` and passed each one
+   * straight through as `channelId`, with `scopeKey` hardcoded null. For
+   * `se.clock` the map key *is* the channel id, so every test here passed. For
+   * an entry-scoped channel the key is `se.lore.timing#<entryId>`, and the
+   * recorded effect claimed a channel of that name at no scope.
+   *
+   * **It round-tripped, which is why nothing noticed**: `applyEffects` rebuilds
+   * the key with `channelKey(channelId, scopeKey)`, and
+   * `channelKey('se.lore.timing#e-1', null)` is the same string it started
+   * from. So the map came out correct and the *record* was wrong — the one
+   * outcome this whole mechanism exists to prevent, since a hand edit becomes
+   * an effect precisely so a person can read it.
+   */
+  async function editScopedTimingOnDisk(entryId: string, value: unknown): Promise<void> {
+    const file = JSON.parse(await readFile(sessionFile(), 'utf8')) as SessionFile;
+    file.channels[channelKey(SE_LORE_TIMING, entryId)] = { version: 1, value };
+    await writeFile(sessionFile(), JSON.stringify(file, null, 2));
+  }
+
+  it('names the channel and the scope key, not the composite key', async () => {
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 2, cooldown: 0, fired: 1 });
+
+    const effects = await reconcileHandEdits(context, ACCOUNT, session.id);
+    const timing = effects.find((candidate) => candidate.channelId === SE_LORE_TIMING);
+
+    expect(timing).toBeDefined();
+    expect(timing?.scopeKey).toBe('e-1');
+    // The consequence, stated as the thing a reader actually needs: the id on
+    // the effect resolves to a definition. `se.lore.timing#e-1` never did, so
+    // nothing could look up the policy that governs it or render its name.
+    expect(channelDefinition(timing?.channelId ?? '')).not.toBeNull();
+    // And the map is untouched by the correction, because it was already right.
+    expect((await onDisk()).channels[channelKey(SE_LORE_TIMING, 'e-1')]?.value).toEqual({
+      sticky: 2,
+      cooldown: 0,
+      fired: 1,
+    });
+  });
+
+  it('keeps two scoped edits apart, each naming its own key', async () => {
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 2, cooldown: 0, fired: 1 });
+    await editScopedTimingOnDisk('e-2', { sticky: 0, cooldown: 3, fired: 4 });
+
+    const effects = await reconcileHandEdits(context, ACCOUNT, session.id);
+    const scoped = effects.filter((candidate) => candidate.channelId === SE_LORE_TIMING);
+
+    expect(scoped.map((candidate) => candidate.scopeKey).sort()).toEqual(['e-1', 'e-2']);
+    // Two effects, not one clobbering the other — the same property [P5.5]
+    // established for the map, now held by the record as well.
+    expect(scoped.find((candidate) => candidate.scopeKey === 'e-2')?.after).toEqual({
+      sticky: 0,
+      cooldown: 3,
+      fired: 4,
+    });
+  });
+
+  it('records a scoped value deleted from the file against its own key', async () => {
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 2, cooldown: 0, fired: 1 });
+    await reconcileHandEdits(context, ACCOUNT, session.id);
+
+    const file = JSON.parse(await readFile(sessionFile(), 'utf8')) as SessionFile;
+    const { [channelKey(SE_LORE_TIMING, 'e-1')]: removed, ...rest } = file.channels;
+    void removed;
+    await writeFile(sessionFile(), JSON.stringify({ ...file, channels: rest }, null, 2));
+
+    const [effect] = await reconcileHandEdits(context, ACCOUNT, session.id);
+
+    expect(effect?.op).toEqual({ type: 'delete', path: '/' });
+    expect(effect?.channelId).toBe(SE_LORE_TIMING);
+    expect(effect?.scopeKey).toBe('e-1');
+    expect((await onDisk()).channels[channelKey(SE_LORE_TIMING, 'e-1')]).toBeUndefined();
+  });
+
+  it('is still reversible when the channel is scoped', async () => {
+    // The inversion carries `channelId` and `scopeKey` through unchanged, so a
+    // malformed effect made a malformed undo. This is that path, scoped.
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 9, cooldown: 0, fired: 1 });
+    await reconcileHandEdits(context, ACCOUNT, session.id);
+
+    const turns = await readTurns(context, ACCOUNT, session.id);
+    const head = turns.get((await onDisk()).headTurnId ?? '');
+    const written = head?.effects.find((candidate) => candidate.channelId === SE_LORE_TIMING);
+
+    expect(written?.scopeKey).toBe('e-1');
+    // Replaying the log from zero puts the value back under the scoped key,
+    // which is the claim the record has to be right for.
+    const replayed = replayChannels(walkPath(turns, (await onDisk()).headTurnId));
+    expect(replayed[channelKey(SE_LORE_TIMING, 'e-1')]?.value).toEqual({
+      sticky: 9,
+      cooldown: 0,
+      fired: 1,
+    });
+  });
+
   it('heals a divergence nobody intended, visibly', async () => {
     // If the snapshot drifted because of a bug rather than a person, the same
     // mechanism turns it into an effect somebody can inspect — instead of
@@ -367,5 +471,31 @@ describe('a channel scoped to something', () => {
   it('gives the scope key back', () => {
     expect(scopeKeyOf(channelKey(SE_LORE_TIMING, 'e-1'), SE_LORE_TIMING)).toBe('e-1');
     expect(scopeKeyOf(SE_LORE_TIMING, SE_LORE_TIMING)).toBeNull();
+  });
+
+  /**
+   * The inverse, for the caller that has a key and no channel id — which is
+   * anything iterating the map, and is where the divergence defect lived.
+   */
+  it('splits a key back into the pair that built it', () => {
+    expect(splitChannelKey(channelKey(SE_LORE_TIMING, 'e-1'))).toEqual({
+      channelId: SE_LORE_TIMING,
+      scopeKey: 'e-1',
+    });
+    // Unscoped comes back as null rather than as an empty string: *absent* and
+    // *empty* are different claims here exactly as they are on the wire.
+    expect(splitChannelKey(SE_CLOCK)).toEqual({ channelId: SE_CLOCK, scopeKey: null });
+  });
+
+  it('round-trips every scope key through the composite form', () => {
+    // Including the ones a uuid or an import id can actually be — the dotted
+    // and hyphenated shapes are what made splitting at the *first* separator
+    // the contract rather than an implementation detail.
+    for (const scopeKey of ['e-1', uuidv7(), 'imported.entry-4', '0', 'a.b.c']) {
+      expect(splitChannelKey(channelKey(SE_LORE_TIMING, scopeKey))).toEqual({
+        channelId: SE_LORE_TIMING,
+        scopeKey,
+      });
+    }
   });
 });
