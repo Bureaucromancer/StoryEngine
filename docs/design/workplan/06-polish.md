@@ -518,3 +518,67 @@ guard says for a draft that has never existed on disk. The three tests that pin
 the current gate — including the one that proves a name of only spaces is
 refused — are rewritten rather than deleted: the refusal moves from the list to
 the editor, and it should still be proved.
+
+---
+
+## 11. Something happens between Send and the first token
+
+*Routed here 2026-09-09 by [P6B.3](20-p6b-playable.md), from
+[F-02](21-playable-log.md) and graded at [R10](22-walkthrough-refinements.md).*
+
+**The condition is not a regression and was written down before anybody hit
+it.** [P2C brief §3.4](13-p2c-brief.md) says it nearly word for word: *"There is
+no progress, no step display and no spinner."* It was accepted deliberately,
+and this item is not an argument that the acceptance was wrong. **What is new is
+that a person walked into it across every turn of four sittings and called it
+painful** — which is the evidence the acceptance was waiting for and could not
+produce for itself.
+
+**What a person actually gets today**: the button does not change, no live
+region fires, and the composer clears. So the only feedback that the app
+received anything is *your own text disappearing* — which is indistinguishable
+from having lost it.
+
+**What to build, and why it is one file.** The Send control takes a busy state,
+and a polite live region says a turn started. Both are
+`packages/client/src/ui/` — [10 §1.2](../10-ui-surfaces.md) consolidated the look
+there deliberately, and `ui/classes.ts` already spells the shared control
+string once. **This is not a UI pass over forty-four buttons**, which is how the
+request arrived; the request was right about the symptom and wrong about the
+surface area.
+
+**What it must not become.** A spinner that claims progress the server is not
+reporting. The server emits ten step events and the play page subscribes to
+none of them; wiring those is a *step display*, which is a bigger thing with a
+contract in it and belongs to a phase rather than here. The bar for this item
+is **acknowledgement**, not progress.
+
+**And the thing it is fighting.** [F-03](21-playable-log.md) is the same
+absence one layer out — a turn in flight is invisible unless the workbench is
+open — and it is *not* polish: [10 §9](../10-ui-surfaces.md) specifies it, and
+it sits in [manual testing §10](05-manual-testing.md) as unowned. Doing this
+item does not discharge that one, and the two should not be confused because
+they feel like the same complaint.
+
+---
+
+## 12. A search over the settings pages
+
+*Routed here 2026-09-09 by [P6B.3](20-p6b-playable.md), from the half of
+[R3](22-walkthrough-refinements.md) the design does **not** argue back at.*
+
+**R3 arrived as three things and only this one survives grading.** The other
+two — roll the settings sections up behind disclosure, and reuse the workbench
+as a table of contents — are refused by [10 §1.1](../10-ui-surfaces.md), which
+rejects disclosure-as-reflex *for this surface by name*. **The complaint
+underneath is real** — the settings pages are long and finding a control means
+reading — and a search is the remedy that does not hide anything.
+
+**Why it is cheap here specifically.** The idiom exists: item 9 above puts
+search and sort on every library shelf, and the search input, its debounce and
+its empty state are already built for the Lorebooks shelf. This is that
+component over a static list of control labels rather than over an index.
+
+**No schema change, no new contract, nothing hidden** — which is exactly this
+file's house rule, and is why the other two thirds of R3 are at
+[25 E10](../25-open-questions.md) instead.

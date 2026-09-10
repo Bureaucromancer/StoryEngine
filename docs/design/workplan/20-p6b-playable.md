@@ -1,7 +1,19 @@
 # 20 — P6B implementation plan: the close-out, and the first real play
 
-**Status: plan, opened 2026-09-07 at `7b6a0d9`**, main's tip after Alpha 2 was
-cut. Written the day it opens, like [P6A](19-p6a-alpha-1.md) and for the same
+**Status: ~~plan~~ open, and it is the last phase open.** Opened 2026-09-07 at
+`7b6a0d9`, main's tip after Alpha 2 was cut. **P6B.0 and P6B.1 are landed**
+(`bf14ce6`, shipped as 1.0-alpha 3); **P6B.3's triage ran 2026-09-09** and
+routed all twenty findings seen so far. **What holds the phase open is
+P6B.2 — the play itself — and it is a person's.**
+
+**This phase does not close on its buildable work**, which is the one place
+[manual testing §0](05-manual-testing.md)'s two-tier gate does not buy a close:
+P6B.2 *is* PLAYABLE, the checkpoint [work plan §7](01-work-plan.md) calls
+skipping *"the single most expensive economy available in this plan."* Its
+critical list is [sitting K](05-manual-testing.md) — two sittings and an hour of
+desk work — and §3.1 records which gate steps it answers and which it hands on.
+**The instrument is repaired and the checkpoint has begun. PLAYABLE has not
+run.** Written the day it opens, like [P6A](19-p6a-alpha-1.md) and for the same
 reason: every precondition is checkable today rather than on the day, because
 two audits have already checked them.
 
@@ -180,7 +192,7 @@ the failure the gate's own provenance note warns about.
    `entryLimit` while leaving `tokenBudget` alone. **Settle toward the
    documents**: zero means unlimited, in both fields, spelled once.
 2. **Step 12's ownership.** [§1.4 of P5](17-p5-implementation.md) and
-   [work plan §195](01-work-plan.md) assign channel-conditioned entries to P5; the
+   [work plan §0.3](01-work-plan.md) assign channel-conditioned entries to P5; the
    schema lists `activationConditions` as *deliberately absent* and the importer
    discards it. Three documents disagree about whether a feature exists. **The
    code is right and the documents are wrong** — the deferral was taken and
@@ -294,7 +306,7 @@ and because this phase is already in the files.
 **Four things this phase absorbs**, none of them a feature:
 
 1. **F22's leftover gets an owner.** The rebuild/watcher divergence over a
-   refused path is assigned in [P2 §782](08-p2-implementation.md) to **`P2.7`,
+   refused path is assigned in [P2.3](08-p2-implementation.md) to **`P2.7`,
    a stage that does not exist** — P2 has P2.0 through P2.6. It was moved off a
    closed stage precisely so it would not become nobody's, and became nobody's
    by the other route. [P6B.1](#p6b1--p5s-close-out--prepared-the-walk-is-the-one-part-a-person-does) is already opening the
@@ -318,7 +330,7 @@ than silent: the permissive corpus (person-blocked, and §3 step 6 records it as
 such), the four smaller P2-era defects in
 [manual gate §3.6](11-p2-manual-gate.md), and the five should-be-tests in
 [manual gate §4](11-p2-manual-gate.md). Each has a row and an owner in
-[manual testing §4](05-manual-testing.md), which is what makes deferring them a decision.
+[manual testing §10](05-manual-testing.md), which is what makes deferring them a decision.
 
 ### 1.8 The log, and the rule that keeps it honest
 
@@ -449,7 +461,7 @@ that is its outcome — the book is supplied by the walker or the step is
 deferred, and it is counted with [P4 §3](16-p4-implementation.md) step 1 at
 [manual testing §3.4](05-manual-testing.md), which wants the same book. Step 11's
 reproduction half is **P6's** and there is no replay entry point to look for.
-Step 12 is **P7's**: [work plan §195](01-work-plan.md)'s row moved,
+Step 12 is **P7's**: [work plan §0.3](01-work-plan.md)'s row moved,
 [P5 §1.4](17-p5-implementation.md) is corrected, and
 [P7 §0.1](23-p7-implementation.md) carries it — so a walker records it deferred
 with an owner rather than failed, because a failed step is a defect and a
@@ -524,14 +536,52 @@ findings from P2C.0's smoke run under an empty *Triage* heading. They get homes
 too, or a recorded reason why not.
 
 **And the ledger is updated rather than left to go stale** —
-[manual testing §1](05-manual-testing.md) gains P5's and PLAYABLE's rows in their walked
-state, and anything this phase defers gains a row with a name beside it in §4.
-That is the file's own standing rule, and this is the first phase that closes
-under it.
+[manual testing §6](05-manual-testing.md)'s gate table gains P5's and PLAYABLE's
+rows in their walked state, and anything this phase defers gains a row with a
+name beside it in **§10**. That is the file's own standing rule, and this is
+the first phase that closes under it. *(The two section numbers in this
+paragraph were §1 and §4 and were both wrong — §1 is the queue and §4 is the
+sittings. A pointer nobody follows is how a ledger goes stale, which is the
+thing this paragraph is against.)*
 
 *Ends at:* an empty log, six questions answered or re-deferred with reasons,
 [manual testing](05-manual-testing.md) current, and [P7 §0.1](23-p7-implementation.md) given
 the follow-up it asks for.
+
+**Run 2026-09-09, and it was desk work rather than a walk.** All twenty
+findings have rows: [P2C log](14-p2c-log.md)'s fourteen and
+[playable log](21-playable-log.md)'s six, each checked against the file and line
+it claims about rather than against a memory of a fix.
+
+- **Nine of P2C's fourteen were already fixed** by later phases opening the
+  same files for other reasons — which is the finding of the triage rather
+  than a happy accident. The log worked as a record and failed as a queue,
+  exactly as its own header says it is not one.
+- **Two go to [P7](23-p7-implementation.md)**: the invisible context-window
+  lever, and `turn.status: failed` on the wire for a running turn. Both are
+  about a surface, which is why nobody had a reason to open them.
+- **Two are recorded as not-defects** with the code that argues it — a sixth
+  outcome [P2C §2.5](12-p2c-first-real-run.md)'s five did not have, because
+  five homes assume every entry is a defect.
+- **Two of the six PLAYABLE findings stay unowned**, F-03 and F-05, and are
+  named as such in [manual testing §10](05-manual-testing.md). **A false owner
+  is worse than a named absence**, because it stops anybody looking.
+- **[F-06](21-playable-log.md) answers [P6 §5](18-p6-implementation.md)** and
+  P6 closed collecting it. **[F-04](21-playable-log.md) produced two
+  `CORRECTION`s**, both now written: [P3.1a](15-p3-implementation.md)'s stage
+  record claimed a browser drag over a control that had no height, and
+  [manual testing](05-manual-testing.md)'s D2 reads `PASS` while testing only
+  that a size persists.
+- **[Refinements §4](22-walkthrough-refinements.md)'s two unwritten
+  destinations are written**: [polish §11](06-polish.md) and
+  [§12](06-polish.md). R1, R4 and R7 remain unowned and are named in
+  [manual testing §10](05-manual-testing.md) rather than assigned.
+
+**What is not done, and it is the half a person owns:** the log is not empty
+of *new* findings, because [P6B.2](#p6b2--play) has not run. This triage
+routed everything seen up to 2026-09-08. **K9 re-runs it** over whatever
+[sitting K](05-manual-testing.md) produces, which is why the stage is written
+to be run twice rather than once.
 
 ---
 
@@ -563,6 +613,62 @@ the follow-up it asks for.
 **And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** This phase is that line being paid off for
 the retriever, three phases late.
+
+### 3.1 What closed this gate, and what it did not
+
+**The ten steps above are never edited.** They keep asking what they asked; this
+table records what was answered and by what, which is the separation
+[§1.3](#13-the-four-contradictions-settled-before-anybody-walks) demands
+against *"a walk that edits the gate until it passes."* Without it the two-tier
+model is a rubber stamp with extra steps.
+
+**P6B is the first phase to close under**
+**[manual testing §0](05-manual-testing.md)**, and the hardest case that model
+will meet — because P6B.2 *is* PLAYABLE, which is why this phase does **not**
+close on its buildable work. The critical list is
+[sitting K](05-manual-testing.md), derived by §0's three-clause criterion and
+not by preference.
+
+| Step | Answered by | State |
+|---|---|---|
+| **1** Selection round-trips | **K3** | critical; walk pending |
+| **2** Selection is changeable mid-session | **K3** | critical; walk pending |
+| **3** `pnpm seed` produces a playable install | **K1** | critical; walk pending |
+| **4** A refused submission is visible | **K6** | critical; walk pending — and it is the *play page's* rendering, not the settings 412 [B9](05-manual-testing.md) already passed |
+| **5** An imported book keeps its entries | **K2**, then **K4** | critical; walk pending. **The shipped fixture will not do**: `RAIN_CITY_BOOK` has only positions 0 and 4, so it never exercises the `after_char` defect [P6B.1](#p6b1--p5s-close-out--prepared-the-walk-is-the-one-part-a-person-does) fixed |
+| **6** Recursion is not silently truncated | **a test** — `retrieval/activate.test.ts`, the width-three chain at the default depth | **AUTO in part**, [manual testing §5](05-manual-testing.md). Its carrier is the third entry in scan order, so the *raising an `order`* clause is covered in substance and by nothing that says so |
+| **7** The migration test fails when the copy is deleted | **a test** — `state/migrations.test.ts`, mutation run at [P6B.1](#p6b1--p5s-close-out--prepared-the-walk-is-the-one-part-a-person-does) | **AUTO**, [manual testing §5](05-manual-testing.md) |
+| **8** P5's eighteen steps, walked by a person | **nothing here** | **Standing**, [sitting F](05-manual-testing.md). This is P5's claim living in P6B's gate — criterion **(i)** — and P5 closed 2026-09-09 with it |
+| **9** The four hypotheses answered in writing | **K8**, and only partly | critical; walk pending. See below |
+| **10** The log is empty | **K9**, over what K produces | **Half done, 2026-09-09.** [P6B.3](#p6b3--triage) routed all twenty findings seen up to 2026-09-08. The other half needs P6B.2 to have happened |
+
+**What this list cannot reach, and it is not a footnote.** Every K item is one
+turn long and leaves nothing behind, so a defect of *accumulation* survives it
+intact. **And the sharper one is a property of the design rather than of the
+code: the budgeter may look comprehensible precisely because the walker chose
+the book, the budget and the turn.** A controlled experiment answering a
+question about uncontrolled use is what a full walk exists to avoid, and this
+list is a controlled experiment by construction. That is the price of closing
+this phase this month, and it is written here rather than discovered later.
+
+**Of the four hypotheses, K8 can honestly reach two and a half.** Hypothesis 2
+in full. Hypothesis 1 thinly, on a turn the walker built. Hypothesis 3 splits —
+the budgeter's *account* of itself is answerable now, its behaviour under a
+real library's pressure is not, and **do not synthesise a three-hundred-entry
+book to close the gap**: it would give a confident answer to the question R1
+exists to ask. *Wrong* is worse than *absent*, and absent is cheap to repair.
+**The rule worth keeping: synthesise for arithmetic and layout, never for
+judgement.** Hypothesis 4 is not reachable here at all — see
+[manual testing §4](05-manual-testing.md)'s correction: it has never been in
+contact with anything, and G is where it gets one.
+
+**And a second way this could pass and be worthless: it cannot fail the way C
+did.** [Sitting C](05-manual-testing.md) ran eleven deliberate breakages,
+passed eleven, and produced **no refinement note at all**, while the quiet
+sittings produced five. K1–K7 are all built around something going wrong or
+being made to go wrong — the shape that has so far produced nothing. **Keep
+[refinements](22-walkthrough-refinements.md) open beside the log, and treat a
+sitting that adds no row to it as a signal rather than a clean sweep.**
 
 ---
 

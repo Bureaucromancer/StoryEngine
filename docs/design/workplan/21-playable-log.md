@@ -132,7 +132,7 @@ snapshot  none
 ```
 
 **This is a recorded, deliberately-accepted condition, not a regression.**
-[P2C brief §](13-p2c-brief.md) says it almost word for word: *"There is no progress, no
+[P2C brief §3.4](13-p2c-brief.md) says it almost word for word: *"There is no progress, no
 step display and no spinner."* What is new is that a person walked into it and
 called it *painful*, which is the evidence that brief was waiting for.
 
@@ -169,7 +169,7 @@ snapshot  none
 **The most valuable finding of the walk, and it indicts three things rather than
 one.** Already fixed at `71ff7f1` on `feat/tagging_and_search`, together with a
 test that reads the built stylesheet — the gate this bug class has never had.
-[P3 §](15-p3-implementation.md)'s stage record claims a browser walk that cannot
+[P3.1a](15-p3-implementation.md)'s stage record claims a browser walk that cannot
 have happened, and [manual testing](05-manual-testing.md)'s D2 tests that a size *persists*,
 never that it can be *set*. See [refinements §2.1](22-walkthrough-refinements.md).
 
@@ -185,7 +185,7 @@ observed  it shows the head. Reaching an earlier turn means moving the head —
 snapshot  none
 ```
 
-[10 §444](../10-ui-surfaces.md) says the panel shows any turn *"current or
+[10 §3](../10-ui-surfaces.md) says the panel shows any turn *"current or
 historical"*. The reader for it exists (`useTurn`) with one caller, and P3.6
 landed without the per-turn affordance it was assigned.
 
@@ -226,6 +226,28 @@ finding above has a home here.
 
 **Nothing is allowed to have no home.**
 
-*And one piece of inherited bookkeeping:* [P2C log](14-p2c-log.md) holds fourteen
-findings from P2C.0's smoke run under a *Triage* heading that is still empty.
-They get homes at the same sitting, or a recorded reason why not.
+*Run 2026-09-09 at [P6B.3](20-p6b-playable.md). These six came from a scripted
+gate walk rather than from [P6B.2](20-p6b-playable.md)'s play, so the triage is
+complete for what has been seen and the table will be appended to, not
+replaced, when [sitting K](05-manual-testing.md) and G add rows.*
+
+| Finding | Home | Why |
+| --- | --- | --- |
+| **F-01** — the connection list is thin at the point you need a second model | **[P7 §1.9](23-p7-implementation.md)** | Graded at [R2](22-walkthrough-refinements.md), where the diagnosis moved: duplicate-and-reorder is the *requested* remedy, and the thing actually blocking *use a second model* is a role-binding editor nobody has built. Routing the request rather than the diagnosis would have bought the wrong thing |
+| **F-02** — nothing happens between Send and the first token | **[Polish](06-polish.md) §11** | A recorded, deliberately-accepted condition — [P2C brief](13-p2c-brief.md) predicts it nearly word for word. **What is new is that a person walked into it and called it painful**, which is the evidence that acceptance was waiting for. Graded [R10](22-walkthrough-refinements.md); one file, because the look is consolidated in `ui/` |
+| **F-03** — a turn in flight is invisible unless the workbench is open | **Unowned, and named as such in [manual testing §10](05-manual-testing.md)** | [10 §9](../10-ui-surfaces.md) specifies it almost verbatim and P3.5 built it inside the panel only. Graded [R7](22-walkthrough-refinements.md) as *small*. **There is no phase that owns `10 §9`**, and inventing one here would be filing rather than routing |
+| **F-04** — the workbench drag handle has never had a height | **Fixed, `71ff7f1`; two documents owe a correction** | The walk's most valuable finding. The fix and its stylesheet-reading test landed with `feat/tagging_and_search` and are on `main`. What is *not* discharged is what it indicts: [P3](15-p3-implementation.md)'s stage record claims a browser drag that cannot have happened, and [manual testing](05-manual-testing.md)'s D2 reads `PASS` while testing only that a size persists. Both are `CORRECTION`s and both are written |
+| **F-05** — the workbench cannot be pointed at a turn the head has passed | **Unowned; a 1.0 commitment, named in [manual testing §10](05-manual-testing.md)** | [10 §3](../10-ui-surfaces.md) says *current or historical*; the panel is wired to the head. `useTurn` exists with one caller, so the reader is built and the affordance is not. Graded [R1](22-walkthrough-refinements.md) as *medium* and explicitly unowned — [P11.0](27-p11-implementation.md)'s audit is what exists to find commitments like it |
+| **F-06** — *continue from here* is not predictable, and that is an answer | **Answers [P6 §5](18-p6-implementation.md); closed at this triage** | The judgement this checkpoint most wanted, and the only one of the six that answers rather than asks. [P6 §1.8](18-p6-implementation.md) deferred exactly this to PLAYABLE and said so twice. **P6 closed on 2026-09-09 collecting it** — no new walking, because a recorded judgement from a person using the thing is the only evidence the question admits. Its two neighbours, what *N* should be and which reply an edit changes, stay open |
+
+**Two of six are unowned and stay that way**, F-03 and F-05, and both are the
+same shape: a design note specifies a thing, a phase built most of it, and no
+later phase inherited the remainder. They are in
+[manual testing §10](05-manual-testing.md) with that sentence beside them rather
+than assigned to a phase that did not ask for them — **a false owner is worse
+than a named absence**, because it stops anybody looking.
+
+*And one piece of inherited bookkeeping, discharged the same day:*
+[P2C log](14-p2c-log.md)'s fourteen findings now have rows. Nine were fixed by
+later phases without the table existing; two are recorded as not-defects; two
+go to [P7](23-p7-implementation.md); one is a storage scenario for sitting D.

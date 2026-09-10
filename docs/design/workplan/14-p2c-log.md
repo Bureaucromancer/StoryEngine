@@ -339,9 +339,44 @@ asked for the measurement before the fix, and this is it.
 *Filled at [P2C.4](12-p2c-first-real-run.md). Every finding above gets exactly one
 row, and the phase does not end while this table is shorter than that list.*
 
+*Run 2026-09-09 at [P6B.3](20-p6b-playable.md), sixteen days late and by
+reading the code rather than by re-walking. **Every row below is a claim about
+this build**, checked against the file and line named; none is a memory of a
+fix. Where a finding turned out to be fixed, the row says where the fix lives
+so the claim can be refuted.*
+
 | Finding | Home | Why |
 | --- | --- | --- |
+| **1** — token counts read `0`, not null | **Fixed in a later phase** | `turns/runner.ts:855`. `costOf` now counts only when *every* call reported usage and returns `null` otherwise; `TurnCost` takes the nulls. The fabricated zero is gone |
+| **2** — a cancelled turn records no model call | **Fixed in a later phase** | `turns/runner.ts:700` finalises the call a `Cancelled` carries, and the comment names this finding. The bare case survives on purpose — a Stop *between attempts* genuinely has no call — and restamps the provisional instead (`:717`) |
+| **3** — history attributes the player's prose to the assistant | **Fixed in a later phase, and it was the decision this row said it would be** | `assembly/collect.ts:414-417`. The finding argued the one-block-per-turn shape was deliberate and splitting it *"a decision"*. It was taken: two halves at one priority, so a turn is still one unit to the budgeter, and the tie-break puts the reply before the prompt it answered |
+| **4** — the composer looks editable while disabled | **Fixed in a later phase** | `client/src/ui/classes.ts:118` — the shared `control` string carries four `disabled:` variants |
+| **5** — a bad key reports as an unreachable endpoint | **Fixed in a later phase** | `routes/connections.ts:320` answers **401 *That endpoint refused the key*** for 401/403, which is a different status and a different sentence from the 502 |
+| **6** — `capabilities` is the only lever for the context window, and invisible | **[P7](23-p7-implementation.md)** | Still true: `routes/connections.ts:54` takes an open object, and nothing in `packages/client` or `docs/api.md` names `contextWindow`. **This is [work plan §2.3](01-work-plan.md)'s *no phase exits with configuration that has no surface* unpaid**, and P7 owns the settings surfaces |
+| **7** — transient failures classify as terminal | **Fixed in a later phase** | `providers/openai-compatible.ts:287-347`, whose comment quotes this finding. `ECONNREFUSED` and undici's `terminated` both classify `transient` |
+| **8** — a broken library file becomes unwritable *and* undeletable | **Fixed inside P4** | P4.0, `routes/diverged.test.ts` — five tests, including the one written as a property of the status code: **a 412 never answers with the hash the caller sent** |
+| **9** — the teardown takes `config.json`, and the next start says nothing | **Half fixed; the rest is [sitting D](05-manual-testing.md)** | The silence is gone — `main.ts:126` warns *No config file; running on defaults*. What the finding also saw, that a `rm -rf` leaves both SQLite stores standing while a plain file beside them goes, is a **storage scenario rather than a defect** and is what D18–D20 are for |
+| **10** — crash recovery works, and the record is shaped differently | **Not a defect. Recorded and closed** | `turns/runner.ts:825-846` argues it: the draft is *the turn as it would be written if it ended now*, so `status: 'failed'` and the absent `request` are the recovery contract. The finding's own value was pre-empting a bug report, and this row is that |
+| **11** — an in-flight turn is broadcast as `failed` | **[P7](23-p7-implementation.md)** | The disk half is finding 10's contract and stays. The **wire** half is not addressed: a client reading `turn.status` on a running turn is told `failed`, with only `job.status` to contradict it. That is a contract question, and P7 is the next phase to touch it |
+| **12** — the brief names `GET /api/auth`, which 404s | **A gate correction, applied** | The route is `/api/auth/state`. [P2C brief](13-p2c-brief.md) no longer names the wrong one |
+| **13** — gate §2.1 step 2 sends the tester to a screen that does not exist | **A gate correction, applied** | [manual gate §2.1](11-p2-manual-gate.md) step 2 now reads *Settings → Administration* and says in the step that *Treatments* was a rename artifact — which keeps the correction visible instead of erasing the trap |
+| **14** — the session-read measurement §1.7 deferred | **Not a defect. It is the measurement** | Flat from 13 to 55 turns. What grows is the payload, ~10.8 KB a turn, and `?limit=1` is the cheap read. **Do not re-measure** |
 
 **The five homes, from [P2C §2.5](12-p2c-first-real-run.md):** stopped the phase ·
 fixed inside it · a gate correction · [polish](06-polish.md) ·
 [PLAYABLE](01-work-plan.md) or [roadmap](../24-roadmap.md).
+
+**And a correction to that rule, earned by running it.** Five homes assume every
+entry is a defect. Two of these fourteen are not — **10 and 14 are an
+observation and a measurement**, and forcing either into *polish* or *roadmap*
+would have filed a non-problem as work. They are closed as *recorded*, with the
+reasoning in the row, which is a sixth outcome §2.5 should have had. It is not a
+loophole: a *recorded* row still has to say what makes it not a defect, and both
+of these cite the code that argues it.
+
+**Nine of the fourteen were fixed without this table existing** — which is the
+real finding of the triage. The log worked as a record and failed as a queue,
+exactly as its own header says it is not one; what actually drove the repairs
+was later phases opening the same files for other reasons. Two that nobody had
+a reason to open (6 and 11) are still open sixteen days later, and both are
+about a surface rather than a mechanism.

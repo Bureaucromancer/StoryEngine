@@ -426,7 +426,8 @@ added that nothing else has a home for.
 | # | Do | Clears | Result |
 |---|---|---|---|
 | **D1** | Toggle the panel from the keyboard over **both** Play and Library. Typing in the action input or the guidance box does not fire it. It **insets** rather than replaces; Tab passes through; it is not `aria-modal`. | P3 1 |PASS |
-| **D2** | Open the panel, then **Play → Library → Play**: still open, same size, subject changed with the view. Then reload: still open, same size. | P3 2 |PASS |
+| **D2** | Open the panel, then **Play → Library → Play**: still open, same size, subject changed with the view. Then reload: still open, same size. | P3 2 | **PASS**, and **CORRECTION** — see below |
+| **D2a** | **Set** the size by *dragging the edge with a pointer*, then reload. | P3 2, the half D2 never asked for | |
 | **D3** | **Nothing switches it on.** No debug mode, no advanced toggle, no nav entry, nothing in Settings. | P3 3 |PASS |
 | **D4** | Over a turn: every block's source is clickable through to the object; **no `unknown` sources**; the resolved model is the one that *answered* — and a cancelled or failed call truthfully records the one that was *asked*. | P3 4 |PASS |
 | **D5** | *What is about to fall out of context* is answered from the verdict **without generating anything** — and on a turn with headroom it does not claim the system instruction is about to fall out. | P3 5 |PASS |
@@ -445,6 +446,22 @@ added that nothing else has a home for.
 | **D18** | **Use a real editor, not `fs`.** Every write the watcher has ever seen came from node. Save once from a full editor, once from Notepad, and once as an Explorer copy-over, watching an open detail page. `awaitWriteFinish` has a 150 ms stability threshold and real editors write in ways `fs` does not. | [P2C.2](12-p2c-first-real-run.md) | |
 | **D19** | **Hand-edit a committed turn** on disk. No route edits, deletes or re-runs one; the file is there, and what happens when somebody changes it is a storage question no test asks. | [P2C.2](12-p2c-first-real-run.md) | |
 | **D20** | **The version history panel** — the app's only editing surface beyond the actor form, and on nobody's list. Edit five times, restore an old one, confirm **the restore is itself recorded**. | [P2C.2](12-p2c-first-real-run.md) | |
+
+---
+
+**CORRECTION on D2, 2026-09-09.** ***The step tests only that a size
+persists.*** It says *same size* three times and never says *set the size*, so
+a panel whose drag handle is zero pixels tall passes it — which is exactly what
+happened, for three phases, until [F-04](21-playable-log.md) found the handle by
+reading the class name rather than by walking the step.
+
+**A step that only checks persistence cannot find a control that was never
+grabbable**, and this is the second document to have been fooled by the same
+gap: [P3.1a](15-p3-implementation.md)'s stage record claimed the drag outright.
+**The `PASS` stands** — what D2 asked, the app did — and **D2a** is the half it
+never asked. The fix landed at `71ff7f1` with a test that reads the built
+stylesheet, so D2a should now pass; it is written here rather than assumed,
+because assuming is how the first one was recorded.
 
 ---
 
@@ -495,7 +512,7 @@ to everything below.
 | **F9** | **Recursion.** An activated entry's text activates another; `preventRecursion` et al. honoured; no runaway at the book's depth limit. **Use a chain of width more than one** — every automated recursion test is width one, which is how [P6B.1](20-p6b-playable.md)'s haystack defect survived. | P5 9 | |
 | **F10** | **Budget pressure.** A book over its `tokenBudget` drops entries in the documented order, each skip named with the blocking budget, and a small entry still fits after a large one dropped. **Spot-check `tokenBudget: 0`** — it now means unlimited, which is the first contradiction settled. | P5 10 | |
 | **F11** | A rewrite reproduces identical activations. | P5 11 | **PART / DEFERRED.** P5's half — the keying — is met. The reproduction half is [P6 §3](18-p6-implementation.md) step 3's; there is no production replay entry point to look for. Settled at [P6B.1](20-p6b-playable.md). |
-| **F12** | An entry conditioned on a channel that does not exist → visible warning, never fires, nothing blocks. | P5 12 | **DEFERRED — P7.** No entry can be conditioned on a channel; the schema lists `activationConditions` as deliberately absent. [work plan §195](01-work-plan.md)'s row moved and [P7 §0.1](23-p7-implementation.md) carries it. *Do not credit `unknownSources` here* — such an entry keeps scanning and can still fire. |
+| **F12** | An entry conditioned on a channel that does not exist → visible warning, never fires, nothing blocks. | P5 12 | **DEFERRED — P7.** No entry can be conditioned on a channel; the schema lists `activationConditions` as deliberately absent. [work plan §0.3](01-work-plan.md)'s row moved and [P7 §0.1](23-p7-implementation.md) carries it. *Do not credit `unknownSources` here* — such an entry keeps scanning and can still fire. |
 | **F13** | **The keyword tester answers *why does this entry never fire*** without playing a turn — and where the answer is a gate or a disabled book rather than a match, **it agrees with what the book page already showed.** Disagreement here is the failure P5.7 exists to prevent. | P5 13 | |
 | **F14** | Timing counters reconstruct correctly at an old node. | P5 14 | **AUTO** — `sessions/reconstruct-property.test.ts`, discharged at P6.0a: four turns with a sticky, a cooldown and an ephemeral entry, replayed at every node of a forked session. |
 | **F15** | **A hostile pattern from an imported book does not hang the server.** A catastrophically backtracking regex is abandoned at the timeout, the entry reports why, and the turn completes. The one gate step about somebody else's file being able to hurt you. | P5 15 | |
@@ -816,8 +833,8 @@ Anything that loses its owner comes back to §0's rule.*
 | Item | Where it was made | Owner | Why deferred |
 |---|---|---|---|
 | The permissive corpus | [P4 §0](16-p4-implementation.md), [P5 §1.6](17-p5-implementation.md) | whoever acquires it; blocks P4 step 1 and P5 step 6 | Person-blocked with lead time. Cannot be synthesised. §3, R1 |
-| **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2 §782](08-p2-implementation.md) | ~~P2.7~~ ~~nobody~~ **closed at P6B.1**, `0e228ec` | See §10.1 — and it was a live divergence, not the bookkeeping the sentence made it sound. |
-| P2 gate step 8 / F12 — an editor-page mount rather than a component mount | [P2 §958](08-p2-implementation.md) | unassigned; "unblocked rather than done" | The harness exists now, so it is a test somebody has to write |
+| **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2.3](08-p2-implementation.md) | ~~P2.7~~ ~~nobody~~ **closed at P6B.1**, `0e228ec` | See §10.1 — and it was a live divergence, not the bookkeeping the sentence made it sound. |
+| P2 gate step 8 / F12 — an editor-page mount rather than a component mount | [P2.6](08-p2-implementation.md) | unassigned; "unblocked rather than done" | The harness exists now, so it is a test somebody has to write |
 | A killed *process* names no model call | [manual gate §3.6](11-p2-manual-gate.md) | the suite's one `it.todo`, `recovery.test.ts` | Needs a provisional call in the checkpoint |
 | The record cannot say a block is advisory | [manual gate §3.6](11-p2-manual-gate.md) | unassigned | `assemble()` drops `Candidate.advisory`; `ModelCall` records no purpose. **[P7](23-p7-implementation.md) makes this expressible or it stays unexpressible** |
 | Two clock-effect constructors disagree; `clockEffect` has no production caller | [manual gate §3.6](11-p2-manual-gate.md) | unassigned | Dead code with a disagreement in it |
@@ -826,7 +843,12 @@ Anything that loses its owner comes back to §0's rule.*
 | Nightly tier, dependency-licence scan, forward-port check | [testing §6](03-testing.md), [releases §8](04-repo-and-releases.md) | [P11](27-p11-implementation.md) | Beta-gate work; `testing` landed early at alpha.2 and nightly did not |
 | Restore test, upgrade test | [work plan §8](01-work-plan.md), [25 E6](../25-open-questions.md) | [P11](27-p11-implementation.md) | "An untested restore is not a backup" — and it is 1.0 scope |
 | Release-line support window; release-branch cut point | [releases §8](04-repo-and-releases.md) | [P11](27-p11-implementation.md) | Cheap to declare now, awkward later; no release line exists yet |
-| The ten polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
+| The twelve polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
+| **[F-03](21-playable-log.md)** — a turn in flight is invisible unless the workbench is open | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned, and named rather than assigned** | [10 §9](../10-ui-surfaces.md) specifies it nearly verbatim — *"a collapsed line while things go well"* — and P3.5 built it inside the panel only. **No phase owns `10 §9`.** Graded [R7](22-walkthrough-refinements.md), *small*. Giving it a false owner would stop anybody looking |
+| **[F-05](21-playable-log.md)** — the workbench cannot be pointed at a turn the head has passed | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned; a 1.0 commitment**, and [P11.0](27-p11-implementation.md)'s audit is what exists to find those | [10 §3](../10-ui-surfaces.md) says the panel shows any turn *current or historical*; it is wired to the head. `useTurn` exists with one caller, so the reader is built and the affordance is not. Graded [R1](22-walkthrough-refinements.md) |
+| **[P2C 6](14-p2c-log.md)** — `capabilities` is the only lever for the context window, and it has no surface | P2C.0, 2026-08-23; triaged 2026-09-09 | **[P7](23-p7-implementation.md)** | Sixteen days open because nobody had a reason to open the file. It is [work plan §2.3](01-work-plan.md)'s *no phase exits with configuration that has no surface*, unpaid for connections |
+| **[P2C 11](14-p2c-log.md)** — an in-flight turn is broadcast as `failed` | P2C.0, 2026-08-23; triaged 2026-09-09 | **[P7](23-p7-implementation.md)** | The disk half is the recovery contract and stays. The wire half is a contract question nobody has answered: a client reading `turn.status` on a running turn is told `failed` |
+| **[R4](22-walkthrough-refinements.md)** — where the reader's view sits while a turn streams | the walk's grading, 2026-09-08; **regraded 2026-09-09** | **unowned, and it needs a paragraph in [10](../10-ui-surfaces.md) before it can have one** | The refutation that downgraded it cited `[07 §]` — no section, and `07-branching.md` says nothing of the kind. **The largest genuine blank in the corpus**, restored to that status |
 | **What sitting K cannot reach** — hypothesis 3 under a real library's pressure, hypothesis 4 under a long session, and any defect of *accumulation* | [K](#k--p6bs-critical-list--two-sittings-and-an-hour-of-desk-work-the-one-that-closes-a-phase), on the day it was derived | **[G](#g--the-long-pass--hours-unscripted-playables-second-sitting) and J**, which is a named sitting rather than a person — and R1 and R9 are what they wait on | **This row exists because the two-tier gate owes it.** A critical list closes a phase on the part that compounds; the part it drops has to land somewhere with a name, or the model is just a smaller gate with the same silence. Every K item is one turn long and leaves nothing behind, so nothing in it can see a leak at turn forty |
 
 ### 10.1 The dangling owner, which is the finding this sweep exists to have produced

@@ -26,7 +26,7 @@ moved a lot:
 
 | # | The note asked for | What it actually is |
 |---|---|---|
-| **R1** | An outline on the selected turn, and selecting earlier turns for the workbench | **A 1.0 commitment with no owner.** [10 §444](../10-ui-surfaces.md) says the panel shows any turn *"current or historical"*; it is hard-wired to the head. The reader it needs already exists and has one caller. |
+| **R1** | An outline on the selected turn, and selecting earlier turns for the workbench | **A 1.0 commitment with no owner.** [10 §3](../10-ui-surfaces.md) says the panel shows any turn *"current or historical"*; it is hard-wired to the head. The reader it needs already exists and has one caller. |
 | **R2** | Duplicate + reorder connections; separate provider from model | **The data model already separates them.** The form fuses them. And the thing actually blocking *use a second model* is a role-binding editor nobody built — [P7 §1.9](23-p7-implementation.md). |
 | **R3** | Roll up settings sections, add a search bar, use the workbench as a table of contents | **The only item where the design argues back.** [10 §1.1](../10-ui-surfaces.md) rejects disclosure-as-reflex *for this surface by name*. The complaint is real; the remedy is refused. |
 | **R4** | Autoscroll so the prompt sits at the top when results stream | **The largest genuine blank in the corpus.** Nothing anywhere specifies where the reader's view sits. Also: the prompt is not in the DOM during streaming, and the page does not scroll — the transcript does. |
@@ -35,7 +35,7 @@ moved a lot:
 | **R7** | An in-flight indicator when the workbench is closed | **Specified nearly verbatim** at [10 §9](../10-ui-surfaces.md): *"a collapsed line while things go well"*. P3.5 built it only inside the panel. |
 | **R8** | Delete a turn, warning about downstream turns | **Post-1.0 and already on the roadmap** — [24 §1.4](../24-roadmap.md)'s *R4 — Curate*, *"prune a subtree"*. Its warning is specified and is **stronger** than the one requested. |
 | **R9** | Session delete, duplicate, rename, import, export, in the library | **Five verbs, five different truths, ~60% already built.** Rename is done but unpushed; delete and archive have routes and no UI; import/export is P11 and blocked. *"In library"* is a placement the object set refuses. |
-| **R10** | Visual feedback on Send; a UI pass on all buttons | **A recorded, deliberately-accepted condition** — [P2C brief §](13-p2c-brief.md) says it almost word for word. One file, because [10 §1.2](../10-ui-surfaces.md) consolidated the look into `ui/`. |
+| **R10** | Visual feedback on Send; a UI pass on all buttons | **A recorded, deliberately-accepted condition** — [P2C brief §3.4](13-p2c-brief.md) says it almost word for word. One file, because [10 §1.2](../10-ui-surfaces.md) consolidated the look into `ui/`. |
 | **R11** | Suggested actions, pre-1.0, per-session toggle, keep the unselected | **The author's self-diagnosis is exactly right and checkable.** The phrase appears **once** in the whole corpus, in the sentence defining Freeform — a 1.0 mode. Every downstream document dropped it. |
 
 **Three of the eleven survive as written**: R3's search bar, R8's gesture, and
@@ -105,7 +105,7 @@ invisible in jsdom.*
 > role. They are not wrong; they are blind, and worth a docstring saying which
 > half they cover.
 >
-> **[P3 §](15-p3-implementation.md)'s stage record claims a browser walk that
+> **[P3.1a](15-p3-implementation.md)'s stage record claims a browser walk that
 > cannot have happened** — *"open, drag to 484, reload, still open at 484"*. It
 > is uncorrected on both branches. That is a `CORRECTION` in
 > [manual testing](05-manual-testing.md)'s sense and the most valuable thing this note
@@ -194,13 +194,13 @@ now and a migration later.
 |---|---|---|---|
 | **R5** | Merge `feat/tagging_and_search`; correct P3's stage record | **zero** | nothing |
 | **R9** rename | Push the branch | **zero** | nothing |
-| **R10** | [polish](06-polish.md); the finding is [P6B.3](20-p6b-playable.md)'s to route | small | nothing |
-| **R7** | Whoever owns [10 §9](../10-ui-surfaces.md) — unowned today | small | §1's shared layer |
+| **R10** | ~~[polish](06-polish.md); the finding is [P6B.3](20-p6b-playable.md)'s to route~~ **Written, 2026-09-09: [polish §11](06-polish.md)**, and [F-02](21-playable-log.md) is routed there | small | nothing |
+| **R7** | Whoever owns [10 §9](../10-ui-surfaces.md) — unowned today. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09** with [F-03](21-playable-log.md): a named absence, not a false owner | small | §1's shared layer |
 | **R9** delete + archive | A small client stage over routes that exist | small | decision 4's placement question |
-| **R3** search | [polish](06-polish.md), reusing the branch's search idiom | small | nothing |
-| **R1** | Unowned; a 1.0 commitment [P11.0](27-p11-implementation.md)'s audit exists to find | medium | decision 1 |
-| **R6** | [P6B.3](20-p6b-playable.md) triage, against [P6 §1.8](18-p6-implementation.md) | medium | decision 1 |
-| **R4** | Needs a paragraph in [10](../10-ui-surfaces.md) first — no owner, no text | medium | a written spec |
+| **R3** search | ~~[polish](06-polish.md), reusing the branch's search idiom~~ **Written, 2026-09-09: [polish §12](06-polish.md)** | small | nothing |
+| **R1** | Unowned; a 1.0 commitment [P11.0](27-p11-implementation.md)'s audit exists to find. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09** with [F-05](21-playable-log.md) | medium | decision 1 |
+| **R6** | ~~[P6B.3](20-p6b-playable.md) triage~~ **Closed 2026-09-09**: [F-06](21-playable-log.md) answers [P6 §5](18-p6-implementation.md), and P6 closed collecting it | medium | decision 1 |
+| **R4** | Needs a paragraph in [10](../10-ui-surfaces.md) first — no owner, no text. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09**, and see §6's correction: the refutation that downgraded it does not hold | medium | a written spec |
 | **R3** roll-up + ToC | [25 E10](../25-open-questions.md) | medium | decision 2 |
 | **R2** | [P7 §1.9](23-p7-implementation.md) for the real blocker | large | decision 3 |
 | **R11** | [P7.9](23-p7-implementation.md) — Freeform, and its specification first | large | decision 4 |
@@ -245,11 +245,30 @@ cross-cutting sweeps — the unmerged branch, the 1.0 scope, the UI spec, and a
 completeness critic. Twenty-six agents, no failures.
 
 **Four groundings were refuted on a load-bearing claim** and the corrections are
-folded in above: R2's owner (P7 does own it), R4's *"the docs say nothing"* (too
-strong — [07 §](../07-branching.md) makes scrolling back a 1.0 workflow), R9's
+folded in above: R2's owner (P7 does own it), ~~R4's *"the docs say nothing"*~~
+— **see the correction below** — R9's
 *"on origin"* (the rename commits are unpushed), R10's *"no phase owns this"*
 (P6B.3 does), R11's *"blocking 1.0"* (a feature sentence is not a per-item
 commitment), and R6's *"hover-only"* (the gesture row reveals on focus too).
+
+**CORRECTION, 2026-09-09 — one of those four refutations does not survive being
+looked up.** R4's grounding said *the docs say nothing about where the reader's
+view sits*, and the completeness critic called that too strong, citing
+`[07 §]` — **a citation with no section number, which is what should have
+stopped it.** `07-branching.md` contains no sentence about scrolling, reading
+back, or where a view sits; the word does not occur in the file. The nearest
+real sentence in the corpus is [10 §14](../10-ui-surfaces.md)'s, and it argues
+the **opposite**: session search is argued for 1.0 precisely because *"the
+alternative — scrolling a six-hundred-turn transcript — is the experience it
+exists to prevent."*
+
+**So R4's original grading stands as written**: where the reader's view sits
+during streaming is unspecified, and it is still the largest genuine blank
+here. **And the shape is worth more than the item.** A refutation was accepted
+because it arrived with a citation, and the citation had no section in it —
+the one form [doc links (f)](../../../tools/doc-links.test.ts) forbids for
+exactly this reason: *a checker can confirm that a document carries a number,
+never that it is the one meant.* Here there was not even a number.
 
 **This is a reading, not a walk.** Every claim here about what the code does was
 checked by opening the file; every claim about what a person will *think* of it

@@ -564,7 +564,7 @@ written against:
   `import/fixtures/test-sillytavern.ts:15-20` says outright *"this is the whole
   corpus the phase gets"* and names the real-library walk as outstanding.
   [testing §5](03-testing.md) is the policy's *plan*, not a record that it ran. The
-  same false claim is duplicated at [P4 §1057](16-p4-implementation.md).
+  same false claim is duplicated at [P4.0](16-p4-implementation.md).
 - **Step 8** describes a string the build does not produce. It asks the workbench
   to show *"sticky, 2 remaining"*; `blocks.ts:94-95` returns `'still active from
   an earlier turn'` with no count, `LoreReport` has no timing field, and
@@ -574,12 +574,12 @@ written against:
 - **Step 11** cannot be executed. There is no production replay entry point:
   `turns/runner.ts:304` and `turns/preview.ts:135` are the only non-test `Rng`
   constructions and neither takes a tape. Its parenthetical cites *"P3's
-  edit-and-re-run"*, which [P3 §344](15-p3-implementation.md) explicitly
+  edit-and-re-run"*, which [P3 §1.7](15-p3-implementation.md) explicitly
   disclaims. **What P5 actually discharged is the keying, not the reproduction.**
 - **Step 12** cannot be expressed. No entry can be conditioned on a channel at
   all: [04 §5]'s schema lists `activationConditions` as *deliberately absent*,
   the importer discards it, and no `SkipReason` in the seventeen-arm union names
-  a channel. Meanwhile [work plan §195](01-work-plan.md) still assigns the work to P5.
+  a channel. Meanwhile [work plan §0.3](01-work-plan.md) still assigns the work to P5.
   **Do not credit `unknownSources` to this step** — it is the same visible-warning
   posture for scan *sources*, but the entry keeps scanning and can still fire, so
   it does not satisfy *never fires*.
@@ -660,7 +660,7 @@ each is an argument waiting to happen mid-walk:
    reddens a test. The sibling field is handled correctly — `match.ts:137` says
    *"Zero-as-unlimited is the format's convention and not ours to improve"* — and
    the importer leaves `tokenBudget` unclamped where it clamps `entryLimit`.
-2. **Step 12's ownership** (§1.4 and [work plan §195] say P5; the schema says
+2. **Step 12's ownership** (§1.4 and [work plan §0.3](01-work-plan.md) say P5; the schema says
    deliberately absent).
 3. **Step 11's ownership** (this document says P3's gesture; P3 says P6's).
 4. **Step 6's stated means** (above).
@@ -679,7 +679,7 @@ how they ended is the same failure at one remove.
    `activationConditions` is *deliberately absent* from the schema, and a
    predicate over a channel is unbuildable in a phase where nearly no channels
    exist. What was wrong is that the deferral was taken in the code and no
-   document followed, so [work plan §195](01-work-plan.md) still read **P5** for a thing
+   document followed, so [work plan §0.3](01-work-plan.md) still read **P5** for a thing
    P5 had decided not to build. **It is P7's**, which is the phase that makes
    channels a contract rather than a handful of engine-owned names — that row and
    §1.4 now say so, and [P7 §0.1](23-p7-implementation.md) carries it as
@@ -792,7 +792,7 @@ no `SkipReason` names a channel, and gate step 12 asks for a posture no entry
 can reach. The decision itself is right — a predicate needs a channel to be
 about, and this phase has almost none — so what is corrected is the record, not
 the code. **The minimal comparison set is P7's**, with the channels it
-predicates over; [work plan §195](01-work-plan.md) says so now, and
+predicates over; [work plan §0.3](01-work-plan.md) says so now, and
 [P7 §0.1](23-p7-implementation.md) carries it as inherited. The paragraph above
 stands as the design for whoever builds it.
 
@@ -2323,7 +2323,7 @@ need the private corpus.~~ **False, found at §0.5: the repository keeps none.**
 outstanding and owned by §1.6. [testing §5](03-testing.md) is the policy's *plan*.
 **The walker must supply the book**, which §1.6 already classes as person-blocked
 with lead time; it still does not need the private corpus, and the same false
-claim wants correcting at [P4 §1057](16-p4-implementation.md). **Only [11 §6]'s falsification counts need that**, and
+claim wants correcting at [P4.0](16-p4-implementation.md). **Only [11 §6]'s falsification counts need that**, and
 P5.3 is written so they do not hold the phase closed.
 
 **Amended at [P6B.1](20-p6b-playable.md), 2026-09-07 — step 6 is recorded
@@ -2384,7 +2384,7 @@ revisit rediscover its own.
     `activate.ts:535` and `:611`, each carrying its own entry or group as
     purpose. The *reproduction* half cannot be executed here — there is no
     production replay entry point, and the parenthetical was wrong, since
-    [P3 §344](15-p3-implementation.md) disclaims rewrite and reroll explicitly.
+    [P3 §1.7](15-p3-implementation.md) disclaims rewrite and reroll explicitly.
     It is carried by [P6 §3](18-p6-implementation.md) step 3, which already names
     the fixture constraint P5 could not have known: an ordinary turn commits an
     empty tape, so the fixture has to be built to roll.
@@ -2401,7 +2401,7 @@ revisit rediscover its own.
     lists `activationConditions` as *deliberately absent*, the importer discards
     it, and no `SkipReason` names a channel. §1.4 kept the predicate check and
     §4 defers only *"the rule vocabulary"*, so the deferral was taken in the code
-    without either section following — and [work plan §195](01-work-plan.md) still reads
+    without either section following — and [work plan §0.3](01-work-plan.md) still reads
     **P5**. **This step is not met and this phase does not meet it**; the work
     moves to the phase that ships channel predicates. *Do not credit
     `unknownSources` here* — it is the identical visible-warning posture for scan
@@ -2412,7 +2412,7 @@ revisit rediscover its own.
     contradiction, and the deferral finally has an owner.** The step named the
     phase that ships channel predicates without naming which one, which is the
     state this project's ledger exists to make impossible. **It is P7's**:
-    [work plan §195](01-work-plan.md)'s row moved, §1.4 above is corrected, and
+    [work plan §0.3](01-work-plan.md)'s row moved, §1.4 above is corrected, and
     [P7 §0.1](23-p7-implementation.md) carries it as inherited work with this
     step attached. **A walker records step 12 deferred with an owner, not
     failed** — the distinction matters, because a failed step is a defect and a

@@ -302,9 +302,7 @@ describe('the checker checked something', () => {
     expect(DOC_LINKS.length, 'the markdown-link pattern matched almost nothing').toBeGreaterThan(
       4000,
     );
-    expect(SELF_LINKS.length, 'the same-file anchor pattern matched nothing').toBeGreaterThan(
-      10,
-    );
+    expect(SELF_LINKS.length, 'the same-file anchor pattern matched nothing').toBeGreaterThan(10);
   });
 
   it('found both halves of the corpus', () => {

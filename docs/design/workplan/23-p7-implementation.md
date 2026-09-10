@@ -126,7 +126,7 @@ reading the file the move in §1.1 is about:
 [P6B.1](20-p6b-playable.md), which is where P5's contradictions were settled.**
 **Lorebook `activationConditions` and `schedule`, unified as channel
 predicates** — the minimal comparison set, not 6.0's rule vocabulary.
-[work plan §195](01-work-plan.md) had it as P5's; P5 decided in the code not to build
+[work plan §0.3](01-work-plan.md) had it as P5's; P5 decided in the code not to build
 it and no document followed, so the roadmap read P5 for four months for a thing
 P5 had declined. The decision was right and only the record was wrong: a
 predicate needs a channel to be about, and this is the phase where channels stop
@@ -137,6 +137,32 @@ fires**, which is [P5 §3](17-p5-implementation.md)'s gate step 12 and comes wit
 it. *Do not credit `unknownSources` against that step:* it is the identical
 posture for scan *sources*, but such an entry keeps scanning its other haystacks
 and can still fire, so it fails the *never fires* clause.
+
+**And two that arrived from [P6B.3](20-p6b-playable.md)'s triage, 2026-09-09.**
+Both are [P2C log](14-p2c-log.md) findings from 2026-08-23 that survived
+sixteen days and four phases, and **both survived for the same reason: they are
+about a surface, and no phase since had a reason to open the file.** That is
+the shape [work plan §2.3](01-work-plan.md)'s standing line exists against.
+
+1. **`capabilities` is the only lever for the context window, and it has no**
+   **surface** ([P2C 6](14-p2c-log.md)). `routes/connections.ts:54` takes an
+   open object with `additionalProperties: true`; a `4096` override lands and
+   works end to end. **Nothing in `packages/client` or `docs/api.md` names
+   `contextWindow`** — it was found by reading the route. This is *no phase
+   exits with configuration that has no surface*, unpaid for connections, and
+   P7 owns the settings surfaces ([P6B §4](20-p6b-playable.md) says so
+   explicitly). **It needs a decision before a field:** an open bag has no
+   schema to render, so either the known keys become a typed shape or the
+   surface is a key/value editor, and those are different products.
+2. **A running turn describes itself as `failed` on the wire**
+   ([P2C 11](14-p2c-log.md)). On disk this is deliberate and argued —
+   `turns/runner.ts:825` defines the draft as *the turn as it would be written
+   if it ended now*, so a turn written optimistically as `complete` would be a
+   completed turn that never finished. **The wire inherited the disk's answer
+   without inheriting its argument:** a client reading `turn.status` on a
+   running turn is told `failed`, with only `job.status: running` beside it to
+   contradict. P7 is the next phase to touch the session contract, and this is
+   a contract question rather than a bug — the disk shape should not change.
 
 **And one deferral that arrived after this document was written:**
 [25 C14](../25-open-questions.md), opened 2026-09-06 by the guided-redo work.

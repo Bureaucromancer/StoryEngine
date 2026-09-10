@@ -5,7 +5,7 @@
 the outstanding P2 record items adopted into P3.0 the same day.*
 
 **Fifteen gate steps and no record of a walk.** Step 12 — *somebody who did
-not build the turn explains it from the panel* — is PLAYABLE’s fourth
+not build the turn explains it from the panel* — is PLAYABLE's fourth
 hypothesis wearing a step number, which is why
 [manual testing §3.3](05-manual-testing.md) sequences it immediately after
 [P6B.2](20-p6b-playable.md) rather than as a pass of its own.
@@ -632,8 +632,29 @@ person reaching for that hook.
 `ui.workbench-size` exist through the existing hooks, in `ui/theme.ts`'s
 helper-pair shape (`workbench/prefs.ts`); the prefs cache *is* the open state,
 so the optimistic mutation carries the toggle and gate step 2 is now
-performable in full — walked in a real browser: open, drag to 484, reload,
-still open at 484. Decisions and findings:
+performable in full — ~~walked in a real browser: open, drag to 484, reload,
+still open at 484~~. Decisions and findings:
+
+> **CORRECTION, 2026-09-09.** ***The drag in that sentence cannot have
+> happened.*** [F-04](21-playable-log.md) found that this panel's drag handle
+> carried `inset-block-0`, which is not a Tailwind utility, so no rule was
+> emitted and an absolutely-positioned element with no block inset is **zero
+> pixels tall**. It was zero pixels tall from this stage until `71ff7f1`. The
+> pointer had nothing to grab, on this day and every day after it.
+>
+> **What was walked was the keyboard half and persistence** — open, resize by
+> key, reload, still open at that size — which is a real result and is what the
+> sentence should have said. The size *484* is reachable by keystroke.
+>
+> **The lesson is about the claim's shape, not this stage's care.** *Walked in
+> a real browser* is the strongest phrase available in this corpus, and it was
+> spent on a composite: three things done, one of them assumed because the
+> other two worked. A defect that makes a control invisible to the pointer and
+> untouched by the keyboard path is exactly the defect that survives a walk
+> written that way, and it survived three phases. **The fix that matters is
+> `71ff7f1`'s second half** — a test that reads the *built stylesheet* and
+> fails on a class that emits no rule, which is the gate this bug class has
+> never had.
 
 - **Closed is the absence of the key**, as `system` is for the theme; the
   size is a plain number, clamped **on read** ([§1.2]'s one-line defusal,
