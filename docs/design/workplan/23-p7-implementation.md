@@ -908,7 +908,19 @@ otherwise stop to argue about:
 3. **`RandomApi`'s shape** — at minimum whether a host draw carries `(site,
    purpose)`. It is the conversion's input, not its output.
 4. **19 §10's tree**, which still draws `modes/adventure`.
-5. **`divergenceEffects`' scoped-channel defect.** By the bar
+5. **A cast the browser can set.** `PUT /api/sessions/:id/cast` and
+   `POST /api/sessions`'s `cast` field both accept one and **neither has a caller
+   in `packages/client`** — the identical shape of gap P6B.0 just closed for
+   lore, still open beside it. It is the standing line again, and it is a
+   prerequisite for this phase's own demo rather than a nicety: P7.2's gate step
+   wants a character dead on one branch and alive on the other *in the panel*, and
+   a session made in a browser has no cast for the panel to be about. `pnpm seed`
+   sets one; a person cannot.
+6. **`ChannelEffect.op`'s unimplemented arms** — decided before P7.2 designs the
+   party timeline's payload, per that stage.
+7. **03 §8's `MentionSpan`**, which is §1.7's forbidden shape written into the
+   data model (§1.7).
+8. **`divergenceEffects`' scoped-channel defect.** By the bar
    [P6B §0.3](20-p6b-playable.md) and [P2C §1](12-p2c-first-real-run.md) set — an
    item is pre-work only if leaving it undone makes the phase's own work
    untrustworthy, not merely if it would be convenient — this **qualifies**: it is
@@ -916,15 +928,15 @@ otherwise stop to argue about:
    simultaneously growing `schema`, `init` and `migrate` on, and after P7.1 every
    mode-declared scoped channel is on the same path. `scopeKeyOf` already exists.
    Hours, with a test.
-6. **Repointing the ten server test files that use the mode's internals as generic
+9. **Repointing the ten server test files that use the mode's internals as generic
    fixtures.** After the move these are server → modes imports, which the graph
    forbids. Doing it inside P7.0 buries a large mechanical diff inside the stage
    whose falsification test is *"no diff outside imports"*; doing it first is pure
    preparation and reviewable on its own.
-7. **The strengthening or retiring of `steps.test.ts:212-224`**, which asserts
-   nothing about clonability — it compares `Object.keys` on a hand-built literal
-   whose `rng` is `{}` — while stating two things that are false. §1.3 leans on it
-   as evidence about the seam.
+10. **The strengthening or retiring of `steps.test.ts:212-224`**, which asserts
+    nothing about clonability — it compares `Object.keys` on a hand-built literal
+    whose `rng` is `{}` — while stating two things that are false. §1.3 leans on
+    it as evidence about the seam.
 
 ---
 
@@ -1211,6 +1223,19 @@ so the obligation is met by keeping it a **tagged** reference and naming the typ
 for what it points into rather than for what points at it. Quote the shape here
 rather than leaving the stage to re-derive it.
 
+***And the shape §1.7 forbids is already written down, in the document an
+implementer follows.*** [03 §8](../03-data-model.md) specifies the turn record's
+overlay as `mentions: MentionSpan[]`, and `MentionSpan` is
+`{ field, start, end, ref: Ref<Actor>, method: "explicit" | "matched" |
+"proposed", confidence }` — **named for mentions, with an actor reference baked
+into the shape, and a method union that only mentions can use.** That is this
+section's failure case, verbatim, in the data model. Implementing 03 §8 faithfully
+produces exactly what §1.7 exists to prevent, and neither document notices the
+other. *Three documents now give three shapes: 03 §8 has `field`, 06 §8.2 does
+not, and this section says only what the type must not be.* **Reconciling them is
+a morning and it has to happen before the first span is stored** — 03 §8 is the
+one to correct, because it is the one somebody reads while writing the record.
+
 ***And "no span type exists anywhere in `packages/shared`" is imprecise in the
 way that decides whether the obligation is free, 2026-09-10.*** No *named* type
 exists — but `packages/shared/src/matching.ts` already returns an **anonymous,
@@ -1461,9 +1486,37 @@ of the stage, not polish**: a proposed status change to `dead` is surfaced
 prominently and is reversible from the effect log, same bias as
 [25 C12](../25-open-questions.md) — under-fire, and keep the manual path.
 
+**And the effect vocabulary cannot express a timeline that grows, which is what
+this stage's central shape is** (2026-09-10). `EffectOp` declares five arms —
+`set`, `merge`, `delete`, `append`, `increment` — and **`acceptEffect` throws a
+programmer error on anything but `set` at `/`**, because `applyEffects` replaces
+the whole channel value and reads `op.path` for nothing but `delete`. The comment
+says what has to happen: *"the day something does, `applyEffects` is what has to
+change first."* Party membership is a timeline that grows
+([06 §8](../06-modes-and-turn-pipeline.md)), so this stage either carries the
+**whole timeline** in `before`/`after` on every membership effect — which makes
+each effect O(party history) and the effect log unreadable — or it implements
+`append` first. **Decide before the payload is designed**, not inside the stage.
+
+*And `scope: 'actor'` has never had a writer: the scoped-key machinery
+P5.5 built and P6 property-tested is proved by `scope: 'entry'` alone. Presence
+and status are the first actor-scoped channels, so this stage is where that arm
+stops being a declaration.*
+
+*And the panel's asymmetric-death treatment says a proposed `dead` is **reversible
+from the effect log** — for which there is no mechanism. The only reversal in the
+build is `undoTurn`, whole-turn and tip-only, and the workbench's effect list is a
+read-only rendering. Either the stage builds per-effect reversal or the sentence
+means "undo the turn", and those are different products.*
+
 *And **`introduced` is this stage's output**, not P7.5's* (§1.6): the predicate is
 derived by folding presence and party effects along the path, so it is cheap here
 and nonexistent before here. P7.5's second World obligation depends on it.
+
+*One more thing §1.6 frames as a move that is not one: **`control` and narrator
+selection were never fields.** Neither exists anywhere in the code — the only
+narrator declaration is `ModeDefinition.voice`. Party is a move; those two are
+new.*
 *Also this stage's: **hidden content must be identifiable to a later extractor**,
 not merely hidden in a panel — [P8](24-p8-implementation.md)'s spoiler defence
 cannot be built before the content exists and must not be deferred past P8.*
