@@ -456,7 +456,7 @@ with an owner rather than failed, because a failed step is a defect and a
 deferred one is a plan.
 
 *Still to do, and only a person can:* walk all eighteen against HEAD, recording
-each outcome rather than ticking it, then write 07's status line — which now has
+each outcome rather than ticking it, then write [P5](17-p5-implementation.md)'s status line — which now has
 a precise answer available to it either way.
 
 *The stage as it was written:*
@@ -481,7 +481,7 @@ a precise answer available to it either way.
 > person walks all eighteen against HEAD**.
 >
 > *Ends at:* P5's gate walked, with each step's outcome recorded rather than
-> ticked, and 07's status line saying either that the phase closes or precisely
+> ticked, and [P5](17-p5-implementation.md)'s status line saying either that the phase closes or precisely
 > what still holds it open.
 
 ### P6B.2 — Play

@@ -19,25 +19,112 @@ It also ends a live duplication: three of the ledger's five outstanding passes
 were already items on the sheet, each citing the other, and the two documents
 kept two gate tables that are two update sites for one fact.
 
-**What this file asks of every future phase**, and the reason it exists rather
-than a sweep having been written once:
+## The two-tier gate
 
-> **When a phase closes, its gate arrives here as sittings, its automated steps
-> go to §5 with the test named, and anything it defers goes to §11 with a name
-> beside it. A gate is walked, or it is deferred with an owner and a reason.
-> There is no third state.**
+**This is the file's central claim and the project's testing modality from
+2026-09-09.** It replaces a rule that was good and did not survive contact with a
+solo project.
+
+**The old model was one gate per phase, walked in full by a person, blocking the
+close.** Its record is in §6: **five phase gates accumulated unwalked, and no
+gate in this project's history has ever been closed by a person.** P3's fifteen
+steps, P4's fifteen, P5's eighteen, P6's fourteen, P6A's thirteen — each phase
+document honestly recording that its own gate was outstanding, and none of them
+saying it about the sequence.
+
+**A gate nobody walks is not a gate. It is a wish** — [work plan §0.5](01-work-plan.md)'s
+*"a bar nobody owns is a wish"*, one level up. The failure was not laziness; the
+unit of work was wrong. A fifteen-step walk wanting a real library, a second
+machine and an afternoon does not fit between finishing a phase and starting the
+next, so it never happened, and the next phase started anyway. And the
+arithmetic was worsening: **P7 through P11 will land fifty-five more
+person-walked steps** on a pile that has never once been drained.
+
+> **When a phase closes, its exit gate splits.**
+>
+> **The critical list is the gate.** A small set of checks — walkable in a
+> sitting or two, with what is to hand — derived from the full gate by the
+> criterion below. **These are walked before the phase closes.** They are the
+> gate in the operative sense: the phase does not close until they have results.
+>
+> **The remainder extends the standing list.** Everything else arrives here as
+> sittings, each with a result in §2's vocabulary — `BLOCKED`, `DEFERRED`, or
+> blank-and-sequenced in §1. It is drained continuously, by whoever has an
+> afternoon, against whatever build is current.
+>
+> Automated steps go to §5 with the test named. Deferrals go to §10 with a name
+> beside them.
+
+**This is not a relaxation, and the arithmetic is the argument.** The old
+model's fifteen steps had a completion rate of zero. A four-step list walked at
+every close is strictly more evidence, and it arrives when it is cheapest —
+which is [work plan §7](01-work-plan.md)'s whole reason for putting a checkpoint
+at a particular moment rather than eventually.
+
+**The precedent is already in the corpus, twice.** [P6A](19-p6a-alpha-1.md)'s
+status line reads *"the phase closes on its merge into `main`, and the exit gate
+… waits on a person with Docker"*, and [P4 §3](16-p4-implementation.md) says
+outright *"P4 can close without it; PLAYABLE is where its absence will be
+felt."* What is new is that this becomes the rule rather than two exceptions —
+and that the part which *is* held is chosen deliberately rather than being
+whatever nobody got to.
+
+### The criterion
+
+> **A check belongs on the critical list if and only if all three hold.**
+>
+> **(i) It can falsify a claim the phase makes about itself** — not a claim its
+> gate merely *transports* from another phase. This clause is what keeps the
+> list small: [P6B §3](20-p6b-playable.md) step 8 is *"P5's eighteen steps,
+> walked by a person"*, which is P5's claim living in P6B's gate, and it belongs
+> in sitting F rather than in P6B's close.
+>
+> **(ii) The claim compounds.** A wrong answer found two phases later costs more
+> than one found now. This is the only warrant for walking it *at this moment*
+> rather than eventually, and it is [work plan §7](01-work-plan.md)'s argument:
+> the assembler, the record and the budgeter are built on by every phase after
+> them, so an error in any of them compounds per phase.
+>
+> **(iii) It is walkable with what is to hand.** A check blocked on a resource
+> with lead time is a deferral, not a check. **Holding a gate open on `BLOCKED`
+> is precisely how a phase stops closing** — which is how §3's R1 came to block
+> four obligations across three phases.
+
+**Breadth, duration, platform and corpus are not criticality** — not less
+valuable, differently urgent. A coverage sweep asks *does everything work*, a
+question with no phase attached and the same price next month. A leak at turn
+forty is as findable in November as today.
+
+**And a caveat that is inherited rather than assumed:** clause (ii) privileges
+compounding, and compounding is a *prediction about the plan* rather than a
+fact. Re-read it when each phase opens. If P7 reshapes the mode contract far
+enough, some of what is excluded today as *equally cheap later* becomes more
+expensive instead.
+
+### The three things that keep it honest
+
+1. **The gate document is never edited to match what was walked.**
+   [P6B §1.3](20-p6b-playable.md) names the failure: *"a walk that edits the gate
+   until it passes."* The steps keep asking what they asked; a second table in
+   the phase document records what was answered and by what. **That separation
+   is the whole mechanism**, and without it the two-tier model is a rubber stamp
+   with extra steps.
+2. **The criterion is written down and applied, not argued per phase.**
+   Otherwise *critical* means *what I felt like doing*.
+3. **The standing list must visibly drain.** §5 and §9 are the two valves.
+   [manual gate §4](11-p2-manual-gate.md) names what they exist against: *"a
+   manual checklist grows every year because nobody wants to say which items
+   were never automated."* **If this file only grows, the model has failed**, and
+   the honest response is to say so here rather than to keep adding sittings.
 
 **The intake is mechanical, not a matter of remembering.** Every exit gate in
 this project ships at least one step marked *"Only a person can walk"* — P3, P5,
 P7, P10 and P11 all carry the phrase, and it is always on the step that carries
 the phase's actual claim. That is what to grep for when a phase closes.
 
-**And the guard, stated here because this is the document most likely to need
-it.** [manual gate §4](11-p2-manual-gate.md) names the failure a standing manual file
-invites: *"a manual checklist grows every year because nobody wants to say which
-items were never automated."* Two sections exist to bleed items back out — §5,
-which records what a test now covers so nobody walks it again, and §9, which
-holds what *should* be a test and is not. Without both, "manual testing,
+**The two valves, named once more because they are the model's only defence
+against itself.** §5 records what a test now covers, so nobody walks it again;
+§9 holds what *should* be a test and is not. Without both, "manual testing,
 running" becomes "manual testing, accumulating."
 
 ---
@@ -141,8 +228,8 @@ Run everything under `pnpm dev:logged` from B onward, so the sittings leave a
 cassette corpus behind rather than a memory — §9's first item, and the
 machinery has existed since P4 with **no cassette ever promoted**. The runbook
 for that, and the six measured traps that go with it, is
-[P2C brief §2.2–§2.4](13-p2c-brief.md); it is not restated here, and if 17 is ever
-retired the runbook has to move first.
+[P2C brief §2.2–§2.4](13-p2c-brief.md); it is not restated here, and if that
+document is ever retired the runbook has to move first.
 
 *A–H came from the pre-P6 walk and cover every gate before P6. I and J are the
 ledger's outstanding passes, folded in here rather than kept as a second list.*
@@ -498,15 +585,27 @@ answers five obligations.
 ---
 
 
-## 7. Closing a gate
+## 7. Closing a gate, and closing a phase
 
-A gate closes when **every one of its steps has a result** — not when every step
-passes. `BLOCKED` and `DEFERRED` are results; a blank is not.
+**These are two events now, and the file that confuses them loses the model.**
 
-When one closes, three things happen and the third is the one that gets skipped:
+**A phase closes** when its buildable work is done and **its critical list is
+walked** — the small tier, derived by §0's criterion, whose results are recorded
+in the phase document's own table. The remainder arrives here as sittings the
+same day.
 
-1. The phase document's status line says so, with the date and what was left.
-2. §6's row changes.
+**A gate closes** later, when **every one of its steps has a result** — not when
+every step passes. `BLOCKED` and `DEFERRED` are results; a blank is not. A
+gate may stay open for months after its phase closed, and that is the ordinary
+case rather than a failure: P5's eighteen sit in sitting F while P5 itself is
+closed.
+
+**What the phase document must say on the day it closes**, and the third is the
+one that gets skipped:
+
+1. Its status line says so, with the date, **which steps were the critical list**
+   and where the rest went.
+2. §6's row changes to the split — walked, deferred, and to which sitting.
 3. **Every `CORRECTION` is written back into the document that owns the step.**
    The corrections are worth more than the ticks — that is
    [P2C.4](12-p2c-first-real-run.md)'s claim, made from the one walk this project
@@ -590,7 +689,7 @@ Anything that loses its owner comes back to §0's rule.*
 | Item | Where it was made | Owner | Why deferred |
 |---|---|---|---|
 | The permissive corpus | [P4 §0](16-p4-implementation.md), [P5 §1.6](17-p5-implementation.md) | whoever acquires it; blocks P4 step 1 and P5 step 6 | Person-blocked with lead time. Cannot be synthesised. §3, R1 |
-| **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2 §782](08-p2-implementation.md) | ~~P2.7~~ **nobody: that stage does not exist** | See below. **This is the sweep's sharpest finding.** |
+| **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2 §782](08-p2-implementation.md) | ~~P2.7~~ ~~nobody~~ **closed at P6B.1**, `0e228ec` | See §10.1 — and it was a live divergence, not the bookkeeping the sentence made it sound. |
 | P2 gate step 8 / F12 — an editor-page mount rather than a component mount | [P2 §958](08-p2-implementation.md) | unassigned; "unblocked rather than done" | The harness exists now, so it is a test somebody has to write |
 | A killed *process* names no model call | [manual gate §3.6](11-p2-manual-gate.md) | the suite's one `it.todo`, `recovery.test.ts` | Needs a provisional call in the checkpoint |
 | The record cannot say a block is advisory | [manual gate §3.6](11-p2-manual-gate.md) | unassigned | `assemble()` drops `Candidate.advisory`; `ModelCall` records no purpose. **[P7](23-p7-implementation.md) makes this expressible or it stays unexpressible** |
@@ -600,7 +699,7 @@ Anything that loses its owner comes back to §0's rule.*
 | Nightly tier, dependency-licence scan, forward-port check | [testing §6](03-testing.md), [releases §8](04-repo-and-releases.md) | [P11](27-p11-implementation.md) | Beta-gate work; `testing` landed early at alpha.2 and nightly did not |
 | Restore test, upgrade test | [work plan §8](01-work-plan.md), [25 E6](../25-open-questions.md) | [P11](27-p11-implementation.md) | "An untested restore is not a backup" — and it is 1.0 scope |
 | Release-line support window; release-branch cut point | [releases §8](04-repo-and-releases.md) | [P11](27-p11-implementation.md) | Cheap to declare now, awkward later; no release line exists yet |
-| The eight polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
+| The ten polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
 
 ### 10.1 The dangling owner, which is the finding this sweep exists to have produced
 
@@ -649,6 +748,7 @@ or it is not compared.**
 *The general lesson, since this section exists to have produced one:* the
 sentence was six phases old and read like bookkeeping. It was a defect. **A
 deferral nobody collects is not merely lost; it stops being read, and what it
+says stops being checked.**
 
 ---
 

@@ -75,9 +75,17 @@ pattern. Never commit `.env`, keys, or raw captures.
   a new `SE_*` variable needs a row there too.
 - Phase branches are bare `pN` (`p5`, `p6`, `p6a`) and merge into `main` with
   `--no-ff` and a colon-subtitled merge commit; the phase documents cite stage
-  commits by hash, so never squash them. A green suite closes a stage, not a
-  phase: exit gates are walked by a person, and the phase document records
-  which steps the suite covers and which still wait.
+  commits by hash, so never squash them. **A green suite closes a stage, not a
+  phase.**
+- **A phase closes on the two-tier gate** — `docs/design/workplan/05-manual-testing.md`
+  §0, adopted 2026-09-09. Its exit gate splits: a small **critical list**,
+  derived by §0's three-clause criterion and **walked by a person before the
+  phase closes**, and the remainder, which extends the standing manual-test list
+  as sittings and drains continuously. Before that, gates were walked in full or
+  not at all, and five accumulated unwalked. Two rules go with it: **the gate's
+  own steps are never edited to match what was walked** — the phase document adds
+  a second table recording what was answered — and the standing list has to
+  visibly drain, which is what §5 and §9 are for.
 - `pnpm --filter @storyengine/server --legacy deploy` leaves the workspace's
   install state pointing at a production install; run a plain `pnpm install`
   before the next `pnpm build`.

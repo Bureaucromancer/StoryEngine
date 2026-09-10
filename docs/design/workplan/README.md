@@ -85,8 +85,11 @@ not to report* section instead, because the same person is playing.
 **05 is what a person still owes, and it does not complete.** It began as a
 sweep that found what had accumulated behind the P2-era gate — **five phase
 gates unwalked and one obligation owned by a stage that does not exist** — and
-it carries the rule the corpus was missing: a gate is walked, or it is deferred
-with an owner and a reason, and there is no third state.
+it carries the rule the corpus was missing: a gate is walked, deferred with an
+owner and a reason, or **handed over with the sitting named** — and there is no
+fourth state. That third arm is the two-tier gate, adopted 2026-09-09 and argued
+at [manual testing §0](05-manual-testing.md): a phase closes on a small critical
+list walked now, and its remainder extends the standing list.
 
 It absorbed the walk sheet on 2026-09-08, because counting what is owed and
 listing what to do about it is one job at two levels of detail. **11 is the

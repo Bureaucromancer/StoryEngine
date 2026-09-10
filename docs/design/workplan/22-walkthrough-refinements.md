@@ -9,8 +9,9 @@ says they are.**
 **This document does not schedule anything.** It says, for each note, what the
 request actually is, whether the thing already exists, which document owns it,
 and what has to be decided before it can be built. Scheduling is a separate
-decision and [manual testing §7](05-manual-testing.md)'s rule applies to it: a thing is
-owned, or it is deferred with an owner and a reason.
+decision and [manual testing §0](05-manual-testing.md)'s rule applies to it: a
+thing is owned, deferred with an owner and a reason, or handed over with the
+sitting named.
 
 **Findings that are observations rather than requests go to
 [playable log](21-playable-log.md)**, in that file's record format, under the walkthrough's
