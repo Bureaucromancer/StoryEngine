@@ -9,6 +9,16 @@ design note disagree, say so rather than silently siding with either.
 pnpm workspace, Node ≥ 26, ESM throughout (imports use `.js` suffixes).
 
 - `packages/shared` — schemas (TypeBox) and types both sides use
+- `packages/sdk` — the published extension and mode contract. Scaffolded at
+  P1.0 and still re-exports `shared` and nothing else; the contract itself is
+  P7, but the package predates it so the boundary rule — a built-in mode
+  consumes this, never `server` — holds from the first mode
+  (`docs/design/19-tech-stack.md` §10, whose lint rules are already written).
+  Its AGPL is deliberate, not inherited: an extension importing it is what
+  makes that extension a combined work, so relicensing this one package
+  permissively "to be friendly to extension authors" would quietly reverse
+  `docs/design/workplan/02-triage.md` §1.1. `packages/modes/*` joins the
+  workspace at P7
 - `packages/server` — the server; provider adapters live in `src/providers/`
 - `packages/client` — React client
 - `tools/` — dev scripts (`dev-server.mjs`, `seed.mjs`, `reset-data.mjs`),
