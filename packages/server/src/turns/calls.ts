@@ -16,6 +16,7 @@ import type { Config } from '../config.js';
 import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { resolveRole, type RoleBindings } from '../providers/roles.js';
+import type { Binding } from '../providers/types.js';
 import {
   ProviderError,
   type FinishReason,
@@ -108,6 +109,22 @@ export interface CallContext {
   /** The install defaults this account's bindings fall back to ([P2B §2.1]). */
   defaults?: RoleBindings;
   usable: Connection[];
+  /**
+   * The session's own model overrides — [19 §5.1]'s third and fourth layers,
+   * [P7 §1.9], threaded at [P7.3].
+   *
+   * **`resolveRole` has implemented these since P2B and nothing outside a test
+   * has ever passed them**, which is what 19 §5.1's table means by *"plumbed
+   * into `resolveRole` and never passed"*. The layering was a description of a
+   * function rather than of what runs; this is the line that makes the two the
+   * same.
+   *
+   * Optional, so every existing caller reads as *no override* — which is what a
+   * session written before [P7.3] has.
+   */
+  sessionRoles?: Partial<Record<ModelRole, Binding>>;
+  /** Per-step overrides, keyed by step id. See {@link CallContext.sessionRoles}. */
+  stepRoles?: Record<string, Binding>;
   providers: ProviderFactory;
   config: Config;
   /**
@@ -274,11 +291,32 @@ export function planCall(
   // from `dangling` because the remedies differ — the first is setup, the second
   // is an admin having removed a connection out from under a binding — and
   // flattening them loses the UI's ability to offer the right one.
+  /**
+   * **Both override layers, passed at last** — [19 §5.1], [P7 §1.9], [P7.3].
+   *
+   * The step override is keyed by `definition.id` and looked up here rather than
+   * declared on the step, which is a correction §1.9 needs: that section says the
+   * step layer's *"surface is the mode or preset declaration"*, and 19 §5.1 opens
+   * with **"Nothing in a mode, step or extension refers to a provider or a model
+   * id — which is what makes an install portable, an extension safe to share"*.
+   * A `Binding` names a `connectionId`, which exists on one install only. *A
+   * cheap model for one noisy step* is the operator's decision about their own
+   * providers, so it lives on the session beside the session override it layers
+   * under.
+   *
+   * Spread conditionally because `resolveRole` distinguishes an absent layer
+   * from a present one and `exactOptionalPropertyTypes` is on: passing
+   * `sessionOverride: undefined` is not the same as not passing it.
+   */
+  const sessionOverride = context.sessionRoles?.[definition.role];
+  const stepOverride = context.stepRoles?.[definition.id];
   const resolution = resolveRole({
     role: definition.role,
     bindings: context.bindings,
     ...(context.defaults === undefined ? {} : { defaults: context.defaults }),
     usable: context.usable,
+    ...(sessionOverride === undefined ? {} : { sessionOverride }),
+    ...(stepOverride === undefined ? {} : { stepOverride }),
   });
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 

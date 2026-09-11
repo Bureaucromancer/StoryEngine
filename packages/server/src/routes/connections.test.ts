@@ -976,6 +976,31 @@ describe('a key', () => {
    * Written as a name match rather than as a list, so a fifth route on this
    * surface is covered by existing, not by somebody remembering.
    */
+  /**
+   * **Exempt, by name and with a reason** — [P7.3], 2026-09-11.
+   *
+   * `PUT /api/sessions/:sessionId/roles` writes [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+   * *session override* layer, and the noun collides honestly: it is the same
+   * concept as a role binding at a different scope. It is **not** on the
+   * credential surface this test guards, and it must not be admin-only, because
+   * 19 §5.1 is explicit that *"anyone who wants their own key overrides a role
+   * without the admin's involvement"*.
+   *
+   * **What makes it safe is not its name but `usable`.** `resolveRole` looks an
+   * override's `connectionId` up in the capability-filtered `usable` list, so a
+   * binding naming a connection the account may not use resolves as `dangling`
+   * rather than as access — the same filter every other layer goes through. And
+   * the route reads and writes ids only: no `apiKey`, no `baseUrl`.
+   *
+   * **A named exception rather than a narrowed regex**, deliberately. The match
+   * above is default-deny and the docstring says why — *"a fifth route on this
+   * surface is covered by existing, not by somebody remembering"*. Loosening the
+   * pattern would un-cover routes nobody has written yet; an exception list
+   * leaves the default intact and makes each departure from it argue for itself,
+   * which is how `eslint.config.js` handles the filesystem and randomness rules.
+   */
+  const EXEMPT = new Set(['PUT /api/sessions/:sessionId/roles']);
+
   it('has no route outside the admin prefix', () => {
     const surface = routesUnder(server.app, '/api').filter((route) =>
       /\/(connections|bindings|roles)(\/|$)/.test(route.url),
@@ -985,7 +1010,39 @@ describe('a key', () => {
     // first — a regex that matched nothing would otherwise pass.
     expect(surface.length).toBeGreaterThanOrEqual(10);
     for (const route of surface) {
+      if (EXEMPT.has(`${route.method} ${route.url}`)) continue;
       expect(route.url.startsWith('/api/admin/'), `${route.method} ${route.url}`).toBe(true);
     }
+  });
+
+  it('keeps the one exempt route on the surface, so the exemption cannot go stale', () => {
+    // An exemption for a route that no longer exists is a hole waiting for
+    // somebody to register that path again. The set is checked against the
+    // table rather than trusted.
+    const urls = new Set(
+      routesUnder(server.app, '/api').map((route) => `${route.method} ${route.url}`),
+    );
+
+    for (const exempt of EXEMPT) expect(urls, exempt).toContain(exempt);
+  });
+
+  it('lets the exempt route carry ids and refuses anything else', async () => {
+    // **What the exemption actually rests on**, asserted as behaviour rather
+    // than as a declaration: a route that grew an `apiKey` or a `baseUrl` field
+    // would still be exempt by name, and this is what would notice.
+    //
+    // Fastify validates the body before the handler runs, so the session need
+    // not exist for this to be the schema's answer — which is also why it is a
+    // 400 and not a 404.
+    const refused = await server.request({
+      method: 'PUT',
+      url: '/api/sessions/whatever/roles',
+      payload: {
+        roles: { prose: { connectionId: 'c1', modelId: 'm1', apiKey: 'sk-nope' } },
+      },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(JSON.stringify(refused.body ?? null)).not.toContain('sk-nope');
   });
 });

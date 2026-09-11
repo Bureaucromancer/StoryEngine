@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   actorsWithState,
+  castRows,
   introducedOn,
   isTerminal,
   readPresence,
@@ -12,6 +13,8 @@ import {
   SE_PRESENCE,
   SE_STATUS,
 } from './cast.js';
+import { readFile } from 'node:fs/promises';
+
 import { channelDefinition, channelKey } from './channels.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { acceptEffect } from '../turns/effects.js';
@@ -231,5 +234,91 @@ describe('introduced', () => {
     const path = [turn([{ channelId: 'se.party', scopeKey: 'ned', after: {} }])];
 
     expect([...introducedOn(path)]).toEqual(['ned']);
+  });
+});
+
+/**
+ * ***The tripwire on P7.2's deferral*** — [P7 §1.6], written 2026-09-11.
+ *
+ * P7.2 shipped presence and status and deliberately did not ship `se.party`,
+ * because `ParticipantPolicy.select: 'fixed'` is *"the declaration that the cast
+ * cannot change as an outcome of a turn, which is what licenses a plain `cast`
+ * field on the session instead of an `se.party` channel"*. A party channel
+ * declared against that policy is the placeholder shape [P2 §2.7] rejected by
+ * name.
+ *
+ * **The licence expires the moment `select` gains a second arm, and until this
+ * test the only thing that would have noticed was somebody remembering.** This
+ * document's own §0.1a is the evidence for how that goes: *"a deferral routed to
+ * a phase is checked once, by whoever routes it, and then travels on its
+ * label"*, and two of the three surface-shaped deferrals handed to P7 turned out
+ * to be already done. So the deferral is held by a check instead.
+ *
+ * **It fails from the inside of P7.3 rather than after it.** Widening
+ * `PARTICIPANT_SELECTORS` is the first thing that stage does, and this goes red
+ * on that commit — which is the point, since P7.3's own *Ends at* is *"a mode
+ * whose `select` is not `fixed` running without the session's `cast` field"*.
+ */
+describe('the party deferral', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('holds only while `select` has one arm, and says what to do when it does not', async () => {
+    const { PARTICIPANT_SELECTORS } = await import('@storyengine/sdk');
+    /**
+     * **Widened on purpose, and the lint rule objecting is the point.**
+     * `no-unnecessary-condition` is right that `PARTICIPANT_SELECTORS[0] ===
+     * 'fixed'` is statically true *today* — which is exactly the state this
+     * test exists to notice changing. Reading it as `readonly string[]` asks the
+     * question at run time, where the answer is allowed to differ from the one
+     * the type system has already decided.
+     */
+    const selectors: readonly string[] = PARTICIPANT_SELECTORS;
+    const licensed = selectors.length === 1 && selectors[0] === 'fixed';
+
+    const party = channelDefinition('se.party');
+    const sessionTypes = await readFile(new URL('./types.ts', import.meta.url), 'utf8');
+    // The field the licence pays for, read from the declaration rather than
+    // inferred: `ci-shape.test.ts`'s argument for scanning text applies here
+    // too — a TypeScript field is not visible at run time, and the alternative
+    // is no check at all.
+    const castActors = /cast\?:\s*\{[^}]*actors/.test(sessionTypes);
+
+    if (licensed) {
+      expect(
+        party,
+        'se.party is registered while `select` is still `fixed` — which is the ' +
+          'placeholder-shaped channel [P2 §2.7] rejected. Either widen ' +
+          '`PARTICIPANT_SELECTORS` or drop the channel.',
+      ).toBeNull();
+      expect(castActors, '`cast.actors` is what the `fixed` licence pays for.').toBe(true);
+      return;
+    }
+
+    /**
+     * **The licence has expired and three things come due together** — [P7 §1.6],
+     * [10 §13.2], and P7.3's own exit line. Named in one message because they
+     * are one change: a party channel to be the source of truth, the session
+     * field it replaces removed so there is no second one, and the panel marking
+     * members rather than listing them separately.
+     */
+    expect(
+      party,
+      '`select` has gained a second arm, so the `fixed` licence has expired and ' +
+        '`se.party` is now owed: declare it in sessions/cast.ts beside presence ' +
+        'and status, keyed by TurnId per [06 §8] and never by ordinal.',
+    ).not.toBeNull();
+    expect(
+      castActors,
+      '`cast.actors` must go with it — [P7 §1.6]: two sources of truth about who ' +
+        'is in the story is the class of bug [10 §13.2] exists to surface. ' +
+        '`cast.persona` stays; it is the one part [06 §8] keeps as a session field.',
+    ).toBe(false);
+    expect(
+      Object.keys(castRows(undefined, {}, [])[0] ?? { party: undefined }),
+      'CastRow must carry `party` so the panel can mark members distinctly ' +
+        'rather than keeping a second list — [10 §13.2].',
+    ).toContain('party');
   });
 });

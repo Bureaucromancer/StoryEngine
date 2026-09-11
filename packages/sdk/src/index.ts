@@ -28,6 +28,7 @@
 export * from '@storyengine/shared';
 
 export type { ChannelDefinition, InitPolicy, WidgetSpec } from './channels.js';
+export { PARTICIPANT_SELECTORS } from './mode.js';
 export type {
   AssemblyPlan,
   Mode,

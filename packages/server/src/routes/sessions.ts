@@ -22,6 +22,7 @@ import {
   renameBranchRef,
   setCast,
   setLore,
+  setSessionRoles,
   readTurns,
   readTurnById,
   setArchived,
@@ -80,6 +81,33 @@ const ChannelParams = Type.Object({
  * and null is a value a channel may legitimately hold.*
  */
 const ChannelBody = Type.Object({ value: Type.Unknown() }, { additionalProperties: false });
+
+/**
+ * A binding is a connection and one of its models — [19 §5.1].
+ *
+ * **Validated for shape and not for existence**, which is `setSessionRoles`'
+ * argument: a binding naming a removed connection resolves as `dangling`, and
+ * `resolveRole` keeps that distinct from `unbound` because the remedies differ.
+ * Refusing the write would trade a diagnosable state for a rejected request.
+ */
+const BindingBody = Type.Object(
+  { connectionId: Type.String({ maxLength: 200 }), modelId: Type.String({ maxLength: 400 }) },
+  { additionalProperties: false },
+);
+
+/**
+ * Both override layers in one body, and **both replaced wholesale**: a partial
+ * update cannot express *clear this override*, and clearing one is the commoner
+ * act. Omitting a key means an empty map, which is *no overrides* — the state a
+ * session written before [P7.3] is in.
+ */
+const RolesBody = Type.Object(
+  {
+    roles: Type.Optional(Type.Record(Type.String(), BindingBody)),
+    stepRoles: Type.Optional(Type.Record(Type.String(), BindingBody)),
+  },
+  { additionalProperties: false },
+);
 const JobParams = Type.Object({ sessionId: Type.String(), jobId: Type.String() });
 const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String() });
 
@@ -585,6 +613,50 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * routing this through `acceptEffect` — and a 4xx would throw away the record
    * the workbench is supposed to show. The client reads `effect.applied`.
    */
+  /**
+   * Which model this session uses for a role, and for one step — [19 §5.1],
+   * [P7 §1.9], [P7.3].
+   *
+   * **The surface §1.9 says P7 owes**, and it names the shape: *"a session-level
+   * model override belongs beside the lore panel's disclosure and needs a route
+   * that does not exist (`PATCH /sessions/:id` accepts only `name`)."* This is
+   * that route, in the pattern the cast and lore routes already use.
+   *
+   * **The step layer is here too, which §1.9 routes elsewhere and 19 §5.1
+   * forbids elsewhere.** That section opens with *"Nothing in a mode, step or
+   * extension refers to a provider or a model id — which is what makes an
+   * install portable, an extension safe to share"*, and a `Binding` names a
+   * `connectionId` that exists on one install. So *a cheap model for one noisy
+   * step* is an operator's decision about their own providers, and it lives
+   * beside the session override it layers under rather than in a declaration
+   * somebody might share.
+   */
+  app.put(
+    '/sessions/:sessionId/roles',
+    { schema: { params: SessionParams, body: RolesBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await mine(services, request, reply);
+      if (!session) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as {
+        roles?: Record<string, { connectionId: string; modelId: string }>;
+        stepRoles?: Record<string, { connectionId: string; modelId: string }>;
+      };
+      const updated = await setSessionRoles(services.sessions, account.handle, sessionId, {
+        roles: body.roles ?? {},
+        stepRoles: body.stepRoles ?? {},
+      });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
   app.put(
     '/sessions/:sessionId/channels/:key',
     { schema: { params: ChannelParams, body: ChannelBody } },

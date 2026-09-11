@@ -2,7 +2,9 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Connection } from './connections.js';
-import { type ModelRole, MODEL_ROLES } from './types.js';
+import { type Binding, type ModelRole, MODEL_ROLES } from './types.js';
+
+export type { Binding };
 
 /**
  * Role bindings — [19 §5.1](../../../../docs/design/19-tech-stack.md).
@@ -57,11 +59,6 @@ export const ROLE_TIER_DEFAULTS: Record<ModelRole, 'hi' | 'lo' | 'unset'> = {
   video: 'unset',
   speech: 'unset',
 };
-
-export interface Binding {
-  connectionId: string;
-  modelId: string;
-}
 
 /** What an account has bound. A role with no entry is unbound, not defaulted. */
 export type RoleBindings = Partial<Record<ModelRole, Binding>>;

@@ -182,3 +182,79 @@ describe('planning a call', () => {
     expect(generate).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * **[19 §5.1]'s override layers, passed at last** — [P7 §1.9], [P7.3].
+ *
+ * `resolveRole` has implemented five layers since P2B and three of the four
+ * built ones had **no production caller**: session, step and the actor hint.
+ * 19 §5.1's table exists precisely so *"the order above is not read as a
+ * description of what runs"* — and for two of those layers it described a
+ * function nobody called. These are the tests that make the description true.
+ *
+ * *A second connection is the whole fixture: an override that pointed at the
+ * same connection as the binding would pass whether or not it was consulted.*
+ */
+describe('a session overriding a model', () => {
+  const OTHER: Connection = {
+    ...CONNECTION,
+    id: '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99',
+    label: 'The cheap one',
+    models: ['fake-lo'],
+  };
+
+  it('uses the session override in place of the role binding', () => {
+    const plan = planCall(
+      context({
+        usable: [CONNECTION, OTHER],
+        sessionRoles: { prose: { connectionId: OTHER.id, modelId: 'fake-lo' } },
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-lo');
+    expect(plan.connection.id).toBe(OTHER.id);
+  });
+
+  it('lets a step override beat the session override, which is the documented order', () => {
+    // *"install default → role binding → session override → step override →
+    // actor hint."* A step override that lost to the session one would make the
+    // *cheap model for one noisy step* case unreachable.
+    const narrate = TEST_MODE.definition.steps[0];
+    if (narrate === undefined) throw new Error('the test mode declares no steps');
+
+    const plan = planCall(
+      context({
+        usable: [CONNECTION, OTHER],
+        sessionRoles: { prose: { connectionId: CONNECTION.id, modelId: 'fake-hi' } },
+        stepRoles: { [narrate.id]: { connectionId: OTHER.id, modelId: 'fake-lo' } },
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-lo');
+  });
+
+  it('ignores a step override meant for a different step', () => {
+    // Keyed by step id, so *one noisy step* means one — and an override keyed
+    // wrongly must not quietly apply to everything.
+    const plan = planCall(
+      context({
+        usable: [CONNECTION, OTHER],
+        stepRoles: { 'some.other.step': { connectionId: OTHER.id, modelId: 'fake-lo' } },
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('falls back to the binding when the session names no override for that role', () => {
+    const plan = planCall(context({ usable: [CONNECTION, OTHER], sessionRoles: {} }), {}, []);
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+});

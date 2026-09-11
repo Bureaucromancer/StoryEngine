@@ -1499,10 +1499,22 @@ is not in the resolution at all.
 **And the surface P7 owes is a row in an existing pattern rather than a new
 panel**, which is worth settling here so the stage does not re-derive it: a
 session-level model override belongs beside the lore panel's disclosure and needs
-a route that does not exist (`PATCH /sessions/:id` accepts only `name`). The
+a route that does not exist (`PATCH /sessions/:id` accepts only `name`). ~~The
 **step** override has no analogous home and never will — it is per-step, so its
-surface is the mode or preset declaration, not a panel. That distinction is what
+surface is the mode or preset declaration, not a panel.~~ That distinction is what
 *"named as debt with an owner"* should record.
+
+***The struck sentence is wrong, and [19 §5.1](../19-tech-stack.md) is what says
+so — corrected 2026-09-11 at P7.3.*** That section opens with **"Steps never name
+a model… Nothing in a mode, step or extension refers to a provider or a model id
+— which is what makes an install portable, an extension safe to share"**, and a
+`Binding` names a `connectionId` that exists on exactly one install. A mode or a
+portable preset carrying one would break the property that whole section is for.
+**A cheap model for one noisy step is an operator's decision about their own
+providers, not an author's about their story** — so the step layer lives on the
+**session**, keyed by step id, beside the session override it layers under. Both
+shipped together for that reason: they are one record-shape change and one
+route.
 
 **A surface routed here that this section has never read.**
 [R2 / F-01](21-playable-log.md) is routed to *"P7 §1.9"* by two documents, and the
@@ -2232,9 +2244,25 @@ and one of them explained why — belt and braces against a replay bug that does
 not exist, bought at the cost of the record.* Without the fix this panel could
 only have said *the narrator proposed something*.
 
-**Next:** what remains of P7.2 is `se.party` and the removal of `cast.actors`,
-both of which §1.6 routes behind P7.3's `select` — so the stage is at its
-documented boundary rather than at its end.
+**What remains of P7.2 is `se.party` and the removal of `cast.actors`,** both of
+which §1.6 routes behind P7.3's `select` — so the stage is at its documented
+boundary rather than at its end.
+
+***And it is held by a check rather than by this paragraph, added 2026-09-11.***
+`ParticipantPolicy.select`'s arms are now a runtime list, and
+`sessions/cast.test.ts` reads it: while the list is `['fixed']` the licence holds
+and `se.party` must **not** be registered; the moment a second arm lands the test
+fails and names all three things that come due — the party channel, the removal
+of `cast.actors`, and `CastRow.party` so the panel can mark members rather than
+keep a second list. **Proven by mutation**: widening the list to `['fixed',
+'list']` turns it red, restoring it turns it green.
+
+*Written as a check because this document's own §0.1a is the evidence for why
+prose is not enough — "a deferral routed to a phase is checked once, by whoever
+routes it, and then travels on its label", and two of the three surface-shaped
+deferrals handed to P7 turned out to be already done. This one fails from inside
+P7.3 rather than after it, since widening `select` is the first thing that stage
+does.*
 
 *And the panel's asymmetric-death treatment says a proposed `dead` is **reversible
 from the effect log** — for which there is no mechanism. The only reversal in the
@@ -2273,6 +2301,45 @@ importer records `groups` and `group chats` and parses neither, so nothing named
 
 *Ends at:* a session overriding a role for one step, and a mode whose `select` is
 not `fixed` running without the session's `cast` field.
+
+#### In progress — opened 2026-09-11
+
+**Done: [19 §5.1]'s override layers are passed.** `resolveRole` has implemented
+five layers since P2B and §1.9 found **three of the four built ones had no
+production caller** — session, step and the actor hint. The table in 19 §5.1
+exists precisely so *"the order above is not read as a description of what
+runs"*, and for two of those layers it described a function nobody called.
+`SessionFile.roles` and `SessionFile.stepRoles` carry them, the runner passes
+them, `PUT /sessions/:id/roles` writes them, and the layering is tested against a
+**second connection** — an override pointing at the same connection as the
+binding would pass whether or not it was consulted.
+
+*The actor hint is the third and it stays unpassed, because what would make it
+meaningful is this stage's `dispatch: 'per-actor'`: today one turn makes one
+merged call and an actor is not in the resolution at all.*
+
+***And the suite caught the route in a guard, which is the guard working.***
+`connections.test.ts` asserts that **no route matching `connections|bindings|
+roles` is registered outside `/api/admin/`** — a default-deny name match, written
+*"so a fifth route on this surface is covered by existing, not by somebody
+remembering"*. `PUT /sessions/:id/roles` matches it and must not be admin-only:
+19 §5.1 is explicit that *"anyone who wants their own key overrides a role
+without the admin's involvement"*. **Named as an exception rather than fixed by
+loosening the pattern** — loosening would un-cover routes nobody has written yet,
+which is the same argument `eslint.config.js` makes for naming one file per
+exemption. Two tests hold the exception: one that the route still exists, so a
+stale exemption cannot become a hole, and one that its body schema refuses an
+`apiKey` — because the exemption rests on the route carrying ids only, and a
+route that grew a credential field would still be exempt by name.
+
+*What makes it safe is `usable`, not the name: `resolveRole` looks an override's
+`connectionId` up in the capability-filtered list, so a binding naming a
+connection the account may not use resolves as `dangling` rather than as access.*
+
+**Next:** `select`'s widening to [06 §7.2]'s taxonomy, which is the half of this
+stage that trips [P7.2]'s tripwire and brings `se.party` and the removal of
+`cast.actors` with it; then `per-actor` dispatch, which is what makes the actor
+hint mean anything; then voice and dispatch as optional session fields.
 
 ### P7.4 — Setup objects and the declarative wizard
 

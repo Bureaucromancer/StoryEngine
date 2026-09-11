@@ -17,6 +17,7 @@ import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '..
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
+import type { Binding, ModelRole } from '../providers/types.js';
 import { acceptEffect } from '../turns/effects.js';
 import {
   channelKey,
@@ -1378,6 +1379,45 @@ export async function readTurnById(
 
   const turn = (await readTurns(context, handle, sessionId)).get(turnId) ?? null;
   return turn?.removed === true ? null : turn;
+}
+
+/**
+ * Which model this session uses for a role, and for one step — [19 §5.1],
+ * [P7 §1.9], built at [P7.3].
+ *
+ * **A whole replacement rather than a merge**, which is the same choice
+ * {@link setLore} makes and for the same reason: a partial update cannot express
+ * *clear this override*, and clearing one is the commoner act of the two. A
+ * caller sends what it wants to hold.
+ *
+ * *Unvalidated against the account's connections, deliberately.* A binding
+ * naming a connection that has since been removed resolves as `dangling`, which
+ * `resolveRole` already distinguishes from `unbound` because *"the remedies
+ * differ — the first is setup, the second is an admin having removed a
+ * connection out from under a binding"*. Refusing the write here would trade a
+ * diagnosable state for a rejected request, and [00 §3.3] takes the other side
+ * of that everywhere else.
+ */
+export async function setSessionRoles(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  overrides: { roles: Partial<Record<ModelRole, Binding>>; stepRoles: Record<string, Binding> },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      roles: overrides.roles,
+      stepRoles: overrides.stepRoles,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
 }
 
 /**

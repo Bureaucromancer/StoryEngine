@@ -553,6 +553,19 @@ export class TurnRunner {
                   bindings,
                   defaults,
                   usable,
+                  /**
+                   * **[19 §5.1]'s third and fourth layers, passed at last** —
+                   * [P7 §1.9], [P7.3]. `resolveRole` has implemented both since
+                   * P2B and nothing outside a test had ever handed them over, so
+                   * the documented layering described a function rather than
+                   * what runs. This is the line that makes the two the same.
+                   */
+                  ...(inputs.session?.roles === undefined
+                    ? {}
+                    : { sessionRoles: inputs.session.roles }),
+                  ...(inputs.session?.stepRoles === undefined
+                    ? {}
+                    : { stepRoles: inputs.session.stepRoles }),
                   providers: this.#options.providers,
                   config,
                   preset: { params: preset.params, budget: preset.budget },

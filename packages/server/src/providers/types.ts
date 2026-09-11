@@ -160,3 +160,18 @@ export interface Provider {
    */
   stream?(request: GenerationRequest): AsyncGenerator<GenerationChunk, GenerationResult>;
 }
+
+/**
+ * A resolved model: which connection, and which of its models.
+ *
+ * **Here rather than in `roles.ts`, where it was, because the session record
+ * needs it** — [P7.3]. `SessionFile.roles` carries per-session overrides
+ * ([19 §5.1](../../../../docs/design/19-tech-stack.md)), and importing them from
+ * `roles.ts` would pull `connections.ts` and the whole storage layer into the
+ * session record's type graph for the sake of two strings. This module is the
+ * leaf both sides already depend on.
+ */
+export interface Binding {
+  connectionId: string;
+  modelId: string;
+}

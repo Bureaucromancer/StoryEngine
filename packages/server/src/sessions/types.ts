@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { BranchRef, ChannelState, Preset } from '@storyengine/shared';
+import type { BranchRef, ChannelState, ModelRole, Preset } from '@storyengine/shared';
+
+import type { Binding } from '../providers/types.js';
 
 /**
  * Sessions and turns on disk — [03 §5.5](../../../../docs/design/03-data-model.md),
@@ -106,6 +108,35 @@ export interface SessionFile {
   treatment?: string | null;
   /** Extras beyond whatever the treatment already links — [03 §7]. */
   lore?: string[];
+  /**
+   * Model overrides for this session — [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+   * third and fourth layers, [P7 §1.9], built at [P7.3].
+   *
+   * *"Overrides layer on top in a fixed order: install default → role binding →
+   * **session override** → **step override** → actor hint."* `resolveRole` has
+   * implemented all of that since P2B and **nothing outside a test has ever
+   * passed either of these two** — which is what 19 §5.1's own table means by
+   * *"plumbed into `resolveRole` and never passed"*.
+   *
+   * **Here rather than in a mode or a preset, and that is a correction.**
+   * [P7 §1.9] says the step override's *"surface is the mode or preset
+   * declaration, not a panel"* — but 19 §5.1 opens with **"Steps never name a
+   * model… Nothing in a mode, step or extension refers to a provider or a model
+   * id — which is what makes an install portable, an extension safe to share"**.
+   * A `Binding` names a `connectionId`, which exists only on one install, so a
+   * mode or a portable preset cannot carry one without breaking the property
+   * that whole section is for. *A cheap model for one noisy step is an
+   * operator's decision about their own providers, not an author's about their
+   * story* — so it lives on the session, keyed by step id, beside the session
+   * override it layers under.
+   *
+   * Optional for the reason every field here is: a session written before this
+   * has neither, and absent reads as *no override*, which is what those sessions
+   * had.
+   */
+  roles?: Partial<Record<ModelRole, Binding>>;
+  /** Per-step overrides, keyed by `StepDefinition.id`. See {@link SessionFile.roles}. */
+  stepRoles?: Record<string, Binding>;
   /**
    * Named bookmarks on nodes — [07 §3], added at [P6.1].
    *

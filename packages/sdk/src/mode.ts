@@ -89,8 +89,24 @@ export interface ModePreset {
  * channel — the channel [P2 §2.7] rejected as placeholder-shaped. [06 §7.2]'s
  * fuller taxonomy adds arms here at P7; it does not change this shape.
  */
+export const PARTICIPANT_SELECTORS = ['fixed'] as const;
+
 export interface ParticipantPolicy {
-  select: 'fixed';
+  /**
+   * **A runtime list as well as a type, so a deferral can be held to it** —
+   * [P7.2], 2026-09-11.
+   *
+   * The docstring above says `select: 'fixed'` is what licenses a plain `cast`
+   * field instead of an `se.party` channel. That licence expires the moment a
+   * second arm lands, and until now the only thing that would have noticed was
+   * somebody remembering — which, on this document's own evidence, is what a
+   * deferral routed to a later phase does not survive. `PARTICIPANT_SELECTORS`
+   * is what `sessions/cast.test.ts` reads to fail the day the arm arrives.
+   *
+   * *[06 §7.2]'s fuller taxonomy is what widens this at P7.3; it adds arms and
+   * does not change the shape.*
+   */
+  select: (typeof PARTICIPANT_SELECTORS)[number];
   maxActors: number;
 }
 
