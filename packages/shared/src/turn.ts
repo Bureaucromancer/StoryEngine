@@ -19,10 +19,18 @@ import type { GenerationParams } from './schema/preset.js';
  * this freedom**: the day a stored turn becomes a portable artefact, these
  * graduate to `schema/` and the registry, and not before.
  *
- * **`mentions` is the one field of [03 §8] still absent**, and deliberately:
- * it is an overlay of resolved actor spans over `input.text` and
- * `output.text` ([06 §8.2]), and resolving mentions is an `extract` step —
- * fenced to P7. Re-pointed here rather than left to be rediscovered.
+ * **`spans` is the one field of [03 §8] still absent**, and deliberately: it is
+ * an overlay of resolved references over `input.text` and `output.text`
+ * ([06 §8.2]), and resolving them is an `extract` step — fenced to P7.
+ * Re-pointed here rather than left to be rediscovered.
+ *
+ * *~~`mentions`~~, and the rename is the point rather than tidying.* 03 §8
+ * called the field `mentions` and its type `MentionSpan`, with `ref:
+ * Ref<Actor>` baked in; [13 §13] needs one span shape serving mentions,
+ * machine-written provenance and beat positions, so the type is `TextSpan` with
+ * a **tagged** target and one arm at 1.0. Corrected in 03 §8 on 2026-09-11,
+ * while nothing implements it and the rename is free — which is the whole
+ * argument for doing it before the first span is stored rather than after.
  *
  * Pure types plus one constant, per this package's header rule: no I/O and no
  * runtime behaviour. The machinery that *produces* these — the assembler, the

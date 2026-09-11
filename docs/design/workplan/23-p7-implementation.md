@@ -976,8 +976,17 @@ otherwise stop to argue about:
    sets one; a person cannot.
 6. **`ChannelEffect.op`'s unimplemented arms** — decided before P7.2 designs the
    party timeline's payload, per that stage.
-7. **03 §8's `MentionSpan`**, which is §1.7's forbidden shape written into the
-   data model (§1.7).
+7. ~~**03 §8's `MentionSpan`**, which is §1.7's forbidden shape written into the
+   data model (§1.7).~~ **Done 2026-09-11, and the three shapes are now one.**
+   03 §8 carries `TextSpan` with a **tagged** `target` — one arm, `actor`, at 1.0
+   — under a turn field called `spans`; 06 §8.2 points at it instead of restating
+   a fourth shape; `packages/shared/src/turn.ts`'s note about the absent field is
+   corrected to match. `field` survives, because a record storing two texts needs
+   it and 06 §8.2's omission was the ambiguous version. *The decision the item
+   did not name: `Ref<T>`'s parameter is **phantom** — [04 §3] makes a `Ref`
+   `{id, name, fingerprint?}` — so `ref: Ref<Actor>` would have erased into JSON
+   as an untagged link, and a later reader could not tell an actor span from a
+   beat span. The tag is what the obligation actually needed.*
 8. ~~**`divergenceEffects`' scoped-channel defect.**~~ **Done 2026-09-10.** By the
    bar [P6B §0.3](20-p6b-playable.md) and [P2C §1](12-p2c-first-real-run.md) set —
    an item is pre-work only if leaving it undone makes the phase's own work
@@ -1313,18 +1322,28 @@ so the obligation is met by keeping it a **tagged** reference and naming the typ
 for what it points into rather than for what points at it. Quote the shape here
 rather than leaving the stage to re-derive it.
 
-***And the shape §1.7 forbids is already written down, in the document an
+~~***And the shape §1.7 forbids is already written down, in the document an
 implementer follows.*** [03 §8](../03-data-model.md) specifies the turn record's
-overlay as `mentions: MentionSpan[]`, and `MentionSpan` is
-`{ field, start, end, ref: Ref<Actor>, method: "explicit" | "matched" |
-"proposed", confidence }` — **named for mentions, with an actor reference baked
-into the shape, and a method union that only mentions can use.** That is this
-section's failure case, verbatim, in the data model. Implementing 03 §8 faithfully
-produces exactly what §1.7 exists to prevent, and neither document notices the
-other. *Three documents now give three shapes: 03 §8 has `field`, 06 §8.2 does
-not, and this section says only what the type must not be.* **Reconciling them is
-a morning and it has to happen before the first span is stored** — 03 §8 is the
-one to correct, because it is the one somebody reads while writing the record.
+overlay as `mentions: MentionSpan[]`… **Reconciling them is a morning and it has
+to happen before the first span is stored** — 03 §8 is the one to correct,
+because it is the one somebody reads while writing the record.~~
+
+***Reconciled 2026-09-11, and it was a morning.*** 03 §8 now specifies
+`spans: TextSpan[]` with `target: SpanTarget`, a tagged union carrying one arm —
+`{ kind: "actor"; ref: Ref<Actor> }` — so Write's provenance and beat spans are
+an arm rather than a migration. It is shaped like `BlockSource` on purpose: this
+codebase already has one tagged-reference vocabulary. 06 §8.2 points at the
+record instead of restating a fourth shape, and `field` survives, because the
+turn stores two texts and 06's omission was the ambiguous version.
+
+**The decision this section had not named is why a tag rather than a rename was
+required.** `Ref<T>`'s type parameter is **phantom** — [04 §3](../04-schemas.md)
+makes a `Ref` `{id, name, fingerprint?}` — so `ref: Ref<Actor>` erases into JSON
+as an untagged link. Renaming `MentionSpan` to something neutral would have
+satisfied the letter of *"must not be named for mentions"* and left a stored span
+that cannot say what it points at. *Free today because nothing implements it:
+`packages/shared/src/turn.ts` still records the field as absent and fenced to
+this phase's `extract` step.*
 
 ***And "no span type exists anywhere in `packages/shared`" is imprecise in the
 way that decides whether the obligation is free, 2026-09-10.*** No *named* type

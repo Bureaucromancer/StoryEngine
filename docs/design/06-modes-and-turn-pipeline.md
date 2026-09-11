@@ -1284,8 +1284,17 @@ available.
 
 Linking names in prose to actors ([10 §13.1](10-ui-surfaces.md)) needs no new
 pipeline concept. It is an `extract` step (§6) producing **spans on the turn
-record** — `{ start, end, ref, method, confidence }` — never a rewrite of the
+record** — ~~`{ start, end, ref, method, confidence }`~~
+**`TextSpan`, specified at [03 §8](03-data-model.md)** — never a rewrite of the
 message text.
+
+*The shape moved out of this sentence on 2026-09-11 rather than being restated
+here, because three documents were giving three shapes and one of them is the
+record's definition. Two differences are worth naming: the span carries `field`,
+which this sentence omitted and which a record storing two texts needs; and its
+target is a **tagged** reference rather than a bare `Ref<Actor>`, because
+[13 §13](13-write-mode.md) needs mentions, machine-written provenance and beat
+positions to be one span shape and `Ref`'s type parameter erases into JSON.*
 
 Two constraints worth fixing now, because both are awkward later:
 
