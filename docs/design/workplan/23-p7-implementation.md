@@ -924,6 +924,18 @@ already says.
 a test edit, none is a stage, and every one of them is something a stage would
 otherwise stop to argue about:
 
+***All ten are discharged as of 2026-09-11.*** *Four of them turned out to be
+under-scoped by this list rather than merely undone, and in each case the extra
+was the more interesting half: item 2 found 06 §9 wrong about credentials as well
+as randomness, and settled that the worker hop **relocates** recorded randomness
+rather than enforcing it — which removes both of §1.3's arguments for landing the
+hop in this phase. Item 5 found that the cost of no browser-settable cast was not
+a missing panel but a narrator told nothing about who it is narrating for, on
+every browser-made session. Item 6's premise was wrong — `scope` removes the
+reason for a partial op, so `EffectOp`'s arms stay unimplemented by decision.
+Item 10 named one test in a block of three and the complaint was about all three.
+Two items — 3 and 8 — were discharged earlier, in the stage that needed them.*
+
 1. ~~**The four retired-sentence homes and the `[19 §11]` citation** — 22 §4,
    `turns/steps.ts:128`, `turns/steps.test.ts:220-221`, and §P7.0's own cell.
    **22 §4 now owes three corrections rather than one**: the retired sentence,
@@ -966,7 +978,8 @@ otherwise stop to argue about:
    §10's closing paragraph gained the half it did not anticipate: the rule runs
    both ways, so the server acquired a **loader** rather than merely losing an
    import, and the engine now has no compile-time knowledge of any mode at all.
-5. **A cast the browser can set.** `PUT /api/sessions/:id/cast` and
+5. **A cast the browser can set — the persona half done, the actors half
+   deliberately not.** `PUT /api/sessions/:id/cast` and
    `POST /api/sessions`'s `cast` field both accept one and **neither has a caller
    in `packages/client`** — the identical shape of gap P6B.0 just closed for
    lore, still open beside it. It is the standing line again, and it is a
@@ -1062,11 +1075,16 @@ otherwise stop to argue about:
    defect in the exact function P7.1 rewrites, under a type P7.1 is
    simultaneously growing `schema`, `init` and `migrate` on, and after P7.1 every
    mode-declared scoped channel is on the same path. §0.1a records what landed.
-9. **Repointing the ten server test files that use the mode's internals as generic
+9. ~~**Repointing the ten server test files that use the mode's internals as generic
    fixtures.** After the move these are server → modes imports, which the graph
    forbids. Doing it inside P7.0 buries a large mechanical diff inside the stage
    whose falsification test is *"no diff outside imports"*; doing it first is pure
-   preparation and reviewable on its own.
+   preparation and reviewable on its own.~~ **Done 2026-09-11, at the head of
+   P7.0 and as its own commit**, which is the "reviewable on its own" this item
+   asked for. Three of the ten were not fixtures at all — they assert *the default
+   mode's* preset, which the registry can answer — and the other seven moved to
+   `test-mode.ts`, a fixture the engine owns, copied from Scene so that no test
+   changed meaning on the day it arrived.
 10. ~~**The strengthening or retiring of `steps.test.ts:212-224`**, which asserts
     nothing about clonability — it compares `Object.keys` on a hand-built literal
     whose `rng` is `{}` — while stating two things that are false. §1.3 leans on
