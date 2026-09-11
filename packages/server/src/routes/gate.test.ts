@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor, newLorebook } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, setUpAdmin, watchedIndex, type TestServer } from '../test-server.js';
 
 /**
  * The exit-gate steps that were never automated — F11.
@@ -22,16 +22,6 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * a real watcher and a real restart, which is exactly what makes them the
  * expensive ones to write and the easy ones to keep putting off.
  */
-
-/** Filesystem events are not synchronous; poll rather than guess a delay. */
-async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await check()) return;
-    await new Promise((tick) => setTimeout(tick, 50));
-  }
-  expect(await check(), 'condition never held before the timeout').toBe(true);
-}
 
 describe('step 16 — one object, both kinds of edit, told apart', () => {
   let server: TestServer;
@@ -80,23 +70,26 @@ describe('step 16 — one object, both kinds of edit, told apart', () => {
     expect(edited.status).toBe(200);
 
     // 2. In a text editor, on the same object.
+    //
+    // **Subscribed before the write, and waited on the watcher's own signal**
+    // — [P7.0]. This polled the history for `length === 2` until then, which was
+    // wrong in two ways at once. It could only *fail* by running out of time, so
+    // a watcher that never delivered and a watcher that was merely slow arrived
+    // as the same unreadable "condition never held"; and a strict `=== 2` is
+    // never true again if the count ever passes two, so an over-count timed out
+    // looking exactly like an under-count.
+    //
+    // The watcher emits after the ingest *and* after the history snapshot, so
+    // one signal means the consequences below are readable — which is also why
+    // the old comment about winning a race against the snapshot no longer needs
+    // to be true of anything.
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    const indexed = watchedIndex(server, file);
     await writeFile(
       file,
       JSON.stringify({ ...onDisk, name: 'Rain City, edited on disk' }, null, 2),
     );
-
-    // Waited on the *history*, not on the list. The watcher snapshots the
-    // replaced state after it has re-indexed, so a poll on the listed name wins
-    // the race and reads the history one entry early — which looks exactly like
-    // the attribution being wrong.
-    await eventually(async () => {
-      const listed = await server.request({
-        method: 'GET',
-        url: `/api/library/lorebooks/${book.id}/history`,
-      });
-      return (listed.body.versions as unknown[]).length === 2;
-    });
+    await indexed;
 
     const history = await server.request({
       method: 'GET',
@@ -218,17 +211,21 @@ describe('step 8 — a hand edit reaches the browser without a restart', () => {
     );
 
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    const indexed = watchedIndex(server, file);
     await writeFile(
       file,
       JSON.stringify({ ...onDisk, name: 'Rain City, after the fire' }, null, 2),
     );
+    await indexed;
 
-    await eventually(async () => {
-      const read = await server.request({
-        method: 'GET',
-        url: `/api/library/lorebooks/${book.id}`,
-      });
-      return read.body.name === 'Rain City, after the fire';
+    // Read once, after the signal, rather than polled until it agreed. The
+    // assertion is now about what the route says and not about how long it took
+    // to say it — so a regression in the *content* fails on the content instead
+    // of expiring a timer.
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${book.id}`,
     });
+    expect(read.body.name).toBe('Rain City, after the fire');
   });
 });

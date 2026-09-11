@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { type AppServices, buildApp, buildServices, disposeServices } from './app.js';
 import type { BuildInfo } from './build-info.js';
 import { type Config, DEFAULT_CONFIG, loadConfig } from './config.js';
+import type { WatchEvent } from './index-db/watcher.js';
 import type { ProviderFactory } from './providers/factory.js';
 import { Layout } from './storage/layout.js';
 
@@ -451,4 +452,100 @@ export function routesUnder(app: FastifyInstance, prefix: string): RouteEntry[] 
 export interface RouteEntry {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
+}
+
+/**
+ * Waits for the watcher to finish handling a foreign write to `path` — [P7.0].
+ *
+ * **Subscribe first, then write.** The subscription has to exist before the
+ * write that triggers it, which is the whole shape of the helper: it returns a
+ * promise that is already listening, so the caller writes and then awaits. Do
+ * it the other way round and the event can land in the gap, which is the race
+ * this exists to remove rather than one it introduces.
+ *
+ * **Why a signal and not a poll.** The watcher emits after the handler is done
+ * — after the ingest and after any history snapshot — so a resolved promise
+ * here means the consequences are readable, with no second wait and no guess
+ * about how long one should be. A poll can only ask *has it happened yet* and,
+ * when it runs out, cannot distinguish a watcher that was slow from a watcher
+ * that never delivered: both arrive as the same timeout. This distinguishes
+ * them, because it never reports success it did not see.
+ *
+ * The timeout is a **diagnostic**, not the mechanism: if it fires, the message
+ * names the path and every event the watcher did emit, which is what turns
+ * "condition never held" into something a reader can act on.
+ */
+export function watchedIndex(
+  server: TestServer,
+  path: string,
+  timeoutMs = 8000,
+): Promise<WatchEvent> {
+  const watcher = server.services.watcher;
+  if (!watcher) {
+    throw new Error('watchedIndex needs a server built with { watch: true }.');
+  }
+
+  const seen: WatchEvent[] = [];
+  return new Promise<WatchEvent>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      stop();
+      reject(
+        new Error(
+          `The watcher never indexed ${path} within ${String(timeoutMs)}ms. ` +
+            `It emitted: ${seen.length === 0 ? '(nothing)' : seen.map(describe).join(', ')}`,
+        ),
+      );
+    }, timeoutMs);
+
+    const stop = watcher.observe((event) => {
+      seen.push(event);
+      // A path this helper was not asked about is still worth keeping: a
+      // `suppressed` for the very file we are waiting on is the interesting
+      // failure, and it only reads as interesting beside the others.
+      if (event.type !== 'indexed' || event.path !== path) return;
+      clearTimeout(timer);
+      stop();
+      resolve(event);
+    });
+  });
+}
+
+function describe(event: WatchEvent): string {
+  return `${event.type} ${event.path}`;
+}
+
+/**
+ * Polls a condition that has no signal behind it — and says what it saw.
+ *
+ * **Use {@link watchedIndex} instead wherever the thing being waited for is a
+ * watcher event.** This is for the cases with genuinely no in-process signal:
+ * a turn that ends when the commit protocol says so, observed from outside
+ * through the route a client would call.
+ *
+ * **`describe` is the reason this exists rather than four copies of it.** The
+ * helper it replaces lived in four files, was identical in three, and failed
+ * with `condition never held before the timeout` — a message that names neither
+ * the condition nor what was true instead, in files that include two phase exit
+ * gates. A poll that cannot say what it saw turns every timing failure into the
+ * same shrug, which is how a flake in a gate test stays unexplained.
+ */
+export async function eventually(
+  check: () => Promise<boolean>,
+  options: { timeoutMs?: number; pollMs?: number; describe?: () => Promise<string> } = {},
+): Promise<void> {
+  const { timeoutMs = 8000, pollMs = 50, describe } = options;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((tick) => setTimeout(tick, pollMs));
+  }
+  if (await check()) return;
+
+  const seen = describe
+    ? await describe().catch((error: unknown) => `could not be described: ${String(error)}`)
+    : null;
+  throw new Error(
+    `The condition never held within ${String(timeoutMs)}ms` +
+      (seen === null ? '.' : `. What was true instead: ${seen}`),
+  );
 }
