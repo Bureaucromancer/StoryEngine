@@ -78,6 +78,36 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
   scope: 'session',
   visibility: 'player',
   budget: null,
+  /**
+   * **Normalised, and the schema is where that stops being a convention.**
+   * `advance` carries minutes into hours and days, so an hour of 24 or a minute
+   * of 60 is a value nothing in the engine produces — and a hand-edited
+   * `session.json` is a supported way to get data in
+   * ([03 §8.1](../../../../docs/design/03-data-model.md)), which is exactly the
+   * path a 25 lands on. Bounds here mean that lands in the quarantine ladder
+   * with its raw value kept, rather than rendering as a time that does not
+   * exist.
+   */
+  schema: {
+    type: 'object',
+    properties: {
+      day: { type: 'integer', minimum: 1 },
+      hour: { type: 'integer', minimum: 0, maximum: 23 },
+      minute: { type: 'integer', minimum: 0, maximum: 59 },
+    },
+    required: ['day', 'hour', 'minute'],
+  },
+  /**
+   * **Morning, because a story usually starts in one — and it is Scene's to
+   * say** ([P7.1]).
+   *
+   * This was `CLOCK_START` in `sessions/channels.ts`: an engine constant beside
+   * the function that read it, so where the clock began was something the
+   * *engine* knew about a channel a *mode* owns. A mode that cannot say where
+   * its own channel starts has not really declared it — the same gap
+   * `ModeDefinition.channels` had before [P7.0], one level down.
+   */
+  init: { kind: 'literal', value: { day: 1, hour: 8, minute: 0 } },
 };
 
 export const NARRATE: StepDefinition = {

@@ -4,6 +4,7 @@
 import type { ChannelDefinition } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
+import { NO_TIMING } from '../retrieval/timing.js';
 import type { ChannelEffect, ChannelState, Turn } from './types.js';
 
 /**
@@ -87,6 +88,38 @@ export const LORE_TIMING_CHANNEL: ChannelDefinition = {
   owner: 'storyengine.lore',
   version: 1,
   scope: 'entry',
+  /**
+   * Three counters, none of which can be negative — [P7.1].
+   *
+   * `timingOf` already refuses a non-object and falls back; what it cannot
+   * refuse is an object with the right keys and impossible values, because
+   * `sticky: -3` reads as a number like any other and quietly makes an entry
+   * eligible forever. A schema is where that becomes a quarantine rather than a
+   * silent behaviour change.
+   */
+  schema: {
+    type: 'object',
+    properties: {
+      sticky: { type: 'integer', minimum: 0 },
+      cooldown: { type: 'integer', minimum: 0 },
+      fired: { type: 'integer', minimum: 0 },
+    },
+    required: ['sticky', 'cooldown', 'fired'],
+  },
+  /**
+   * **An entry nothing has recorded anything about** — [P7.1], where a channel
+   * declaring its own starting value became part of declaring the channel.
+   *
+   * **The import goes this way round, unlike the clock's.** `CLOCK_START`
+   * *moved* into Scene's declaration and the engine reads it back through
+   * {@link initialValue}; `NO_TIMING` stays in `retrieval/timing.ts` and this
+   * declaration imports it, because it is also the **verdict vocabulary's
+   * zero** — `activate.ts` compares against it per entry on a path that does no
+   * channel lookup, and routing a hot retrieval loop through the registry would
+   * make it depend on installation state. One constant, read two ways, rather
+   * than two constants that agree today.
+   */
+  init: { kind: 'literal', value: NO_TIMING },
   // The model does not get a vote on whether an entry is still sticky. Like the
   // clock, a fact the engine computes and records — which is what makes it
   // reconstructible rather than negotiated.
@@ -229,8 +262,55 @@ export function scopeKeyOf(key: string, channelId: string): string | null {
     : null;
 }
 
-/** Where a session's clock starts. Morning, because a story usually does. */
-export const CLOCK_START: ClockValue = { day: 1, hour: 8, minute: 0 };
+/**
+ * ~~Where a session's clock starts. Morning, because a story usually does.~~
+ *
+ * **Moved into Scene's declaration at [P7.1]** as
+ * `CLOCK_CHANNEL.init`, and read back through {@link initialValue}. What is
+ * here is the same value arrived at the other way round: the engine asks the
+ * registry where the clock starts instead of knowing.
+ *
+ * *Kept as an export because it is the shape of a `ClockValue` as well as a
+ * value, and four test files read it as the former.* It is **derived from the
+ * declaration** rather than declared here, so the two cannot drift: change
+ * Scene's `init` and this follows.
+ */
+export function clockStart(): ClockValue {
+  const value = initialValue(SE_CLOCK);
+  return isClock(value) ? value : FALLBACK_CLOCK;
+}
+
+/**
+ * What the clock reads when no mode has declared one.
+ *
+ * **Not a second opinion about when a story starts** — it is what a build with
+ * no clock channel registered has to say, and the honest options were this or a
+ * throw. A throw would mean a session that cannot open because a mode was
+ * uninstalled, which is precisely what [00 §3.3] and [06 §4.2] refuse.
+ */
+const FALLBACK_CLOCK: ClockValue = { day: 1, hour: 8, minute: 0 };
+
+/**
+ * The value a channel starts at, from whoever declared it — [P7.1].
+ *
+ * **A read-time default rather than a stored one, which is what keeps replay
+ * honest.** Nothing writes an initial value into `session.channels`: a channel
+ * with no effects against it has no entry, and this is what the readers fall
+ * back to. So replay-from-zero and the head snapshot agree about an untouched
+ * channel *by having nothing to disagree about*, which is the cheapest possible
+ * way to satisfy the assertion [07 §4] makes a CI step of.
+ *
+ * **The `authored` arm is not resolved here**, and deliberately: it needs the
+ * session's treatment and setup, which this module has no business reading.
+ * `null` until [P7.1]'s dial wires it, with the fallback as the answer — the
+ * arm's own `fallback` is what an unauthored session gets, and an unresolved
+ * one is unauthored as far as anything can tell from here.
+ */
+export function initialValue(channelId: string): unknown {
+  const init = channelDefinition(channelId)?.init;
+  if (init === undefined) return null;
+  return init.kind === 'literal' ? init.value : init.fallback;
+}
 
 /**
  * How far the clock moves per turn.
@@ -244,7 +324,7 @@ export const MINUTES_PER_TURN = 5;
 
 export function readClock(channels: Record<string, ChannelState>): ClockValue {
   const state = channels[SE_CLOCK];
-  return isClock(state?.value) ? state.value : CLOCK_START;
+  return isClock(state?.value) ? state.value : clockStart();
 }
 
 function isClock(value: unknown): value is ClockValue {

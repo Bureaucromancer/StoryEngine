@@ -4,7 +4,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
 
@@ -14,8 +14,11 @@ import {
   advance,
   channelDefinition,
   channelKey,
+  clockStart,
+  initialValue,
   keyBelongsTo,
   readClock,
+  registerChannel,
   scopeKeyOf,
   SE_CLOCK,
   SE_LORE_TIMING,
@@ -121,6 +124,107 @@ async function turn(parentTurnId: string | null): Promise<Turn> {
   await appendTurnToSession(context, ACCOUNT, session.id, record);
   return record;
 }
+
+/**
+ * **Where a channel starts is part of declaring it** — [P7.1].
+ *
+ * `CLOCK_START` was a constant in this module, next to `readClock`, so the
+ * engine knew where a mode's channel began. That is the same gap
+ * `ModeDefinition.channels` had before [P7.0] — a declaration that documents
+ * without enabling — one level further down, and `InitPolicy` is what closes
+ * it.
+ *
+ * **Asserted by substitution rather than by equality**, because the two values
+ * agree today: `clockStart()` returning `08:00` proves nothing about *where it
+ * read that from*, and the engine's own no-mode fallback is also `08:00`. So a
+ * different clock declaration is registered and the answer has to follow it. A
+ * `clockStart` that still consulted a constant would pass every equality test
+ * in this file and fail this one.
+ */
+/**
+ * The module loaded with an empty registry, which is the only way to see a build
+ * that has no clock — every other test in this file has installed the built-ins
+ * by the time it runs, because the registry is a module global.
+ */
+async function freshChannels(): Promise<typeof import('./channels.js')> {
+  vi.resetModules();
+  const loaded = await import('./channels.js');
+  vi.resetModules();
+  return loaded;
+}
+
+describe('a channel says where it starts', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('reads the clock’s start from whoever declared the channel', () => {
+    const declared = channelDefinition(SE_CLOCK);
+    expect(declared?.init).toEqual({ kind: 'literal', value: { day: 1, hour: 8, minute: 0 } });
+    expect(clockStart()).toEqual({ day: 1, hour: 8, minute: 0 });
+
+    // The substitution: same id, same owner, a different morning.
+    //
+    // Restored in a `finally` because the registry is a module global and
+    // `registerChannel` is a write to it — a substitution left behind would
+    // reach every test that runs after this one in the same worker without
+    // installing the built-ins, which is a failure nobody would trace back here.
+    const original = declared!;
+    try {
+      registerChannel({
+        ...original,
+        init: { kind: 'literal', value: { day: 4, hour: 22, minute: 30 } },
+      });
+
+      expect(clockStart()).toEqual({ day: 4, hour: 22, minute: 30 });
+      // And through the reader a turn actually uses, over an untouched session.
+      expect(readClock({})).toEqual({ day: 4, hour: 22, minute: 30 });
+    } finally {
+      registerChannel(original);
+    }
+
+    expect(clockStart()).toEqual({ day: 1, hour: 8, minute: 0 });
+  });
+
+  it('falls back rather than throwing when no mode declared a clock', async () => {
+    // A build with no clock channel is what an uninstalled mode leaves behind,
+    // and [06 §4.2] is explicit that *a session must always open*. Throwing here
+    // would make a missing mode cost somebody their session, which is the one
+    // outcome that section rules out.
+    const channels = await freshChannels();
+
+    expect(channels.channelDefinition(channels.SE_CLOCK)).toBeNull();
+    expect(channels.clockStart()).toEqual({ day: 1, hour: 8, minute: 0 });
+  });
+
+  it('refuses to invent a value for a channel nobody declared', () => {
+    // `null` rather than `undefined` or a throw: an unknown channel is a
+    // recorded refusal everywhere else in this module (`refuse` returns
+    // `unknown-channel`), and a reader that got `undefined` could not tell
+    // "declared as null" from "not declared".
+    expect(initialValue('example.nobody')).toBeNull();
+  });
+
+  it('hands back the fallback for an authored init, which is what unauthored means', () => {
+    // The `authored` arm needs the session's treatment and setup, which this
+    // module has no business reading — so until the dial wires it, an authored
+    // init resolves to its own declared fallback. [04 §6.1b]: absent means
+    // *unspecified*, and the channel is what says what unspecified resolves to.
+    registerChannel({
+      id: 'example.pacing',
+      owner: 'example.quiet',
+      version: 1,
+      scope: 'session',
+      update: 'user-only',
+      visibility: 'player',
+      budget: null,
+      schema: { type: 'string' },
+      init: { kind: 'authored', field: 'hookPacing', fallback: 'normal' },
+    });
+
+    expect(initialValue('example.pacing')).toBe('normal');
+  });
+});
 
 describe('the clock', () => {
   it('carries minutes into hours and days', () => {

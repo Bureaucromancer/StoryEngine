@@ -27,7 +27,7 @@
 
 export * from '@storyengine/shared';
 
-export type { ChannelDefinition } from './channels.js';
+export type { ChannelDefinition, InitPolicy } from './channels.js';
 export type {
   AssemblyPlan,
   Mode,

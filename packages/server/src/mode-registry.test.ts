@@ -102,6 +102,8 @@ describe('the mode registry', () => {
       update: 'model-proposed',
       visibility: 'player',
       budget: null,
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: null },
     } as const;
 
     expect(channels.channelDefinition('example.mood')).toBeNull();

@@ -548,7 +548,7 @@ describe('step 15 — deleting state.sqlite loses the turn in flight and nothing
      * loss was bounded: the story continues from the turn before the one that
      * died rather than from zero, and the clock — replayed channel state, held
      * in the file the delete did not touch — carries on from 8:05 rather than
-     * restarting at `CLOCK_START`.
+     * restarting at the clock channel’s declared start.
      */
     const next = await takeTurn(
       killed.sessionId,
@@ -620,7 +620,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
      *
      * **Not vacuous**, which needs saying because `{}` deep-equals `{}`: a
      * pipeline that emitted no effects at all would satisfy the comparison and
-     * fail the step. So the value is asserted too — `CLOCK_START` at 08:00 plus
+     * fail the step. So the value is asserted too — the declared start at 08:00 plus
      * two turns of `MINUTES_PER_TURN` — and that is what a mutation to
      * `advance`, to `MINUTES_PER_TURN`, or to the clock's position outside the
      * step loop would move.
@@ -642,11 +642,11 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
      * the effect through `acceptEffect`, which takes `before` from
      * `running[channelId]?.value ?? null` — and on turn one there is no channel
      * yet, so the absent state is recorded as absent. `channels.ts`'s
-     * `clockEffect` would have written `CLOCK_START` there instead, and it has
+     * `clockEffect` would have written the declared start there instead, and it has
      * no production caller; the two disagree only on this one cell. Pinned as
      * observed, because the alternative is a test that documents a helper
      * nothing runs. It is also benign for reversal — `readClock` maps a
-     * non-clock value back to `CLOCK_START` — but it is a difference somebody
+     * non-clock value back to the declared start — but it is a difference somebody
      * unifying the two constructors needs to see rather than discover.
      */
     const clockEffects = [...byId.values()]

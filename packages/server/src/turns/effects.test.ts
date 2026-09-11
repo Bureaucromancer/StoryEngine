@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   advance,
   channelKey,
-  CLOCK_START,
+  clockStart,
   readClock,
   SE_CLOCK,
   SE_LORE_TIMING,
@@ -25,15 +25,24 @@ import { acceptEffect, type EffectProposal } from './effects.js';
  * policy that exists only in a docstring.
  */
 
-const RUNNING: Record<string, ChannelState> = {
-  [SE_CLOCK]: { version: 1, value: CLOCK_START },
-};
+/**
+ * **A function, not a constant, and the reason is the registry** — [P7.1].
+ *
+ * `clockStart()` reads Scene's declaration, and Scene is registered in the
+ * `beforeEach` below. Evaluated at module scope this would run *before* that
+ * and get the engine's no-mode fallback instead — which happens to be the same
+ * value, so every test here would pass while asserting against the wrong
+ * source. That is the shape of vacuous pass worth a function call to avoid.
+ */
+function atStart(): Record<string, ChannelState> {
+  return { [SE_CLOCK]: { version: 1, value: clockStart() } };
+}
 
 function proposal(overrides: Partial<EffectProposal> = {}): EffectProposal {
   return {
     channelId: SE_CLOCK,
     op: { type: 'set', path: '/' },
-    after: advance(CLOCK_START, 5),
+    after: advance(clockStart(), 5),
     proposedBy: { kind: 'engine' },
     ...overrides,
   };
@@ -47,11 +56,11 @@ describe('a proposal is judged against the channel that owns it', () => {
   });
 
   it('applies an engine proposal to an engine-computed channel', () => {
-    const effect = acceptEffect('t1', proposal(), RUNNING);
+    const effect = acceptEffect('t1', proposal(), atStart());
 
     expect(effect.applied).toBe(true);
     expect(effect.rejectedReason).toBeNull();
-    expect(effect.before).toEqual(CLOCK_START);
+    expect(effect.before).toEqual(clockStart());
     expect(effect.after).toEqual({ day: 1, hour: 8, minute: 5 });
   });
 
@@ -67,7 +76,7 @@ describe('a proposal is judged against the channel that owns it', () => {
           proposedBy:
             by === 'model' ? { kind: 'model', callId: 'c1' } : { kind: 'step', stepId: 's' },
         }),
-        RUNNING,
+        atStart(),
       );
 
       expect(effect.applied).toBe(false);
@@ -79,8 +88,8 @@ describe('a proposal is judged against the channel that owns it', () => {
       expect(effect.rejectedReason).toBe('engine-computed');
       // And it changes nothing: `after` is the value that was already there, so
       // a replay that ignores `applied` still cannot move the clock.
-      expect(effect.after).toEqual(CLOCK_START);
-      expect(readClock(applyEffects(RUNNING, [effect]))).toEqual(CLOCK_START);
+      expect(effect.after).toEqual(clockStart());
+      expect(readClock(applyEffects(atStart(), [effect]))).toEqual(clockStart());
     });
   }
 
@@ -88,7 +97,7 @@ describe('a proposal is judged against the channel that owns it', () => {
     // A mode or extension that is not loaded may own it. A turn that died
     // because of an unrecognised id would be a worse outcome than a refusal
     // somebody can read.
-    const effect = acceptEffect('t1', proposal({ channelId: 'se.party', after: [] }), RUNNING);
+    const effect = acceptEffect('t1', proposal({ channelId: 'se.party', after: [] }), atStart());
 
     expect(effect.applied).toBe(false);
     expect(effect.rejectedReason).toBe('unknown-channel');
@@ -99,9 +108,9 @@ describe('a proposal is judged against the channel that owns it', () => {
     // one channel in one turn have to chain, or the second's inverse restores a
     // value that was already superseded — and replay-from-zero then diverges
     // from the head snapshot.
-    const first = acceptEffect('t1', proposal(), RUNNING);
-    const running = applyEffects(RUNNING, [first]);
-    const second = acceptEffect('t1', proposal({ after: advance(CLOCK_START, 10) }), running);
+    const first = acceptEffect('t1', proposal(), atStart());
+    const running = applyEffects(atStart(), [first]);
+    const second = acceptEffect('t1', proposal({ after: advance(clockStart(), 10) }), running);
 
     expect(second.before).toEqual({ day: 1, hour: 8, minute: 5 });
 
@@ -118,7 +127,11 @@ describe('a proposal is judged against the channel that owns it', () => {
     // `op.path` for nothing but `delete`, so an increment carrying a sub-value
     // would silently clobber the channel. Better to be unable to write it.
     expect(() =>
-      acceptEffect('t1', proposal({ op: { type: 'increment', path: '/minute', by: 5 } }), RUNNING),
+      acceptEffect(
+        't1',
+        proposal({ op: { type: 'increment', path: '/minute', by: 5 } }),
+        atStart(),
+      ),
     ).toThrow(/whole-value set/);
   });
 });
