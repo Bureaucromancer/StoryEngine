@@ -916,7 +916,12 @@ a test edit, none is a stage, and every one of them is something a stage would
 otherwise stop to argue about:
 
 1. **The four retired-sentence homes and the `[19 §11]` citation** — 22 §4,
-   `turns/steps.ts:128`, `turns/steps.test.ts:220-221`, and §P7.0's own cell.
+   ~~`turns/steps.ts:128`, `turns/steps.test.ts:220-221`~~ **(both corrected at
+   P7.0, in the commits that changed the thing they were wrong about)**, and
+   §P7.0's own cell. **22 §4 now owes three corrections rather than one**: the
+   retired sentence, `blocks` → `Candidate`, and the full effect →
+   `EffectProposal` (§1.2), plus the `[19 §11]` citation, which points at *Dev
+   mode* where it means randomness at 19 §14.
 2. **06 §9 against 22 §4.0** on whether a worker enforces recorded randomness.
 3. ~~**`RandomApi`'s shape** — at minimum whether a host draw carries `(site,
    purpose)`. It is the conversion's input, not its output.~~ **Settled and
@@ -1003,6 +1008,14 @@ does not. §0.1a argues the three ways out and recommends moving
 form.
 
 ### 1.2 Three recorded divergences to reconcile, and only the third has teeth
+
+***All three are settled as of P7.0, 2026-09-11, and the first two went the way
+this section leaned.*** Publishing a type is deciding it, so the SDK export was
+where they had to be answered: a step returns `Candidate`, an effect is an
+`EffectProposal`, and **[22 §4](../22-extensions.md) is the document that gets
+corrected** in both — a cold-list edit (§0.2) rather than an open question. The
+third is the `random` conversion, built. The list below is kept because the
+reasoning is the record of why.
 
 [22 §4](../22-extensions.md) records what P2 built against what the boundary
 needs, deliberately unreconciled because reconciling early would have been
@@ -1424,12 +1437,32 @@ already says. §0.2 says which of these wait on PLAYABLE and which do not.
 
 ***In progress. Opened 2026-09-11 on `p7`.*** Ordered so that each piece is
 green on its own, because the stage's parts are independent up to the move and
-landing them together would make the one diff nobody can review. **Done:** the
-host-`random` conversion, which comes first because it decides the shape of
-something the SDK is about to publish and because converting a contract after
-publishing it is the cost this phase exists to avoid. **Next:** the SDK exporting
-the contract, then the registry becoming something a loader writes to, then the
-tooling and the move, then the repo-shape check. §0.2 says which of these wait on
+landing them together would make the one diff nobody can review.
+
+**Done.** The host-`random` conversion, first because it decides the shape of
+something the SDK is about to publish and converting a contract after publishing
+it is the cost this phase exists to avoid. Then **the SDK exporting the
+contract**: the step types, `Candidate`, `EffectProposal` and `RandomApi` now
+live in `packages/sdk` and the engine re-exports them from there, so the modules
+that used to own them keep their import paths. `packages/sdk/src/contract.test.ts`
+is the package's first test and its imports are the assertion — a step is
+declared, implemented and run using `@storyengine/sdk` and nothing else, so the
+file stops compiling if the contract is not self-sufficient. That is the
+automatable half of gate step 10; the half a person walks is whether the contract
+*permitted* something worth building.
+
+**And it settles two of §1.2's three divergences by deciding them, which is what
+publishing a type does.** A step returns `Candidate`, not `blocks` — a block is
+what the assembler produces once the budgeter has ruled, and a step cannot
+produce one because it does not know what fits. A step's effect is an
+`EffectProposal` with no `before`, no `applied` and no id, because only the
+engine can record a refusal. Both were the engine's shapes against
+[22 §4](../22-extensions.md)'s, and in both the engine was right — so **22 is the
+document that gets corrected**, which is now a cold-list item rather than an open
+question.
+
+**Next:** the registry becoming something a loader writes to, then the tooling
+and the move, then the repo-shape check. §0.2 says which of these wait on
 PLAYABLE — none of them do.
 
 `packages/modes/scene` created and populated by moving, not rewriting; `sdk`

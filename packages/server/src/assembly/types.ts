@@ -35,41 +35,15 @@ export type {
  */
 export type SlotSource = Exclude<BlockSource, { kind: 'preset' } | { kind: 'step' }>;
 
-/** One candidate, before the budgeter has ruled on it. */
-export interface Candidate {
-  id: string;
-  source: BlockSource;
-  /**
-   * Why it is here, in the words the workbench shows: *"keyword match:
-   * 'cathedral'"*, *"pinned by user"*, *"always"*. **A product feature, not a
-   * debug string** — which is also why it is required rather than optional.
-   */
-  reason: string;
-  role: 'system' | 'user' | 'assistant';
-  text: string;
-  /**
-   * Lower drops first. Absent means "the preset did not say", which the
-   * budgeter treats as the middle rather than as the most expendable.
-   */
-  priority?: number;
-  /**
-   * Never dropped by the budgeter. For the things a request is meaningless
-   * without — the user's own message.
-   */
-  required?: boolean;
-  /**
-   * **Guidance, and anything else that may influence prose and nothing else.**
-   *
-   * [06 §5.2](../../../../docs/design/06-modes-and-turn-pipeline.md) is a
-   * specification rather than a preference: guidance must never be admissible
-   * to a call whose output determines a systematic result. The sharp case is a
-   * fuzzy rule condition — those are model calls, and *"the player has clearly
-   * betrayed her by now"* typed into the guidance box would otherwise trip a
-   * rule, letting someone talk past a mechanic without touching it.
-   *
-   * Enforced structurally rather than by convention: `assemble` refuses to
-   * admit an advisory block to a call declared as producing effects or
-   * verdicts.
-   */
-  advisory?: boolean;
-}
+/**
+ * `Candidate` moved to `@storyengine/sdk` at [P7.0] — a step returns them, so a
+ * mode package has to be able to name the type. Re-exported here so the
+ * pipeline's import paths stay put, exactly as the record's shapes are above.
+ *
+ * **The docstring that said this one "never leaves the server" was true of the
+ * value and wrong about the type.** What never leaves is the *pre-verdict*
+ * candidate as data — it is not on the record, and `AssembledBlock` is what the
+ * workbench reads. The declaration has to travel, because a step author writes
+ * against it.
+ */
+export type { Candidate } from '@storyengine/sdk';

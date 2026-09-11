@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { EffectProposal } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
 import { channelDefinition, channelKey } from '../sessions/channels.js';
-import type { ChannelEffect, ChannelState, EffectOp } from '../sessions/types.js';
+import type { ChannelEffect, ChannelState } from '../sessions/types.js';
 
 /**
  * Turning a proposal into a recorded effect — [21 §1.2](../../../../docs/design/21-internal-contracts.md).
@@ -16,14 +17,12 @@ import type { ChannelEffect, ChannelState, EffectOp } from '../sessions/types.js
  * why nothing happened.
  */
 
-/** What a step hands back. It cannot stamp `before`, `applied` or an id. */
-export interface EffectProposal {
-  channelId: string;
-  scopeKey?: string | null;
-  op: EffectOp;
-  after: unknown;
-  proposedBy: ChannelEffect['proposedBy'];
-}
+/**
+ * What a step hands back. It cannot stamp `before`, `applied` or an id — moved
+ * to `@storyengine/sdk` at [P7.0] and re-exported here, because a step proposes
+ * and only the engine can record a decision.
+ */
+export type { EffectProposal } from '@storyengine/sdk';
 
 /**
  * Decides one proposal against the channel state as it stands *within this turn*.
