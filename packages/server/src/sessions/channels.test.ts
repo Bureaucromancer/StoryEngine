@@ -14,7 +14,6 @@ import {
   advance,
   channelDefinition,
   channelKey,
-  clockEffect,
   keyBelongsTo,
   readClock,
   scopeKeyOf,
@@ -22,6 +21,7 @@ import {
   SE_LORE_TIMING,
   splitChannelKey,
 } from './channels.js';
+import { installBuiltIns } from '../modes/built-ins.js';
 import { walkPath } from './segments.js';
 import {
   appendTurnToSession,
@@ -33,7 +33,7 @@ import {
   replayChannels,
   type SessionContext,
 } from './store.js';
-import type { ChannelEffect, SessionFile, Turn } from './types.js';
+import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
 
 /**
  * `se.clock` and the hand-edit rule — [P2 §2.7], [03 §8.1].
@@ -54,6 +54,10 @@ const ACCOUNT = 'ned';
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-channels-'));
+  // Channels are registered rather than frozen into the engine since [P7.0], so
+  // a test that needs one asks for the built-ins the way `buildServices` does.
+  installBuiltIns();
+
   index = await openIndex({ path: ':memory:' });
   context = { layout: new Layout(dataDir), index: index.db };
   session = await createSession(context, ACCOUNT, 'Rain City');
@@ -72,6 +76,33 @@ async function onDisk(): Promise<SessionFile> {
   const found = await readSession(context, ACCOUNT, session.id);
   if (found === null) throw new Error('the session went missing');
   return found;
+}
+
+/**
+ * The clock effect a turn carries, built here rather than imported.
+ *
+ * `channels.ts` exported a `clockEffect` helper with no production caller until
+ * [P7.0] — the runner builds its own inline, after the step loop and not as a
+ * step — while `navigation.test.ts` and `snapshots.test.ts` each defined a local
+ * one anyway. This follows them.
+ */
+function clockEffect(turnId: string, channels: Record<string, ChannelState>): ChannelEffect {
+  const before = readClock(channels);
+  return {
+    id: uuidv7(),
+    turnId,
+    channelId: SE_CLOCK,
+    scopeKey: null,
+    op: { type: 'set', path: '/' },
+    before,
+    after: advance(before, 5),
+    proposedBy: { kind: 'engine' },
+    applied: true,
+    rejectedReason: null,
+    supersedes: null,
+    channelVersion: 1,
+    scope: 'session',
+  };
 }
 
 /** One ordinary turn, with the clock effect the engine computes for it. */

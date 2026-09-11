@@ -44,18 +44,13 @@ export interface ClockValue {
 
 export const SE_CLOCK = 'se.clock';
 
-export const CLOCK_CHANNEL: ChannelDefinition = {
-  id: SE_CLOCK,
-  owner: 'storyengine.scene',
-  version: 1,
-  scope: 'session',
-  // Engine-computed: the model does not get to decide what time it is. That is
-  // the property making this a useful first channel — an effect nobody proposed
-  // still has to be recorded, attributed and reversible like any other.
-  update: 'engine-computed',
-  visibility: 'player',
-  budget: null,
-};
+/**
+ * ~~The clock's definition~~ — **moved to `packages/.../modes/scene/mode.ts` at
+ * [P7.0]**, because Scene is its `owner` and a mode that cannot own the channel
+ * it declares is a mode whose declaration is decoration. The id stays here: the
+ * engine advances the clock after the step loop and needs to name it, and an id
+ * is content rather than code.
+ */
 
 export const SE_LORE_TIMING = 'se.lore.timing';
 
@@ -105,21 +100,49 @@ export const LORE_TIMING_CHANNEL: ChannelDefinition = {
 /**
  * Every channel this build knows — the thing `update` is enforced against.
  *
- * A registry with one entry looks like ceremony, and is not: `ChannelDefinition`
- * declares `update: 'model-proposed' | 'engine-computed' | 'user-only'`, and
- * until something can *look a channel up* that field is a comment. The clock is
- * `engine-computed`, so a model proposing a time change must be recorded and
- * refused rather than applied — which needs a definition to consult.
+ * ~~A registry with one entry looks like ceremony, and is not… P2.6's modes
+ * register their own ([06 §4]); this is the built-in set.~~
  *
- * P2.6's modes register their own ([06 §4]); this is the built-in set.
+ * **Modes register their own as of [P7.0], which is what that last sentence was
+ * waiting for.** It was a frozen record built from static imports, and
+ * `modes/scene/mode.ts` said the consequence plainly: listing `se.clock` in its
+ * `channels` "documents what Scene uses and does not *enable* it", because
+ * effect application resolved a channel from this module rather than from the
+ * running mode. So the declaration was inert and the engine owned a channel a
+ * mode was named the owner of.
+ *
+ * **The boundary is what forced the inversion rather than tidiness.** A mode
+ * cannot import a value from the engine once it is a package, so either the
+ * mode stops declaring its channel — losing the information — or it owns it and
+ * something registers it. `registerMode` does, which gives
+ * `ModeDefinition.channels` teeth for the first time.
+ *
+ * *What is left here is what has no mode to travel with*: `se.lore.timing` is
+ * owned by `storyengine.lore`, a package, and is installed by `built-ins.ts`
+ * beside the modes.
  */
-export const CHANNELS: Readonly<Record<string, ChannelDefinition>> = {
-  [SE_CLOCK]: CLOCK_CHANNEL,
-  [SE_LORE_TIMING]: LORE_TIMING_CHANNEL,
-};
+const registered = new Map<string, ChannelDefinition>();
+
+/**
+ * Adds a channel to this build's registry.
+ *
+ * **Last registration wins**, for the reason `registerMode` gives: an install
+ * with two declarations of one channel id has a configuration problem, and
+ * refusing at startup would take the server down over it. A mode re-registering
+ * its own declaration is idempotent, which is what lets a test install the
+ * built-ins without caring whether something already did.
+ */
+export function registerChannel(definition: ChannelDefinition): void {
+  registered.set(definition.id, definition);
+}
+
+/** Every channel registered so far, in registration order. */
+export function registeredChannels(): readonly ChannelDefinition[] {
+  return [...registered.values()];
+}
 
 export function channelDefinition(id: string): ChannelDefinition | null {
-  return CHANNELS[id] ?? null;
+  return registered.get(id) ?? null;
 }
 
 /**
@@ -247,33 +270,15 @@ export function advance(clock: ClockValue, minutes: number): ClockValue {
 }
 
 /**
- * The clock effect a turn carries.
+ * ~~The clock effect a turn carries.~~ **Deleted at [P7.0].**
  *
- * `before` is stored rather than derived, which is [21 §1.2]'s most load-bearing
- * decision: undoing the tip means applying `before`, not replaying 0..N−1.
+ * It was exported production code with **no production caller** — the runner
+ * builds its clock effect inline through `acceptEffect`, "after the loop and not
+ * as a step" — while four test files shadowed the name with local helpers of
+ * their own. `CLOCK_CHANNEL` leaving for the mode forced the disposition: a dead
+ * export that survives a directory move is a dead export that starts reading as
+ * the contract.
  */
-export function clockEffect(
-  turnId: string,
-  channels: Record<string, ChannelState>,
-  minutes: number = MINUTES_PER_TURN,
-): ChannelEffect {
-  const before = readClock(channels);
-  return {
-    id: uuidv7(),
-    turnId,
-    channelId: SE_CLOCK,
-    scopeKey: null,
-    op: { type: 'set', path: '/' },
-    before,
-    after: advance(before, minutes),
-    proposedBy: { kind: 'engine' },
-    applied: true,
-    rejectedReason: null,
-    supersedes: null,
-    channelVersion: CLOCK_CHANNEL.version,
-    scope: 'session',
-  };
-}
 
 /**
  * The effects that reconcile a hand-edited `session.json` with the effect log —

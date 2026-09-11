@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newLorebook, newLoreEntry, uuidv7, type LoreEntry } from '@storyengine/shared';
 
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
+import { installBuiltIns } from '../modes/built-ins.js';
 import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { retrieve, type Retrieved } from '../retrieval/retrieve.js';
 import {
@@ -98,6 +99,10 @@ let context: SessionContext;
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-reconstruct-'));
+  // Channels are registered rather than frozen into the engine since [P7.0], so
+  // a test that needs one asks for the built-ins the way `buildServices` does.
+  installBuiltIns();
+
   index = await openIndex({ path: ':memory:' });
   context = {
     layout: new Layout(dataDir),

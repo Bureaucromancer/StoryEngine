@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type {
+  ChannelDefinition,
   Mode,
   ModeDefinition,
   StepDefinition,
@@ -10,7 +11,7 @@ import type {
   StepResult,
 } from '@storyengine/sdk';
 
-import { CLOCK_CHANNEL } from '../../sessions/channels.js';
+import { SE_CLOCK } from '../../sessions/channels.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -36,6 +37,30 @@ import { SCENE_PRESET } from './preset.js';
  */
 
 export const SCENE_ID = 'storyengine.scene';
+
+/**
+ * The story clock — Scene's channel, declared by Scene at last.
+ *
+ * **It lived in `sessions/channels.ts` until [P7.0]**, with `owner:
+ * 'storyengine.scene'` naming a mode that could not hold it: the engine's
+ * channel registry was a frozen record built from static imports, so a mode
+ * declaring `se.clock` documented what it used without enabling it. Registration
+ * is what changed — `registerMode` installs a mode's declared channels — and the
+ * type coming from `@storyengine/sdk` is what made it possible, because the
+ * `const` cycle that argument turned on cannot form across a third package.
+ */
+export const CLOCK_CHANNEL: ChannelDefinition = {
+  id: SE_CLOCK,
+  owner: SCENE_ID,
+  version: 1,
+  // Engine-computed: the model does not get to decide what time it is. That is
+  // the property making this a useful first channel — an effect nobody proposed
+  // still has to be recorded, attributed and reversible like any other.
+  update: 'engine-computed',
+  scope: 'session',
+  visibility: 'player',
+  budget: null,
+};
 
 export const NARRATE: StepDefinition = {
   id: 'se.narrate',

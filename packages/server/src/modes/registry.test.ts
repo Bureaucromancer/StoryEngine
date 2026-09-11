@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * it by the time this file runs; `resetModules` plus a dynamic import is what
  * lets the *unregistered* state be asserted at all. That state is not
  * hypothetical — it is what a build has between starting and calling
- * `installBuiltInModes`, and after the move it is what a build has if the
+ * `installBuiltIns`, and after the move it is what a build has if the
  * loader fails to find the mode package.
  *
  * The mode's own registry assertions stay in `scene/mode.test.ts`, where they
@@ -82,6 +82,38 @@ describe('the mode registry', () => {
     expect(() => {
       registry.assertModesRunnable();
     }).toThrow(/no implementation/);
+  });
+
+  it('installs a mode’s declared channels, which is what the declaration is for', async () => {
+    // **The inversion [P7.0] had to make, and the reason is the boundary.** A
+    // mode cannot import a value from the engine once it is a package, so a
+    // channel it declares has to arrive *with* it or not at all. Before this,
+    // `ModeDefinition.channels` documented what a mode used and enabled
+    // nothing — effect application resolved a definition from a frozen record
+    // beside the engine.
+    const registry = await freshRegistry();
+    const channels = await import('../sessions/channels.js');
+    const mode = fakeMode('example.quiet');
+    const declared = {
+      id: 'example.mood',
+      owner: 'example.quiet',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: null,
+    } as const;
+
+    expect(channels.channelDefinition('example.mood')).toBeNull();
+
+    registry.registerMode({
+      ...mode,
+      definition: { ...mode.definition, channels: [declared] },
+    });
+
+    // The very object the mode declared, not a copy: the mode is where the
+    // definition comes from now.
+    expect(channels.channelDefinition('example.mood')).toBe(declared);
   });
 
   it('names a default that is an id rather than an import', async () => {

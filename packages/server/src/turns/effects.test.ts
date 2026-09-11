@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   advance,
@@ -13,6 +13,7 @@ import {
 } from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
 import type { ChannelState } from '../sessions/types.js';
+import { installBuiltIns } from '../modes/built-ins.js';
 import { acceptEffect, type EffectProposal } from './effects.js';
 
 /**
@@ -39,6 +40,12 @@ function proposal(overrides: Partial<EffectProposal> = {}): EffectProposal {
 }
 
 describe('a proposal is judged against the channel that owns it', () => {
+  // Channels are registered rather than frozen into the engine since [P7.0], so
+  // a test that needs one asks for the built-ins the way `buildServices` does.
+  beforeEach(() => {
+    installBuiltIns();
+  });
+
   it('applies an engine proposal to an engine-computed channel', () => {
     const effect = acceptEffect('t1', proposal(), RUNNING);
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { LORE_TIMING_CHANNEL, registerChannel } from '../sessions/channels.js';
 import { registerMode } from './registry.js';
 import { SCENE_MODE } from './scene/mode.js';
 
@@ -24,6 +25,15 @@ import { SCENE_MODE } from './scene/mode.js';
  * `assertModesRunnable` immediately after, so a build that fails to register is
  * a build that refuses to start.
  */
-export function installBuiltInModes(): void {
+export function installBuiltIns(): void {
+  /**
+   * The channels no mode can own, first. `se.lore.timing` belongs to
+   * `storyengine.lore` — a **package**, which [06 §4.1] admits as an `owner`
+   * precisely so a subsystem that is not a mode can hold a channel — so there
+   * is no mode for it to arrive with.
+   */
+  registerChannel(LORE_TIMING_CHANNEL);
+
+  // Then the modes, each bringing the channels it declares.
   registerMode(SCENE_MODE);
 }

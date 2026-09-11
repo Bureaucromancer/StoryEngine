@@ -1474,6 +1474,29 @@ while registration was an import, so the split had to catch it — and two test
 files that reach the pipeline without `buildServices` now ask for the built-ins
 explicitly, which is the dependency becoming visible rather than ambient.
 
+Then **the mode manifest joined the contract and `modes/contract.ts` was
+deleted** — its whole job was enumerating the types a mode may see so the move
+would be one import list becoming the SDK's export list, and the SDK is that list
+now. Moving `ChannelDefinition` with it **dissolved the `const` cycle** the
+engine had been routing around: the type comes from a third package neither side
+imports, so nothing has to be declared in the wrong place to avoid a loop.
+
+Then **the channel registry inverted, and this is the entanglement §0.1a
+predicted resolving in P7.0's favour.** A mode cannot import a value from the
+engine once it is a package, so `CLOCK_CHANNEL` either travelled with Scene or
+the declaration lost its information. `registerMode` now installs a mode's
+declared channels, which is what `modes/scene/mode.ts` said would *"give this
+field teeth"* — it had been documenting what Scene used while enabling nothing.
+**So P7.1's "the registry is built from declarations" is half built, at P7.0,
+because the move required it.** What is left for P7.1 is the declaration half —
+`schema`, `init`, the renderer, the error surface — not the registry.
+
+*Two dispositions fell out. `clockEffect` is deleted: exported production code
+with no production caller, which four test files shadowed by name, and
+`CLOCK_CHANNEL` leaving forced the moment §0.1a said to take it. And five test
+files now install the built-ins explicitly, which is the same visibility the mode
+registry bought — a test that needs a channel says so.*
+
 **Next:** the tooling and the move, then the repo-shape check. §0.2 says which of
 these wait on PLAYABLE — none of them do.
 

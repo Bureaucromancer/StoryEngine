@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { validate } from '@storyengine/shared';
 
 import { callPurposeFor } from '../../turns/steps.js';
-import { CHANNELS } from '../../sessions/channels.js';
-import { installBuiltInModes } from '../built-ins.js';
+import { channelDefinition } from '../../sessions/channels.js';
+import { installBuiltIns } from '../built-ins.js';
 import { assertModesRunnable, DEFAULT_MODE_ID, modeById, planFor } from '../registry.js';
 import { NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
 import { SCENE_PRESET } from './preset.js';
@@ -184,18 +184,20 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(callPurposeFor(NARRATE)).toBe('prose');
   });
 
-  it('declares se.clock, and the engine still resolves channels globally', () => {
-    // **An honest record of a gap rather than a pinned inversion.** `channels`
-    // documents what Scene uses; effect application reads the module-global
-    // registry, so this declaration does not *enable* anything. Making the
-    // registry mode-derived is P7's, where a mode with a channel of its own can
-    // prove the field does something.
+  it('declares se.clock, and registering the mode is what enables it', () => {
+    // **Was "the engine still resolves channels globally", which was an honest
+    // record of a gap rather than a pinned inversion** — `channels` documented
+    // what Scene used while effect application read a module-global frozen
+    // record, so the declaration enabled nothing. [P7.0] closed it: `registerMode`
+    // installs a mode's declared channels, which is what the old comment said
+    // would give the field teeth.
+    installBuiltIns();
+
     expect(SCENE.channels.map((channel) => channel.id)).toEqual(['se.clock']);
-    // The owner is a literal in `channels.ts` rather than an import of this id,
-    // because naming it the other way round would be a module cycle. This is
-    // what keeps the two in step instead.
     for (const channel of SCENE.channels) expect(channel.owner).toBe(SCENE_ID);
-    for (const channel of SCENE.channels) expect(CHANNELS[channel.id]).toBe(channel);
+    // The lookup resolves to the very object Scene declared, which is the whole
+    // claim: the definition comes from the mode now, not from beside the engine.
+    for (const channel of SCENE.channels) expect(channelDefinition(channel.id)).toBe(channel);
   });
 
   it('ships its empty fields empty, and its one-armed fields at one arm', () => {
@@ -229,7 +231,7 @@ describe('the registry', () => {
   // wants a populated registry asks for one — the same way `buildServices`
   // does, which is what keeps the two honest about each other.
   beforeEach(() => {
-    installBuiltInModes();
+    installBuiltIns();
   });
 
   it('builds a runnable plan for every registered mode', () => {
@@ -255,8 +257,8 @@ describe('the registry', () => {
   });
 
   it('installs the built-ins idempotently, so asking twice is asking once', () => {
-    installBuiltInModes();
-    installBuiltInModes();
+    installBuiltIns();
+    installBuiltIns();
 
     expect(modeById(SCENE_ID)).toBe(SCENE_MODE);
   });

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { registerChannel } from '../sessions/channels.js';
 import type { TurnPlan } from '../turns/steps.js';
 import type { Mode } from './types.js';
 
@@ -46,6 +47,16 @@ const registered = new Map<string, Mode>();
  */
 export function registerMode(mode: Mode): void {
   registered.set(mode.definition.id, mode);
+  /**
+   * **And its channels, which is what gives `ModeDefinition.channels` teeth.**
+   * The field has existed since P2.6 and `modes/scene/mode.ts` said what it was
+   * worth: listing a channel there "documents what Scene uses and does not
+   * *enable* it", because effect application resolved a definition from the
+   * engine's own frozen record. Registering here is the inversion that sentence
+   * named — and the boundary is what forced it, since a mode that cannot import
+   * a value from the engine cannot be handed its own channel any other way.
+   */
+  for (const channel of mode.definition.channels) registerChannel(channel);
 }
 
 /**
@@ -112,7 +123,7 @@ export function planFor(mode: Mode): TurnPlan {
  */
 export function assertModesRunnable(): void {
   if (registered.size === 0) {
-    throw new Error('No modes are registered. Call installBuiltInModes() before serving.');
+    throw new Error('No modes are registered. Call installBuiltIns() before serving.');
   }
   for (const mode of registered.values()) planFor(mode);
 }

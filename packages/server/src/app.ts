@@ -46,7 +46,7 @@ import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
-import { installBuiltInModes } from './modes/built-ins.js';
+import { installBuiltIns } from './modes/built-ins.js';
 import { assertModesRunnable } from './modes/registry.js';
 import {
   reconcile,
@@ -275,7 +275,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * nothing, which is the failure the split makes possible and therefore the
    * one it has to catch.
    */
-  installBuiltInModes();
+  installBuiltIns();
   assertModesRunnable();
 
   const layout = new Layout(options.config.dataDir);

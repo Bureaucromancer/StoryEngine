@@ -14,7 +14,7 @@ import { SCENE_ID } from '../modes/scene/mode.js';
 import { appendTurnToSession, createSession, type SessionContext } from '../sessions/store.js';
 import type { ChannelEffect, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
-import { installBuiltInModes } from '../modes/built-ins.js';
+import { installBuiltIns } from '../modes/built-ins.js';
 import { gatherAssemblyInputs } from './gather.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook } from '@storyengine/shared';
@@ -45,7 +45,7 @@ beforeEach(async () => {
   // reaches the pipeline without going through `buildServices` — so it asks for
   // the built-ins the same way the composition root does. A test that needs a
   // mode now says so, which is the visibility the split was for.
-  installBuiltInModes();
+  installBuiltIns();
 
   index = await openIndex({ path: ':memory:' });
   sessions = {
