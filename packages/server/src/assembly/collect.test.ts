@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   newActor,
@@ -16,6 +16,8 @@ import {
 } from '@storyengine/shared';
 
 import { TEST_PRESET } from '../test-mode.js';
+import { installBuiltIns } from '../mode-loader.js';
+import { registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
@@ -1326,5 +1328,177 @@ describe('samples from a treatment and from a book', () => {
     );
 
     expect(notFilled[0]?.reason).toBe('empty-source');
+  });
+});
+
+/**
+ * **A preset that names a channel stops producing silence** — [06 §4], [P7.1].
+ *
+ * `{ of: 'channel', channelId }` has been a legal preset slot since P2 and the
+ * collector returned `[]` for it, with a comment saying why: *"a channel value
+ * is an object with no channel-to-text renderer specified — which is also why
+ * the clock's budget is null."* Both halves of that expired together, so these
+ * are about the four different ways the answer can still be nothing, each of
+ * which is a different statement rather than a shrug.
+ */
+describe('a channel slot', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const slot = block({
+    kind: 'slot',
+    id: 'se.clock',
+    source: { of: 'channel', channelId: SE_CLOCK },
+  });
+
+  it('renders the value through the template the mode declared', () => {
+    // The engine cannot know that `{day, hour, minute}` is a time of day, let
+    // alone that `8` reads as `08`. Scene says so, in Liquid, as data.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([slot]),
+        channels: { [SE_CLOCK]: { version: 1, value: { day: 3, hour: 9, minute: 5 } } },
+      }),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text).toBe('Day 3, 09:05');
+    expect(candidates[0]?.source).toEqual({ kind: 'channel', channelId: SE_CLOCK });
+  });
+
+  it('falls back to the declared init, so an untouched session still has a clock', () => {
+    // The same read-time default `readClock` uses. A slot that rendered nothing
+    // until the first effect would make the prompt disagree with the panel.
+    const { candidates } = collectCandidates(context({ preset: preset([slot]), channels: {} }));
+
+    expect(candidates[0]?.text).toBe('Day 1, 08:00');
+  });
+
+  it('says nothing for a channel nobody declared', () => {
+    // An uninstalled mode leaves its slots behind. [00 §3.3]: survivable,
+    // visible, non-blocking — and a slot with `omitWhenEmpty` disappears.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.x', source: { of: 'channel', channelId: 'example.gone' } }),
+        ]),
+      }),
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('says nothing for a channel with no template, which is a real answer', () => {
+    // Lore timing is the shipped example: `sticky`, `cooldown` and `fired` are
+    // bookkeeping, and a player asking why an entry fired gets a reason from the
+    // workbench rather than from the prompt.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.x',
+            source: { of: 'channel', channelId: SE_LORE_TIMING },
+          }),
+        ]),
+        channels: { [SE_LORE_TIMING]: { version: 1, value: { sticky: 1, cooldown: 0, fired: 2 } } },
+      }),
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('says nothing when the budget is null, which is 06 §4’s spelling of never injected', () => {
+    registerChannel({
+      id: 'example.quiet',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: null,
+      render: 'this would have been rendered',
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: {} },
+    });
+
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.x',
+            source: { of: 'channel', channelId: 'example.quiet' },
+          }),
+        ]),
+      }),
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('truncates to the declared budget rather than dropping the block', () => {
+    // **`budget` acquires a reader here, which is the other half of what was
+    // missing.** A channel over its allowance is more useful cut short than
+    // absent, and dropping would hand the budgeter a decision the declaration
+    // has already made.
+    registerChannel({
+      id: 'example.long',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 2,
+      render: '{{ value }}',
+      schema: { type: 'string' },
+      init: { kind: 'literal', value: '' },
+    });
+
+    const long = 'a '.repeat(200).trim();
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.x', source: { of: 'channel', channelId: 'example.long' } }),
+        ]),
+        channels: { 'example.long': { version: 1, value: long } },
+      }),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text.length).toBeLessThan(long.length);
+    expect(long.startsWith(candidates[0]?.text ?? '')).toBe(true);
+  });
+
+  it('says nothing for a template that will not compile, rather than taking the turn down', () => {
+    // A refusal is a value, the same way `renderTemplate`'s caller treats one: a
+    // preset is somebody else's authored file and so is a mode's declaration.
+    registerChannel({
+      id: 'example.broken-template',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: '{% if %}',
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: {} },
+    });
+
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.x',
+            source: { of: 'channel', channelId: 'example.broken-template' },
+          }),
+        ]),
+      }),
+    );
+
+    expect(candidates).toHaveLength(0);
   });
 });

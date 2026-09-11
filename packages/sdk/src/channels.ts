@@ -113,6 +113,34 @@ export interface ChannelDefinition {
    */
   schema: object;
   /**
+   * How the value reads when a preset injects it — [06 §4], [P7.1].
+   *
+   * **A Liquid template over the channel's own value, and nothing else.** The
+   * same engine a preset block's `template` uses, with a context that is the
+   * channel value rather than
+   * [06 §5](../../../docs/design/06-modes-and-turn-pipeline.md)'s closed
+   * participant namespace: a clock declaring `Day {{day}}, {{hour}}:{{minute}}`
+   * is the mode saying how its own state reads in a prompt, which is exactly the
+   * declarative contract [10 §8](../../../docs/design/10-ui-surfaces.md) draws
+   * for the HUD, applied to text.
+   *
+   * **This is the *injection* half of the channel contract and it did not
+   * exist.** `{ of: 'channel', channelId }` has been a legal preset slot since
+   * P2, and the collector returned nothing for it — so an author could name a
+   * channel in a preset and get silence, with no error and nothing to read. That
+   * is also why `budget` had no reader: there was no path that spent tokens.
+   *
+   * **Optional, and absent is a real answer**: a channel with no template is one
+   * with nothing worth saying to a model. Lore timing is the shipped example —
+   * `sticky`, `cooldown` and `fired` are bookkeeping, and a player asking why an
+   * entry fired gets a reason from the workbench rather than from the prompt.
+   *
+   * *A template rather than a function, for the reason nothing on this type is a
+   * function: a mode is data ([06 §2]), and a `render()` here would be the back
+   * door that section says means the contract is wrong.*
+   */
+  render?: string;
+  /**
    * Where the value starts. See {@link InitPolicy}.
    *
    * **Required, and that is the point of adding it.** `CLOCK_START` and

@@ -77,7 +77,37 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
   update: 'engine-computed',
   scope: 'session',
   visibility: 'player',
-  budget: null,
+  /**
+   * **A budget at last, because [P7.1] built the thing it was waiting for.**
+   *
+   * This was `null` — *never injected* — and the collector's own comment said
+   * why: *"a channel value is an object with no channel-to-text renderer
+   * specified, which is also why the clock's budget is null."* A renderer exists
+   * now, so the field can mean what 06 §4 says it means.
+   *
+   * Twenty-four tokens is roughly four times what `render` below produces, which
+   * is deliberate slack rather than a measurement: the cap is a guard against a
+   * template somebody edits into something long, not a target. A channel that
+   * cannot fit its budget is truncated rather than dropped — the time of day is
+   * more useful wrong-by-truncation than absent.
+   */
+  budget: 24,
+  /**
+   * **How the clock reads in a prompt, said by the mode that owns it.**
+   *
+   * The engine cannot know that `{day, hour, minute}` is a time of day, let
+   * alone that `8` should read as `08`. This is the smallest possible instance
+   * of the declarative contract: data in, text out, no code.
+   *
+   * *Padded through Liquid's own filters rather than a helper*, because the
+   * vocabulary a mode author gets has to be the one the template engine ships —
+   * an engine-supplied `pad` would be a capability only built-ins knew about.
+   * `slice: -2, 2` and not `slice: -2`: the second argument is a **length**, and
+   * without it Liquid takes one character and the clock reads `0:0`. Measured,
+   * because it renders plausibly either way.
+   */
+  render:
+    'Day {{ day }}, {{ hour | prepend: "0" | slice: -2, 2 }}:{{ minute | prepend: "0" | slice: -2, 2 }}',
   /**
    * **Normalised, and the schema is where that stops being a convention.**
    * `advance` carries minutes into hours and days, so an hour of 24 or a minute

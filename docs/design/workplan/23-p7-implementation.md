@@ -1983,9 +1983,41 @@ built rather than after**, because it decides whether the dial ships here or wit
 its selector at P7.5 — and a channel whose only reader is a stage three stages
 away is the placeholder shape [P2 §2.7](08-p2-implementation.md) rejected.
 
-**Next:** that question, then the channel-to-text renderer — which is what gives
-`budget` a reader and needs no dial — then 06 §4.2's error surface, which now has
-something real to report.
+Then **the channel-to-text renderer**, which §0.1a lists first among the four
+things this stage owes and which nothing had named. `ChannelDefinition.render` is
+a Liquid template over the channel's own value — the same engine a preset block
+uses, with a context narrower than [06 §5]'s closed participant namespace: a
+channel template sees its own value and nothing else, so the fence that section
+draws is not widened, a second smaller one is drawn beside it.
+
+**What this fixes is a legal preset slot that silently produced nothing.**
+`{ of: 'channel', channelId }` has been in the published preset schema since P2
+and `collect.ts` returned `[]` for it, with a comment naming both halves of the
+gap: *"a channel value is an object with no channel-to-text renderer specified —
+which is also why the clock's budget is null."* **Both halves expired together.**
+Scene's clock now declares `render` and a `budget` of 24, so `budget` has its
+first reader and the field means what 06 §4 says it means.
+
+*Four ways the answer is still nothing, each a different statement rather than a
+shrug: a channel nobody declared (an uninstalled mode's, and [00 §3.3] says show
+what you cannot resolve), a channel with no template (lore timing — bookkeeping
+the model has no use for), a `budget` of null (06 §4's own spelling of **never
+injected**), and a template that will not compile (the author's mistake, answered
+as a value rather than a thrown turn). Over budget is the fifth case and it is
+**truncated rather than dropped**: the time of day wrong by truncation still says
+which day, and dropping would hand the budgeter a decision the declaration has
+already made.*
+
+***And the shipped preset is deliberately untouched.*** Scene's clock can now be
+injected and `SCENE_PRESET` still has no channel slot, because growing that
+artefact is P7.9's and §0.2 holds P7.9 behind PLAYABLE for exactly this reason —
+it is what **K4 is built to interrogate**. So the consumer this stage ships for
+is *any preset that already names a channel*, which is a real one: the slot kind
+is published and an author can write it today.
+
+**Next:** 06 §4.2's error surface, which now has something real to report — the
+quarantine writes `degraded` and nothing reads it; and the exit-gate question
+above, which decides where the dial lands.
 
 ### P7.2 — Party, presence, status, and the cast panel
 

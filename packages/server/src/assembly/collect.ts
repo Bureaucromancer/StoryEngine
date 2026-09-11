@@ -10,8 +10,10 @@ import type {
   WritingSample,
 } from '@storyengine/shared';
 
+import { estimateTokens } from './assemble.js';
+import { channelDefinition, initialValue } from '../sessions/channels.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
-import { renderTemplate, type RenderContext } from './template.js';
+import { renderChannelValue, renderTemplate, type RenderContext } from './template.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
@@ -570,14 +572,33 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     }
 
     /**
+     * **The injection half of the channel contract, built at [P7.1].**
+     *
+     * ~~A channel value is an object with no channel-to-text renderer
+     * specified — which is also why the clock's budget is null.~~ Both halves of
+     * that sentence expired together: `ChannelDefinition.render` is a Liquid
+     * template over the channel's own value, and `budget` is what caps the
+     * result. Until then `{ of: 'channel', channelId }` was a **legal preset
+     * slot that silently produced nothing** — an author could name a channel,
+     * get no text and no error, and have nothing to read about why.
+     */
+    case 'channel':
+      return emit(
+        block,
+        channelText(source.channelId, context),
+        // The slot's vocabulary and the block's are one vocabulary read from
+        // both ends ([21 §1.1]) — `of` names the slot, `kind` names the source —
+        // so the id crosses and the discriminator is restated.
+        { kind: 'channel', channelId: source.channelId },
+        undefined,
+      );
+
+    /**
      * Nothing, each for its own stated reason. A P2.6 session carries no
-     * Treatment; goals are Setup-borne; and a channel value is an object with
-     * no channel-to-text renderer specified — which is also why the clock's
-     * budget is null.
+     * Treatment; goals are Setup-borne.
      */
     case 'treatment':
     case 'goal':
-    case 'channel':
       return [];
 
     default:
@@ -652,6 +673,53 @@ function emit(
       ...(required ? { required: true } : {}),
     },
   ];
+}
+
+/**
+ * One channel's value as prompt text — [06 §4], [P7.1].
+ *
+ * **Four ways to produce nothing, and each is a different statement.** A channel
+ * nobody declared is an uninstalled mode's, and [00 §3.3] says show what you
+ * cannot resolve rather than fail; a channel with no `render` has nothing worth
+ * saying to a model, which lore timing is the shipped example of; a `budget` of
+ * null is 06 §4's own spelling of *never injected*; and a template that will not
+ * compile is the author's mistake, answered the way `renderTemplate`'s caller
+ * answers it — a refusal is a value, not a thrown turn.
+ *
+ * **The value falls back to the channel's declared `init`**, which is the same
+ * read-time default `readClock` uses: a session that has never touched its clock
+ * still has a time of day, and a slot that rendered nothing until the first
+ * effect would make the prompt disagree with the panel.
+ *
+ * **Truncated to the budget rather than dropped.** A channel over its allowance
+ * is more useful cut short than absent — the time of day wrong by truncation
+ * still says which day — and dropping would hand the budgeter a decision the
+ * declaration has already made. `estimateTokens` is the same estimator the
+ * assembler bills with, so the cap means the same thing here as it does there.
+ */
+function channelText(channelId: string, context: CollectContext): string {
+  const definition = channelDefinition(channelId);
+  if (definition?.render === undefined || definition.budget === null) return '';
+
+  const state = context.channels[channelId];
+  const rendered = renderChannelValue(
+    definition.render,
+    state === undefined ? initialValue(channelId) : state.value,
+  );
+  if (!rendered.ok) return '';
+
+  const text = rendered.text.trim();
+  if (estimateTokens(text) <= definition.budget) return text;
+
+  /**
+   * **Cut by characters against the estimator's own ratio**, because the
+   * estimator is a ratio: `estimateTokens` divides length by a constant, so the
+   * inverse is a multiplication and a second, cleverer truncation would just be
+   * a worse approximation of the same number. Trimmed after cutting so the text
+   * does not end mid-space.
+   */
+  const perToken = text.length / Math.max(estimateTokens(text), 1);
+  return text.slice(0, Math.floor(definition.budget * perToken)).trimEnd();
 }
 
 function personaText(persona: Actor | null): string {
