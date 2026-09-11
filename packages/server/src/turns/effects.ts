@@ -86,7 +86,27 @@ export function acceptEffect(
     scopeKey: proposal.scopeKey ?? null,
     op: proposal.op,
     before,
-    after: refusal === null ? proposal.after : before,
+    /**
+     * ***The value that was proposed, whether or not it was applied*** —
+     * corrected at [P7.2], 2026-09-11.
+     *
+     * This stamped `before` into `after` on a refusal, so a rejected effect
+     * recorded that *something* was refused and not *what*. That contradicts the
+     * sentence [21 §1.2](../../../../docs/design/21-internal-contracts.md) uses
+     * to justify recording refusals at all — *"the model tried to give itself
+     * forty gold and the engine said no, and a system that dropped the attempt
+     * would leave the workbench unable to explain why nothing happened"* — since
+     * the forty gold was exactly what got dropped. The workbench's effect list
+     * rendered `08:00 → 08:00` and said *Rejected* beside it.
+     *
+     * **`applied` is what says whether it happened**, and every reader already
+     * honours it: `applyEffects` and `undoTurn` both skip an unapplied effect
+     * before touching `after`. So the field can mean *proposed* without changing
+     * a single replay — checked rather than assumed, and it is what lets P7.2's
+     * cast panel say *the narrator says Vera died* rather than merely *something
+     * was refused*.
+     */
+    after: proposal.after,
     proposedBy: proposal.proposedBy,
     applied: refusal === null,
     rejectedReason: refusal,

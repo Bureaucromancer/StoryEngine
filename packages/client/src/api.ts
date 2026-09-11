@@ -800,8 +800,28 @@ export function readSession(sessionId: string): Promise<{
   activeJob: ActiveJob | null;
   health: DegradedChannel[];
   hud: ChannelSurface[];
+  cast: CastRow[];
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
+}
+
+/**
+ * One row of the cast panel — [10 §13.2], [P7.2].
+ *
+ * **Both axes, and the badge is derived here rather than sent.** 10 §13.2:
+ * *"the UI still shows one badge, derived from both axes, because a two-axis
+ * matrix is the wrong thing to put in a sidebar. The split is in the data, not
+ * on the screen."* A pre-derived badge on the wire would also leave the panel
+ * unable to offer *correct presence and status directly*, which is what makes it
+ * a repair surface rather than a read-only complaint.
+ */
+export interface CastRow {
+  actorId: string;
+  presence: boolean;
+  status: string;
+  /** A terminal status the model proposed and the engine refused, unanswered. */
+  pending: string | null;
+  introduced: boolean;
 }
 
 /**

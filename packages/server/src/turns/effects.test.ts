@@ -86,9 +86,22 @@ describe('a proposal is judged against the channel that owns it', () => {
       // (The `'user-only'` reason gains a producer with the first user-only
       // channel; no shipped channel declares that policy yet.)
       expect(effect.rejectedReason).toBe('engine-computed');
-      // And it changes nothing: `after` is the value that was already there, so
-      // a replay that ignores `applied` still cannot move the clock.
-      expect(effect.after).toEqual(clockStart());
+      /**
+       * ***And the record says what was wanted*** — corrected at [P7.2].
+       *
+       * This asserted `after` equalled the value already there, on the reasoning
+       * that *"a replay that ignores `applied` still cannot move the clock"* —
+       * belt and braces for a replay bug that does not exist, bought at the cost
+       * of the record. [21 §1.2] justifies recording refusals with *"the model
+       * tried to give itself forty gold and the engine said no"*, and the forty
+       * gold was exactly what this pinned out of the record: the workbench
+       * rendered `08:00 → 08:00` and said *Rejected* beside it.
+       *
+       * `applied` is what says whether it happened, and both readers — replay
+       * and undo — skip an unapplied effect before touching `after`.
+       */
+      expect(effect.after).toEqual({ day: 1, hour: 0, minute: 0 });
+      expect(effect.before).toEqual(clockStart());
       expect(readClock(applyEffects(atStart(), [effect]))).toEqual(clockStart());
     });
   }
@@ -206,7 +219,10 @@ describe('a proposal is judged against the channel’s schema', () => {
 
     expect(effect.applied).toBe(false);
     expect(effect.rejectedReason).toBe('schema');
-    expect(effect.after).toEqual(clockStart());
+    // The impossible value is in the record, and `before` is what was true —
+    // which together are the whole sentence a workbench reader needs.
+    expect(effect.after).toEqual({ day: 1, hour: 25, minute: 0 });
+    expect(effect.before).toEqual(clockStart());
   });
 
   /**

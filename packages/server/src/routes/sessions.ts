@@ -30,6 +30,7 @@ import {
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
+import { castRows } from '../sessions/cast.js';
 import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
 import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
@@ -478,11 +479,33 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * declarations and a template engine to the browser to render a label and a
      * string; what crosses instead is the label and the string.
      */
+    /**
+     * **The cast panel's rows** — [10 §13.2], [P7.2].
+     *
+     * *Two axes out and one badge derived on the screen*, which is that
+     * section's own division: *"the split is in the data, not on the screen"*.
+     * Sending a pre-derived badge would put the derivation here and leave the
+     * panel unable to offer *correct presence and status directly*, which is
+     * what makes it worth building rather than a read-only complaint.
+     *
+     * **The path is read because two of the four fields are derived along it** —
+     * `introduced` is monotone over presence and party effects, and an
+     * unanswered death proposal is a refusal with no applied status effect
+     * after it. Neither is stored, deliberately ([06 §8.1]: *"derived rather
+     * than stored"*), and both cost the same walk the transcript route already
+     * makes.
+     */
+    const path = walkPath(
+      await readTurns(services.sessions, account.handle, session.id),
+      session.headTurnId,
+    );
+
     return reply.send({
       session,
       activeJob: job,
       health: degradedChannels(session.channels),
       hud: channelSurfaces(session.channels),
+      cast: castRows(session.cast, session.channels, path),
     });
   });
 

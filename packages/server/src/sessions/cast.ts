@@ -229,3 +229,110 @@ export function actorsWithState(
   }
   return actors;
 }
+
+/**
+ * One row of the cast panel — [10 §13.2], [P7.2].
+ *
+ * **Two axes out, one badge derived on the screen.** 10 §13.2 is explicit that
+ * *"a two-axis matrix is the wrong thing to put in a sidebar"* and that **the
+ * split is in the data, not on the screen** — so both values cross and the
+ * client derives one badge from them. Sending a pre-derived badge would put the
+ * derivation in the server and leave the client unable to offer *correct
+ * presence and status directly*, which is the panel's whole justification.
+ */
+export interface CastRow {
+  actorId: string;
+  presence: boolean;
+  status: string;
+  /**
+   * A terminal status the model proposed and the engine refused, still
+   * unanswered — [06 §8.1]'s *"flagged, not applied quietly"*.
+   *
+   * **This is the prominent surface.** The refusal is already in the turn
+   * record; what it needs is somewhere a person will see it, and a badge that
+   * looked the same as any other would be the *quiet* half of what that sentence
+   * rules out. Null when there is nothing outstanding.
+   */
+  pending: string | null;
+  /** [06 §8.1]'s predicate, for a panel that wants to say *not yet met*. */
+  introduced: boolean;
+}
+
+/**
+ * The cast panel's rows, at a node.
+ *
+ * **Who is in it: the session's cast, the persona, and anyone the channels have
+ * something to say about.** The third is not redundancy — a character written
+ * into the story and given presence without being added to `cast.actors` is
+ * exactly the drift the panel exists to make visible, and a list built from the
+ * cast field alone would hide it.
+ *
+ * *Party members are not marked, because there is no party channel yet.*
+ * 10 §13.2 says *"the panel marks party members distinctly and introduces no
+ * parallel membership concept"*, and the way to honour the second half while the
+ * first is unbuildable is to mark nothing rather than to invent a second source
+ * of truth about who is in the story — which that sentence calls *"exactly the
+ * class of bug this section exists to surface"*. It arrives with `se.party` at
+ * P7.3.
+ */
+export function castRows(
+  cast: { persona?: string | null; actors?: string[] } | undefined,
+  channels: Readonly<Record<string, { value: unknown }>>,
+  path: readonly Turn[],
+): CastRow[] {
+  const introduced = introducedOn(path);
+  const pending = pendingStatuses(path);
+
+  const ids = new Set<string>(actorsWithState(channels));
+  for (const actorId of cast?.actors ?? []) ids.add(actorId);
+  if (cast?.persona != null && cast.persona !== '') ids.add(cast.persona);
+
+  return [...ids].sort().map((actorId) => ({
+    actorId,
+    presence: readPresence(channels, actorId),
+    status: readStatus(channels, actorId),
+    pending: pending.get(actorId) ?? null,
+    introduced: introduced.has(actorId),
+  }));
+}
+
+/**
+ * Terminal statuses proposed and refused, and not since answered.
+ *
+ * **Answered, not acknowledged.** A refusal stops being outstanding when an
+ * *applied* status effect lands on that actor afterwards — which is what both of
+ * the panel's buttons produce: confirming writes the proposed value, dismissing
+ * writes the standing one, and either way a person has ruled. Nothing else
+ * clears it, so a proposal a player never looked at is still there next session,
+ * which is the point of surfacing it at all.
+ *
+ * *Walked forward rather than backward because the path is oldest-first and a
+ * later applied effect must beat an earlier refusal; the map keeps the last
+ * word.*
+ */
+function pendingStatuses(path: readonly Turn[]): Map<string, string> {
+  const pending = new Map<string, string>();
+
+  for (const turn of path) {
+    for (const effect of turn.effects) {
+      if (effect.channelId !== SE_STATUS || effect.scopeKey === null) continue;
+      if (effect.scope === 'escaped') continue;
+
+      if (effect.applied) {
+        pending.delete(effect.scopeKey);
+      } else if (effect.rejectedReason === 'needs-confirmation') {
+        /**
+         * **The value the model wanted, from `after`** — which is what that
+         * field means on a refused effect since [P7.2] corrected it. It used to
+         * stamp `before` back into `after`, so a refusal recorded that
+         * *something* had been refused and not *what*, and this panel could only
+         * have said *the narrator proposed something* — which is the *quiet*
+         * half of what [06 §8.1] rules out.
+         */
+        if (typeof effect.after === 'string') pending.set(effect.scopeKey, effect.after);
+      }
+    }
+  }
+
+  return pending;
+}

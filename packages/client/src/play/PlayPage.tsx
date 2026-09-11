@@ -30,6 +30,7 @@ import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
+import { CastPanel } from './CastPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
@@ -355,6 +356,12 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           be loaded is the more urgent sentence. Renders nothing when no declared
           channel has a surface. */}
       <ChannelHud sessionId={sessionId} />
+
+      {/* **Who is in the story, and what the software thinks is true of them** —
+          [10 §13.2], [P7.2]. Below the HUD because a cast is a list and the HUD
+          is a line, and above the transcript for the reason both are: state
+          rather than narration. Renders nothing for a session with no cast. */}
+      <CastPanel sessionId={sessionId} />
 
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about

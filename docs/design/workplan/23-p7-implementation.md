@@ -2188,9 +2188,53 @@ regardless**, and the harm 10 §13.2 names is in the applying. The manual path i
 the channel-write route [P7.1] built for recovery, which turns out to be the same
 primitive.*
 
-**Next:** the cast panel over these ([10 §13.2]) — one derived badge over two
-axes, party marked rather than listed separately, and the prominent surface the
-refusal is supposed to get.
+Then **the cast panel** ([10 §13.2]). One badge derived from two axes, in a
+tested function rather than inline, because the two combinations the split exists
+for — *dead but present* and *alive, elsewhere* — are exactly what a
+simplification would collapse, and collapsing them on the screen while leaving
+the split in the data is the worst of both. **Editable**, which that section
+calls the thing that makes it worth building: *"read-only, the panel is a
+complaint the user cannot act on."*
+
+*It offers one of §13.2's four repairs — correct presence and status directly —
+and the other three are named rather than dropped: **merge** and **split** are
+library operations needing a redirect so turn records pointing at an actor id do
+not rot ([00 §3.3]), and no such mechanism exists; **linking an unresolved
+mention** waits on P7.7's spans, since there is nothing yet to link from.*
+
+**A refused death gets a bordered box with the actor's name in a sentence and two
+buttons, not a badge** — because a badge is precisely the *quiet* treatment §8.1
+rules out. Either button answers the proposal, since what clears it is an
+*applied* status effect: a person having ruled, in one direction or the other.
+
+***Party members are not marked, and the absence is the honest reading of the
+sentence.*** 10 §13.2 wants party members marked **and** *"no parallel membership
+concept"* — so while `se.party` waits on P7.3, marking nothing beats inventing a
+second source of truth about who is in the story, which that same paragraph calls
+*"exactly the class of bug this section exists to surface"*.
+
+#### A record that claimed to carry an attempt and did not
+
+***Found building the panel, fixed there: `acceptEffect` stamped `before` into
+`after` on a refusal.*** So a rejected effect recorded that **something** had
+been refused and not **what** — which contradicts the sentence
+[21 §1.2](../21-internal-contracts.md) uses to justify recording refusals at all:
+*"the model tried to give itself forty gold and the engine said no, and a system
+that dropped the attempt would leave the workbench unable to explain why nothing
+happened."* The forty gold was exactly what got dropped. `EffectList` rendered
+`08:00 → 08:00` with *Rejected* beside it.
+
+`after` is the proposed value now, and `applied` is what says whether it
+happened — which every reader already honoured: `applyEffects` and `undoTurn`
+both skip an unapplied effect before touching `after`. **Checked rather than
+assumed**, and no replay changed. *Three tests pinned the old behaviour in place
+and one of them explained why — belt and braces against a replay bug that does
+not exist, bought at the cost of the record.* Without the fix this panel could
+only have said *the narrator proposed something*.
+
+**Next:** what remains of P7.2 is `se.party` and the removal of `cast.actors`,
+both of which §1.6 routes behind P7.3's `select` — so the stage is at its
+documented boundary rather than at its end.
 
 *And the panel's asymmetric-death treatment says a proposed `dead` is **reversible
 from the effect log** — for which there is no mechanism. The only reversal in the
