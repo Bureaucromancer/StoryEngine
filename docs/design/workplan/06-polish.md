@@ -294,6 +294,12 @@ it by using the same detail route; what would lose it is a panel building its
 own links from `{kind, id}`. The duplicate warning without the link is the bug
 F19 already fixed once.
 
+**Two of the five panels have a phase now, 2026-09-11.** Treatments and Presets
+arrive with their editors at [P7B](28-p7b-presets-and-prompts.md), because
+create arrives with the editor and the panel is what renders the button;
+Setups and Packages stay here until theirs do, and the shared machinery stays
+specified here either way.
+
 ## 5. A home, so arrival is not an arbitrary library view
 
 **What home is and what it holds is [10 §2.2](../10-ui-surfaces.md)** — resume,
@@ -318,6 +324,11 @@ obviously right, and it slots in when there is something to resume.
 kind filter still in its search params. Worth doing in the same change rather
 than leaving the library at `/` with a home bolted beside it — the route a user
 lands on is the one they will bookmark and share.
+
+**Scheduled 2026-09-11 at [P10.4](26-p10-implementation.md)**, beside the
+account gallery: both are arrival, one before sign-in and one after, and one
+stage owning both keeps them from disagreeing about what arrival is for. The
+scope rule above travels with it.
 
 ---
 

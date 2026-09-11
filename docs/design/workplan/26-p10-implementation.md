@@ -310,6 +310,17 @@ with supervisor detection and drain; §1.7's connectivity state; §1.5's
 extensions panel or its named deferral; §1.8's bullet closed one way or the
 other.
 
+**And [10 §15.1](../10-ui-surfaces.md)'s *your connections*** — personal
+connections, personal bindings and the personal-versus-system view — which
+[P2B §2.7](10-p2b-provider-configuration.md) sent to *"the phase after, or at
+P10 with the rest of §15.1"*, [P6B §5](20-p6b-playable.md) calls P10's, and
+this list never carried until 2026-09-11. The enforcement half landed at P2A
+and the fallback display at P2B, so what is left is the writer for
+`users/<handle>/bindings.json`, the second column of the role table, and a
+user's own connection list — the same form the admin has, scoped to the path
+that is the owner. *The role-binding editor itself is P7.3's on branch `p7`;
+this is the per-user half of it.*
+
 ### P10.4 — The account gallery
 
 §1.9, as [12 §8](../12-account-gallery.md) specifies it, including the
@@ -317,6 +328,14 @@ unauthenticated listing contract and the three tests. The one judgement this
 plan adds: the gallery is **not** self-registration and has no *new account*
 tile ([12 §9](../12-account-gallery.md)) — worth restating in the stage because
 a grid of accounts is a shape that invites the extra tile.
+
+**And Home**, [10 §2.2](../10-ui-surfaces.md) — the arrival screen *after*
+sign-in, which [polish §5](06-polish.md) details and nothing scheduled until
+2026-09-11; `/` still redirects to the library. The gallery is arrival before
+sign-in, and one stage owning both keeps the two from disagreeing about what
+arrival is for. Polish §5's scope rule travels with it: nothing computed for
+home alone, no endpoint that exists only to populate it, and every element a
+link into a surface that does the real work.
 
 ### P10.5 — About, the source link, and the embedded version
 

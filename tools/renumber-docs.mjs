@@ -101,6 +101,8 @@ const PLAN_ORDER = [
   ['playable-log', 'playable log'],
   ['walkthrough-refinements', 'refinements'],
   ['p7-implementation', 'P7'],
+  // Filed at 28 until P7's branch merges; this entry is what moves it to 24.
+  ['p7b-presets-and-prompts', 'P7B'],
   ['p8-implementation', 'P8'],
   ['p9-implementation', 'P9'],
   ['p10-implementation', 'P10'],
