@@ -1497,6 +1497,24 @@ with no production caller, which four test files shadowed by name, and
 files now install the built-ins explicitly, which is the same visibility the mode
 registry bought — a test that needs a channel says so.*
 
+Then **the engine's tests stopped reaching into the mode**, which §0.2 listed as
+pre-work and which the move makes compulsory: the graph allows `server → server,
+sdk, shared`, and ten test files imported `SCENE_PRESET`, `SCENE_MODE` or
+`NARRATE`. **The boundary is the occasion rather than the reason.** An engine
+test that runs against a real mode tests two things and says it is testing one —
+a budgeter test that breaks when Scene reorders a slot has caught nothing — so
+`test-mode.ts` is a fixture the engine owns, **copied from Scene so that no test
+changed meaning on the day it arrived** and free to diverge afterwards. Three of
+the ten were not fixtures at all: they assert *the default mode's* preset, which
+the registry can answer, so they ask it. `defaultMode()` is the helper that
+makes that legible, and it has a production caller rather than being an export
+only tests use — the mistake `clockEffect` had made.
+
+*`test-mode.test.ts` exists for the reason `test-server.test.ts` does: a fixture
+seven files lean on can weaken all of them without failing anything. Drop the
+lore slots and `retrieve.test.ts` maps over nothing, compares a preset to itself
+and passes while asserting nothing.*
+
 **Next:** the tooling and the move, then the repo-shape check. §0.2 says which of
 these wait on PLAYABLE — none of them do.
 

@@ -31,8 +31,8 @@ import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
 import { installBuiltIns } from '../modes/built-ins.js';
-import { NARRATE } from '../modes/scene/mode.js';
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+
+import { TEST_PRESET, TEST_STEP } from '../test-mode.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
@@ -417,7 +417,7 @@ describe('guidance is advisory, structurally', () => {
 describe('the three failure modes are three', () => {
   /** A step that always throws. No role and no contribution: it makes no call. */
   function flaky(failure: StepDefinition['failure']): StepDefinition {
-    const { contributes, ...rest } = NARRATE;
+    const { contributes, ...rest } = TEST_STEP;
     void contributes;
     return { ...rest, id: 'se.flaky', failure, role: null };
   }
@@ -430,7 +430,7 @@ describe('the three failure modes are three', () => {
           run: () => Promise.reject(new Error('the step blew up')),
         },
         {
-          definition: NARRATE,
+          definition: TEST_STEP,
           run: async (_i, host) => ({ message: { text: (await host.call({})).text } }),
         },
       ],
@@ -654,7 +654,7 @@ describe('the three failure modes are three', () => {
       plan: {
         steps: [
           {
-            definition: { ...NARRATE, id: 'se.rare', when: { when: 'armed', flag: 'never' } },
+            definition: { ...TEST_STEP, id: 'se.rare', when: { when: 'armed', flag: 'never' } },
             run: () => Promise.resolve({}),
           },
         ],
@@ -897,13 +897,13 @@ describe('the record says why a slot is empty', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               const result = await host.call({
                 candidates: [
                   {
                     id: 'step.own',
-                    source: { kind: 'step', stepId: NARRATE.id },
+                    source: { kind: 'step', stepId: TEST_STEP.id },
                     reason: 'a step-authored block',
                     role: 'system',
                     text: 'Improvise.',
@@ -935,7 +935,7 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -945,7 +945,7 @@ describe('the engine says what it overrode', () => {
                     channelId: SE_CLOCK,
                     op: { type: 'set', path: '/' },
                     after: { day: 9, hour: 0, minute: 0 },
-                    proposedBy: { kind: 'step', stepId: NARRATE.id },
+                    proposedBy: { kind: 'step', stepId: TEST_STEP.id },
                   },
                 ],
               };
@@ -979,7 +979,7 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -989,7 +989,7 @@ describe('the engine says what it overrode', () => {
                     channelId: SE_CLOCK,
                     op: { type: 'set', path: '/' },
                     after: { day: 9, hour: 0, minute: 0 },
-                    proposedBy: { kind: 'step', stepId: NARRATE.id },
+                    proposedBy: { kind: 'step', stepId: TEST_STEP.id },
                   },
                 ],
               };
@@ -1238,7 +1238,7 @@ describe('a preset block can be scoped to a kind of call', () => {
     // `appliesTo` unable to filter anything — and the comment justifying
     // per-call collection false. Scene's own step declares `'narrate'`, so the
     // hardcode was invisible until a step declared something else.
-    expect(NARRATE.callKind).toBe('narrate');
+    expect(TEST_STEP.callKind).toBe('narrate');
   });
 
   /**
@@ -1284,7 +1284,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const session = await createSession(sessions, ACCOUNT, {
       name: 'Samples',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       treatment: noir.id,
       cast: { persona: null, actors: [vera.id] },
     });
@@ -1350,7 +1350,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const session = await createSession(sessions, ACCOUNT, {
       name: 'Book samples',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
     const outcome = await submitTurn(commit, {
@@ -1389,7 +1389,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const withLore = await createSession(sessions, ACCOUNT, {
       name: 'With a world',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
 
@@ -1456,7 +1456,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const withLore = await createSession(sessions, ACCOUNT, {
       name: 'Cooling',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
     const outcome = await submitTurn(commit, {
@@ -1508,7 +1508,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const withLore = await createSession(sessions, ACCOUNT, {
       name: 'A full book',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
     const outcome = await submitTurn(commit, {
@@ -1547,15 +1547,15 @@ describe('a preset block can be scoped to a kind of call', () => {
     const scoped = await createSession(sessions, ACCOUNT, {
       name: 'Scoped',
       preset: {
-        ...SCENE_PRESET,
+        ...TEST_PRESET,
         blocks: [
           {
-            ...SCENE_PRESET.blocks[0]!,
+            ...TEST_PRESET.blocks[0]!,
             id: 'se.only-for-summaries',
             label: 'only for summaries',
             appliesTo: ['summarise'],
           },
-          SCENE_PRESET.blocks.find((block) => block.id === 'se.input')!,
+          TEST_PRESET.blocks.find((block) => block.id === 'se.input')!,
         ],
       },
     });
@@ -1597,8 +1597,8 @@ describe("the preset's own settings reach the call", () => {
     await runTurn();
 
     expect(provider.requests[0]?.params).toMatchObject({
-      temperature: SCENE_PRESET.params.temperature,
-      maxTokens: SCENE_PRESET.params.maxTokens,
+      temperature: TEST_PRESET.params.temperature,
+      maxTokens: TEST_PRESET.params.maxTokens,
     });
   });
 
@@ -1617,9 +1617,9 @@ describe("the preset's own settings reach the call", () => {
     // [P3.0]'s invariant is that a present `share` means
     // `tokens === floor(ceiling × share)`, so an `undefined` reported by `toBe`
     // is precisely the mutation this line exists to catch.
-    expect(limit.share).toBe(SCENE_PRESET.budget.contextShare);
+    expect(limit.share).toBe(TEST_PRESET.budget.contextShare);
     expect(limit.tokens).toBe(
-      Math.floor(DEFAULT_CONFIG.limits.contextTokens * SCENE_PRESET.budget.contextShare),
+      Math.floor(DEFAULT_CONFIG.limits.contextTokens * TEST_PRESET.budget.contextShare),
     );
   });
 
@@ -1747,7 +1747,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               await host.call({});
               await host.call({});
@@ -1774,7 +1774,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       plan: {
         steps: [
           {
-            definition: { ...NARRATE, id: 'se.dice', role: null },
+            definition: { ...TEST_STEP, id: 'se.dice', role: null },
             run: async (_input, host) => {
               // Through the host's `random` since [P7.0] — awaited, because the
               // seam is async whether or not a worker is on the other side of
@@ -1915,18 +1915,18 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       plan: {
         steps: [
           {
-            // `NARRATE` minus its role: same stage, same `contributes:
+            // `TEST_STEP` minus its role: same stage, same `contributes:
             // 'messages'`, same empty `writes` — so `callPurposeFor` still
             // yields `prose` and the assembler behaves identically. The role is
             // the only difference, which is the difference under test.
-            definition: { ...NARRATE, id: 'se.preflight', role: 'fast' },
+            definition: { ...TEST_STEP, id: 'se.preflight', role: 'fast' },
             run: async (_input, host) => {
               await host.call({ stream: true });
               return {};
             },
           },
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => ({
               message: { text: (await host.call({ stream: true })).text },
             }),

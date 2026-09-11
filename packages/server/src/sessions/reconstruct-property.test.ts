@@ -11,7 +11,7 @@ import { newLorebook, newLoreEntry, uuidv7, type LoreEntry } from '@storyengine/
 
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { installBuiltIns } from '../modes/built-ins.js';
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { TEST_PRESET } from '../test-mode.js';
 import { retrieve, type Retrieved } from '../retrieval/retrieve.js';
 import {
   advanceTiming,
@@ -201,7 +201,7 @@ function playTurn(sessionId: string, parent: Played | null, text: string, at: nu
 
   const retrieved = retrieve({
     lore: { treatment: null, books: [BOOK], missing: [] },
-    preset: SCENE_PRESET,
+    preset: TEST_PRESET,
     history,
     input: { text },
     channels: running,

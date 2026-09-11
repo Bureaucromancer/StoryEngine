@@ -81,6 +81,26 @@ export function modeById(id: string): Mode | null {
   return registered.get(id) ?? null;
 }
 
+/**
+ * The build's default mode, or a throw naming what is wrong.
+ *
+ * **The throw is the point.** `DEFAULT_MODE_ID` names an id and registering is
+ * a call, so the two can disagree — a loader that found no package, a
+ * composition root that forgot `installBuiltIns`, a default pointed at a mode
+ * this build does not ship. Every caller that reaches for the default has to
+ * handle that, and a helper is better than three copies of the same null check
+ * disagreeing about what to say.
+ */
+export function defaultMode(): Mode {
+  const mode = registered.get(DEFAULT_MODE_ID);
+  if (!mode) {
+    throw new Error(
+      `The default mode ${DEFAULT_MODE_ID} is not registered. Call installBuiltIns() before serving.`,
+    );
+  }
+  return mode;
+}
+
 /** Every mode registered so far, in registration order. */
 export function registeredModes(): readonly Mode[] {
   return [...registered.values()];

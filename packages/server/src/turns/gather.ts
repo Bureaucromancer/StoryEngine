@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Accounts } from '../auth/accounts.js';
-import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
+import { DEFAULT_MODE_ID, defaultMode, modeById } from '../modes/registry.js';
 import type { Mode } from '../modes/types.js';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { RoleBindings } from '../providers/roles.js';
@@ -142,8 +142,7 @@ export async function gatherAssemblyInputs(
    * still open. `declaredMode` travels out so the caller can say so.
    */
   const declaredMode = session?.mode?.id ?? DEFAULT_MODE_ID;
-  const mode = modeById(declaredMode) ?? modeById(DEFAULT_MODE_ID);
-  if (mode === null) throw new Error('No default mode is registered.');
+  const mode = modeById(declaredMode) ?? defaultMode();
 
   const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
   // One library handle for both resolvers. They read the same store as the same

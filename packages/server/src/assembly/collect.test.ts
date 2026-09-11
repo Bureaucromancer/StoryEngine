@@ -15,7 +15,7 @@ import {
   type WritingSample,
 } from '@storyengine/shared';
 
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { TEST_PRESET } from '../test-mode.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
@@ -55,7 +55,7 @@ function block(over: Partial<PresetBlock> & Pick<PresetBlock, 'kind'>): PresetBl
 }
 
 function preset(blocks: PresetBlock[]): Preset {
-  return { ...SCENE_PRESET, blocks };
+  return { ...TEST_PRESET, blocks };
 }
 
 function context(over: Partial<CollectContext> = {}): CollectContext {

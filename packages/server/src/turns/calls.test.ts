@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_CONFIG } from '../config.js';
-import { SCENE_MODE } from '../modes/scene/mode.js';
+import { TEST_MODE } from '../test-mode.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import type { Connection } from '../providers/connections.js';
 import type { Provider } from '../providers/types.js';
@@ -47,7 +47,7 @@ function providerFor(): Provider {
 }
 
 function context(over: Partial<PlanContext> = {}): PlanContext {
-  const narrate = SCENE_MODE.definition.steps[0];
+  const narrate = TEST_MODE.definition.steps[0];
   if (narrate === undefined) throw new Error('Scene declares no steps.');
   return {
     definition: narrate,
@@ -90,7 +90,7 @@ describe('planning a call', () => {
 
     expect(call).not.toHaveProperty('id');
     expect(call).not.toHaveProperty('startedAt');
-    expect(call.stepId).toBe(SCENE_MODE.definition.steps[0]?.id);
+    expect(call.stepId).toBe(TEST_MODE.definition.steps[0]?.id);
     expect(call.purpose).toBe('prose');
     expect(call.blocks.map((block) => block.id)).toEqual(['se.instruction', 'se.input']);
     expect(call.budget.limit.tokens).toBeGreaterThan(0);
