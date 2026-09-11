@@ -1861,6 +1861,69 @@ it channel-shaped only and P7.6 reinvents it.*
 when something else proposes to it, rendered from its declaration, and
 reconstructing at an old node in the P6 property test's fixture.
 
+#### In progress — opened 2026-09-11
+
+**Done.** `ChannelDefinition` grew `schema` and `init`, both required and both
+06 §4's own shape. The evidence the `init` field was missing was sitting in the
+tree: `CLOCK_START` and `NO_TIMING` were **engine constants beside the code that
+read them**, so where a *mode's* channel began was something the *engine* knew —
+`ModeDefinition.channels`' pre-P7.0 gap one level down. The clock's start is
+Scene's declaration now, asserted by substitution rather than equality, because
+the engine's no-mode fallback is also 08:00 and an equality test would pass
+against either source.
+
+*`InitPolicy` ships two of 06 §4's three arms and the third is refused for a
+reason that is not "no consumer".* **Generated at start** means a draw before the
+first turn, and the RNG tape is keyed on a *turn record* — so a value drawn at
+session start has nowhere to be recorded and replay-from-zero could not reproduce
+it. It is not a third arm; it is **init becoming a recorded effect** on the first
+turn that needs the channel. Written into the published type rather than left to
+be discovered, since a contract silently shipping two of three named arms is the
+divergence P7.0 spent a commit correcting elsewhere.
+
+Then **`schema` acquired its first reader, on the way in**: `refuse` now returns
+`'schema'`, which is the `rejectedReason` cause [21 §1.2](../21-internal-contracts.md)
+lists *first* — *"validation failure"* — and which nothing had ever produced,
+because policy refusals were the whole vocabulary. Checked after the policy
+rules, deliberately: *who may write* is the more useful sentence, since a policy
+refusal was never going to land however the value was shaped. **The live
+consequence is hand edits**: [03 §8.1](../03-data-model.md) makes editing
+`session.json` supported and `divergenceEffects` turns an edit into a
+user-attributed effect, so `{"hour": 25}` typed into a file used to become an
+*applied* effect and an impossible clock in the permanent record, replayed onto
+every branch from that node. It is now a recorded refusal — the posture is
+unchanged and the outcome is not.
+
+***The load-time ladder is not built, and the reason is a finding.*** [06 §4.2]'s
+ladder is *validate → coerce → migrate → quarantine*; three rungs were written as
+a pure function over a stored `ChannelState` and **not shipped, because there is
+nowhere correct to call it**. `turns/gather.ts` is the pipeline's one channel
+read and the runner chains each effect's `before` from that map, so a quarantined
+value there becomes the next effect's `before` while the log still records the
+impossible one as an `after` — replay-from-zero and snapshot-plus-replay disagree
+at that node, which is [07 §4](../07-branching.md)'s CI assertion. Laddering
+inside `readSession` fails the same way from the other end: `reconcileHandEdits`
+compares the file against a raw replay, so a laddered file reads as a hand edit
+and is written into the log as one.
+
+**So a quarantine is a change of state rather than a way of looking at state**,
+and 06 §4.2 says so without drawing the conclusion — *"initialise the channel to
+its default"* is a write. It belongs where `divergenceEffects` already lives: a
+recorded, attributed, reversible effect appended at load, on the same lock, in
+the same turn. What it needs first is a way for `applyEffects` to know an effect
+*was* a quarantine, so that `ChannelState.degraded` acquires a writer rather than
+staying the inert type §0.1a found — which is a **record-shape decision**, not a
+wiring job, and therefore its own commit rather than a rider on this one.
+
+*The coerce rung and `createCoercingValidator` were written and then removed for
+the same reason: an exported function with no caller is the mistake `clockEffect`
+made, and this stage is not the place to repeat it.*
+
+**Next:** the quarantine effect and `degraded`'s writer; then the pacing dial,
+which is `init`'s `authored` arm, `user-only`'s first subject and two fields on
+two published stable-tier schemas; then the channel-to-text renderer, which is
+what gives `budget` a reader.
+
 ### P7.2 — Party, presence, status, and the cast panel
 
 §1.6 built; the cast panel over it ([10 §13.2](../10-ui-surfaces.md)), editable,

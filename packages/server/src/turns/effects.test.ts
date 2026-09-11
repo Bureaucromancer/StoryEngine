@@ -179,3 +179,84 @@ describe('a proposal on a scoped channel', () => {
     expect(acceptEffect('t-1', timingProposal('entry-a'), RUNNING_SCOPED).scopeKey).toBe('entry-a');
   });
 });
+
+/**
+ * **The `rejectedReason` cause [21 §1.2] lists first and nothing had ever
+ * produced** — [P7.1].
+ *
+ * That field is documented as *"validation failure, an engine-computed rule
+ * overriding a model proposal, or a policy refusal"*, and until
+ * `ChannelDefinition` grew a `schema` the first of the three was unreachable:
+ * policy refusals were the whole vocabulary.
+ */
+describe('a proposal is judged against the channel’s schema', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('refuses an impossible clock and keeps the value that was true', () => {
+    // The refusal machinery is the same one the policies use, which is the
+    // point: `before` is preserved as `after`, so the state does not move and
+    // the attempt is in the record.
+    const effect = acceptEffect(
+      't1',
+      proposal({ after: { day: 1, hour: 25, minute: 0 }, proposedBy: { kind: 'user' } }),
+      atStart(),
+    );
+
+    expect(effect.applied).toBe(false);
+    expect(effect.rejectedReason).toBe('schema');
+    expect(effect.after).toEqual(clockStart());
+  });
+
+  /**
+   * **This is what stops a hand edit from poisoning the log**, which is the live
+   * consequence rather than a hypothetical.
+   *
+   * [03 §8.1] makes editing `session.json` a supported way to get data in, and
+   * `divergenceEffects` turns such an edit into a **user-attributed** effect —
+   * so before this, `{"hour": 25}` typed into a file became an *applied* effect
+   * and an impossible clock in the permanent record, replayed onto every branch
+   * from that node. The posture is unchanged and the outcome is not: the edit is
+   * still recorded, attributed and visible; it is answered rather than obeyed.
+   */
+  it('refuses it from a person too, because a file is where it comes from', () => {
+    const effect = acceptEffect(
+      't1',
+      proposal({ after: { day: 1, hour: 99, minute: 0 }, proposedBy: { kind: 'user' } }),
+      atStart(),
+    );
+
+    expect(effect.proposedBy).toEqual({ kind: 'user' });
+    expect(effect.applied).toBe(false);
+    expect(effect.rejectedReason).toBe('schema');
+  });
+
+  it('prefers the policy reason when both would refuse, and that is the useful sentence', () => {
+    // A model proposing a malformed value to a channel it may not touch gets
+    // `engine-computed`. *Who may write* is the more useful answer, because the
+    // remedies differ: a policy refusal was never going to land however it was
+    // shaped, a schema refusal nearly did.
+    const effect = acceptEffect(
+      't1',
+      proposal({
+        after: { day: 1, hour: 25, minute: 0 },
+        proposedBy: { kind: 'model', callId: 'c1' },
+      }),
+      atStart(),
+    );
+
+    expect(effect.rejectedReason).toBe('engine-computed');
+  });
+
+  it('still applies a well-formed proposal, so the check is not a wall', () => {
+    const effect = acceptEffect(
+      't1',
+      proposal({ after: { day: 2, hour: 0, minute: 0 }, proposedBy: { kind: 'engine' } }),
+      atStart(),
+    );
+
+    expect(effect.applied).toBe(true);
+    expect(effect.rejectedReason).toBeNull();
+  });
+});

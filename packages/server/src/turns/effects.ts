@@ -4,6 +4,7 @@
 import type { EffectProposal } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
+import { schemaFailure } from '../sessions/channel-schema.js';
 import { channelDefinition, channelKey } from '../sessions/channels.js';
 import type { ChannelEffect, ChannelState } from '../sessions/types.js';
 
@@ -127,5 +128,35 @@ function refuse(
   if (definition.update === 'user-only' && by !== 'user') {
     return 'user-only';
   }
+
+  /**
+   * **The cause [21 §1.2](../../../../docs/design/21-internal-contracts.md)
+   * lists first and nothing had ever produced** — `rejectedReason` is documented
+   * as *"validation failure, an engine-computed rule overriding a model
+   * proposal, or a policy refusal"*, and until [P7.1] gave `ChannelDefinition` a
+   * `schema` the first of those three was unreachable. Policy refusals were the
+   * whole vocabulary.
+   *
+   * **Checked last, after the policy rules, and the order is a decision.** A
+   * model proposing a malformed value to a channel it is not allowed to touch
+   * gets `engine-computed`, not `schema`: *who may write* is the more useful
+   * sentence for the person reading the workbench, because the remedy differs —
+   * a policy refusal means the proposal was never going to land however it was
+   * shaped, while a schema refusal means this one nearly did.
+   *
+   * **And this is what stops a hand edit from poisoning the log.** A person
+   * editing `session.json` has expressed an intent
+   * ([03 §8.1](../../../../docs/design/03-data-model.md)), which
+   * `divergenceEffects` turns into user-attributed effects — so before this,
+   * `{"hour": 25}` typed into a file became an *applied* effect and an
+   * impossible clock in the permanent record. Now it becomes a **recorded
+   * refusal**: visible, attributed, reversible, and not in the state. That is
+   * 03 §8.1's own posture rather than a departure from it — the edit is not
+   * discarded, it is answered.
+   */
+  if (schemaFailure(proposal.channelId, proposal.after) !== null) {
+    return 'schema';
+  }
+
   return null;
 }
