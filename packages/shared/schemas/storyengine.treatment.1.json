@@ -447,6 +447,29 @@
         }
       }
     },
+    "hookPacing": {
+      "anyOf": [
+        {
+          "const": "sparse",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "type": "string"
+        },
+        {
+          "const": "aggressive",
+          "type": "string"
+        },
+        {
+          "const": "manual-only",
+          "type": "string"
+        }
+      ]
+    },
+    "stagingNotes": {
+      "type": "string"
+    },
     "modeHints": {
       "type": "object",
       "properties": {

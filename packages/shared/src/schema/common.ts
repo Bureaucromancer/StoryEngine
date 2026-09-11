@@ -426,3 +426,27 @@ export const Compat = Type.Union([Type.Record(Type.String(), Type.Unknown()), Ty
 export const Metadata = Type.Record(Type.String(), Type.Unknown());
 
 export { Id, Timestamp };
+
+/**
+ * How much authored plot to push at a player — [04 §6.1b](../../../../docs/design/04-schemas.md),
+ * built at [P7.1](../../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * **Semantics belong to the selector** ([06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md)),
+ * which is P7.5's. What is settled here is only where the value may be written
+ * down, and 04 §6.1b's answer is the shape `openings` already uses: **a
+ * Treatment proposes, a Setup overrides, and the running session owns it.**
+ *
+ * **`manual-only` is a value rather than the absence of one**, which is why
+ * absent cannot mean it — and absent cannot mean `normal` either. 04 §6.1b is
+ * explicit: *"Absent means unspecified, which the session resolves to its own
+ * default; it does not mean `normal`."* The channel's `init` is what says what
+ * unspecified resolves to, which is the distinction `InitPolicy`'s `fallback`
+ * exists to carry.
+ */
+export const HookPacing = Type.Union([
+  Type.Literal('sparse'),
+  Type.Literal('normal'),
+  Type.Literal('aggressive'),
+  Type.Literal('manual-only'),
+]);
+export type HookPacing = Static<typeof HookPacing>;

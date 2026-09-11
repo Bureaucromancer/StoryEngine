@@ -1952,10 +1952,40 @@ consulted there: `engine-computed` refuses model and step, `user-only` refuses
 everything but user, so a person editing their own file is permitted by both —
 which is 03 §8.1's whole premise.*
 
-**Next:** the pacing dial, which is `init`'s `authored` arm, `user-only`'s first
-subject and two fields on two published stable-tier schemas; then the
-channel-to-text renderer, which is what gives `budget` a reader; then 06 §4.2's
-error surface, which now has something real to report.
+Then **the two fields §1.4 found missing arrived on both published schemas**:
+`hookPacing` and `stagingNotes`, optional on Treatment and on Setup, which is
+[04 §6.1b](../04-schemas.md)'s shape exactly — *a Treatment proposes, a Setup
+overrides, and the running session owns it* — and optional on both because a
+required field added to a published `/1` is a `/2` change. Emitted artefacts
+regenerated; the import fixture pair is green.
+
+***Two findings, and the first changes what the dial can be.*** **A session does
+not record which Setup it was created from.** `SessionFile` carries
+`treatment?: string | null` and `preset`, and `POST /api/sessions` accepts
+`treatment`, `preset`, `lore`, `cast` and `mode` — no setup, anywhere. So
+04 §6.1b's *"a Setup overrides"* has nowhere to override **from**, and the
+`authored` init arm can resolve a Treatment's value and nothing else. That is not
+a gap this stage should paper over by resolving only treatments and calling the
+rule satisfied: either a session records its setup, or the rule is two-thirds of
+a rule. *Related and probably the same job: there is no Treatment or Setup editor
+in `packages/client` — only actors and lorebooks — so both fields are settable by
+import or by hand-editing the file, which is supported ([10 §4]) and is not the
+same as offered.*
+
+**And the exit gate wants a subject the dial cannot be.** This stage *ends at* *"a
+**mode-declared** channel with `update: "user-only"` refused correctly"*, and the
+pacing dial is owned by `storyengine.hooks` — a **package**, like `se.lore.timing`
+— because hooks are not a mode's. Scene declares one channel and it is
+engine-computed; the mode that would declare a user-only one is Freeform, at
+P7.9. So either the gate means *package-declared* and should say so, or it is
+waiting on a mode that does not exist yet. **Worth settling before the dial is
+built rather than after**, because it decides whether the dial ships here or with
+its selector at P7.5 — and a channel whose only reader is a stage three stages
+away is the placeholder shape [P2 §2.7](08-p2-implementation.md) rejected.
+
+**Next:** that question, then the channel-to-text renderer — which is what gives
+`budget` a reader and needs no dial — then 06 §4.2's error surface, which now has
+something real to report.
 
 ### P7.2 — Party, presence, status, and the cast panel
 
