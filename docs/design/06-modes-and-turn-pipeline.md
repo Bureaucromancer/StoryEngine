@@ -1328,9 +1328,33 @@ serialisable data and async host calls. The `reads` field on `StepDefinition`
 ([§6](#6-steps-and-the-pipeline)) doubles as the payload filter, so a step
 receives only what it declared it needs.
 
-Two of the "must not" items above stop being conventions and become structural:
+~~Two of the "must not" items above stop being conventions and become structural:
 an extension in a worker cannot reach a credential, and cannot reach an
-unrecorded random source ([19 §14](19-tech-stack.md)).
+unrecorded random source ([19 §14](19-tech-stack.md)).~~
+
+***Retracted 2026-09-11, because [22 §4.0](22-extensions.md) retracts it and this
+sentence is the one [P7 §1.3](workplan/23-p7-implementation.md) cites to settle
+where the worker hop lands.*** A Node worker thread **is not a sandbox**: it can
+`require('node:crypto')` and `require('node:fs')`, and connection credentials are
+files under the data directory. So neither item becomes structural in the sense
+this sentence claimed — *unreachable* — and the phrasing was wrong in the
+direction that matters, which is the direction that invites the wrong deployment
+behaviour.
+
+**What is structural is that neither is handed over.** The worker's payload
+carries no credential — a step asks for a call by role and the host resolves the
+connection ([19 §5.1](19-tech-stack.md)) — and randomness arrives as a host
+capability whose draws land on the turn tape
+([19 §14](19-tech-stack.md)). An extension that goes around either is
+*misbehaving rather than prevented*, exactly the status 22 §4.0 gives `HostApi`
+itself.
+
+**So the enforcement is named rather than assumed**: the lint rule that bans
+reaching `node:crypto`'s random functions outside the RNG service
+([19 §14.4](19-tech-stack.md)), and the extension test kit's replay-determinism
+check. Both are real and neither is a boundary. Real isolation is a separate
+process with a stripped environment, which is [22 §10](22-extensions.md)'s open
+item and carries the word *sandbox*.
 
 ---
 

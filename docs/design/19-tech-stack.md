@@ -597,9 +597,25 @@ packages/
   server/
   client/
   modes/scene/     ⎫ built-in modes, each its own package,
-  modes/adventure/ ⎬ consuming sdk exactly as a third party would.
+  modes/freeform/  ⎬ consuming sdk exactly as a third party would.
                    ⎭ Messages joins whenever it is built [24 §3.4].
 ```
+
+***Two corrections, 2026-09-11, both at [P7.0](workplan/23-p7-implementation.md).***
+The tree drew `modes/adventure/`, and **Adventure does not exist**:
+[06 §1](06-modes-and-turn-pipeline.md) dissolved the grouping into Scene, Freeform
+and Campaign as peer modes, moving `freeform` from a preset id inside `mode.config`
+to being the `mode.id` itself. Freeform is what [P7.9](workplan/23-p7-implementation.md)
+builds, and no stage had said where it lands; it lands here.
+
+And `modes/scene/` is real as of P7.0 rather than aspirational. Its package is
+named **`@storyengine/mode-scene`** — the class is in the name so that the
+distribution's manifest, the image's deploy steps and the loader's built-in list
+can be checked against each other rather than maintained in parallel
+(`tools/repo-shape.test.ts`). *The nesting is one level deeper than the other
+packages, which is not free: `packages/*` globs in `vitest.config.ts` and
+`eslint.config.js` do not reach it, and the first of those fails silently — a
+mode test that lints, typechecks and never runs. That file has the measurement.*
 
 **`sdk` is AGPL-3.0, like everything else, and that is deliberate rather than
 incidental.** Extensions import it, which is what makes them combined works and
@@ -613,6 +629,16 @@ must be implemented only through the public mode contract, or "modes as
 extensions" is aspirational. Putting them in separate packages that depend on
 `sdk` and *not* on `server` turns that claim into a build error. It is the
 cheapest possible enforcement of the design's central bet.
+
+***And it turned one thing into a build error at the server's end too, which this
+paragraph did not anticipate.*** The rule runs both ways: the moment Scene was a
+package, the server's static `import { SCENE_MODE }` became a lint failure, so the
+engine gained a **loader** — `mode-loader.ts` resolves each built-in by a bare
+specifier at run time, validates the shape, and registers it. The engine
+therefore has no compile-time knowledge of any mode, which is a stronger form of
+the claim above than "separate packages" on its own delivers, and a cost stated
+where it lands: a renamed entry export is a startup failure rather than a build
+failure, held by a test that loads the real package.
 
 ---
 

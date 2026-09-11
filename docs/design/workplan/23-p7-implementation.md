@@ -924,14 +924,31 @@ already says.
 a test edit, none is a stage, and every one of them is something a stage would
 otherwise stop to argue about:
 
-1. **The four retired-sentence homes and the `[19 §11]` citation** — 22 §4,
-   ~~`turns/steps.ts:128`, `turns/steps.test.ts:220-221`~~ **(both corrected at
-   P7.0, in the commits that changed the thing they were wrong about)**, and
-   §P7.0's own cell. **22 §4 now owes three corrections rather than one**: the
-   retired sentence, `blocks` → `Candidate`, and the full effect →
-   `EffectProposal` (§1.2), plus the `[19 §11]` citation, which points at *Dev
-   mode* where it means randomness at 19 §14.
-2. **06 §9 against 22 §4.0** on whether a worker enforces recorded randomness.
+1. ~~**The four retired-sentence homes and the `[19 §11]` citation** — 22 §4,
+   `turns/steps.ts:128`, `turns/steps.test.ts:220-221`, and §P7.0's own cell.
+   **22 §4 now owes three corrections rather than one**: the retired sentence,
+   `blocks` → `Candidate`, and the full effect → `EffectProposal` (§1.2), plus
+   the `[19 §11]` citation, which points at *Dev mode* where it means randomness
+   at 19 §14.~~ **Done 2026-09-11.** All four homes and the citation. 22 §4's
+   blockquote now records the three divergences as *settled* rather than as
+   deliberately unreconciled, and its `StepResult` sketch carries `Candidate` and
+   `EffectProposal`. *One thing was added rather than corrected: the sketch still
+   differs from the shipped contract in four further places — `StepContext` is
+   two parameters, `message` is singular, `config` has no home, `suspend` and
+   `diagnostics` are unbuilt — and those are now listed there with a date, so the
+   next reader does not rediscover them and mistake a sketch for the contract.*
+2. ~~**06 §9 against 22 §4.0** on whether a worker enforces recorded randomness.~~
+   **Done 2026-09-11, and 06 §9 was wrong about more than randomness.** That
+   paragraph made *two* claims structural — no credential and no unrecorded
+   random source — and 22 §4.0 retracts both by the same argument: a Node worker
+   can `require('node:crypto')` and `require('node:fs')`, and connection
+   credentials are **files under the data directory**, not environment values. So
+   neither is unreachable. What is structural is that neither is *handed over*:
+   the payload carries no credential and randomness arrives as a host capability.
+   The enforcement is therefore named rather than assumed — the `node:crypto`
+   lint rule and the extension test kit's replay-determinism check — which
+   settles what §1.3's conversion is buying: it **relocates** recorded
+   randomness, it does not enforce it.
 3. ~~**`RandomApi`'s shape** — at minimum whether a host draw carries `(site,
    purpose)`. It is the conversion's input, not its output.~~ **Settled and
    built 2026-09-11, at the head of P7.0.** It carries them: `rng.ts`'s *"there
@@ -942,7 +959,13 @@ otherwise stop to argue about:
    across a hop it is a local constructor and only the draws are messages — and
    the eight methods behind it are `SiteRng`'s, asynchronous. See
    `rng/random.ts`.
-4. **19 §10's tree**, which still draws `modes/adventure`.
+4. ~~**19 §10's tree**, which still draws `modes/adventure`.~~ **Done
+   2026-09-11.** It draws `modes/freeform/` — which also answers the *"P7.9
+   builds Freeform and no stage says where it lands"* gap §0.1a opened — and
+   records the shipped package name, the one-level-deeper nesting and its cost.
+   §10's closing paragraph gained the half it did not anticipate: the rule runs
+   both ways, so the server acquired a **loader** rather than merely losing an
+   import, and the engine now has no compile-time knowledge of any mode at all.
 5. **A cast the browser can set.** `PUT /api/sessions/:id/cast` and
    `POST /api/sessions`'s `cast` field both accept one and **neither has a caller
    in `packages/client`** — the identical shape of gap P6B.0 just closed for
@@ -967,10 +990,17 @@ otherwise stop to argue about:
    forbids. Doing it inside P7.0 buries a large mechanical diff inside the stage
    whose falsification test is *"no diff outside imports"*; doing it first is pure
    preparation and reviewable on its own.
-10. **The strengthening or retiring of `steps.test.ts:212-224`**, which asserts
+10. ~~**The strengthening or retiring of `steps.test.ts:212-224`**, which asserts
     nothing about clonability — it compares `Object.keys` on a hand-built literal
     whose `rng` is `{}` — while stating two things that are false. §1.3 leans on
-    it as evidence about the seam.
+    it as evidence about the seam.~~ **Strengthened at P7.0, and its two
+    neighbours were strengthened on 2026-09-11**, which the item under-scoped:
+    §1.3's second correction is about all three tests in that block, not one.
+    The `StepInput` and `StepResult` fixtures are now exhaustive *by type* —
+    `Record<keyof Required<T>, true>` must name every key, so adding a member to
+    either stops the file compiling until somebody decides whether it crosses —
+    and `history` carries a real `Turn` rather than `[]`, which is where an
+    `unknown` that cannot cross would actually hide.
 
 ---
 
@@ -1091,11 +1121,20 @@ correction.***
 independently of the hop (§0.1a). That weakens this section's argument for
 landing the hop here, because the conversion now happens either way.
 
-**The `structuredClone` assertions assert less than this leans on.** The
+~~**The `structuredClone` assertions assert less than this leans on.** The
 `StepInput` case clones a fixture with `history: []` and no `output`, so neither
 of those arms is exercised; the `StepResult` case pins a hand-written object
 literal with **no type annotation and no `satisfies`**, so a non-clonable member
-added to `StepResult` tomorrow leaves the test green. And the third test in that
+added to `StepResult` tomorrow leaves the test green.~~ ***Repaired 2026-09-11,
+and the repair is stronger than the complaint.*** Both fixtures are now
+exhaustive **by type** rather than by care: a `Record<keyof Required<T>, true>`
+literal must name every key of `T`, so a member added to `StepInput` or
+`StepResult` stops the file compiling until somebody decides whether it crosses.
+`history` carries a real `Turn` — the deepest object on this seam, with an
+effect's `unknown` values and a tape inside it — and `output` is populated.
+*Proven by mutation: adding `onFinish?: () => void` to `StepResult` produces two
+compile errors in that file and no test failure, which is the right way round.*
+And the third test in that
 block — the one whose comment names *"the one thing on `StepHost` that cannot
 cross a worker hop"* and says *"`call` and `signal` cross fine"* — **never calls
 `structuredClone` at all**; it compares `Object.keys` on a hand-built literal
@@ -1114,12 +1153,20 @@ gesture, so every swipe exercises the replay path. §5 files the hop as *"a
 performance question with no measurements yet"* — **it is not one**, and the
 mitigation is cheap chosen up front and a data-corruption bug found late.
 
-**And the two documents this section cites in one breath disagree about
-randomness.** [06 §9](../06-modes-and-turn-pipeline.md) still promises a worker
-prevents reaching an unrecorded random source; [22 §4.0](../22-extensions.md)
-retracts that phrasing by name. Which is right decides whether the hop *enforces*
-recorded randomness or merely relocates it — i.e. what this conversion is buying.
-A doc edit, in §0.2's cold list.
+~~**And the two documents this section cites in one breath disagree about
+randomness.**~~ ***Settled 2026-09-11 in 22 §4.0's favour, and the answer weakens
+this section's lean.*** 06 §9 promised a worker prevents reaching an unrecorded
+random source and has been corrected: a Node worker can `require('node:crypto')`,
+so it prevents nothing. **The hop relocates recorded randomness, it does not
+enforce it** — enforcement is the lint rule plus the extension test kit's
+replay-determinism check, neither of which needs a worker. Combined with the
+first correction above, both of this section's arguments for landing the hop
+*here* are gone: the conversion is forced by the package split either way, and
+the hop buys no enforcement the lint rule does not already buy. What is left for
+the hop is fault isolation — crash, hang and runaway-loop containment, which
+[22 §2](../22-extensions.md) calls the realistic failure — and that is a real
+reason, just not this section's reason. *06 §9 was also wrong about credentials,
+for the same reason and in the more alarming direction; §0.2's item 2 has it.*
 
 ### 1.4 `InitPolicy` has exactly one first consumer, and it is in this phase
 
