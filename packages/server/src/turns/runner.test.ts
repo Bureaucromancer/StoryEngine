@@ -30,6 +30,7 @@ import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
+import { installBuiltInModes } from '../modes/built-ins.js';
 import { NARRATE } from '../modes/scene/mode.js';
 import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { create, type LibraryContext } from '../library.js';
@@ -162,6 +163,12 @@ function recorder(into: Record<string, unknown>[], bindings: Record<string, unkn
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-runner-'));
+  // Registration is a call rather than an import since [P7.0], and this test
+  // reaches the pipeline without going through `buildServices` — so it asks for
+  // the built-ins the same way the composition root does. A test that needs a
+  // mode now says so, which is the visibility the split was for.
+  installBuiltInModes();
+
   index = await openIndex({ path: ':memory:' });
   state = await openState({ path: ':memory:' });
   sessions = { layout: new Layout(dataDir), index: index.db };

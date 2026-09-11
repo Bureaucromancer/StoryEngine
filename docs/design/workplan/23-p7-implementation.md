@@ -1461,9 +1461,21 @@ engine can record a refusal. Both were the engine's shapes against
 document that gets corrected**, which is now a cold-list item rather than an open
 question.
 
-**Next:** the registry becoming something a loader writes to, then the tooling
-and the move, then the repo-shape check. §0.2 says which of these wait on
-PLAYABLE — none of them do.
+Then **the registry became something a loader writes to**, which
+`modes/registry.ts` had deferred to this phase by name. The split is the useful
+part: `registry.ts` holds a map, a lookup and a proof and **knows no mode**;
+`modes/built-ins.ts` knows the modes and holds nothing. So when the boundary
+makes `server → modes` a build error, exactly one import has to become a loader
+instead of every consumer changing. `DEFAULT_MODE_ID` is a literal rather than
+`SCENE_ID` for the same reason, pinned to the mode's own constant by a test.
+Two things fell out that were not in the plan: `assertModesRunnable` now
+**refuses a build that registered nothing** — a failure that could not happen
+while registration was an import, so the split had to catch it — and two test
+files that reach the pipeline without `buildServices` now ask for the built-ins
+explicitly, which is the dependency becoming visible rather than ambient.
+
+**Next:** the tooling and the move, then the repo-shape check. §0.2 says which of
+these wait on PLAYABLE — none of them do.
 
 `packages/modes/scene` created and populated by moving, not rewriting; `sdk`
 exporting the contract instead of re-exporting `shared` and nothing else;

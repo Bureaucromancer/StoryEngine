@@ -46,6 +46,7 @@ import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
+import { installBuiltInModes } from './modes/built-ins.js';
 import { assertModesRunnable } from './modes/registry.js';
 import {
   reconcile,
@@ -267,7 +268,14 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * Before anything opens a file: a mode declaring a step it cannot run is a
    * turn that quietly narrates nothing, and `assertModesRunnable` said it ran
    * "at module load" while nothing invoked it.
+   *
+   * **Two calls since [P7.0], and the order is the point.** Registration is a
+   * call rather than an import, so the proof has something to be about only
+   * after it — and `assertModesRunnable` now refuses a build that registered
+   * nothing, which is the failure the split makes possible and therefore the
+   * one it has to catch.
    */
+  installBuiltInModes();
   assertModesRunnable();
 
   const layout = new Layout(options.config.dataDir);

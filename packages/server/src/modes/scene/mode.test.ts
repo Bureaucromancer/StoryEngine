@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { validate } from '@storyengine/shared';
 
 import { callPurposeFor } from '../../turns/steps.js';
 import { CHANNELS } from '../../sessions/channels.js';
-import { assertModesRunnable, BUILT_IN_MODES, DEFAULT_MODE_ID, planFor } from '../registry.js';
+import { installBuiltInModes } from '../built-ins.js';
+import { assertModesRunnable, DEFAULT_MODE_ID, modeById, planFor } from '../registry.js';
 import { NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
 import { SCENE_PRESET } from './preset.js';
 
@@ -224,7 +225,14 @@ describe('what Scene declares, and what the engine does with it', () => {
 });
 
 describe('the registry', () => {
-  it('builds a runnable plan for every built-in mode', () => {
+  // Registration is a call rather than an import since [P7.0], so a test that
+  // wants a populated registry asks for one — the same way `buildServices`
+  // does, which is what keeps the two honest about each other.
+  beforeEach(() => {
+    installBuiltInModes();
+  });
+
+  it('builds a runnable plan for every registered mode', () => {
     expect(() => {
       assertModesRunnable();
     }).not.toThrow();
@@ -238,7 +246,18 @@ describe('the registry', () => {
   });
 
   it('names Scene as the default, and knows it by id', () => {
+    // `DEFAULT_MODE_ID` is a literal in the registry now, because the server may
+    // not import a mode once the mode is a package. This is the test the
+    // registry's docstring promises: the two are pinned together here rather
+    // than by a shared constant.
     expect(DEFAULT_MODE_ID).toBe(SCENE_ID);
-    expect(BUILT_IN_MODES[SCENE_ID]).toBe(SCENE_MODE);
+    expect(modeById(SCENE_ID)).toBe(SCENE_MODE);
+  });
+
+  it('installs the built-ins idempotently, so asking twice is asking once', () => {
+    installBuiltInModes();
+    installBuiltInModes();
+
+    expect(modeById(SCENE_ID)).toBe(SCENE_MODE);
   });
 });
