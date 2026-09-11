@@ -196,7 +196,7 @@ now and a migration later.
 | **R9** rename | Push the branch | **zero** | nothing |
 | **R10** | ~~[polish](06-polish.md); the finding is [P6B.3](20-p6b-playable.md)'s to route~~ **Written, 2026-09-09: [polish §11](06-polish.md)**, and [F-02](21-playable-log.md) is routed there | small | nothing |
 | **R7** | Whoever owns [10 §9](../10-ui-surfaces.md) — unowned today. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09** with [F-03](21-playable-log.md): a named absence, not a false owner | small | §1's shared layer |
-| **R9** delete + archive | A small client stage over routes that exist | small | decision 4's placement question |
+| **R9** delete + archive | ~~A small client stage over routes that exist~~ **[P7B](28-p7b-presets-and-prompts.md)'s session-settings panel, placed 2026-09-11** — the surface `RenameSession`'s own docstring says such controls would otherwise start to become | small | decision 4's placement question |
 | **R3** search | ~~[polish](06-polish.md), reusing the branch's search idiom~~ **Written, 2026-09-09: [polish §12](06-polish.md)** | small | nothing |
 | **R1** | Unowned; a 1.0 commitment [P11.0](27-p11-implementation.md)'s audit exists to find. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09** with [F-05](21-playable-log.md) | medium | decision 1 |
 | **R6** | ~~[P6B.3](20-p6b-playable.md) triage~~ **Closed 2026-09-09**: [F-06](21-playable-log.md) answers [P6 §5](18-p6-implementation.md), and P6 closed collecting it | medium | decision 1 |

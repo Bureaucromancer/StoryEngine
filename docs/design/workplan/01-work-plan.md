@@ -1156,6 +1156,33 @@ contract ([06 §2](../06-modes-and-turn-pipeline.md)).
 Two modes rather than four is a smaller phase but a weaker test, since the two
 retained modes are the more similar pair. §0.3 records what that costs.
 
+### P7B — Presets and prompt handling
+
+**Skeleton: [P7B](28-p7b-presets-and-prompts.md)**, written 2026-09-11 while P7
+runs on its branch, and filed out of order for that reason — its status line
+says why and what moves it.
+
+**The prompt pack a session runs on cannot be opened, copied or edited anywhere
+in the app**, and the sentence that makes Scene a narrator has been a code
+constant since P2. Four phase documents sent the editor to P7; P7's stage list
+does not carry it, and P11's *editors are not dumb forms, across every editor*
+assumes editors that do not exist. This phase is §2.3's standing line paid for
+presets, nine phases late: the built-in pack as a library object with *Copy to
+my library*, a preset editor, a treatment editor — the other half of every
+prompt — a session-settings panel that can switch a running session's pack and
+its parameters, and edit-a-block-and-re-run through the pack rather than
+through a field on the record.
+
+**Why after P7 and not inside it:** [P7 §5](23-p7-implementation.md) says a
+plan that cuts under pressure cuts a panel and never the boundary, and three
+editors are three panels. Why not P11: a hardening phase applies a contract
+across editors; it should not be discovering that half of them are missing.
+
+**Demonstrable:** copy the Scene pack from the library, change the narrator
+sentence, start a session on the copy, and read the changed sentence in the
+workbench — then switch packs mid-session and watch compare show the
+difference. No text editor anywhere in the walk.
+
 ### P8 — Memory
 
 **Skeleton: [P8](24-p8-implementation.md)**, which found the phase's one storage

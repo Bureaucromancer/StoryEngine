@@ -328,6 +328,17 @@ list is built, not after.
 *Ends at:* a list where every item names its artifact and its check — and a
 count, so the phase's size is known before it starts rather than discovered.
 
+**The audit does not start from nothing.** A surface sweep on 2026-09-11 ran
+this pass early over [10](../10-ui-surfaces.md) against every phase document,
+and placed what it found: [manual testing §10](05-manual-testing.md) carries the
+rows, [P7B](28-p7b-presets-and-prompts.md) took the prompt-handling surfaces,
+and [P10.3](26-p10-implementation.md), [P10.4](26-p10-implementation.md), P11.1,
+P11.2 and P11.7 below each gained the items placed with them, dated. What this
+stage owes is the re-run rather than the repeat: the items that arrived after
+that date, and a check that the placements held — a placement is a routing, and
+[manual testing §10.1](05-manual-testing.md) is what a routing nobody re-reads
+turns into.
+
 **One additional review input:** [20 — client loading](../20-client-loading.md)
 records the early bundle-size baseline and expects growth through the intervening
 phases. Its §7 proposes this audit as the point to measure arrival and navigation
@@ -341,6 +352,18 @@ commitment; observed loading problems can bring it forward.
 than an export step, renditions inline where P9 produced them, HTML with a real
 print stylesheet plus Markdown and plain text. §1.4's fence enforced.
 
+**And two things placed here on 2026-09-11 because they share its formats.**
+The search surface, [10 §14](../10-ui-surfaces.md) — argued for 1.0 in the
+design, built server-side at P2 with the UI named as P3's, and never given a
+client: nothing in `packages/client` calls `GET /api/search`, and
+[P5.2](17-p5-implementation.md) said *"the surface for all three is §14.5's"*
+without saying whose §14.5 is. A hit lands on the reading view's addressable
+node, which is why they are one stage. And print and copy-as-Markdown for a
+lorebook, [10 §5.3](../10-ui-surfaces.md), which is the same print stylesheet
+and the same Markdown pass run over a different record. Both are the kind of
+cheap item §1.4 warns gets cut, so they are named here rather than left to
+P11.0 to rediscover.
+
 ### P11.2 — Editors are not dumb forms, across every editor
 
 [10 §11](../10-ui-surfaces.md) applied where P1's prototype editor, P2A's forms,
@@ -349,6 +372,17 @@ provenance ([10 §11.2](../10-ui-surfaces.md)), image slots, and
 [10 §11.2c](../10-ui-surfaces.md)'s entry-level import and export. The polish
 half of this is [polish §1–§2](06-polish.md)'s and lands there or here but not
 twice.
+
+**And the editors that have to exist before a contract can be applied across
+them.** [P7B](28-p7b-presets-and-prompts.md) brings presets and treatments;
+P7.4 writes setups through the wizard, which [10 §6](../10-ui-surfaces.md) makes
+the setup's editor by design; **packages have no editor and no other phase**,
+so the package editor is this stage's — a bundle's editor is a picker over the
+objects a user owns ([04 §9](../04-schemas.md)), and the exchange work already
+here is where it belongs. So is the lorebook entry's remainder: P5.1 left
+everything past the five core fields read-only on purpose, and P7's 2026-09-10
+re-audit, on its branch, found that *the five per-book retrieval knobs and the
+book-level `enabled` gate have real consumers and no write surface*.
 
 ### P11.3 — The assistant
 
@@ -381,6 +415,16 @@ and the error-message improvement that is the feature's actual value.
 `users/<h>/trash/`, history and all, so what is missing is the retention sweep
 and the restore UI ([03 §10.2](../03-data-model.md)). And §1.2's accessibility
 pass, which is an audit over surfaces built to the habit or it is a rewrite.
+
+**And the link table.** The reference counts [03 §10.1](../03-data-model.md)
+wants on this confirmation — *referenced by 12 sessions, 3 treatments and 1
+package* — need an inbound-links query the index does not have, and
+[P4 §6.6](16-p4-implementation.md) recorded it as one debt with
+[10 §5.2](../10-ui-surfaces.md)'s *Used by* panel: *"whichever phase builds
+that panel pays both."* This stage is already opening delete, so it pays both —
+the table, the counts, the panel, and *played alongside*
+([10 §5.3](../10-ui-surfaces.md)), which is the same query read from a
+lorebook. Placed 2026-09-11; nothing had named a phase before.
 
 ### P11.8 — The localisation sweep
 

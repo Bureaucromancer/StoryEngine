@@ -43,6 +43,7 @@ halves and refuses a work-plan file that has no name in the registry.
 | [14-p2c-log.md](14-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
 | [13-p2c-brief.md](13-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
 | [23-p7-implementation.md](23-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase. §0.1 is the readiness audit: the phase in front of us, with PLAYABLE the only thing before it |
+| [28-p7b-presets-and-prompts.md](28-p7b-presets-and-prompts.md) | P7B skeleton — presets and prompt handling into a usable state: the built-in pack as a library object, a preset editor, a treatment editor, a session-settings panel, and edit-a-block through the pack. Written 2026-09-11 while P7 runs on its branch, and **filed at 28 with its place at 24**, so nothing renumbers under P7's document until it merges |
 | [24-p8-implementation.md](24-p8-implementation.md) | P8 skeleton — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. Waits on three phases rather than on time |
 | [25-p9-implementation.md](25-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
 | [26-p10-implementation.md](26-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
@@ -64,7 +65,7 @@ beta does, because it is where the design starts being tested by use.
 record.** 07 through 20 are the phases that have landed, in the order they
 landed, each holding its stages struck through with what actually shipped
 against what was planned; several began as skeletons and were revised as their
-phases arrived. 23 through 27 are skeletons and will be filled in as each phase
+phases arrived. 23 through 27 are skeletons — and so is 28, filed out of order — and will be filled in as each phase
 approaches. **20 is the phase in front of us** — P6B, PLAYABLE three phases
 overdue, which [P7 §0.1](23-p7-implementation.md) found blocking its own demo as
 much as the checkpoint's; P7 follows it.
@@ -74,6 +75,15 @@ the date they were written, the lettered phases sat at the tail — P2A, P2B and
 P2C after P6, and P6A and P6B after P11 — so reading by number went forward to
 P6, back to P2A, forward to P11, and back again to two phases that run before
 it. Two backward jumps in one sequence.
+
+**One document is filed out of order on purpose, and says so.**
+[P7B](28-p7b-presets-and-prompts.md) belongs after P7 and before P8, which is
+24; taking that number renumbers P8 through P11 and repoints every citation to
+them, including the ones inside the P7 document a branch is editing. So it sits
+at the first free number, `PLAN_ORDER` in
+[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
+real position, and one scripted run after P7 merges moves it — the
+twenty-minute operation that script exists to make cheap.
 
 **Two phases are manual, and both carry a log.** P2C and P6B are the phases
 whose deliverable is *what a person saw*, so each has a findings log beside it —
@@ -110,21 +120,21 @@ document expected. It closed the way it opened, quickly: five stages in a day,
 the gate annotated the day after, and the twelve container steps left to a
 person, because there was no daemon on the machine that wrote it.
 
-**07 is the one written *half* ahead of its phase, and says so.** P5 sits behind
+**17 is the one written *half* ahead of its phase, and says so.** P5 sits behind
 PLAYABLE, which has not run — so it carries a readiness audit against the code,
 the decisions that audit forces, and four marked **[AWAITS PLAYABLE]** questions
 left deliberately open. That is the honest shape for a plan whose evidence is
 obtainable but not yet obtained, and it is a pattern worth reusing: a revisit
 that closes what it can and names what it cannot beats one that waits.
 A phase document is not a design document: where one contradicts the design, the
-design is what to fix first — and 14 §1 is that case, three documents describing
+design is what to fix first — and 10 §1 is that case, three documents describing
 a fallback layer no code implements.
 
 **Every phase through 1.0 has a document, and the far ones are deliberately
 thin.** There are no phase documents past 1.0 and that is deliberate too: the
 releases after it ([work plan §0](01-work-plan.md)) have scopes rather than phase
 breakdowns, because sequencing 2.0 against a substrate that does not exist yet
-would be the guessing this folder exists to avoid. 18 through 22 were written in
+would be the guessing this folder exists to avoid. 23 through 27 were written in
 one pass so that the phases after PLAYABLE have addresses rather than paragraphs
 in [work plan](01-work-plan.md) — but a skeleton five phases out is not a plan, and
 [P7 §0](23-p7-implementation.md) states in one place what all five are for:
@@ -134,7 +144,7 @@ is the load-bearing one. More than a dozen documents have sent something to P7
 alone, and a deferral nobody collects is a deferral that gets lost — which is
 the failure [work plan §2.3](01-work-plan.md) exists to prevent, read from the far end.
 
-**08 and 18 through 22 each gained a §0 and a §5 on 2026-08-31** — a readiness
+**18 and 23 through 27 each gained a §0 and a §5 on 2026-08-31** — a readiness
 note saying what is auditable *today* rather than on the day, and an honest-size
 section naming what only the revisit can settle. The deferral collections were
 checked first, against a sweep of every reference to each phase across both
@@ -148,14 +158,14 @@ bought more than P6's own text claimed, that a config key ships `unread` with
 this phase's name on it, and that three other phases had quietly handed P6
 decisions. None of that was visible from P6 alone.
 
-**A revisit is worth more than a first draft, and 05 is the evidence.** Its
+**A revisit is worth more than a first draft, and 15 is the evidence.** Its
 skeleton instructed itself to be re-read *against what the P2 turn record
 actually looks like on screen*; doing that found five things the record does not
 hold, two of which are one field each in P2's record rather than work for P3 —
 and one of those makes a testing invariant inexpressible. None of it was
 visible while the record was a design.
 
-**14 carries a §6 the others do not**, listing what
+**10 carries a §6 the others do not**, listing what
 [P2A](09-p2a-configuration-surface.md) has to settle before its remaining open
 questions can close. It is written to be read at the revisit rather than
 re-derived.
