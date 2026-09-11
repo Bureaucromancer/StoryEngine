@@ -425,8 +425,16 @@ workspace needs no edit. Everything else does:
    the same config file records F16 in its own docstring. Silent.
 2. `eslint.config.js:125`'s resolver glob `packages/*/tsconfig.json` misses the new
    tsconfig, and an unresolved import classifies as unknown and is **permitted**
-   (`eslint.rules.js:392-398`). Silent, and it disables the very rule this stage
-   exists to acquire.
+   (`eslint.rules.js:392-398`). ~~Silent, and it disables the very rule this stage
+   exists to acquire.~~ ***Overstated, measured at P7.0 on 2026-09-11:*** *the
+   second clause holds and the consequence does not. Narrowing the glob back to
+   one level changes nothing — no package here declares tsconfig `paths`, so the
+   `project` list has nothing to contribute and `@storyengine/*` resolves through
+   pnpm's symlinks either way. The edit is in as correctness ahead of need. What
+   the probe did establish is listed under P7.0 and is more useful than the item:
+   for a mode package the graph rule cannot see a forbidden import **by package
+   name** at all, because the forbidden package is not resolvable from there, and
+   the name ban is the only layer that catches it.*
 3. `eslint.config.js:257-260` applies `packageTestOverride` to shared, sdk, server
    and client and not to modes, so the blanket test-file block — which *replaces*
    rather than merges — would leave mode test files with no package-name ban at
@@ -443,7 +451,8 @@ workspace needs no edit. Everything else does:
 
 **So §1.1's *"it costs one directory move"* is the sentence this audit most wants
 struck.** The source move is small; the tooling around a new workspace package at
-a nested path is six edits across five files, two of which fail quietly.
+a nested path is six edits across five files, ~~two of which fail quietly~~
+**one of which fails quietly** (item 2, corrected above).
 
 **And dynamic registration is mandatory rather than optional, which §0.1 files
 too gently.** §0.1 calls the missing `registerMode` API *"P7.0's, with the
@@ -991,7 +1000,8 @@ directions.*** The rule is not aspirational: it has a fixture subject at
 passing assertion at `eslint-rules.test.ts:82-86`, so what P7.0 gives it is a
 *shipped* subject rather than a first one. And the move is not one directory
 move: `vitest.config.ts:130` and `eslint.config.js:125` are both one-level globs
-that a nested package does not match and that fail quietly, `Dockerfile:76`'s
+that a nested package does not match — the first fails quietly and the second
+turned out to cost nothing, see the correction under §0.1a item 2 — `Dockerfile:76`'s
 deploy filter copies only the server's dependency closure, and — the one that
 decides the shape of the stage — **`registry.ts:5`'s static import of the mode
 becomes a build error the moment Scene is a package**, because the boundary graph
@@ -1515,10 +1525,96 @@ seven files lean on can weaken all of them without failing anything. Drop the
 lore slots and `retrieve.test.ts` maps over nothing, compares a preset to itself
 and passes while asserting nothing.*
 
-**Next:** the tooling and the move, then the repo-shape check. §0.2 says which of
-these wait on PLAYABLE — none of them do.
+Then **Scene became a package**, which is the stage's title. `mode.ts`,
+`preset.ts` and `mode.test.ts` moved to `packages/modes/scene/src` as the same
+files with a changed import list — the narrowed promise this cell restates below,
+kept: `SE_CLOCK` became the literal `'se.clock'`, `Preset` arrives through
+`@storyengine/sdk`, and four assertions left. **None of the four was lost and
+none was about Scene alone.** They reached for `callPurposeFor`,
+`channelDefinition`, `planFor` and `installBuiltIns`, so each was an assertion
+about the *engine's* treatment of a declaration wearing Scene's name; the generic
+half is in `mode-registry.test.ts` over a mode invented for the purpose, the
+Scene-specific half in `mode-loader.test.ts`, which names Scene by id and imports
+nothing from it.
 
-`packages/modes/scene` created and populated by moving, not rewriting; `sdk`
+**The loader resolves a specifier held in a variable, and that is a decision
+rather than an evasion.** Written as a literal, `import('@storyengine/mode-scene')`
+is reported by `boundaries/dependencies` exactly as a static import would be —
+correctly, because the rule cannot tell a loader from a dependency. The two
+answers were an eslint exemption naming the one file, or genuinely not depending
+on the module at compile time; the second is *true*, since the engine has no type
+for what comes back and has to validate the shape at run time, which is what a
+host that will one day load a package off disk has to do anyway
+([22 §6–§7](../22-extensions.md)). The cost is stated in the file rather than
+discovered later: a specifier `tsc` cannot see is one it cannot check, so a
+renamed entry export breaks at startup and not at build. `mode-loader.test.ts`
+converts that class back into a red suite, and both of its cross-package pins —
+the entry export, and `SE_CLOCK` against the id Scene declares — were proven by
+mutating the built package.
+
+**§0.1a's item 6 resolved toward the loader.** The root `package.json` declares
+the shipped modes, because the root is the distribution; the Dockerfile deploys
+each into `/app/node_modules/` beside the server, because `pnpm deploy` walks one
+package's closure and the server's deliberately excludes them. A manifest edge in
+`packages/server/package.json` would have worked and would have put a mode in the
+server's dependencies, which is the one direction eslint cannot see.
+
+*The host half was rehomed with it, which gate step 1 means and does not say:
+`registry.ts` and `types.ts` were what five call sites actually consumed.
+`types.ts` is deleted — a re-export shim whose purpose was keeping import paths
+still, which the rehome moves anyway — and the other two are `mode-registry.ts`
+and `mode-loader.ts` at the top of `src/`.*
+
+Then **the directory staying gone became something that can fail** —
+`tools/repo-shape.test.ts`, seventeen assertions, and the negative half of §1.1's
+exit condition finally has the mechanism it was owed.
+
+#### Two of §0.1a's six tooling edits were checked by mutation, and one of them was overstated
+
+**Item 1 is real and is F16 verbatim.** With `vitest.config.ts`'s one-level glob
+restored, `vitest run --project packages packages/modes/scene/src/mode.test.ts`
+reports no tests and exits 0. A mode test would have linted, typechecked and never
+run.
+
+~~**Item 2**: *the resolver glob misses the new tsconfig, an unresolved import
+classifies as unknown and is permitted, so the missing glob would switch off the
+very rule this stage exists to acquire.*~~
+
+***Overstated, measured 2026-09-11.*** Narrowing `eslint.config.js`'s resolver
+glob back to one level changes **nothing**: a probe in `packages/modes/scene/src`
+reports identically on a relative reach into the server, a package-name import of
+it, and two permitted controls. No package in this workspace declares tsconfig
+`paths`, so the `project` list has nothing to contribute — `@storyengine/*`
+resolves through pnpm's symlinks and relative specifiers by path. The glob is in
+anyway, as correctness ahead of need, and the comment beside it now says which of
+those it is.
+
+**Item 3 was the quiet one, and the finding under it is worth more than the
+edit.** `packageTestOverride('modes')` was missing, and the blanket test-file
+block *replaces* rather than merges (F25), so every mode test file would have
+carried no package-name ban. That matters more than it looks, because writing the
+probe established this: **for a mode package the name ban is not a backup for the
+graph rule, it is the only layer that sees a forbidden import by name.**
+`@storyengine/server` is not resolvable from `packages/modes/scene` at all —
+nothing links it there, by design — and eslint-plugin-boundaries classifies an
+unresolvable dependency as unknown, which it permits. The graph rule's own case is
+the one no name ban can express: a **relative-path** reach into the server's
+source, which resolves and is therefore classified. `eslint.rules.js` calls the
+name ban "the second, dumber layer"; here the two layers are not a primary and a
+backup but a partition, and each probe in `tools/repo-shape.test.ts` asserts one
+layer against the input it can actually see.
+
+*An earlier draft asserted both layers on one package-name probe. It passed under
+vitest and failed as a standalone script over the identical file and config —
+which is worth recording because the divergence is unexplained and the assertion
+was in the file whose whole job is making a gate enforceable.*
+
+**Next:** P7.0's remaining half is the gate, not the code — §3.1's critical list
+C1/C2/C3 is walked by a person. §0.2 says which of the rest of the phase waits on
+PLAYABLE.
+
+~~`packages/modes/scene` created and populated by moving, not rewriting~~ **done
+2026-09-11**; `sdk`
 exporting the contract instead of re-exporting `shared` and nothing else;
 `eslint.rules.js`'s `modes → sdk, shared` policy acquiring a ~~subject~~
 **shipped subject** (§1.1 — it already has a fixture one, and it is green);
@@ -1548,11 +1644,19 @@ expected.
 
 *Ends at:* a deliberate bad import in the mode package failing the build **and
 `packages/server/src/modes/` gone, with a check that fails if it comes back**.
-The second half has no mechanism today: the eslint policy governs what
+~~The second half has no mechanism today: the eslint policy governs what
 `packages/modes/*` may import and nothing at all notices the directory
 reappearing, while §0 and §5 both call that the phase's deliverable. It is a
 repo-shape assertion in the `tools/lint-fixtures/ci-shape.test.ts` manner, and
-until it is written the negative half of the demo is unenforced.
+until it is written the negative half of the demo is unenforced.~~
+
+***Both halves built 2026-09-11.*** `tools/repo-shape.test.ts` is the second, in
+the manner this paragraph asked for and in `tools/` rather than in
+`lint-fixtures/` because its subject is the arrangement of packages rather than
+the lint rules. It also covers three drifts this paragraph did not name and
+neither `pnpm lint` nor `pnpm typecheck` can: a mode in the server's *manifest*
+(eslint reads imports, not manifests), a mode in the server's tsconfig
+references, and a built-in in the loader's list that the image does not deploy.
 
 ### P7.1 — Channels as a general mechanism
 
