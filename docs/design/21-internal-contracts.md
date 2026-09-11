@@ -161,6 +161,25 @@ type EffectOp =
   | { type: "increment"; path: string; by: number }
 ```
 
+***Four of the five arms are unimplemented, by decision rather than by backlog —
+recorded 2026-09-11 at [P7 §0.2](workplan/23-p7-implementation.md).*** `acceptEffect`
+throws a *programmer error* on anything but `set` at `/`, because `applyEffects`
+replaces the whole value at a key. The first candidate for a partial op was P7.2's
+party membership — a timeline that grows ([06 §8](06-modes-and-turn-pipeline.md))
+— and it turned out not to need one: `scopeKey` already partitions a channel's
+value, so an actor-scoped party makes each effect carry one actor's records
+instead of the party's history.
+
+**The reason to keep them unimplemented is §1.2.1's, not economy.** Whole-value
+replacement is what makes replay-from-zero equal snapshot-plus-replay by
+construction, and what makes an inverse a *swap*. Every partial op is a reducer —
+a second implementation of the value's semantics that the replay assertion has to
+be re-proved against and that `before` must be able to invert. So an arm is
+implemented when a channel genuinely needs it, and that channel first has to say
+why its value cannot be scoped instead. *The arms stay in the type because they
+are the vocabulary a channel would declare against; a type is cheaper to keep
+than a migration is to run.*
+
 #### 1.2.1 Why `before` is stored rather than derived
 
 It looks redundant — the previous state is replayable — and storing it makes

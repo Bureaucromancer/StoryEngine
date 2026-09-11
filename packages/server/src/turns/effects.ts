@@ -39,15 +39,33 @@ export function acceptEffect(
   running: Record<string, ChannelState>,
   supersedes: string | null = null,
 ): ChannelEffect {
-  // **Only a whole-value set, at P2.5.** `applyEffects` (`sessions/store.ts`)
-  // reads `op.path` for nothing but `delete` and replaces the entire channel
-  // value with `after`, so an `increment` carrying a sub-value would silently
-  // clobber the channel rather than adding to it. Refusing here is a programmer
-  // error rather than a rejected effect: nothing in P2 produces one, and the day
-  // something does, `applyEffects` is what has to change first.
+  /**
+   * **Only a whole-value set.** `applyEffects` (`sessions/store.ts`) reads
+   * `op.path` for nothing but `delete` and replaces the entire channel value
+   * with `after`, so an `increment` carrying a sub-value would silently clobber
+   * the channel rather than adding to it. Refusing here is a programmer error
+   * rather than a rejected effect: nothing produces one, and the day something
+   * does, `applyEffects` is what has to change first.
+   *
+   * ~~*at P2.5*~~ — **a decision rather than a stage's leftover since
+   * [P7 §0.2](../../../../docs/design/workplan/23-p7-implementation.md) item 6,
+   * 2026-09-11.** The first candidate for a partial op was P7.2's party
+   * membership, *"a timeline that grows"*, and it turned out not to need one:
+   * `scopeKey` already partitions a channel's value, so an actor-scoped party
+   * carries one actor's records per effect rather than the party's history.
+   *
+   * **And the reason to keep it this way is correctness rather than economy.**
+   * Whole-value replacement is what makes replay-from-zero equal
+   * snapshot-plus-replay *by construction* — the P6 gate — and what makes an
+   * inverse a swap rather than a computation. Every partial op is a reducer: a
+   * second implementation of the value's semantics that the gate has to be
+   * re-proved against and that `before` has to be able to invert. So an arm is
+   * implemented when a channel genuinely needs it, and that channel first has to
+   * say why its value cannot be scoped instead.
+   */
   if (proposal.op.type !== 'set' || proposal.op.path !== '/') {
     throw new Error(
-      `Only a whole-value set is applicable at P2.5; got ${proposal.op.type} at ` +
+      `Only a whole-value set is applicable; got ${proposal.op.type} at ` +
         `${'path' in proposal.op ? proposal.op.path : '?'}. See sessions/store.ts applyEffects.`,
     );
   }

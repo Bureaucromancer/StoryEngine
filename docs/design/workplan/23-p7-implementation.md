@@ -974,8 +974,43 @@ otherwise stop to argue about:
    wants a character dead on one branch and alive on the other *in the panel*, and
    a session made in a browser has no cast for the panel to be about. `pnpm seed`
    sets one; a person cannot.
-6. **`ChannelEffect.op`'s unimplemented arms** — decided before P7.2 designs the
-   party timeline's payload, per that stage.
+6. ~~**`ChannelEffect.op`'s unimplemented arms** — decided before P7.2 designs the
+   party timeline's payload, per that stage.~~ ***Decided 2026-09-11: they stay
+   unimplemented, and `scope` is what makes that hold.*** P7.2's cell poses it as
+   a choice between carrying the whole timeline in `before`/`after` on every
+   membership effect — O(party history) per effect, an unreadable log — and
+   implementing `append` first. **Neither, because the cost follows from the
+   scope rather than from the op.** A channel's value is already partitioned by
+   `scopeKey`; P5.5 built the composite key and P6 property-tested it. An
+   **actor-scoped** `se.party` makes each effect carry one actor's `PartyMember`
+   records — bounded by that actor's own join and leave count, one or two — and
+   `set` at `/` on a scope key stays sufficient. That also puts party on the same
+   scope vocabulary as presence and status, which P7.2 already introduces as the
+   first writers of `scope: 'actor'`.
+
+   **And the argument against a partial op is correctness, not cost.**
+   `applyEffects` replacing the whole value at a key is what makes
+   replay-from-zero equal snapshot-plus-replay *by construction* — the P6 gate —
+   and what makes an inverse a swap rather than a computation. Every partial op
+   is a **reducer**: a second implementation of the value's semantics that the
+   gate has to be re-proved against and that `before` has to be able to invert.
+   Affordable for a channel that genuinely needs one; not affordable as a
+   speculative arm, and this is the shape [P2 §2.7](08-p2-implementation.md)
+   rejected under a different name.
+
+   *What reopens it, stated so the decision is falsifiable:* a channel whose
+   value is unbounded **within one scope key** and written often. Nothing at 1.0
+   has one. So an arm is implemented when a channel needs it, and that channel
+   first has to say why its value cannot be scoped instead — and
+   `acceptEffect`'s throw already names what changes first.
+
+   *What this does not settle, which is now a payload question rather than a
+   vocabulary one:* the **narrator selection** is session-wide, so an
+   actor-scoped `se.party` has nowhere to put it. Either it is a per-actor flag
+   with an "exactly one" invariant the fold checks, or it is a second channel.
+   P7.2 owns that, and it is a question about where a value lives rather than
+   about what an effect can express — which is the whole point of deciding this
+   cold.
 7. ~~**03 §8's `MentionSpan`**, which is §1.7's forbidden shape written into the
    data model (§1.7).~~ **Done 2026-09-11, and the three shapes are now one.**
    03 §8 carries `TextSpan` with a **tagged** `target` — one arm, `actor`, at 1.0
@@ -1782,7 +1817,19 @@ change first."* Party membership is a timeline that grows
 ([06 §8](../06-modes-and-turn-pipeline.md)), so this stage either carries the
 **whole timeline** in `before`/`after` on every membership effect — which makes
 each effect O(party history) and the effect log unreadable — or it implements
-`append` first. **Decide before the payload is designed**, not inside the stage.
+`append` first. ~~**Decide before the payload is designed**, not inside the
+stage.~~
+
+***Decided 2026-09-11 and the answer is neither, which §0.2 item 6 carries in
+full.*** The O(history) cost follows from making `se.party` **session**-scoped,
+not from the op vocabulary: an actor-scoped party makes each effect carry one
+actor's `PartyMember` records, and `set` at `/` on a scope key stays sufficient.
+That puts party on the same scope vocabulary as presence and status, which this
+stage already introduces as `scope: 'actor'`'s first writers — so the arm
+stopping being a declaration does *three* concepts' work rather than two. **What
+this stage still owes is the narrator selection**, which is session-wide and has
+nowhere to sit in an actor-scoped channel: a per-actor flag with an "exactly one"
+invariant, or a second channel.
 
 *And `scope: 'actor'` has never had a writer: the scoped-key machinery
 P5.5 built and P6 property-tested is proved by `scope: 'entry'` alone. Presence
