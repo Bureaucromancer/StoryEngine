@@ -45,7 +45,7 @@ export interface ClockValue {
 export const SE_CLOCK = 'se.clock';
 
 /**
- * ~~The clock's definition~~ — **moved to `packages/.../modes/scene/mode.ts` at
+ * ~~The clock's definition~~ — **moved to `packages/modes/scene/src/mode.ts` at
  * [P7.0]**, because Scene is its `owner` and a mode that cannot own the channel
  * it declares is a mode whose declaration is decoration. The id stays here: the
  * engine advances the clock after the step loop and needs to name it, and an id
@@ -105,7 +105,7 @@ export const LORE_TIMING_CHANNEL: ChannelDefinition = {
  *
  * **Modes register their own as of [P7.0], which is what that last sentence was
  * waiting for.** It was a frozen record built from static imports, and
- * `modes/scene/mode.ts` said the consequence plainly: listing `se.clock` in its
+ * Scene's `mode.ts` said the consequence plainly: listing `se.clock` in its
  * `channels` "documents what Scene uses and does not *enable* it", because
  * effect application resolved a channel from this module rather than from the
  * running mode. So the declaration was inert and the engine owned a channel a

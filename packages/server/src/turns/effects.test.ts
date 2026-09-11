@@ -13,7 +13,7 @@ import {
 } from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
 import type { ChannelState } from '../sessions/types.js';
-import { installBuiltIns } from '../modes/built-ins.js';
+import { installBuiltIns } from '../mode-loader.js';
 import { acceptEffect, type EffectProposal } from './effects.js';
 
 /**
@@ -42,8 +42,8 @@ function proposal(overrides: Partial<EffectProposal> = {}): EffectProposal {
 describe('a proposal is judged against the channel that owns it', () => {
   // Channels are registered rather than frozen into the engine since [P7.0], so
   // a test that needs one asks for the built-ins the way `buildServices` does.
-  beforeEach(() => {
-    installBuiltIns();
+  beforeEach(async () => {
+    await installBuiltIns();
   });
 
   it('applies an engine proposal to an engine-computed channel', () => {

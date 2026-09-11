@@ -40,7 +40,7 @@ import { gatherAssemblyInputs } from './gather.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
-import { planFor } from '../modes/registry.js';
+import { planFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 /**

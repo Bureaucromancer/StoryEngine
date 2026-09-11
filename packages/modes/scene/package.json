@@ -1,0 +1,23 @@
+{
+  "name": "@storyengine/mode-scene",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "Scene — the built-in narrator mode, as a package that consumes the SDK exactly as a third party would.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@storyengine/sdk": "workspace:*"
+  },
+  "dependencyNote": "One dependency, and that is the claim docs/design/19-tech-stack.md §10 makes: a built-in mode consumes the published SDK exactly as a third party would. `@storyengine/shared` is reachable through the SDK's re-export and is deliberately not listed — two paths to one vocabulary is how the second one stops being the contract."
+}

@@ -29,7 +29,7 @@ import {
   undoTurn,
   type BranchRefOutcome,
 } from '../sessions/store.js';
-import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
+import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';

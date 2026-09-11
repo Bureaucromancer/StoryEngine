@@ -122,7 +122,30 @@ export default tseslint.config(
         typescript: {
           alwaysTryTypes: true,
           noWarnOnMultipleProjects: true,
-          project: ['packages/*/tsconfig.json'],
+          // **Both levels, because mode packages are nested** — [P7.0]. The
+          // one-level glob does not find `packages/modes/scene/tsconfig.json`.
+          //
+          // **What this is worth was measured rather than reasoned, and it is
+          // worth less than P7 §0.1a billed.** That audit called the missing
+          // glob a silent disabling of the boundary rule, on the argument that
+          // an unresolved import classifies as `unknown` and an unknown import
+          // is permitted. The second half is true. The first is not, here: with
+          // the glob narrowed back to one level, a probe file in
+          // `packages/modes/scene/src` reports *identically* on all four cases
+          // that matter — a relative reach into the server, a package-name
+          // import of it, and two permitted controls. No package in this
+          // workspace declares tsconfig `paths`, so the `project` list has
+          // nothing to contribute: `@storyengine/*` resolves through pnpm's
+          // symlinks and relative specifiers resolve by path.
+          //
+          // So this is correctness ahead of need rather than a hole being
+          // closed, and it should not be cited as the thing that makes
+          // `modes → server` a lint error. The two layers in `eslint.rules.js`
+          // are, and `tools/repo-shape.test.ts` is what pins which layer catches
+          // which case. The day a package does declare `paths`, the omission
+          // would be silent in exactly the direction that file worries about,
+          // which is why the glob is here and not merely noted.
+          project: ['packages/*/tsconfig.json', 'packages/modes/*/tsconfig.json'],
         },
         node: true,
       },
@@ -258,6 +281,12 @@ export default tseslint.config(
   packageTestOverride('sdk', 'packages/sdk'),
   packageTestOverride('server', 'packages/server'),
   packageTestOverride('client', 'packages/client'),
+  // Nested, so the directory argument carries a `*`. Without this row the
+  // blanket test-file block above — which *replaces* a rule's options rather
+  // than merging them (F25) — would leave every mode test file with no
+  // package-name ban at all, which is the layer that survives the resolver
+  // failing.
+  packageTestOverride('modes', 'packages/modes/*'),
 
   // **The router's redirect is control flow, not an error.** TanStack Router's
   // `redirect()` returns a signal the router catches and turns into a

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { TEST_MODE } from '../test-mode.js';
-import type { Mode } from '../modes/types.js';
+import type { Mode } from '@storyengine/sdk';
 import type { StepDefinition } from './steps.js';
 import { previewStepFor } from './preview.js';
 

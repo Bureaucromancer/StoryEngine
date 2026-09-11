@@ -21,7 +21,7 @@ import {
   SE_LORE_TIMING,
   splitChannelKey,
 } from './channels.js';
-import { installBuiltIns } from '../modes/built-ins.js';
+import { installBuiltIns } from '../mode-loader.js';
 import { walkPath } from './segments.js';
 import {
   appendTurnToSession,
@@ -56,7 +56,7 @@ beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-channels-'));
   // Channels are registered rather than frozen into the engine since [P7.0], so
   // a test that needs one asks for the built-ins the way `buildServices` does.
-  installBuiltIns();
+  await installBuiltIns();
 
   index = await openIndex({ path: ':memory:' });
   context = { layout: new Layout(dataDir), index: index.db };

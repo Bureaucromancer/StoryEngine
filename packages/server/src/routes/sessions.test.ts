@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor, newPreset } from '@storyengine/shared';
 
-import { defaultMode } from '../modes/registry.js';
+import { defaultMode } from '../mode-registry.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';

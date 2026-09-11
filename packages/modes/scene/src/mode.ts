@@ -11,13 +11,12 @@ import type {
   StepResult,
 } from '@storyengine/sdk';
 
-import { SE_CLOCK } from '../../sessions/channels.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
  * Scene — the P2 mode, and it is **allowed to be embarrassingly small**.
  *
- * [P2 §5](../../../../../docs/design/workplan/08-p2-implementation.md) draws the line in as many
+ * [P2 §5](../../../../docs/design/workplan/08-p2-implementation.md) draws the line in as many
  * words: *a second step, a channel with a widget, a participant policy — each is
  * small and each belongs to P7, where the contract is tested by two real modes
  * rather than grown one convenience at a time.* So the interesting thing about
@@ -26,14 +25,22 @@ import { SCENE_PRESET } from './preset.js';
  * Everything here is data except `narrate`, which is one host call. The mode
  * does no I/O and holds no handle.
  *
- * **It reaches for exactly one thing under `server/`, and that is the whole of
- * what is left of the move** — [P7.0](../../../../../docs/design/workplan/23-p7-implementation.md).
- * Its types now come from `@storyengine/sdk`, which is what `modes/contract.ts`
- * existed to enumerate and why that file is gone. What remains is
- * `CLOCK_CHANNEL`, a **value**: the engine's channel registry is still a frozen
- * record built from static imports, so the mode cannot yet own the channel it
- * declares. Inverting that registry is the next commit, and it is the last thing
- * between this file and a package.
+ * ~~**It reaches for exactly one thing under `server/`**~~ — **it reaches for
+ * nothing under `server/`, because there is no `server/` above it any more**
+ * ([P7.0](../../../../docs/design/workplan/23-p7-implementation.md)). This file
+ * is in `packages/modes/scene`, and the only package it may import is
+ * `@storyengine/sdk`; the boundary graph in `eslint.rules.js` makes anything
+ * else a lint failure and `tsconfig.json`'s single project reference makes it a
+ * build error. That is [19 §10](../../../../docs/design/19-tech-stack.md)'s
+ * *"cheapest possible enforcement of the design's central bet"* actually
+ * enforcing something.
+ *
+ * **Nothing here is conditional on being a built-in.** [22 §4.1](../../../../docs/design/22-extensions.md)
+ * says built-ins go through the same boundary as anything a third party writes,
+ * *"the moment built-ins run differently, they start relying on shared
+ * references and the contract drifts without anyone noticing"* — so the only
+ * thing that distinguishes this package from an installed extension is that the
+ * distribution ships it.
  */
 
 export const SCENE_ID = 'storyengine.scene';
@@ -48,9 +55,20 @@ export const SCENE_ID = 'storyengine.scene';
  * is what changed — `registerMode` installs a mode's declared channels — and the
  * type coming from `@storyengine/sdk` is what made it possible, because the
  * `const` cycle that argument turned on cannot form across a third package.
+ *
+ * **The id is a literal here and a literal in the engine, and that is not a
+ * duplication to be tidied away.** `sessions/channels.ts` keeps `SE_CLOCK`
+ * because it advances the clock after the step loop and has to name it; this
+ * package cannot import that constant and would not want to, since a third
+ * party writing the same channel would have nothing to import either. An id is
+ * *content* — it lands in `session.json` and in the effect log — so the two
+ * literals are two spellings of one piece of content, pinned together by
+ * `mode-loader.test.ts`, which loads the built-ins and asserts the engine's
+ * `SE_CLOCK` resolves to a channel owned by the default mode. That check needs
+ * no import in either direction, which is exactly why it can exist.
  */
 export const CLOCK_CHANNEL: ChannelDefinition = {
-  id: SE_CLOCK,
+  id: 'se.clock',
   owner: SCENE_ID,
   version: 1,
   // Engine-computed: the model does not get to decide what time it is. That is
@@ -112,13 +130,12 @@ export const SCENE: ModeDefinition = {
   assembly: { defaultPreset: SCENE_PRESET, historyWindow: 20 },
   steps: [NARRATE],
   /**
-   * **A declaration the engine does not yet consult, and this is the honest
-   * place to say so.** Effect application resolves a channel from the
-   * module-global registry in `sessions/channels.ts`, not from the running
-   * mode — so listing `se.clock` here documents what Scene uses and does not
-   * *enable* it. Making the registry mode-derived is the change that would give
-   * this field teeth, and it belongs with P7's second real mode, where a mode
-   * with a channel of its own can prove it.
+   * ~~**A declaration the engine does not yet consult**~~ — **consulted since
+   * [P7.0]**: `registerMode` installs a mode's declared channels, so this array
+   * is what makes `se.clock` a channel effect application will accept rather
+   * than a note about one. The old text is worth keeping because it names the
+   * thing the move fixed: a declaration nothing reads is decoration, and this
+   * one was decoration for five stages.
    */
   channels: [CLOCK_CHANNEL],
   /**

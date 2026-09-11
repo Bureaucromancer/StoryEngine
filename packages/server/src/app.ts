@@ -46,8 +46,8 @@ import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
-import { installBuiltIns } from './modes/built-ins.js';
-import { assertModesRunnable } from './modes/registry.js';
+import { installBuiltIns } from './mode-loader.js';
+import { assertModesRunnable } from './mode-registry.js';
 import {
   reconcile,
   reconcileSession,
@@ -274,8 +274,13 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * after it — and `assertModesRunnable` now refuses a build that registered
    * nothing, which is the failure the split makes possible and therefore the
    * one it has to catch.
+   *
+   * *Awaited, because the first call resolves mode packages by specifier.* The
+   * `await` is load-bearing in the way an easy one is not: dropped, the proof
+   * below runs against an empty registry and every start-up fails with "No
+   * modes are registered", which is at least the right kind of noisy.
    */
-  installBuiltIns();
+  await installBuiltIns();
   assertModesRunnable();
 
   const layout = new Layout(options.config.dataDir);

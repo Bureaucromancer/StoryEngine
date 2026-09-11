@@ -75,6 +75,26 @@ RUN node tools/write-build-info.mjs --commit "$COMMIT" \
 # somebody has to remember.
 RUN pnpm --filter @storyengine/server --legacy deploy --prod /app
 
+# **The modes are deployed beside the server, not through it** — P7.0.
+#
+# `pnpm deploy` walks one package's dependency closure, and a mode package is
+# deliberately not in the server's: docs/design/19-tech-stack.md §10 makes
+# "built-in modes consume the SDK and not the server" a build error, and a
+# manifest edge would have been the one direction the lint rules cannot see.
+# `mode-loader.ts` resolves each by bare specifier at run time instead, so what
+# the image owes it is the package on the server's resolution path — which is
+# what deploying into `/app/node_modules/<name>` is. Nothing in `/app/dist`
+# imports it; Node finds it the same way it finds any other dependency.
+#
+# **One `RUN` per mode, on purpose.** A loop over a list would be a third place
+# the shipped set is written — after the root `package.json` and
+# `mode-loader.ts`'s `BUILT_IN_MODE_PACKAGES` — and the failure it would hide is
+# the one that matters: a mode in the loader's list and not in the image starts a
+# server that refuses every turn. Explicit lines make the omission visible in a
+# diff, and `mode-loader.test.ts` is what catches it before the diff.
+RUN pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
+    /app/node_modules/@storyengine/mode-scene
+
 # The client is a separate package and not a dependency of the server, so it is
 # copied rather than deployed. `SE_CLIENT_ROOT` below points at it.
 RUN cp -r packages/client/dist /app/client

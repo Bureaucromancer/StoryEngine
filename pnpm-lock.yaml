@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@storyengine/mode-scene':
+        specifier: workspace:*
+        version: link:packages/modes/scene
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -105,6 +109,12 @@ importers:
       '@testing-library/user-event':
         specifier: 14.6.4
         version: 14.6.4(@testing-library/dom@10.4.1)
+
+  packages/modes/scene:
+    dependencies:
+      '@storyengine/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
 
   packages/sdk:
     dependencies:

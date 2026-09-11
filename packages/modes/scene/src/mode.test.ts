@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { validate } from '@storyengine/shared';
+import { validate } from '@storyengine/sdk';
 
-import { callPurposeFor } from '../../turns/steps.js';
-import { channelDefinition } from '../../sessions/channels.js';
-import { installBuiltIns } from '../built-ins.js';
-import { assertModesRunnable, DEFAULT_MODE_ID, modeById, planFor } from '../registry.js';
-import { NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
+import { modes } from './index.js';
+import { CLOCK_CHANNEL, NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -20,6 +17,21 @@ import { SCENE_PRESET } from './preset.js';
  * is what caught `SlotSource` missing the `guidance` arm that [06 §5.1] requires
  * a preset to be able to position. And **the mode is data**: a manifest with a
  * function on it would be the back door §2 says means the contract is wrong.
+ *
+ * **Four assertions left this file at [P7.0] and none of them was lost.** They
+ * reached into the engine — `callPurposeFor`, `channelDefinition`, `planFor`,
+ * `installBuiltIns` — and a mode package may not, which is the boundary doing
+ * its job rather than an inconvenience to route around. Each was really an
+ * assertion about the *engine's* treatment of a declaration, so each moved to
+ * where the engine is: the generic half to `mode-registry.test.ts`, the
+ * Scene-specific half to `mode-loader.test.ts`, which names Scene by id and
+ * imports nothing from here. What is left is the half that was always about
+ * Scene — what it declares, and whether the preset it ships is a real object.
+ *
+ * *`validate` arrives through `@storyengine/sdk` rather than from
+ * `@storyengine/shared` directly. Both are permitted by the boundary graph; one
+ * is permitted by the package manifest, which lists a single dependency because
+ * that is the claim 19 §10 makes about a built-in mode.*
  */
 
 describe('the manifest is data', () => {
@@ -178,26 +190,36 @@ describe('the default preset is a real portable object', () => {
 
 describe('what Scene declares, and what the engine does with it', () => {
   it('makes its one step a prose call, which is what admits guidance', () => {
-    // One `writes` entry here would turn every guidance-carrying turn into an
-    // AdvisoryLeakError abort — [06 §5.2] working as designed, and worth
-    // pinning before somebody adds a channel to the step.
-    expect(callPurposeFor(NARRATE)).toBe('prose');
+    // **The pair, not the verdict.** `callPurposeFor` is engine code and lives
+    // on the other side of the boundary, so what this file can pin is the input
+    // it reads: `contributes: 'messages'` with an empty `writes` is what yields
+    // `prose` and admits the guidance block. One `writes` entry here would turn
+    // every guidance-carrying turn into an `AdvisoryLeakError` abort — [06 §5.2]
+    // working as designed, and worth pinning before somebody adds a channel to
+    // the step.
+    //
+    // That the pair *means* prose is the engine's claim and the engine asserts
+    // it, over its own fixture, in `test-mode.test.ts`. Splitting it this way is
+    // what the boundary is for: neither half restates the other's business.
+    expect(NARRATE.contributes).toBe('messages');
+    expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares se.clock, and registering the mode is what enables it', () => {
-    // **Was "the engine still resolves channels globally", which was an honest
-    // record of a gap rather than a pinned inversion** — `channels` documented
-    // what Scene used while effect application read a module-global frozen
-    // record, so the declaration enabled nothing. [P7.0] closed it: `registerMode`
-    // installs a mode's declared channels, which is what the old comment said
-    // would give the field teeth.
-    installBuiltIns();
-
-    expect(SCENE.channels.map((channel) => channel.id)).toEqual(['se.clock']);
+  it('declares se.clock, and owns it', () => {
+    // **Was "registering the mode is what enables it", asserted through the
+    // engine's channel lookup** — which this package can no longer reach, and
+    // should not: that a registered mode's declared channels become resolvable
+    // is a property of `registerMode`, true of every mode, and it is asserted
+    // once in `mode-registry.test.ts` over a mode invented for the purpose.
+    //
+    // What is Scene's own is the declaration: one channel, this id, this owner.
+    // The two literals — `se.clock` here, `SE_CLOCK` in `sessions/channels.ts` —
+    // are pinned to each other by `mode-loader.test.ts`, which loads the
+    // built-ins and looks the engine's constant up. Neither side imports the
+    // other, which is why that check can exist at all.
+    expect(SCENE.channels).toEqual([CLOCK_CHANNEL]);
+    expect(CLOCK_CHANNEL.id).toBe('se.clock');
     for (const channel of SCENE.channels) expect(channel.owner).toBe(SCENE_ID);
-    // The lookup resolves to the very object Scene declared, which is the whole
-    // claim: the definition comes from the mode now, not from beside the engine.
-    for (const channel of SCENE.channels) expect(channelDefinition(channel.id)).toBe(channel);
   });
 
   it('ships its empty fields empty, and its one-armed fields at one arm', () => {
@@ -226,40 +248,25 @@ describe('what Scene declares, and what the engine does with it', () => {
   });
 });
 
-describe('the registry', () => {
-  // Registration is a call rather than an import since [P7.0], so a test that
-  // wants a populated registry asks for one — the same way `buildServices`
-  // does, which is what keeps the two honest about each other.
-  beforeEach(() => {
-    installBuiltIns();
+describe('what the package hands a host', () => {
+  /**
+   * **The entry contract, and it is the one thing here nothing else can check.**
+   *
+   * `mode-loader.ts` resolves this package by a bare specifier held in a
+   * variable and reads `modes` off the namespace by name. It cannot import the
+   * type — that is the boundary — so it validates the shape at runtime and
+   * throws naming the specifier. Which means a rename of this export is a
+   * *startup* failure in the server rather than a compile failure anywhere, and
+   * this is the side of the boundary that can still catch it cheaply.
+   */
+  it('exports the modes it ships, under the key the host reads', () => {
+    expect(modes).toEqual([SCENE_MODE]);
   });
 
-  it('builds a runnable plan for every registered mode', () => {
-    expect(() => {
-      assertModesRunnable();
-    }).not.toThrow();
-    expect(planFor(SCENE_MODE).steps.map((step) => step.definition.id)).toEqual([NARRATE.id]);
-  });
-
-  it('refuses a mode that declares a step it cannot run', () => {
-    // A plan silently short one step is a turn that quietly narrates nothing,
-    // which reads as a bad model rather than a broken build.
-    expect(() => planFor({ definition: SCENE, run: {} })).toThrow(/no implementation/);
-  });
-
-  it('names Scene as the default, and knows it by id', () => {
-    // `DEFAULT_MODE_ID` is a literal in the registry now, because the server may
-    // not import a mode once the mode is a package. This is the test the
-    // registry's docstring promises: the two are pinned together here rather
-    // than by a shared constant.
-    expect(DEFAULT_MODE_ID).toBe(SCENE_ID);
-    expect(modeById(SCENE_ID)).toBe(SCENE_MODE);
-  });
-
-  it('installs the built-ins idempotently, so asking twice is asking once', () => {
-    installBuiltIns();
-    installBuiltIns();
-
-    expect(modeById(SCENE_ID)).toBe(SCENE_MODE);
+  it('ships exactly one, so the array is a shape rather than a plan', () => {
+    // [22 §6]'s manifest says `modes` and means a list; Scene is one mode and is
+    // expected to stay one. A second arriving here is a design change, not a
+    // refactor, and this is where it announces itself.
+    expect(modes).toHaveLength(1);
   });
 });

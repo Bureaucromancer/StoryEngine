@@ -6,7 +6,7 @@ import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@stor
 import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
-import type { Mode } from '../modes/types.js';
+import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { StepDefinition } from './steps.js';

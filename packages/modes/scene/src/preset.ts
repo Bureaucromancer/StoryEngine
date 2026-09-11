@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Preset } from '@storyengine/shared';
+import type { Preset } from '@storyengine/sdk';
 
 /**
  * Scene's default prompt pack — a real, valid portable `Preset`.

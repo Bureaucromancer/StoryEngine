@@ -2,8 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Accounts } from '../auth/accounts.js';
-import { DEFAULT_MODE_ID, defaultMode, modeById } from '../modes/registry.js';
-import type { Mode } from '../modes/types.js';
+import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
+import type { Mode } from '@storyengine/sdk';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { RoleBindings } from '../providers/roles.js';
 import type { Connection } from '../providers/connections.js';

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { defaultMode } from '../modes/registry.js';
+import { defaultMode } from '../mode-registry.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { registerChannel } from '../sessions/channels.js';
-import type { TurnPlan } from '../turns/steps.js';
-import type { Mode } from './types.js';
+import type { Mode } from '@storyengine/sdk';
+
+import { registerChannel } from './sessions/channels.js';
+import type { TurnPlan } from './turns/steps.js';
 
 /**
  * Which modes this build knows — [06 §2].
@@ -23,13 +24,18 @@ import type { Mode } from './types.js';
  *
  * **This file now knows no mode at all**, which is the property worth keeping:
  * it holds a map, a lookup and a proof, and something else decides what goes in.
- * That something is [`built-ins.ts`](./built-ins.ts) — the one file that reaches
- * for a mode, and therefore the one file the move rewrites.
+ * *It also no longer lives in a directory called `modes/`*: the host half and the
+ * mode were neighbours for five stages, and [P7.0] ends with
+ * `packages/server/src/modes/` gone and a repo-shape check that fails if it
+ * comes back, because a directory with that name beside the engine is where a
+ * mode ends up next time somebody is in a hurry.
+ * That something is [`mode-loader.ts`](./mode-loader.ts) — the one file that
+ * reaches for a mode, and, since the move, the one file in the server that can.
  *
  * *Mutable rather than an instance threaded through every caller, deliberately.*
  * What P7 needs is that the registry stops being populated by a static import;
  * whether mode availability is ever **scoped** — per install, per account — is
- * [P10](../../../../docs/design/workplan/26-p10-implementation.md)'s, with
+ * [P10](../../../docs/design/workplan/26-p10-implementation.md)'s, with
  * extension installation, and inventing the scoping now would be exactly the
  * shape the struck paragraph above warned against building early.
  */
@@ -49,7 +55,7 @@ export function registerMode(mode: Mode): void {
   registered.set(mode.definition.id, mode);
   /**
    * **And its channels, which is what gives `ModeDefinition.channels` teeth.**
-   * The field has existed since P2.6 and `modes/scene/mode.ts` said what it was
+   * The field has existed since P2.6 and Scene's `mode.ts` said what it was
    * worth: listing a channel there "documents what Scene uses and does not
    * *enable* it", because effect application resolved a definition from the
    * engine's own frozen record. Registering here is the inversion that sentence

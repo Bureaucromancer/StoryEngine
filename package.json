@@ -31,6 +31,10 @@
     "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run --project live",
     "typecheck": "tsc -b --force && tsc -p tsconfig.tools.json"
   },
+  "dependenciesNote": "The distribution's mode packages, and the root is where they belong. `mode-loader.ts` resolves each by bare specifier at run time, which needs the package linked somewhere on the server's resolution path; declaring it in `packages/server/package.json` would put it there too and would also make the server's manifest say it depends on a mode, which is the edge docs/design/19-tech-stack.md §10 exists to forbid. The root is the distribution — it is what `pnpm build` builds and what the Dockerfile copies — so this is the honest place to say which modes ship. The image says it a second time, in its own deploy steps, because `pnpm deploy` walks one package's dependency closure and the server's does not include these.",
+  "dependencies": {
+    "@storyengine/mode-scene": "workspace:*"
+  },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@tailwindcss/vite": "4.3.3",

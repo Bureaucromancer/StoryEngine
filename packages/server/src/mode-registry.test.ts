@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The registry as a thing you write to — [P7.0](../../../../docs/design/workplan/23-p7-implementation.md).
+ * The registry as a thing you write to — [P7.0](../../../docs/design/workplan/23-p7-implementation.md).
  *
  * **Loaded fresh per test, which is the only way to see an empty one.** The map
  * is a module global, so every other test in the suite has already put Scene in
@@ -22,8 +22,8 @@ describe('the mode registry', () => {
     vi.resetModules();
   });
 
-  async function freshRegistry(): Promise<typeof import('./registry.js')> {
-    return import('./registry.js');
+  async function freshRegistry(): Promise<typeof import('./mode-registry.js')> {
+    return import('./mode-registry.js');
   }
 
   it('knows nothing until something registers a mode', async () => {
@@ -92,7 +92,7 @@ describe('the mode registry', () => {
     // nothing — effect application resolved a definition from a frozen record
     // beside the engine.
     const registry = await freshRegistry();
-    const channels = await import('../sessions/channels.js');
+    const channels = await import('./sessions/channels.js');
     const mode = fakeMode('example.quiet');
     const declared = {
       id: 'example.mood',
@@ -144,7 +144,7 @@ function step(id: string): import('@storyengine/sdk').StepDefinition {
   };
 }
 
-function fakeMode(id: string): import('./types.js').Mode {
+function fakeMode(id: string): import('@storyengine/sdk').Mode {
   const narrate = step(`${id}.narrate`);
   return {
     definition: {
@@ -156,7 +156,7 @@ function fakeMode(id: string): import('./types.js').Mode {
       presets: [],
       participants: { select: 'fixed', maxActors: 1 },
       assembly: {
-        defaultPreset: {} as import('./types.js').ModeDefinition['assembly']['defaultPreset'],
+        defaultPreset: {} as import('@storyengine/sdk').ModeDefinition['assembly']['defaultPreset'],
         historyWindow: 20,
       },
       steps: [narrate],
