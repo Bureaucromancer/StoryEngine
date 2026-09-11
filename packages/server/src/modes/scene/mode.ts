@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type {
+  Mode,
+  ModeDefinition,
+  StepDefinition,
+  StepHost,
+  StepInput,
+  StepResult,
+} from '@storyengine/sdk';
+
 import { CLOCK_CHANNEL } from '../../sessions/channels.js';
-import type { Mode, ModeDefinition } from '../types.js';
-import type { StepDefinition, StepHost, StepInput, StepResult } from '../contract.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -16,8 +23,16 @@ import { SCENE_PRESET } from './preset.js';
  * this file is what is **not** in it.
  *
  * Everything here is data except `narrate`, which is one host call. The mode
- * does no I/O, holds no handle, and reaches for nothing under `server/` that
- * [`../contract.ts`](../contract.ts) does not name.
+ * does no I/O and holds no handle.
+ *
+ * **It reaches for exactly one thing under `server/`, and that is the whole of
+ * what is left of the move** — [P7.0](../../../../../docs/design/workplan/23-p7-implementation.md).
+ * Its types now come from `@storyengine/sdk`, which is what `modes/contract.ts`
+ * existed to enumerate and why that file is gone. What remains is
+ * `CLOCK_CHANNEL`, a **value**: the engine's channel registry is still a frozen
+ * record built from static imports, so the mode cannot yet own the channel it
+ * declares. Inverting that registry is the next commit, and it is the last thing
+ * between this file and a package.
  */
 
 export const SCENE_ID = 'storyengine.scene';

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { ChannelDefinition } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
 import type { ChannelEffect, ChannelState, Turn } from './types.js';
@@ -20,40 +21,19 @@ import type { ChannelEffect, ChannelState, Turn } from './types.js';
  */
 
 /**
- * What a channel declares about itself — [21 §1.3](../../../../docs/design/21-internal-contracts.md).
+ * `ChannelDefinition` moved to `@storyengine/sdk` at [P7.0], and the move is
+ * what dissolves the cycle the rest of this file keeps apologising for.
  *
- * **Deliberately short of the documented type.** `init: InitPolicy` and
- * `surface?: WidgetSpec` are in that section and are named in
- * [21 §6](../../../../docs/design/21-internal-contracts.md) as *deliberately still absent* —
- * they want the mode contract built first, which is P2.6. Writing a guess at
- * them here would be the one thing worse than leaving them out: a shape other
- * code starts depending on before the section that owns it exists.
+ * The clock's definition sits here rather than in the mode because
+ * `retrieval/timing.ts` needs the *type* and a mode importing the *value* while
+ * this module imported the mode would be a `const` cycle — a TDZ
+ * `ReferenceError` at load. With the type in a third package neither side
+ * imports, that constraint is gone: a mode can declare its own channels and the
+ * engine can read them. `CLOCK_CHANNEL` travels with Scene when Scene becomes a
+ * package; the arguments below are kept because they are the record of why it
+ * could not before.
  */
-export interface ChannelDefinition {
-  id: string;
-  /**
-   * Who owns this channel — a mode, an extension, or a package
-   * ([06 §4.1](../../../../docs/design/06-modes-and-turn-pipeline.md)).
-   *
-   * **Added with the first channel definition, which is what §4.1 asks for.**
-   * That section names accepting a package id as one of two things 1.0 owes
-   * *from the first channel definition written*, because widening it afterwards
-   * is a migration over every stored channel. That definition is this one, so
-   * the field costs nothing today and would cost a migration in a month.
-   *
-   * A literal rather than an import of `SCENE_ID`: `modes/scene` imports this
-   * module for `CLOCK_CHANNEL`, so naming it the other way round would be a
-   * `const` cycle — a TDZ `ReferenceError` at module load rather than a benign
-   * one. A test in the mode pins the two together instead.
-   */
-  owner: string;
-  version: number;
-  scope: 'session' | 'actor' | 'entry';
-  update: 'model-proposed' | 'engine-computed' | 'user-only';
-  visibility: 'player' | 'hidden';
-  /** Tokens the channel may spend when rendered into a prompt. Null for none. */
-  budget: number | null;
-}
+export type { ChannelDefinition } from '@storyengine/sdk';
 
 /** The story clock's value. Normalised, so `hour` is 0–23 and `minute` 0–59. */
 export interface ClockValue {
@@ -89,13 +69,19 @@ export const SE_LORE_TIMING = 'se.lore.timing';
  * and a branch inherits the wrong stickiness. The same argument that moved
  * party membership into channels, unchanged.
  *
- * **Defined here rather than beside its logic, and the reason is the warning
+ * ~~**Defined here rather than beside its logic, and the reason is the warning
  * `owner` already carries a few lines up.** `retrieval/timing.ts` holds the
  * transitions and needs `ChannelDefinition` from this module; if this module
  * imported the definition back, the two would be a `const` cycle and a TDZ
- * `ReferenceError` at load. `CLOCK_CHANNEL` sits here for exactly that reason
- * while `modes/scene` consumes it, and this follows the precedent rather than
- * discovering it again.
+ * `ReferenceError` at load.~~
+ *
+ * *That reason expired at [P7.0], when `ChannelDefinition` moved to
+ * `@storyengine/sdk`: the type now comes from a third package neither side
+ * imports, so nothing has to be declared in the wrong place to avoid a loop.
+ * This one stays here on its own merits — it is owned by `storyengine.lore`, a
+ * **package** rather than a mode, so there is no mode for it to travel with.
+ * `CLOCK_CHANNEL` is the one that leaves, and what holds it is `CHANNELS` being
+ * a frozen record rather than anything about cycles.*
  *
  * **The first channel to use `scope: 'entry'` at all**, which is what made the
  * arm mean something: `applyEffects` keyed on the channel id alone until P5.5,

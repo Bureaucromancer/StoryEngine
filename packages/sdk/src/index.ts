@@ -27,6 +27,17 @@
 
 export * from '@storyengine/shared';
 
+export type { ChannelDefinition } from './channels.js';
+export type {
+  AssemblyPlan,
+  Mode,
+  ModeDefinition,
+  ModePreset,
+  NoSetup,
+  ParticipantPolicy,
+  SetupSchema,
+  SurfaceContribution,
+} from './mode.js';
 export type { RandomApi, SiteRandom } from './random.js';
 export type {
   Candidate,
