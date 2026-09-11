@@ -5,6 +5,7 @@ import type { ChannelDefinition } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
 import { NO_TIMING } from '../retrieval/timing.js';
+import { renderChannelValue } from '../assembly/template.js';
 import { schemaFailure } from './channel-schema.js';
 import type { ChannelEffect, ChannelState, Turn } from './types.js';
 
@@ -673,6 +674,87 @@ export function degradedChannels(
       value: state.value,
     });
   }
+  return out;
+}
+
+/**
+ * One channel as the HUD shows it — [10 §8], [P7.1].
+ *
+ * **Rendered server-side, for the reason the health record is.** A client
+ * composing this itself would need the registry, the declarations, the template
+ * engine and `splitChannelKey` — four things the engine already has and the
+ * browser has no business acquiring. What crosses is a label and a string.
+ */
+export interface ChannelSurface {
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  kind: 'text';
+  label: string;
+  text: string;
+}
+
+/**
+ * Every channel a person should see, in registration order.
+ *
+ * **`visibility` gets its reader here, which is what it has been waiting for.**
+ * The field has been on the type since P2.3 and nothing consulted it;
+ * `'hidden'` now means *not in the HUD*, which is [06 §7.3]'s distinction
+ * rather than a new one. Lore timing is the shipped hidden channel and the
+ * reason the field exists: bookkeeping a player asking *why did that fire* gets
+ * from the workbench, not from a strip above the story.
+ *
+ * *Hidden is not secret.* The value is still in `session.channels`, still in the
+ * effect log, still in the workbench. What is deferred with the **reveal
+ * affordance** is a channel that is hidden *and meant to become visible* —
+ * [P7.6]'s `Goal.visibility` is documented as the same mechanism, so building
+ * one channel-shaped and one goal-shaped is the reinvention §1.4 warns against.
+ *
+ * **A channel with no `surface` is absent rather than blank**, which is the same
+ * answer `omitWhenEmpty` gives a preset slot: a HUD listing every declared
+ * channel with nothing to say about most of them would be a worse surface than
+ * no HUD.
+ */
+export function channelSurfaces(
+  channels: Readonly<Record<string, ChannelState>>,
+): ChannelSurface[] {
+  const out: ChannelSurface[] = [];
+
+  for (const definition of registeredChannels()) {
+    if (definition.surface === undefined || definition.visibility === 'hidden') continue;
+    if (definition.render === undefined) continue;
+
+    /**
+     * **Every key the channel owns, not just the unscoped one.** A per-actor
+     * channel has one value per actor and a HUD showing only `se.presence` would
+     * show nobody. `keyBelongsTo` is the same test `filterReads` uses, so a
+     * scoped channel appears here exactly when a step declaring it would receive
+     * it.
+     */
+    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    // An untouched channel still has a value — its declared `init` — and a HUD
+    // that waited for the first effect would disagree with the prompt.
+    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+      const rendered = renderChannelValue(
+        definition.render,
+        channels[key]?.value ?? initialValue(definition.id),
+      );
+      // A template that will not compile is the author's mistake, answered the
+      // way the collector answers it: a refusal is a value, and a HUD that threw
+      // would take the session down over a label.
+      if (!rendered.ok || rendered.text.trim() === '') continue;
+      const { channelId, scopeKey } = splitChannelKey(key);
+      out.push({
+        key,
+        channelId,
+        scopeKey,
+        kind: definition.surface.kind,
+        label: definition.surface.label,
+        text: rendered.text.trim(),
+      });
+    }
+  }
+
   return out;
 }
 

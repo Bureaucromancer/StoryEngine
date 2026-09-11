@@ -76,6 +76,56 @@ export type InitPolicy =
    */
   | { kind: 'authored'; field: string; fallback: unknown };
 
+/**
+ * How a channel appears in the HUD — [10 §8](../../../docs/design/10-ui-surfaces.md),
+ * built at [P7.1](../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * **Declared, never shipped.** 10 §8 settles this and calls it *"what decouples
+ * the frontend framework choice from everything else"*: extensions do not ship
+ * UI components, they declare widgets from a versioned vocabulary the host
+ * renders. That buys three things — an extension cannot break the app's
+ * rendering, the frontend framework stays a reversible decision, and an
+ * extension written today still works after a framework upgrade.
+ *
+ * **One arm, and the count is the honest minimum rather than a placeholder.**
+ * P7.1's brief is *"the minimum of the declarative widget vocabulary… no
+ * extension-shipped components, now or later"*, and a vocabulary is only worth
+ * the arms that have a subject: the clock is the shipped channel, and it is
+ * text. A `meter` with `min` and `max` is the obvious second — Aventuras'
+ * `RuntimeVariable` carries exactly that — and it arrives with the first numeric
+ * channel rather than ahead of one, which is the same rule `InitPolicy`'s third
+ * arm is held to.
+ *
+ * **The paired commitment matters more than the deferral**, and 10 §8 says so:
+ * deferring the iframe escape hatch is only honest if this keeps growing. *When
+ * an extension cannot express something, the first response is to ask what
+ * widget would let it — a gauge, a grid, a small table, a timeline, a picker —
+ * and add that.*
+ *
+ * **What must never happen is an `html: string` field.** 10 §8 names it: *"that
+ * is the escape hatch arriving without any of the safety, and it is how this
+ * decision would be undone by accident rather than on purpose."*
+ */
+export interface WidgetSpec {
+  /**
+   * The arm. **An interface with one literal rather than a union today**, which
+   * becomes a union the moment there is a second arm — additive either way,
+   * because a declaration naming a `kind` the host does not know is one the host
+   * can ignore rather than one that breaks it.
+   */
+  kind: 'text';
+  /**
+   * What the HUD calls it.
+   *
+   * **Not rendered from the channel id**, because an id is a reverse-domain name
+   * and a label is for reading. Plain text rather than a key into a catalogue:
+   * [01 §2] keeps English out of what the *server* sends, and this is authored
+   * content travelling with a mode — the same status as a preset's prose, and
+   * subject to the same translation posture rather than to the UI's.
+   */
+  label: string;
+}
+
 export interface ChannelDefinition {
   id: string;
   /**
@@ -140,6 +190,22 @@ export interface ChannelDefinition {
    * door that section says means the contract is wrong.*
    */
   render?: string;
+  /**
+   * How it appears in the HUD, if at all — see {@link WidgetSpec}.
+   *
+   * **Optional, and absent is the answer for most channels.** A channel with no
+   * surface is one there is nothing useful to show about: lore timing is the
+   * shipped example, and [21 §6](../../../docs/design/21-internal-contracts.md)
+   * deferred this field precisely so it would be designed against a channel that
+   * wanted one rather than three that might.
+   *
+   * *Distinct from {@link render}, and the pair is worth keeping straight: that
+   * one says how the value reads **to a model**, this one how it reads **to a
+   * person**. They differ in more than wording — a prompt wants "Day 3, 09:05"
+   * in a sentence's worth of tokens, a HUD wants a label beside it and no budget
+   * at all.*
+   */
+  surface?: WidgetSpec;
   /**
    * Where the value starts. See {@link InitPolicy}.
    *

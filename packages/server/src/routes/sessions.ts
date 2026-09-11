@@ -30,7 +30,7 @@ import {
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
-import { degradedChannels } from '../sessions/channels.js';
+import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
 import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
@@ -472,7 +472,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * feeds is on the session and a second request to learn whether to show it
      * is a request nobody would make.
      */
-    return reply.send({ session, activeJob: job, health: degradedChannels(session.channels) });
+    /**
+     * **`hud` travels with the session for the reason `health` does** — [10 §8],
+     * [P7.1]. Composing it on the client would mean shipping the registry, the
+     * declarations and a template engine to the browser to render a label and a
+     * string; what crosses instead is the label and the string.
+     */
+    return reply.send({
+      session,
+      activeJob: job,
+      health: degradedChannels(session.channels),
+      hud: channelSurfaces(session.channels),
+    });
   });
 
   app.put(
@@ -572,6 +583,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         session: outcome.session,
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
+        hud: channelSurfaces(outcome.session.channels),
       });
     },
   );

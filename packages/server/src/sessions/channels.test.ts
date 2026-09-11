@@ -14,6 +14,7 @@ import {
   advance,
   channelDefinition,
   channelKey,
+  channelSurfaces,
   clockStart,
   divergenceEffects,
   initialValue,
@@ -303,6 +304,123 @@ describe('a hand edit that does not fit', () => {
 
     expect(effects[0]?.op).toEqual({ type: 'delete', path: '/' });
     expect(effects[0]?.applied).toBe(true);
+  });
+});
+
+/**
+ * **Gate step 3's last clause** — *"renders through the declared widget
+ * vocabulary"* — [10 §8], [P7.1].
+ *
+ * The other three clauses of that step were already held: a mode-declared
+ * channel appears in the registry (`mode-registry.test.ts`), is enforced against
+ * its `update` policy (`turns/effects.test.ts`), and reconstructs at an old node
+ * (the P6 property test). This is the one that had nothing.
+ */
+describe('the channels a person sees', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('renders a declared widget from the declaration, label and all', () => {
+    const [widget, ...rest] = channelSurfaces({
+      [SE_CLOCK]: { version: 1, value: { day: 3, hour: 9, minute: 5 } },
+    });
+
+    expect(widget).toEqual({
+      key: SE_CLOCK,
+      channelId: SE_CLOCK,
+      scopeKey: null,
+      kind: 'text',
+      label: 'Time',
+      text: 'Day 3, 09:05',
+    });
+    // Lore timing is registered and hidden, which is the next assertion's
+    // subject; nothing else ships a surface.
+    expect(rest).toEqual([]);
+  });
+
+  it('shows the declared init before anything has touched the channel', () => {
+    // A HUD that waited for the first effect would disagree with the prompt,
+    // which reads the same read-time default.
+    expect(channelSurfaces({})[0]?.text).toBe('Day 1, 08:00');
+  });
+
+  it('leaves a hidden channel out, which is what `visibility` has been waiting for', () => {
+    // The field has been on the type since P2.3 with no consumer. `'hidden'`
+    // means *not in the HUD* — [06 §7.3]'s distinction, not a new one — and lore
+    // timing is the shipped example: bookkeeping a player gets from the
+    // workbench rather than from a strip above the story.
+    const surfaces = channelSurfaces({
+      [channelKey(SE_LORE_TIMING, 'entry-a')]: {
+        version: 1,
+        value: { sticky: 1, cooldown: 0, fired: 2 },
+      },
+    });
+
+    expect(surfaces.map((each) => each.channelId)).not.toContain(SE_LORE_TIMING);
+  });
+
+  it('omits a channel with no surface rather than showing a blank one', () => {
+    registerChannel({
+      id: 'example.plain',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: 'something',
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: {} },
+    });
+
+    expect(channelSurfaces({}).map((each) => each.channelId)).not.toContain('example.plain');
+  });
+
+  it('shows one widget per scope key, so a scoped channel is not one line', () => {
+    // A per-actor channel has one value per actor, and a HUD showing only the
+    // unscoped key would show nobody.
+    registerChannel({
+      id: 'example.mood',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'actor',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: '{{ value }}',
+      schema: { type: 'string' },
+      init: { kind: 'literal', value: '' },
+      surface: { kind: 'text', label: 'Mood' },
+    });
+
+    const surfaces = channelSurfaces({
+      [channelKey('example.mood', 'vera')]: { version: 1, value: 'watchful' },
+      [channelKey('example.mood', 'ned')]: { version: 1, value: 'tired' },
+    });
+
+    expect(surfaces.filter((each) => each.channelId === 'example.mood')).toHaveLength(2);
+    expect(surfaces.find((each) => each.scopeKey === 'vera')?.text).toBe('watchful');
+  });
+
+  it('skips a widget whose template will not compile, rather than throwing', () => {
+    // The author's mistake, answered the way the collector answers it: a HUD
+    // that threw would take the session down over a label.
+    registerChannel({
+      id: 'example.bad-widget',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: '{% if %}',
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: {} },
+      surface: { kind: 'text', label: 'Broken' },
+    });
+
+    expect(channelSurfaces({}).map((each) => each.channelId)).not.toContain('example.bad-widget');
   });
 });
 

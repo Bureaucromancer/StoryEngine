@@ -795,10 +795,35 @@ export function setSessionLore(
   return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/lore`, selection);
 }
 
-export function readSession(
-  sessionId: string,
-): Promise<{ session: SessionSummary; activeJob: ActiveJob | null; health: DegradedChannel[] }> {
+export function readSession(sessionId: string): Promise<{
+  session: SessionSummary;
+  activeJob: ActiveJob | null;
+  health: DegradedChannel[];
+  hud: ChannelSurface[];
+}> {
   return request('GET', `/api/sessions/${sessionId}`);
+}
+
+/**
+ * One channel as the HUD shows it — [10 §8], [P7.1].
+ *
+ * **Rendered by the server**, which is what 10 §8's decision costs and buys: an
+ * extension declares a widget from a versioned vocabulary and the host renders
+ * it, so what reaches the browser is a label and a string rather than anything
+ * an extension author wrote. A client composing this would need the registry,
+ * the declarations and a template engine.
+ *
+ * `kind` is the vocabulary's arm. One today — text — and a client meeting a
+ * `kind` it does not know should ignore that widget rather than break, which is
+ * what makes widening the vocabulary additive.
+ */
+export interface ChannelSurface {
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  kind: string;
+  label: string;
+  text: string;
 }
 
 /**

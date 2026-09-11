@@ -29,6 +29,7 @@ import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
+import { ChannelHud } from './ChannelHud.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
@@ -347,6 +348,13 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           nothing wrong, and it must not be somewhere a person has to open a
           disclosure to find. */}
       <ChannelHealth sessionId={sessionId} />
+
+      {/* **What the session's channels say, declared by whoever owns them** —
+          [10 §8], [P7.1]. Above the transcript because it is state rather than
+          narration, and below the health banner because a channel that could not
+          be loaded is the more urgent sentence. Renders nothing when no declared
+          channel has a surface. */}
+      <ChannelHud sessionId={sessionId} />
 
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about

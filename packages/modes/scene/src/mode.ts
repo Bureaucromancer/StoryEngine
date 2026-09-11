@@ -138,6 +138,21 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
    * `ModeDefinition.channels` had before [P7.0], one level down.
    */
   init: { kind: 'literal', value: { day: 1, hour: 8, minute: 0 } },
+  /**
+   * **The HUD half, and it is a different sentence from `render`** — [10 §8],
+   * [P7.1].
+   *
+   * `render` says how the clock reads *to a model*, in a prompt, under a token
+   * budget. This says how it reads *to a person*, in the HUD, with a label
+   * beside it and no budget at all. Both are declarations and neither is code,
+   * which is the whole of what 10 §8 buys: a mode cannot break the app's
+   * rendering, and the frontend framework stays a reversible decision.
+   *
+   * *The label is authored content travelling with the mode, like a preset's
+   * prose — not a key into the UI's catalogue. [01 §2] keeps English out of what
+   * the **server** sends; this comes from a package an author wrote.*
+   */
+  surface: { kind: 'text', label: 'Time' },
 };
 
 export const NARRATE: StepDefinition = {

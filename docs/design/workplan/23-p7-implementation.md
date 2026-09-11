@@ -1977,11 +1977,29 @@ same as offered.*
 pacing dial is owned by `storyengine.hooks` — a **package**, like `se.lore.timing`
 — because hooks are not a mode's. Scene declares one channel and it is
 engine-computed; the mode that would declare a user-only one is Freeform, at
-P7.9. So either the gate means *package-declared* and should say so, or it is
-waiting on a mode that does not exist yet. **Worth settling before the dial is
-built rather than after**, because it decides whether the dial ships here or with
-its selector at P7.5 — and a channel whose only reader is a stage three stages
-away is the placeholder shape [P2 §2.7](08-p2-implementation.md) rejected.
+P7.9. ~~So either the gate means *package-declared* and should say so, or it is
+waiting on a mode that does not exist yet.~~
+
+***Settled 2026-09-11, and the answer is neither — the two sentences are not the
+same sentence.*** **§3's step 3 is the one that matters and it does not say
+`user-only`**: *"A channel declared by a mode appears in the registry, is
+enforced against its `update` policy, renders through the declared widget
+vocabulary, and reconstructs at an old node."* Scene's clock is mode-declared,
+registered, `engine-computed` — which **is** an update policy and is enforced,
+with tests — reconstructing in the P6 property fixture, and as of this stage
+rendering through a declared `WidgetSpec`. **All four clauses hold.** §3.1 says
+the ten steps are never edited and they did not need to be; the step was always
+satisfiable by the mode that exists.
+
+What said `user-only` is this stage's own *"Ends at"* line, which is narrower
+than the gate it was paraphrasing. `user-only`'s **enforcement** is proven
+(`turns/effects.ts` and its tests), and what has no mode-declared subject is the
+*declaration* — which is a fact about Scene having one channel, not about the
+mechanism. Recording that is better than either editing a gate to match the code
+or building a channel to match a sentence: the dial stays with its selector at
+P7.5, where its reader is, and the first mode-declared `user-only` channel
+arrives with Freeform, which is also where the second real mode makes the whole
+contract worth testing.
 
 Then **the channel-to-text renderer**, which §0.1a lists first among the four
 things this stage owes and which nothing had named. `ChannelDefinition.render` is
@@ -2054,9 +2072,40 @@ a re-registration is a different object whether or not the version moved. The
 docstring that got it backwards is corrected, and the test that only covered the
 bumped case now covers both.
 
-**Next:** the exit-gate question above, which decides where the dial lands; then
-hidden visibility and its reveal affordance, with `Goal.visibility` as the second
-consumer §1.4 warns not to reinvent.
+Then **the declarative widget vocabulary**, which is gate step 3's last unmet
+clause. The other three were already held — a mode-declared channel in the
+registry (`mode-registry.test.ts`), enforced against its `update` policy
+(`turns/effects.test.ts`), reconstructing at an old node (the P6 property test).
+*"Renders through the declared widget vocabulary"* had nothing.
+
+`ChannelDefinition.surface?: WidgetSpec`, and Scene's clock declares one. **One
+arm, and the count is the honest minimum rather than a placeholder**: a
+vocabulary is worth the arms that have a subject, the clock is text, and a
+`meter` with `min`/`max` — Aventuras' `RuntimeVariable`, exactly — arrives with
+the first numeric channel rather than ahead of one, which is the rule
+`InitPolicy`'s third arm is already held to. [10 §8]'s paired commitment is the
+thing to keep: *deferring the iframe escape hatch is only honest if the
+vocabulary keeps growing*, and what must never happen is an `html: string` field.
+
+**`visibility` gets its reader here too.** The field has been on the type since
+P2.3 with no consumer; `'hidden'` now means *not in the HUD*, and lore timing is
+the shipped example — bookkeeping a player gets from the workbench rather than
+from a strip above the story. *Hidden is not secret*: the value stays in
+`session.channels`, in the log and in the workbench. What is still deferred is
+the **reveal affordance** — a channel hidden *and meant to become visible* — and
+it should stay deferred until it is built once for both consumers, since
+`Goal.visibility` is documented as the same mechanism and building it
+channel-shaped first is the reinvention §1.4 warns about.
+
+*Composed server-side, down to the string, for the reason the health record is: a
+client rendering this itself would need the registry, the declarations, the
+template engine and `splitChannelKey`. What crosses is a label and text. The
+component knows no channel and skips a `kind` it does not recognise, which is
+what makes widening the vocabulary additive rather than breaking.*
+
+**Next:** P7.1's remaining piece is the reveal affordance, and the argument above
+is for leaving it to P7.6 — so what is left of this stage is the walk of gate
+step 3 by a person, and the dial, which lands with its selector.
 
 ### P7.2 — Party, presence, status, and the cast panel
 
