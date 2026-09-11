@@ -22,10 +22,29 @@ import { sessionLabel } from './session-label.js';
  * cast picker, no mode picker, no preset picker.~~ **Half of that survived
  * [P6B.0] and half of it was the reason PLAYABLE could not run.**
  *
- * The reasoning was right about the cast — that surface is
+ * The reasoning was ~~right about the cast~~ **right about half the cast** —
+ * that surface is
  * [P7.2](../../../../docs/design/workplan/23-p7-implementation.md)'s and P7
  * turns `cast` into a channel — and wrong about everything a session
- * *retrieves* from. `POST /api/sessions` has accepted `treatment`, `lore` and
+ * *retrieves* from.
+ *
+ * ***The half it was wrong about is the persona, 2026-09-11.***
+ * [P7 §1.6](../../../../docs/design/workplan/23-p7-implementation.md) corrects
+ * the sentence this deferral leaned on: **`cast` does not stop being a field.**
+ * What moves to channel state is `cast.actors`; `cast.persona` stays, because
+ * [06 §8](../../../../docs/design/06-modes-and-turn-pipeline.md) and
+ * [03 §5.5](../../../../docs/design/03-data-model.md) both make it *"the one
+ * part that can stay a plain session field… chosen at setup"*. So a persona
+ * control is permanent surface and an actors control is not, and the blanket
+ * deferral was costing the first to defer the second.
+ *
+ * **And the cost was the same class P6B.0 just paid for lore.** The shipped
+ * preset carries an `se.persona` slot with `omitWhenEmpty: true`, and
+ * `collect.ts` resolves `{{user}}` to `context.persona?.actor.name ?? 'the
+ * player'`. Every session started in a browser had `persona: null` — so the
+ * slot emitted nothing, the instruction addressed *the player*, and the one
+ * thing the model was told about who it is narrating for was absent. `pnpm
+ * seed` set one; a person could not. `POST /api/sessions` has accepted `treatment`, `lore` and
  * `preset` since P5.6; this form sent `name` alone, so no session made in the
  * browser ever resolved a lorebook, and the retrieval half of P5 was
  * unreachable from the product
@@ -48,12 +67,14 @@ export function SessionsPage(): React.JSX.Element {
   const [name, setName] = useState('');
   const [treatment, setTreatment] = useState('');
   const [preset, setPreset] = useState('');
+  const [persona, setPersona] = useState('');
   const [lore, setLore] = useState<string[]>([]);
 
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: listSessions });
   const books = useLibrary('lorebooks');
   const treatments = useLibrary('treatments');
   const presets = useLibrary('presets');
+  const actors = useLibrary('actors');
 
   const create = useMutation({
     mutationFn: () =>
@@ -61,12 +82,14 @@ export function SessionsPage(): React.JSX.Element {
         ...(name.trim() === '' ? {} : { name }),
         ...(treatment === '' ? {} : { treatment }),
         ...(preset === '' ? {} : { preset }),
+        ...(persona === '' ? {} : { persona }),
         ...(lore.length === 0 ? {} : { lore }),
       }),
     onSuccess: () => {
       setName('');
       setTreatment('');
       setPreset('');
+      setPersona('');
       setLore([]);
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
@@ -118,7 +141,7 @@ export function SessionsPage(): React.JSX.Element {
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
           <summary className="cursor-pointer text-sm text-ink-subtle">
-            {setupLine(lore.length, treatment !== '', preset !== '')}
+            {setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
           </summary>
 
           <div className="mt-3 flex flex-col gap-3">
@@ -146,6 +169,19 @@ export function SessionsPage(): React.JSX.Element {
               ]}
               onChange={setPreset}
               hint="Copied into the session at creation, and not changeable afterwards."
+            />
+
+            <SelectField
+              label="Persona"
+              value={persona}
+              options={[
+                ['', 'Nobody in particular'],
+                ...(actors.data?.objects ?? []).map(
+                  (one) => [one.id, one.name] as [string, string],
+                ),
+              ]}
+              onChange={setPersona}
+              hint="Who you are playing. The narrator is told, and addresses you by name."
             />
 
             <fieldset className="flex flex-col gap-2">
@@ -197,8 +233,18 @@ export function SessionsPage(): React.JSX.Element {
  * the only thing standing between somebody and a session that retrieves
  * nothing, which is the state every session was in before [P6B.0].
  */
-export function setupLine(books: number, treatment: boolean, preset: boolean): string {
+export function setupLine(
+  books: number,
+  treatment: boolean,
+  preset: boolean,
+  persona: boolean,
+): string {
   const parts: string[] = [];
+  // **Persona first, because it is the one a reader is most likely to have
+  // meant to set.** The others change what a session retrieves; this changes
+  // who the story is about, and its absence is silent — the slot omits when
+  // empty and the instruction falls back to "the player".
+  if (persona) parts.push('a persona');
   if (treatment) parts.push('a treatment');
   if (books === 1) parts.push('one lorebook');
   if (books > 1) parts.push(`${String(books)} lorebooks`);

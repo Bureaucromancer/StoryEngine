@@ -974,6 +974,39 @@ otherwise stop to argue about:
    wants a character dead on one branch and alive on the other *in the panel*, and
    a session made in a browser has no cast for the panel to be about. `pnpm seed`
    sets one; a person cannot.
+
+   ***Half done 2026-09-11, and the half is the decision rather than a scope
+   cut.*** The item and the client disagreed: `SessionsPage` and `LorePanel` both
+   carry a docstring saying a cast control *"would be built against a shape P7
+   replaces"*. **§1.6's correction of 2026-09-10 is what tells them apart** —
+   `cast` does not stop being a field. `cast.actors` becomes channel state;
+   `cast.persona` stays, because [06 §8](../06-modes-and-turn-pipeline.md) and
+   [03 §5.5](../03-data-model.md) both make it *"the one part that can stay a
+   plain session field… chosen at setup"*. So a **persona** control is permanent
+   surface and an **actors** control is not, and the blanket deferral was costing
+   the first in order to defer the second.
+
+   The persona half is built: a picker in the create form's disclosure, sent as
+   `cast: { persona, actors: [] }`, asserted at the wire as well as at the
+   component — the server side was already proven end to end by
+   `routes/sessions.test.ts`'s *"fills the persona and actor slots that were
+   unreachable before"*, so what was missing really was only a caller. Both
+   docstrings now say which half they defer and why.
+
+   *And the cost was larger than "no cast for the panel to be about", which is
+   why this is worth doing before PLAYABLE is walked rather than after.* The
+   shipped preset carries an `se.persona` slot with `omitWhenEmpty: true`, and
+   `collect.ts` resolves `{{user}}` to `context.persona?.actor.name ?? 'the
+   player'`. **Every session started in a browser had `persona: null`** — the
+   slot emitted nothing and the narrator was instructed to address *the player*.
+   That is not a missing panel, it is the model being told nothing about who it
+   is narrating for, on every turn of every browser-made session, and sitting K
+   is walked against browser-made sessions.
+
+   *Still open, deliberately:* `cast.actors`, which is P7.2's, and a later
+   persona change, which `PUT /cast` accepts and nothing offers — 06 §8 calls
+   changing it mid-session *"an explicit act rather than an outcome of play"*, so
+   its home is a decision rather than an omission.
 6. ~~**`ChannelEffect.op`'s unimplemented arms** — decided before P7.2 designs the
    party timeline's payload, per that stage.~~ ***Decided 2026-09-11: they stay
    unimplemented, and `scope` is what makes that hold.*** P7.2's cell poses it as

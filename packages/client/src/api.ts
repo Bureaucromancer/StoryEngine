@@ -709,6 +709,21 @@ export interface NewSession {
   treatment?: string;
   lore?: string[];
   preset?: string;
+  /**
+   * Who the player is — [P7 §0.2]'s cold list item 5, narrowed to the half that
+   * survives this phase.
+   *
+   * **The persona, and deliberately not `cast.actors`.** [06 §8](../../../docs/design/06-modes-and-turn-pipeline.md)
+   * says the persona *"is the one part that can stay a plain session field,
+   * because it is chosen at setup and changing it mid-session is an explicit
+   * act rather than an outcome of play"* — and
+   * [P7 §1.6](../../../docs/design/workplan/23-p7-implementation.md) confirms it
+   * against the phase that moves everything else: `cast.actors` becomes channel
+   * state, `cast.persona` does not. So a control for this one is permanent
+   * surface, and a control for the other would be built against a shape P7
+   * replaces. `SessionsPage` and `LorePanel` both say so.
+   */
+  persona?: string;
 }
 
 export interface ActiveJob {
@@ -734,6 +749,15 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
     ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
     ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
     ...(input.preset === undefined ? {} : { preset: input.preset }),
+    /**
+     * **`actors: []` because the route's `CastBody` requires both members**, not
+     * because an empty cast is being asserted — and the two are the same value
+     * here, since a session created in a browser has never had actors and the
+     * surface that gives it one is [P7.2]'s.
+     */
+    ...(input.persona === undefined || input.persona === ''
+      ? {}
+      : { cast: { persona: input.persona, actors: [] } }),
   });
 }
 

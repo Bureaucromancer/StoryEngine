@@ -152,6 +152,35 @@ describe('the session write bodies', () => {
     expect(seen.map((each) => each.body)).toEqual([{}, {}, {}]);
   });
 
+  /**
+   * **The persona reaches the route as a `cast`, and the route requires both
+   * members** — [P7 §0.2] item 5.
+   *
+   * The component test asserts what the page passes to `createSession`; this is
+   * the one that would catch a `persona` field going to the wire under its own
+   * name, which the route does not accept and which would fail validation on a
+   * real server while both pages stayed green.
+   */
+  it('wraps a chosen persona in a cast, with the empty actors the route demands', async () => {
+    const seen = capture();
+
+    await createSession({ persona: 'actor-vera' });
+
+    expect(seen[0]?.body).toEqual({ cast: { persona: 'actor-vera', actors: [] } });
+  });
+
+  it('sends no cast when no persona was chosen', async () => {
+    // Same rule as every other optional field here: absent means unset, and
+    // `{persona: null, actors: []}` would be a session asserting an empty cast
+    // rather than one that was never asked.
+    const seen = capture();
+
+    await createSession({});
+    await createSession({ persona: '' });
+
+    expect(seen.map((each) => each.body)).toEqual([{}, {}]);
+  });
+
   it('renames a session through the patch that archives, with the id escaped', async () => {
     const seen = capture();
 

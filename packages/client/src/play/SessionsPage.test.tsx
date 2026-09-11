@@ -81,6 +81,11 @@ beforeEach(() => {
         objects: [libraryObject('treat-wet', 'A wet week', 'storyengine.treatment.1')],
       });
     }
+    if (kind === 'actors') {
+      return Promise.resolve({
+        objects: [libraryObject('actor-vera', 'Vera Kohl', 'storyengine.actor.1')],
+      });
+    }
     return Promise.resolve({
       objects: [libraryObject('preset-noir', 'Rain noir', 'storyengine.preset.1')],
     });
@@ -100,15 +105,25 @@ describe('setupLine', () => {
   it('says plainly when a session would start with nothing', () => {
     // The fold is closed by default, so this line is the only thing between
     // somebody and the state every session was in before [P6B.0].
-    expect(setupLine(0, false, false)).toBe(
+    expect(setupLine(0, false, false, false)).toBe(
       'Nothing chosen yet — the mode default, and no lorebooks',
     );
   });
 
   it('names what was chosen, and counts the books', () => {
-    expect(setupLine(1, false, false)).toBe('With one lorebook');
-    expect(setupLine(2, true, false)).toBe('With a treatment, 2 lorebooks');
-    expect(setupLine(0, true, true)).toBe('With a treatment, a preset');
+    expect(setupLine(1, false, false, false)).toBe('With one lorebook');
+    expect(setupLine(2, true, false, false)).toBe('With a treatment, 2 lorebooks');
+    expect(setupLine(0, true, true, false)).toBe('With a treatment, a preset');
+  });
+
+  it('names the persona first, because its absence is the silent one', () => {
+    // The other three change what a session *retrieves* and show up as missing
+    // content. A missing persona shows up as prose addressed to "the player",
+    // which reads like a writing choice rather than an unset field.
+    expect(setupLine(0, false, false, true)).toBe('With a persona');
+    expect(setupLine(1, true, true, true)).toBe(
+      'With a persona, a treatment, one lorebook, a preset',
+    );
   });
 });
 
@@ -150,6 +165,46 @@ describe('starting a session', () => {
         preset: 'preset-noir',
         lore: ['book-rain'],
       });
+    });
+  });
+
+  /**
+   * **The half of the cast deferral that was wrong** — [P7 §0.2] item 5.
+   *
+   * `cast.persona` stays a plain session field through P7 ([P7 §1.6], [06 §8]);
+   * `cast.actors` becomes channel state. Deferring both meant every session
+   * started in a browser had no persona at all, so the shipped preset's
+   * `se.persona` slot omitted and the instruction addressed *the player* — the
+   * same class of gap P6B.0 closed for lore, sitting beside it.
+   *
+   * Asserted as *what reaches the API* rather than as what the select shows,
+   * because the wire shape is the thing the route has to accept: `cast` with
+   * both members, `actors` empty because `CastBody` requires it.
+   */
+  it('sends a chosen persona as a cast, and nothing else', async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+    await userEvent.selectOptions(screen.getByLabelText('Persona'), 'actor-vera');
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith({ persona: 'actor-vera' });
+    });
+  });
+
+  it('sends no cast when nobody was chosen, which is not the same as an empty one', async () => {
+    // A session that named nobody and a session that named nobody *in
+    // particular* are the same thing here, and both must leave `cast` off the
+    // wire — the route's optional field means unset, and sending
+    // `{persona: null, actors: []}` would be a session asserting an empty cast.
+    renderPage();
+
+    await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith({});
     });
   });
 
