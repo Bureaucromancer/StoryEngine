@@ -160,6 +160,29 @@ function refuse(
    * file is permitted by both, deliberately. Only the schema check had anything
    * to say about a hand edit, and only there.*
    */
+  /**
+   * **The loaded values a model may not set on its own** — [06 §8.1], [25 C12],
+   * [P7.2].
+   *
+   * Checked before the schema, because a proposal that is both loaded *and*
+   * malformed is more usefully answered as the first: *this one needs a person*
+   * is a sentence with a next step, and `schema` on a value the model was never
+   * going to be allowed to set would send somebody looking for a typo.
+   *
+   * **Only `model` and `step`, which is the same line `engine-computed`
+   * draws.** A person setting a status to `dead` is the manual path 25 C12
+   * calls *always-available*, and the engine setting one is a computation that
+   * has already been decided. What is under-fired is the model's casual
+   * killing.
+   */
+  if (
+    (by === 'model' || by === 'step') &&
+    typeof proposal.after === 'string' &&
+    definition.confirm?.includes(proposal.after) === true
+  ) {
+    return 'needs-confirmation';
+  }
+
   if (schemaFailure(definition, proposal.after) !== null) {
     return 'schema';
   }

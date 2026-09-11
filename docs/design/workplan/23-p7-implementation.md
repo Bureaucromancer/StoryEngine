@@ -2144,6 +2144,54 @@ P5.5 built and P6 property-tested is proved by `scope: 'entry'` alone. Presence
 and status are the first actor-scoped channels, so this stage is where that arm
 stops being a declaration.*
 
+#### In progress — opened 2026-09-11
+
+**Done: the two axes, and `scope: 'actor'` has a writer.** `se.presence` and
+`se.status` are declared in `sessions/cast.ts`, owned by `storyengine.cast` — a
+**package**, like `se.lore.timing`, because every mode with a cast wants them and
+none of them is Scene's in particular. *Named for the cast rather than the party,
+since the party is a subset and naming the owner after the subset is the
+conflation [06 §8.1] spends a paragraph refusing.*
+
+***`se.party` is deliberately not among them, on §1.6's own argument.***
+`select: 'fixed'` is *"the declaration that the cast cannot change as an outcome
+of a turn, which is what licenses a plain `cast` field on the session instead of
+an `se.party` channel"*, so a party channel declared while the policy still says
+that is the placeholder-shaped channel [P2 §2.7](08-p2-implementation.md)
+rejected by name. **Presence and status carry no such licence** — they are facts
+about a scene and about a life, not claims about whether the cast can change — so
+the half of this stage that §1.6 routes behind P7.3 is exactly the half that
+waited.
+
+**And *introduced* has an implementation**, which §1.6 calls *"an unspent
+obligation"*: [06 §6.1]'s hook filter and [04 §6.1]'s introduction hook have both
+been spending the word as a mechanical predicate since they were written, and
+§8.1 defined it without anything implementing it. Derived by folding presence and
+party effects along the path, so it is monotone, needs no third channel, and
+un-introduces on a rewind for free. *`se.party` is named in the fold before the
+channel exists, because a list that omitted it would be the definition quietly
+narrowed to what happened to be built.*
+
+**The death asymmetry is a declared policy rather than engine code naming a
+channel.** `ChannelDefinition.confirm` lists the values a model may not set on
+its own, and `se.status` names both terminal ones; `refuse` answers
+`needs-confirmation`, before the schema check, because *this one needs a person*
+is a sentence with a next step while `schema` on a value the model was never
+allowed to set sends somebody looking for a typo. **Two consumers by design** —
+P7.6's goal completion is documented as the same posture, and building one
+status-shaped now is the reinvention this phase keeps catching.
+
+*The two source documents are ambiguous about whether "flagged, not applied
+quietly" means refused or applied-loudly, and [25 C12] is what settles it:
+**under-firing plus always-available manual completion is the position
+regardless**, and the harm 10 §13.2 names is in the applying. The manual path is
+the channel-write route [P7.1] built for recovery, which turns out to be the same
+primitive.*
+
+**Next:** the cast panel over these ([10 §13.2]) — one derived badge over two
+axes, party marked rather than listed separately, and the prominent surface the
+refusal is supposed to get.
+
 *And the panel's asymmetric-death treatment says a proposed `dead` is **reversible
 from the effect log** — for which there is no mechanism. The only reversal in the
 build is `undoTurn`, whole-turn and tip-only, and the workbench's effect list is a

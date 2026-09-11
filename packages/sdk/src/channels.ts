@@ -191,6 +191,40 @@ export interface ChannelDefinition {
    */
   render?: string;
   /**
+   * Values a model may not set on its own — [06 §8.1], [10 §13.2], [25 C12],
+   * built at [P7.2](../../../docs/design/workplan/23-p7-implementation.md).
+   *
+   * **A declared list, because the alternative is engine code naming a
+   * channel.** The rule this exists for is *"a proposed status change to `dead`
+   * is surfaced prominently rather than applied as a quiet badge"* — and
+   * expressing that as `if (channelId === 'se.status')` inside the engine is the
+   * shape [P7.1] spent a stage removing. A channel says which of its own values
+   * are the loaded ones.
+   *
+   * **Refused rather than applied-and-flagged, and the two source documents are
+   * ambiguous about which.** 06 §8.1 says *"flagged, not applied quietly"* and
+   * 10 §13.2 says *"surfaced prominently rather than applied as a quiet
+   * badge"* — both of which contrast with *quiet* and neither of which settles
+   * *applied*. [25 C12](../../../docs/design/25-open-questions.md) settles it:
+   * *"**Under-firing** plus always-available manual completion is the position
+   * regardless."* And the harm 10 §13.2 names is in the applying — *"a false one
+   * silently removes someone from the story, and every subsequent turn is then
+   * assembled around their absence"* — so refusing until a person says otherwise
+   * is the reading that prevents the stated failure. The refusal is recorded,
+   * which is the prominent surface, and the manual path is the ordinary channel
+   * write.
+   *
+   * **Two consumers by design.** Status-to-terminal is the first; goal
+   * completion ([P7.6]) is documented as the same posture, and building one
+   * status-shaped now is the reinvention this phase keeps catching itself
+   * about.
+   *
+   * *Strings, because the values that are loaded are the ones a person can
+   * name. A channel whose loaded state is a shape rather than a value wants a
+   * predicate, and a predicate is code — which is the door [06 §2] keeps shut.*
+   */
+  confirm?: readonly string[];
+  /**
    * How it appears in the HUD, if at all — see {@link WidgetSpec}.
    *
    * **Optional, and absent is the answer for most channels.** A channel with no

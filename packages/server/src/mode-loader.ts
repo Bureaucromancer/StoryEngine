@@ -4,6 +4,7 @@
 import type { Mode } from '@storyengine/sdk';
 
 import { registerMode } from './mode-registry.js';
+import { PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
 /**
@@ -72,6 +73,18 @@ export async function installBuiltIns(): Promise<void> {
    * is no mode for it to arrive with.
    */
   registerChannel(LORE_TIMING_CHANNEL);
+  /**
+   * Presence and status, for the same reason and a second one — [P7.2].
+   *
+   * `storyengine.cast` is a package, so like lore timing there is no mode for
+   * these to arrive with. The second reason is that **every mode with a cast
+   * wants them**: routing them through one mode's declaration would make a
+   * second mode either import the first or declare its own, and two declarations
+   * of `se.presence` is the configuration problem `registerChannel`'s
+   * last-write-wins rule is resigned to rather than a design.
+   */
+  registerChannel(PRESENCE_CHANNEL);
+  registerChannel(STATUS_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {
