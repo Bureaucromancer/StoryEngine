@@ -1835,10 +1835,21 @@ quarantine survivable; `ChannelState.degraded` is the inert type waiting for it.
 **`MINUTES_PER_TURN`**, a placeholder whose docstring defers it to a stage that
 already shipped, and which is the smallest possible instance of this stage's whole
 question: a channel whose reducer is engine code with a mode-shaped parameter.
-And **`06 §4`'s `ChannelDefinition` sketch disagrees with 21 §1.3's** — 06 lacks
+~~And **`06 §4`'s `ChannelDefinition` sketch disagrees with 21 §1.3's** — 06 lacks
 `version` and `visibility` and names an `UpdatePolicy` alias that does not exist —
 so the phase that publishes the type through the SDK has to pick, and picking
-after it ships means a published contract disagreeing with its own design note.
+after it ships means a published contract disagreeing with its own design note.~~
+
+***Spent at P7.0 rather than here, 2026-09-11, on this cell's own argument.***
+P7.0 is the stage that published the type, so it is the stage that had to pick —
+this cell said so and filed the work one stage too late. 06 §4's sketch is
+corrected against what shipped: `version` and `visibility` added, `owner` widened
+to `PackageId` (which §4.1 immediately below it already required from the first
+definition written), and the phantom `UpdatePolicy` alias replaced by the literal
+union. It differed by **four** things rather than the *"one field"* 21 §1.3
+claimed, and 21 §1.3 is corrected too. What remains between the sketch and the
+package — `schema`, `init`, `migrate`, `surface` — is a schedule rather than a
+disagreement, and it is P7.1's; both documents now say which is which.
 
 *Note that `visibility` is **already on the built type** and needs no migration;
 what is unbuilt is the reveal affordance, which has a second consumer waiting —

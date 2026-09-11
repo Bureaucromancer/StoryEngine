@@ -256,8 +256,16 @@ interface ChannelState {
 }
 ```
 
-`ChannelDefinition` is [06 §4](06-modes-and-turn-pipeline.md)'s, with one field
-that section describes in prose and does not show:
+`ChannelDefinition` is [06 §4](06-modes-and-turn-pipeline.md)'s ~~, with one
+field that section describes in prose and does not show~~ — ***and it was four
+rather than one, corrected in 06 §4 on 2026-09-11.*** That sketch was missing
+`version` and `visibility` outright, wrote `owner` without the `PackageId` its
+own §4.1 requires from the first definition written, and named an `UpdatePolicy`
+alias that exists nowhere. **The occasion was P7.0 publishing this type through
+`@storyengine/sdk`**: a sketch that disagrees with a shipped contract is a design
+note the first mode author reads and is misled by, so the disagreement had to be
+spent at the moment of publication rather than discovered by whoever built
+against it.
 
 ```ts
 interface ChannelDefinition {

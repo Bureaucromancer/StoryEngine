@@ -182,15 +182,40 @@ aspirational.
 ```ts
 interface ChannelDefinition {
   id: ChannelId                   // "storyengine.clock", "storyengine.party.hp"
-  owner: ModeId | ExtensionId
+  owner: ModeId | ExtensionId | PackageId   // package: §4.1
+  version: number                 // paired with ChannelState.version — [21 §1.3]
   schema: JSONSchema              // the state shape
   scope: "session" | "actor" | "entry"   // one value, or one per actor/lore entry
   init: InitPolicy                // literal default, from treatment, or generated at start
-  update: UpdatePolicy            // model-proposed / engine-computed / user-only
+  update: "model-proposed" | "engine-computed" | "user-only"
+  visibility: "player" | "hidden" // §7.3
   budget: number | null           // token cost when injected; null = never injected
   surface?: WidgetSpec            // how it renders in the HUD, if at all
 }
 ```
+
+***Reconciled with [21 §1.3](21-internal-contracts.md) on 2026-09-11, at
+[P7.0](workplan/23-p7-implementation.md), and the timing is the point.*** This
+sketch was missing `version` and `visibility` outright, wrote `owner` without
+`PackageId` — which §4.1 immediately below says 1.0 owes from the first channel
+definition, *"because widening it afterwards is a migration over every stored
+channel"* — and named an `UpdatePolicy` alias that exists nowhere. 21 §1.3 said
+it differed by *"one field"* and it differed by four.
+
+**Left to the phase, that reconciliation happens after the type ships.** P7.0
+published `ChannelDefinition` through `@storyengine/sdk`, which is the moment a
+sketch that disagrees with it becomes a published contract disagreeing with its
+own design note — and the first mode author to read this section would be reading
+the wrong shape. So this section is corrected against what shipped rather than
+the other way round; where the two still differ is a *schedule*, stated next.
+
+**Four members are specified here and deliberately absent from the shipped
+type**: `schema`, `init: InitPolicy`, `migrate` (21 §1.3's, not shown above) and
+`surface?: WidgetSpec`. [21 §6](21-internal-contracts.md) defers `InitPolicy` and
+`WidgetSpec` because they *"want the mode contract built first"* — that contract
+is the SDK, and P7.1 is the stage that designs them against their first real
+consumer. They stay in this sketch because it is the design, and their absence
+from the package is recorded in the package.
 
 The properties that make this worth doing:
 
