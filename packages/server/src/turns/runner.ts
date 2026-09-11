@@ -6,6 +6,7 @@ import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
+import { randomOver } from '../rng/random.js';
 import { Rng, type Tape } from '../rng/rng.js';
 import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
@@ -501,7 +502,9 @@ export class TurnRunner {
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),
           }),
           {
-            rng,
+            // The host's `random`, not the turn's `Rng` — the same tape and the
+            // same keys, behind the async seam a mode package can be given.
+            random: randomOver(rng),
             signal,
             call: async (request) => {
               /**

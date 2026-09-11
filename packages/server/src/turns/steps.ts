@@ -6,7 +6,7 @@ import type { GenerationParams } from '@storyengine/shared';
 import type { CallPurpose } from '../assembly/types.js';
 import type { Candidate } from '../assembly/types.js';
 import type { ModelRole, TokenUsage } from '../providers/types.js';
-import type { Rng } from '../rng/rng.js';
+import type { RandomApi } from '../rng/random.js';
 import { keyBelongsTo } from '../sessions/channels.js';
 
 import type { ChannelState, StepSkipReason, StepStage, Turn } from '../sessions/types.js';
@@ -123,11 +123,16 @@ export function evaluateCondition(
  * evaluate-before-narrate step contributes `blocks` and is refused, correctly.
  * Anything added later is refused until somebody argues otherwise here.
  *
- * **The honest limit:** §5.2's first exclusion is *the RNG service and anything
- * consuming it*, and this derivation does not cover that — a prose step is
- * handed both the guidance and an `Rng`. Nothing at P2.5 draws inside a prose
- * step, and the boundary that would enforce it is P7's worker split, where the
- * host supplies `random` rather than the step reaching for it ([22 §4]).
+ * **The limit this used to name is half closed, at [P7.0].** §5.2's first
+ * exclusion is *the RNG service and anything consuming it*, and this derivation
+ * still does not cover it — but the thing it could not cover has changed shape.
+ * A prose step is no longer handed an `Rng`: it is handed
+ * [`RandomApi`](../rng/random.ts), so the draw is the engine's and there is a
+ * seam to enforce the rule at. ~~Nothing at P2.5 draws inside a prose step~~ —
+ * and that sentence was retired before this one was written: the retriever
+ * draws inside a prose step's `call` at [P5.6], engine-side of the seam and
+ * never from a mode's own body, which is the precision the rule turns on.
+ * Enforcing it *structurally* still waits on the worker split ([22 §4]).
  */
 export function callPurposeFor(step: StepDefinition): CallPurpose {
   return step.contributes === 'messages' && step.writes.length === 0 ? 'prose' : 'effects';
@@ -195,7 +200,15 @@ export interface StepCallResult {
  */
 export interface StepHost {
   call(request: StepCallRequest): Promise<StepCallResult>;
-  rng: Rng;
+  /**
+   * Randomness, keyed and asynchronous — [22 §4], and see
+   * [`rng/random.ts`](../rng/random.ts) for why it is not the `Rng` itself.
+   *
+   * The short version: `Rng` is a class with `#private` fields, so a contract
+   * published through the SDK cannot name it, and the package split forces the
+   * conversion before any worker does.
+   */
+  random: RandomApi;
   signal: AbortSignal;
 }
 

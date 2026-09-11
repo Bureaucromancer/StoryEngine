@@ -209,17 +209,39 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     expect(structuredClone(result)).toEqual(result);
   });
 
-  it('names the one thing on StepHost that cannot cross a worker hop', () => {
-    // **An honest limit rather than a claim.** `StepHost.rng` is a live class
-    // instance with synchronous methods, and [22 §4] specifies the host API as
-    // async and narrow with `random` supplied by the host. `call` and `signal`
-    // cross fine; `rng` does not, and converting it later means touching every
-    // step that draws. Recorded here so P7 finds it as a known cost rather than
-    // as a surprise.
-    //
-    // Nothing at P2 draws inside a step except the test that proves the tape
-    // works, so this is a debt with no current victim.
-    const host = { call: () => Promise.resolve(), rng: {}, signal: new AbortController().signal };
-    expect(Object.keys(host).sort()).toEqual(['call', 'rng', 'signal']);
+  /**
+   * **The debt this block used to record is paid, and what it said was wrong
+   * twice** — [P7.0].
+   *
+   * It read *"`StepHost.rng` is a live class instance… `call` and `signal` cross
+   * fine; `rng` does not"*, and asserted that by comparing `Object.keys` on a
+   * hand-built literal whose `rng` was `{}`. It never cloned anything. Checked
+   * rather than assumed, **none of the three crosses**: a function throws
+   * `DataCloneError`, and an `AbortSignal` does something worse than throw — it
+   * clones to a detached `{}` whose `aborted` is `undefined`, so a step would
+   * hold a signal that never fires.
+   *
+   * That is not a defect, because **the host is proxied and never cloned**. It
+   * is `StepInput` and `StepResult` that cross, which is what the two tests
+   * above pin. What singled `rng` out was never clonability: it was that `call`
+   * and `signal` have bridges invisible to their callers — `call` already
+   * returns a `Promise`, a signal bridges as an abort message — while an `Rng`
+   * would have turned eight synchronous methods async at every call site that
+   * had already been written against them. Converting it before anything drew
+   * is what this phase did instead.
+   */
+  it('hands a step three capabilities, and none of them is data', () => {
+    const host = {
+      call: () => Promise.resolve(),
+      random: { at: () => ({}) },
+      signal: new AbortController().signal,
+    };
+    // A canary on the *width* of the seam: every member added here is another
+    // thing a worker has to bridge, and the narrowness is the contract.
+    expect(Object.keys(host).sort()).toEqual(['call', 'random', 'signal']);
+
+    expect(() => structuredClone(host.call)).toThrow(/DataCloneError|could not be cloned/);
+    // The quiet one, which is why it is asserted rather than described.
+    expect((structuredClone(host.signal) as { aborted?: boolean }).aborted).toBeUndefined();
   });
 });

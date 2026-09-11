@@ -1769,9 +1769,12 @@ describe('the turn record answers what actually ran — gate step 11', () => {
           {
             definition: { ...NARRATE, id: 'se.dice', role: null },
             run: async (_input, host) => {
-              host.rng.at('se.dice', 'opening').int(1, 6);
-              host.rng.at('se.dice', 'opening').int(1, 6);
-              return Promise.resolve({});
+              // Through the host's `random` since [P7.0] — awaited, because the
+              // seam is async whether or not a worker is on the other side of
+              // it yet, and the tape is the same tape.
+              await host.random.at('se.dice', 'opening').int(1, 6);
+              await host.random.at('se.dice', 'opening').int(1, 6);
+              return {};
             },
           },
         ],

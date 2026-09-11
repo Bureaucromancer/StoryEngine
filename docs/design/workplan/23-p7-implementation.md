@@ -918,8 +918,16 @@ otherwise stop to argue about:
 1. **The four retired-sentence homes and the `[19 §11]` citation** — 22 §4,
    `turns/steps.ts:128`, `turns/steps.test.ts:220-221`, and §P7.0's own cell.
 2. **06 §9 against 22 §4.0** on whether a worker enforces recorded randomness.
-3. **`RandomApi`'s shape** — at minimum whether a host draw carries `(site,
-   purpose)`. It is the conversion's input, not its output.
+3. ~~**`RandomApi`'s shape** — at minimum whether a host draw carries `(site,
+   purpose)`. It is the conversion's input, not its output.~~ **Settled and
+   built 2026-09-11, at the head of P7.0.** It carries them: `rng.ts`'s *"there
+   is deliberately no unkeyed draw"* is an API property rather than a
+   convention, and [19 §14](../19-tech-stack.md) puts extension draws on the
+   tape, so a bare `random(): Promise<number>` was never open. `at(site,
+   purpose)` stays **synchronous** — it names a draw rather than making one, so
+   across a hop it is a local constructor and only the draws are messages — and
+   the eight methods behind it are `SiteRng`'s, asynchronous. See
+   `rng/random.ts`.
 4. **19 §10's tree**, which still draws `modes/adventure`.
 5. **A cast the browser can set.** `PUT /api/sessions/:id/cast` and
    `POST /api/sessions`'s `cast` field both accept one and **neither has a caller
@@ -1413,6 +1421,16 @@ fired only when extract confirms the subject present. P7.8 needs P7.6, which it
 already says. §0.2 says which of these wait on PLAYABLE and which do not.
 
 ### P7.0 — The boundary made real
+
+***In progress. Opened 2026-09-11 on `p7`.*** Ordered so that each piece is
+green on its own, because the stage's parts are independent up to the move and
+landing them together would make the one diff nobody can review. **Done:** the
+host-`random` conversion, which comes first because it decides the shape of
+something the SDK is about to publish and because converting a contract after
+publishing it is the cost this phase exists to avoid. **Next:** the SDK exporting
+the contract, then the registry becoming something a loader writes to, then the
+tooling and the move, then the repo-shape check. §0.2 says which of these wait on
+PLAYABLE — none of them do.
 
 `packages/modes/scene` created and populated by moving, not rewriting; `sdk`
 exporting the contract instead of re-exporting `shared` and nothing else;
