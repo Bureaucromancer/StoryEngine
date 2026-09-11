@@ -144,17 +144,23 @@ function refuse(
    * a policy refusal means the proposal was never going to land however it was
    * shaped, while a schema refusal means this one nearly did.
    *
-   * **And this is what stops a hand edit from poisoning the log.** A person
-   * editing `session.json` has expressed an intent
-   * ([03 §8.1](../../../../docs/design/03-data-model.md)), which
-   * `divergenceEffects` turns into user-attributed effects — so before this,
-   * `{"hour": 25}` typed into a file became an *applied* effect and an
-   * impossible clock in the permanent record. Now it becomes a **recorded
-   * refusal**: visible, attributed, reversible, and not in the state. That is
-   * 03 §8.1's own posture rather than a departure from it — the edit is not
-   * discarded, it is answered.
+   * ~~**And this is what stops a hand edit from poisoning the log.**~~
+   * ***Corrected the same day it was written: this function is not on that
+   * path.*** `reconcileHandEdits` builds its effects in
+   * `sessions/channels.ts`'s `divergenceEffects` and never calls
+   * `acceptEffect`, so nothing here has ever seen a hand edit — not the schema
+   * check and not the policy rules above it. The hand-edit path consults the
+   * schema *there*, in the same commit that corrected this paragraph, and
+   * `channel-schema.ts` takes a definition rather than an id precisely so that
+   * module can import it without a cycle.
+   *
+   * *The policy rules were never the gap they look like, which is worth saying
+   * so nobody "fixes" it: `engine-computed` refuses `model` and `step`, and
+   * `user-only` refuses everything but `user` — so a person editing their own
+   * file is permitted by both, deliberately. Only the schema check had anything
+   * to say about a hand edit, and only there.*
    */
-  if (schemaFailure(proposal.channelId, proposal.after) !== null) {
+  if (schemaFailure(definition, proposal.after) !== null) {
     return 'schema';
   }
 

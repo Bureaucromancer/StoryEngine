@@ -15,9 +15,11 @@ import {
   channelDefinition,
   channelKey,
   clockStart,
+  divergenceEffects,
   initialValue,
   keyBelongsTo,
   readClock,
+  quarantineEffects,
   registerChannel,
   scopeKeyOf,
   SE_CLOCK,
@@ -141,6 +143,169 @@ async function turn(parentTurnId: string | null): Promise<Turn> {
  * `clockStart` that still consulted a constant would pass every equality test
  * in this file and fail this one.
  */
+
+/**
+ * **A value that was legal when it was written and is not now** — [06 §4.2]'s
+ * quarantine rung, [P7.1].
+ *
+ * The pair with `divergenceEffects` above, and the difference is what each is
+ * *about*. A divergence is a value **arriving** — somebody edited the file — so
+ * one that does not fit is refused and the log's state stands. A quarantine is a
+ * value **already there** under a schema that has since changed, where refusing
+ * would be refusing the past. The two live in one turn and mean different
+ * things.
+ */
+describe('a channel whose stored value stopped fitting', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('resets to the declared init and says why, keeping the raw value', () => {
+    const effects = quarantineEffects('t-1', {
+      [SE_CLOCK]: { version: 1, value: { day: 3, hour: 25, minute: 0 } },
+    });
+
+    expect(effects).toHaveLength(1);
+    const [effect] = effects;
+    expect(effect?.channelId).toBe(SE_CLOCK);
+    // The engine noticed; nobody proposed.
+    expect(effect?.proposedBy).toEqual({ kind: 'engine' });
+    expect(effect?.applied).toBe(true);
+    // `before` *is* the raw value, which is why the effect carries only a
+    // reason — and why a quarantine is reversible like any other effect.
+    expect(effect?.before).toEqual({ day: 3, hour: 25, minute: 0 });
+    expect(effect?.after).toEqual({ day: 1, hour: 8, minute: 0 });
+    expect(effect?.degraded?.reason).toContain('/hour');
+  });
+
+  it('marks the state degraded when applied, which is `degraded`’s first writer', () => {
+    // `ChannelState.degraded` has carried a docstring since P3.0 saying *"the
+    // writer arrives with the first `ChannelDefinition.schema`"*. This is it.
+    const before = { [SE_CLOCK]: { version: 1, value: { day: 3, hour: 25, minute: 0 } } };
+    const after = applyEffects(before, quarantineEffects('t-1', before));
+
+    expect(after[SE_CLOCK]?.value).toEqual({ day: 1, hour: 8, minute: 0 });
+    expect(after[SE_CLOCK]?.degraded?.raw).toEqual({ day: 3, hour: 25, minute: 0 });
+    expect(after[SE_CLOCK]?.degraded?.reason).toContain('/hour');
+  });
+
+  it('is idempotent, so opening a session twice does not grow the log', () => {
+    // The reset value validates, so the second pass has nothing to say. A
+    // quarantine that fired every load would turn one bad value into an
+    // unbounded effect log.
+    const before = { [SE_CLOCK]: { version: 1, value: { day: 3, hour: 25, minute: 0 } } };
+    const once = applyEffects(before, quarantineEffects('t-1', before));
+
+    expect(quarantineEffects('t-2', once)).toEqual([]);
+  });
+
+  it('leaves a good value alone, so the check is not a rewrite', () => {
+    expect(
+      quarantineEffects('t-1', {
+        [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } },
+      }),
+    ).toEqual([]);
+  });
+
+  it('carries the scope key, so one bad entry does not reset its neighbours', () => {
+    // A scoped channel's map keys are composite, and an effect built from the
+    // key as though it were an id is the defect [P7 §0.1a] found in
+    // `divergenceEffects`. Same iteration, same hazard, so the same assertion.
+    const effects = quarantineEffects('t-1', {
+      [channelKey(SE_LORE_TIMING, 'entry-a')]: { version: 1, value: { sticky: -1 } },
+      [channelKey(SE_LORE_TIMING, 'entry-b')]: {
+        version: 1,
+        value: { sticky: 0, cooldown: 0, fired: 0 },
+      },
+    });
+
+    expect(effects).toHaveLength(1);
+    expect(effects[0]?.channelId).toBe(SE_LORE_TIMING);
+    expect(effects[0]?.scopeKey).toBe('entry-a');
+  });
+
+  it('says nothing about a channel nobody declared', () => {
+    // An uninstalled mode leaves its channels behind, and resetting them to a
+    // default nobody declares would be inventing state. [00 §3.3]: survivable,
+    // visible, non-blocking — and untouched is the survivable answer.
+    expect(quarantineEffects('t-1', { 'example.gone': { version: 1, value: 'anything' } })).toEqual(
+      [],
+    );
+  });
+
+  it('leaves a channel alone when its own default would not validate', () => {
+    // An author's mistake, and quarantining to it would write an effect on every
+    // load forever. Same reasoning as an uncompilable schema: the person playing
+    // cannot fix it and should not pay for it with a growing log.
+    registerChannel({
+      id: 'example.impossible',
+      owner: 'example.quiet',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: null,
+      schema: { type: 'integer', minimum: 10 },
+      init: { kind: 'literal', value: 0 },
+    });
+
+    expect(quarantineEffects('t-1', { 'example.impossible': { version: 1, value: 1 } })).toEqual(
+      [],
+    );
+  });
+});
+
+/**
+ * **The hand-edit path consults the schema too** — [P7.1], and it is a
+ * correction: a docstring in `turns/effects.ts` briefly claimed the check there
+ * covered this, and `reconcileHandEdits` never calls `acceptEffect`.
+ */
+describe('a hand edit that does not fit', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('is recorded as refused, attributed to the person, and does not move the state', () => {
+    const effects = divergenceEffects(
+      't-1',
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 25, minute: 0 } } },
+    );
+
+    expect(effects).toHaveLength(1);
+    expect(effects[0]?.proposedBy).toEqual({ kind: 'user' });
+    expect(effects[0]?.applied).toBe(false);
+    expect(effects[0]?.rejectedReason).toBe('schema');
+    // Refused means the state stays where the log says it is.
+    expect(effects[0]?.after).toEqual({ day: 1, hour: 8, minute: 0 });
+  });
+
+  it('still applies an edit that fits, which is what the mechanism is for', () => {
+    const effects = divergenceEffects(
+      't-1',
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      { [SE_CLOCK]: { version: 1, value: { day: 2, hour: 9, minute: 30 } } },
+    );
+
+    expect(effects[0]?.applied).toBe(true);
+    expect(effects[0]?.after).toEqual({ day: 2, hour: 9, minute: 30 });
+  });
+
+  it('applies a deletion without asking the schema about it', () => {
+    // A delete carries no value, so there is nothing to validate — and refusing
+    // one would make removing a channel from the file impossible, which is the
+    // divergence [03 §8.1] is most explicit about supporting.
+    const effects = divergenceEffects(
+      't-1',
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      {},
+    );
+
+    expect(effects[0]?.op).toEqual({ type: 'delete', path: '/' });
+    expect(effects[0]?.applied).toBe(true);
+  });
+});
+
 /**
  * The module loaded with an empty registry, which is the only way to see a build
  * that has no clock — every other test in this file has installed the built-ins

@@ -4,8 +4,6 @@
 import type { ChannelDefinition } from '@storyengine/sdk';
 import { createValidator, type Ajv, type ValidateFunction } from '@storyengine/shared';
 
-import { channelDefinition } from './channels.js';
-
 /**
  * Holding a channel's value to the schema it declares —
  * [06 §4.2](../../../../docs/design/06-modes-and-turn-pipeline.md),
@@ -85,11 +83,18 @@ export interface SchemaFailure {
  * Validates a value against a channel's declared schema.
  *
  * Returns `null` when it passes, when the channel is unknown, or when its schema
- * could not be compiled — each for a stated reason above. A caller that needs to
- * tell those apart has `channelDefinition` to hand.
+ * could not be compiled — each for a stated reason above.
+ *
+ * **Takes a definition rather than an id, which is what keeps this module
+ * importable from `channels.ts`.** Looking the id up here would mean importing
+ * the registry, and the registry's own `divergenceEffects` needs to call this —
+ * a cycle. Every caller has the definition in hand already: `refuse` looks it up
+ * one line earlier, and `divergenceEffects` is iterating the map it came from.
  */
-export function schemaFailure(channelId: string, value: unknown): SchemaFailure | null {
-  const definition = channelDefinition(channelId);
+export function schemaFailure(
+  definition: ChannelDefinition | null,
+  value: unknown,
+): SchemaFailure | null {
   if (definition === null) return null;
 
   const validate = validatorFor(definition);

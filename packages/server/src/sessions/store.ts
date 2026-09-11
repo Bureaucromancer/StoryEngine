@@ -17,7 +17,7 @@ import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '..
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
-import { channelKey, divergenceEffects, divergenceTurn } from './channels.js';
+import { channelKey, divergenceEffects, divergenceTurn, quarantineEffects } from './channels.js';
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
@@ -968,7 +968,27 @@ export async function reconcileHandEdits(
       walkPath(turns, session.headTurnId),
     );
 
-    const effects = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
+    const diverged = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
+
+    /**
+     * **And the quarantine rung, in the same turn** — [06 §4.2], [P7.1].
+     *
+     * Over the state *after* the divergence rather than before it, which is the
+     * only order that is not wrong twice: quarantining first would re-check a
+     * value the user's edit is about to replace, and the edit itself is already
+     * schema-checked where it is built. So the sequence is *what the log says*,
+     * then *what the person wrote*, then *what still does not fit* — and the
+     * last of those is the case neither of the first two covers, a value that
+     * was legal when written and is not now.
+     *
+     * **One turn for both, because they are one event**: a session was opened
+     * and the engine reconciled it. Two turns would put a parent link between
+     * two halves of a reconciliation nobody performed in two steps.
+     */
+    const effects = [
+      ...diverged,
+      ...quarantineEffects(session.headTurnId ?? '', applyEffects(replayed, diverged)),
+    ];
     if (effects.length === 0) return [];
 
     const turn = divergenceTurn(sessionId, session.headTurnId, effects);
@@ -1021,6 +1041,21 @@ export function applyEffects(
     next[key] = {
       version: effect.channelVersion,
       value: effect.after,
+      /**
+       * **`degraded`'s first writer** — [06 §4.2], [P7.1]. `ChannelState` has
+       * carried this field since P3.0 with a docstring saying *"the writer
+       * arrives with the first `ChannelDefinition.schema`"*, and that schema
+       * arrived this stage.
+       *
+       * Composed from the effect rather than copied: the effect carries a
+       * reason, and `before` *is* the raw value it is a reason about. Spreading
+       * conditionally so an ordinary effect writes no key at all — a state
+       * carrying `degraded: undefined` and one carrying nothing serialise
+       * differently, and `divergenceEffects` compares serialised values.
+       */
+      ...(effect.degraded === undefined
+        ? {}
+        : { degraded: { reason: effect.degraded.reason, raw: effect.before } }),
     };
   }
 

@@ -1894,10 +1894,11 @@ user-attributed effect, so `{"hour": 25}` typed into a file used to become an
 every branch from that node. It is now a recorded refusal — the posture is
 unchanged and the outcome is not.
 
-***The load-time ladder is not built, and the reason is a finding.*** [06 §4.2]'s
-ladder is *validate → coerce → migrate → quarantine*; three rungs were written as
-a pure function over a stored `ChannelState` and **not shipped, because there is
-nowhere correct to call it**. `turns/gather.ts` is the pipeline's one channel
+~~***The load-time ladder is not built, and the reason is a finding.***~~
+***Built the same day, and the finding is what told it where to go.*** [06 §4.2]'s
+ladder is *validate → coerce → migrate → quarantine*; three rungs were first
+written as a pure function over a stored `ChannelState` and **not shipped,
+because there is nowhere correct to call it**. `turns/gather.ts` is the pipeline's one channel
 read and the runner chains each effect's `before` from that map, so a quarantined
 value there becomes the next effect's `before` while the log still records the
 impossible one as an `after` — replay-from-zero and snapshot-plus-replay disagree
@@ -1919,10 +1920,42 @@ wiring job, and therefore its own commit rather than a rider on this one.
 the same reason: an exported function with no caller is the mistake `clockEffect`
 made, and this stage is not the place to repeat it.*
 
-**Next:** the quarantine effect and `degraded`'s writer; then the pacing dial,
-which is `init`'s `authored` arm, `user-only`'s first subject and two fields on
-two published stable-tier schemas; then the channel-to-text renderer, which is
-what gives `budget` a reader.
+Then **the quarantine landed as an effect**, beside `divergenceEffects` and in the
+same turn: `before` is the value that stopped fitting, `after` is the channel's
+declared `init`, `proposedBy` is the engine, and a new optional
+`ChannelEffect.degraded` carries the reason. `applyEffects` composes
+`ChannelState.degraded` from that reason plus `before` — **which is the writer
+that field's docstring has been promising since P3.0**, in as many words: *"the
+writer arrives with the first `ChannelDefinition.schema`"*. The effect carries a
+reason and not a raw value because `before` already is the raw value, and `before`
+is load-bearing on a quarantine anyway: it is what an undo replays, so a
+quarantine is reversible like anything else.
+
+*Three rungs of four. `migrate` cannot run because `ChannelDefinition` has no
+such field, and its absence is not silent — a value that would have been migrated
+is quarantined with its raw value kept, which is the outcome that rung improves
+on rather than prevents. **Coercion is a narrowing rather than an omission**: it
+earns its place against a channel whose schema has removed a field, and neither
+shipped channel has ever changed shape, so a coercer built now would be built
+against no case at all.*
+
+***And a claim from two hours earlier had to be corrected, which is the more
+useful half of this commit.*** The schema check in `turns/effects.ts` was
+described as what stops a hand edit from poisoning the log. **It is not on that
+path**: `reconcileHandEdits` builds its effects in `divergenceEffects` and never
+calls `acceptEffect`, so a value typed into `session.json` became an *applied*
+effect whatever shape it was. The check is now in `divergenceEffects` too, where
+a failing edit is recorded **refused** rather than applied-then-quarantined —
+two effects for one mistake, with the bad value in the middle of the log, is the
+alternative that was rejected. *The `update` policy is deliberately still not
+consulted there: `engine-computed` refuses model and step, `user-only` refuses
+everything but user, so a person editing their own file is permitted by both —
+which is 03 §8.1's whole premise.*
+
+**Next:** the pacing dial, which is `init`'s `authored` arm, `user-only`'s first
+subject and two fields on two published stable-tier schemas; then the
+channel-to-text renderer, which is what gives `budget` a reader; then 06 §4.2's
+error surface, which now has something real to report.
 
 ### P7.2 — Party, presence, status, and the cast panel
 

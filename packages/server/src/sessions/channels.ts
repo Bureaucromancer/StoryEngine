@@ -5,6 +5,7 @@ import type { ChannelDefinition } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
 import { NO_TIMING } from '../retrieval/timing.js';
+import { schemaFailure } from './channel-schema.js';
 import type { ChannelEffect, ChannelState, Turn } from './types.js';
 
 /**
@@ -448,6 +449,34 @@ function effect(
   after: unknown,
   state: ChannelState | undefined,
 ): ChannelEffect {
+  const definition = channelDefinition(channelId);
+  /**
+   * **The schema, checked here because this path never meets `acceptEffect`** —
+   * [P7.1].
+   *
+   * `reconcileHandEdits` builds its effects straight from this function and
+   * appends them; `turns/effects.ts`'s `refuse` is only ever reached by a step,
+   * a model or the engine. So a value typed into `session.json` used to become
+   * an **applied** effect whatever shape it was, and an impossible clock entered
+   * the permanent record and replayed onto every branch from that node. The
+   * schema check in `refuse` did nothing about it, and a docstring there briefly
+   * claimed otherwise.
+   *
+   * **Refused rather than applied-then-quarantined**, which is the choice worth
+   * stating. Both are available: a quarantine would write the bad value and then
+   * write a reset, two effects for one mistake, with the raw value in the middle
+   * of the log. A refusal records the attempt, keeps the state where the log
+   * says it is, and says why — and the difference in kind is real, because this
+   * is a value *arriving*, not a value *already there under a schema that
+   * changed*. The second case is the quarantine's, below.
+   *
+   * *Only the schema is consulted, and the `update` policy deliberately is not.*
+   * `engine-computed` refuses `model` and `step`; `user-only` refuses everything
+   * but `user`. A person editing their own file is permitted by both, which is
+   * [03 §8.1]'s whole premise — so there is nothing here for policy to say.
+   */
+  const failure = op.type === 'delete' ? null : schemaFailure(definition, after);
+
   return {
     id: uuidv7(),
     turnId,
@@ -455,14 +484,16 @@ function effect(
     scopeKey,
     op,
     before,
-    after,
+    // A refused effect leaves the state where it was, which for this path means
+    // the value the log already says is true.
+    after: failure === null ? after : before,
     // The whole point of the mechanism: attributed to the person who opened the
     // file, not to the engine that noticed.
     proposedBy: { kind: 'user' },
-    applied: true,
-    rejectedReason: null,
+    applied: failure === null,
+    rejectedReason: failure === null ? null : 'schema',
     supersedes: null,
-    channelVersion: state?.version ?? 1,
+    channelVersion: definition?.version ?? state?.version ?? 1,
     scope: 'session',
   };
 }
@@ -478,6 +509,96 @@ function effect(
  */
 function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * The effects that quarantine a channel whose stored value no longer fits its
+ * schema — [06 §4.2](../../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [25 B7](../../../../docs/design/25-open-questions.md), built at [P7.1].
+ *
+ * **The sibling of {@link divergenceEffects}, and the difference between them is
+ * the whole design.** A divergence is a value *arriving* — somebody edited the
+ * file — and one that does not fit is refused, because the state the log
+ * describes is still good. A quarantine is a value **already there** under a
+ * schema that has since changed: nobody is proposing anything, the value was
+ * legal when it was written, and the mode moved underneath it. Refusing that
+ * would be refusing the past.
+ *
+ * **So it is a write, and that is the conclusion 06 §4.2 stops one step short
+ * of.** *"Initialise the channel to its default"* cannot be a way of looking at
+ * state: the runner chains each effect's `before` from the channel map, so a
+ * reset that existed only at read time would become the next effect's `before`
+ * while the log still recorded the old value as an `after` — and
+ * replay-from-zero would stop equalling snapshot-plus-replay, which is
+ * [07 §4](../../../../docs/design/07-branching.md)'s CI assertion. Recorded,
+ * attributed to the engine, reversible like anything else.
+ *
+ * **Three rungs of four, and the missing one is `migrate`.** 06 §4.2 puts a
+ * migration between coercion and quarantine, *"if the definition ships a
+ * `migrate(fromVersion, state)`"* — and none can, because the field is
+ * deliberately absent from `ChannelDefinition` ([21 §1.3] makes it optional,
+ * 06 §4.2 wants it only for *"the genuine minority"*). Its absence is not
+ * silent: a value that would have been migrated is quarantined instead, with its
+ * raw value kept, which is the outcome that rung improves on rather than
+ * prevents — and the raw value is exactly what a later migration would run
+ * against.
+ *
+ * ***Coercion is not here either, and that is a narrowing rather than an
+ * omission.*** That rung is *"drop unknown fields, fill declared defaults,
+ * re-validate"* — Ajv's `removeAdditional` and `useDefaults`, which
+ * `AJV_OPTIONS` switches off and explains at length for portable objects. It
+ * earns its place against a channel whose schema has *removed* a field, and
+ * neither shipped channel has ever changed shape, so a coercer built now would
+ * be built against no case at all. Until then a droppable field is quarantined,
+ * which is visible and recoverable rather than wrong.
+ */
+export function quarantineEffects(
+  turnId: string,
+  channels: Record<string, ChannelState>,
+): ChannelEffect[] {
+  const effects: ChannelEffect[] = [];
+
+  for (const key of Object.keys(channels).sort()) {
+    const state = channels[key];
+    if (state === undefined) continue;
+
+    const { channelId, scopeKey } = splitChannelKey(key);
+    const definition = channelDefinition(channelId);
+    const failure = schemaFailure(definition, state.value);
+    if (failure === null) continue;
+
+    const reset = initialValue(channelId);
+    /**
+     * **A default that does not fit its own schema is an author's mistake**, and
+     * quarantining to it would write an effect on every load forever. Left alone
+     * and visible instead, on the same reasoning `channel-schema.ts` gives for a
+     * schema that will not compile: the person playing cannot fix it and should
+     * not pay for it with a log that grows every time they open the session.
+     */
+    if (schemaFailure(definition, reset) !== null) continue;
+
+    effects.push({
+      id: uuidv7(),
+      turnId,
+      channelId,
+      scopeKey,
+      op: { type: 'set', path: '/' },
+      before: state.value,
+      after: reset,
+      // The engine noticed; nobody proposed. 06 §4.2's calibration is what makes
+      // this safe to do without asking — channel state is tracked numbers and
+      // flags, not the story, and the worst honest outcome is a reset inventory.
+      proposedBy: { kind: 'engine' },
+      applied: true,
+      rejectedReason: null,
+      supersedes: null,
+      channelVersion: definition?.version ?? state.version,
+      scope: 'session',
+      degraded: { reason: failure.issues.join('; ') },
+    });
+  }
+
+  return effects;
 }
 
 /**

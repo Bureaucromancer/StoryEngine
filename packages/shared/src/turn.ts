@@ -508,6 +508,28 @@ export interface ChannelEffect {
    * migration.
    */
   scope: 'session' | 'escaped';
+  /**
+   * Present when this effect is a **quarantine** — [06 §4.2], [P7.1].
+   *
+   * The last rung of the validate-coerce-migrate-quarantine ladder is *"preserve
+   * the raw value verbatim, initialise the channel to its default, mark it
+   * degraded, and carry on"*, and all four of those are writes. So a quarantine
+   * is an ordinary effect: `before` is the value that stopped fitting, `after`
+   * is the channel's declared `init`, and this says why.
+   *
+   * **A reason and not a raw value, because `before` already is the raw value.**
+   * `ChannelState.degraded` carries `{ reason, raw }` and `applyEffects` composes
+   * it from the two — duplicating the value here would create a second place for
+   * it to be wrong, and `before` is load-bearing on this effect anyway: it is
+   * what an undo replays, so a quarantine is reversible like everything else.
+   *
+   * **Why a field rather than a derivation.** `applyEffects` cannot tell a
+   * quarantine from any other engine set to the same value, and the difference
+   * is the whole of what a person needs told. The alternative considered was
+   * overloading `rejectedReason` on an applied effect, which would mean a
+   * record where *rejected* and *applied* are both true.
+   */
+  degraded?: { reason: string };
 }
 
 export type EffectOp =
