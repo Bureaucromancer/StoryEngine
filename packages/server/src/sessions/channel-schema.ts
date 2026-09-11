@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ChannelDefinition } from '@storyengine/sdk';
-import { createValidator, type Ajv, type ValidateFunction } from '@storyengine/shared';
+import { createValidator, type ValidateFunction } from '@storyengine/shared';
 
 /**
  * Holding a channel's value to the schema it declares —
@@ -24,52 +24,56 @@ import { createValidator, type Ajv, type ValidateFunction } from '@storyengine/s
  */
 
 /**
- * Compiled validators, keyed by channel id and version.
+ * Compiled validators, keyed by the **definition object itself**.
  *
- * **Version is in the key because a definition can be replaced in place.**
- * `registerChannel` is last-write-wins, so the same id can carry a different
- * schema after a reload — and a cache keyed on id alone would then validate new
- * values against the old shape, silently, which is the failure mode hardest to
- * see from the outside. Two entries for one id costs a few hundred bytes.
+ * ***This was keyed by `id@version`, and that was wrong in the direction that
+ * matters*** — corrected the same day, by a route test that registered a
+ * stricter schema at the same version and watched the old validator answer.
  *
- * *A `Map` rather than a `WeakMap` on the definition object because the key has
- * to survive a definition being re-registered as an equal-but-distinct object,
- * which is what a loader that re-imports a package produces.*
+ * The reasoning behind the string key was that a version bump is what a schema
+ * change *ought* to carry, which is true and is [06 §4.2]'s whole *"record the
+ * version, never the schema"* mechanism. But a cache is not the place to enforce
+ * an authoring rule: a mode author who edits a schema and forgets the bump gets
+ * stale validation for the life of the process, silently, which is the failure
+ * mode hardest to see from outside and the one this cache was supposedly against.
+ *
+ * A `WeakMap` on the definition is both simpler and stricter. `registerChannel`
+ * is last-write-wins and stores whatever object it was handed, so a
+ * re-registration is a *different object* whether or not the version moved —
+ * same object, same validator; new object, recompile. Entries go when the
+ * definition does, which is what a string key could not do either.
  */
-const compiled = new Map<string, ValidateFunction>();
+const compiled = new WeakMap<ChannelDefinition, ValidateFunction>();
 
 const validator = createValidator();
 
+/**
+ * `null` for a schema that will not compile — a broken declaration, not a broken
+ * value, and the two deserve opposite treatment.
+ *
+ * Refusing every value on a channel whose author wrote invalid JSON Schema would
+ * take the channel out of service over a mistake the *player* cannot fix;
+ * treating it as unconstrained lets the session keep working and leaves the
+ * mistake where it belongs. Same shape as `refuse`'s unknown-channel branch, and
+ * the same reason: a turn that failed over this would be a worse outcome than
+ * one that carried on.
+ *
+ * *Not cached, deliberately.* A `WeakMap` cannot hold "this one failed" without
+ * a second map, and a schema that will not compile is compiled at most once per
+ * value on a channel nobody can use — which is a cost paid only by a build that
+ * is already broken.
+ */
 function validatorFor(definition: ChannelDefinition): ValidateFunction | null {
-  return cached(compiled, validator, definition);
-}
-
-function cached(
-  into: Map<string, ValidateFunction>,
-  ajv: Ajv,
-  definition: ChannelDefinition,
-): ValidateFunction | null {
-  const key = `${definition.id}@${String(definition.version)}`;
-  const held = into.get(key);
+  const held = compiled.get(definition);
   if (held !== undefined) return held;
 
   let fn: ValidateFunction;
   try {
-    fn = ajv.compile(definition.schema);
+    fn = validator.compile(definition.schema);
   } catch {
-    /**
-     * **A schema that will not compile is a broken declaration, not a broken
-     * value**, and the two deserve opposite treatment. Refusing every value on a
-     * channel whose author wrote invalid JSON Schema would take the channel out
-     * of service over a mistake the *player* cannot fix; treating it as
-     * unconstrained lets the session keep working and leaves the mistake where
-     * it belongs. Same shape as `refuse`'s unknown-channel branch, and the same
-     * reason: a turn that failed over this would be a worse outcome than one
-     * that carried on.
-     */
     return null;
   }
-  into.set(key, fn);
+  compiled.set(definition, fn);
   return fn;
 }
 

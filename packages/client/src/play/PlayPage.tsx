@@ -28,6 +28,7 @@ import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
+import { ChannelHealth } from './ChannelHealth.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
@@ -339,6 +340,13 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           <RenameSession sessionId={sessionId} name={session.data.session.name} />
         )}
       </div>
+
+      {/* **Above the lore panel and above the transcript** — [06 §4.2], [P7.1].
+          A persistent banner on the session, not a modal and not a log line: it
+          is a fact about the whole session, it renders nothing when there is
+          nothing wrong, and it must not be somewhere a person has to open a
+          disclosure to find. */}
+      <ChannelHealth sessionId={sessionId} />
 
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about

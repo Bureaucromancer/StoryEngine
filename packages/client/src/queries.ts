@@ -23,9 +23,9 @@ import {
   readTurn,
   renameSession,
   setSessionLore,
+  writeSessionChannel,
   type Account,
   type AccountPatch,
-  type ActiveJob,
   type AdminAccountList,
   type AdminConnection,
   type Binding,
@@ -506,7 +506,7 @@ export function usePatchPrefs(): UseMutationResult<
  */
 export function useSession(
   sessionId: string,
-): UseQueryResult<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+): UseQueryResult<Awaited<ReturnType<typeof readSession>>> {
   return useQuery({ queryKey: ['session', sessionId], queryFn: () => readSession(sessionId) });
 }
 
@@ -535,6 +535,35 @@ export function useSetSessionLore(
   return useMutation({
     mutationFn: (selection: { treatment: string | null; lore: string[] }) =>
       setSessionLore(sessionId, selection),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * Recovering one degraded channel — [06 §4.2], [P7.1].
+ *
+ * **Invalidates the session and resets the preview**, the same two keys
+ * `useSetSessionLore` touches and for the same reason: a channel write advances
+ * the head, so the session file changed and any assembled preview built over the
+ * old state is stale.
+ *
+ * *No `onError` special-casing, because a refusal is not an error*: the route
+ * answers 200 with an unapplied effect, and the caller decides what to say.
+ */
+export function useWriteChannel(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof writeSessionChannel>>,
+  Error,
+  { key: string; value: unknown }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (write: { key: string; value: unknown }) =>
+      writeSessionChannel(sessionId, write.key, write.value),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });

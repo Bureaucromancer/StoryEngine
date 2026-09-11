@@ -27,8 +27,10 @@ import {
   setArchived,
   setName,
   undoTurn,
+  writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
+import { degradedChannels } from '../sessions/channels.js';
 import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
@@ -54,6 +56,29 @@ import type { Tape } from '../rng/rng.js';
  */
 
 const SessionParams = Type.Object({ sessionId: Type.String() });
+
+/**
+ * A channel write addresses the **map key**, not the channel id — [P7.1].
+ *
+ * A scoped channel has one value per key (`se.lore.timing#<entryId>`), so a
+ * route taking an id could only ever reach the unscoped value. `maxLength` is
+ * generous rather than meaningful: a key is an id plus a uuid.
+ */
+const ChannelParams = Type.Object({
+  sessionId: Type.String(),
+  key: Type.String({ minLength: 1, maxLength: 400 }),
+});
+
+/**
+ * `value` is unconstrained here and validated against the **channel's own
+ * schema** downstream, which is where the declaration lives. A body schema that
+ * guessed would be a second, weaker copy of it.
+ *
+ * *Wrapped in an object rather than sent bare so that `null` is expressible: a
+ * bare body of `null` and a missing body are the same thing to a JSON parser,
+ * and null is a value a channel may legitimately hold.*
+ */
+const ChannelBody = Type.Object({ value: Type.Unknown() }, { additionalProperties: false });
 const JobParams = Type.Object({ sessionId: Type.String(), jobId: Type.String() });
 const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String() });
 
@@ -432,7 +457,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     // mid-turn needs to know there *is* one before it decides whether to open a
     // stream or offer a submit box.
     const job = activeJob(services.state.db, session.id);
-    return reply.send({ session, activeJob: job });
+    /**
+     * **The health record travels too** — [06 §4.2], [P7.1].
+     *
+     * *"The session carries a health record — which channels are degraded, which
+     * version they were written against, and why they failed."* Derived from the
+     * markers `applyEffects` replays, and composed **here rather than on the
+     * client**, which is the difference between one shape and two: a client
+     * reading `session.channels` itself would have to split composite keys and
+     * know the registry, and a second `splitChannelKey` in a React component is
+     * the drift the server's own docstrings keep refusing.
+     *
+     * On the read route rather than a route of its own, because the banner it
+     * feeds is on the session and a second request to learn whether to show it
+     * is a request nobody would make.
+     */
+    return reply.send({ session, activeJob: job, health: degradedChannels(session.channels) });
   });
 
   app.put(
@@ -488,6 +528,51 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { sessionId } = request.params as { sessionId: string };
       const updated = await setLore(services.sessions, account.handle, sessionId, body);
       return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * A person writes one channel — [06 §4.2]'s recovery, [P7.1].
+   *
+   * **One route for all three offered recoveries**, which is why it takes a
+   * value rather than naming an action. 06 §4.2 offers *"retry the migration
+   * once the author ships a fix, edit the quarantined value by hand, or accept
+   * the reset"*: retry sends the quarantined raw value back, edit sends whatever
+   * the person typed, and accept sends the value already standing — which clears
+   * the marker, because a `degraded` state is only ever written by an effect
+   * that carries a reason.
+   *
+   * **The key, not the channel id**, because a scoped channel has one value per
+   * key and a route addressing the id could only ever recover the unscoped one.
+   * It is URL-encoded like every other id in this file.
+   *
+   * **Refusals come back as 200 with the effect**, not as an error status. A
+   * retry that still does not fit is a *recorded refusal* — the whole point of
+   * routing this through `acceptEffect` — and a 4xx would throw away the record
+   * the workbench is supposed to show. The client reads `effect.applied`.
+   */
+  app.put(
+    '/sessions/:sessionId/channels/:key',
+    { schema: { params: ChannelParams, body: ChannelBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await mine(services, request, reply);
+      if (!session) return;
+
+      const { sessionId, key } = request.params as { sessionId: string; key: string };
+      const { value } = request.body as { value: unknown };
+      const outcome = await writeChannel(services.sessions, account.handle, sessionId, key, value);
+      if (outcome.kind === 'no-session') {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+
+      return reply.send({
+        session: outcome.session,
+        effect: outcome.effect,
+        health: degradedChannels(outcome.session.channels),
+      });
     },
   );
 

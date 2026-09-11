@@ -2015,9 +2015,48 @@ it is what **K4 is built to interrogate**. So the consumer this stage ships for
 is *any preset that already names a channel*, which is a real one: the slot kind
 is published and an author can write it today.
 
-**Next:** 06 §4.2's error surface, which now has something real to report — the
-quarantine writes `degraded` and nothing reads it; and the exit-gate question
-above, which decides where the dial lands.
+Then **06 §4.2's error surface**, which that section calls *"the part worth
+building properly, and the part the sources have nothing like"* and which no
+stage named until §0.1a. All three of its bullets: a **health record** on the
+session read (which channels, which version, why, plus the raw value and what is
+standing in its place), a **persistent banner** on the play surface — `warning`
+rather than `error`, `role="status"` rather than `alert`, and the *"your story is
+unaffected"* half kept because 4.2 says the reassurance is load-bearing — and
+**recovery offered rather than applied**.
+
+**One route serves all three of 4.2's offers**, which is why it takes a value
+rather than naming an action: `PUT /sessions/:id/channels/:key`. *Retry* sends
+the quarantined value back, *edit* sends whatever was typed, *accept the reset*
+sends what is standing — which clears the marker, since a `degraded` state is
+only ever written by an effect carrying a reason. It goes through `acceptEffect`,
+so **a retry that still does not fit is refused and recorded**, which is what
+makes offering the button safe: it cannot put the session back in the state it
+was rescued from. A refusal answers **200 with an unapplied effect**, not a 4xx,
+because a status code would throw away the record the workbench is meant to show.
+
+***Two things the tests found, and the second was a real defect.*** The first
+draft drove the whole surface with a hand-edited `session.json` and found
+nothing — which was the mechanisms working. A bad value **arriving** is refused
+at the divergence step and never reaches state, so there is nothing to
+quarantine; the quarantine is for a value **already there** under a schema that
+has since changed. The two paths are genuinely different and only one ends at the
+banner, so the tests drive a schema change instead, which is the scenario 4.2 is
+about.
+
+**And doing that surfaced a stale-validator bug in code from earlier the same
+day.** `channel-schema.ts` cached compiled validators by `id@version`, reasoning
+that a schema change ought to carry a version bump — true, and 06 §4.2's *"record
+the version, never the schema"* mechanism. But **a cache is the wrong place to
+enforce an authoring rule**: a mode author who edits a schema and forgets the
+bump got stale validation for the life of the process, silently. It is a
+`WeakMap` on the definition object now — `registerChannel` is last-write-wins, so
+a re-registration is a different object whether or not the version moved. The
+docstring that got it backwards is corrected, and the test that only covered the
+bumped case now covers both.
+
+**Next:** the exit-gate question above, which decides where the dial lands; then
+hidden visibility and its reveal affordance, with `Goal.visibility` as the second
+consumer §1.4 warns not to reinvent.
 
 ### P7.2 — Party, presence, status, and the cast panel
 

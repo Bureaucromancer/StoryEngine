@@ -89,11 +89,13 @@ describe('a value against the channel that declares it', () => {
     expect(schemaFailure(channelDefinition('example.broken'), { anything: true })).toBeNull();
   });
 
-  it('recompiles when a channel is re-registered at a new version', () => {
-    // **The cache is keyed by id *and* version**, because `registerChannel` is
-    // last-write-wins: a reload can replace a definition in place, and a cache
-    // keyed on id alone would go on validating new values against the old shape
-    // — silently, which is the failure hardest to see from outside.
+  it('recompiles when a channel is re-registered, version bumped or not', () => {
+    // **The cache is keyed by the definition object**, and this test is why.
+    // It was keyed by `id@version` on the reasoning that a schema change *ought*
+    // to carry a bump — true, and [06 §4.2]'s mechanism — but a cache is the
+    // wrong place to enforce an authoring rule: an author who forgets the bump
+    // got stale validation for the life of the process, silently. A route test
+    // registering a stricter schema at the same version is what found it.
     const strict = {
       id: 'example.versioned',
       owner: 'example.quiet',
@@ -109,7 +111,13 @@ describe('a value against the channel that declares it', () => {
     registerChannel(strict);
     expect(schemaFailure(channelDefinition('example.versioned'), { n: 'one' })).not.toBeNull();
 
+    // The bumped case, which the string key handled.
     registerChannel({ ...strict, version: 2, schema: { type: 'object' } });
     expect(schemaFailure(channelDefinition('example.versioned'), { n: 'one' })).toBeNull();
+
+    // **And the unbumped one, which it did not.** Same id, same version, a
+    // different schema — a new object, so a new validator.
+    registerChannel({ ...strict, version: 2 });
+    expect(schemaFailure(channelDefinition('example.versioned'), { n: 'one' })).not.toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newActor, newPreset } from '@storyengine/shared';
 
 import { defaultMode } from '../mode-registry.js';
+import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
@@ -558,6 +559,253 @@ describe('a hand-edited session file reaches the log', () => {
     const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
 
     expect(after.body.turns).toHaveLength(before.body.turns.length);
+  });
+});
+
+/**
+ * **The error surface** — [06 §4.2], [P7.1].
+ *
+ * That section calls this *"the part worth building properly, and the part the
+ * sources have nothing like"*: a health record on the session, a banner saying
+ * the story is unaffected, and **recovery offered rather than applied**. The
+ * banner is the client's; the record and the recovery are these.
+ *
+ * ***Driven by changing a schema under a live session, which is the scenario
+ * 4.2 is actually about*** — *"a session that has been open for three months
+ * will meet a channel that has changed shape"*. The first draft of these tests
+ * drove it with a hand-edited `session.json` and found nothing, which was the
+ * mechanisms working: a bad value *arriving* is refused at the divergence step
+ * and never reaches state, so there is nothing to quarantine. The two paths are
+ * genuinely different and only one of them ends here.
+ *
+ * The substitution is a plausible evolution rather than a contrived one: a clock
+ * that moved to quarter-hour granularity. The stored `08:05` stops fitting; the
+ * declared init of `08:00` still does, which matters because a channel whose own
+ * default fails its new schema is deliberately left alone.
+ */
+describe('a channel whose schema changed under a live session', () => {
+  const QUARTER_HOURS = { enum: [0, 15, 30, 45] };
+
+  /** Runs a turn, then tightens the clock's schema the way a new build would. */
+  async function afterASchemaChange(): Promise<() => void> {
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const original = channelDefinition('se.clock');
+    if (original === null) throw new Error('se.clock is not registered');
+    registerChannel({
+      ...original,
+      schema: {
+        ...(original.schema as Record<string, unknown>),
+        properties: {
+          day: { type: 'integer', minimum: 1 },
+          hour: { type: 'integer', minimum: 0, maximum: 23 },
+          minute: { type: 'integer', ...QUARTER_HOURS },
+        },
+      },
+    });
+    // The registry is a module global the server shares, so a substitution left
+    // behind would reach every test after this one.
+    return () => {
+      registerChannel(original);
+    };
+  }
+
+  it('opens the session anyway, which is the rule the whole ladder serves', async () => {
+    // *"A session must always open. Load never fails on a channel problem."*
+    const restore = await afterASchemaChange();
+    try {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      expect(read.status).toBe(200);
+    } finally {
+      restore();
+    }
+  });
+
+  it('reports which channel, which version, why, and what the value was', async () => {
+    // All of 06 §4.2's first bullet — *"which channels are degraded, which
+    // version they were written against, and why they failed"* — plus the raw
+    // value, because recovery is a decision nobody can make unseen.
+    const restore = await afterASchemaChange();
+    try {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const health = read.body.health as {
+        channelId: string;
+        version: number;
+        reason: string;
+        raw: { minute: number };
+      }[];
+
+      expect(health).toHaveLength(1);
+      expect(health[0]?.channelId).toBe('se.clock');
+      expect(health[0]?.version).toBe(1);
+      expect(health[0]?.reason).toContain('/minute');
+      expect(health[0]?.raw.minute).toBe(5);
+    } finally {
+      restore();
+    }
+  });
+
+  it('resets the channel to what the mode declared, and records doing so', async () => {
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+      const turns = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+      const last = turns.body.turns.at(-1) as {
+        effects: { channelId: string; proposedBy: { kind: string }; after: unknown }[];
+      };
+      const quarantine = last.effects.find((each) => each.channelId === 'se.clock');
+
+      // The engine noticed; nobody proposed. And `after` is Scene's declared
+      // init, not a value the engine invented.
+      expect(quarantine?.proposedBy).toEqual({ kind: 'engine' });
+      expect(quarantine?.after).toEqual({ day: 1, hour: 8, minute: 0 });
+    } finally {
+      restore();
+    }
+  });
+
+  it('does not re-quarantine on the next read, so the log stays bounded', async () => {
+    // A rung that fired on every load would turn one stale value into an
+    // unbounded effect log. The marker stays, because clearing it is the
+    // person's decision rather than the second read's.
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const before = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+
+      const again = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const after = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+
+      expect((again.body.health as unknown[]).length).toBe(1);
+      expect(after.body.turns).toHaveLength(before.body.turns.length);
+    } finally {
+      restore();
+    }
+  });
+
+  it('accepts the reset when a person writes the value that is standing', async () => {
+    // One of 06 §4.2's three offers. Writing the current value clears the
+    // marker, because a `degraded` state is only ever written by an effect
+    // carrying a reason.
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+      const accepted = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/se.clock`,
+        payload: { value: { day: 1, hour: 8, minute: 0 } },
+      });
+
+      expect(accepted.status).toBe(200);
+      expect(accepted.body.effect.applied).toBe(true);
+      expect(accepted.body.health).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  it('refuses a retry that still does not fit, without losing the record', async () => {
+    // **The property that makes recovery safe to offer**: the button cannot put
+    // the session back in the state it was rescued from. Recorded as a refusal
+    // rather than answered with a 4xx, because a status code throws away the
+    // record the workbench is meant to show.
+    const restore = await afterASchemaChange();
+    try {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const raw = (read.body.health as { raw: unknown }[])[0]?.raw;
+
+      const retried = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/se.clock`,
+        payload: { value: raw },
+      });
+
+      expect(retried.status).toBe(200);
+      expect(retried.body.effect.applied).toBe(false);
+      expect(retried.body.effect.rejectedReason).toBe('schema');
+      // Still reset, still degraded, still recoverable.
+      expect(retried.body.health).toHaveLength(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it('takes an edited value when it fits, which is the third offer', async () => {
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+      const edited = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/se.clock`,
+        payload: { value: { day: 1, hour: 21, minute: 45 } },
+      });
+
+      expect(edited.body.effect.applied).toBe(true);
+      expect(edited.body.health).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  it('reports nothing for a session that is fine', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.body.health).toEqual([]);
+  });
+});
+
+/**
+ * **A bad value *arriving* never reaches the health record**, which is the
+ * interaction between the two mechanisms and the thing that surprised the first
+ * draft of the tests above.
+ */
+describe('a hand edit that does not fit its channel', () => {
+  it('is refused at the divergence step, so nothing is ever degraded', async () => {
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const onDisk = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...onDisk,
+        // Past the schema's `maximum: 23`, and reachable only this way —
+        // `advance` carries minutes into hours, so nothing in the engine
+        // produces a 25.
+        channels: { 'se.clock': { version: 1, value: { day: 1, hour: 25, minute: 0 } } },
+      }),
+    );
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const last = turns.body.turns.at(-1) as {
+      effects: { channelId: string; applied: boolean; rejectedReason: string | null }[];
+    };
+    const attempt = last.effects.find((each) => each.channelId === 'se.clock');
+
+    // Recorded and attributed, as [03 §8.1] requires — and not applied, so the
+    // quarantine below it has nothing to rescue.
+    expect(attempt?.applied).toBe(false);
+    expect(attempt?.rejectedReason).toBe('schema');
+    expect(read.body.health).toEqual([]);
   });
 });
 

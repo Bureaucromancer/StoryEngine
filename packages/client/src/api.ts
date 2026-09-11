@@ -797,8 +797,60 @@ export function setSessionLore(
 
 export function readSession(
   sessionId: string,
-): Promise<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+): Promise<{ session: SessionSummary; activeJob: ActiveJob | null; health: DegradedChannel[] }> {
   return request('GET', `/api/sessions/${sessionId}`);
+}
+
+/**
+ * One channel this session could not load — [06 §4.2]'s health record, [P7.1].
+ *
+ * **Composed by the server, not derived here**, which is the difference between
+ * one shape and two: a client walking `session.channels` itself would have to
+ * split composite keys (`se.lore.timing#<entryId>`) and know the registry, and a
+ * second copy of that logic in a React component is exactly the drift the
+ * server's own modules keep refusing.
+ */
+export interface DegradedChannel {
+  /** The map key, which is what a recovery write addresses. */
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  version: number;
+  reason: string;
+  /** The value that stopped fitting. What *retry* sends back. */
+  raw: unknown;
+  /** What is standing in its place. What *accept the reset* sends back. */
+  value: unknown;
+}
+
+/**
+ * A person writes one value to one channel — [06 §4.2]'s recovery, [P7.1].
+ *
+ * **One call for all three offers.** That section offers *"retry the migration
+ * once the author ships a fix, edit the quarantined value by hand, or accept the
+ * reset"*: retry sends `raw` back, edit sends whatever was typed, and accept
+ * sends the value already standing — which clears the marker, because a degraded
+ * state is only ever written by an effect carrying a reason.
+ *
+ * **A refusal comes back as a 200 with `effect.applied === false`**, not as a
+ * thrown `ApiError`. A retry that still does not fit is a *recorded* refusal,
+ * which is the whole reason recovery is safe to offer, and a status code would
+ * throw away the record the workbench is meant to show. Callers read the effect.
+ */
+export function writeSessionChannel(
+  sessionId: string,
+  key: string,
+  value: unknown,
+): Promise<{
+  session: SessionSummary;
+  effect: { applied: boolean; rejectedReason: string | null };
+  health: DegradedChannel[];
+}> {
+  return request(
+    'PUT',
+    `/api/sessions/${encodeURIComponent(sessionId)}/channels/${encodeURIComponent(key)}`,
+    { value },
+  );
 }
 
 /**

@@ -17,7 +17,14 @@ import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '..
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
-import { channelKey, divergenceEffects, divergenceTurn, quarantineEffects } from './channels.js';
+import { acceptEffect } from '../turns/effects.js';
+import {
+  channelKey,
+  divergenceEffects,
+  divergenceTurn,
+  quarantineEffects,
+  splitChannelKey,
+} from './channels.js';
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
@@ -880,6 +887,87 @@ export async function undoTurn(
     const next = await advanceHead(context, handle, sessionId, undone);
     if (next === null) return { kind: 'no-session' };
     return { kind: 'undone', session: next, turn: undone };
+  });
+}
+
+/**
+ * What a person's write to a channel came to.
+ *
+ * A value rather than a throw, because the interesting outcome is the one where
+ * the engine says no: [06 §4.2]'s recovery is *offered*, and an offer that could
+ * fail silently would be worse than none.
+ */
+export type ChannelWriteOutcome =
+  { kind: 'no-session' } | { kind: 'written'; session: SessionFile; effect: ChannelEffect };
+
+/**
+ * A person writes a value to one channel — [06 §4.2]'s recovery, [P7.1].
+ *
+ * **One primitive for all three of the offered recoveries**, which is why it is
+ * a write rather than two verbs. 06 §4.2 offers *"retry the migration once the
+ * author ships a fix, edit the quarantined value by hand, or accept the
+ * reset"*: retry is this with the quarantined raw value, edit is this with
+ * whatever the person typed, and accept is this with the value already standing
+ * — which clears the `degraded` marker, because `applyEffects` writes one only
+ * for an effect that carries a reason.
+ *
+ * **Through `acceptEffect`, so a retry that still does not fit is refused and
+ * recorded** rather than silently reinstating the value that was quarantined in
+ * the first place. That is the whole reason recovery is safe to offer: the
+ * button cannot put the session back in the state it was rescued from.
+ *
+ * *A turn with no model call and no tape, the same shape `undoTurn` and
+ * `divergenceTurn` write, and for the same reason: [03 §8.1]'s promise is that a
+ * change of state is visible in the turn record, and a turn is what the
+ * workbench shows.*
+ */
+export async function writeChannel(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  key: string,
+  value: unknown,
+): Promise<ChannelWriteOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    const running = await reconstructAlong(
+      context,
+      handle,
+      sessionId,
+      walkPath(turns, session.headTurnId),
+    );
+
+    const id = uuidv7();
+    const { channelId, scopeKey } = splitChannelKey(key);
+    const effect = acceptEffect(
+      id,
+      {
+        channelId,
+        scopeKey,
+        op: { type: 'set', path: '/' },
+        after: value,
+        proposedBy: { kind: 'user' },
+      },
+      running,
+    );
+
+    const turn: Turn = {
+      id,
+      sessionId,
+      parentTurnId: session.headTurnId,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+      effects: [effect],
+      tape: [],
+    };
+
+    await appendTurnOnly(context, handle, sessionId, turn);
+    const next = await advanceHead(context, handle, sessionId, turn);
+    if (next === null) return { kind: 'no-session' };
+    return { kind: 'written', session: next, effect };
   });
 }
 

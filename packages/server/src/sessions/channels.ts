@@ -602,6 +602,81 @@ export function quarantineEffects(
 }
 
 /**
+ * One degraded channel, as the session reports it —
+ * [06 §4.2](../../../../docs/design/06-modes-and-turn-pipeline.md)'s health
+ * record, built at [P7.1].
+ *
+ * **Derived at read time and never stored**, like the channel map it is read
+ * from. That is what makes *"retry the migration once the author ships a fix"*
+ * free rather than a button that has to re-run something: the marker lives on
+ * the state, the state comes from the log, and a build whose declarations have
+ * changed produces a different answer on the next load without anything being
+ * migrated.
+ */
+export interface DegradedChannel {
+  /** The map key, so a recovery can address the value without re-deriving one. */
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  /** Which schema version the value was written against — [06 §4.2]. */
+  version: number;
+  /** Why it failed, in the validator's own words. */
+  reason: string;
+  /**
+   * The value that stopped fitting, kept verbatim.
+   *
+   * **On the wire, because recovery is a decision a person makes** and they
+   * cannot make it without seeing what is at stake. 06 §4.2's own calibration is
+   * the licence: channel state is *"tracked numbers and flags"*, so this is
+   * small by construction rather than by a cap somebody has to maintain.
+   */
+  raw: unknown;
+  /**
+   * What is standing in its place — the declared `init` the quarantine reset to.
+   *
+   * **Here so the record is sufficient for both offers.** *Try again* sends
+   * {@link raw}; *accept the reset* sends this. A client that had to read it out
+   * of `session.channels` would be walking composite keys itself, which is the
+   * thing composing this record server-side exists to avoid.
+   */
+  value: unknown;
+}
+
+/**
+ * Which channels a session could not load — [06 §4.2]'s first bullet.
+ *
+ * *"The session carries a health record — which channels are degraded, which
+ * version they were written against, and why they failed."* All three, from the
+ * markers `applyEffects` writes when it replays a quarantine.
+ *
+ * **Composed here rather than on the client**, which is the difference between
+ * one shape and two: a caller reading the raw map would have to split composite
+ * keys and consult the registry itself, and a second implementation of
+ * {@link splitChannelKey} living in a React component is exactly the drift this
+ * module's docstrings keep refusing.
+ */
+export function degradedChannels(
+  channels: Readonly<Record<string, ChannelState>>,
+): DegradedChannel[] {
+  const out: DegradedChannel[] = [];
+  for (const key of Object.keys(channels).sort()) {
+    const state = channels[key];
+    if (state?.degraded === undefined) continue;
+    const { channelId, scopeKey } = splitChannelKey(key);
+    out.push({
+      key,
+      channelId,
+      scopeKey,
+      version: state.version,
+      reason: state.degraded.reason,
+      raw: state.degraded.raw,
+      value: state.value,
+    });
+  }
+  return out;
+}
+
+/**
  * The turn that carries a hand edit into the log.
  *
  * **A turn, rather than effects appended to the head turn.** [03 §8.1] says the
