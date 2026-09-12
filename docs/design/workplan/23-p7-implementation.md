@@ -3031,9 +3031,70 @@ the record's, surfacing as `write-file-atomic`'s missing declarations. [P7.3]
 moved `Binding` for the same reason. The types live in `sessions/types.ts`, which
 is the session record's shapes and imports nothing that touches storage.
 
-**Next:** the mechanical filter — four of [06 §6.1]'s five clauses, since
-`requires` was deliberately removed from the `/1` schema with `onFire` — and the
-`introduces` predicate it reverses, which [P7.2] finally made implementable.
+**Done: stage one, and the channel it reads from** (2026-09-12).
+
+**`se.hook` is a channel from the first line written, and there was nothing to
+move.** [P7 §1.5] lists this as a correction the phase discharges and then
+corrects itself — *"`SessionFile` has never had a fired-set, and [03 §4.1] has
+already been corrected in place"* — so it is a new definition rather than a
+migration. Why it cannot be a field is the same sentence: **a flat set does not
+branch**, and rewind past the turn a hook fired on must put it back in the pool.
+*The pool stays session-wide and only the per-hook state is a channel, which is
+§1.5's own line: a hook's existence in this session is configuration and was
+copied at creation; what has happened to it is play.* `scope` gained a `hook`
+arm — a declaration, since nothing reads it mechanically.
+
+**Two states, and `committed` is deliberately not one of them.** `fired`, and
+`provisional` for [06 §6.1]'s honest reading of the slot an introduction fires
+through: guidance is advisory and a decline is *"a silent permanent loss —
+marked fired, character never arrived, and once-only"*. Commit's third state
+arrives with the control that writes it; a value the filter could read and
+nothing could produce is the placeholder shape this phase keeps refusing.
+
+**`filterHooks` is stage one: four of [06 §6.1]'s five clauses**, plus one that
+section does not list. `requires` is the missing fifth and was removed from the
+`/1` schema on purpose with `onFire`, so it returns additively without a version.
+The extra is [03 §4.1]'s: a hook carried by a lorebook is eligible only while
+that book is active, which is *"a mechanical justification for the association,
+rather than 'it seemed handy'"* — and the reason a pooled hook records its book.
+
+**The refusal is a class, not prose**, and each arm is a distinct remedy, which
+is the test for whether it earns its place: [06 §6.1] wants an author to see
+*which are blocked **and by what***. `subject-gone` is the one arm that is an
+authoring error rather than a state — [04 §6.1a] makes a dangling
+`introduces.actor` *"a broken hook, not a retired one… ineligible with a visible
+reason, and the author is told"*, where a dangling `involves` entry retires a
+hook quietly.
+
+***The `introduces` reversal is written out rather than described as one***,
+because [04 §6.1a] spells it for a reason: *"a subject who is dead is no more
+introducible than an `involves` cast member who is"*. Eligible when the subject
+resolves, is not yet introduced, carries no terminal status, is not the persona,
+and is not already in the party — and the last two are not hypothetical, since a
+Setup's `cast.partyDefault` can name the actor a lorebook-borne hook wants to
+introduce. **Every clause of it reads something [P7.2] and [P7.3] built**:
+`introducedOn`, `readStatus`, `isTerminal`, `readParty`. §1.6 enumerated six
+things an implementation would need and called them all absent; they are all
+there.
+
+*`filterHooks` takes the resolvable actor ids rather than looking them up*, so it
+stays a function of its arguments — resolving a `Ref` is a library read, and a
+filter that did I/O could not be tested against a table of cases. **And every
+hook comes back, refused or not**: the judgement pass takes the eligible ones and
+the panel takes all of them, because *"nothing about a held hook may be
+invisible"*.
+
+*A third instance of one build error, now recorded as a pattern.* `hooks.ts` is
+imported by `mode-loader.ts` to register a channel, and a **type-only** import of
+the lore resolver was enough to drag the storage layer into the tools project's
+graph, where `write-file-atomic`'s declarations are not on the path. The pool
+builder moved to `hook-pool.ts`; filtering a pool is a function of its arguments
+and only building one does I/O. [P7.3] moved `Binding` for this and this stage
+moved `PooledHook` for it an hour earlier.
+
+**Next:** stage two — the judgement pass firing through the guidance slot, the
+pacing dial as a `user-only` channel with its `init` from the treatment, and the
+selector's own line in the turn record, which §1.5 says has nowhere to land.
 
 ### P7.6 — Goals
 

@@ -140,7 +140,18 @@ export interface ChannelDefinition {
    */
   owner: string;
   version: number;
-  scope: 'session' | 'actor' | 'entry';
+  /**
+   * What one value is *about*, and therefore what a scoped key names.
+   *
+   * *`hook` joined the three at [P7.5]*, for the firing state [P7 §1.5] moved
+   * out of the session file before it was ever in one: *"a flat set does not
+   * branch"*, and per-hook state keyed the way per-entry and per-actor state
+   * already are costs no new concept. **Nothing reads this mechanically** — the
+   * key is composed from whatever `scopeKey` an effect carries — so it is a
+   * declaration, and widening it is a widening of what a mode may honestly say
+   * about itself.
+   */
+  scope: 'session' | 'actor' | 'entry' | 'hook';
   update: 'model-proposed' | 'engine-computed' | 'user-only';
   visibility: 'player' | 'hidden';
   /** Tokens the channel may spend when rendered into a prompt. Null for none. */

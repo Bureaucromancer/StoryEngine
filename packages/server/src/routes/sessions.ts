@@ -32,7 +32,7 @@ import {
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
-import { poolFor } from '../sessions/hooks.js';
+import { poolFor } from '../sessions/hook-pool.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelSurfaces, degradedChannels } from '../sessions/channels.js';

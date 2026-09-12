@@ -5,6 +5,7 @@ import type { Mode } from '@storyengine/sdk';
 
 import { registerMode } from './mode-registry.js';
 import { PARTY_CHANNEL, PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
+import { HOOK_CHANNEL } from './sessions/hooks.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
 /**
@@ -91,6 +92,12 @@ export async function installBuiltIns(): Promise<void> {
   registerChannel(PRESENCE_CHANNEL);
   registerChannel(STATUS_CHANNEL);
   registerChannel(PARTY_CHANNEL);
+  /**
+   * The hook pool's firing state — [06 §6.1], [P7.5]. `storyengine.hooks` is a
+   * package like `storyengine.cast` and `storyengine.lore`, for the same reason:
+   * every mode with a hook pool wants it and none of them owns it.
+   */
+  registerChannel(HOOK_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {
