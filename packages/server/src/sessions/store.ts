@@ -3,7 +3,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { type Preset, uuidv7 } from '@storyengine/shared';
+import { type Preset, type Setup, uuidv7 } from '@storyengine/shared';
 
 import {
   findTurnLocation,
@@ -140,6 +140,13 @@ export interface NewSession {
    * session.
    */
   name?: string;
+  /**
+   * Which mode, and what its wizard was answered with — [06 §1], [P7.4].
+   *
+   * `config` is the answers. It was written `null` by every caller from P2.3
+   * until P7.4 gave it its writer, which is what the field has meant all along:
+   * *how it was configured*.
+   */
   mode?: { id: string; config: unknown };
   /** Copied in whole. [03 §8]: the session owns its prompt pack from here on. */
   preset?: Preset;
@@ -148,10 +155,13 @@ export interface NewSession {
   treatment?: string | null;
   lore?: string[];
   /**
-   * The mode's wizard, answered — [P7.4]. Validated at the route, against the
-   * declaration it came from, because that is where the mode is resolved.
+   * The **Setup** this session was created from, copied — [04 §7], [P7.4].
+   *
+   * Resolved at the route, because the route is where the library is read and
+   * where a missing one is refused. By copy, so editing the Setup afterwards
+   * cannot reach a running session — the asymmetry the preset already has.
    */
-  setup?: Record<string, unknown>;
+  setup?: Setup;
 }
 
 export async function createSession(

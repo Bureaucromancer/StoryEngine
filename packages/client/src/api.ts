@@ -778,13 +778,17 @@ export interface NewSession {
    */
   mode?: string;
   /**
-   * The mode's wizard, answered — [06 §8.3], [P7.4].
+   * The mode's wizard, answered — [06 §7.3], [P7.4].
    *
    * Keyed by the field ids the mode declares. The server checks it against a
    * schema derived from that declaration, so what a client must not do is
    * invent a key: an unknown one is a `422`, not a silently dropped field.
+   *
+   * *`modeConfig` and not `setup`, because `setup` is the **Setup** object —
+   * two different things one word apart, and the session file has kept this
+   * value at `mode.config` since P2.3.*
    */
-  setup?: Record<string, unknown>;
+  modeConfig?: Record<string, unknown>;
 }
 
 /**
@@ -890,9 +894,9 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
      * at all, so sending an empty object would be the client asserting that a
      * wizard ran and collected nothing.
      */
-    ...(input.setup === undefined || Object.keys(input.setup).length === 0
+    ...(input.modeConfig === undefined || Object.keys(input.modeConfig).length === 0
       ? {}
-      : { setup: input.setup }),
+      : { modeConfig: input.modeConfig }),
   });
 }
 

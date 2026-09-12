@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { BranchRef, ChannelState, ModelRole, Preset } from '@storyengine/shared';
+import type { BranchRef, ChannelState, ModelRole, Preset, Setup } from '@storyengine/shared';
 
 import type { Binding } from '../providers/types.js';
 
@@ -74,8 +74,43 @@ export interface SessionFile {
    * Optional because every session written by P2.3 to P2.5 predates it, and a
    * read that healed the file would need the session lock, which is not
    * reentrant. Absent reads as the default mode.
+   *
+   * ***`config` is the wizard's answers, and it acquired its writer at [P7.4]***
+   * — 2026-09-12. *"How it was configured"* has meant this since P2.3 and was
+   * written `null` by every creation; the portable `Setup` names the same value
+   * the same way — `mode.config`, *"whatever the mode's own setup collected,
+   * stored verbatim, never interpreted by the host"*. **A first draft of P7.4
+   * put the answers in a `setup` field beside this one**, which was a second
+   * home for a value that already had one, and a name collision with the Setup
+   * object below. Corrected before anything depended on it.
+   *
+   * *A step reads the same value as `StepInput.setup`, and the two names are
+   * both the corpus's: the record calls it config, and a mode answering its own
+   * `SetupSchema` calls it setup — which is the split `Setup.mode.config`
+   * already draws.*
    */
   mode?: { id: string; config: unknown };
+  /**
+   * The **Setup** this session was created from, copied — [04 §7], [P7.4].
+   *
+   * ***Not the mode's wizard; the library object one word away from it.*** A
+   * `Setup` is *how to start playing* — a mode, a preset, a treatment, a cast to
+   * choose from, lore, hooks and goals — and [04 §7] is explicit that sessions
+   * are created from one **by copy**, so *"editing a Setup afterwards cannot
+   * reach a running session"* ([00 §3.1]). The same asymmetry the preset has,
+   * for the same reason.
+   *
+   * **It is what makes [04 §6.1b]'s middle rung reachable.** That section
+   * settles where an authored default may be written down — *"a Treatment
+   * proposes, a Setup overrides, and the running session owns it"* — and until
+   * this there was no Setup rung at all, because a session did not record which
+   * one it came from. A recorded finding of this phase, discharged.
+   *
+   * Absent for a session started from parameters rather than from a Setup,
+   * which is every session written before P7.4 and every one a person starts by
+   * pressing Start.
+   */
+  setup?: Setup;
   /**
    * The session's own copy of its prompt pack — [03 §8].
    *
@@ -89,26 +124,6 @@ export interface SessionFile {
    * why this one is the opposite.
    */
   cast?: { persona: string | null; actors: string[] };
-  /**
-   * What the mode's wizard was answered with — [06 §7.3], [P7.4].
-   *
-   * **Absent for a mode with no wizard**, which is every session written before
-   * P7.4 and every Scene session after it. `{}` would be a claim that a wizard
-   * ran and collected nothing, and the two must stay distinguishable.
-   *
-   * **A copy, like the preset and for the same reason** ([03 §8]): these are the
-   * answers *this* session was started with. A mode that later adds a field does
-   * not retroactively acquire an answer to it, and one that drops a field does
-   * not erase what was said — the session file keeps what it was told, and the
-   * mode's steps read what they recognise.
-   *
-   * *Validated on the way in, against `setupAnswerSchema` derived from the
-   * declaration, so a key here is one the mode asked for at the moment of
-   * creation. Not re-validated on read: a mode whose declaration has moved
-   * underneath a stored session is [06 §4.2]'s problem for channels and is not
-   * one a session should refuse to open over.*
-   */
-  setup?: Record<string, unknown>;
   /**
    * The treatment this session is played under, and the lorebooks the retriever
    * scans — [03 §8], added at [P5.6] because before it a session referenced

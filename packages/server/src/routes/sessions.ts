@@ -4,7 +4,7 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { PRESET_SCHEMA } from '@storyengine/shared';
+import { PRESET_SCHEMA, SETUP_SCHEMA, type Setup } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
@@ -180,8 +180,15 @@ const CreateBody = Type.Object(
     treatment: Type.Optional(Type.String({ maxLength: 200 })),
     lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
     /**
-     * The wizard's answers — [06 §7.3], [P7.4]. The field this route *"has no
-     * `setup` field at all"* for, which is what [P7.4]'s cell records.
+     * The wizard's answers — [06 §7.3], [P7.4].
+     *
+     * ***`modeConfig` rather than `setup`, corrected before anything depended on
+     * it.*** The first draft called this `setup`, which collides with the
+     * **Setup** object below — two different things one word apart, which is
+     * the collision [P7.4]'s own cell warns about — and stored it in a session
+     * field beside `mode`, where `mode.config` has meant *how it was
+     * configured* since P2.3 and been written `null` ever since. The portable
+     * `Setup` names the same value the same way.
      *
      * **Open at the schema and closed at the handler**, which is the split that
      * matters: what may be in here is the mode's own declaration, and a schema
@@ -193,7 +200,22 @@ const CreateBody = Type.Object(
      * *The bound is on the document rather than on the fields, because a field
      * count is the mode's business and an unbounded body is not.*
      */
-    setup: Type.Optional(Type.Object({}, { additionalProperties: true })),
+    modeConfig: Type.Optional(Type.Object({}, { additionalProperties: true })),
+    /**
+     * A **Setup** from the library — [04 §7], [P7.4], and the consumer that kind
+     * has never had.
+     *
+     * *How to start playing*, in one object: a mode and its config, a preset, a
+     * treatment, a cast to choose from, lore, hooks and goals. Everything it
+     * carries is a **default** that a parameter sent beside it overrides, which
+     * is [04 §6.1b]'s layering — *a Treatment proposes, a Setup overrides, and
+     * the running session owns it* — with the session's own parameters as the
+     * last word.
+     *
+     * The session keeps a **copy**, so editing the Setup afterwards cannot reach
+     * a running game ([00 §3.1]) — the same asymmetry the preset has.
+     */
+    setup: Type.Optional(Type.String({ maxLength: 200 })),
   },
   { additionalProperties: false },
 );
@@ -395,11 +417,38 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       name?: string;
       mode?: string;
       preset?: string;
-      setup?: Record<string, unknown>;
+      modeConfig?: Record<string, unknown>;
+      setup?: string;
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
     };
+
+    /**
+     * The Setup, read before anything else — [04 §7], [P7.4].
+     *
+     * **Everything it carries is a default a parameter overrides**, which is
+     * [04 §6.1b]'s layering with the session's own parameters as the last word:
+     * a person who picked a Setup and then changed the preset meant the preset
+     * they picked. So it is resolved first and consulted below wherever a
+     * parameter is absent.
+     *
+     * **Refused rather than ignored when it is not there.** A dangling
+     * *treatment* or *lorebook* is a session missing a book, which [00 §3.3]
+     * says to carry on with — a dangling Setup is a session that would be
+     * created as something other than what was asked for, because the Setup is
+     * *what to create*. Another account's is the same 422 by way of a 404
+     * inside: the path is the owner.
+     */
+    let from: Setup | undefined;
+    if (body.setup !== undefined) {
+      try {
+        const row = read(services.library, account.handle, body.setup, SETUP_SCHEMA);
+        from = row.body as Setup;
+      } catch {
+        return reply.code(422).send({ error: 'unknown-setup', message: 'No such setup.' });
+      }
+    }
 
     /**
      * An unknown mode is refused **here** rather than resolved to the default.
@@ -410,7 +459,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * different thing: nobody's story depends on it yet, and silently giving
      * them a different mode than they asked for is the surprise.
      */
-    const mode = modeById(body.mode ?? DEFAULT_MODE_ID);
+    /**
+     * **An empty mode id on a Setup means *unset*, not *a mode called ""***.
+     * `newSetup` writes `{ id: '', config: null }`, so a Setup that never named
+     * one would otherwise be refused as naming a mode this build does not have —
+     * which is the same reading the preset resolution below already takes of an
+     * empty id.
+     */
+    const named = body.mode ?? (from?.mode.id === '' ? undefined : from?.mode.id);
+    const mode = modeById(named ?? DEFAULT_MODE_ID);
     if (mode === null) {
       return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
     }
@@ -435,7 +492,33 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * leave a person clicking Create and guessing which field, on a form the
      * engine generated and they did not design.
      */
-    const answers = body.setup ?? {};
+    /**
+     * The parameter, then the Setup's, then nothing — the layering above, for
+     * the one value the Setup and the wizard both name. `Setup.mode.config` is
+     * *"whatever the mode's own setup collected"*, which is exactly this.
+     */
+    const answers = body.modeConfig ?? asAnswers(from) ?? {};
+
+    /**
+     * The rest of the Setup's defaults, each overridden by its own parameter.
+     *
+     * **`personaOptions[0]` and not the whole list**, because a session's `cast`
+     * holds one persona and a Setup holds the ones it *offers* — choosing is the
+     * wizard's job, and until there is a control for it the first is the honest
+     * default rather than a refusal to start.
+     *
+     * *`partyDefault` is not read here.* The party is `se.party` since [P7.3],
+     * and seeding it means writing effects, which needs a turn — so it belongs
+     * with the setup turn's parts rather than with the session file. Named
+     * rather than silently dropped.
+     */
+    const cast =
+      body.cast ??
+      (from === undefined
+        ? undefined
+        : { persona: from.cast.personaOptions[0]?.id ?? null, actors: [] });
+    const treatment = body.treatment ?? from?.treatment?.id;
+    const lore = body.lore ?? from?.lore.map((link) => link.ref.id);
     const misfit = setupMisfit(mode.definition.setup, answers);
     if (misfit !== null) {
       return reply.code(422).send({
@@ -470,12 +553,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * the worst possible place to do that.
      */
     let preset;
-    if (body.preset === undefined) {
+    // The parameter, then the Setup's, then the mode's default — the layering
+    // this route now has three rungs of.
+    const presetId = body.preset ?? from?.preset?.id;
+    if (presetId === undefined || presetId === '') {
       preset = structuredClone(mode.definition.assembly.defaultPreset);
     } else {
       let row;
       try {
-        row = read(services.library, account.handle, body.preset, PRESET_SCHEMA);
+        row = read(services.library, account.handle, presetId, PRESET_SCHEMA);
       } catch (error) {
         if (error instanceof LibraryError && error.code === 'not-found') {
           return reply.code(422).send({ error: 'unknown-preset', message: 'No such preset.' });
@@ -495,20 +581,27 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // `session.json` is hand-editable by design ([03 §1]), so the client's
         // label helper trims too — but it is the one that stops the API being
         // the thing that made the mess.
-        name: (body.name ?? '').trim(),
-        mode: { id: mode.definition.id, config: null },
-        preset,
-        ...(body.cast === undefined ? {} : { cast: body.cast }),
-        ...(body.treatment === undefined ? {} : { treatment: body.treatment }),
-        ...(body.lore === undefined ? {} : { lore: body.lore }),
+        // The Setup's name when it was not given one, because a session made
+        // from *The Fixer's Debt* and left unnamed is that, not *Untitled*.
+        name: (body.name ?? from?.name ?? '').trim(),
         /**
-         * **Written only when there is something to write**, so a session for a
-         * mode with no wizard carries no `setup` key at all rather than an empty
-         * object claiming a wizard answered nothing. Every session written before
-         * [P7.4] is in that state and must stay indistinguishable from one
-         * written after it.
+         * **`config` is the wizard's answers**, which is what this field has
+         * meant since P2.3 and what every creation wrote `null` into until now
+         * ([P7.4]). `null` still, when there are none — *no wizard ran* and
+         * *a wizard ran and collected nothing* are different, and every session
+         * written before this is in the first state.
          */
-        ...(Object.keys(answers).length === 0 ? {} : { setup: answers }),
+        mode: {
+          id: mode.definition.id,
+          config: Object.keys(answers).length === 0 ? null : answers,
+        },
+        preset,
+        ...(cast === undefined ? {} : { cast }),
+        ...(treatment === undefined ? {} : { treatment }),
+        ...(lore === undefined ? {} : { lore }),
+        // A copy, so editing the Setup afterwards cannot reach this game
+        // ([00 §3.1], [04 §7]) — the asymmetry the preset already has.
+        ...(from === undefined ? {} : { setup: structuredClone(from) }),
       });
 
       /**
@@ -1534,4 +1627,20 @@ async function mine(
     return null;
   }
   return session;
+}
+
+/**
+ * The wizard's answers a Setup carries, if it carries any.
+ *
+ * `Setup.mode.config` is `unknown` because [04 §7] keeps it *"stored verbatim,
+ * never interpreted by the host"* — so a Setup written against a different
+ * build, or hand-edited, can hold anything. Narrowed here rather than trusted:
+ * what reaches the session is validated against the mode's declaration like any
+ * other answers, and a `config` that is not an object is not answers at all.
+ */
+function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefined {
+  const config = setup?.mode.config;
+  return typeof config === 'object' && config !== null && !Array.isArray(config)
+    ? (config as Record<string, unknown>)
+    : undefined;
 }

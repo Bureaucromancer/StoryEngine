@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newPreset } from '@storyengine/shared';
+import { newActor, newPreset, newSetup } from '@storyengine/shared';
 
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
@@ -1242,7 +1242,11 @@ describe('a session for a mode with a wizard', () => {
     return server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'Wizard', mode: SETUP_MODE_ID, ...(setup === undefined ? {} : { setup }) },
+      payload: {
+        name: 'Wizard',
+        mode: SETUP_MODE_ID,
+        ...(setup === undefined ? {} : { modeConfig: setup }),
+      },
     });
   }
 
@@ -1252,7 +1256,7 @@ describe('a session for a mode with a wizard', () => {
     const response = await create(ANSWERS);
 
     expect(response.status).toBe(201);
-    expect(response.body.session.setup).toEqual(ANSWERS);
+    expect(response.body.session.mode.config).toEqual(ANSWERS);
   });
 
   it('takes a session without the optional field', async () => {
@@ -1261,7 +1265,7 @@ describe('a session for a mode with a wizard', () => {
     expect(response.status).toBe(201);
     // Absent rather than defaulted: a toggle nobody touched is not `false`, it
     // is a question the person did not answer, and the mode's steps can tell.
-    expect(response.body.session.setup).toEqual({ premise: 'Rain.', difficulty: 'even' });
+    expect(response.body.session.mode.config).toEqual({ premise: 'Rain.', difficulty: 'even' });
   });
 
   it('refuses one that skips a required field, and says which', async () => {
@@ -1320,7 +1324,9 @@ describe('a session for a mode with a wizard', () => {
     });
 
     expect(response.status).toBe(201);
-    expect('setup' in (response.body.session as object)).toBe(false);
+    // `null`, not `{}`: *no wizard ran* and *a wizard ran and collected nothing*
+    // are different, and every session written before [P7.4] is in the first.
+    expect(response.body.session.mode.config).toBeNull();
   });
 
   it('refuses answers to a mode that asked for nothing', async () => {
@@ -1330,7 +1336,7 @@ describe('a session for a mode with a wizard', () => {
     const response = await server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'Plain', setup: { premise: 'Rain.' } },
+      payload: { name: 'Plain', modeConfig: { premise: 'Rain.' } },
     });
 
     expect(response.status).toBe(422);
@@ -1364,7 +1370,7 @@ describe('a mode that generates its world', () => {
     const created = await server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'Generated', mode: GENERATING_MODE_ID, setup: ANSWERS },
+      payload: { name: 'Generated', mode: GENERATING_MODE_ID, modeConfig: ANSWERS },
     });
     const id = created.body.session.id as string;
 
@@ -1382,7 +1388,7 @@ describe('a mode that generates its world', () => {
     const created = await server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'Generated', mode: GENERATING_MODE_ID, setup: ANSWERS },
+      payload: { name: 'Generated', mode: GENERATING_MODE_ID, modeConfig: ANSWERS },
     });
 
     expect(created.status).toBe(201);
@@ -1442,10 +1448,153 @@ describe('a mode that generates its world', () => {
     const created = await server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'Wizard only', mode: SETUP_MODE_ID, setup: ANSWERS },
+      payload: { name: 'Wizard only', mode: SETUP_MODE_ID, modeConfig: ANSWERS },
     });
 
     expect(created.status).toBe(201);
     expect('activeJob' in (created.body as object)).toBe(false);
+  });
+});
+
+/**
+ * **Starting from a Setup** — [04 §7], [P7.4], and the consumer that library
+ * kind has never had.
+ *
+ * `setups/` has had a folder, a canonical filename, an index walk, full CRUD, a
+ * shelf and a `newSetup` factory whose only caller was a test. What it had no
+ * consumer for was *anything*: session creation took mode, preset, treatment,
+ * cast and lore as five separate parameters and had no way to be handed the one
+ * object that holds all five.
+ *
+ * **And it is what makes [04 §6.1b]'s middle rung reachable.** That section
+ * settles where an authored default may be written down — *"a Treatment
+ * proposes, a Setup overrides, and the running session owns it"* — and there was
+ * no Setup rung, because a session did not record which one it came from.
+ */
+describe('a session started from a Setup', () => {
+  async function aSetup(over: Record<string, unknown> = {}): Promise<string> {
+    const made = { ...newSetup('The Fixer’s Debt'), ...over };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    if (response.status !== 201) throw new Error(`setup create failed: ${String(response.status)}`);
+    return response.body.object.id as string;
+  }
+
+  async function startFrom(setup: string, over: Record<string, unknown> = {}) {
+    return server.request({ method: 'POST', url: '/api/sessions', payload: { setup, ...over } });
+  }
+
+  it('keeps a copy, so editing the Setup cannot reach the game', async () => {
+    const id = await aSetup();
+
+    const created = await startFrom(id);
+
+    expect(created.status).toBe(201);
+    // The object itself, not a link — [00 §3.1], the asymmetry the preset has.
+    expect(created.body.session.setup).toMatchObject({ id, schema: 'storyengine.setup/1' });
+  });
+
+  it('takes its name when the session was not given one', async () => {
+    const id = await aSetup();
+
+    const created = await startFrom(id);
+
+    // A session made from *The Fixer's Debt* and left unnamed is that, not
+    // *Untitled*.
+    expect(created.body.session.name).toBe('The Fixer’s Debt');
+  });
+
+  it('takes the mode it names', async () => {
+    registerMode(SETUP_MODE);
+    const id = await aSetup({
+      mode: { id: SETUP_MODE_ID, config: { premise: 'Rain.', difficulty: 'harsh' } },
+    });
+
+    const created = await startFrom(id);
+
+    expect(created.body.session.mode.id).toBe(SETUP_MODE_ID);
+    // `Setup.mode.config` is *"whatever the mode's own setup collected"*, which
+    // is the same value the wizard collects — so it lands where the wizard's
+    // answers land, and is validated against the mode's declaration on the way.
+    expect(created.body.session.mode.config).toEqual({ premise: 'Rain.', difficulty: 'harsh' });
+  });
+
+  it('refuses a Setup whose config the mode would not accept', async () => {
+    registerMode(SETUP_MODE);
+    const id = await aSetup({
+      mode: { id: SETUP_MODE_ID, config: { premise: 'Rain.', difficulty: 'impossible' } },
+    });
+
+    // Held to the declaration exactly as a wizard's answers are: a Setup
+    // written against a different build is not a reason to write a config the
+    // mode cannot read.
+    expect((await startFrom(id)).status).toBe(422);
+  });
+
+  it('takes its treatment and its lore', async () => {
+    const id = await aSetup({
+      treatment: { id: 'treat-1', name: 'Rain City, noir' },
+      lore: [{ ref: { id: 'book-1', name: 'Rain City' }, required: false }],
+    });
+
+    const created = await startFrom(id);
+
+    expect(created.body.session.treatment).toBe('treat-1');
+    expect(created.body.session.lore).toEqual(['book-1']);
+  });
+
+  it('offers the first persona it names, because choosing is the wizard’s job', async () => {
+    const id = await aSetup({
+      cast: {
+        personaOptions: [{ id: 'actor-vera', name: 'Vera' }],
+        partyDefault: [],
+        narrator: null,
+      },
+    });
+
+    const created = await startFrom(id);
+
+    expect(created.body.session.cast).toEqual({ persona: 'actor-vera', actors: [] });
+  });
+
+  /**
+   * **Everything it carries is a default a parameter overrides** — [04 §6.1b]'s
+   * layering with the session's own parameters as the last word. Somebody who
+   * picked a Setup and then changed the treatment meant the treatment they
+   * changed it to.
+   */
+  it('gives way to a parameter sent beside it', async () => {
+    const id = await aSetup({ treatment: { id: 'treat-1', name: 'Rain City, noir' } });
+
+    const created = await startFrom(id, { name: 'My own', treatment: 'treat-2' });
+
+    expect(created.body.session.name).toBe('My own');
+    expect(created.body.session.treatment).toBe('treat-2');
+  });
+
+  /**
+   * A dangling *treatment* is a session missing a book, which [00 §3.3] says to
+   * carry on with. A dangling **Setup** is a session that would be created as
+   * something other than what was asked for, because the Setup is *what to
+   * create*.
+   */
+  it('is refused when there is no such Setup, rather than ignored', async () => {
+    const created = await startFrom('not-a-setup');
+
+    expect(created.status).toBe(422);
+    expect(created.body.error).toBe('unknown-setup');
+  });
+
+  it('leaves the field off a session that was not started from one', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'By hand' },
+    });
+
+    expect('setup' in (created.body.session as object)).toBe(false);
   });
 });

@@ -2802,10 +2802,52 @@ turn went in on it. The premise was false: the effect was never applied, so ther
 was nothing to clobber. Reverted, and the fixture now declares a channel of its
 own — which also exercises the path a generating mode actually uses.*
 
-**Next in this stage:** the `setups/` library kind, which has CRUD, a shelf and a
-`newSetup` factory whose only caller is a test — what it has no surface for is
-*making* one, and no consumer for anything. It is the other object one word away
-from `SetupSchema`, and the stage owes both.
+**Done: the `setups/` kind has a consumer, and a field that already had a home
+stopped having two** (2026-09-12).
+
+***The correction first, because it is what the rest rests on.*** The commit
+before this stored the wizard's answers in a new `SessionFile.setup` field. That
+was a second home for a value that already had one: `SessionFile.mode.config` has
+meant *"how it was configured"* since P2.3 and was written `null` by every
+creation — and the portable `Setup` names the same value the same way, *"whatever
+the mode's own setup collected, stored verbatim, never interpreted by the host"*.
+It was also a name collision with the **Setup** object, which is the thing this
+cell warns is *"two different objects one word apart"*. The answers now live at
+`mode.config`, the wire field is `modeConfig`, and `setup` means the Setup.
+*Corrected in the same session, before anything depended on it.*
+
+**`POST /api/sessions` takes a Setup**, which is the consumer that kind has never
+had: it has had a folder, a canonical filename, an index walk, full CRUD, a shelf
+and a `newSetup` factory whose only caller was a test. Everything the Setup
+carries — mode, `mode.config`, preset, treatment, lore, the first of its
+`personaOptions` — is a **default a parameter overrides**, which is [04 §6.1b]'s
+layering with the request's own parameters as the last word. The session keeps a
+**copy** ([04 §7], [00 §3.1]), the asymmetry the preset already has.
+
+**And [04 §6.1b]'s middle rung is reachable at last.** That section settles where
+an authored default may be written down — *"a Treatment proposes, a Setup
+overrides, and the running session owns it"* — and a recorded finding of this
+phase was that there was no Setup rung, because a session did not record which
+one it came from. It does now.
+
+*Three smaller things.* A Setup's `mode.config` is held to the mode's declaration
+exactly as a wizard's answers are, so one written against a different build is
+refused rather than written into a session the mode cannot read. An **empty**
+mode id on a Setup reads as *unset* rather than as a mode named `""` — which is
+what `newSetup` writes, and the same reading the preset resolution already takes.
+And a dangling Setup is a **422**, where a dangling treatment or lorebook is
+accepted: [00 §3.3] says carry on with a session missing a book, and a missing
+Setup is a session that would be created as something other than what was asked
+for.
+
+*`Setup.cast.partyDefault` is read by nothing here and that is named rather than
+dropped: the party is `se.party` since [P7.3], so seeding it means writing
+effects, which needs a turn — it belongs with the setup turn's parts.*
+
+**Next in this stage:** the editor for the kind, which is the *making* surface it
+still has none of — `EDITOR_ROUTES` in `library/fields.ts` is the gate, and
+[10 §5] makes create and edit one question, so the kind becomes creatable in the
+same edit that gives it an editor and never before.
 
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 

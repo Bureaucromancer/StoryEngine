@@ -468,6 +468,16 @@ export class TurnRunner {
      * replay can recognise.*
      */
     const spoken = lastProse(history);
+    /**
+     * The wizard's answers, narrowed once — [P7.4]. `mode.config` is `unknown`
+     * because [06 §1] keeps it opaque to the host, and a hand-edited session can
+     * hold anything there; a step is handed a record or nothing.
+     */
+    const declared: unknown = inputs.session?.mode?.config;
+    const answers =
+      typeof declared === 'object' && declared !== null && !Array.isArray(declared)
+        ? (declared as Record<string, unknown>)
+        : undefined;
     const speakers = selectsSpeakers(mode.definition.participants)
       ? selectSpeakers({
           policy: mode.definition.participants,
@@ -558,7 +568,10 @@ export class TurnRunner {
             parentTurnId: job.parentTurnId,
             ...(payload.input === undefined ? {} : { input: payload.input }),
             ...(speakers === undefined ? {} : { speakers }),
-            ...(inputs.session?.setup === undefined ? {} : { setup: inputs.session.setup }),
+            // `mode.config` is where the wizard's answers live ([P7.4]) — a
+            // step reads them as `setup`, which is the mode's word for its own
+            // declaration, and the record's word is `config`.
+            ...(answers === undefined ? {} : { setup: answers }),
             channels: running,
             history,
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),

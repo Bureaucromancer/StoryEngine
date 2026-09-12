@@ -902,7 +902,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, preset?, cast?, treatment?, lore?, setup? }` →
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup? }` →
 `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -932,8 +932,10 @@ Another account's preset is `422` too, by way of a `404` inside: the path is the
 owner, and confirming an id exists elsewhere leaks the fact that separation
 exists to keep.
 
-**`setup` is the mode's wizard, answered** — a flat object keyed by the field ids
-the mode declares, added at P7.4. It is checked against a schema **derived from
+**`modeConfig` is the mode's wizard, answered** — a flat object keyed by the
+field ids the mode declares, added at P7.4. It is stored at `session.mode.config`,
+which is where *how it was configured* has lived since P2.3 and what the portable
+`Setup` calls the same value. It is checked against a schema **derived from
 that mode's declaration** rather than one written here, so a mode that adds a
 field is asked for it without a second edit to this route. A required field
 missing, a choice the mode does not offer, a field of the wrong type, or a key
@@ -943,9 +945,26 @@ field on a form the engine generated for them.
 
 A mode declaring `{ kind: "none" }` accepts exactly `{}`, so sending answers to a
 mode with no wizard is refused rather than quietly ignored. Omit the field
-entirely and the session carries no `setup` key at all — which is every session
-written before P7.4, and `{}` would be a claim that a wizard ran and collected
-nothing.
+entirely and `session.mode.config` stays `null` — which is every session written
+before P7.4, and `{}` would be a claim that a wizard ran and collected nothing.
+
+**`setup` is a Setup from the library** — *how to start playing*, in one object
+([04 §7](design/04-schemas.md)): a mode and its config, a preset, a treatment, a
+cast to choose from, and lore. Added at P7.4, and the first consumer that kind
+has ever had.
+
+Everything it carries is a **default that a parameter sent beside it overrides**,
+which is [04 §6.1b](design/04-schemas.md)'s layering — *a Treatment proposes, a
+Setup overrides, and the running session owns it* — with the request's own
+parameters as the last word. Its `mode.config` is checked against the mode's
+declaration exactly as `modeConfig` is, so a Setup written against a different
+build is refused rather than written into a session the mode cannot read.
+
+The session keeps a **copy** at `session.setup`, so editing the Setup afterwards
+cannot reach a running game — the same asymmetry the preset has. `422
+unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
+is a session missing a book and is accepted, but a dangling Setup is a session
+that would be created as something other than what was asked for.
 
 **`activeJob` is present when the mode generates its world**, added at P7.4. A
 mode may declare *parts* alongside its wizard's fields

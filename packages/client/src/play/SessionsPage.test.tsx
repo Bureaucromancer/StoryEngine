@@ -434,7 +434,7 @@ describe('a mode that asks for something', () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalledWith({
         mode: WIZARD.id,
-        setup: { premise: 'A city that does not sleep.', difficulty: 'harsh', dice: true },
+        modeConfig: { premise: 'A city that does not sleep.', difficulty: 'harsh', dice: true },
       });
     });
   });
@@ -455,7 +455,7 @@ describe('a mode that asks for something', () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalledWith({
         mode: WIZARD.id,
-        setup: { difficulty: 'gentle' },
+        modeConfig: { difficulty: 'gentle' },
       });
     });
   });

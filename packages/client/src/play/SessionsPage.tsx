@@ -74,8 +74,8 @@ import { sessionLabel } from './session-label.js';
  * that does not lose work.
  */
 /** `{}` is *no wizard ran*, and a key that says so would be a claim. */
-function spreadSetup(answers: Record<string, unknown>): { setup?: Record<string, unknown> } {
-  return Object.keys(answers).length === 0 ? {} : { setup: answers };
+function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<string, unknown> } {
+  return Object.keys(answers).length === 0 ? {} : { modeConfig: answers };
 }
 
 /**
