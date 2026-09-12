@@ -2627,14 +2627,55 @@ honour one and not the other; the permissive arm reports a miss rather than
 failing on it, since an endpoint asked for bare JSON and told nothing about the
 shape is entitled to write prose.
 
-**Next:** the caller's half — degrade to prompted JSON when the capability says
-the endpoint cannot take a schema, validate the object against the schema
-whichever path produced it, and give the retry ladder the validation arm it has
-never had. The prompted instruction needs a `BlockSource` arm of its own: a
-`RenderedMessage` promises `fromBlocks` non-empty, so a message the record cannot
-explain is not an option, and folding a protocol instruction into the prompt is
-the same class of thing as `systemMessage: 'fold-into-first-user'` — the caller
-rewriting a request to suit an endpoint's limits.
+**Done: the caller's half, so structured output works end to end** (2026-09-12).
+Three pieces, and the first is the one a self-hosted install actually uses.
+
+**The degrade, decided in `planCall` with the capabilities in hand**, which is
+where `GenerationRequest.schema` says it belongs. An endpoint that cannot be
+handed a schema is asked in words — appended as a **candidate**, not spliced into
+the messages, so it is estimated, budgeted and recorded like everything else and
+`RenderedMessage.fromBlocks` stays non-empty. `BlockSource` gained
+`{ kind: 'schema' }`: the one arm that is not content, and the same class of
+thing as `systemMessage: 'fold-into-first-user'` — the caller rewriting a request
+to suit what an endpoint can take. It is `required`, so the budgeter cannot drop
+it: a call that must answer in a shape is meaningless without the sentence saying
+which shape.
+
+**`turns/structured.ts` validates, because nothing else does.** Ajv, keyed by the
+schema object in a `WeakMap` — `channel-schema.ts`'s conclusion after getting the
+key wrong once, and sharper here because a request schema has no version to bump.
+A schema that will not compile **passes**, the same call that module makes: a
+broken declaration is a mode author's mistake and failing every call over it
+takes the mode out of service for something nobody playing can fix. Two miss
+kinds, because the remedies differ: `unparseable` is *the model did not answer
+with JSON*, `invalid` carries Ajv's issues, and the issues are the only thing
+separating *nearly right* from *nothing like it*.
+
+**And the ladder got its validation arm.** A miss is retried — **with no
+backoff**, since `RETRY_BACKOFF_MS` paces an endpoint that is busy and nothing
+about this one is. The miss outranks the finish reason: a model that stopped
+cleanly and answered in the wrong shape has `finishReason: 'stop'`, so without
+this the record would say `ok`. It records as `outcome: 'error'` with
+`class: 'retryable'`, which is the honest one of the three — asking again is the
+remedy, and `terminal` would tell a UI to stop offering it. **A value that failed
+the check does not reach the step**: the step asked for a shape, and handing it
+one that is not that shape invites a step that forgot to check `undefined` to
+write effects from garbage. The text survives on the record, where a person can
+still see what was said.
+
+*Written down rather than sneaked in: **the retry sends the same messages**, so
+at temperature 0 against a deterministic endpoint it will produce the same miss.
+Telling the model what was wrong would be a real repair and needs a record that
+can express "attempt 2 sent different messages" — `ModelCall` carries one
+`messages` per call, checkpointed before anything is dispatched ([P3.0]). That is
+a record-shape change, and it is the next thing to weigh if misses turn out to be
+common in practice.*
+
+**Next:** `SetupSchema` as a declaration, a route that hands one to the client,
+and the schema-to-control dispatcher — the half of this stage that is UI, and the
+one the cell warns is the largest single piece of new UI in the phase. Incremental
+generation now has something to be incremental *over*: a part is a schema, a
+validation and a retry, and all three exist.
 
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 

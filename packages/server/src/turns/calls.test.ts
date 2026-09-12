@@ -376,3 +376,86 @@ describe('an actor’s model hint', () => {
     expect(plan.call.resolved.modelId).toBe('fake-hi');
   });
 });
+
+/**
+ * The degrade, decided in the plan — [P7.4].
+ *
+ * `GenerationRequest.schema` says the choice belongs to the caller *"with the
+ * capabilities in hand"* rather than inside the adapter, and this is that
+ * caller. For a self-hosted install it is the ordinary path rather than a
+ * fallback: `openai-compatible` declares `supportsStructuredOutput: false`
+ * because the endpoint behind it could be anything, so out of the box the SDK
+ * drops the schema and asks for bare JSON.
+ */
+describe('asking for a shape in words', () => {
+  const SCHEMA = {
+    type: 'object',
+    properties: { name: { type: 'string' } },
+    required: ['name'],
+    additionalProperties: false,
+  };
+
+  function planWith(supportsStructuredOutput: boolean) {
+    const provider = {
+      capabilities: capabilitiesFor('openai-compatible', { supportsStructuredOutput }),
+      generate: () => {
+        throw new Error('planCall must not dispatch.');
+      },
+    } as unknown as Provider;
+
+    return planCall(context({ providers: () => provider }), { schema: SCHEMA }, CANDIDATES);
+  }
+
+  it('adds the instruction when the endpoint cannot be handed a schema', () => {
+    const { call } = planWith(false);
+
+    expect(call.blocks.map((block) => block.id)).toEqual([
+      'se.instruction',
+      'se.input',
+      'se.schema',
+    ]);
+    // Last, because an instruction about the reply's form belongs after the
+    // material it is about — which is also where an endpoint's own JSON mode
+    // puts it.
+    expect(call.blocks.at(-1)?.source).toEqual({ kind: 'schema' });
+  });
+
+  it('leaves it out when the wire is going to carry the schema itself', () => {
+    const { call } = planWith(true);
+
+    expect(call.blocks.map((block) => block.id)).toEqual(['se.instruction', 'se.input']);
+  });
+
+  it('adds nothing at all to a call that asked for no shape', () => {
+    const { call } = planCall(context(), {}, CANDIDATES);
+
+    expect(call.blocks.map((block) => block.id)).toEqual(['se.instruction', 'se.input']);
+  });
+
+  /**
+   * **The reason it is a block and not a spliced-in message.**
+   * `RenderedMessage.fromBlocks` is non-empty always, so every message the
+   * record shows is accounted for by a block — and the workbench's account of a
+   * prompt would otherwise be quietly incomplete on precisely the calls whose
+   * output is hardest to debug.
+   */
+  it('is accounted for in the messages the record carries', () => {
+    const { call } = planWith(false);
+
+    const named = new Set(call.messages.flatMap((message) => message.fromBlocks));
+    expect(named.has('se.schema')).toBe(true);
+    for (const message of call.messages) {
+      expect(message.fromBlocks.length).toBeGreaterThan(0);
+    }
+    // And the text reached the prompt rather than only the block table.
+    expect(call.messages.map((message) => message.content).join('\n')).toContain(
+      JSON.stringify(SCHEMA),
+    );
+  });
+
+  it('survives the budgeter, because a call without it is meaningless', () => {
+    const { call } = planWith(false);
+
+    expect(call.blocks.find((block) => block.id === 'se.schema')?.included).toBe(true);
+  });
+});

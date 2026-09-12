@@ -29,6 +29,7 @@ import {
 import type { ModelCall } from '../sessions/types.js';
 import { budgetPolicyFor, type PresetBudget } from './budget.js';
 import { callPurposeFor, type StepCallRequest, type StepDefinition } from './steps.js';
+import { missMessage, needsPrompting, schemaInstruction, schemaMiss } from './structured.js';
 
 /**
  * One model call, and the record of it — [21 §1.4].
@@ -360,8 +361,26 @@ export function planCall(
   // once, because it is also stamped on every record this call can leave
   // ([P3.0] — the invariant's committed half).
   const purpose = callPurposeFor(definition);
+  /**
+   * **The degrade, decided here with the capabilities in hand** — [P7.4],
+   * and `GenerationRequest.schema` says this is where it belongs rather than
+   * inside the adapter.
+   *
+   * An endpoint that cannot be handed a schema is asked in words instead. For a
+   * self-hosted install that is the *ordinary* path: `openai-compatible`
+   * declares `supportsStructuredOutput: false` because the endpoint behind it
+   * could be anything, so out of the box the SDK drops the schema and asks for
+   * bare JSON.
+   *
+   * **Appended to the candidates rather than spliced into the messages**, so it
+   * is estimated, budgeted and recorded like everything else — and so
+   * `RenderedMessage.fromBlocks` stays non-empty, which it must.
+   */
+  const asked = request.candidates ?? candidates;
   const assembled = assemble({
-    candidates: request.candidates ?? candidates,
+    candidates: needsPrompting(request.schema, provider.capabilities.supportsStructuredOutput)
+      ? [...asked, schemaInstruction(request.schema)]
+      : asked,
     policy,
     purpose,
     // A step that supplied its own candidates never ran the preset's producers,
@@ -447,9 +466,46 @@ export async function performCall(
         },
       );
 
+      /**
+       * **The validation arm, which this ladder has never had** — [P7.4].
+       *
+       * P7.4 measured that the SDK does not check the object against the
+       * schema, so this is the only check there is. A miss is a *complete*
+       * answer of the wrong kind, which is why it is retried here and not
+       * thrown: the call happened, it cost tokens, and the record should say
+       * what came back.
+       *
+       * **No backoff.** `RETRY_BACKOFF_MS` paces a ladder for an endpoint that
+       * is busy or unreachable; nothing about this endpoint is busy. Sleeping a
+       * second before re-asking would be a second of a person's turn spent on a
+       * problem waiting is not going to solve.
+       *
+       * *Worth knowing what this can and cannot buy: the retry sends the **same
+       * messages**, so at temperature 0 against a deterministic endpoint it will
+       * produce the same miss. Telling the model what was wrong would be a real
+       * repair, and it needs a record that can express "attempt 2 sent different
+       * messages" — `ModelCall` carries one `messages` per call, checkpointed
+       * before anything is dispatched. That is a record-shape change rather than
+       * a wiring one, and it is written down rather than sneaked in.*
+       */
+      const miss = schemaMiss(request.schema, result.object);
+      if (miss !== null && RETRY_BACKOFF_MS[retries] !== undefined && !partial.streamed) {
+        retries += 1;
+        continue;
+      }
+
       return {
         text: result.text,
-        object: result.object,
+        /**
+         * **A value that failed the check does not reach the step** — [P7.4].
+         *
+         * The step asked for a shape; handing it one that is not that shape
+         * invites it to be used, and a step that forgot to look at `undefined`
+         * would write effects from garbage. The text survives on the record, so
+         * a person can still see what the model actually said, which is where
+         * that belongs.
+         */
+        object: miss === null ? result.object : undefined,
         usage: result.usage,
         call: {
           id,
@@ -472,8 +528,20 @@ export async function performCall(
            * `ok` is what made a truncated reply indistinguishable from a
            * finished one.
            */
-          outcome: outcomeOf(result.finishReason),
-          error: null,
+          /**
+           * **A miss outranks the finish reason**, because a model that stopped
+           * cleanly and answered in the wrong shape stopped cleanly: `stop`
+           * would record it as `ok`, and a step reading the record would have no
+           * way to tell an answer from an unusable one.
+           */
+          outcome: miss === null ? outcomeOf(result.finishReason) : 'error',
+          /**
+           * `retryable`, from the three the vocabulary has ([21 §1.4]) — and it
+           * is the honest one: the model said something, it was not the shape,
+           * and asking again may work. Not `terminal`, which would tell a UI to
+           * stop offering a retry for a case where retrying is the remedy.
+           */
+          error: miss === null ? null : { class: 'retryable' as const, message: missMessage(miss) },
           retries,
         },
       };

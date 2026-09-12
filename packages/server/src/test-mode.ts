@@ -428,3 +428,55 @@ export const ENSEMBLE_MODE: Mode = {
     },
   },
 };
+
+/**
+ * A mode whose step **asks for a shape** — [P7.4].
+ *
+ * The fixture the validation arm is proved against. Its step declares a write,
+ * which is what makes the call's purpose `effects` — the only purpose a
+ * structured call ever has, since a step that writes nothing and speaks is
+ * `prose` and prose has no shape to check.
+ *
+ * *`se.clock` as the declared write rather than a channel of its own, because a
+ * fixture that registered one would install it into the process-wide registry
+ * for every test that touches this file — the same reason `TEST_MODE_DEFINITION`
+ * declares no channels.*
+ */
+export const SHAPED_SCHEMA = {
+  type: 'object',
+  properties: { name: { type: 'string' } },
+  required: ['name'],
+  additionalProperties: false,
+};
+
+export const SHAPED_STEP: StepDefinition = {
+  ...TEST_STEP,
+  id: 'se.shaped',
+  reads: [],
+  writes: ['se.clock'],
+  contributes: 'messages',
+  callKind: 'shape',
+};
+
+export const SHAPED_MODE_ID = 'storyengine.test.shaped';
+
+export const SHAPED_MODE: Mode = {
+  definition: {
+    ...TEST_MODE_DEFINITION,
+    id: SHAPED_MODE_ID,
+    displayName: 'Engine test fixture — structured output',
+    steps: [SHAPED_STEP],
+  },
+  run: {
+    [SHAPED_STEP.id]: async (_input, host) => {
+      const result = await host.call({ schema: SHAPED_SCHEMA });
+      /**
+       * **What it saw, verbatim.** A fixture that exists to be observed is
+       * allowed to say what it was handed — and the distinction under test is
+       * precisely whether a value that failed validation reaches here, which
+       * nothing downstream of a step records.
+       */
+      return { message: { text: JSON.stringify(result.object ?? null) } };
+    },
+  },
+};

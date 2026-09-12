@@ -35,7 +35,14 @@ import type { StepDefinition, TurnPlan } from './steps.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { registerMode } from '../mode-registry.js';
 
-import { ENSEMBLE_MODE, ENSEMBLE_MODE_ID, TEST_PRESET, TEST_STEP } from '../test-mode.js';
+import {
+  ENSEMBLE_MODE,
+  ENSEMBLE_MODE_ID,
+  SHAPED_MODE,
+  SHAPED_MODE_ID,
+  TEST_PRESET,
+  TEST_STEP,
+} from '../test-mode.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
@@ -2524,5 +2531,113 @@ describe('a mode that selects speakers', () => {
 
     expect(only.turn.status).toBe('complete');
     expect(only.turn.output?.text.startsWith('[] ')).toBe(true);
+  });
+});
+
+/**
+ * **The retry ladder's validation arm** — [P7.4].
+ *
+ * P7.4 measured that the SDK does not check an object against the schema it put
+ * on the wire, so the engine is the only validation there is — and a ladder that
+ * retried a 429 and not a reply of the wrong shape was retrying the failure that
+ * costs least. What a turn can say, and a unit test cannot, is that the retry
+ * actually re-asks and that the record it leaves is the one a person reads.
+ */
+describe('a call that asked for a shape', () => {
+  beforeEach(() => {
+    registerMode(SHAPED_MODE);
+  });
+
+  async function shaped(script: ScriptedReply[]): Promise<Turn> {
+    makeRunner({ script });
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Shaped',
+      mode: { id: SHAPED_MODE_ID, config: null },
+      preset: TEST_PRESET,
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: `shaped-${session.id}`,
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    return onRecord(written.at(-1), 'the turn on disk').turn;
+  }
+
+  it('takes an answer that fits, first time, and asks once', async () => {
+    const turn = await shaped([{ object: { name: 'Vera' } }]);
+
+    expect(callOnRecord(turn).outcome).toBe('ok');
+    expect(callOnRecord(turn).retries).toBe(0);
+    // The step got the object, which is what a step asking for a shape is for.
+    expect(turn.output?.text).toBe('{"name":"Vera"}');
+    expect(provider.requests).toHaveLength(1);
+  });
+
+  /**
+   * **`{"nom":"Vera"}` is the measured value** — the one the SDK accepted
+   * against a schema requiring `name` with `additionalProperties: false`. Here
+   * it is caught, re-asked, and the second answer stands.
+   */
+  it('asks again when the answer does not fit, and takes the next one', async () => {
+    const turn = await shaped([{ object: { nom: 'Vera' } }, { object: { name: 'Vera' } }]);
+
+    expect(callOnRecord(turn).outcome).toBe('ok');
+    expect(callOnRecord(turn).retries).toBe(1);
+    expect(provider.requests).toHaveLength(2);
+    expect(turn.output?.text).toBe('{"name":"Vera"}');
+  });
+
+  it('gives up after the ladder and says why, in the vocabulary the UI reads', async () => {
+    const wrong = { object: { nom: 'Vera' } };
+    const turn = await shaped([wrong, wrong, wrong, wrong]);
+
+    const call = callOnRecord(turn);
+    // `error`, not `ok`: the model stopped cleanly and answered in the wrong
+    // shape, and a finish reason of `stop` would have recorded it as an answer.
+    expect(call.outcome).toBe('error');
+    // `retryable`, because asking again is the remedy — a `terminal` here would
+    // tell a UI to stop offering the one thing that might work.
+    expect(call.error?.class).toBe('retryable');
+    expect(call.error?.message).toMatch(/did not match the shape/);
+    // The ladder's own length, not a second number to keep in step.
+    expect(call.retries).toBe(2);
+    expect(provider.requests).toHaveLength(3);
+  });
+
+  /**
+   * **A value that failed the check does not reach the step**, which is the half
+   * only a turn can show: `CallOutcome.object` is what a step is handed, and a
+   * step that forgot to look at `undefined` would otherwise write effects from
+   * garbage.
+   */
+  it('hands the step nothing when nothing fit', async () => {
+    const turn = await shaped([{ object: { nom: 'Vera' } }]);
+
+    expect(turn.output?.text).toBe('null');
+  });
+
+  it('reports a reply that was not JSON at all the same way', async () => {
+    // The adapter leaves `object` undefined when the reply would not parse, and
+    // the engine reads that as a miss rather than as *nobody asked*.
+    const turn = await shaped([{ text: 'I am afraid I cannot do that.' }]);
+
+    expect(callOnRecord(turn).outcome).toBe('error');
+    expect(callOnRecord(turn).error?.message).toMatch(/did not answer with JSON/);
+  });
+
+  it('sends the schema, so the endpoint was told what to write', async () => {
+    await shaped([{ object: { name: 'Vera' } }]);
+
+    // The fake declares `supportsStructuredOutput: true`, so this is the wire
+    // path rather than the prompted one — `calls.test.ts` covers the other.
+    expect(provider.requests[0]?.schema).toMatchObject({ required: ['name'] });
   });
 });

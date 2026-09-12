@@ -218,7 +218,27 @@ export type BlockSource =
    * a session without one.
    */
   | { kind: 'preset'; blockId: string; presetId?: string }
-  | { kind: 'step'; stepId: string };
+  | { kind: 'step'; stepId: string }
+  /**
+   * **The engine's own JSON instruction** — [P7.4], for an endpoint that cannot
+   * be handed a schema.
+   *
+   * The one arm that is not content. Everything else here came from an object
+   * somebody authored or from the story so far; this is protocol — the same
+   * class of thing as `systemMessage: 'fold-into-first-user'`, the caller
+   * rewriting a request to suit what an endpoint can take. Since
+   * `openai-compatible` declares `supportsStructuredOutput: false` by default,
+   * this is the *ordinary* path for a self-hosted install rather than a fallback.
+   *
+   * **It is a block rather than a message spliced in below the record**, because
+   * `RenderedMessage.fromBlocks` is non-empty always: a message the block table
+   * cannot explain would make the workbench's account of a prompt quietly
+   * incomplete, on precisely the calls whose output is hardest to debug. It
+   * carries no identifier, because there is nothing to click through to — the
+   * schema it was composed from is the step's declaration, not an object in
+   * anybody's library.
+   */
+  | { kind: 'schema' };
 
 /**
  * A call's declared appetite — [06 §6]. `effects` and `verdict` are the two
