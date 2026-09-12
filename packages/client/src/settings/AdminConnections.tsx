@@ -6,10 +6,11 @@ import { useState, type JSX } from 'react';
 import {
   ApiError,
   type AdminConnection,
+  type Binding,
   type ConnectionCapabilities,
   type RoleRow,
 } from '../api.js';
-import { Field, SelectField } from '../ui/Field.js';
+import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { SecretField } from '../ui/SecretField.js';
 import {
   useBindings,
@@ -19,11 +20,12 @@ import {
   useFetchModels,
   useRoles,
   useSaveConnection,
+  useWriteBindings,
   useWriteDefaultBindings,
 } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { panel } from '../ui/classes.js';
+import { control, panel } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 
 /**
@@ -240,6 +242,8 @@ function ConnectionForm({
   const [saved, setSaved] = useState<AdminConnection | null>(null);
 
   const offered = models.data?.models ?? [];
+  /** The field is the value; the checkboxes read from it so the two cannot drift. */
+  const chosen = modelsFrom(modelText);
 
   /**
    * **The offer, after the save rather than instead of it.** A first
@@ -360,22 +364,61 @@ function ConnectionForm({
             </p>
           ) : null}
         </div>
+        {/**
+         * **What the endpoint offers, as a list you provision from** — the half
+         * of [R2](../../../../docs/design/workplan/22-walkthrough-refinements.md)
+         * that is about setting one up rather than about using it.
+         *
+         * These used to be buttons that appended a name into the text field, one
+         * at a time, which made *this endpoint serves nine models and I want
+         * seven of them* nine decisions and a proofread. A checkbox per model
+         * with an all-or-none pair beside it is the same information as a
+         * question the admin can answer in one gesture.
+         *
+         * **The text field stays the value, and this writes into it** ([P2B §2.6]
+         * keeps it free text: `/models` is optional in practice, and several
+         * local runtimes answer it with one entry called `gpt-3.5-turbo`
+         * regardless of what is loaded). So a model this list does not know can
+         * still be typed, and unchecking one the admin typed by hand removes it
+         * rather than being unable to see it.
+         */}
         {offered.length === 0 ? null : (
-          <ul className="flex flex-wrap gap-2">
-            {offered.map((model) => (
-              <li key={model}>
-                <Button
-                  type="button"
-                  size="compact"
-                  onClick={() => {
-                    setModelText((text) => (text.length === 0 ? model : `${text}, ${model}`));
-                  }}
-                >
-                  {model}
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-ink-faint">{offeredCount(offered.length)}</p>
+            <ul className="flex flex-col gap-1">
+              {offered.map((model) => (
+                <li key={model}>
+                  <CheckboxField
+                    label={model}
+                    checked={chosen.includes(model)}
+                    onChange={(on) => {
+                      setModelText((text) => withModel(text, model, on));
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  setModelText(toModelText(offered));
+                }}
+              >
+                Use all of them
+              </Button>
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  setModelText('');
+                }}
+              >
+                Use none of them
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -634,18 +677,120 @@ function RemoveConnectionDialog({
  * binding. This is the same component with that column not yet populated
  * ([P2B §2.7]), which is a minimal demonstration rather than a placeholder:
  * nothing here is discarded when the second column arrives.
+ *
+ * ## The table stopped being read-only, 2026-09-11
+ *
+ * **It told an admin to do something no control could do.** The dangling row
+ * says *"Set it to another one"*, and until now the only binding writer in the
+ * whole client was the first-run offer — which
+ * {@link AdminConnections} hides for good the moment anything is bound. So
+ * *use a second model* meant hand-editing `system/bindings.json`, and that is
+ * [F-01](../../../../docs/design/workplan/21-playable-log.md) as a person actually
+ * met it.
+ *
+ * **Nothing was missing on the server.** `PUT /api/admin/bindings` has existed
+ * since P2B.2 with its hash guard, and its own docstring says it is *"for the
+ * admin who is editing rather than starting"*; `useWriteBindings` has existed
+ * beside it with no caller at all. [P2B §5]'s line — no control for a layer with
+ * no caller — does not reach this one, because the install-default layer is
+ * precisely the layer that has a caller.
+ *
+ * **One entry per endpoint-and-model pair, as a single thing.** Not a connection
+ * picker and then a model picker: that is the data model's shape
+ * ({@link Binding} is a connection *and* a model) pushed onto somebody who is
+ * choosing *which model writes the story*. The pair is the unit of choice, so it
+ * is the unit in the list. See
+ * [refinements §7.3](../../../../docs/design/workplan/22-walkthrough-refinements.md).
  */
 function RoleTable(): JSX.Element {
   const roles = useRoles();
+  const connections = useConnections();
+  const bindings = useBindings();
+  const write = useWriteBindings();
+  const [conflict, setConflict] = useState<BindingConflict | null>(null);
 
   if (roles.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
   if (roles.isError) return <p role="alert">The role table could not be read.</p>;
+
+  const choices = modelChoices(connections.data?.connections ?? []);
+  const current = bindings.data?.bindings ?? {};
+  /** Nothing can be written until the document this edits has been read. */
+  const ready = bindings.data !== undefined;
+
+  /**
+   * **The whole document, every time** — which is the server's shape and not a
+   * convenience: `PUT /bindings` rewrites the file, so a write carrying one role
+   * would delete the other seven. `image`, `video` and `speech` are usually
+   * absent by policy and would be the silent casualties.
+   */
+  function send(base: Record<string, Binding>, role: string, next: Binding | null, hash: string) {
+    /**
+     * **Unbinding is the absence of an entry, not an empty one** — which is the
+     * shape the server already reads: *a role with no entry is unbound, not
+     * defaulted*. Rebuilt by filtering rather than by deleting the key, because
+     * a dynamic `delete` is refused here and the filter says the same thing more
+     * plainly anyway.
+     */
+    const document: Record<string, Binding> =
+      next === null
+        ? Object.fromEntries(Object.entries(base).filter(([bound]) => bound !== role))
+        : { ...base, [role]: next };
+    write.mutate(
+      { bindings: document, contentHash: hash },
+      {
+        onSuccess: () => {
+          setConflict(null);
+        },
+        onError: (error) => {
+          const stale = staleBindings(error);
+          if (stale !== null) setConflict({ ...stale, role, next });
+        },
+      },
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
       <h4 id="roles" className="text-subsection text-ink">
         What each job uses
       </h4>
+
+      {conflict === null ? null : (
+        <Alert tone="warning" role="alert">
+          <p>The model bindings changed on disk since this page read them.</p>
+          {/**
+           * **Applying rather than overwriting, and the wording says so.** The
+           * connection form's *overwrite with mine* is right there, because the
+           * unit of edit is the whole connection. Here the unit is one role, so
+           * re-sending this page's whole document would revert somebody else's
+           * change to a role this admin never touched. Re-applying the one
+           * change onto what is on disk is both safer and what the gesture
+           * meant.
+           */}
+          <div className="mt-2 flex gap-2">
+            <Button
+              type="button"
+              size="compact"
+              onClick={() => {
+                setConflict(null);
+                void bindings.refetch();
+              }}
+            >
+              Load what is on disk
+            </Button>
+            <Button
+              type="button"
+              size="compact"
+              onClick={() => {
+                send(conflict.current, conflict.role, conflict.next, conflict.contentHash);
+              }}
+            >
+              Apply my change to what is on disk
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-start text-sm">
           <thead>
@@ -656,8 +801,11 @@ function RoleTable(): JSX.Element {
               <th scope="col" className="py-1 pe-4 font-medium">
                 Model
               </th>
-              <th scope="col" className="py-1 font-medium">
+              <th scope="col" className="py-1 pe-4 font-medium">
                 Where it comes from
+              </th>
+              <th scope="col" className="py-1 font-medium">
+                Change it
               </th>
             </tr>
           </thead>
@@ -668,15 +816,110 @@ function RoleTable(): JSX.Element {
                   {roleLabel(row.role)}
                 </th>
                 <td className="py-2 pe-4">{roleModel(row)}</td>
-                <td className={row.ok ? 'py-2 text-ink-faint' : 'py-2 text-warn-ink'}>
+                <td className={row.ok ? 'py-2 pe-4 text-ink-faint' : 'py-2 pe-4 text-warn-ink'}>
                   {roleSource(row)}
+                </td>
+                <td className="py-2">
+                  <select
+                    className={control}
+                    aria-label={roleChoiceLabel(row.role)}
+                    disabled={!ready || write.isPending}
+                    value={chosenValue(choices, current[row.role])}
+                    onChange={(event) => {
+                      const hash = bindings.data?.contentHash;
+                      if (hash === undefined) return;
+                      const picked = choices[Number(event.target.value)];
+                      send(current, row.role, picked === undefined ? null : picked.binding, hash);
+                    }}
+                  >
+                    {roleOptions(choices, current[row.role]).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {write.isError && conflict === null ? (
+        <p role="alert" className="text-sm text-danger-ink">
+          {write.error.message}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+/** A 412 on the bindings document, with the pending change that provoked it. */
+interface BindingConflict {
+  contentHash: string;
+  current: Record<string, Binding>;
+  role: string;
+  next: Binding | null;
+}
+
+/** One endpoint-and-model pair, which is the unit an admin actually picks. */
+interface ModelChoice {
+  binding: Binding;
+  label: string;
+}
+
+/**
+ * Every pair on the install, in the order the connections list is already in.
+ *
+ * A connection offering no models contributes nothing rather than an entry that
+ * cannot be bound — which is the same posture {@link FirstRunDefaults} takes
+ * when it refuses to ask a question about a connection with an empty list.
+ */
+function modelChoices(connections: readonly AdminConnection[]): ModelChoice[] {
+  return connections.flatMap((connection) =>
+    connection.models.map((modelId) => ({
+      binding: { connectionId: connection.id, modelId },
+      label: pairLabel(connection.label, modelId),
+    })),
+  );
+}
+
+/**
+ * The options for one role: nothing, every pair, and — only when it applies —
+ * what this role is bound to today.
+ *
+ * **That last one is why this is not a plain map.** A binding can name a model
+ * no connection offers any more: the admin removed it from the list, or the file
+ * was written by hand. With no option to match it a `<select>` silently displays
+ * its first entry, so the control would claim the role is bound to whatever
+ * happens to sort first — the table would be lying in the one row that most
+ * needs telling the truth.
+ */
+function roleOptions(
+  choices: readonly ModelChoice[],
+  binding: Binding | undefined,
+): [string, string][] {
+  const options: [string, string][] = [['unbound', 'Nothing']];
+  choices.forEach((choice, index) => {
+    options.push([String(index), choice.label]);
+  });
+  if (binding !== undefined && indexOfBinding(choices, binding) === -1) {
+    options.push(['missing', missingPairLabel(binding.modelId)]);
+  }
+  return options;
+}
+
+function chosenValue(choices: readonly ModelChoice[], binding: Binding | undefined): string {
+  if (binding === undefined) return 'unbound';
+  const index = indexOfBinding(choices, binding);
+  return index === -1 ? 'missing' : String(index);
+}
+
+function indexOfBinding(choices: readonly ModelChoice[], binding: Binding): number {
+  return choices.findIndex(
+    (choice) =>
+      choice.binding.connectionId === binding.connectionId &&
+      choice.binding.modelId === binding.modelId,
   );
 }
 
@@ -696,6 +939,47 @@ function staleConnection(error: unknown): AdminConnection | null {
   const carried = (error as { status?: number; current?: unknown }).current;
   if ((error as { status?: number }).status !== 412) return null;
   return typeof carried === 'object' && carried !== null ? (carried as AdminConnection) : null;
+}
+
+/** The bindings 412's payload, if this error is one. */
+function staleBindings(
+  error: unknown,
+): { contentHash: string; current: Record<string, Binding> } | null {
+  if ((error as { status?: number }).status !== 412) return null;
+  /**
+   * **The hash is required, and its absence is not recoverable here.** Without
+   * one there is nothing to present on a retry, so the only honest move is to
+   * fall through to the plain error line rather than offer a button that would
+   * re-send the hash that was just refused. The server carries it as of
+   * 2026-09-11; this is what notices if that ever stops being true.
+   */
+  const hash = (error as { contentHash?: unknown }).contentHash;
+  if (typeof hash !== 'string') return null;
+  const carried = (error as { current?: unknown }).current;
+  return {
+    contentHash: hash,
+    current:
+      typeof carried === 'object' && carried !== null ? (carried as Record<string, Binding>) : {},
+  };
+}
+
+/** The models named in the field, which is the value the checkboxes read. */
+function modelsFrom(text: string): string[] {
+  return text
+    .split(',')
+    .map((model) => model.trim())
+    .filter((model) => model.length > 0);
+}
+
+function toModelText(models: readonly string[]): string {
+  return models.join(', ');
+}
+
+/** Adds or removes one model, keeping the order the field is already in. */
+function withModel(text: string, model: string, on: boolean): string {
+  const models = modelsFrom(text);
+  if (on) return models.includes(model) ? text : toModelText([...models, model]);
+  return toModelText(models.filter((each) => each !== model));
 }
 
 function keyState(connection: AdminConnection): string {
@@ -731,6 +1015,27 @@ function bindingCount(count: number): string {
   return count === 1
     ? '1 role points at this connection. It will fall back to the install default, or stop working if there is none.'
     : `${String(count)} roles point at this connection. They will fall back to the install default, or stop working if there is none.`;
+}
+
+function offeredCount(count: number): string {
+  return count === 1
+    ? 'This endpoint offers 1 model. Tick the ones this install should use.'
+    : `This endpoint offers ${String(count)} models. Tick the ones this install should use.`;
+}
+
+/** An endpoint and a model, as the one thing a person is choosing. */
+function pairLabel(connectionLabel: string, modelId: string): string {
+  return `${connectionLabel} · ${modelId}`;
+}
+
+/** What a role is bound to when no connection offers it any more. */
+function missingPairLabel(modelId: string): string {
+  return `${modelId} — no connection offers this any more`;
+}
+
+/** The accessible name of one row's picker, since the visible label is the row. */
+function roleChoiceLabel(role: string): string {
+  return `Model for ${roleLabel(role)}`;
 }
 
 /**

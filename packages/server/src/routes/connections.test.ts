@@ -242,6 +242,31 @@ describe('the install default bindings', () => {
     expect(response.status).toBe(412);
     expect(response.body.error).toBe('stale');
     expect(response.body.current).toEqual({ fast: { connectionId: 'by-hand', modelId: 'edited' } });
+
+    /**
+     * **And the hash of what is there now**, which `docs/api.md` states as a
+     * property of every 412 here: *a 412 always carries a hash different from
+     * the one you sent*. Without it a form has nothing to present on *overwrite
+     * with mine* and can only re-send the hash it was just refused for, which is
+     * a wedge rather than a refusal — the shape P2A's gate found in the config
+     * form and fixed there.
+     *
+     * Asserted as *usable* rather than merely *present*: the retry below sends
+     * it back and has to succeed, which is the property the client depends on
+     * and the one a hash of the wrong bytes would fail.
+     */
+    expect(response.body.contentHash).toBeTypeOf('string');
+    expect(response.body.contentHash).not.toBe(read.body.contentHash);
+
+    const retry = await server.request({
+      method: 'PUT',
+      url: '/api/admin/bindings',
+      payload: {
+        bindings: { prose: { connectionId: 'x', modelId: 'y' } },
+        contentHash: response.body.contentHash,
+      },
+    });
+    expect(retry.status).toBe(200);
   });
 
   it('takes a second save, having handed back a fresh hash', async () => {
