@@ -902,8 +902,8 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup? }` →
-`201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, hooks? }`
+→ `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
 **`name` is optional, and an empty one means the same as none**: both store
@@ -965,6 +965,24 @@ cannot reach a running game — the same asymmetry the preset has. `422
 unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
 is a session missing a book and is accepted, but a dangling Setup is a session
 that would be created as something other than what was asked for.
+
+**`hooks` are the session's own plot hooks**, added at P7.4's successor stage —
+[03 §4.1](design/03-data-model.md)'s fourth source, which that section calls the
+primary path for adding one to a game in progress.
+
+The session is created with a **pool** at `session.hooks`, copied from all four
+sources — the treatment, the Setup, every active lorebook, and these — and each
+entry carries `{ hook, source }` so the UI can say where a hook came from and
+navigate to whichever object owns it. A lorebook's `source` names the book,
+because a hook carried by one is only eligible while that book is active.
+
+**A copied hook keeps the source hook's id.** Within a continuity, a hook that
+fired in one session must not fire again in the next, and cross-session
+de-duplication is only possible if the copy preserved it
+([15 §5](design/15-world.md)). The pool is a copy rather than a live resolution:
+editing a treatment does not reach a session already running, which is
+[06 §6.1](design/06-modes-and-turn-pipeline.md)'s *pulled, never pushed*. Omitted
+when nothing carried a hook — absent is not an emptied pool.
 
 **`activeJob` is present when the mode generates its world**, added at P7.4. A
 mode may declare *parts* alongside its wizard's fields

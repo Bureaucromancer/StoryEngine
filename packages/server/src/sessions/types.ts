@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { BranchRef, ChannelState, ModelRole, Preset, Setup } from '@storyengine/shared';
+import type {
+  BranchRef,
+  ChannelState,
+  ModelRole,
+  PlotHook,
+  Preset,
+  Setup,
+} from '@storyengine/shared';
 
 import type { Binding } from '../providers/types.js';
 
@@ -112,6 +119,25 @@ export interface SessionFile {
    */
   setup?: Setup;
   /**
+   * The hook pool, with each hook's source — [03 §4.1], [06 §6.1], [P7.5].
+   *
+   * **The pool's fourth source finally has a home.** 03 §4.1 calls a session's
+   * own hooks *the primary path* for adding one mid-game, and until [P7.5] there
+   * was no field for them and no way to pass one — which is what that stage's
+   * cell records.
+   *
+   * **Copied at creation, which is [06 §6.1]'s *pulled, never pushed*** over
+   * [00 §3.1]: editing a treatment must not reach a game already in progress.
+   * The preset's asymmetry, not the cast's. *The copies keep their source hooks'
+   * ids, which is [15 §5]'s obligation and is pinned by a test rather than left
+   * to a `structuredClone` — a corpus of sessions whose hooks have unrelated ids
+   * cannot be retro-fitted into a continuity.*
+   *
+   * Absent for every session written before P7.5, and for one whose sources
+   * carried no hooks — which is different from a pool somebody emptied.
+   */
+  hooks?: PooledHook[];
+  /**
    * The session's own copy of its prompt pack — [03 §8].
    *
    * **A copy, not a link**, and the asymmetry with `cast` is deliberate:
@@ -216,4 +242,39 @@ export interface SessionFile {
    * make "restorable, never swept" a second code path instead of a flag.
    */
   archivedAt?: string;
+}
+
+/**
+ * Where a pooled hook came from — [03 §4.1], [P7.5].
+ *
+ * **The lorebook arm carries the book's id for a reason that is mechanical
+ * rather than navigational.** 03 §4.1: *"a hook carried by a lorebook is only
+ * eligible while that lorebook is active in the session. That is a sensible
+ * default and a mechanical justification for the association, rather than 'it
+ * seemed handy'."* The filter reads this; without the id there would be nothing
+ * to check the session's live book list against.
+ *
+ * *The session arm carries no id because there is no object to navigate to — a
+ * session-local hook is owned by the session, which is the thing you are already
+ * looking at.*
+ */
+export type HookSource =
+  | { kind: 'treatment'; id: string }
+  | { kind: 'setup'; id: string }
+  | { kind: 'lore'; id: string }
+  | { kind: 'session' };
+
+/**
+ * One hook in a session's pool, with its attribution.
+ *
+ * **Here rather than in `sessions/hooks.ts`, and the reason is a build error
+ * this file has hit before** ([P7.3] moved `Binding` for it). This module is the
+ * session record's *shapes* and imports nothing that touches storage; `hooks.ts`
+ * imports the lore resolver, so a type declared there and referenced from
+ * `SessionFile` drags the whole storage layer into this file's type graph — and
+ * `write-file-atomic`'s missing declarations surface as the error that says so.
+ */
+export interface PooledHook {
+  hook: PlotHook;
+  source: HookSource;
 }

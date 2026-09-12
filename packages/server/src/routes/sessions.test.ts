@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newPreset, newSetup } from '@storyengine/shared';
+import { newActor, newPreset, newSetup, newTreatment, type PlotHook } from '@storyengine/shared';
 
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
@@ -1596,5 +1596,129 @@ describe('a session started from a Setup', () => {
     });
 
     expect('setup' in (created.body.session as object)).toBe(false);
+  });
+});
+
+/**
+ * **The hook pool, copied at creation from all four sources** — [03 §4.1],
+ * [06 §6.1], [P7.5].
+ *
+ * The pool's fourth source had no home until this stage: `SessionFile` had no
+ * `hooks` field and `NewSession` no way to pass one, though 03 §4.1 calls adding
+ * one to a running session *the primary path*.
+ *
+ * **And [15 §5]'s first obligation is pinned end to end here**, not only over
+ * the builder: *a copied hook keeps the source hook's id*, because a corpus of
+ * sessions whose hooks have unrelated ids cannot be retro-fitted into a
+ * continuity. [P7.5] calls it free now and unrecoverable later.
+ */
+describe('a session’s hook pool', () => {
+  function hook(id: string): PlotHook {
+    return {
+      id,
+      title: id,
+      premise: 'The Flower Kingdom will declare war.',
+      magnitude: 'sweeping',
+      involves: [],
+      weight: 1,
+      delivery: 'guidance',
+      once: true,
+    };
+  }
+
+  async function aTreatment(hooks: PlotHook[]): Promise<string> {
+    const made = { ...newTreatment('Rain City, noir'), hooks };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: made,
+    });
+    return response.body.object.id as string;
+  }
+
+  it('copies a treatment’s hooks, keeping their ids', async () => {
+    const id = await aTreatment([hook('hook-war')]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+
+    expect(created.body.session.hooks).toEqual([
+      { hook: expect.objectContaining({ id: 'hook-war' }), source: { kind: 'treatment', id } },
+    ]);
+  });
+
+  it('takes the session’s own hooks, which had nowhere to be passed', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', hooks: [hook('hook-mine')] },
+    });
+
+    expect(created.body.session.hooks).toEqual([
+      { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
+    ]);
+  });
+
+  it('takes a Setup’s hooks too, attributed to it', async () => {
+    const made = { ...newSetup('The Fixer’s Debt'), hooks: [hook('hook-debt')] };
+    const setup = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    const setupId = setup.body.object.id as string;
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setupId },
+    });
+
+    expect(created.body.session.hooks).toEqual([
+      {
+        hook: expect.objectContaining({ id: 'hook-debt' }),
+        source: { kind: 'setup', id: setupId },
+      },
+    ]);
+  });
+
+  it('writes no pool at all when nothing carried a hook', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+
+    // Absent rather than `[]`: a session whose sources carried none is not a
+    // session somebody emptied, and every session before [P7.5] is the former.
+    expect('hooks' in (created.body.session as object)).toBe(false);
+  });
+
+  /**
+   * [06 §6.1]'s *pulled, never pushed* over [00 §3.1]: editing a treatment must
+   * not reach a game already in progress. The preset's asymmetry, not the cast's.
+   */
+  it('does not follow the treatment after the session exists', async () => {
+    const id = await aTreatment([hook('hook-war')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/library/treatments/${id}` });
+    await server.request({
+      method: 'PUT',
+      url: `/api/library/treatments/${id}`,
+      payload: { object: { ...read.body.object, hooks: [hook('hook-different')] } },
+      headers: { 'if-match': read.body.contentHash as string },
+    });
+
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.session.hooks[0].hook.id).toBe('hook-war');
   });
 });

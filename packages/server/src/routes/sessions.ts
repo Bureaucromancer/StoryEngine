@@ -4,7 +4,7 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { PRESET_SCHEMA, SETUP_SCHEMA, type Setup } from '@storyengine/shared';
+import { PRESET_SCHEMA, SETUP_SCHEMA, type PlotHook, type Setup } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
@@ -32,7 +32,9 @@ import {
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
+import { poolFor } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
+import { resolveLore } from '../turns/lore.js';
 import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
 import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
@@ -216,6 +218,21 @@ const CreateBody = Type.Object(
      * a running game ([00 §3.1]) — the same asymmetry the preset has.
      */
     setup: Type.Optional(Type.String({ maxLength: 200 })),
+    /**
+     * The session's **own** hooks — [03 §4.1]'s fourth source, [P7.5].
+     *
+     * That section calls adding one to a running session *the primary path*, and
+     * until this there was no field for them anywhere. They join the pool beside
+     * the treatment's, the setup's and the lorebooks', attributed as the
+     * session's own — which is the one source with no object to navigate to,
+     * because the session is what you are already looking at.
+     *
+     * *Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
+     * a hook the schema would refuse is an authoring mistake to show rather than
+     * a request to reject, and the selector's filter is where a broken one stops
+     * being eligible.*
+     */
+    hooks: Type.Optional(Type.Array(Type.Object({}, { additionalProperties: true }))),
   },
   { additionalProperties: false },
 );
@@ -419,6 +436,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset?: string;
       modeConfig?: Record<string, unknown>;
       setup?: string;
+      hooks?: PlotHook[];
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
@@ -602,6 +620,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // A copy, so editing the Setup afterwards cannot reach this game
         // ([00 §3.1], [04 §7]) — the asymmetry the preset already has.
         ...(from === undefined ? {} : { setup: structuredClone(from) }),
+        /**
+         * **The hook pool, copied from all four sources** — [03 §4.1], [P7.5].
+         *
+         * Built here because the sources are library objects and this is where
+         * the library is read: `resolveLore` already walks the treatment and the
+         * books for the turn pipeline, so the pool is the same walk one moment
+         * earlier. *Copied rather than resolved per turn, which is [06 §6.1]'s
+         * "pulled, never pushed" over [00 §3.1] — and the copies keep their
+         * sources' ids, which is [15 §5]'s obligation and what makes a
+         * continuity possible later.*
+         */
+        hooks: poolFor({
+          lore: resolveLore(services.library, account.handle, { treatment, lore }),
+          ...(from === undefined ? {} : { setup: from }),
+          ...(body.hooks === undefined ? {} : { own: body.hooks }),
+        }),
       });
 
       /**

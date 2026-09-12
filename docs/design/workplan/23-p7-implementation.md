@@ -2978,6 +2978,63 @@ be identifiable to a later extractor, not merely unrendered.*
 by a rewind past the commitment, and an introduction hook the narrator ignored
 back in the pool with the attempt on the record.
 
+#### In progress — opened 2026-09-12
+
+**Done: the shapes, and the obligation that is free now and unrecoverable
+later.** This stage's cell enumerates five pieces that *"do not exist as
+shapes"*; three of the five were what everything else blocked on, and one had
+already been discharged.
+
+- **`introduces`, `Introduction` and `Entrance` are in the schema.** Optional, so
+  it stays `/1` — [04 §2]'s additive door, the same one `hookPacing` came through
+  at [P7.1] — and the three emitted artefacts regenerated, which is the cell's
+  *"carried by three carriers, plus their JSON-schema exports"* being literally
+  true. *This stage adds it; it does not consume it.*
+- **`hookPacing` was already on `Treatment` and `Setup`**, added at P7.1. The
+  cell's second bullet is discharged and reads as though it were not.
+- **The pool's fourth source has a home.** `SessionFile.hooks`, `NewSession.hooks`
+  and a `hooks` parameter on creation — 03 §4.1 calls a session's own hooks *the
+  primary path* and there was no field for them anywhere.
+- **Session creation copies them**, which is what obligation 1 had nothing to pin
+  to: the cell records *"session creation copies nothing but the preset, so
+  obligation 1's 'what is being pinned is that copying does not mint a fresh one'
+  is pinning a copy that is not there"*. It is there now.
+
+***Obligation 1 is pinned in two places, which is deliberate.*** [15 §5] needs *a
+copied hook keeps the source hook's id*, because **a corpus of sessions whose
+hooks have unrelated ids cannot be retro-fitted into a continuity** — the linking
+information was never written. `hooks.test.ts` asserts it over the builder and
+`sessions.test.ts` asserts it over a real creation, because the failure it guards
+against is somebody replacing a `structuredClone` with a factory call, and a test
+that only watched the builder would not see a route that rebuilt.
+
+**The pool carries attribution, and that earns itself twice.** 03 §4.1 names four
+sources as a cost and its mitigation in the same breath — *"every hook shows its
+source, and editing navigates to whichever object owns it"* — so an entry is
+`{ hook, source }`. The lorebook arm's id is **mechanical** rather than
+navigational: a hook carried by a lorebook *"is only eligible while that lorebook
+is active in the session"*, so the filter needs something to check the session's
+live book list against.
+
+*Copied rather than resolved per turn*, which is [06 §6.1]'s *pulled, never
+pushed* over [00 §3.1] — the preset's asymmetry, not the cast's — and tested by
+editing a treatment under a running session. *And deliberately no de-duplication
+by id: the same hook reaching a session through a treatment and one of its own
+lorebooks is a real authoring situation, and collapsing them would drop the
+attribution while making the pool disagree with what the author sees in two
+places. The filter keys on the id, so a duplicate fires once regardless.*
+
+*One build error worth recording because this file has hit it before:*
+`PooledHook` first lived in `sessions/hooks.ts`, which imports the lore resolver
+— and a type referenced from `SessionFile` drags that module's whole graph into
+the record's, surfacing as `write-file-atomic`'s missing declarations. [P7.3]
+moved `Binding` for the same reason. The types live in `sessions/types.ts`, which
+is the session record's shapes and imports nothing that touches storage.
+
+**Next:** the mechanical filter — four of [06 §6.1]'s five clauses, since
+`requires` was deliberately removed from the `/1` schema with `onFire` — and the
+`introduces` predicate it reverses, which [P7.2] finally made implementable.
+
 ### P7.6 — Goals
 
 The chain, not a field — *and it is already the chain in schema*: `Goal` ships

@@ -35,7 +35,14 @@ import {
   type TurnLocation,
   walkPath,
 } from './segments.js';
-import type { BranchRef, ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
+import type {
+  BranchRef,
+  ChannelEffect,
+  ChannelState,
+  PooledHook,
+  SessionFile,
+  Turn,
+} from './types.js';
 
 /**
  * Session storage — [03 §5.5](../../../../docs/design/03-data-model.md),
@@ -162,6 +169,14 @@ export interface NewSession {
    * cannot reach a running session — the asymmetry the preset already has.
    */
   setup?: Setup;
+  /**
+   * The hook pool, already built and attributed — [03 §4.1], [P7.5].
+   *
+   * Built at the route, because the sources are library objects and the route is
+   * where the library is read. `poolFor` is the one place that walks them, so
+   * the ids a session's copies carry are the sources' by construction.
+   */
+  hooks?: PooledHook[];
 }
 
 export async function createSession(
@@ -185,6 +200,7 @@ export async function createSession(
     ...(spec.preset === undefined ? {} : { preset: spec.preset }),
     ...(spec.cast === undefined ? {} : { cast: spec.cast }),
     ...(spec.setup === undefined ? {} : { setup: spec.setup }),
+    ...(spec.hooks === undefined || spec.hooks.length === 0 ? {} : { hooks: spec.hooks }),
     ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
