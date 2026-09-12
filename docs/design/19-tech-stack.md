@@ -189,7 +189,7 @@ what runs. `resolveRole` implements four of the five.*
 | Layer | State |
 |---|---|
 | **install default** | **Built at [P2B §2.1](workplan/10-p2b-provider-configuration.md).** `system/bindings.json`, written by the admin surface, read by `readSystemBindings`, resolved as `via: 'default'` |
-| **role binding** | Built. Read from `users/<handle>/bindings.json`; **hand-written only** — the writer for the per-user file is still deferred with the rest of [10 §15.1](10-ui-surfaces.md)'s user half ([P2B §2.7](workplan/10-p2b-provider-configuration.md)) |
+| **role binding** | Built. Read from `users/<handle>/bindings.json`, and ~~**hand-written only** — the writer for the per-user file is still deferred with the rest of [10 §15.1](10-ui-surfaces.md)'s user half ([P2B §2.7](workplan/10-p2b-provider-configuration.md))~~ **written by `PUT /api/me/bindings` since [P7.3](workplan/23-p7-implementation.md), with no administrator and no capability involved — §5.1's own sentence, discharged.** Hand-writing still works and is still supported ([10 §4](10-ui-surfaces.md)): the route reads fresh and writes under a hash guard, so a hand edit between a page load and a save answers 412 rather than being overwritten |
 | **session override** | Plumbed into `resolveRole` and never passed. P7's, with the mode contract that would use it |
 | **step override** | Same |
 | **actor hint** | Built. Applied last and weakest: it may choose among the models the resolved connection already offers and may never change the connection, which is what stops an imported actor card repointing somebody's provider |

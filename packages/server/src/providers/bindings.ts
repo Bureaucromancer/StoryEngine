@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { contentHashOf } from '../index-db/ingest.js';
+import { writeJsonAtomic } from '../storage/atomic.js';
 import { readFileBytes } from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
@@ -26,13 +28,23 @@ import { MODEL_ROLES } from './types.js';
  *
  * **It landed for one of the two files.** `system/bindings.json` has a writer —
  * `PUT /api/admin/bindings` and `POST /api/admin/bindings/defaults`, behind
- * the admin prefix. `users/<handle>/bindings.json` deliberately still has none:
- * [P2B §2.7] draws the line at *the system scope and only the system scope*,
- * and the personal half waits with the rest of
- * [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s user surface. So a personal binding
- * is still hand-written, which is [10 §4](../../../../docs/design/10-ui-surfaces.md) working
- * exactly as designed rather than a gap — and it is a *smaller* gap than it
- * was, because the layer underneath it now answers.
+ * the admin prefix. ~~`users/<handle>/bindings.json` deliberately still has
+ * none~~ **and the personal one landed at [P7.3]**, 2026-09-12: `PUT
+ * /api/me/bindings`, which is [10 §15.1]'s *role bindings* bullet and the real
+ * blocker [R2 / F-01](../../../../docs/design/workplan/21-playable-log.md) was
+ * waiting on. *The old text is kept because its reasoning was right and is what
+ * dates the change: [P2B §2.7] drew the line at "the system scope and only the
+ * system scope", and the personal half waited with the rest of
+ * [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s user surface — which
+ * [10 §15.5] gates on the `privateConnections` check existing, because a
+ * personal surface that predates it is "the trivial bypass [09 §4.5] warns
+ * about, wearing a UI". That check has been real since P3.*
+ *
+ * **Hand-writing this file stays supported and is not a fallback.**
+ * [10 §4](../../../../docs/design/10-ui-surfaces.md) promises editing your own
+ * data on disk works; the route reads fresh on every request and writes the
+ * whole document under a hash guard, so a hand edit between a read and a write
+ * answers 412 rather than being silently overwritten.
  *
  * **Two layers, not one.** `system/bindings.json` holds the install defaults
  * everyone inherits and a user's own file overrides it per role — [19 §5.1]'s
@@ -82,7 +94,7 @@ export async function readBindings(layout: Layout, handle: string): Promise<Role
  * same reason: the failure a person will actually have is a typo in one place,
  * and taking down every other role because of it is the wrong answer.
  */
-function pickBindings(value: Record<string, unknown>): RoleBindings {
+export function pickBindings(value: Record<string, unknown>): RoleBindings {
   const picked: RoleBindings = {};
   for (const role of MODEL_ROLES) {
     const entry = value[role];
@@ -107,4 +119,62 @@ async function readBindingsAt(path: string): Promise<RoleBindings> {
   } catch {
     return {};
   }
+}
+
+/**
+ * A bindings document plus a hash of the bytes it came from — [P2B §6].
+ *
+ * **The hash is over the file, not over the picked document**, which is what
+ * makes it a guard rather than a formality: a hand edit that adds a role this
+ * build does not know changes the file and not the pick, and a client holding
+ * the old hash should still be told the file moved under it.
+ *
+ * *Lifted here from `routes/connections.ts` at [P7.3] so the two bindings files
+ * are hashed by one rule.* The empty-file convention is the subtle half and was
+ * the reason to lift it: an absent file hashes as the empty document rather
+ * than as nothing, so **there is no file** and **there is an empty file**
+ * present the same guard — which is what a first write needs, since the client
+ * has neither. `writeJsonAtomic` emits exactly these bytes for `{}`.
+ */
+export async function bindingsStateAt(
+  path: string,
+): Promise<{ bindings: RoleBindings; contentHash: string }> {
+  const bytes = await readFileBytes(path);
+  return {
+    bindings: await readBindingsAt(path),
+    contentHash: contentHashOf(bytes ?? new TextEncoder().encode('{}\n')),
+  };
+}
+
+export async function systemBindingsState(
+  layout: Layout,
+): Promise<{ bindings: RoleBindings; contentHash: string }> {
+  return bindingsStateAt(layout.systemBindingsFile);
+}
+
+export async function userBindingsState(
+  layout: Layout,
+  handle: string,
+): Promise<{ bindings: RoleBindings; contentHash: string }> {
+  return bindingsStateAt(bindingsFile(layout, handle));
+}
+
+/**
+ * One account's own bindings, replaced wholesale.
+ *
+ * **A whole document rather than a patch per role**, the same shape the system
+ * writer takes and for the same reason: eight roles is not a chatty write path,
+ * and a bindings document *is* exactly its eight possible keys, so there is
+ * nothing on disk a merge would be preserving.
+ *
+ * The caller picks before calling. This does not pick for them, because the
+ * route has to answer with what it wrote and a silent narrowing inside the
+ * writer would make that answer a second guess.
+ */
+export async function writeBindings(
+  layout: Layout,
+  handle: string,
+  bindings: RoleBindings,
+): Promise<void> {
+  await writeJsonAtomic(bindingsFile(layout, handle), bindings);
 }

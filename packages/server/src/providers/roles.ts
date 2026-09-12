@@ -156,6 +156,52 @@ export interface RoleRow {
   resolution: RoleResolution;
 }
 
+/**
+ * One row as the wire carries it — [P2B §3], lifted here at [P7.3].
+ *
+ * **One shape for two surfaces.** The admin table answers *what has the install
+ * got* and the user's answers *what will my turns do*; they resolve different
+ * layers and produce the same row, and the client parses both into one
+ * `RoleRow`. Two hand-written mappings would be two chances for that to stop
+ * being true — and the drift would be silent, because each route's own test
+ * would still pass.
+ *
+ * **The label travels and the connection's secrets do not.** That is
+ * `PublicConnection`'s rule rather than a judgement made here: a label is the
+ * half of a connection that is not a credential, and a table of uuids answers
+ * nothing.
+ */
+export function presentRoleRow({ role, tier, resolution }: RoleRow): {
+  role: ModelRole;
+  tier: 'hi' | 'lo' | 'unset';
+  ok: boolean;
+  via?: ResolutionSource;
+  connectionId?: string;
+  connectionLabel?: string;
+  modelId?: string;
+  reason?: 'unbound' | 'dangling';
+} {
+  return {
+    role,
+    tier,
+    ...(resolution.ok
+      ? {
+          ok: true as const,
+          via: resolution.via,
+          connectionId: resolution.connection.id,
+          connectionLabel: resolution.connection.label,
+          modelId: resolution.modelId,
+        }
+      : {
+          ok: false as const,
+          reason: resolution.reason,
+          ...(resolution.connectionId === undefined
+            ? {}
+            : { connectionId: resolution.connectionId }),
+        }),
+  };
+}
+
 /** Every role, resolved against one set of layers, in the vocabulary's own order. */
 export function roleTable(options: Omit<ResolveOptions, 'role'>): RoleRow[] {
   return MODEL_ROLES.map((role) => ({

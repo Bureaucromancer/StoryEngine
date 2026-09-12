@@ -988,9 +988,17 @@ describe('a key', () => {
    *
    * **What makes it safe is not its name but `usable`.** `resolveRole` looks an
    * override's `connectionId` up in the capability-filtered `usable` list, so a
-   * binding naming a connection the account may not use resolves as `dangling`
-   * rather than as access — the same filter every other layer goes through. And
-   * the route reads and writes ids only: no `apiKey`, no `baseUrl`.
+   * binding naming a connection the account may not use cannot be access — the
+   * same filter every other layer goes through. And the route reads and writes
+   * ids only: no `apiKey`, no `baseUrl`.
+   *
+   * *Said as `resolves as \`dangling\`` when this was written; measured at
+   * [P7.3] and corrected, because the resolver is better than that. [P2B §1.2]
+   * made it take **the first layer that resolves, not the first that exists**,
+   * so an unusable override drops through to the layer below and `dangling` is
+   * what is left when nothing bound anything usable. The safety claim is
+   * unchanged and its mechanism is `usable`; only the consequence was
+   * overstated.*
    *
    * **A named exception rather than a narrowed regex**, deliberately. The match
    * above is default-deny and the docstring says why — *"a fifth route on this
@@ -999,50 +1007,131 @@ describe('a key', () => {
    * leaves the default intact and makes each departure from it argue for itself,
    * which is how `eslint.config.js` handles the filesystem and randomness rules.
    */
-  const EXEMPT = new Set(['PUT /api/sessions/:sessionId/roles']);
+  /**
+   * ***Two more at [P7.3], and the probe generalised with them — 2026-09-12.***
+   * `GET /api/me/roles` and `PUT /api/me/bindings` are [10 §15.1]'s *role
+   * bindings* bullet, the personal half of a file whose reader has existed since
+   * P2.5. They rest on the same argument and must be held to it the same way, so
+   * the exemption stopped being a bare set and became a table: each entry says
+   * how it is probed, and every entry is probed. A fourth exemption that named
+   * no probe would not compile.
+   *
+   * **A write is probed by what it refuses; a read by what it returns.** Those
+   * are different risks and the earlier single probe only covered the first —
+   * which was right when the only exemption was a write, and would have been a
+   * hole the moment a readable one was added.
+   */
+  const EXEMPT: {
+    // The request helper's own union rather than `string`, so an entry is
+    // callable without a cast — vitest would have run either way and `tsc` is
+    // what said so.
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    url: string;
+    probe: { kind: 'refuses-a-key'; payload: unknown } | { kind: 'returns-no-secret'; at: string };
+  }[] = [
+    {
+      method: 'PUT',
+      url: '/api/sessions/:sessionId/roles',
+      probe: {
+        kind: 'refuses-a-key',
+        payload: { roles: { prose: { connectionId: 'c1', modelId: 'm1', apiKey: 'sk-nope' } } },
+      },
+    },
+    {
+      method: 'PUT',
+      url: '/api/me/bindings',
+      probe: {
+        kind: 'refuses-a-key',
+        payload: {
+          bindings: { prose: { connectionId: 'c1', modelId: 'm1', apiKey: 'sk-nope' } },
+          contentHash: 'whatever',
+        },
+      },
+    },
+    {
+      method: 'GET',
+      url: '/api/me/roles',
+      probe: { kind: 'returns-no-secret', at: '/api/me/roles' },
+    },
+  ];
 
   it('has no route outside the admin prefix', () => {
     const surface = routesUnder(server.app, '/api').filter((route) =>
       /\/(connections|bindings|roles)(\/|$)/.test(route.url),
     );
+    const exempt = new Set(EXEMPT.map((one) => `${one.method} ${one.url}`));
 
     // The sweep would be vacuous over an empty list, so the count is asserted
     // first — a regex that matched nothing would otherwise pass.
     expect(surface.length).toBeGreaterThanOrEqual(10);
     for (const route of surface) {
-      if (EXEMPT.has(`${route.method} ${route.url}`)) continue;
+      if (exempt.has(`${route.method} ${route.url}`)) continue;
       expect(route.url.startsWith('/api/admin/'), `${route.method} ${route.url}`).toBe(true);
     }
   });
 
-  it('keeps the one exempt route on the surface, so the exemption cannot go stale', () => {
+  it('keeps every exempt route on the surface, so an exemption cannot go stale', () => {
     // An exemption for a route that no longer exists is a hole waiting for
-    // somebody to register that path again. The set is checked against the
-    // table rather than trusted.
+    // somebody to register that path again. The table is checked against the
+    // route table rather than trusted.
     const urls = new Set(
       routesUnder(server.app, '/api').map((route) => `${route.method} ${route.url}`),
     );
 
-    for (const exempt of EXEMPT) expect(urls, exempt).toContain(exempt);
+    for (const one of EXEMPT) {
+      expect(urls, `${one.method} ${one.url}`).toContain(`${one.method} ${one.url}`);
+    }
   });
 
-  it('lets the exempt route carry ids and refuses anything else', async () => {
-    // **What the exemption actually rests on**, asserted as behaviour rather
+  it('lets every exempt write carry ids and refuses anything else', async () => {
+    // **What the exemptions actually rest on**, asserted as behaviour rather
     // than as a declaration: a route that grew an `apiKey` or a `baseUrl` field
     // would still be exempt by name, and this is what would notice.
     //
-    // Fastify validates the body before the handler runs, so the session need
-    // not exist for this to be the schema's answer — which is also why it is a
-    // 400 and not a 404.
-    const refused = await server.request({
-      method: 'PUT',
-      url: '/api/sessions/whatever/roles',
-      payload: {
-        roles: { prose: { connectionId: 'c1', modelId: 'm1', apiKey: 'sk-nope' } },
-      },
-    });
+    // Fastify validates the body before the handler runs, so neither the session
+    // nor the hash need be real for this to be the schema's answer — which is
+    // also why it is a 400 and not a 404 or a 412.
+    const writes = EXEMPT.filter((one) => one.probe.kind === 'refuses-a-key');
+    expect(writes.length).toBeGreaterThan(0);
 
-    expect(refused.status).toBe(400);
-    expect(JSON.stringify(refused.body ?? null)).not.toContain('sk-nope');
+    for (const one of writes) {
+      const refused = await server.request({
+        method: one.method,
+        url: one.url.replace(':sessionId', 'whatever'),
+        payload: one.probe.kind === 'refuses-a-key' ? one.probe.payload : undefined,
+      });
+
+      expect(refused.status, `${one.method} ${one.url}`).toBe(400);
+      expect(JSON.stringify(refused.body ?? null)).not.toContain('sk-nope');
+    }
+  });
+
+  it('lets every exempt read carry a label and nothing else of a connection', async () => {
+    // The other half, and the one the single probe did not cover: a read route
+    // outside the prefix that resolved against real connections could carry a
+    // key or a base URL out with the answer. `presentConnection` is what stops
+    // it, and this is what holds `presentConnection` to it.
+    await create();
+
+    const reads = EXEMPT.filter((one) => one.probe.kind === 'returns-no-secret');
+    expect(reads.length).toBeGreaterThan(0);
+
+    for (const one of reads) {
+      const response = await server.request({
+        method: one.method,
+        url: one.probe.kind === 'returns-no-secret' ? one.probe.at : one.url,
+      });
+
+      // Succeeded, so the sweep is over an answer rather than over a refusal —
+      // [P2B §6.1]'s point about a body that carries nothing for the least
+      // interesting reason there is.
+      expect(response.status, `${one.method} ${one.url}`).toBeLessThan(400);
+      const body = JSON.stringify(response.body ?? null);
+      expect(body).not.toContain('sk-must-never-come-back');
+      expect(body).not.toContain('api.internal.example');
+      // And the label *is* carried, so the two assertions above are not passing
+      // because the route answered with nothing.
+      expect(body).toContain('The house key');
+    }
   });
 });

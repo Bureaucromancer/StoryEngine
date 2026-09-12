@@ -1554,8 +1554,47 @@ route.
 [R2 / F-01](21-playable-log.md) is routed to *"P7 §1.9"* by two documents, and the
 real blocker behind *use a second model* is a **role-binding editor** —
 [10 §15.1](../10-ui-surfaces.md)'s user half — which is a different surface from
-the override layers this section is about. Both belong to P7.3; only one of them
-is in it.
+the override layers this section is about. Both belong to P7.3; ~~only one of
+them is in it~~ **both are in it now, 2026-09-12** — `GET /api/me/roles`,
+`PUT /api/me/bindings` and the `MyRoles` pane.
+
+*The editor turned out to be the smaller of the two and the older debt.*
+`users/<handle>/bindings.json` has had a **reader since P2.5** and has resolved
+as a layer under the install defaults **since P2B**; what it never had was a
+writer, which `providers/bindings.ts` records as deliberate — [P2B §2.7] drew the
+line at the system scope, and [10 §15.5] gates the personal surface on the
+`privateConnections` check being real rather than *"the trivial bypass [09 §4.5]
+warns about, wearing a UI"*. That check has been real since P3, so the gate was
+open and nobody walked through it. **And the client half was half-written
+already**: `AdminConnections.tsx`'s `RoleTable` carried a *"Your own setting,
+on …"* branch it could never reach, because it resolves the install's layers and
+passes no personal ones. The vocabulary moved to `roleWords.ts`; the branch
+finally has a caller.
+
+**It needs no capability and that is the design.** A binding is two ids, and
+`resolveRole` looks the `connectionId` up in the capability-filtered list — so
+this is useful to an account with no connections of its own (re-point one job at
+the cheaper model on the install's own connection, which is R2 / F-01's whole
+ask) and cannot become access for one that oversteps. *Measured while testing it,
+against a first draft that asserted otherwise: an unusable binding is not even
+**destructive**, because [P2B §1.2] made the resolver take the first layer that
+**resolves**, not the first that exists. It drops through to the install default
+and the turn keeps working; `dangling` is the honest remainder when no layer
+bound anything usable. Two docstrings that said "resolves as `dangling`" were
+corrected.*
+
+*And the route table's default-deny guard grew with it rather than around it.*
+`connections.test.ts` refuses any route matching `connections|bindings|roles`
+outside `/api/admin`; these two match and must not be admin-only. The exemption
+list became a **table with a probe per entry** — a write is probed by what it
+refuses, a read by what it returns — because the single probe covered only the
+first kind, which was right when the only exemption was a write and would have
+been a hole the moment a readable one arrived. The write probe then bit
+immediately: `PUT /api/me/bindings` took the system route's open body shape and
+answered **412 on the hash instead of 400 on the field**, so the schema was
+tightened to `Record<String, {connectionId, modelId}>`. Stricter than the admin
+route it copies, deliberately — that one is behind the prefix, and this one's
+licence to be outside it *is* the claim that it carries no credential.
 
 ### 1.10 What import recorded and left here — the deferrals §0 exists to collect
 
@@ -2401,6 +2440,25 @@ decision the stage opens on, and it is a record-shape decision rather than a
 wiring job.* Then voice and dispatch as optional session fields, which want a
 consumer first — and `dispatch`'s consumer is a mode that fans out, which is
 [P7.9]'s.
+
+**Done: the role-binding editor, which §1.9 routed here and this cell named**
+(2026-09-12). `GET /api/me/roles`, `PUT /api/me/bindings`, and a `MyRoles` pane
+in the settings surface for **every** account rather than for an admin. §1.9
+carries the argument and what testing it corrected; the short form is that the
+layer has resolved since P2B and the file has had a reader since P2.5, so this is
+a writer for something already load-bearing rather than a new mechanism —
+[R2 / F-01]'s *use a second model*, finally reachable without hand-editing JSON.
+
+*Three things came with it that are worth naming because they are the kind that
+would otherwise be quietly skipped.* `presentRoleRow` and `roleWords.ts` are one
+row shape and one vocabulary for the two tables, so the install's answer and
+yours cannot start describing the same resolution differently. `SelectField`
+gained `hideLabel` — a real `<label>` with `sr-only`, because a control in a
+table cell is named by its row and column headers and drawing the label again
+prints the row header twice. And **`docs/api.md` was three routes behind**: it
+says *"as built, and kept so"*, and P7.1's channel write and P7.3's two override
+layers had never been added. All four are in it now, with `GET /sessions/:id`'s
+response corrected to the four fields it actually returns.
 
 **Done: the record-shape decision, and the answer is a withdrawal** (2026-09-12).
 The sizing above framed it as a choice between a creation-time bookkeeping turn

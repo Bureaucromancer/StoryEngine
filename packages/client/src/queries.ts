@@ -30,6 +30,7 @@ import {
   type AdminConnection,
   type Binding,
   type BindingsState,
+  type MyRoles,
   type ConnectionInput,
   type RoleRow,
   type ConfigView,
@@ -798,6 +799,55 @@ function invalidateProviderSurface(client: QueryClient): void {
   // The dead-end count asks whether `prose` resolves, so it moves when either
   // of the other two does — which is the whole of P2B.4's ending clause.
   void client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
+  /**
+   * **And the caller's own table, which is not an admin key** — [P7.3].
+   *
+   * A user's resolution layers over the install's, so removing a system
+   * connection or repointing a default changes what *their* pane should say.
+   * Leaving it out would be a stale answer on the one screen whose whole job is
+   * to be the current one — and an admin editing their own install is exactly
+   * the person who would have both open.
+   */
+  void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+}
+
+/**
+ * The caller's own role table, the document behind it, and what may be picked —
+ * [10 §15.1], [P7.3].
+ *
+ * **Keyed under `me` rather than `admin`, which is the point of the route.**
+ * `SettingsPage` renders the admin sections only for an admin, so an
+ * `admin`-keyed query would make this pane unmountable for the people
+ * [19 §5.1] wrote it for: *"anyone who wants their own key overrides a role
+ * without the admin's involvement"*.
+ */
+export function useMyRoles(): UseQueryResult<MyRoles> {
+  return useQuery({ queryKey: ['me', 'roles'], queryFn: api.readMyRoles });
+}
+
+/**
+ * Writing your own bindings.
+ *
+ * **Not optimistic, unlike `usePatchPrefs`.** A preference's whole feedback is
+ * the page changing, so a lag reads as a broken control; a binding's feedback is
+ * a *resolution* the server computes, and guessing at it here would mean
+ * reimplementing [19 §5.1]'s layering in the browser — the second copy
+ * `GET /api/me/roles` exists to avoid. So the answer is awaited and the table
+ * re-read.
+ */
+export function useWriteMyBindings(): UseMutationResult<
+  BindingsState,
+  Error,
+  { bindings: Record<string, Binding>; contentHash: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { bindings: Record<string, Binding>; contentHash: string }) =>
+      api.writeMyBindings(input.bindings, input.contentHash),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+    },
+  });
 }
 
 export function useSaveConnection(): UseMutationResult<

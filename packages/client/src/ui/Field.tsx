@@ -232,6 +232,22 @@ export interface SelectFieldProps {
   options: readonly (readonly [string, string])[];
   onChange: (value: string) => void;
   hint?: string;
+  /**
+   * Hide the label from sight, never from the accessibility tree — [P7.3].
+   *
+   * **For a control in a table cell, where the name is already on the screen.**
+   * The row header says which job this select is for and the column header says
+   * what the column does, so drawing the label again would print the row header
+   * twice in one row.
+   *
+   * *A real `<label>` with `sr-only`, not `aria-label` and not a dropped
+   * label.* `label` stays required and stays the accessible name — a control
+   * without one is not shippable — and this only decides whether it is painted.
+   * The alternative spellings both cost something: `aria-label` overrides
+   * whatever visible text somebody adds later, and no label at all leaves the
+   * name to whatever the browser guesses from the cell.
+   */
+  hideLabel?: boolean;
 }
 
 export function SelectField(props: SelectFieldProps): JSX.Element {
@@ -240,7 +256,7 @@ export function SelectField(props: SelectFieldProps): JSX.Element {
 
   return (
     <div>
-      <Label htmlFor={controlId} text={props.label} />
+      <Label htmlFor={controlId} text={props.label} hidden={props.hideLabel} />
       <select
         id={controlId}
         className={CONTROL_CLASS}
@@ -268,13 +284,31 @@ function Label({
   htmlFor,
   text,
   required,
+  hidden,
 }: {
   htmlFor: string;
   text: string;
   /** `| undefined` because `exactOptionalPropertyTypes` is on and this is
    *  forwarded from an optional prop rather than spelled at the call site. */
   required?: boolean | undefined;
+  /**
+   * Out of sight and still in the accessibility tree — `sr-only`, not
+   * `display: none`, which would take the label out of both ([P7.3]).
+   *
+   * The assist slot goes with it: it is `aria-hidden` and empty, so keeping it
+   * laid out around a label nobody can see would reserve a row of space for
+   * nothing.
+   */
+  hidden?: boolean | undefined;
 }): JSX.Element {
+  if (hidden === true) {
+    return (
+      <label htmlFor={htmlFor} className="sr-only">
+        {text}
+      </label>
+    );
+  }
+
   return (
     <div className="mb-1 flex items-center justify-between gap-2">
       <label htmlFor={htmlFor} className={LABEL_CLASS}>

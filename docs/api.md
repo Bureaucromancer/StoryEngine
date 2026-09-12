@@ -1,8 +1,8 @@
 # The HTTP API
 
 **Status: as built, and kept so.** Written at P2.5 and revised with every phase
-since — last at [P6A](design/workplan/19-p6a-alpha-1.md), for the setup token,
-the build identity and the `/api` boundary. This describes what exists, not what
+since — last at [P7.3](design/workplan/23-p7-implementation.md), for the channel
+write, the two override layers and the personal role bindings. This describes what exists, not what
 is planned — where the two differ, this file is right and the design notes
 record intent ([docs/README.md](README.md)).
 
@@ -921,11 +921,62 @@ link is a session missing a book, not a rejected request, and the retriever
 reports what it could not read on every turn where somebody playing can see it
 ([00 §3.3](design/00-stance.md)).
 
+### `PUT /api/sessions/:sessionId/roles`
+
+`{ roles?, stepRoles? }` → `{ session }`. Each is a map from name to
+`{ connectionId, modelId }`; `roles` is keyed by model role (`prose`,
+`summarize`, …) and `stepRoles` by step id. Both are **replaced wholesale**, and
+an omitted key means the empty map — a partial update could not express *clear
+this override*, and clearing one is the commoner act.
+
+**Two of [19 §5.1](design/19-tech-stack.md)'s five layers, and the reason they
+live on the session rather than in a mode** is that section's opening sentence:
+*nothing in a mode, step or extension refers to a provider or a model id*. A
+binding names a `connectionId` that exists on exactly one install, so *a cheap
+model for one noisy step* is an operator's decision about their own providers,
+not an author's about their story.
+
+Validated for shape and not for existence. A binding naming a connection that is
+gone, or one this account may not use, is not refused: `resolveRole` drops
+through to the next layer that resolves, and reports `dangling` only when none
+did. Anything beyond the two ids is `400` — the route is outside `/api/admin`
+and carrying no credential is what lets it be.
+
+### `PUT /api/sessions/:sessionId/channels/:key`
+
+`{ value }` → `{ session, effect, health, hud }`. The key is a channel key —
+`se.clock`, or `se.presence#<actorId>` for a scoped channel — URL-encoded like
+every other id here.
+
+**One route for all three recoveries [06 §4.2](design/06-modes-and-turn-pipeline.md)
+offers**, which is why it takes a value rather than naming an action: *retry*
+sends the quarantined raw value back, *edit* sends what the person typed, and
+*accept* sends the value already standing, which clears the `degraded` marker
+because only an effect carrying a reason ever writes one.
+
+**A refusal is `200` carrying the effect, not a 4xx.** A retry that still does
+not fit is a recorded refusal — that is the point of writing it through the same
+path a model's proposal takes — and an error status would throw away the record.
+Read `effect.applied`.
+
+The write lands as a turn with no model call and no tape, the same shape an undo
+and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
+change of state is visible in the turn record.
+
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null }`. The job travels with the session because a
-client reloading mid-turn needs to know there *is* one before it decides whether
-to open a stream or offer an input box.
+`{ session, activeJob | null, health, hud, cast }`. The job travels with the
+session because a client reloading mid-turn needs to know there *is* one before
+it decides whether to open a stream or offer an input box.
+
+`health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
+channels declaring a `surface`, already rendered through their own `render`
+template; `cast` is one row per person this story is about — presence, status,
+an unanswered terminal proposal, and whether they have been introduced
+([06 §8.1](design/06-modes-and-turn-pipeline.md),
+[10 §13.2](design/10-ui-surfaces.md)). All three are reconstructed at the
+session's head, so they are the state a panel should be showing rather than a
+summary of the file.
 
 A session that is not there and one that is not yours are the **same 404**. The
 path is the owner ([09 §4.3](design/09-server-multiuser-deployment.md)), and
@@ -1350,6 +1401,51 @@ key must be namespaced (`library.density`, not `density`) and the document has a
 size cap. Those exist because an unvalidated store is otherwise an unbounded
 write surface for any signed-in account. A bad key is `400 invalid`; too large is
 `413 too-large`.
+
+### `GET /api/me/roles` · `PUT /api/me/bindings`
+
+```json
+{
+  "roles": [{ "role": "prose", "tier": "hi", "ok": true, "via": "binding", "…": "…" }],
+  "bindings": { "prose": { "connectionId": "0199…", "modelId": "gpt-lo" } },
+  "contentHash": "sha256:…",
+  "connections": [
+    { "id": "0199…", "label": "The house key", "provider": "openai-compatible",
+      "scope": "system", "models": ["gpt-hi", "gpt-lo"] }
+  ],
+  "disabled": []
+}
+```
+
+**What *your* turns will do, where `GET /api/admin/roles` says what the install
+has got.** Same row shape; different layers. This one resolves your own
+`users/<handle>/bindings.json` over the install defaults against the connections
+you may actually use, which is [19 §5.1](design/19-tech-stack.md)'s order — and
+`via` is the whole reason to ask a server rather than work it out in a browser.
+
+One request carries the whole pane: the resolved table, the raw document to edit,
+a hash to write against, and the connections a binding may pick from with their
+model lists. `disabled` is personal connections on disk that were ignored for
+want of `privateConnections`, returned rather than dropped so you are told rather
+than left wondering why a model call started failing
+([09 §4.5](design/09-server-multiuser-deployment.md)).
+
+`PUT /api/me/bindings` takes `{ bindings, contentHash }` and answers the same
+`{ bindings, contentHash }`. The document is **replaced wholesale** — it is
+exactly its known role keys, so there is nothing a merge would preserve — and the
+hash is the library's stale-check idiom: a mismatch is
+`412 stale` carrying `current`, so a client can offer *load what is on disk*
+rather than only being told no. That matters more here than for the system file,
+because [10 §4](design/10-ui-surfaces.md) says hand-editing this one works.
+
+**No administrator is involved, and no capability is checked.** [19 §5.1] is
+explicit that *anyone who wants their own key overrides a role without the
+admin's involvement*. A binding is two ids; what keeps that safe is that
+`resolveRole` looks the `connectionId` up in the capability-filtered list, so one
+naming a connection you may not use can never be access — it falls through to the
+layer below. A role this build does not know is dropped rather than refused, so
+a newer client is not an error; **anything else inside a binding is `400`**, which
+is what lets this route live outside `/api/admin`.
 
 ---
 

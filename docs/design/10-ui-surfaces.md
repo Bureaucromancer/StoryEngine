@@ -2345,6 +2345,20 @@ Available to every account, admin or not.
 - **Your connections** ([09 §4.5](09-server-multiuser-deployment.md)) and role
   bindings, if `privateConnections` is granted. The one place a user sees which
   of their bindings are personal and which fall back to system defaults.
+
+  ***The capability governs the first half only, and the bindings half shipped
+  without it — [P7.3](workplan/23-p7-implementation.md), 2026-09-12.*** A
+  personal *connection* is a credential and a private host, which is why §15.5
+  gates that surface on the `privateConnections` check being real. A *binding* is
+  two ids, and [19 §5.1](19-tech-stack.md) is explicit that **anyone who wants
+  their own key overrides a role without the admin's involvement** — so the
+  editor is offered to every account, and what keeps it safe is that
+  `resolveRole` looks a binding's connection up in the capability-filtered list:
+  one naming a connection you may not use can never be access, and falls through
+  to the layer below rather than breaking the role. It is useful without any
+  connection of your own — re-pointing one job at a cheaper model on the
+  install's connection is the commonest reason to open it. *The connections half
+  still waits.*
 - **Preferences** — the presentation choices the app accumulates. §1.1's
   density question will eventually land here, and two more are waiting: the
   *As stored* pane state ([polish §2](workplan/06-polish.md)) and the all-kinds

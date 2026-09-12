@@ -594,26 +594,6 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * A person writes one channel — [06 §4.2]'s recovery, [P7.1].
-   *
-   * **One route for all three offered recoveries**, which is why it takes a
-   * value rather than naming an action. 06 §4.2 offers *"retry the migration
-   * once the author ships a fix, edit the quarantined value by hand, or accept
-   * the reset"*: retry sends the quarantined raw value back, edit sends whatever
-   * the person typed, and accept sends the value already standing — which clears
-   * the marker, because a `degraded` state is only ever written by an effect
-   * that carries a reason.
-   *
-   * **The key, not the channel id**, because a scoped channel has one value per
-   * key and a route addressing the id could only ever recover the unscoped one.
-   * It is URL-encoded like every other id in this file.
-   *
-   * **Refusals come back as 200 with the effect**, not as an error status. A
-   * retry that still does not fit is a *recorded refusal* — the whole point of
-   * routing this through `acceptEffect` — and a 4xx would throw away the record
-   * the workbench is supposed to show. The client reads `effect.applied`.
-   */
-  /**
    * Which model this session uses for a role, and for one step — [19 §5.1],
    * [P7 §1.9], [P7.3].
    *
@@ -657,6 +637,26 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     },
   );
 
+  /**
+   * A person writes one channel — [06 §4.2]'s recovery, [P7.1].
+   *
+   * **One route for all three offered recoveries**, which is why it takes a
+   * value rather than naming an action. 06 §4.2 offers *"retry the migration
+   * once the author ships a fix, edit the quarantined value by hand, or accept
+   * the reset"*: retry sends the quarantined raw value back, edit sends whatever
+   * the person typed, and accept sends the value already standing — which clears
+   * the marker, because a `degraded` state is only ever written by an effect
+   * that carries a reason.
+   *
+   * **The key, not the channel id**, because a scoped channel has one value per
+   * key and a route addressing the id could only ever recover the unscoped one.
+   * It is URL-encoded like every other id in this file.
+   *
+   * **Refusals come back as 200 with the effect**, not as an error status. A
+   * retry that still does not fit is a *recorded refusal* — the whole point of
+   * routing this through `acceptEffect` — and a 4xx would throw away the record
+   * the workbench is supposed to show. The client reads `effect.applied`.
+   */
   app.put(
     '/sessions/:sessionId/channels/:key',
     { schema: { params: ChannelParams, body: ChannelBody } },

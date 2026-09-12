@@ -435,6 +435,30 @@ export const api = {
   patchPrefs: (patch: Record<string, unknown>): Promise<{ prefs: Record<string, unknown> }> =>
     request('PATCH', '/api/me/prefs', patch),
 
+  /**
+   * **What *your* turns will do, and the document behind it** — [10 §15.1],
+   * [P7.3]. The sibling of `adminApi.readRoles`, which answers the same row
+   * shape for the install rather than for you.
+   *
+   * One call for the whole pane, because it is one pane: the resolved table is
+   * what happens now, `bindings` is what a control edits, `contentHash` is what
+   * makes the write safe, and `connections` is what a binding may be pointed at.
+   * Four requests would be four chances to render a pane assembled out of two
+   * different moments.
+   */
+  readMyRoles: (): Promise<MyRoles> => request('GET', '/api/me/roles'),
+
+  /**
+   * The whole document, under the hash it was read at — a `412` carries
+   * `current`, so a client can offer *load what is on disk* rather than only
+   * being told no. That matters here more than for the system file: hand-editing
+   * this one is a supported way to work ([10 §4]).
+   */
+  writeMyBindings: (
+    bindings: Record<string, Binding>,
+    contentHash: string,
+  ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
+
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 
@@ -1170,6 +1194,32 @@ export interface Binding {
 export interface BindingsState {
   bindings: Record<string, Binding>;
   contentHash: string;
+}
+
+/**
+ * A connection as anyone may see it — a label, a kind, and the models a binding
+ * picks from. **No key and no base URL**, which is not a courtesy: it is the
+ * property that lets `GET /api/me/roles` live outside `/api/admin` at all, and
+ * `routes/connections.test.ts` holds the route to it.
+ */
+export interface UsableConnection {
+  id: string;
+  label: string;
+  provider: string;
+  scope: 'system' | 'user';
+  models: string[];
+}
+
+/** Everything the role-binding editor needs, from the one request that answers it. */
+export interface MyRoles extends BindingsState {
+  roles: RoleRow[];
+  connections: UsableConnection[];
+  /**
+   * Personal connections on disk that were ignored for want of
+   * `privateConnections` — [09 §4.5] wants the user *told* rather than left
+   * wondering why a model call started failing, and this is where that lands.
+   */
+  disabled: UsableConnection[];
 }
 
 export const adminApi = {
