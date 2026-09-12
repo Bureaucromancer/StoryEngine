@@ -159,7 +159,10 @@ export async function gatherAssemblyInputs(
    * names its tags have *now* — [05 §3](../../../../docs/design/05-tagging.md).
    */
   const tags = await readRegistry(context.sessions.layout, request.account);
-  const cast = resolveCast(library, request.account, session?.cast, tags);
+  // `channels` and not `session.channels`: the cast is resolved at the node
+  // being assembled, so a character who has not arrived yet on this branch is
+  // not in the prompt on it ([P7.3]).
+  const cast = resolveCast(library, request.account, session?.cast, tags, channels);
   /**
    * The cast is deliberately *not* passed: nothing about who is in the scene
    * decides which books are in play. A book is here because this session, or

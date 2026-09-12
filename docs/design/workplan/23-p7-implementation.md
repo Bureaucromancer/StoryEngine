@@ -1353,8 +1353,42 @@ another, 2026-09-10.*** **`cast` does not stop being a field**: `persona` stays,
 by [03 §5.5](../03-data-model.md) and 06 §8's own argument that it is *"the one
 part that can stay a plain session field"*. What moves is `cast.actors`
 (`sessions/types.ts:89`) — an undocumented second half the built type grew, which
-is the scene's actor list, which is presence-shaped, and which is what the cast
-panel will read. **And the field's licence belongs to P7.3, not P7.2.**
+is the scene's actor list, which is ~~presence-shaped~~ **two things, only one of
+which is** *(corrected 2026-09-12 at P7.3 — the paragraph below)*, and which is
+what the cast panel will read. **And the field's licence belongs to P7.3, not
+P7.2.**
+
+***`cast.actors` does not move, and the reason is in what P7.2 shipped rather
+than in a reading of this section — 2026-09-12, [P7.3].*** `se.presence` declares
+`init: { kind: 'literal', value: false }`, and the comment on that line gives the
+argument for it: *"a cast member nobody has mentioned is not in the scene, and an
+init of `true` would put the whole cast in every room"*. The consequence is that
+**presence cannot express a roster**: *in the cast and elsewhere* — which
+[10 §13.2](../10-ui-surfaces.md) calls **the ordinary state of most of the cast
+most of the time** — and *not in the cast at all* are the same value, and
+`readPresence` returns `false` for both. The only thing that separates them in
+the channel map is whether a key exists, and key presence is not a place to keep
+a roster: `inverseOf` turns the undo of an arrival into a `delete`, which is
+right for presence and would be a silent removal from the cast.
+
+*So the split is: `cast.actors` is a **roster** — which cards this session is
+configured to play with — and it is link-shaped, exactly like `treatment` and
+`lore`, which `sessions/types.ts:97` already documents as retroactive across
+branches on purpose (*"Links, like `cast`, and for `cast`'s reason"*). What is
+presence-shaped is who is **here**, and who is **alive**, and both of those moved
+at [P7.2] and branch correctly.*
+
+**The bug this section was pointing at is real and was somewhere else.** Two
+sources of truth was the right diagnosis: `castRows` unioned the roster with the
+actors the channels name, `resolveCast` read the roster alone, so an actor the
+story introduced got a panel row and **no character card in the prompt** — every
+turn after the arrival assembled as though nobody had arrived, reachable without
+a hand edit because `se.presence` is `model-proposed`. P7.3 fixed it at that
+site: `resolveCast` takes the channel map and resolves the union, mutation-proven
+in `turns/cast.test.ts` (four assertions that go red with the union disabled and
+five contract assertions that do not). *`se.party` is untouched by this — party
+membership is a subset of the roster, and 10 §13.2's "introduces no parallel
+membership concept" is satisfied by marking a subset rather than listing one.*
 `modes/types.ts:81-90` says `select: 'fixed'` is *"the declaration that the cast
 cannot change as an outcome of a turn, which is what licenses a plain `cast`
 field on the session instead of an `se.party` channel"* — so P7.2 as scheduled
@@ -2300,7 +2334,9 @@ importer records `groups` and `group chats` and parses neither, so nothing named
 `NATURAL`/`LIST`/`POOLED`/`MANUAL` exists anywhere in the build.*
 
 *Ends at:* a session overriding a role for one step, and a mode whose `select` is
-not `fixed` running without the session's `cast` field.
+not `fixed` running ~~without the session's `cast` field~~ **with the roster and
+the channels resolving to one cast** *(corrected 2026-09-12: the field stays —
+see the record-shape decision below and §1.6)*.
 
 #### In progress — opened 2026-09-11
 
@@ -2365,6 +2401,44 @@ decision the stage opens on, and it is a record-shape decision rather than a
 wiring job.* Then voice and dispatch as optional session fields, which want a
 consumer first — and `dispatch`'s consumer is a mode that fans out, which is
 [P7.9]'s.
+
+**Done: the record-shape decision, and the answer is a withdrawal** (2026-09-12).
+The sizing above framed it as a choice between a creation-time bookkeeping turn
+and *somewhere a turn cannot reach*. Neither, because the premise was wrong:
+**there is no channel for the roster to move into.** `se.presence` declares
+`init: false` — deliberately, and the declaration argues for it — so *in the cast
+and elsewhere* and *not in the cast* are one value, and `readPresence` returns
+`false` for both. A roster read off presence would have to read **key presence**
+rather than value, and `inverseOf` deletes a key when undoing an arrival, which
+is correct for presence and a silent eviction for a roster. §1.6 now carries the
+correction in full.
+
+*The creation-turn option was priced before it was dropped rather than after, and
+it was affordable: `divergenceTurn` takes a `null` parent, `writeChannel` already
+writes a call-less, tape-less turn, and `PlayPage`'s `rerunnable` already tolerates
+a turn with no input — it would have cost every session with a cast a blank first
+transcript entry, because the transcript does not filter bookkeeping turns. Worth
+recording, because the same shape is what [P7.4]'s Setup application will want.*
+
+**And the bug the migration was going to fix got fixed at its actual site.** Two
+sources of truth was the right diagnosis and the wrong location: the disagreement
+was between `castRows`, which has unioned the roster with the actors the channels
+name since P7.2, and `resolveCast`, which read the roster alone — so an arrival
+got a panel row and no character card, on every turn after it, reachable without
+a hand edit because `se.presence` is `model-proposed`. `resolveCast` now takes
+the channel map at the node and resolves the union, with arrivals **appended**
+rather than sorted in, because `assembly/collect.ts` resolves `{{char}}` to
+`actors[0]` and that must not change identity part-way through a story.
+Mutation-proven: four of the nine assertions in `turns/cast.test.ts` go red with
+the union disabled and the five never-throws ones do not.
+
+**What the tripwire cost, which is the point of having built it.** [P7.2]'s
+deferral test named three things due with the widening; one of them was wrong,
+and the tripwire is what forced the question to be asked before the arm landed
+instead of after. Its `cast.actors` clause now asserts the field **stays** — in
+both branches — so the withdrawn obligation cannot be acted on later from §1.6's
+original sentence. The other two clauses stand: `se.party` and `CastRow.party`
+are still owed when `select` widens.
 
 ### P7.4 — Setup objects and the declarative wizard
 

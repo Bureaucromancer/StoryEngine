@@ -258,6 +258,23 @@ describe('introduced', () => {
  * `PARTICIPANT_SELECTORS` is the first thing that stage does, and this goes red
  * on that commit — which is the point, since P7.3's own *Ends at* is *"a mode
  * whose `select` is not `fixed` running without the session's `cast` field"*.
+ *
+ * ***One of the three clauses was withdrawn when the tripwire was answered —
+ * 2026-09-12, [P7.3].*** The deferral asked P7.3 to remove `cast.actors`, on
+ * [P7 §1.6]'s reading that the field is *"presence-shaped"*. Measured against
+ * what P7.2 actually shipped, it is not: `se.presence` declares
+ * `init: { literal: false }`, so **a roster read off presence cannot separate
+ * *in the cast and elsewhere* from *not in the cast at all*** — `readPresence`
+ * returns `false` for both, and the only thing that distinguishes them is
+ * whether a key exists, which an undo of an arrival legitimately deletes
+ * (`inverseOf`). A roster cannot live in a channel whose default collapses the
+ * distinction it exists to draw.
+ *
+ * So the field stays and the third assertion below is now that it **does**, in
+ * both branches. What §1.6 was right about is that two sources of truth is a
+ * bug; where it lived was the assembler, which read the roster while the panel
+ * read the union, and `turns/cast.test.ts` holds that fixed. The workplan's
+ * P7.3 cell carries the decision and §1.6 carries the correction.
  */
 describe('the party deferral', () => {
   beforeEach(async () => {
@@ -285,6 +302,23 @@ describe('the party deferral', () => {
     // is no check at all.
     const castActors = /cast\?:\s*\{[^}]*actors/.test(sessionTypes);
 
+    /**
+     * **The roster stays, in both branches** — [P7.3], 2026-09-12, and this is
+     * the clause that changed direction. It used to read `toBe(false)` on the
+     * expired side. The header says why; the short form is that `se.presence`'s
+     * `init: false` makes *elsewhere* and *not in this story* the same value, so
+     * there is no channel for a roster to move into. Asserted rather than
+     * deleted, because the withdrawn obligation is still written down in §1.6's
+     * original sentence and this is what stops somebody acting on it.
+     */
+    expect(
+      castActors,
+      '`cast.actors` is the roster and stays a field — [P7.3] over [P7 §1.6]. ' +
+        'It is a link like `treatment` and `lore`; what is story state (who is ' +
+        'here, who is alive) moved to channels at [P7.2] and branches. The one ' +
+        'source of truth is `resolveCast` reading both — see turns/cast.test.ts.',
+    ).toBe(true);
+
     if (licensed) {
       expect(
         party,
@@ -292,16 +326,17 @@ describe('the party deferral', () => {
           'placeholder-shaped channel [P2 §2.7] rejected. Either widen ' +
           '`PARTICIPANT_SELECTORS` or drop the channel.',
       ).toBeNull();
-      expect(castActors, '`cast.actors` is what the `fixed` licence pays for.').toBe(true);
       return;
     }
 
     /**
-     * **The licence has expired and three things come due together** — [P7 §1.6],
-     * [10 §13.2], and P7.3's own exit line. Named in one message because they
-     * are one change: a party channel to be the source of truth, the session
-     * field it replaces removed so there is no second one, and the panel marking
-     * members rather than listing them separately.
+     * **The licence has expired and two things come due together** — [P7 §1.6]
+     * and [10 §13.2]. Named in one message because they are one change: a party
+     * channel to say who is travelling with you, and the panel marking those
+     * members rather than keeping a second list. *Party membership is a subset
+     * of the roster, not a rival to it — [06 §8.1] spends a paragraph refusing
+     * that conflation, and 10 §13.2's "introduces no parallel membership
+     * concept" is satisfied by marking a subset.*
      */
     expect(
       party,
@@ -309,12 +344,6 @@ describe('the party deferral', () => {
         '`se.party` is now owed: declare it in sessions/cast.ts beside presence ' +
         'and status, keyed by TurnId per [06 §8] and never by ordinal.',
     ).not.toBeNull();
-    expect(
-      castActors,
-      '`cast.actors` must go with it — [P7 §1.6]: two sources of truth about who ' +
-        'is in the story is the class of bug [10 §13.2] exists to surface. ' +
-        '`cast.persona` stays; it is the one part [06 §8] keeps as a session field.',
-    ).toBe(false);
     expect(
       Object.keys(castRows(undefined, {}, [])[0] ?? { party: undefined }),
       'CastRow must carry `party` so the panel can mark members distinctly ' +

@@ -267,6 +267,14 @@ export interface CastRow {
  * exactly the drift the panel exists to make visible, and a list built from the
  * cast field alone would hide it.
  *
+ * ***And the assembler joined it — [P7.3], 2026-09-12.*** For one stage this
+ * union was the only one: `turns/cast.ts` resolved the roster alone, so the
+ * panel gave an arrival a row and the prompt carried no card for them. It now
+ * takes the channel map and computes the same set. *The two are deliberately
+ * separate computations rather than one shared helper, because they want
+ * different things from it — this one wants rows including the persona's, and
+ * the assembler wants actors excluding it.*
+ *
  * *Party members are not marked, because there is no party channel yet.*
  * 10 §13.2 says *"the panel marks party members distinctly and introduces no
  * parallel membership concept"*, and the way to honour the second half while the
