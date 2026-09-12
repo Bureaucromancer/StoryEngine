@@ -860,13 +860,19 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
       "setup": { "kind": "none" },
       "surfaces": []
     }
-  ]
+  ],
+  "defaultModeId": "storyengine.scene"
 }
 ```
 
 **What this install can play.** Added at P7.4, and until then nothing could tell
 a client which modes exist — the session form offered *the mode's own preset* and
 had nothing to say about modes.
+
+`defaultModeId` is the mode a `POST /api/sessions` with no `mode` plays. It is
+sent rather than left to be assumed, because a client falling back to the first
+mode in the list would render one mode's wizard and create a session on another
+the moment registration order stopped matching it.
 
 `setup` is the mode's wizard, **declared rather than coded**
 ([06 §7.3](design/06-modes-and-turn-pipeline.md)): either `{ kind: "none" }` or

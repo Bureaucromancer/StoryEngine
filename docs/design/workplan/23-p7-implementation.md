@@ -2719,13 +2719,46 @@ written before this stage is in that state.
 declaration reaches a client intact then so does one an extension shipped, which
 is the only honest way to test "a mode the engine has no knowledge of".*
 
-**Next:** the client half — the schema-to-control dispatcher rendering that
-declaration, which is what the cell means by the largest single piece of new UI
-in the phase. Then the generated **parts**: [06 §7.3]'s *"world overview, map,
-cast, sheets and widgets as separate validated generations, each individually
-retryable, applied as they succeed"*. Incremental generation now has something to
-be incremental *over* — a part is a schema, a validation and a retry, and all
-three exist since the commit before this one.
+**Done: the client renders it, and the stage's exit line is a test** (2026-09-12).
+`SetupFields` is the whole dispatcher: it has never heard of Scene, or of
+difficulty, or of any field any mode declares — it knows three widget kinds and a
+loop. *That is what makes* a wizard for a mode the engine has no knowledge of,
+rendered from its declaration alone *true of the page rather than only of the
+route*, and `SessionsPage.test.tsx` proves it against a declaration no mode in
+`packages/server` ships.
+
+**An unknown widget says so rather than being skipped.** The vocabulary is
+additive — *"a declaration naming a `kind` the host does not know is one the host
+can ignore rather than one that breaks it"* — but silently ignoring it is the
+wrong half of that: a **required** field nobody was shown makes the route's
+refusal unexplainable. Naming it turns that into *this install is older than this
+mode*.
+
+**Two things the wiring turned up.** *`ApiError` gained `issues`*, lifted beside
+`current` and `contentHash` for the reason those are — a caller digging it out of
+an untyped body is a caller that can read the wrong key — because a wizard is a
+form the engine generated and *"that is not what this mode asked for"* alone
+leaves somebody guessing which control. And **`GET /api/modes` now sends
+`defaultModeId`**, because the form's first draft fell back to *the first mode in
+the list* and would have rendered one mode's wizard while creating a session on
+another the moment registration order stopped matching the default. Registration
+order is `installBuiltIns`' business, not a contract. *The form now sends the
+effective mode id explicitly where it used to omit it and let the two sides agree
+by not being asked — the older tests carry that change.*
+
+*And the wizard's tests query by **accessible name** rather than by label text,
+which pins what `Field`'s `required` docstring claims: the glyph is `aria-hidden`
+and the state is `aria-required`, so neither reader gets the word* asterisk. *A
+`getByLabelText` matches the label's text content, asterisk and all, and would
+have passed only by being loosened — hiding the very thing the mark is supposed
+to get right.*
+
+**Next:** the generated **parts** — [06 §7.3]'s *"world overview, map, cast,
+sheets and widgets as separate validated generations, each individually
+retryable, applied as they succeed"*, which [00 §2.3] calls the single biggest
+reliability difference available versus the source. It has something to be
+incremental *over* now: a part is a schema, a validation and a retry, and all
+three exist.
 
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 

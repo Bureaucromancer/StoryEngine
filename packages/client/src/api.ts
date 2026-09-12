@@ -150,6 +150,16 @@ export class ApiError extends Error {
    * form shipped with.
    */
   readonly contentHash?: string;
+  /**
+   * What was wrong, field by field, from a route that says — [P7.4].
+   *
+   * **Lifted here for the reason `current` and `contentHash` are**: a caller
+   * digging it out of an untyped body is a caller that can read the wrong key.
+   * `POST /api/sessions` is the first to send it, for a wizard the engine
+   * generated: a refusal reading only *that is not what this mode asked for*
+   * leaves somebody guessing which field on a form they did not design.
+   */
+  readonly issues?: string[];
 
   constructor(
     status: number,
@@ -157,6 +167,7 @@ export class ApiError extends Error {
     message: string,
     current?: unknown,
     contentHash?: string,
+    issues?: string[],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -164,6 +175,7 @@ export class ApiError extends Error {
     this.code = code;
     if (current !== undefined) this.current = current;
     if (contentHash !== undefined) this.contentHash = contentHash;
+    if (issues !== undefined) this.issues = issues;
   }
 }
 
@@ -225,7 +237,15 @@ async function request<T>(
         : undefined;
     const contentHash =
       typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
-    throw new ApiError(response.status, code, message, current, contentHash);
+    // Every element checked, not just the array: this reaches the screen, and a
+    // body carrying `issues: [{...}]` would render `[object Object]` at somebody
+    // who is already being told they got something wrong.
+    const issues =
+      Array.isArray(payload?.['issues']) &&
+      payload['issues'].every((one) => typeof one === 'string')
+        ? payload['issues']
+        : undefined;
+    throw new ApiError(response.status, code, message, current, contentHash, issues);
   }
 
   return payload as T;
@@ -748,6 +768,87 @@ export interface NewSession {
    * replaces. `SessionsPage` and `LorePanel` both say so.
    */
   persona?: string;
+  /**
+   * Which mode to play — [P7.4].
+   *
+   * **The form had no control for this until the wizard needed one**, and the
+   * absence was not a deferral so much as an impossibility: nothing told a
+   * client which modes exist. `GET /api/modes` does now, so choosing one is
+   * possible and choosing one is what decides which wizard renders.
+   */
+  mode?: string;
+  /**
+   * The mode's wizard, answered — [06 §8.3], [P7.4].
+   *
+   * Keyed by the field ids the mode declares. The server checks it against a
+   * schema derived from that declaration, so what a client must not do is
+   * invent a key: an unknown one is a `422`, not a silently dropped field.
+   */
+  setup?: Record<string, unknown>;
+}
+
+/**
+ * A mode as `GET /api/modes` presents it — [10 §8], [P7.4].
+ *
+ * **What is not here is the point.** A session copies its preset at creation, so
+ * the prompt pack is not the client's to see or change; `steps` and `channels`
+ * are what the engine runs and registers, and a channel reaches a browser as a
+ * rendered entry in a session's `hud` rather than as a declaration.
+ */
+export interface PublicMode {
+  id: string;
+  displayName: string;
+  voice: 'narrator' | 'embodied';
+  dispatch: 'merged' | 'per-actor';
+  participants: { select: string; maxActors: number };
+  inputs: string[];
+  presetIds: string[];
+  setup: ModeSetup;
+  surfaces: { region: string }[];
+}
+
+/**
+ * What a mode asks for before the first turn — declared, never coded.
+ *
+ * **The client renders the form from this and from nothing else**, which is what
+ * lets a mode the engine has no knowledge of have a wizard ([06 §2] refuses the
+ * back door a mode-specific screen would be). There is deliberately no way for a
+ * mode to ship UI and deliberately no `html` field in the vocabulary
+ * ([10 §8](../../../docs/design/10-ui-surfaces.md) names that absence as the one
+ * that must hold).
+ *
+ * **Typed open at `kind`**, for the reason the workbench's `SOURCE_LABELS` is:
+ * a newer build can declare a widget this one has never heard of, and the honest
+ * answer is to say so rather than to crash or to render a blank.
+ */
+export type ModeSetup =
+  | { kind: 'none' }
+  | { kind: 'declared'; fields: SetupField[] }
+  // A `kind` from a newer build. Named so the union is exhaustive here rather
+  // than at every reader.
+  | { kind: string };
+
+export interface SetupField {
+  id: string;
+  required?: boolean;
+  widget: FieldWidget;
+}
+
+export type FieldWidget =
+  | { kind: 'text'; label: string; hint?: string; lines?: number }
+  | { kind: 'choice'; label: string; hint?: string; options: { value: string; label: string }[] }
+  | { kind: 'toggle'; label: string; hint?: string }
+  | { kind: string; label: string; hint?: string };
+
+/**
+ * `defaultModeId` is what `POST /api/sessions` plays when `mode` is absent.
+ *
+ * **Sent rather than assumed**: a form falling back to the first mode in the
+ * list would render one mode's wizard and create a session on another the moment
+ * registration order stopped matching.
+ */
+export function listModes(): Promise<{ modes: PublicMode[]; defaultModeId: string }> {
+  return request('GET', '/api/modes');
 }
 
 export interface ActiveJob {
@@ -782,6 +883,16 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
     ...(input.persona === undefined || input.persona === ''
       ? {}
       : { cast: { persona: input.persona, actors: [] } }),
+    ...(input.mode === undefined || input.mode === '' ? {} : { mode: input.mode }),
+    /**
+     * **Omitted when empty**, like every other field here: a mode with no
+     * wizard accepts exactly `{}` and a session for one carries no `setup` key
+     * at all, so sending an empty object would be the client asserting that a
+     * wizard ran and collected nothing.
+     */
+    ...(input.setup === undefined || Object.keys(input.setup).length === 0
+      ? {}
+      : { setup: input.setup }),
   });
 }
 

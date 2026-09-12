@@ -82,6 +82,23 @@ describe('GET /api/modes', () => {
     expect(JSON.stringify(response.body)).not.toContain('historyWindow');
   });
 
+  /**
+   * **The client cannot know which mode a bare `POST /api/sessions` plays**, and
+   * a form that guessed — the first in the list, say — would render one mode's
+   * wizard and create a session on another the moment registration order stopped
+   * matching. Registration order is `installBuiltIns`' business, not a contract.
+   */
+  it('says which mode a session gets when none is named', async () => {
+    const response = await server.request({ method: 'GET', url: '/api/modes' });
+
+    expect(response.body.defaultModeId).toBe(DEFAULT_MODE_ID);
+    // And it is one of the modes listed, so a client can resolve it to a
+    // declaration rather than to nothing.
+    expect((response.body.modes as { id: string }[]).map((one) => one.id)).toContain(
+      response.body.defaultModeId as string,
+    );
+  });
+
   it('needs an account, like everything else after the first run', async () => {
     await server.request({ method: 'POST', url: '/api/auth/logout' });
 

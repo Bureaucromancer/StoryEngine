@@ -4,7 +4,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import { requireAccount } from '../app.js';
-import { modeById, presentMode, registeredModes } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, modeById, presentMode, registeredModes } from '../mode-registry.js';
 
 /**
  * What this install can play — [10 §8](../../../../docs/design/10-ui-surfaces.md),
@@ -43,7 +43,20 @@ export function registerModeRoutes(app: FastifyInstance): void {
   app.get('/modes', async (request, reply) => {
     if (!(await requireAccount(request, reply))) return;
 
-    return reply.send({ modes: registeredModes().map(presentMode) });
+    /**
+     * **`defaultModeId` travels, because the client cannot know it and must
+     * not guess** — [P7.4].
+     *
+     * `POST /api/sessions` plays the default when `mode` is absent, and a form
+     * that fell back to *the first mode in the list* would render one mode's
+     * wizard and create a session on another the moment registration order
+     * stopped matching. Registration order is `installBuiltIns`' business, not a
+     * contract.
+     */
+    return reply.send({
+      modes: registeredModes().map(presentMode),
+      defaultModeId: DEFAULT_MODE_ID,
+    });
   });
 
   /**
