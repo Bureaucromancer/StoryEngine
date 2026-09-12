@@ -422,6 +422,7 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
         error: 'stale',
         message: 'The bindings file has changed since this page read it.',
         current: current.bindings,
+        contentHash: current.contentHash,
       });
     }
 
@@ -449,12 +450,24 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
     const current = await bindingsState(services);
 
     if (body.contentHash !== current.contentHash) {
-      // The library's own vocabulary: 412 carrying what is there now, so a
-      // client can offer *load what is on disk* rather than only being told no.
+      /**
+       * The library's own vocabulary: 412 carrying what is there now, so a
+       * client can offer *load what is on disk* rather than only being told no.
+       *
+       * **And the hash of what is there now, which this refusal used to
+       * withhold.** `docs/api.md` states it as a property of every 412 on this
+       * server — *a 412 always carries a hash different from the one you sent* —
+       * and the reason is that without one, *overwrite with mine* has nothing to
+       * present and the form is wedged: it can only re-send the hash that was
+       * just refused. The connection form escaped exactly that wedge at P2A by
+       * carrying the hash back; this route was written before anything wrote
+       * bindings from a form, so the gap was unreachable and stayed.
+       */
       return await reply.code(412).send({
         error: 'stale',
         message: 'The bindings file has changed since this page read it.',
         current: current.bindings,
+        contentHash: current.contentHash,
       });
     }
 
