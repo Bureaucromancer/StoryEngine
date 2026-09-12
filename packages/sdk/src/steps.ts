@@ -188,6 +188,31 @@ export interface StepResult {
 }
 
 export interface StepCallRequest {
+  /**
+   * Which actor this call speaks for — [19 §5.1](../../../docs/design/19-tech-stack.md),
+   * [P7 §1.9], added at [P7.3].
+   *
+   * **The last and weakest resolution layer had no way to be reached.** 19 §5.1
+   * orders the layers *install default → role binding → session override → step
+   * override → actor hint*, and `resolveRole` has applied a hint since P2B — but
+   * §1.9 found it *"never passed either"*, and named the reason: *"today one
+   * turn makes one merged call and an actor is not in the resolution at all."*
+   * This is how an actor gets into it.
+   *
+   * **A step says who it is speaking for; the engine finds the card and applies
+   * the hint.** Not the hint itself, because [04 §3]'s `ModelHint` is *"a
+   * preference, never a binding — an imported card may express what it wants; it
+   * can never repoint anyone's provider"*, and a step handed the preference
+   * could pass one the card does not carry. Passing an *id* keeps the card the
+   * only source.
+   *
+   * **Absent is a merged call**, which is what `dispatch: 'merged'` means and
+   * what every shipped step does: one reply for the scene, spoken by nobody in
+   * particular, resolved with no hint. `per-actor` dispatch is a mode fanning
+   * this out — the mode half is [P7.9]'s, since no shipped mode declares it, but
+   * the engine half is here and works for a single call just as well.
+   */
+  actorId?: string;
   params?: GenerationParams;
   /** Omitted means everything accumulated so far. */
   candidates?: readonly Candidate[];

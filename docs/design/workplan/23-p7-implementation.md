@@ -2314,9 +2314,24 @@ them, `PUT /sessions/:id/roles` writes them, and the layering is tested against 
 **second connection** — an override pointing at the same connection as the
 binding would pass whether or not it was consulted.
 
-*The actor hint is the third and it stays unpassed, because what would make it
-meaningful is this stage's `dispatch: 'per-actor'`: today one turn makes one
-merged call and an actor is not in the resolution at all.*
+***And then the third was passed too, on a reading of §1.9 that section did not
+draw.*** It says what would make the hint meaningful is `dispatch: 'per-actor'`,
+*"because today one turn makes one merged call and an actor is not in the
+resolution at all"* — and the operative clause is the second one. **Putting the
+actor into the resolution does not require a mode that fans out.**
+`StepCallRequest.actorId` is a step saying who it speaks for; the engine finds
+the card and applies its hint. A merged call names nobody and resolves with no
+hint, which is exactly what `dispatch: 'merged'` means, so the mechanism is
+correct for the modes that exist and ready for the one that fans out.
+
+*The step passes an **id**, never a hint, which is [04 §3]'s rule surviving
+contact: `ModelHint` is "a preference, never a binding — an imported card may
+express what it wants; it can never repoint anyone's provider", and a step handed
+the preference could pass one the card does not carry. Two assertions hold the
+two halves — a hint picks among the models the resolved connection already
+offers, and it never changes the connection — plus the one easiest to drop: a
+hint carries a `role`, so a card preferring a `reasoning` model is saying nothing
+about which model narrates.*
 
 ***And the suite caught the route in a guard, which is the guard working.***
 `connections.test.ts` asserts that **no route matching `connections|bindings|
@@ -2336,10 +2351,20 @@ route that grew a credential field would still be exempt by name.
 `connectionId` up in the capability-filtered list, so a binding naming a
 connection the account may not use resolves as `dangling` rather than as access.*
 
-**Next:** `select`'s widening to [06 §7.2]'s taxonomy, which is the half of this
-stage that trips [P7.2]'s tripwire and brings `se.party` and the removal of
-`cast.actors` with it; then `per-actor` dispatch, which is what makes the actor
-hint mean anything; then voice and dispatch as optional session fields.
+**Next, and it is one change rather than three:** `select`'s widening to
+[06 §7.2]'s taxonomy trips [P7.2]'s tripwire by design, and the tripwire names
+what comes due with it — `se.party`, the removal of `cast.actors`, and
+`CastRow.party`. *Sized before starting rather than during: the readers of
+`cast.actors` are few (`turns/cast.ts`'s `resolveCast`, the create route and the
+cast route), but **the session's actor list has no home that does not need a
+turn**. §1.6 says `cast.actors` is "presence-shaped", and a presence effect needs
+a turn to be recorded on, while a session is created before its first turn — so
+either creation writes a bookkeeping turn, the way `divergenceTurn` and the
+quarantine do, or the list stays somewhere a turn cannot reach. That is the
+decision the stage opens on, and it is a record-shape decision rather than a
+wiring job.* Then voice and dispatch as optional session fields, which want a
+consumer first — and `dispatch`'s consumer is a mode that fans out, which is
+[P7.9]'s.
 
 ### P7.4 — Setup objects and the declarative wizard
 

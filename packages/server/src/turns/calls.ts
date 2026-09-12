@@ -17,6 +17,7 @@ import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { resolveRole, type RoleBindings } from '../providers/roles.js';
 import type { Binding } from '../providers/types.js';
+import type { CastMember } from './cast.js';
 import {
   ProviderError,
   type FinishReason,
@@ -125,6 +126,16 @@ export interface CallContext {
   sessionRoles?: Partial<Record<ModelRole, Binding>>;
   /** Per-step overrides, keyed by step id. See {@link CallContext.sessionRoles}. */
   stepRoles?: Record<string, Binding>;
+  /**
+   * The cast, so a call naming an actor can be resolved with that actor's hint
+   * — [19 §5.1]'s last layer, [P7 §1.9], [P7.3].
+   *
+   * **The cards rather than the hints**, because [04 §3]'s `ModelHint` is *"a
+   * preference, never a binding"* and the card is the only thing entitled to
+   * express one. A step passes an id; this is what turns the id into the
+   * preference, and a step cannot pass a preference its actor does not hold.
+   */
+  cast?: { persona: CastMember | null; actors: readonly CastMember[] };
   providers: ProviderFactory;
   config: Config;
   /**
@@ -310,6 +321,17 @@ export function planCall(
    */
   const sessionOverride = context.sessionRoles?.[definition.role];
   const stepOverride = context.stepRoles?.[definition.id];
+  /**
+   * **The last and weakest layer, reached at last** — [19 §5.1], [P7 §1.9].
+   *
+   * A hint applies only when the step says who it is speaking for and that
+   * actor's card asks for this role. `resolveRole` does the rest, and what it
+   * does is the part worth not re-deriving here: *"a hint may choose among the
+   * models the resolved connection already offers, and it may never change the
+   * connection — which is what stops an imported actor card repointing
+   * somebody's provider."*
+   */
+  const hint = hintFor(context, request.actorId, definition.role);
   const resolution = resolveRole({
     role: definition.role,
     bindings: context.bindings,
@@ -317,6 +339,7 @@ export function planCall(
     usable: context.usable,
     ...(sessionOverride === undefined ? {} : { sessionOverride }),
     ...(stepOverride === undefined ? {} : { stepOverride }),
+    ...(hint === undefined ? {} : { hint }),
   });
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 
@@ -646,4 +669,34 @@ function outcomeOf(reason: FinishReason): ModelCall['outcome'] {
     case 'unknown':
       return 'incomplete';
   }
+}
+
+/**
+ * One actor's model preference for this role, if the step named an actor and
+ * that actor's card asks for this role.
+ *
+ * **The role has to match**, which is the half of [04 §3]'s `ModelHint` easiest
+ * to drop: the type carries a `role`, so a card preferring a particular
+ * `reasoning` model is saying nothing about which model narrates. Ignoring that
+ * field would let a card's preference leak into every call it was never about.
+ *
+ * *The persona counts as cast here.* A step speaking for the played character is
+ * the ordinary case in an embodied voice, and a persona whose card expressed a
+ * preference would otherwise be the one actor it could not apply to.
+ */
+function hintFor(
+  context: PlanContext,
+  actorId: string | undefined,
+  role: ModelRole,
+): { preferredModelIds?: string[] } | undefined {
+  if (actorId === undefined || context.cast === undefined) return undefined;
+
+  const member =
+    context.cast.persona?.actor.id === actorId
+      ? context.cast.persona
+      : context.cast.actors.find((each) => each.actor.id === actorId);
+  const hint = member?.actor.modelHint;
+  if (hint?.role !== role) return undefined;
+
+  return hint.preferredModelIds === undefined ? {} : { preferredModelIds: hint.preferredModelIds };
 }

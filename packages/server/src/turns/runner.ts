@@ -566,6 +566,11 @@ export class TurnRunner {
                   ...(inputs.session?.stepRoles === undefined
                     ? {}
                     : { stepRoles: inputs.session.stepRoles }),
+                  // So a call naming an actor can be resolved with that actor's
+                  // hint — [19 §5.1]'s last layer, [P7 §1.9]. The cards, not the
+                  // hints: a step passes an id and cannot pass a preference its
+                  // actor does not hold.
+                  cast,
                   providers: this.#options.providers,
                   config,
                   preset: { params: preset.params, budget: preset.budget },

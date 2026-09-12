@@ -258,3 +258,121 @@ describe('a session overriding a model', () => {
     expect(plan.call.resolved.modelId).toBe('fake-hi');
   });
 });
+
+/**
+ * **[19 §5.1]'s last and weakest layer, reached at last** — [P7 §1.9], [P7.3].
+ *
+ * §1.9 found the actor hint in the same state as the session and step layers —
+ * *"never passed either"* — and named the reason: *"today one turn makes one
+ * merged call and an actor is not in the resolution at all."* The fix is putting
+ * the actor into it: a step says who it speaks for, and the engine finds the
+ * card.
+ *
+ * **The two properties that matter are what it may and may not do.** [04 §3]
+ * calls a `ModelHint` *"a preference, never a binding — an imported card may
+ * express what it wants; it can never repoint anyone's provider"*, and
+ * `resolveRole` enforces that by applying it last and weakest. Both halves are
+ * asserted, because a hint that could change the connection would make importing
+ * somebody else's card a way to redirect your own API calls.
+ */
+describe('an actor’s model hint', () => {
+  const TWO_MODELS: Connection = { ...CONNECTION, models: ['fake-hi', 'fake-alt'] };
+  const OTHER: Connection = {
+    ...CONNECTION,
+    id: '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99',
+    label: 'Somebody else’s',
+    models: ['fake-lo'],
+  };
+
+  function withHint(hint: unknown): NonNullable<PlanContext['cast']> {
+    return {
+      persona: null,
+      actors: [
+        {
+          actor: { id: 'actor-vera', modelHint: hint } as never,
+          contentHash: 'sha256:x',
+        },
+      ],
+    };
+  }
+
+  it('picks among the models the resolved connection already offers', () => {
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-alt'] }),
+      }),
+      { actorId: 'actor-vera' },
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-alt');
+  });
+
+  it('never changes the connection, which is what stops a card repointing a provider', () => {
+    // An imported card asking for a model on somebody else's connection gets
+    // the binding's connection and the binding's model. The preference is
+    // unmet, not obeyed.
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS, OTHER],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-lo'] }),
+      }),
+      { actorId: 'actor-vera' },
+      [],
+    );
+
+    expect(plan.connection.id).toBe(TWO_MODELS.id);
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('ignores a hint for a different role', () => {
+    // **The half easiest to drop.** `ModelHint` carries a `role`, so a card
+    // preferring a particular `reasoning` model is saying nothing about which
+    // model narrates — and applying it anyway would leak a preference into every
+    // call it was never about.
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'reasoning', preferredModelIds: ['fake-alt'] }),
+      }),
+      { actorId: 'actor-vera' },
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('applies nothing when the call names no actor, which is a merged call', () => {
+    // `dispatch: 'merged'` is one reply for the scene, spoken by nobody in
+    // particular — and every shipped step makes one.
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-alt'] }),
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('applies nothing for an actor who is not in the cast', () => {
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-alt'] }),
+      }),
+      { actorId: 'actor-nobody' },
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+});
