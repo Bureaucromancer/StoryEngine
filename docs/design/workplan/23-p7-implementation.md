@@ -2671,11 +2671,61 @@ can express "attempt 2 sent different messages" — `ModelCall` carries one
 a record-shape change, and it is the next thing to weigh if misses turn out to be
 common in practice.*
 
-**Next:** `SetupSchema` as a declaration, a route that hands one to the client,
-and the schema-to-control dispatcher — the half of this stage that is UI, and the
-one the cell warns is the largest single piece of new UI in the phase. Incremental
-generation now has something to be incremental *over*: a part is a schema, a
-validation and a retry, and all three exist.
+**Done: `SetupSchema` is a declaration, and a route carries it** (2026-09-12).
+
+**The route's absence was wider than the wizard.** `registeredModes()` had **no
+production reader at all** — only tests — so nothing could tell a browser which
+modes exist; the session form offered *the mode's own preset* and had nothing to
+say about modes. `GET /api/modes` and `GET /api/modes/:modeId` now carry a
+`PublicMode`, and the omissions are the design: no `assembly` (a session copies
+its preset at creation, so the pack is not the client's to see or change), no
+`steps`, no `channels` — a channel reaches a client as a rendered `hud` entry on
+the session, which is 10 §8's whole arrangement.
+
+**`DeclaredSetup` is the arm the one-arm note predicted.** `SetupSchema` was
+written as a union with one member *"because P7's real wizard adds arms rather
+than fields"*, and this is the arm. A field carries an `id`, an optional
+`required`, and a `widget` — **and no schema of its own**. That is the load-bearing
+choice: a toggle is a boolean, a choice is one of its options' values, a text
+field is a string, so a schema beside the widget would be a *second description
+of the same field*, which `library/fields.ts` spends its header refusing with a
+receipt. `setupAnswerSchema` derives it, in the SDK, so the server's check and a
+client's pre-check are the same derivation.
+
+**`FieldWidget` is separate from `WidgetSpec`, and the split is not
+bureaucracy.** That one renders a value the engine already holds; this one asks
+for a value nobody holds yet, and sharing the `kind` vocabulary would make `text`
+mean *show a string* in one place and *ask for a string* in another. What they
+share is 10 §8's terms in full: declared and never shipped, the vocabulary keeps
+growing rather than acquiring an escape hatch, and **never an `html: string`
+field**. *Three arms, each with a named subject in [06 §7.3]* — a difficulty
+chosen from a ranked list, a world overview in prose, and *"dice, HP or inventory
+channels available as **toggles** rather than as a different mode"*. A `number`
+arm has no subject in the corpus and is not here; a `ref` arm is absent for a
+different reason, that session creation already takes `treatment`, `cast` and
+`lore` as its own parameters.
+
+**And the declaration is held to, which is what stops it being decoration.**
+`POST /api/sessions` takes `setup` and refuses `422 setup-invalid` carrying the
+field names — a required field missing, a choice the mode does not offer, a field
+of the wrong type, or a key the mode never declared. *A mode with no wizard
+accepts exactly `{}`*, so answers sent to Scene are refused rather than quietly
+ignored, and a session for such a mode carries **no `setup` key at all**: `{}`
+would be a claim that a wizard ran and collected nothing, and every session
+written before this stage is in that state.
+
+*The exit line's witness is `SETUP_MODE` in `test-mode.ts` — a mode nothing in
+`packages/server` names, registered by its tests and by nothing else. If its
+declaration reaches a client intact then so does one an extension shipped, which
+is the only honest way to test "a mode the engine has no knowledge of".*
+
+**Next:** the client half — the schema-to-control dispatcher rendering that
+declaration, which is what the cell means by the largest single piece of new UI
+in the phase. Then the generated **parts**: [06 §7.3]'s *"world overview, map,
+cast, sheets and widgets as separate validated generations, each individually
+retryable, applied as they succeed"*. Incremental generation now has something to
+be incremental *over* — a part is a schema, a validation and a retry, and all
+three exist since the commit before this one.
 
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 

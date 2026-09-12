@@ -28,14 +28,17 @@
 export * from '@storyengine/shared';
 
 export type { ChannelDefinition, InitPolicy, WidgetSpec } from './channels.js';
-export { PARTICIPANT_SELECTORS } from './mode.js';
+export { PARTICIPANT_SELECTORS, setupAnswerSchema } from './mode.js';
 export type {
   AssemblyPlan,
+  DeclaredSetup,
+  FieldWidget,
   Mode,
   ModeDefinition,
   ModePreset,
   NoSetup,
   ParticipantPolicy,
+  SetupField,
   SetupSchema,
   SurfaceContribution,
 } from './mode.js';

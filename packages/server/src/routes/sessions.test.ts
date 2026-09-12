@@ -7,9 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor, newPreset } from '@storyengine/shared';
 
-import { defaultMode } from '../mode-registry.js';
+import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
+import { SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
@@ -1220,5 +1221,119 @@ describe('creating a session with a chosen preset', () => {
     });
 
     expect(created.status).toBe(422);
+  });
+});
+
+/**
+ * **The declaration held to** — [06 §7.3], [P7.4].
+ *
+ * A mode says what it needs before the first turn, and creation is where that
+ * either means something or does not. Without a check, a declared wizard
+ * describes a screen somebody might build and constrains nothing; with one, a
+ * `required` field cannot be skipped and a key the mode never asked for cannot
+ * reach a session file.
+ */
+describe('a session for a mode with a wizard', () => {
+  beforeEach(() => {
+    registerMode(SETUP_MODE);
+  });
+
+  async function create(setup?: unknown) {
+    return server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Wizard', mode: SETUP_MODE_ID, ...(setup === undefined ? {} : { setup }) },
+    });
+  }
+
+  const ANSWERS = { premise: 'A city that does not sleep.', difficulty: 'harsh', dice: true };
+
+  it('keeps the answers it was given', async () => {
+    const response = await create(ANSWERS);
+
+    expect(response.status).toBe(201);
+    expect(response.body.session.setup).toEqual(ANSWERS);
+  });
+
+  it('takes a session without the optional field', async () => {
+    const response = await create({ premise: 'Rain.', difficulty: 'even' });
+
+    expect(response.status).toBe(201);
+    // Absent rather than defaulted: a toggle nobody touched is not `false`, it
+    // is a question the person did not answer, and the mode's steps can tell.
+    expect(response.body.session.setup).toEqual({ premise: 'Rain.', difficulty: 'even' });
+  });
+
+  it('refuses one that skips a required field, and says which', async () => {
+    const response = await create({ premise: 'Rain.' });
+
+    // 422, not 400: the body is well-formed JSON of the declared shape, and
+    // what is wrong is that it does not satisfy *this mode's* requirements.
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('setup-invalid');
+    // The issues travel, because a refusal reading only *invalid* leaves a
+    // person guessing which field on a form the engine generated.
+    expect(JSON.stringify(response.body.issues)).toContain('difficulty');
+  });
+
+  it('refuses a choice the mode does not offer', async () => {
+    const response = await create({ ...ANSWERS, difficulty: 'impossible' });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('setup-invalid');
+  });
+
+  it('refuses a field of the wrong type', async () => {
+    const response = await create({ ...ANSWERS, dice: 'yes' });
+
+    expect(response.status).toBe(422);
+  });
+
+  /**
+   * **A key the mode never asked for does not reach the file.** A wizard's
+   * answers are the one place a client could quietly persist arbitrary data into
+   * a session, and *ignoring* an unknown key would teach the next version of
+   * that client that it worked — the argument `ProfilePatch` makes in
+   * `routes/me.ts`.
+   */
+  it('refuses a field the mode never declared', async () => {
+    const response = await create({ ...ANSWERS, apiKey: 'sk-nope' });
+
+    expect(response.status).toBe(422);
+    expect(JSON.stringify(response.body)).not.toContain('sk-nope');
+  });
+
+  it('refuses it with nothing at all, because two fields are required', async () => {
+    expect((await create()).status).toBe(422);
+    expect((await create({})).status).toBe(422);
+  });
+
+  /**
+   * Every session written before [P7.4], and every Scene session after it. `{}`
+   * would be a claim that a wizard ran and collected nothing.
+   */
+  it('writes no setup key for a mode that has no wizard', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Plain' },
+    });
+
+    expect(response.status).toBe(201);
+    expect('setup' in (response.body.session as object)).toBe(false);
+  });
+
+  it('refuses answers to a mode that asked for nothing', async () => {
+    // Told rather than quietly ignored: the derivation is
+    // `additionalProperties: false` over no properties, so a client sending a
+    // wizard's answers to Scene hears about it.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Plain', setup: { premise: 'Rain.' } },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('setup-invalid');
   });
 });

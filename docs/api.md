@@ -844,11 +844,61 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
 
 ## Sessions
 
+### `GET /api/modes` · `GET /api/modes/:modeId`
+
+```json
+{
+  "modes": [
+    {
+      "id": "storyengine.scene",
+      "displayName": "Scene",
+      "voice": "narrator",
+      "dispatch": "merged",
+      "participants": { "select": "fixed", "maxActors": 1 },
+      "inputs": ["do"],
+      "presetIds": [],
+      "setup": { "kind": "none" },
+      "surfaces": []
+    }
+  ]
+}
+```
+
+**What this install can play.** Added at P7.4, and until then nothing could tell
+a client which modes exist — the session form offered *the mode's own preset* and
+had nothing to say about modes.
+
+`setup` is the mode's wizard, **declared rather than coded**
+([06 §7.3](design/06-modes-and-turn-pipeline.md)): either `{ kind: "none" }` or
+`{ kind: "declared", fields: [...] }`, where each field has an `id`, an optional
+`required`, and a `widget` from a closed vocabulary — `text` (with an optional
+`hint` and `lines`), `choice` (with `options` of `{ value, label }`), or
+`toggle`. A client renders the form from that and nothing else, which is what
+lets a mode the engine has no knowledge of have a wizard. There is deliberately
+no way for a mode to ship UI, and deliberately no `html` field anywhere in the
+vocabulary ([10 §8](design/10-ui-surfaces.md)).
+
+**A field carries no schema of its own.** What its answer is validated against is
+*derived* from the widget — a toggle is a boolean, a choice is one of its
+options' values, a text field is a string — so there is one description of a
+field rather than two that can disagree.
+
+What is deliberately **not** sent: the mode's `assembly` (a session copies its
+preset at creation, so the pack is not the client's to see or change), its
+`steps`, and its `channels` — a channel reaches a client as a rendered entry in
+`GET /api/sessions/:id`'s `hud`, never as a declaration.
+
+`GET /api/modes/:modeId` answers one, and `404 unknown-mode` for one this build
+does not have. The runner falls back to the default for a session *already
+playing* an unknown mode, because that is somebody's story and it should still
+open — but answering this question with a different mode's declaration would
+render a wizard for a mode nobody chose.
+
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, preset?, cast?, treatment?, lore? }` → `201 { session }`, and a
-list. **`archived` is the string `"true"`, not a boolean** — see the note under
-the turn routes.
+`{ name?, mode?, preset?, cast?, treatment?, lore?, setup? }` → `201 { session }`,
+and a list. **`archived` is the string `"true"`, not a boolean** — see the note
+under the turn routes.
 
 **`name` is optional, and an empty one means the same as none**: both store
 `""`, which clients render as *Untitled session*. A session is id-addressed —
@@ -875,6 +925,21 @@ asked for and say nothing, which is what an unknown `mode` is refused for below.
 Another account's preset is `422` too, by way of a `404` inside: the path is the
 owner, and confirming an id exists elsewhere leaks the fact that separation
 exists to keep.
+
+**`setup` is the mode's wizard, answered** — a flat object keyed by the field ids
+the mode declares, added at P7.4. It is checked against a schema **derived from
+that mode's declaration** rather than one written here, so a mode that adds a
+field is asked for it without a second edit to this route. A required field
+missing, a choice the mode does not offer, a field of the wrong type, or a key
+the mode never declared is `422 setup-invalid` carrying `issues` — the field
+names, because a refusal reading only *invalid* leaves somebody guessing which
+field on a form the engine generated for them.
+
+A mode declaring `{ kind: "none" }` accepts exactly `{}`, so sending answers to a
+mode with no wizard is refused rather than quietly ignored. Omit the field
+entirely and the session carries no `setup` key at all — which is every session
+written before P7.4, and `{}` would be a claim that a wizard ran and collected
+nothing.
 
 **`preset.modes` is not checked**, deliberately. It is advisory — a preset
 written for a mode you do not have still imports, still shows, and still plays

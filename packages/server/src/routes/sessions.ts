@@ -32,6 +32,7 @@ import {
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
+import { setupMisfit } from '../sessions/setup.js';
 import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
 import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
@@ -178,6 +179,21 @@ const CreateBody = Type.Object(
      */
     treatment: Type.Optional(Type.String({ maxLength: 200 })),
     lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
+    /**
+     * The wizard's answers — [06 §7.3], [P7.4]. The field this route *"has no
+     * `setup` field at all"* for, which is what [P7.4]'s cell records.
+     *
+     * **Open at the schema and closed at the handler**, which is the split that
+     * matters: what may be in here is the mode's own declaration, and a schema
+     * written out in this file could only be a second copy of it. So the shape
+     * is checked below against `setupAnswerSchema(mode.definition.setup)` —
+     * derived from the declaration, so a mode that adds a field is asked for it
+     * without a second edit here.
+     *
+     * *The bound is on the document rather than on the fields, because a field
+     * count is the mode's business and an unbounded body is not.*
+     */
+    setup: Type.Optional(Type.Object({}, { additionalProperties: true })),
   },
   { additionalProperties: false },
 );
@@ -379,6 +395,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       name?: string;
       mode?: string;
       preset?: string;
+      setup?: Record<string, unknown>;
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
@@ -396,6 +413,36 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const mode = modeById(body.mode ?? DEFAULT_MODE_ID);
     if (mode === null) {
       return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
+    }
+
+    /**
+     * **The declaration held to, which is what stops it being decoration** —
+     * [P7.4].
+     *
+     * A mode says what it needs before the first turn and creation refuses a
+     * session that does not supply it. That is the whole of what makes a
+     * declared wizard load-bearing rather than a description of a screen
+     * somebody might build: a field the mode marked `required` cannot be
+     * skipped, and a key the mode never asked for cannot be written into a
+     * session file.
+     *
+     * **422 rather than 400**, and the same 422 the unknown mode above gets: the
+     * body is well-formed JSON of the declared shape, and what is wrong is that
+     * it does not satisfy *this mode's* requirements. A 400 would say the
+     * request was malformed, which it is not.
+     *
+     * *The issues travel.* A wizard's refusal that said only *invalid* would
+     * leave a person clicking Create and guessing which field, on a form the
+     * engine generated and they did not design.
+     */
+    const answers = body.setup ?? {};
+    const misfit = setupMisfit(mode.definition.setup, answers);
+    if (misfit !== null) {
+      return reply.code(422).send({
+        error: 'setup-invalid',
+        message: 'That is not what this mode asked for.',
+        issues: misfit,
+      });
     }
 
     // What the mode says it can seat ([06 §7.2]) — the first real consumer of
@@ -454,6 +501,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         ...(body.cast === undefined ? {} : { cast: body.cast }),
         ...(body.treatment === undefined ? {} : { treatment: body.treatment }),
         ...(body.lore === undefined ? {} : { lore: body.lore }),
+        /**
+         * **Written only when there is something to write**, so a session for a
+         * mode with no wizard carries no `setup` key at all rather than an empty
+         * object claiming a wizard answered nothing. Every session written before
+         * [P7.4] is in that state and must stay indistinguishable from one
+         * written after it.
+         */
+        ...(Object.keys(answers).length === 0 ? {} : { setup: answers }),
       });
       return await reply.code(201).send({ session });
     } catch (error) {

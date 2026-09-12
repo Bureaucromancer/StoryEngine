@@ -480,3 +480,57 @@ export const SHAPED_MODE: Mode = {
     },
   },
 };
+
+/**
+ * A mode that **asks for something before the first turn** — [06 §7.3], [P7.4].
+ *
+ * The stage's exit line is *a wizard for a mode the engine has no knowledge of,
+ * rendered from its declaration alone*, and this is the mode the engine has no
+ * knowledge of: nothing in `packages/server` names it, and every arm of the
+ * widget vocabulary is exercised by a field with a subject [06 §7.3] actually
+ * names — a difficulty chosen from a ranked list, a premise written in prose,
+ * and dice as a toggle rather than as a different mode.
+ *
+ * *A fixture rather than a shipped mode, because the mode that wants a wizard is
+ * Freeform and Freeform is [P7.9]'s. What this proves is the mechanism, which is
+ * what a mode the engine knows nothing about is the only honest witness for.*
+ */
+export const SETUP_MODE_ID = 'storyengine.test.setup';
+
+export const SETUP_MODE: Mode = {
+  definition: {
+    ...TEST_MODE_DEFINITION,
+    id: SETUP_MODE_ID,
+    displayName: 'Engine test fixture — wizard',
+    setup: {
+      kind: 'declared',
+      fields: [
+        {
+          id: 'premise',
+          required: true,
+          widget: {
+            kind: 'text',
+            label: 'What is this story about?',
+            hint: 'A sentence or two. The narrator opens from it.',
+            lines: 4,
+          },
+        },
+        {
+          id: 'difficulty',
+          required: true,
+          widget: {
+            kind: 'choice',
+            label: 'How much should the world resist you?',
+            options: [
+              { value: 'gentle', label: 'Gentle' },
+              { value: 'even', label: 'Even' },
+              { value: 'harsh', label: 'Harsh' },
+            ],
+          },
+        },
+        { id: 'dice', widget: { kind: 'toggle', label: 'Roll dice for outcomes' } },
+      ],
+    },
+  },
+  run: TEST_MODE.run,
+};

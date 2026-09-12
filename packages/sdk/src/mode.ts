@@ -168,20 +168,182 @@ export interface AssemblyPlan {
  *
  * A real state, and session creation is its consumer: POST /api/sessions
  * resolves the mode and writes a null config without asking anybody anything,
- * which is exactly what a no-wizard mode means. The field vocabulary a *real*
+ * which is exactly what a no-wizard mode means. ~~The field vocabulary a *real*
  * wizard needs is P7's, and guessing it is what [21 §6] refuses to do for
- * `WidgetSpec`.
+ * `WidgetSpec`.~~ **The vocabulary arrived at [P7.4]** — see
+ * {@link DeclaredSetup}. Scene still declares this arm, and should: it has
+ * nothing to ask.
  */
 export interface NoSetup {
   kind: 'none';
 }
 
 /**
- * One arm today. A union rather than the interface alone because P7's real
- * wizard adds arms rather than fields, and a type that started as an interface
- * would have to be widened at the point every consumer already narrowed.
+ * One field a mode asks for before a session starts.
+ *
+ * **No `schema` beside the widget, deliberately.** A toggle is a boolean, a
+ * choice is one of its options' values, and a text field is a string — so a
+ * schema alongside would be a *second description of the same field*, which is
+ * the thing that drifts. `library/fields.ts` makes this argument for the
+ * portable kinds and has the receipt: *"any hand-written list of a kind's
+ * fields is a second description"*. Here the widget is the description, and
+ * {@link setupAnswerSchema} derives what the answer is validated against.
+ *
+ * *What that gives up is a cross-field constraint — `endDate` after `startDate`.
+ * A wizard is not the place for one: the mode's own steps see the answers and
+ * can say so in words a person can act on, where a schema can only refuse.*
  */
-export type SetupSchema = NoSetup;
+export interface SetupField {
+  /** The key this field's answer lands under. */
+  id: string;
+  widget: FieldWidget;
+  /**
+   * Whether a session may be created without it.
+   *
+   * Absent means optional, which is the safer default in the direction that
+   * matters: a mode that forgets the flag asks for something and accepts
+   * nothing, where the reverse would refuse every session over a field the
+   * author meant as a nicety.
+   */
+  required?: boolean;
+}
+
+/**
+ * A mode that asks for something before the first turn — [06 §7.3], [P7.4].
+ *
+ * **The declaration is the whole wizard.** [06 §2] says a mode needing a back
+ * door means the contract is wrong and gets fixed rather than bypassed, and a
+ * setup form is where that is most tempting: every engine grows a
+ * mode-specific screen eventually. So there is no screen — there is a list of
+ * fields, and the host renders it. The stage's own exit line is a wizard *"for a
+ * mode the engine has no knowledge of, rendered from its declaration alone"*.
+ *
+ * **Fields now; generated parts next.** [06 §7.3] wants setup to produce *"world
+ * overview, map, cast, sheets and widgets as **separate validated
+ * generations**, each individually retryable, applied as they succeed"* — which
+ * [00 §2.3] calls the single biggest reliability difference available versus the
+ * source. That is a second list beside this one and it needs a generator; what
+ * it does not need is a different shape for the answers, which is why they come
+ * first.
+ */
+export interface DeclaredSetup {
+  kind: 'declared';
+  fields: readonly SetupField[];
+}
+
+/**
+ * **A union now, which is what the one-arm note predicted.** *"P7's real wizard
+ * adds arms rather than fields, and a type that started as an interface would
+ * have to be widened at the point every consumer already narrowed"* — so the
+ * union was written before there was anything to union, and this is the arm it
+ * was written for.
+ */
+export type SetupSchema = NoSetup | DeclaredSetup;
+
+/**
+ * How a setup field is asked — [10 §8](../../../docs/design/10-ui-surfaces.md)'s
+ * declarative vocabulary, for input.
+ *
+ * **Separate from {@link WidgetSpec}, and the split is not bureaucracy.** That
+ * one renders a value the engine already holds; this one asks for a value nobody
+ * holds yet. Sharing the `kind` vocabulary would make `text` mean *show a
+ * string* in one place and *ask for a string* in another, which is the sort of
+ * quiet double meaning that costs an afternoon the first time somebody trusts
+ * it. What the two **do** share is 10 §8's terms, and they apply here in full:
+ * declared and never shipped, so an extension cannot break the app's rendering
+ * and the frontend framework stays a reversible decision; the vocabulary keeps
+ * growing rather than acquiring an escape hatch; and **never an `html: string`
+ * field**, which 10 §8 names as *"how this decision would be undone by accident
+ * rather than on purpose"*.
+ *
+ * **Three arms, each with a named subject in [06 §7.3].** That section asks for
+ * a difficulty *"named entry"* chosen from a ranked list (`choice`), a world
+ * overview written in prose (`text`), and *"dice, HP or inventory channels
+ * available as **toggles** rather than as a different mode"* (`toggle`). A
+ * `number` arm has no subject anywhere in the corpus and is not here — the same
+ * rule `WidgetSpec`'s single arm and `InitPolicy`'s two are held to.
+ *
+ * *A `ref` arm — pick a lorebook, pick an actor — is deliberately absent for a
+ * different reason: session creation already takes `treatment`, `cast` and
+ * `lore` as its own parameters, so a mode asking for them through a wizard would
+ * be a second way to say the same thing.*
+ */
+export type FieldWidget =
+  | {
+      kind: 'text';
+      label: string;
+      /** A sentence under the control. Whole, never a fragment — [work plan §2]. */
+      hint?: string;
+      /**
+       * How tall to draw it. **Presentation, and legitimately so here**: a
+       * portable schema may not carry a rendering hint
+       * ([11 §4](../../../docs/design/11-lorebooks-as-a-format.md) refuses a
+       * `format` keyword invented to serve one), but a *form declaration* is
+       * presentation by definition. Absent means one line.
+       */
+      lines?: number;
+    }
+  | {
+      kind: 'choice';
+      label: string;
+      hint?: string;
+      /**
+       * The options, in the order they are offered. **A label beside each
+       * value**, because a difficulty level's value is an id the prompt pack
+       * keys off and its label is for reading — the same split
+       * `SOURCE_LABELS` keeps, and the reason [06 §7.3.1] can say *"Hard meaning
+       * something different in one prompt pack than another is a feature"*.
+       */
+      options: readonly { value: string; label: string }[];
+    }
+  | { kind: 'toggle'; label: string; hint?: string };
+
+/**
+ * What a setup's answers are validated against — derived, never declared.
+ *
+ * **One description, two readers.** The server validates a creation request
+ * against this and the client can render and pre-check against the same
+ * derivation, which is `library/fields.ts`' arrangement — *one description of a
+ * kind's fields, two renderings of it* — applied to a mode's own declaration.
+ * A schema written out beside the fields would be the second description that
+ * drifts.
+ *
+ * `additionalProperties: false`, so a field the mode did not ask for is refused
+ * rather than stored. A wizard's answers are the one place a client could
+ * quietly persist arbitrary data into a session file, and *ignoring* an unknown
+ * key would teach the next version of that client that it worked.
+ */
+export function setupAnswerSchema(setup: SetupSchema): object {
+  if (setup.kind === 'none') return { type: 'object', properties: {}, additionalProperties: false };
+
+  const properties: Record<string, object> = {};
+  const required: string[] = [];
+  for (const field of setup.fields) {
+    properties[field.id] = answerShapeOf(field.widget);
+    if (field.required === true) required.push(field.id);
+  }
+
+  return {
+    type: 'object',
+    properties,
+    ...(required.length === 0 ? {} : { required }),
+    additionalProperties: false,
+  };
+}
+
+function answerShapeOf(widget: FieldWidget): object {
+  switch (widget.kind) {
+    case 'text':
+      // No `minLength`: *required* is about the key being present, and a
+      // required field answered with an empty string is a person who looked at
+      // it and had nothing to say. The mode's steps can tell the difference.
+      return { type: 'string' };
+    case 'choice':
+      return { type: 'string', enum: widget.options.map((option) => option.value) };
+    case 'toggle':
+      return { type: 'boolean' };
+  }
+}
 
 /**
  * [06 §9]'s three regions. What a contribution *renders* is a `WidgetSpec`,

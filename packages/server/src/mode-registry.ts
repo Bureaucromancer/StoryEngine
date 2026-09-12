@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Mode } from '@storyengine/sdk';
+import type { Mode, ModeDefinition } from '@storyengine/sdk';
 
 import { registerChannel } from './sessions/channels.js';
 import type { TurnPlan } from './turns/steps.js';
@@ -110,6 +110,54 @@ export function defaultMode(): Mode {
 /** Every mode registered so far, in registration order. */
 export function registeredModes(): readonly Mode[] {
   return [...registered.values()];
+}
+
+/**
+ * A mode as a client may see it — [10 §8], [P7.4].
+ *
+ * **Nothing had ever read `registeredModes` outside a test**, which is the gap
+ * [P7.4]'s cell records as *"no route that would hand a declaration to the
+ * client"* — and it is wider than the wizard: until this there was no way for a
+ * browser to know which modes exist at all, so the session form offered *the
+ * mode's own* and nothing else.
+ *
+ * **A `Pick`-shaped presentation rather than the definition, and the omissions
+ * are the design.** `assembly.defaultPreset` is a thirteen-block prompt pack the
+ * session *copies* at creation ([03 §8]), so sending it would be shipping a
+ * copy of something the client has no use for and cannot change; `steps` and
+ * `channels` are what the engine runs and what it registers, neither of which a
+ * client acts on — a channel reaches the browser as a rendered `hud` entry on
+ * the session, which is 10 §8's whole arrangement.
+ *
+ * *`presets` travels as ids only, for the same reason `assembly` does not: a
+ * `ModePreset.config` is opaque and never interpreted by the host ([04 §7]), so
+ * a client showing one would be showing bytes.*
+ */
+export interface PublicMode {
+  id: string;
+  displayName: string;
+  voice: ModeDefinition['voice'];
+  dispatch: ModeDefinition['dispatch'];
+  participants: ModeDefinition['participants'];
+  inputs: readonly string[];
+  presetIds: readonly string[];
+  setup: ModeDefinition['setup'];
+  surfaces: ModeDefinition['surfaces'];
+}
+
+export function presentMode(mode: Mode): PublicMode {
+  const { definition } = mode;
+  return {
+    id: definition.id,
+    displayName: definition.displayName,
+    voice: definition.voice,
+    dispatch: definition.dispatch,
+    participants: definition.participants,
+    inputs: definition.inputs,
+    presetIds: definition.presets.map((preset) => preset.id),
+    setup: definition.setup,
+    surfaces: definition.surfaces,
+  };
 }
 
 /**

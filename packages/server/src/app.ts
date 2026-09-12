@@ -40,6 +40,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
+import { registerModeRoutes } from './routes/modes.js';
 import { registerTagRoutes } from './routes/tags.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
@@ -753,6 +754,7 @@ export async function buildApp(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
+      registerModeRoutes(api);
       registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);
       registerImportRoutes(api, services);

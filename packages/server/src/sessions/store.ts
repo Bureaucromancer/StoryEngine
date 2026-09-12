@@ -147,6 +147,11 @@ export interface NewSession {
   /** Links, not copies — [P5.6], and see `SessionFile` for why. */
   treatment?: string | null;
   lore?: string[];
+  /**
+   * The mode's wizard, answered — [P7.4]. Validated at the route, against the
+   * declaration it came from, because that is where the mode is resolved.
+   */
+  setup?: Record<string, unknown>;
 }
 
 export async function createSession(
@@ -169,6 +174,7 @@ export async function createSession(
     ...(spec.mode === undefined ? {} : { mode: spec.mode }),
     ...(spec.preset === undefined ? {} : { preset: spec.preset }),
     ...(spec.cast === undefined ? {} : { cast: spec.cast }),
+    ...(spec.setup === undefined ? {} : { setup: spec.setup }),
     ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };

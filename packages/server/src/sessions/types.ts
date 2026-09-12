@@ -90,6 +90,26 @@ export interface SessionFile {
    */
   cast?: { persona: string | null; actors: string[] };
   /**
+   * What the mode's wizard was answered with — [06 §7.3], [P7.4].
+   *
+   * **Absent for a mode with no wizard**, which is every session written before
+   * P7.4 and every Scene session after it. `{}` would be a claim that a wizard
+   * ran and collected nothing, and the two must stay distinguishable.
+   *
+   * **A copy, like the preset and for the same reason** ([03 §8]): these are the
+   * answers *this* session was started with. A mode that later adds a field does
+   * not retroactively acquire an answer to it, and one that drops a field does
+   * not erase what was said — the session file keeps what it was told, and the
+   * mode's steps read what they recognise.
+   *
+   * *Validated on the way in, against `setupAnswerSchema` derived from the
+   * declaration, so a key here is one the mode asked for at the moment of
+   * creation. Not re-validated on read: a mode whose declaration has moved
+   * underneath a stored session is [06 §4.2]'s problem for channels and is not
+   * one a session should refuse to open over.*
+   */
+  setup?: Record<string, unknown>;
+  /**
    * The treatment this session is played under, and the lorebooks the retriever
    * scans — [03 §8], added at [P5.6] because before it a session referenced
    * **neither object at all** and a retriever with no books has nothing to do.
