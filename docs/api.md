@@ -902,9 +902,9 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, preset?, cast?, treatment?, lore?, setup? }` → `201 { session }`,
-and a list. **`archived` is the string `"true"`, not a boolean** — see the note
-under the turn routes.
+`{ name?, mode?, preset?, cast?, treatment?, lore?, setup? }` →
+`201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
+not a boolean** — see the note under the turn routes.
 
 **`name` is optional, and an empty one means the same as none**: both store
 `""`, which clients render as *Untitled session*. A session is id-addressed —
@@ -946,6 +946,21 @@ mode with no wizard is refused rather than quietly ignored. Omit the field
 entirely and the session carries no `setup` key at all — which is every session
 written before P7.4, and `{}` would be a claim that a wizard ran and collected
 nothing.
+
+**`activeJob` is present when the mode generates its world**, added at P7.4. A
+mode may declare *parts* alongside its wizard's fields
+([06 §7.3](design/06-modes-and-turn-pipeline.md)) — world overview, cast, sheets,
+each a separate validated generation — and they run as the steps of the session's
+**first turn**, with the answers as its input. So the reply carries a job in the
+same shape `POST /sessions/:id/turns` does, and a client opens the stream it
+already opens for a turn: generation is watched rather than waited out, and each
+part reports through the ordinary `step.*` progress events.
+
+Each part is retried and validated by the machinery any step's call gets, and
+its effects apply as it succeeds — so a part that fails leaves what the others
+produced, and says which one failed. A mode that declares no parts reserves no
+turn and the reply has no `activeJob`: an empty plan would commit a turn that did
+nothing, which is a blank first entry in somebody's transcript.
 
 **`preset.modes` is not checked**, deliberately. It is advisory — a preset
 written for a mode you do not have still imports, still shows, and still plays

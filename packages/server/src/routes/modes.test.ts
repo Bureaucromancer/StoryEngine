@@ -7,7 +7,7 @@ import { setupAnswerSchema } from '@storyengine/sdk';
 
 import { registerMode } from '../mode-registry.js';
 import { DEFAULT_MODE_ID } from '../mode-registry.js';
-import { SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
+import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -38,6 +38,7 @@ beforeEach(async () => {
    * reset; this one does not.
    */
   registerMode(SETUP_MODE);
+  registerMode(GENERATING_MODE);
 });
 
 afterEach(async () => {
@@ -111,6 +112,25 @@ describe('GET /api/modes/:modeId', () => {
     const response = await server.request({ method: 'GET', url: `/api/modes/${SETUP_MODE_ID}` });
 
     expect(response.body.mode.setup).toEqual(SETUP_MODE.definition.setup);
+  });
+
+  /**
+   * **The fields travel and the parts do not** — [P7.4]. `steps` are absent from
+   * this shape because they are what the engine runs, and a part is a
+   * `StepDefinition`: `callKind`, `role` and `writes` are engine-facing and a
+   * client acts on none of them. What a person watching a generation sees is the
+   * turn's `step.*` progress events, which name each part as it runs.
+   */
+  it('carries what a client must ask for, and not what the engine will run', async () => {
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/modes/${GENERATING_MODE_ID}`,
+    });
+
+    expect(Object.keys(response.body.mode.setup as object).sort()).toEqual(['fields', 'kind']);
+    // By name too, because a shape that grew a key would pass the list above if
+    // somebody updated it without thinking about why.
+    expect(JSON.stringify(response.body)).not.toContain('callKind');
   });
 
   it('says a mode with no wizard has none, rather than saying nothing', async () => {

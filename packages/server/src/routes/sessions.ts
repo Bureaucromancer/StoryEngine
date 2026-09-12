@@ -34,7 +34,7 @@ import {
 import { castRows } from '../sessions/cast.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
-import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
@@ -510,7 +510,47 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
          */
         ...(Object.keys(answers).length === 0 ? {} : { setup: answers }),
       });
-      return await reply.code(201).send({ session });
+
+      /**
+       * **A mode that generates makes its world on the session's first turn** —
+       * [06 §7.3], [P7.4].
+       *
+       * [00 §2.3] calls incremental generation the single biggest reliability
+       * difference available versus the source, and 06 §7.3 spells the shape:
+       * *"separate validated generations, each individually retryable, applied
+       * as they succeed"*. Every clause of that is a property of the step loop,
+       * so setup is a turn and the parts are its steps — no second pipeline, and
+       * the record is the record a person already reads.
+       *
+       * **Reserved and started, then returned with the job**, which is exactly
+       * what `POST /sessions/:id/turns` does: the client already knows how to
+       * open a stream for a job and show per-step progress, and generation is a
+       * thing you watch rather than a thing you wait out behind a spinner.
+       *
+       * *A mode with no parts reserves nothing.* An empty plan would commit a
+       * turn that did nothing, which is a blank first entry in somebody's
+       * transcript — the cost [P7.3] refused to pay for the roster, refused here
+       * too and for the same reason.
+       */
+      const parts = setupPlanFor(mode).steps.length;
+      if (parts === 0) return await reply.code(201).send({ session });
+
+      const reserved = await submitTurn(services.jobs, {
+        account: account.handle,
+        sessionId: session.id,
+        // The session is new, so there is exactly one turn this key can name and
+        // a retried create cannot start a second generation.
+        idempotencyKey: `setup:${session.id}`,
+        headTurnId: null,
+      });
+      if (reserved.kind !== 'created') {
+        // Nothing else can have reserved a turn on a session created one line
+        // ago. Answering with the session rather than an error is the honest
+        // outcome if it somehow does: the session exists and is playable.
+        return await reply.code(201).send({ session });
+      }
+      services.runner.start(reserved.job, { setup: true });
+      return await reply.code(201).send({ session, activeJob: reserved.job });
     } catch (error) {
       if (error instanceof PathEscapeError) {
         return reply.code(422).send({ error: 'refused-path', message: error.message });

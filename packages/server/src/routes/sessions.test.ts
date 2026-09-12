@@ -10,7 +10,7 @@ import { newActor, newPreset } from '@storyengine/shared';
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
-import { SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
+import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
@@ -1335,5 +1335,117 @@ describe('a session for a mode with a wizard', () => {
 
     expect(response.status).toBe(422);
     expect(response.body.error).toBe('setup-invalid');
+  });
+});
+
+/**
+ * **The world made on the session's first turn** — [06 §7.3], [P7.4], and
+ * [00 §2.3]'s *single biggest reliability difference available versus the
+ * source*.
+ *
+ * The design asks for *"separate validated generations, each individually
+ * retryable, applied as they succeed"*, and read back that sentence describes
+ * the step loop: an ordered list, a model call each, a schema each, a `failure`
+ * policy each, a record each, and effects applied as each returns. So setup is a
+ * turn and the parts are its steps — which is why these tests assert on a turn
+ * rather than on a generation pipeline, and why there is no second pipeline to
+ * assert on.
+ */
+describe('a mode that generates its world', () => {
+  beforeEach(() => {
+    registerMode(GENERATING_MODE);
+  });
+
+  const ANSWERS = { premise: 'A city that does not sleep.', difficulty: 'even' };
+
+  /** Creates a generating session and waits for its setup turn to finish. */
+  async function generate(script: ScriptedReply[]): Promise<string> {
+    await standUp(script);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Generated', mode: GENERATING_MODE_ID, setup: ANSWERS },
+    });
+    const id = created.body.session.id as string;
+
+    // The same stream a client opens for any turn, which is the point: nothing
+    // about watching a generation is new.
+    const stream = await server.stream({ url: `/api/sessions/${id}/stream` });
+    await stream.until(finished, 6000);
+    await stream.abort();
+    return id;
+  }
+
+  it('reserves a turn and hands back the job to watch', async () => {
+    await standUp([{ object: { hour: 21 } }, { text: 'Rain.' }]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Generated', mode: GENERATING_MODE_ID, setup: ANSWERS },
+    });
+
+    expect(created.status).toBe(201);
+    // The same shape `POST /sessions/:id/turns` answers with, so the client
+    // opens the stream it already knows how to open: generation is a thing you
+    // watch, not a thing you wait out behind a spinner.
+    expect(created.body.activeJob).toMatchObject({ sessionId: created.body.session.id as string });
+  });
+
+  it('applies each part as it succeeds', async () => {
+    const id = await generate([{ object: { hour: 21 } }, { text: 'It never stops.' }]);
+
+    const session = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+    // The first part's effect is on the session's channels, which is what
+    // *applied* means — and it went through `acceptEffect` like any other, so
+    // it is in the turn record and it branches.
+    expect(session.body.session.channels['se.test.opening'].value).toEqual({ hour: 21 });
+  });
+
+  it('hands a part the answers the wizard collected', async () => {
+    const id = await generate([{ object: { hour: 21 } }, { text: 'It never stops.' }]);
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+    // The part echoed `StepInput.setup`, which is the only way to see from
+    // outside that the answers reached it.
+    expect(turns.body.turns[0].output.text).toContain('A city that does not sleep.');
+  });
+
+  /**
+   * ***Individually retryable means individually **failable*** — the property
+   * the design is actually after, and the one a single part could not show.
+   * `failure: 'warn'` is the right policy for a part where `abort` is right for
+   * narration: a world half-made is worth more than no world, and the part that
+   * failed is named in the record for a person to run again.
+   */
+  it('keeps what succeeded when a part fails', async () => {
+    // The first part asks for `{hour}` and gets a shape that is not one, for as
+    // many attempts as the ladder has — so it fails, and the second still runs.
+    const wrong = { object: { our: 21 } };
+    const id = await generate([wrong, wrong, wrong, { text: 'It never stops.' }]);
+
+    const session = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+
+    // The channel was never written, because its part never produced a usable
+    // answer — where a turn that fell over would have written neither.
+    expect(session.body.session.channels['se.test.opening']).toBeUndefined();
+    // And the turn committed with the other part's output, rather than falling
+    // over and leaving a session with nothing.
+    expect(turns.body.turns[0].output.text).toContain('It never stops.');
+    expect(turns.body.turns[0].status).toBe('complete');
+  });
+
+  it('starts no turn at all for a mode that generates nothing', async () => {
+    // An empty plan would commit a turn that did nothing — a blank first entry
+    // in somebody's transcript, which is the cost [P7.3] refused for the roster.
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Wizard only', mode: SETUP_MODE_ID, setup: ANSWERS },
+    });
+
+    expect(created.status).toBe(201);
+    expect('activeJob' in (created.body as object)).toBe(false);
   });
 });

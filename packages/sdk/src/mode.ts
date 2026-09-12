@@ -229,6 +229,35 @@ export interface SetupField {
 export interface DeclaredSetup {
   kind: 'declared';
   fields: readonly SetupField[];
+  /**
+   * What is generated from the answers — [06 §7.3], [P7.4].
+   *
+   * ***`StepDefinition`, because a part **is** a step.*** [06 §7.3] wants setup
+   * to produce *"world overview, map, cast, sheets and widgets as separate
+   * validated generations, **each individually retryable, applied as they
+   * succeed**"* — and read back, that sentence describes the step loop. An
+   * ordered list of declarations, each with its own model call, its own schema,
+   * its own `failure` policy, its own record in `StepOutcome`, and effects
+   * applied as each one returns. Every clause already exists; a second
+   * generation pipeline beside the turn would have been a second implementation
+   * of all of it, differing in the places nobody checked.
+   *
+   * **So setup runs as a turn** — the session's first, with the answers as its
+   * input. That is the record-shape decision this list rests on, and it is worth
+   * stating because [P7.3] rejected a creation-time turn for the roster: there
+   * it would have given *every* session with a cast a blank first transcript
+   * entry, for a shape that did not work anyway. Here a turn happens only when a
+   * mode declares parts and generation actually runs, and what it records is
+   * true — the world was made, it took model calls, and they cost something.
+   *
+   * *Zipped against the same `run` table the steps are, so a part's
+   * implementation is written where a step's is and `assertModesRunnable` proves
+   * both at startup.* A part's `stage` is the turn pipeline's vocabulary and
+   * `generate` is the honest value; overloading `StepStage` with a `setup` arm
+   * would make one member mean *a different occasion* where the other five mean
+   * *a position within a turn*.
+   */
+  parts?: readonly StepDefinition[];
 }
 
 /**

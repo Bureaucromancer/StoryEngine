@@ -195,6 +195,28 @@ export interface StepInput {
    * which is a turn whose mode declares `fixed` and makes no selection at all.
    */
   speakers?: readonly string[];
+  /**
+   * **What the mode's wizard was answered with** — [06 §7.3], [P7.4].
+   *
+   * Keyed by the field ids the mode declared, and validated against the schema
+   * derived from that declaration before the session was written — so a key here
+   * is one this mode asked for, and its value is the shape the widget implies.
+   *
+   * **Present on every turn, not only the setup one**, which is a choice worth
+   * naming: a part generates from the answers, and a *step* may want them too —
+   * a narrator that knows the premise, a difficulty dial the prompt pack keys
+   * off. The alternative is a mode reading its own setup through a back door,
+   * which [06 §2] is the section that refuses.
+   *
+   * **Not filtered by `reads`**, like `input` and `speakers` and for the same
+   * reason: [22 §3.1]'s filter is about *sources* a step might not be entitled
+   * to, and this is the mode's own declaration answered for the mode's own
+   * session.
+   *
+   * Absent for a mode with no wizard, which is every mode with
+   * `setup: { kind: 'none' }`.
+   */
+  setup?: Readonly<Record<string, unknown>>;
   /** Only the channels `reads` named. */
   channels: Record<string, ChannelState>;
   /** Present only when `reads` includes `history`. */

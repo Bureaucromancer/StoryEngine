@@ -134,6 +134,7 @@ export function filterReads(
     parentTurnId: string | null;
     input?: { actorId: string | null; kind: string; text: string; raw: string };
     speakers?: readonly string[];
+    setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
     output?: { text: string };
@@ -167,6 +168,9 @@ export function filterReads(
      * rather than a growing list of them.
      */
     ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
+    // Unfiltered for `speakers`' reason: the mode's own declaration, answered
+    // for the mode's own session.
+    ...(everything.setup === undefined ? {} : { setup: everything.setup }),
     channels,
     ...(definition.reads.includes('history') ? { history: everything.history } : {}),
     ...(definition.reads.includes('output') && everything.output !== undefined

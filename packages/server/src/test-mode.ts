@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Mode, ModeDefinition, Preset, StepDefinition } from '@storyengine/sdk';
+import type {
+  ChannelDefinition,
+  DeclaredSetup,
+  Mode,
+  ModeDefinition,
+  Preset,
+  StepDefinition,
+} from '@storyengine/sdk';
 
 /**
  * A mode and a prompt pack the **engine's own tests** run against — [P7.0].
@@ -533,4 +540,127 @@ export const SETUP_MODE: Mode = {
     },
   },
   run: TEST_MODE.run,
+};
+
+/**
+ * A channel this fixture's parts write — and **not `se.clock`**, which is where
+ * the first draft of this went ([P7.4], 2026-09-12).
+ *
+ * `se.clock` is `update: 'engine-computed'`, so a *step's* proposal on it is
+ * refused and recorded as refused — which is the refusal ladder doing exactly
+ * what it is for, and a fixture that walked into it would have been testing
+ * that rather than what it meant to. A part writes what a mode's own channel
+ * declares it may.
+ *
+ * *Declared on this mode rather than on `TEST_MODE_DEFINITION`, which declares
+ * none: `registerMode` installs a mode's channels, so a fixture every test
+ * touches would install this into the process-wide registry for all of them.
+ * This one is registered only by the tests that want it.*
+ */
+const OPENING_CHANNEL: ChannelDefinition = {
+  id: 'se.test.opening',
+  owner: 'storyengine.test.generating',
+  version: 1,
+  scope: 'session',
+  // What a *generated world* decides is model-proposed by definition: there is
+  // nothing to compute it from.
+  update: 'model-proposed',
+  visibility: 'player',
+  schema: {
+    type: 'object',
+    properties: { hour: { type: 'integer', minimum: 0, maximum: 23 } },
+    required: ['hour'],
+    additionalProperties: false,
+  },
+  init: { kind: 'literal', value: null },
+  budget: null,
+};
+
+/**
+ * A mode that **generates its world** — [06 §7.3], [P7.4].
+ *
+ * Two parts, because one would not show the property the design is actually
+ * after: *"each individually retryable, **applied as they succeed**"*. With two,
+ * a failing first part and a succeeding second one are distinguishable from a
+ * turn that fell over, and the second part's effect is on disk either way.
+ *
+ * *`failure: 'warn'` on both, deliberately.* `abort` is the right policy for
+ * narration — a turn that could not narrate has nothing to show — and the wrong
+ * one here: a world half-made is worth more than no world, and the part that
+ * failed is named in the record for a person to run again.
+ */
+const OPENING_PART: StepDefinition = {
+  ...TEST_STEP,
+  id: 'se.part.opening',
+  stage: 'generate',
+  reads: [],
+  writes: [OPENING_CHANNEL.id],
+  contributes: 'effects',
+  callKind: 'setup',
+  failure: 'warn',
+};
+
+const PREMISE_PART: StepDefinition = {
+  ...OPENING_PART,
+  id: 'se.part.premise',
+  writes: [],
+  contributes: 'messages',
+};
+
+export const GENERATING_MODE_ID = 'storyengine.test.generating';
+
+export const GENERATING_MODE: Mode = {
+  definition: {
+    ...SETUP_MODE.definition,
+    id: GENERATING_MODE_ID,
+    displayName: 'Engine test fixture — generated world',
+    channels: [OPENING_CHANNEL],
+    setup: {
+      ...(SETUP_MODE.definition.setup as DeclaredSetup),
+      parts: [OPENING_PART, PREMISE_PART],
+    },
+  },
+  run: {
+    /**
+     * **The ordinary steps too.** A generating mode still takes ordinary turns
+     * after its setup one, and `assertModesRunnable` proves both lists against
+     * this single table — so a fixture that implemented only its parts would
+     * fail at startup, which is the check doing its job.
+     */
+    ...SETUP_MODE.run,
+    /**
+     * **Generates from the answers**, which is the whole point of a part: it
+     * reads `input.setup`, asks for a shape, and proposes an effect. Nothing
+     * here is setup-specific machinery — it is an ordinary step.
+     */
+    [OPENING_PART.id]: async (_input, host) => {
+      const result = await host.call({ schema: HOUR_SCHEMA });
+      const hour = (result.object as { hour?: number } | undefined)?.hour;
+      if (hour === undefined) throw new Error('no hour');
+      return {
+        effects: [
+          {
+            channelId: OPENING_CHANNEL.id,
+            op: { type: 'set', path: '/' },
+            after: { hour },
+            proposedBy: { kind: 'step', stepId: OPENING_PART.id },
+          },
+        ],
+      };
+    },
+    [PREMISE_PART.id]: async (input, host) => {
+      const result = await host.call({});
+      // Echoing the answer proves it reached the step, which is the only way to
+      // see from outside that `StepInput.setup` carries what the wizard collected.
+      const premise = (input.setup?.['premise'] as string | undefined) ?? '';
+      return { message: { text: `${premise} ${result.text}`.trim() } };
+    },
+  },
+};
+
+const HOUR_SCHEMA = {
+  type: 'object',
+  properties: { hour: { type: 'integer', minimum: 0, maximum: 23 } },
+  required: ['hour'],
+  additionalProperties: false,
 };

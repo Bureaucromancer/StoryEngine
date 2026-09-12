@@ -2753,12 +2753,59 @@ and the state is `aria-required`, so neither reader gets the word* asterisk. *A
 have passed only by being loosened — hiding the very thing the mark is supposed
 to get right.*
 
-**Next:** the generated **parts** — [06 §7.3]'s *"world overview, map, cast,
-sheets and widgets as separate validated generations, each individually
-retryable, applied as they succeed"*, which [00 §2.3] calls the single biggest
-reliability difference available versus the source. It has something to be
-incremental *over* now: a part is a schema, a validation and a retry, and all
-three exist.
+**Done: the generated parts, and the record-shape decision they rested on**
+(2026-09-12).
+
+***A part is a step, and setup is a turn.*** [06 §7.3] asks for *"world
+overview, map, cast, sheets and widgets as separate validated generations, each
+individually retryable, applied as they succeed"* — and read back, that sentence
+**describes the step loop**: an ordered list of declarations, a model call each,
+a schema each, a `failure` policy each, a record each in `StepOutcome`, and
+effects applied as each one returns. Every clause already existed. A second
+generation pipeline beside the turn would have been a second implementation of
+all of it, differing wherever nobody checked.
+
+So `DeclaredSetup.parts` is `readonly StepDefinition[]`, zipped against the same
+`run` table the steps are — `assertModesRunnable` proves both at startup, so a
+declared part with no implementation fails where a declared step does — and a
+session whose mode declares parts runs them as its **first turn**, with the
+answers as `StepInput.setup`. `POST /api/sessions` reserves and starts it and
+answers with `activeJob`, the same shape `POST /sessions/:id/turns` gives, so a
+client opens the stream it already opens and generation is *watched* rather than
+waited out behind a spinner.
+
+**That is the creation-turn [P7.3] refused, and the difference is what makes it
+right here.** There, every session with a cast would have got a blank first
+transcript entry, for a shape that did not work anyway. Here a turn happens only
+when a mode declares parts and generation actually runs — and what it records is
+true: the world was made, it took model calls, and they cost something. *A mode
+with no parts reserves nothing, which is the same refusal kept.*
+
+*`TurnPayload.setup` is in memory like `replay` and `attempt` beside it, and what
+that costs is stated rather than hidden: a job recovered after the process died
+between reservation and run would lose it and run the ordinary plan. It is the
+exposure `replay` already has, and the recovery path is the one place to fix it
+for all three.*
+
+**And `presentMode` sends the fields, never the parts.** `steps` are absent from
+that shape because they are what the engine runs; a part is a `StepDefinition` on
+the same grounds. What a person watching a generation sees is the turn's `step.*`
+events naming each part as it runs — so a client learns the parts from the run
+rather than from the declaration, exactly as it learns a turn's steps.
+
+**One thing the tests found, and one thing they corrected in me.** The fixture's
+first part wrote `se.clock`, whose `update` is `engine-computed` — so a *step's*
+proposal on it was refused and recorded as refused, which is the ladder doing
+what it is for. *The first diagnosis was that the runner's post-loop clock
+advance had **clobbered** the part, and a change to skip that advance on a setup
+turn went in on it. The premise was false: the effect was never applied, so there
+was nothing to clobber. Reverted, and the fixture now declares a channel of its
+own — which also exercises the path a generating mode actually uses.*
+
+**Next in this stage:** the `setups/` library kind, which has CRUD, a shelf and a
+`newSetup` factory whose only caller is a test — what it has no surface for is
+*making* one, and no consumer for anything. It is the other object one word away
+from `SetupSchema`, and the stage owes both.
 
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 

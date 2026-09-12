@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Mode, ModeDefinition } from '@storyengine/sdk';
+import type { Mode, ModeDefinition, StepDefinition } from '@storyengine/sdk';
 
 import { registerChannel } from './sessions/channels.js';
 import type { TurnPlan } from './turns/steps.js';
@@ -155,7 +155,21 @@ export function presentMode(mode: Mode): PublicMode {
     participants: definition.participants,
     inputs: definition.inputs,
     presetIds: definition.presets.map((preset) => preset.id),
-    setup: definition.setup,
+    /**
+     * **The fields, never the parts** — [P7.4].
+     *
+     * `steps` are absent from this shape because they are what the engine runs;
+     * `DeclaredSetup.parts` are `StepDefinition`s and are the same thing on the
+     * same grounds — `callKind`, `role` and `writes` are engine-facing and a
+     * client acts on none of them. What a client needs is what it must *ask*,
+     * and that is `fields`.
+     *
+     * *A person watching a generation sees it through the turn's `step.*`
+     * progress events, which name the part that is running — so the client
+     * learns what the parts are from the run rather than from the declaration,
+     * the same way it learns what a turn's steps are.*
+     */
+    setup: withoutParts(definition.setup),
     surfaces: definition.surfaces,
   };
 }
@@ -170,12 +184,34 @@ export function presentMode(mode: Mode): PublicMode {
  * inside somebody's turn.
  */
 export function planFor(mode: Mode): TurnPlan {
+  return zip(mode, mode.definition.steps, 'step');
+}
+
+/**
+ * The plan for a session's **first** turn, when its mode generates one — [06 §7.3],
+ * [P7.4].
+ *
+ * **Empty for every mode that declares no parts**, which is every mode today and
+ * Scene forever — and an empty plan is why the caller checks before reserving a
+ * turn rather than starting one that would do nothing.
+ *
+ * *The same `run` table as the steps, so a part's implementation is written
+ * where a step's is and `assertModesRunnable` proves both at startup. A part
+ * that a mode declares and does not implement is the same failure as a step
+ * that is, and it fails at the same moment.*
+ */
+export function setupPlanFor(mode: Mode): TurnPlan {
+  const setup = mode.definition.setup;
+  return zip(mode, setup.kind === 'declared' ? (setup.parts ?? []) : [], 'setup part');
+}
+
+function zip(mode: Mode, declared: readonly StepDefinition[], what: string): TurnPlan {
   return {
-    steps: mode.definition.steps.map((definition) => {
+    steps: declared.map((definition) => {
       const run = mode.run[definition.id];
       if (run === undefined) {
         throw new Error(
-          `Mode ${mode.definition.id} declares step ${definition.id} with no implementation.`,
+          `Mode ${mode.definition.id} declares ${what} ${definition.id} with no implementation.`,
         );
       }
       return { definition, run };
@@ -199,5 +235,19 @@ export function assertModesRunnable(): void {
   if (registered.size === 0) {
     throw new Error('No modes are registered. Call installBuiltIns() before serving.');
   }
-  for (const mode of registered.values()) planFor(mode);
+  for (const mode of registered.values()) {
+    planFor(mode);
+    // Parts too, and for the same reason: a declared generation with no
+    // implementation is a session that creates itself and silently produces
+    // nothing, which reads as a bad model rather than as a broken build.
+    setupPlanFor(mode);
+  }
+}
+
+function withoutParts(setup: ModeDefinition['setup']): ModeDefinition['setup'] {
+  // Rebuilt rather than destructured-and-rested: the rest element would name a
+  // binding nothing reads, which the lint rule is right about — and naming the
+  // two fields that travel is the more honest spelling anyway, since a third
+  // added to `DeclaredSetup` should have to decide whether it is client-facing.
+  return setup.kind === 'declared' ? { kind: setup.kind, fields: setup.fields } : setup;
 }

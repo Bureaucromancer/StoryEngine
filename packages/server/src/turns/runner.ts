@@ -40,7 +40,7 @@ import { gatherAssemblyInputs } from './gather.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
-import { planFor } from '../mode-registry.js';
+import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
 
@@ -62,6 +62,21 @@ import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
 
 export interface TurnPayload {
   input?: { actorId: string | null; kind: string; text: string; raw: string };
+  /**
+   * This is the session's **setup** turn — [06 §7.3], [P7.4].
+   *
+   * The mode's declared parts run instead of its steps. In memory rather than on
+   * the job, like `replay` and `attempt` beside it: the route knows because it
+   * is the route that just created the session, and a flag on the reservation
+   * would be a persisted field whose only reader is the next few milliseconds.
+   *
+   * *What that costs is stated rather than hidden: a job recovered after the
+   * process died between reservation and run loses this, and would run the
+   * ordinary plan. It is the same exposure `replay` already has, and the
+   * recovery path's answer to a turn it cannot reconstruct is the one place to
+   * fix it for all three.*
+   */
+  setup?: boolean;
   /** The guidance box. Its own field, never concatenated into the action ([06 §5.1]). */
   guidance?: string;
   /**
@@ -480,7 +495,21 @@ export class TurnRunner {
     const contributed: Candidate[] = [];
 
     let aborted = false;
-    const plan = this.#options.plan ?? planFor(mode);
+    /**
+     * **The setup turn runs the mode's parts instead of its steps** — [06 §7.3],
+     * [P7.4].
+     *
+     * A session whose mode declares generated parts makes them on its first
+     * turn, which is what lets [06 §7.3]'s *"separate validated generations,
+     * each individually retryable, applied as they succeed"* be the step loop
+     * rather than a second pipeline beside it: every clause of that sentence is
+     * already a property of this loop.
+     *
+     * *`this.#options.plan` still wins, because a test that supplied a plan
+     * asked for that plan.*
+     */
+    const plan =
+      this.#options.plan ?? (payload.setup === true ? setupPlanFor(mode) : planFor(mode));
 
     for (const { definition, run } of plan.steps) {
       const decision = evaluateCondition(definition.when, {
@@ -529,6 +558,7 @@ export class TurnRunner {
             parentTurnId: job.parentTurnId,
             ...(payload.input === undefined ? {} : { input: payload.input }),
             ...(speakers === undefined ? {} : { speakers }),
+            ...(inputs.session?.setup === undefined ? {} : { setup: inputs.session.setup }),
             channels: running,
             history,
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),
