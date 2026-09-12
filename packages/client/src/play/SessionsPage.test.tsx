@@ -26,6 +26,7 @@ const createSession = vi.fn();
 const listLibrary = vi.fn();
 const renameSession = vi.fn();
 const listModes = vi.fn();
+const createObject = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -35,7 +36,11 @@ vi.mock('../api.js', async (importOriginal) => {
     createSession: (...a: unknown[]) => createSession(...a) as unknown,
     renameSession: (...a: unknown[]) => renameSession(...a) as unknown,
     listModes: (...a: unknown[]) => listModes(...a) as unknown,
-    api: { ...actual.api, listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown },
+    api: {
+      ...actual.api,
+      listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
+      createObject: (...a: unknown[]) => createObject(...a) as unknown,
+    },
   };
 });
 
@@ -118,6 +123,11 @@ const WIZARD = {
 beforeEach(() => {
   vi.clearAllMocks();
   listModes.mockResolvedValue({ modes: [plainMode()], defaultModeId: 'storyengine.scene' });
+  createObject.mockResolvedValue({
+    id: 'setup-1',
+    slug: 'the-fixers-debt',
+    contentHash: 'sha256:x',
+  });
   listSessions.mockResolvedValue({ sessions: [] });
   createSession.mockResolvedValue({ session: { id: 'new-1', name: 'A wet week' } });
   listLibrary.mockImplementation((kind: string) => {
@@ -514,5 +524,76 @@ describe('a mode that asks for something', () => {
     // Scene declares `{ kind: 'none' }`, which is an answer rather than silence
     // — and the answer is that there is nothing to ask.
     expect(screen.queryByRole('textbox', { name: 'What is this story about?' })).toBeNull();
+  });
+});
+
+/**
+ * **The `setups/` kind's making surface** — [04 §7], [10 §5], [P7.4].
+ *
+ * That kind has had CRUD, a shelf and a factory since P1 and no way to produce
+ * one. The answer is not a third hand-written editor — [P7.4]'s cell names
+ * *"every editor and settings pane is hand-written JSX"* as the complaint — but
+ * a second verb on the form that already collects exactly what a Setup is.
+ */
+describe('saving the configuration as a setup', () => {
+  async function openDetails() {
+    renderPage();
+    await screen.findByText('Sessions');
+    await userEvent.click(screen.getByText(/Nothing chosen yet|Starting with/));
+  }
+
+  it('writes a setup from what the form holds', async () => {
+    await openDetails();
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Name for the new session/ }),
+      'The Fixer’s Debt',
+    );
+    await userEvent.selectOptions(screen.getByLabelText('Treatment'), 'treat-wet');
+    await userEvent.click(screen.getByRole('button', { name: 'Save as a setup' }));
+
+    await waitFor(() => {
+      expect(createObject).toHaveBeenCalledWith(
+        'setups',
+        expect.objectContaining({
+          schema: 'storyengine.setup/1',
+          name: 'The Fixer’s Debt',
+          // By id *and* by name: [04 §3] resolves a ref by either, so a setup
+          // that stored bare ids would travel to another install and resolve to
+          // nothing.
+          treatment: { id: 'treat-wet', name: 'A wet week' },
+        }),
+      );
+    });
+  });
+
+  /**
+   * A library object has a name — that is the kind's rule, not this form's — so
+   * the control says what is missing rather than refusing silently, which is the
+   * shape [10 §11.1a] was written against.
+   */
+  it('will not save one with no name, and says why', async () => {
+    await openDetails();
+
+    // `disabled` read off the element: this project does not load
+    // `jest-dom`'s matchers, so `toBeDisabled` is not a thing here.
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Save as a setup' }).disabled,
+    ).toBe(true);
+    expect(screen.getByText(/Name it first/)).toBeTruthy();
+  });
+
+  it('says so when it worked, because nothing else on this page changes', async () => {
+    await openDetails();
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Name for the new session/ }),
+      'Rain City',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save as a setup' }));
+
+    // The session list does not move and no navigation happens, so without this
+    // the button is a control with no feedback at all.
+    expect((await screen.findByRole('status')).textContent).toContain('Rain City');
   });
 });

@@ -6,7 +6,7 @@ import { Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, createSession, listModes, listSessions, type PublicMode } from '../api.js';
-import { useLibrary } from '../queries.js';
+import { useCreateObject, useLibrary } from '../queries.js';
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
@@ -14,6 +14,7 @@ import { link, page } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
 import { RenameSession } from './RenameSession.js';
 import { SetupFields } from './SetupFields.js';
+import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
 
 /**
@@ -142,6 +143,38 @@ export function SessionsPage(): React.JSX.Element {
     (modes.data?.modes ?? []).find(
       (one) => one.id === (mode === '' ? modes.data?.defaultModeId : mode),
     ) ?? null;
+
+  /**
+   * Every library name this form has offered, by id — for the `Ref`s a saved
+   * Setup stores. [04 §3] resolves a ref by id *and* by name, so a Setup that
+   * kept bare ids would travel to another install and resolve to nothing.
+   */
+  const names: Record<string, string> = {};
+  for (const shelf of [treatments, presets, actors, books]) {
+    for (const one of shelf.data?.objects ?? []) names[one.id] = one.name;
+  }
+
+  const form = {
+    name,
+    mode: chosen?.id ?? '',
+    modeConfig: answersFor(chosen, setup),
+    treatment,
+    preset,
+    persona,
+    lore,
+    names,
+  };
+
+  /**
+   * **Saving the configuration as a Setup** — [04 §7], [P7.4], and the *making*
+   * surface that kind has never had.
+   *
+   * Not a third hand-written editor: a Setup **is** how to start playing, and
+   * this form collects exactly that control for control. What gets saved is what
+   * `POST /api/sessions` reads back out of one, which is the round trip
+   * `setup-from-form.ts` exists to keep honest.
+   */
+  const saveSetup = useCreateObject();
 
   const create = useMutation({
     mutationFn: () =>
@@ -300,10 +333,37 @@ export function SessionsPage(): React.JSX.Element {
             </fieldset>
 
             <Fine>These can be changed from the session itself, except the preset.</Fine>
+
+            {/*
+              **Save the configuration, not the session** — [04 §7], [P7.4].
+              A Setup is how to start playing, and everything above is that; so
+              the making surface for the `setups/` kind is this form with a
+              second verb rather than a third hand-written editor.
+            */}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                disabled={name.trim() === '' || saveSetup.isPending}
+                onClick={() => {
+                  saveSetup.mutate({ kind: 'setups', object: setupFromForm(form) });
+                }}
+              >
+                Save as a setup
+              </Button>
+              <Fine>
+                {name.trim() === ''
+                  ? 'Name it first — a setup is a library object, and library objects have names.'
+                  : 'Keeps this configuration to start from again.'}
+              </Fine>
+            </div>
           </div>
         </details>
 
         {create.isError ? <AlertNote role="alert">{refusal(create.error)}</AlertNote> : null}
+        {saveSetup.isError ? <AlertNote role="alert">{refusal(saveSetup.error)}</AlertNote> : null}
+        {saveSetup.isSuccess ? (
+          <AlertNote role="status">{`Saved “${name.trim()}” to your setups.`}</AlertNote>
+        ) : null}
       </form>
 
       <ul className="flex flex-col gap-2" aria-label="Sessions">

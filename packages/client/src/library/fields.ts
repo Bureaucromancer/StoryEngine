@@ -145,6 +145,26 @@ const NEW_ROUTES = {
 } as const satisfies Record<EditorKind, string>;
 
 /**
+ * ***One kind is now created from outside these tables, and saying so here is
+ * the point*** — [P7.4], 2026-09-12.
+ *
+ * `SessionsPage`'s *Save as a setup* writes a `setups/` object, and `setups` is
+ * in neither table above. That is not the rule being broken: [10 §5]'s *create
+ * arrives with the kind's editor and never before it* is about **this** create
+ * control — the library's own New button, which opens a form over nothing and
+ * would strand somebody on a kind with no editor to land in.
+ *
+ * A Setup is *how to start playing*, and the session form collects exactly that
+ * control for control, so saving one is naming a configuration that already
+ * exists rather than opening an empty form. **`setups` stays out of these tables
+ * until it has an editor**, which is what the library's New button would need
+ * and what a hand-written Setup form is the wrong way to get ([P7.4]'s cell
+ * names *"every editor and settings pane is hand-written JSX"* as the
+ * complaint). Until then a saved Setup is readable on the generic shelf and in
+ * §5.3's read-only fold, which is what every kind without an editor gets.
+ */
+
+/**
  * The fields a person has to fill in before this kind can be saved —
  * [10 §11.1a](../../../../docs/design/10-ui-surfaces.md).
  *

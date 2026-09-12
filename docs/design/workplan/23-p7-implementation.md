@@ -2844,10 +2844,52 @@ for.
 dropped: the party is `se.party` since [P7.3], so seeding it means writing
 effects, which needs a turn — it belongs with the setup turn's parts.*
 
-**Next in this stage:** the editor for the kind, which is the *making* surface it
-still has none of — `EDITOR_ROUTES` in `library/fields.ts` is the gate, and
-[10 §5] makes create and edit one question, so the kind becomes creatable in the
-same edit that gives it an editor and never before.
+**Done: the making surface, and it is not a third hand-written editor**
+(2026-09-12). The obvious next move was a `SetupEditorPage` beside the actor's
+and the lorebook's — and this cell's own words rule it out: *"every editor and
+settings pane is hand-written JSX"* is the **complaint**, not the remedy. A third
+one would have made the thing the stage is criticising bigger.
+
+**So the making surface is the form that already exists.** A Setup *is* how to
+start playing — a mode, its wizard's answers, a preset, a treatment, lore, a
+persona to offer — and the session form collects exactly that, control for
+control. *Save as a setup* names a configuration somebody has already made, which
+is [10 §5]'s *create and edit are one question* answered from the other end: the
+thing you create with is the thing you configure with.
+
+**Round-trip symmetry is the property held rather than asserted**:
+`setup-from-form.ts` writes what `POST /api/sessions` reads back out, and both
+sides are tested against the same field list. A field one wrote that the other
+did not read would be a promise the library keeps and the game does not — and two
+are deliberately absent on both sides for the same reason, `partyDefault`
+(seeding it means writing effects, which needs a turn) and `required` on a lore
+link (the form has no control for the distinction and inventing one would be a
+claim the person did not make).
+
+*`setups` stays out of `EDITOR_ROUTES` and `NEW_ROUTES`, and `fields.ts` now says
+why:* [10 §5]'s rule is about the **library's** New button, which opens a form
+over nothing and would strand somebody on a kind with no editor to land in. A
+saved Setup is readable on the generic shelf and in the read-only fold, which is
+what every kind without an editor gets.
+
+### Where the stage stands
+
+***Its exit line is met.*** *"A wizard for a mode the engine has no knowledge of,
+rendered from its declaration alone"* is `SetupFields` over `GET /api/modes`,
+tested against a declaration no shipped mode carries; *"whose failed part is
+retried without discarding the parts that succeeded"* is the step loop, tested
+with a part that fails while another's effect stands.
+
+**What the stage does not have, stated rather than left to be discovered:** a
+**writable** twin of the declaration-driven read-only renderer. `ByField` renders
+any known kind from its emitted schema and cannot be made writable as it stands,
+for a reason its own docstring gives — *"how a value is drawn is decided by
+looking at the value, because nothing in the schema distinguishes a name from a
+page of prose"* — and an empty field has no value to look at. Closing that means
+deciding where presentation for a *portable* kind may be written down, given
+[11 §4] refuses a `format` keyword in the schema itself. That is a design
+question of the same size as the ones this stage answered, and it belongs to
+whichever stage next needs an editor for a kind that has none.
 
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 
