@@ -846,6 +846,12 @@ export interface CastRow {
   /** A terminal status the model proposed and the engine refused, unanswered. */
   pending: string | null;
   introduced: boolean;
+  /**
+   * Who authors them, when they are travelling with you — [06 §8], [P7.3].
+   * `null` is *in the story and not in the party*, which is most of the cast
+   * most of the time.
+   */
+  party: 'player' | 'companion' | 'auto' | null;
 }
 
 /**

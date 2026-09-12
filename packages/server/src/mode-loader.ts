@@ -4,7 +4,7 @@
 import type { Mode } from '@storyengine/sdk';
 
 import { registerMode } from './mode-registry.js';
-import { PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
+import { PARTY_CHANNEL, PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
 /**
@@ -74,7 +74,8 @@ export async function installBuiltIns(): Promise<void> {
    */
   registerChannel(LORE_TIMING_CHANNEL);
   /**
-   * Presence and status, for the same reason and a second one — [P7.2].
+   * Presence, status and the party, for the same reason and a second one —
+   * [P7.2], and `se.party` at [P7.3].
    *
    * `storyengine.cast` is a package, so like lore timing there is no mode for
    * these to arrive with. The second reason is that **every mode with a cast
@@ -82,9 +83,14 @@ export async function installBuiltIns(): Promise<void> {
    * second mode either import the first or declare its own, and two declarations
    * of `se.presence` is the configuration problem `registerChannel`'s
    * last-write-wins rule is resigned to rather than a design.
+   *
+   * *[06 §8]'s sixth rule says that about the party in as many words —
+   * "party is session state available to **every** mode, not a Freeform or
+   * Campaign feature… Modes differ in what they do with it."*
    */
   registerChannel(PRESENCE_CHANNEL);
   registerChannel(STATUS_CHANNEL);
+  registerChannel(PARTY_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {

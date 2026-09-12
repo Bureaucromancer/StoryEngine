@@ -133,6 +133,7 @@ export function filterReads(
     sessionId: string;
     parentTurnId: string | null;
     input?: { actorId: string | null; kind: string; text: string; raw: string };
+    speakers?: readonly string[];
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
     output?: { text: string };
@@ -159,6 +160,13 @@ export function filterReads(
     sessionId: everything.sessionId,
     parentTurnId: everything.parentTurnId,
     ...(everything.input === undefined ? {} : { input: everything.input }),
+    /**
+     * **Unfiltered, like `input`** — [P7.3]. [22 §3.1]'s rule is about sources a
+     * step might not be entitled to; this is the mode's own policy applied to
+     * the mode's own turn, and `reads` has exactly two pseudo-sources ([06 §6])
+     * rather than a growing list of them.
+     */
+    ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
     channels,
     ...(definition.reads.includes('history') ? { history: everything.history } : {}),
     ...(definition.reads.includes('output') && everything.output !== undefined

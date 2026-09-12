@@ -34,22 +34,27 @@ import type { Turn } from './types.js';
  * because the party is a subset of the cast and naming the owner after the
  * subset would be the conflation §8.1 spends a paragraph refusing.*
  *
- * **And `se.party` is not here**, deliberately.
- * [P7 §1.6](../../../../docs/design/workplan/23-p7-implementation.md) records
+ * ~~**And `se.party` is not here**, deliberately.~~ **It is here since
+ * [P7.3]**, 2026-09-12, because the licence expired in the same commit.
+ * [P7 §1.6](../../../../docs/design/workplan/23-p7-implementation.md) recorded
  * that `ParticipantPolicy.select: 'fixed'` is *"the declaration that the cast
  * cannot change as an outcome of a turn, which is what licenses a plain `cast`
  * field on the session instead of an `se.party` channel"* — so a party channel
- * declared while the policy still says the cast cannot change is a
- * placeholder-shaped channel, which [P2 §2.7] rejected by name. That licence
- * expires when P7.3 widens `select`. **Presence and status carry no such
- * licence**: they are facts about a scene and about a life, and neither is a
- * claim about whether the cast can change.
+ * declared while the policy still said the cast cannot change would have been
+ * the placeholder-shaped channel [P2 §2.7] rejected by name. `select` now has
+ * five arms, and `cast.test.ts`' tripwire is what made the two land together
+ * rather than one of them landing and the other being remembered.
+ *
+ * **Presence and status carried no such licence** and never waited: they are
+ * facts about a scene and about a life, and neither is a claim about whether
+ * the cast can change.
  */
 
 export const CAST_OWNER = 'storyengine.cast';
 
 export const SE_PRESENCE = 'se.presence';
 export const SE_STATUS = 'se.status';
+export const SE_PARTY = 'se.party';
 
 /**
  * Durable state about a life — [10 §13.2]'s *"alive, dead, departed,
@@ -135,6 +140,76 @@ export const STATUS_CHANNEL: ChannelDefinition = {
 };
 
 /**
+ * Who authors a party member's words — [06 §8]'s `control`.
+ *
+ * **Three arms, and the middle one is the design's line rather than a setting.**
+ * A `companion` is narrated by the narrator, with the player able to address,
+ * direct and influence but **not author** — 06 §8 calls that *"the 'we are not
+ * building a D&D engine' line, and the difference between a party member and a
+ * second player"*. `auto` is the same structure with a different lifetime: the
+ * guide who walks you to the next town. `player` is yours to write.
+ *
+ * *`player` may apply to more than one member*, which 06 §8 resolves explicitly:
+ * one human authoring two characters is allowed, and it is the seam where
+ * genuine multiplayer would eventually attach.
+ */
+export const CONTROLS = ['player', 'companion', 'auto'] as const;
+export type Control = (typeof CONTROLS)[number];
+
+/**
+ * Who is travelling with you — [06 §8], built at [P7.3].
+ *
+ * **The party is a subset of the cast and not a rival to it.** Presence says who
+ * is in the room; the roster (`cast.actors`) says which cards this session
+ * plays with; this says who is *with you*, which is a third question and the one
+ * [10 §13.2] wants marked on the panel *"without introducing a parallel
+ * membership concept"* — satisfied by marking a subset rather than listing one.
+ *
+ * **A timeline, not a set**, which is 06 §8's fifth design rule and which a
+ * channel gives for nothing: *"who was with me in chapter two"* is a walk up the
+ * path, and *"joined at turn 40"* — the ordinal the design found and rejected,
+ * because a turn's position is a fact about a path and differs per branch — is
+ * not expressible here at all. An effect carries a `turnId`, which is 07 §3's
+ * rule enforced by the shape rather than remembered.
+ *
+ * **`model-proposed`, like presence, and with no `confirm`.** Somebody joining
+ * or leaving the party is a thing the story narrates. It carries none of
+ * `se.status`' asymmetry: a character wrongly written out of the party is
+ * corrected in a click and the story is unchanged, where a wrongly-killed one
+ * has every subsequent turn assembled around their absence.
+ */
+export const PARTY_CHANNEL: ChannelDefinition = {
+  id: SE_PARTY,
+  owner: CAST_OWNER,
+  scope: 'actor',
+  version: 1,
+  update: 'model-proposed',
+  visibility: 'player',
+  /**
+   * **A `control`, or absent.** Not a boolean plus a second channel for who
+   * authors: 06 §8's second rule is *"default is one member, `control:
+   * 'player'`"*, so membership and authorship arrive together and a member with
+   * no control would be a state the design does not describe.
+   */
+  schema: { type: 'string', enum: [...CONTROLS] },
+  /**
+   * **Absent is not in the party**, and the read-time invariant below is what
+   * makes that compatible with 06 §8's first rule — *"the party always exists
+   * and always contains the persona"*. An `init` of `player` would put the whole
+   * cast in the party the moment anything asked, which is the same mistake
+   * `se.presence` declines for the same reason.
+   */
+  init: { kind: 'literal', value: null },
+  /**
+   * No `render` and no `budget`, like presence and status. Who is travelling
+   * with you is already in the prose that put them there, and a line saying
+   * *Vera: companion* beside it is tokens spent on the obvious. The panel is the
+   * surface.
+   */
+  budget: null,
+};
+
+/**
  * **Introduced: this actor has been the subject of a presence or party effect at
  * some point on the path to this node** — [06 §8.1]'s definition, verbatim, and
  * this is its first implementation.
@@ -152,10 +227,13 @@ export const STATUS_CHANNEL: ChannelDefinition = {
  * arrival and they are un-introduced again, which is what anyone would expect
  * and would otherwise have had to be built.
  *
- * *Party effects count and there are none yet*, because `se.party` waits on
- * P7.3's policy (see this module's header). The predicate names both from the
- * first line written so that adding the channel adds no case here — which is
- * also why it matches by channel id rather than by a list of two.
+ * ~~*Party effects count and there are none yet*, because `se.party` waits on
+ * P7.3's policy~~ — **it exists since [P7.3]** (see this module's header), and
+ * nothing here changed to admit it. *The predicate named both from the first
+ * line written so that adding the channel would add no case, and the test that
+ * covered a party effect was written against an id nothing declared; both stayed
+ * exactly as they were. That is the payoff for matching by channel id rather
+ * than by a list of two.*
  */
 export function introducedOn(path: readonly Turn[]): Set<string> {
   const introduced = new Set<string>();
@@ -181,12 +259,14 @@ export function introducedOn(path: readonly Turn[]): Set<string> {
 /**
  * The channels whose effects introduce somebody.
  *
- * `se.party` is named here before it exists, which is the one place in this
- * module that is worth doing: the predicate's definition says *presence or
- * party*, and a list that omitted the second would be a definition quietly
- * narrowed to what happened to be built.
+ * ~~`se.party` is named here before it exists~~ — **and it exists now** ([P7.3]),
+ * so the literal became the constant. *Naming it early was the one place in this
+ * module worth doing so: the predicate's definition says **presence or party**,
+ * and a list that omitted the second would have been a definition quietly
+ * narrowed to what happened to be built. The test that covered it was written
+ * against an id nothing declared and did not have to change.*
  */
-const INTRODUCING: readonly string[] = [SE_PRESENCE, 'se.party'];
+const INTRODUCING: readonly string[] = [SE_PRESENCE, SE_PARTY];
 
 /** Whether a status is one a story does not come back from — [06 §6.1]. */
 export function isTerminal(status: unknown): boolean {
@@ -217,13 +297,60 @@ export function readPresence(
   return channels[channelKey(SE_PRESENCE, actorId)]?.value === true;
 }
 
-/** Every actor this session's channels say anything about, by scope key. */
+/**
+ * Who authors this actor, if they are in the party at all — [06 §8], [P7.3].
+ *
+ * **The persona's membership is the reader's invariant, not the log's.** 06 §8's
+ * first rule is *"the party always exists and always contains the persona…
+ * a solo game is a party of one"*, written *"as an invariant so the code has one
+ * shape instead of two"* — and an invariant a session has to have written an
+ * effect to satisfy is not one, because a session is created before its first
+ * turn. So it is answered here, the same way `readStatus` answers `alive` for
+ * somebody nothing has said anything about.
+ *
+ * *The log may still say something about the persona — `companion` is a
+ * coherent thing for a story to narrate about a character you were writing — and
+ * what it may not do is remove them, because there is no value for that: the
+ * channel's absence means absent and the persona's absence is what rule 1
+ * forbids.*
+ */
+export function readParty(
+  channels: Readonly<Record<string, { value: unknown }>>,
+  actorId: string,
+  persona?: string | null,
+): Control | null {
+  const held = channels[channelKey(SE_PARTY, actorId)]?.value;
+  if (typeof held === 'string' && (CONTROLS as readonly string[]).includes(held)) {
+    return held as Control;
+  }
+  // The empty check is not redundant: `cast.persona` is `string | null` and a
+  // hand-edited `""` is a persona nobody has chosen, which must not make every
+  // actor with an empty id a party member.
+  return persona !== undefined && persona !== null && persona !== '' && actorId === persona
+    ? 'player'
+    : null;
+}
+
+/**
+ * Every actor this session's channels say anything about, by scope key.
+ *
+ * **By key rather than by value**, which is load-bearing in both directions:
+ * somebody the story has walked out of the room still has a `false` presence and
+ * is still someone this story is about, and [P7.3] measured that a value-based
+ * read cannot tell *elsewhere* from *never here* at all. It is also why this
+ * cannot be a roster — `inverseOf` deletes a key when undoing an arrival, which
+ * is right for presence and would be an eviction for a cast list.
+ *
+ * *`se.party` joined the three at [P7.3], with the channel.*
+ */
+const ABOUT_ACTORS: readonly string[] = [SE_PRESENCE, SE_STATUS, SE_PARTY];
+
 export function actorsWithState(
   channels: Readonly<Record<string, { value: unknown }>>,
 ): Set<string> {
   const actors = new Set<string>();
   for (const key of Object.keys(channels)) {
-    if (!keyBelongsTo(key, SE_PRESENCE) && !keyBelongsTo(key, SE_STATUS)) continue;
+    if (!ABOUT_ACTORS.some((id) => keyBelongsTo(key, id))) continue;
     const { scopeKey } = splitChannelKey(key);
     if (scopeKey !== null) actors.add(scopeKey);
   }
@@ -256,6 +383,17 @@ export interface CastRow {
   pending: string | null;
   /** [06 §8.1]'s predicate, for a panel that wants to say *not yet met*. */
   introduced: boolean;
+  /**
+   * Who authors them, when they are travelling with you — [06 §8], [10 §13.2],
+   * [P7.3]. `null` is *in the story and not in the party*, which is most of the
+   * cast most of the time.
+   *
+   * **The control and not a boolean**, because the panel *"marks party members
+   * distinctly"* and *companion* and *player* are the distinction worth marking:
+   * one of them is a character you write and the other is one the narrator
+   * writes for you.
+   */
+  party: Control | null;
 }
 
 /**
@@ -275,13 +413,13 @@ export interface CastRow {
  * different things from it — this one wants rows including the persona's, and
  * the assembler wants actors excluding it.*
  *
- * *Party members are not marked, because there is no party channel yet.*
- * 10 §13.2 says *"the panel marks party members distinctly and introduces no
- * parallel membership concept"*, and the way to honour the second half while the
- * first is unbuildable is to mark nothing rather than to invent a second source
- * of truth about who is in the story — which that sentence calls *"exactly the
- * class of bug this section exists to surface"*. It arrives with `se.party` at
- * P7.3.
+ * ~~*Party members are not marked, because there is no party channel yet.*~~
+ * **They are marked since [P7.3]**, when `se.party` arrived with the widened
+ * `select` it was waiting on. 10 §13.2 says *"the panel marks party members
+ * distinctly and introduces no parallel membership concept"*, and both halves
+ * hold: `party` is a third value on a row that already exists, read from a
+ * channel keyed the same way as presence, so there is no second list of who is
+ * in the story to disagree with the first.
  */
 export function castRows(
   cast: { persona?: string | null; actors?: string[] } | undefined,
@@ -295,12 +433,15 @@ export function castRows(
   for (const actorId of cast?.actors ?? []) ids.add(actorId);
   if (cast?.persona != null && cast.persona !== '') ids.add(cast.persona);
 
+  const persona = cast?.persona ?? null;
+
   return [...ids].sort().map((actorId) => ({
     actorId,
     presence: readPresence(channels, actorId),
     status: readStatus(channels, actorId),
     pending: pending.get(actorId) ?? null,
     introduced: introduced.has(actorId),
+    party: readParty(channels, actorId, persona),
   }));
 }
 

@@ -972,9 +972,13 @@ it decides whether to open a stream or offer an input box.
 `health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
 channels declaring a `surface`, already rendered through their own `render`
 template; `cast` is one row per person this story is about — presence, status,
-an unanswered terminal proposal, and whether they have been introduced
-([06 §8.1](design/06-modes-and-turn-pipeline.md),
-[10 §13.2](design/10-ui-surfaces.md)). All three are reconstructed at the
+an unanswered terminal proposal, whether they have been introduced, and who
+authors them if they are travelling with you
+([06 §8](design/06-modes-and-turn-pipeline.md) for the last,
+[06 §8.1](design/06-modes-and-turn-pipeline.md) and
+[10 §13.2](design/10-ui-surfaces.md) for the rest). The rows are the union of the
+session's roster and everyone the channels name, which is the same set the
+prompt is assembled around. All three are reconstructed at the
 session's head, so they are the state a panel should be showing rather than a
 summary of the file.
 

@@ -8,8 +8,10 @@ import {
   castRows,
   introducedOn,
   isTerminal,
+  readParty,
   readPresence,
   readStatus,
+  SE_PARTY,
   SE_PRESENCE,
   SE_STATUS,
 } from './cast.js';
@@ -276,6 +278,75 @@ describe('introduced', () => {
  * read the union, and `turns/cast.test.ts` holds that fixed. The workplan's
  * P7.3 cell carries the decision and §1.6 carries the correction.
  */
+/**
+ * Who is travelling with you — [06 §8], [P7.3].
+ *
+ * **The party is a third question, not a rival to the first two.** Presence says
+ * who is in the room and status says who is alive; this says who is *with you*,
+ * and 06 §8's six design rules are what these assert against. The first rule is
+ * the one with a shape consequence: *"the party always exists and always
+ * contains the persona… a solo game is a party of one"*, which has to be a
+ * read-time invariant because a session is created before its first turn and an
+ * invariant that needs an effect written is not one.
+ */
+describe('the party', () => {
+  function withParty(actorId: string, control: unknown): Record<string, ChannelState> {
+    return { [channelKey(SE_PARTY, actorId)]: { version: 1, value: control } };
+  }
+
+  it('is empty for somebody nothing has said anything about', () => {
+    expect(readParty({}, 'vera')).toBeNull();
+  });
+
+  it('carries the control, because membership and authorship arrive together', () => {
+    // 06 §8's second rule makes them one fact: a member with no control would be
+    // a state the design does not describe.
+    expect(readParty(withParty('vera', 'companion'), 'vera')).toBe('companion');
+    expect(readParty(withParty('vera', 'auto'), 'vera')).toBe('auto');
+  });
+
+  it("always contains the persona, which is the reader's invariant", () => {
+    // Rule 1, answered here rather than by an effect nobody could have written:
+    // a session is created before its first turn.
+    expect(readParty({}, 'ned', 'ned')).toBe('player');
+  });
+
+  it('lets the story say something else about the persona', () => {
+    // `companion` is a coherent thing to narrate about a character you were
+    // writing. What the channel cannot express is removing them, because absence
+    // means absent and rule 1 forbids the persona being absent.
+    expect(readParty(withParty('ned', 'companion'), 'ned', 'ned')).toBe('companion');
+  });
+
+  it('reads a control it does not know as no membership', () => {
+    // The schema refuses one on the way in; a hand-edited file is the path that
+    // gets past it, and `null` is the answer that makes the panel say nothing
+    // rather than invent a word for it.
+    expect(readParty(withParty('vera', 'regent'), 'vera')).toBeNull();
+    expect(readParty(withParty('vera', 7), 'vera')).toBeNull();
+  });
+
+  it('puts somebody in the panel on a party effect alone', () => {
+    // `actorsWithState` matches on the key, so a character the story has only
+    // ever said a party thing about is still one this story is about.
+    expect([...actorsWithState(withParty('vera', 'companion'))]).toEqual(['vera']);
+  });
+
+  it('marks the row, and marks most rows with nothing', () => {
+    const rows = castRows(
+      { persona: 'ned', actors: ['vera', 'lund'] },
+      withParty('vera', 'companion'),
+      [],
+    );
+
+    expect(rows.map((row) => [row.actorId, row.party])).toEqual([
+      ['lund', null],
+      ['ned', 'player'],
+      ['vera', 'companion'],
+    ]);
+  });
+});
+
 describe('the party deferral', () => {
   beforeEach(async () => {
     await installBuiltIns();

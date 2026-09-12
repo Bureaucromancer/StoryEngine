@@ -80,33 +80,68 @@ export interface ModePreset {
 }
 
 /**
- * [P2 §2.4]'s *"no participant policy beyond the user and one actor"*, written
- * as exactly that.
+ * ~~[P2 §2.4]'s *"no participant policy beyond the user and one actor"*, written
+ * as exactly that.~~ **[06 §7.2]'s taxonomy, widened at [P7.3]** — 2026-09-12.
  *
- * `select: 'fixed'` is load-bearing rather than decorative: it is **the
+ * `select: 'fixed'` was load-bearing rather than decorative: it was **the
  * declaration that the cast cannot change as an outcome of a turn**, which is
- * what licenses a plain `cast` field on the session instead of an `se.party`
- * channel — the channel [P2 §2.7] rejected as placeholder-shaped. [06 §7.2]'s
- * fuller taxonomy adds arms here at P7; it does not change this shape.
+ * what licensed a plain `cast` field on the session instead of an `se.party`
+ * channel — the channel [P2 §2.7] rejected as placeholder-shaped. That licence
+ * expired here, and `se.party` landed in the same commit, which is what
+ * `sessions/cast.test.ts`' tripwire was built to force.
+ *
+ * *What the field no longer licenses and never did is the **roster**: [P7.3]
+ * measured that `se.presence`'s `init: false` cannot express one, so
+ * `cast.actors` stays a session field and the two casts are reconciled in
+ * `resolveCast` instead. The tripwire carries that correction.*
+ *
+ * **The four arms are SillyTavern's activation strategies**, which [06 §7.2]
+ * takes as the taxonomy — *"with the implementation being **the policy selects
+ * speakers**, not card-swapping"*. So none of them decides who is in the story;
+ * they decide who talks this turn, over whoever presence and status say is
+ * available:
+ *
+ * - `natural` — whoever the scene just addressed. The heuristic is the last
+ *   turn's prose scanned for names, which is ST's and is honestly a heuristic.
+ * - `list` — each in turn, rotating.
+ * - `pooled` — one at random, drawn on the turn's tape so a replay is the same
+ *   scene.
+ * - `manual` — whoever the player named with the input, and nobody otherwise.
+ *
+ * **Lowercase, where the design note writes them as ST's constants.** A
+ * `select` value lands in a mode definition, which is *content*, and every
+ * neighbouring vocabulary in this file is lowercase — `merged`, `per-actor`,
+ * `narrator`, `embodied`. `NATURAL` would be the only shouted id in the build,
+ * spelled that way because a different program spells its enum that way.
+ *
+ * **`fixed` stays and is not one of the four.** It is the honest answer for a
+ * mode that seats one actor, and removing it would force Scene to claim a
+ * selection strategy for a choice it does not make.
  */
-export const PARTICIPANT_SELECTORS = ['fixed'] as const;
+export const PARTICIPANT_SELECTORS = ['fixed', 'natural', 'list', 'pooled', 'manual'] as const;
 
 export interface ParticipantPolicy {
   /**
    * **A runtime list as well as a type, so a deferral can be held to it** —
-   * [P7.2], 2026-09-11.
+   * [P7.2], 2026-09-11. ***It worked: the arm landed at [P7.3] and the test went
+   * red, which is how one of its three clauses came to be examined and
+   * withdrawn.***
    *
    * The docstring above says `select: 'fixed'` is what licenses a plain `cast`
-   * field instead of an `se.party` channel. That licence expires the moment a
-   * second arm lands, and until now the only thing that would have noticed was
-   * somebody remembering — which, on this document's own evidence, is what a
-   * deferral routed to a later phase does not survive. `PARTICIPANT_SELECTORS`
-   * is what `sessions/cast.test.ts` reads to fail the day the arm arrives.
-   *
-   * *[06 §7.2]'s fuller taxonomy is what widens this at P7.3; it adds arms and
-   * does not change the shape.*
+   * field instead of an `se.party` channel. That licence expired the moment a
+   * second arm landed, and the only thing that would otherwise have noticed was
+   * somebody remembering — which, on [P7 §0.1a]'s evidence, is what a deferral
+   * routed to a later phase does not survive.
    */
   select: (typeof PARTICIPANT_SELECTORS)[number];
+  /**
+   * How many actors a person may seat, checked at the create and cast routes.
+   *
+   * **An input bound on configuration, not a cap on the story.** A character the
+   * model walks into a three-seat scene is already there; `resolveCast` loads
+   * their card and the budgeter decides what fits, because refusing would
+   * assemble the turn around somebody the record says is present ([P7.3]).
+   */
   maxActors: number;
 }
 

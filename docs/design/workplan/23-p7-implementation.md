@@ -1401,7 +1401,10 @@ carries the ordering; the stages should carry it too.
 no implementation to have got it wrong yet. `se.party`, `se.presence` and
 `se.status` return no hits across `packages/` outside an unknown-channel test
 fixture and two docstrings — so this cell is not confirmation, it is an unspent
-obligation.*
+obligation.* **Spent: presence and status at [P7.2], `se.party` at [P7.3] with
+the widened `select` it was waiting on. And the unknown-channel test fixture was
+one of the two costs of spending it — it used `se.party` as its stand-in for an
+id nothing owns, which stopped being true.**
 
 *Introduced* is neither, and [06 §8.1](../06-modes-and-turn-pipeline.md) defines
 it over presence and party effects: *"this actor has been the subject of a
@@ -2497,6 +2500,57 @@ instead of after. Its `cast.actors` clause now asserts the field **stays** — i
 both branches — so the withdrawn obligation cannot be acted on later from §1.6's
 original sentence. The other two clauses stand: `se.party` and `CastRow.party`
 are still owed when `select` widens.
+
+**Done: `select` widened, and the two standing clauses discharged with it**
+(2026-09-12). `PARTICIPANT_SELECTORS` is `fixed | natural | list | pooled |
+manual`; `se.party` is declared beside presence and status; `CastRow.party`
+carries the `control` and the panel marks it. One commit, because the tripwire
+is what says they are one change — a party channel declared under a policy that
+still said the cast cannot change is the placeholder [P2 §2.7] rejected, and the
+widened policy with no party channel is the deferral travelling on its label
+again.
+
+*Lowercase arms where [06 §7.2] writes ST's constants.* A `select` value lands in
+a mode definition, which is content, and every neighbouring vocabulary is
+lowercase — `merged`, `per-actor`, `narrator`, `embodied`. `NATURAL` would be the
+only shouted id in the build, spelled that way because a different program spells
+its enum that way.
+
+**`turns/speakers.ts` is the consumer, and it is the first real reader of
+[P7.2]'s channels.** Eligibility is *present, and not written out of the story*,
+so a character who left the room does not answer and a dead one does not speak —
+which is also the honest reason the taxonomy could not have been built before
+P7.2: a selector over a cast with no notion of presence picks from everyone the
+session has ever named. Per arm: `list` rotates on the **path's depth**, which is
+[07 §3]'s rule satisfied rather than dodged (a path to a node is a fact about the
+node, where `(branch, index)` is not); `pooled` draws through the turn's tape
+with `weightedPick`, so a replay is the same scene and a winner who has since
+died is redrawn rather than replayed — `random.ts` names that hazard and this is
+its first caller; `natural` is ST's name-scan over the player's input and the
+last prose, and is described as the heuristic it is; `manual` takes the input's
+actor and answers **nobody** when none was named, which is why `speakers` had to
+be able to be empty. `fixed` makes no selection at all and reaches a step as
+*absent*, so nothing about a shipped mode changed.
+
+**Selected once, before the step loop.** Two steps must not be able to disagree
+about who is speaking, and a `pooled` draw computed per step would put a
+different number of draws on the tape depending on how many steps the plan
+happened to run — a replay diverging for a reason nobody could see.
+
+*The stage's* Ends at *is a test rather than a claim*: `ENSEMBLE_MODE` in
+`test-mode.ts` declares `select: 'list'`, and `runner.test.ts` runs two turns
+through it and asserts the rotation by name — over a cast of two, an assertion
+satisfiable by either actor is satisfied by a selector that ignores its policy.
+A third case pins that the rotation is over who is *eligible* rather than over
+`cast.actors`.
+
+*Two small things the change turned up.* `effects.test.ts` used `se.party` as its
+stand-in for an unknown channel, so declaring it moved that refusal from
+`unknown-channel` to `schema`; the fixture is now an id from somebody else's
+namespace, because a planned-but-unbuilt id is exactly the wrong fixture for
+*unknown*. And `steps.test.ts`' `Record<keyof Required<StepInput>, true>` stopped
+compiling the moment `speakers` was added, which is [P7 §1.3]'s seam guard doing
+the job it was written for.
 
 ### P7.4 — Setup objects and the declarative wizard
 

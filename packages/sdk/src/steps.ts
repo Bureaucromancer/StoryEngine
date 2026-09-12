@@ -173,6 +173,28 @@ export interface StepInput {
   sessionId: string;
   parentTurnId: string | null;
   input?: { actorId: string | null; kind: string; text: string; raw: string };
+  /**
+   * **Who the mode's participant policy says talks this turn** — [06 §7.2],
+   * [P7.3].
+   *
+   * Actor ids, in the order the policy chose them, over whoever presence and
+   * status say is available. A step that makes one merged call can ignore it; a
+   * step that speaks for somebody passes one of these as
+   * `StepCallRequest.actorId`, which is how an actor reaches `resolveRole`'s
+   * last layer.
+   *
+   * **Not filtered by `reads`, and the exception is principled.** [22 §3.1]'s
+   * payload filter is about *sources* — a channel, the history, the output —
+   * things a step might not be entitled to. This is the mode's own declaration
+   * applied to the mode's own turn, so every step of that mode is entitled to
+   * it by construction, the same way `input` is. A `reads: ['speakers']` would
+   * be a fourth pseudo-source in a set [06 §6] names as two.
+   *
+   * **Empty is a real answer**, and `manual` is where it happens: nobody was
+   * named, so nobody in particular is speaking. It is not the same as absent,
+   * which is a turn whose mode declares `fixed` and makes no selection at all.
+   */
+  speakers?: readonly string[];
   /** Only the channels `reads` named. */
   channels: Record<string, ChannelState>;
   /** Present only when `reads` includes `history`. */

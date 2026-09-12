@@ -38,3 +38,38 @@ export function castBadge(row: { presence: boolean; status: string }): string {
 export function isTerminalBadge(status: string): boolean {
   return status === 'dead' || status === 'departed';
 }
+
+/**
+ * How a party member is marked — [10 §13.2], [P7.3].
+ *
+ * **A second badge, not a second panel and not a word folded into the first.**
+ * 10 §13.2 asks the panel to *"mark party members distinctly and introduce no
+ * parallel membership concept"*: a separate list would be the parallel concept,
+ * and folding it into `castBadge` would put two unrelated facts in one word —
+ * *here* and *with you* are different questions, and a cast member can be either
+ * without the other.
+ *
+ * **The `control` and not just membership**, because that is the distinction
+ * worth marking: 06 §8's third rule is that *"a companion is narrated by the
+ * narrator, with the player able to address, direct and influence but not
+ * author"*, which is the difference between a character you write and one
+ * written for you. A panel that said only *in the party* would hide the one
+ * thing a person needs to know before they try to speak as somebody.
+ *
+ * `null` is most of the cast most of the time, and gets no mark at all.
+ */
+export function partyBadge(control: string | null): string | null {
+  switch (control) {
+    case 'player':
+      return 'You write them';
+    case 'companion':
+      return 'Companion';
+    case 'auto':
+      return 'With you';
+    default:
+      // Including a control from a newer build: an unknown word is not a mark
+      // this one can explain, and inventing a sentence for it would be worse
+      // than saying nothing.
+      return null;
+  }
+}

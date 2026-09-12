@@ -13,11 +13,13 @@ import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { readClock, SE_CLOCK } from '../sessions/channels.js';
+import { SE_PRESENCE } from '../sessions/cast.js';
 import { readAllTurns } from '../sessions/segments.js';
 import {
   appendTurnToSession,
   createSession,
   readSession,
+  writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
 import type { Turn } from '../sessions/types.js';
@@ -31,8 +33,9 @@ import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
 import { installBuiltIns } from '../mode-loader.js';
+import { registerMode } from '../mode-registry.js';
 
-import { TEST_PRESET, TEST_STEP } from '../test-mode.js';
+import { ENSEMBLE_MODE, ENSEMBLE_MODE_ID, TEST_PRESET, TEST_STEP } from '../test-mode.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
@@ -2395,5 +2398,131 @@ describe('the history the runner hands the collector', () => {
     // Twenty turns of history, not twenty-five — and the newest ones.
     expect(turnIds.size).toBe(20);
     expect(turnIds.has(parent ?? '')).toBe(true);
+  });
+});
+
+/**
+ * **A mode whose `select` is not `fixed`, running** — [P7.3]'s own *Ends at*,
+ * and [06 §7.2]'s *"the policy selects speakers"*.
+ *
+ * The unit tests in `speakers.test.ts` say what each arm decides; what only a
+ * turn can say is that the decision is **made once, before the loop, and reaches
+ * a step**. `ENSEMBLE_MODE` declares `select: 'list'` and its step echoes what it
+ * was handed, which is the one way a selection is observable from outside —
+ * downstream, a merged call names nobody by design and `actorId` reaches
+ * `resolveRole` and stops.
+ */
+describe('a mode that selects speakers', () => {
+  beforeEach(() => {
+    /**
+     * Process-wide and not cleared afterwards, which is safe rather than
+     * sloppy: nothing else in the build names this id, and `installBuiltIns`
+     * re-registers the real modes on every `beforeEach` in this file. A
+     * fixture that needed *removing* would be a reason to give the registry a
+     * reset; this one does not.
+     */
+    registerMode(ENSEMBLE_MODE);
+  });
+
+  /** A session playing the ensemble fixture, with the named actors in the room. */
+  async function ensemble(actors: string[], present = actors): Promise<string> {
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Ensemble',
+      mode: { id: ENSEMBLE_MODE_ID, config: null },
+      preset: TEST_PRESET,
+      cast: { persona: null, actors },
+    });
+    // Present, because eligibility is presence and status — which is the half of
+    // the taxonomy that could not have been built before [P7.2]. Each write is a
+    // bookkeeping turn, which is also what makes the depth arithmetic below
+    // worth pinning.
+    for (const id of present) {
+      await writeChannel(sessions, ACCOUNT, session.id, `${SE_PRESENCE}#${id}`, true);
+    }
+    return session.id;
+  }
+
+  /** One turn, and who its step said it was speaking for. */
+  async function spoke(sessionId: string, key: string): Promise<{ turn: Turn; chosen: string }> {
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId,
+      idempotencyKey: key,
+      headTurnId: head,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, {
+      input: { actorId: null, kind: 'do', text: 'Well?', raw: 'Well?' },
+    });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const turn = onRecord(written.at(-1), 'the turn on disk').turn;
+    const text = turn.output?.text ?? '';
+    return { turn, chosen: text.slice(1, text.indexOf(']')) };
+  }
+
+  /**
+   * **Two turns, because one proves nothing about a rotation.** Over a cast of
+   * two, any assertion satisfiable by *either* actor is satisfied by a selector
+   * that ignores its policy — so what is pinned is that the second turn answers
+   * the *other* one, and which one each is.
+   *
+   * The arithmetic is worth spelling out because it is also the branching claim:
+   * `list` rotates on the path's **depth**, the two presence writes above are
+   * two turns on that path, so the first prose turn is depth 2 and takes
+   * `pool[0]`, and the second is depth 3 and takes `pool[1]`. Nothing counts
+   * prose turns, and nothing remembers who spoke — the node determines it, which
+   * is what makes two branches rotate independently for free ([07 §3]).
+   */
+  it('rotates through the cast, a turn each, and commits', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id]);
+
+    const first = await spoke(sessionId, 'ensemble-1');
+    expect(first.turn.status).toBe('complete');
+    expect(first.chosen).toBe(vera.id);
+
+    const second = await spoke(sessionId, 'ensemble-2');
+    expect(second.turn.status).toBe('complete');
+    expect(second.chosen).toBe(lund.id);
+  });
+
+  it('skips somebody who is not in the room, so the policy reads the channels', async () => {
+    // The same cast and the same depth, with Vera absent — so a selector that
+    // rotated over `cast.actors` rather than over who is eligible would still
+    // answer Vera and this is what would notice.
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], [lund.id]);
+
+    expect((await spoke(sessionId, 'absent-1')).chosen).toBe(lund.id);
+  });
+
+  it('selects nobody when the room is empty, and still runs the turn', async () => {
+    // The whole cast absent is the case a selector must not turn into a failure:
+    // [00 §3.3] is resolve what you can, and a scene with nobody in it is a
+    // scene the narrator answers.
+    makeRunner();
+    const vera = newActor('Vera');
+    await create(library, ACCOUNT, vera);
+
+    const sessionId = await ensemble([vera.id], []);
+    const only = await spoke(sessionId, 'ensemble-empty');
+
+    expect(only.turn.status).toBe('complete');
+    expect(only.turn.output?.text.startsWith('[] ')).toBe(true);
   });
 });

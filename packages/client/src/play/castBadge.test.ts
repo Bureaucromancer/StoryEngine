@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { castBadge, isTerminalBadge } from './castBadge.js';
+import { castBadge, isTerminalBadge, partyBadge } from './castBadge.js';
 
 /**
  * One badge from two axes — [10 §13.2], [P7.2].
@@ -39,5 +39,39 @@ describe('castBadge', () => {
     // it.
     expect(castBadge({ presence: true, status: 'imprisoned' })).toBe('Here');
     expect(isTerminalBadge('imprisoned')).toBe(false);
+  });
+});
+
+/**
+ * The party mark — [10 §13.2], [P7.3].
+ *
+ * A **second** badge rather than a word folded into the first, because *here*
+ * and *with you* are different questions and a cast member can be either without
+ * the other. What it says is the `control`, which is the distinction 06 §8's
+ * third rule makes load-bearing: a companion is narrated *for* you.
+ */
+describe('the party mark', () => {
+  it('says nothing for most of the cast, which is not in the party', () => {
+    expect(partyBadge(null)).toBeNull();
+  });
+
+  it('distinguishes a character you write from one written for you', () => {
+    // 06 §8: *"a companion is narrated by the narrator, with the player able to
+    // address, direct and influence but not author"* — which is the one thing a
+    // person needs to know before they try to speak as somebody.
+    expect(partyBadge('player')).toBe('You write them');
+    expect(partyBadge('companion')).toBe('Companion');
+  });
+
+  it('marks a temporarily-attached member without claiming who writes them', () => {
+    // 06 §8's fourth rule: the guide who walks you to the next town. Same
+    // structure, different lifetime.
+    expect(partyBadge('auto')).toBe('With you');
+  });
+
+  it('says nothing for a control it does not know', () => {
+    // A newer build's fourth arm. An invented sentence for it would be worse
+    // than no mark, because the mark is what a person acts on.
+    expect(partyBadge('regent')).toBeNull();
   });
 });

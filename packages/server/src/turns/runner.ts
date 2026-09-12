@@ -42,6 +42,7 @@ import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
 import { planFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
+import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
 
 /**
  * The step loop — [P2 §2.5], [P2 §2.10], [06 §6].
@@ -438,6 +439,36 @@ export class TurnRunner {
     }
 
     /**
+     * **Who talks this turn** — [06 §7.2]'s participant policy, [P7.3].
+     *
+     * **Once per turn and before the loop**, for two reasons that pull the same
+     * way. A selection is a fact about the turn rather than about a step, so two
+     * steps must not be able to disagree about who is speaking; and `pooled`
+     * draws, so computing it per step would put a different number of draws on
+     * the tape depending on how many steps the plan happened to run — which is
+     * a replay that diverges for a reason nobody could see.
+     *
+     * *The site is the selector's own, so a `pooled` mode's draw sits beside the
+     * retriever's and the dice on one tape, under a name a person reading a
+     * replay can recognise.*
+     */
+    const spoken = lastProse(history);
+    const speakers = selectsSpeakers(mode.definition.participants)
+      ? selectSpeakers({
+          policy: mode.definition.participants,
+          actors: cast.actors,
+          persona: cast.persona?.actor.id ?? null,
+          channels: running,
+          depth: history.length,
+          draw: rng.at('se.participants', 'speaker'),
+          ...(payload.input === undefined
+            ? {}
+            : { input: { actorId: payload.input.actorId, text: payload.input.text } }),
+          ...(spoken === undefined ? {} : { lastProse: spoken }),
+        })
+      : undefined;
+
+    /**
      * Candidates the *steps* contributed, kept outside the loop.
      *
      * The preset's own are re-collected per call, because a block's
@@ -497,6 +528,7 @@ export class TurnRunner {
             sessionId: job.sessionId,
             parentTurnId: job.parentTurnId,
             ...(payload.input === undefined ? {} : { input: payload.input }),
+            ...(speakers === undefined ? {} : { speakers }),
             channels: running,
             history,
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),

@@ -193,6 +193,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     sessionId: true,
     parentTurnId: true,
     input: true,
+    speakers: true,
     channels: true,
     history: true,
     output: true,
@@ -219,6 +220,9 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
       sessionId: 's',
       parentTurnId: null,
       input: { actorId: null, kind: 'do', text: 'She waited.', raw: 'She waited.' },
+      // A readonly array, which is where a frozen input would cross badly — and
+      // the shape a mode with a widened `select` hands every step ([P7.3]).
+      speakers: ['actor-vera'],
       channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
       history: [historyTurn()],
       output: { text: 'The rain did not let up.' },

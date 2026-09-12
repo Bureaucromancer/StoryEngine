@@ -110,7 +110,19 @@ describe('a proposal is judged against the channel that owns it', () => {
     // A mode or extension that is not loaded may own it. A turn that died
     // because of an unrecognised id would be a worse outcome than a refusal
     // somebody can read.
-    const effect = acceptEffect('t1', proposal({ channelId: 'se.party', after: [] }), atStart());
+    //
+    // **An id from somebody else's namespace, and that is the point** ([P7.3]).
+    // This said `se.party` until the channel was declared, at which point the
+    // refusal moved from `unknown-channel` to `schema` and this test failed for
+    // a reason that had nothing to do with what it is about. A planned-but-
+    // unbuilt id is exactly the wrong fixture for *unknown*: it is scheduled to
+    // stop being unknown. `se.` is this build's prefix, so nothing under it is
+    // safe to borrow.
+    const effect = acceptEffect(
+      't1',
+      proposal({ channelId: 'com.example.nobody/ledger', after: [] }),
+      atStart(),
+    );
 
     expect(effect.applied).toBe(false);
     expect(effect.rejectedReason).toBe('unknown-channel');

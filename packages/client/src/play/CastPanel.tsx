@@ -9,7 +9,7 @@ import { Alert } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { Fine } from '../ui/Text.js';
-import { castBadge, isTerminalBadge } from './castBadge.js';
+import { castBadge, isTerminalBadge, partyBadge } from './castBadge.js';
 
 /**
  * The cast panel — [10 §13.2](../../../../docs/design/10-ui-surfaces.md),
@@ -32,13 +32,18 @@ import { castBadge, isTerminalBadge } from './castBadge.js';
  * **One badge from two axes**, derived in `castBadge` where it can be tested.
  * The split stays in the data.
  *
- * **Party members are not marked, and the absence is deliberate.** 10 §13.2 says
- * the panel *"marks party members distinctly and introduces no parallel
- * membership concept"* — and while `se.party` does not exist (it waits on P7.3's
- * policy, per [P7 §1.6]), honouring the second half means marking nothing rather
- * than inventing a second source of truth about who is in the story, which that
- * same paragraph calls *"exactly the class of bug this section exists to
- * surface"*.
+ * ~~**Party members are not marked, and the absence is deliberate.**~~ **They
+ * are marked since [P7.3]**, when `se.party` landed with the widened `select` it
+ * was waiting on. 10 §13.2 asks the panel to *"mark party members distinctly and
+ * introduce no parallel membership concept"*, and both halves hold: the mark is
+ * a second badge on a row that already exists, read from a channel keyed the
+ * same way as presence — so there is no second list of who is in the story to
+ * disagree with the first, which is the thing that paragraph calls *"exactly the
+ * class of bug this section exists to surface"*.
+ *
+ * *Two badges rather than one, because* here *and* with you *are different
+ * questions and a cast member can be either without the other — `castBadge`
+ * derives the first from presence and status, `partyBadge` says the second.*
  */
 export function CastPanel(props: { sessionId: string }): JSX.Element | null {
   const session = useSession(props.sessionId);
@@ -65,6 +70,7 @@ function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
   // library is a dangling reference the panel shows rather than hides ([00 §3.3]).
   const name =
     (actors.data?.objects ?? []).find((one) => one.id === row.actorId)?.name ?? row.actorId;
+  const party = partyBadge(row.party);
 
   function set(channelId: string, value: unknown): void {
     write.mutate({ key: `${channelId}#${row.actorId}`, value });
@@ -75,6 +81,7 @@ function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-ink">{name}</span>
         <Badge tone={isTerminalBadge(row.status) ? 'danger' : 'neutral'}>{castBadge(row)}</Badge>
+        {party === null ? null : <Badge tone="neutral">{party}</Badge>}
         {row.introduced ? null : <Fine>not yet met</Fine>}
       </div>
 

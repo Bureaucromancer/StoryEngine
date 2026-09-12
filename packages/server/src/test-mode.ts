@@ -382,3 +382,49 @@ export const TEST_MODE: Mode = {
     },
   },
 };
+
+/**
+ * A mode that **selects speakers** — [06 §7.2], [P7.3], and the stage's own
+ * *Ends at*.
+ *
+ * `select: 'list'` rather than `pooled`, because the exit line is about a
+ * non-`fixed` mode *running* and a deterministic arm makes that one assertion
+ * instead of two: the rotation is a function of the path, so the test says which
+ * actor and not merely that there was one. `pooled`'s draw and its replay are
+ * proved where they are cheap to prove, in `speakers.test.ts`, against a tape
+ * rather than against a turn.
+ *
+ * **Its step echoes what it was handed**, which is the only way an integration
+ * test can see a selection at all: `speakers` crosses into a step and nothing
+ * downstream records it — a merged call names nobody by design, and
+ * `StepCallRequest.actorId` reaches `resolveRole` and stops there. A fixture
+ * that exists to be observed is allowed to say what it saw; a shipped mode would
+ * not.
+ */
+export const ENSEMBLE_MODE_ID = 'storyengine.test.ensemble';
+
+export const ENSEMBLE_MODE: Mode = {
+  definition: {
+    ...TEST_MODE_DEFINITION,
+    id: ENSEMBLE_MODE_ID,
+    displayName: 'Engine test fixture — ensemble',
+    participants: { select: 'list', maxActors: 4 },
+  },
+  run: {
+    [TEST_STEP.id]: async (input, host) => {
+      /**
+       * **The first speaker, passed as `actorId`** — which is the whole chain
+       * the stage owes: a policy chooses, the engine hands the choice to the
+       * step, the step says who it speaks for, and `resolveRole` applies that
+       * actor's hint as its last and weakest layer. A mode that fanned out would
+       * make one call per speaker; that mode is [P7.9]'s and this is the engine
+       * half working for one call.
+       */
+      const result = await host.call({
+        stream: true,
+        ...(input.speakers?.[0] === undefined ? {} : { actorId: input.speakers[0] }),
+      });
+      return { message: { text: `[${(input.speakers ?? []).join(',')}] ${result.text}` } };
+    },
+  },
+};
