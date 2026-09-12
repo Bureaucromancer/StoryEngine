@@ -102,6 +102,18 @@ export interface GenerationRequest {
    * Structured output, when the caller wants it and the provider can do it.
    * Where it cannot, the caller degrades to prompted JSON — which is a decision
    * the caller makes with the capabilities in hand, not a silent fallback here.
+   *
+   * ***Honoured since [P7.4]*** (2026-09-12), and with one thing the sentence
+   * above does not say: **the adapter does not validate.** Measured against the
+   * SDK — `jsonSchema()` is a carrier that puts the document on the wire so the
+   * model is told what to write, and `{"nom":"Vera"}` comes back as a successful
+   * object against a schema requiring `name` with `additionalProperties: false`.
+   * So {@link GenerationResult.object} means *the endpoint returned parseable
+   * JSON*, never *the JSON fits*, and validating is the engine's.
+   *
+   * *The degrade is still owed: `openai-compatible` declares
+   * `supportsStructuredOutput: false` by default, so out of the box the schema
+   * is dropped and the endpoint is asked for bare JSON.*
    */
   schema?: object;
   signal?: AbortSignal;
@@ -129,7 +141,18 @@ export interface GenerationResult {
    * provider did not say* and *nobody asked* must not look alike.
    */
   finishReason: FinishReason;
-  /** Present when the caller asked for structured output and got it. */
+  /**
+   * Present when the caller asked for structured output — **`undefined` when
+   * the reply would not parse**, which is different from absent.
+   *
+   * The key is the adapter saying *you asked for a shape*; its value is whether
+   * one arrived. A call nobody asked a schema of carries no key at all, so
+   * *nobody asked* and *asked and missed* are distinguishable by the caller,
+   * which is what lets a miss be retried without retrying every prose call that
+   * happened to return nothing.
+   *
+   * **Parsed, not validated** — see {@link GenerationRequest.schema}.
+   */
   object?: unknown;
 }
 

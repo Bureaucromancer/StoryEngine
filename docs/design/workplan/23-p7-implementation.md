@@ -2583,6 +2583,59 @@ it is the largest single piece of new UI in the phase.
 declaration alone, whose failed part is retried without discarding the parts that
 succeeded.
 
+#### In progress — opened 2026-09-12
+
+**Done: the adapter speaks structured output, and three measurements changed the
+shape of what comes next.** `GenerationRequest.schema` and
+`GenerationResult.object` had been in the contract since P2.5 with the adapter
+mentioning neither, so every question about how the pair behaves was open. Each
+was answered against the SDK through the stub transport `openai-compatible.test.ts`
+already had, and each is now pinned there rather than described in a comment —
+a minor SDK bump that changed one would otherwise change what the engine believes
+about its own prompts.
+
+1. **The schema reaches the wire only when the capability says so.** The client
+   is constructed with `supportsStructuredOutputs:
+   capabilities.supportsStructuredOutput`; with it on the request carries
+   `response_format: {type: "json_schema", …}`, with it off the SDK **drops the
+   schema**, warns, and sends bare `{type: "json_object"}`. Since
+   `openai-compatible` declares the capability `false` by default — the endpoint
+   behind it could be anything — **out of the box the model is asked for JSON and
+   told nothing about its shape.** That makes the prompted-JSON degrade the
+   contract already promises a requirement rather than a precaution, and it is
+   the next thing this stage owes.
+2. **A reply that will not parse throws rather than returning**, and the error
+   carries the text, the usage, the finish reason and the response metadata. So
+   nothing is lost: the adapter reassembles the ordinary result with `object`
+   undefined, because *the model said something that was not the shape* is a
+   **result** and whether it is worth asking again is the caller's policy. A
+   fenced reply — the commonest local-model failure there is — therefore reaches
+   the record with everything it actually said.
+3. ***The SDK does not validate.*** `{"nom":"Vera"}` comes back as a successful
+   object against a schema requiring `name` with `additionalProperties: false`.
+   `jsonSchema()` is a **carrier**, not a validator. So `GenerationResult.object`
+   means *the endpoint returned parseable JSON*, never *the JSON fits* — and the
+   engine validating is not belt-and-braces, it is the only validation there is.
+   Both `GenerationRequest.schema` and `GenerationResult.object` now say so where
+   somebody would otherwise assume the SDK had done it.
+
+*`object` is present-and-undefined on a miss and absent when nobody asked, so
+those two are distinguishable — which is what will let a schema miss be retried
+without retrying every prose call that returned nothing.* The live project gained
+both capability arms, because they send different bytes and a local runtime can
+honour one and not the other; the permissive arm reports a miss rather than
+failing on it, since an endpoint asked for bare JSON and told nothing about the
+shape is entitled to write prose.
+
+**Next:** the caller's half — degrade to prompted JSON when the capability says
+the endpoint cannot take a schema, validate the object against the schema
+whichever path produced it, and give the retry ladder the validation arm it has
+never had. The prompted instruction needs a `BlockSource` arm of its own: a
+`RenderedMessage` promises `fromBlocks` non-empty, so a message the record cannot
+explain is not an option, and folding a protocol instruction into the prompt is
+the same class of thing as `systemMessage: 'fold-into-first-user'` — the caller
+rewriting a request to suit an endpoint's limits.
+
 ### P7.5 — Hooks: the pool, the selector, and the three companions
 
 The pool and its four sources; the mechanical filter; the judgement pass firing
