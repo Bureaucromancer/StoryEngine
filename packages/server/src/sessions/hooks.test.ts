@@ -18,6 +18,8 @@ import {
   SE_HOOK_PACING,
   type FilterContext,
 } from './hooks.js';
+import { walkPath } from './segments.js';
+import { replayChannels } from './store.js';
 import type { PooledHook, Turn } from './types.js';
 
 /**
@@ -756,5 +758,135 @@ describe('what the panel is shown', () => {
     expect(row?.state).toBe('committed');
     expect(row?.refusal).toBeNull();
     expect(row?.committed).toEqual({ overrode: 'too-early' });
+  });
+});
+
+/**
+ * ***Gate step 5, as the test it says it should be*** —
+ * [testing §1](../../../../docs/design/workplan/03-testing.md)'s property, [06 §6.1],
+ * [P7 §3] row 5, written at [P7.9].
+ *
+ * The step: *"Commit a hook, rewind past the commitment, and it is uncommitted
+ * — the [testing §1] property, as a test rather than a sentence."* The gate's
+ * own note calls it *"cheapest of the four hook rows: P6 property-tested the
+ * fold that answers it, so it is satisfiable the day the channel is
+ * declared"* — and it was not written on that day, which is what this closes.
+ *
+ * ***It is a test of the fold and not of the selector***, which is the whole
+ * reason it is cheap. [07 §2] makes state at a node a pure function of the
+ * effect log along the path to it, so *uncommitted after a rewind* is not a
+ * behaviour anything has to implement for hooks: it is what `walkPath` plus
+ * `replayChannels` already do, applied to a channel that now exists. **The
+ * thing that could make it false is a hook state kept anywhere but the effect
+ * log** — a `Set<string>` on `session.json`, which [P7 §1.5] records as the
+ * shape this channel replaced — and that is exactly what this would catch.
+ *
+ * *Two branches rather than one rewind*, because a rewind **is** a branch in
+ * this build: the commitment lives on a turn, and playing on from that turn's
+ * parent is the whole of rewinding past it.
+ */
+describe('a commitment rewound past', () => {
+  const HOOK = 'hook-war';
+
+  function committing(id: string, parentTurnId: string | null, state: unknown): Turn {
+    return {
+      id,
+      sessionId: 's',
+      parentTurnId,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      status: 'complete',
+      tape: [],
+      effects: [
+        {
+          id: `e-${id}`,
+          turnId: id,
+          channelId: SE_HOOK,
+          scopeKey: HOOK,
+          op: { type: 'set', path: '/' },
+          before: null,
+          after: state,
+          proposedBy: { kind: 'user' },
+          applied: true,
+          rejectedReason: null,
+          supersedes: null,
+          channelVersion: 1,
+          scope: 'session',
+        },
+      ],
+    };
+  }
+
+  function plain(id: string, parentTurnId: string | null): Turn {
+    return {
+      id,
+      sessionId: 's',
+      parentTurnId,
+      createdAt: '2026-09-13T00:00:00.000Z',
+      status: 'complete',
+      tape: [],
+      effects: [],
+    };
+  }
+
+  it('is uncommitted on the line that does not carry the commitment', () => {
+    /**
+     * ```
+     *   t1 ── t2 (Commit)
+     *     └─── t3           ← the same node, played differently
+     * ```
+     * The commitment is a `user` effect on `t2`, which is what the Commit
+     * control produces: `engine-computed` refuses a model and a step and admits
+     * a person, deliberately and stated in `effects.ts`.
+     */
+    const turns = new Map<string, Turn>([
+      ['t1', plain('t1', null)],
+      ['t2', committing('t2', 't1', 'committed')],
+      ['t3', plain('t3', 't1')],
+    ]);
+
+    const onTheCommitment = replayChannels(walkPath(turns, 't2'));
+    const rewound = replayChannels(walkPath(turns, 't3'));
+
+    expect(onTheCommitment[channelKey(SE_HOOK, HOOK)]?.value).toBe('committed');
+    // **The property**: nothing on the other line ever said `committed`, so
+    // nothing on it is. `undefined` rather than `null` because the key was never
+    // written there at all — which is a stronger answer than *written back*.
+    expect(rewound[channelKey(SE_HOOK, HOOK)]).toBeUndefined();
+  });
+
+  /**
+   * *And the same for a firing*, which is the half [03 §4.1] states first: *"A
+   * hook committed or fired on a turn is uncommitted and unfired after a rewind
+   * past it."* One hook, two states, one fold — if either were kept outside the
+   * effect log this would fail and the one above would not.
+   */
+  it('is unfired on the line that does not carry the firing', () => {
+    const turns = new Map<string, Turn>([
+      ['t1', plain('t1', null)],
+      ['t2', committing('t2', 't1', 'fired')],
+      ['t3', plain('t3', 't1')],
+    ]);
+
+    expect(replayChannels(walkPath(turns, 't2'))[channelKey(SE_HOOK, HOOK)]?.value).toBe('fired');
+    expect(replayChannels(walkPath(turns, 't3'))[channelKey(SE_HOOK, HOOK)]).toBeUndefined();
+  });
+
+  /**
+   * ***The case that would survive a broken implementation***, and it is why
+   * the two above are not enough on their own: a commitment made, lapsed back
+   * to the pool on a later turn, and then rewound to the moment it was still
+   * standing. A flat set would have lost the middle state; the log replays it.
+   */
+  it('comes back when the rewind lands between the commitment and its lapse', () => {
+    const turns = new Map<string, Turn>([
+      ['t1', plain('t1', null)],
+      ['t2', committing('t2', 't1', 'committed')],
+      ['t3', committing('t3', 't2', null)],
+    ]);
+
+    expect(replayChannels(walkPath(turns, 't3'))[channelKey(SE_HOOK, HOOK)]?.value).toBeNull();
+    expect(replayChannels(walkPath(turns, 't2'))[channelKey(SE_HOOK, HOOK)]?.value).toBe(
+      'committed',
+    );
   });
 });

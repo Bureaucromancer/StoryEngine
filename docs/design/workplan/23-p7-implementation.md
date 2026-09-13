@@ -4159,6 +4159,35 @@ and it is what C1 should be. **And nothing on this list is a second person**, so
 *would a stranger's mode work* stays unanswered by construction — which is the
 price of closing this phase in a month, written here rather than discovered later.
 
+### 3.2 What was answered, and by what — 2026-09-13
+
+*A second table, which is [manual testing §0](05-manual-testing.md)'s first
+honesty condition: **the ten steps above are never edited**, and this records
+what answered them. Where this table and §3.1 disagree, §3.1 was written before
+the code and this was written after it — both stay.*
+
+| Step | Answered | By |
+|---|---|---|
+| **1** `modes/` gone; mode→server fails the build | **YES — AUTO** | `tools/repo-shape.test.ts`, which §3.1 says *"does not exist"* and which landed at P7.0 (`64a676b`) — the directory's absence, the server's manifest, its tsconfig and its imports, plus a live eslint probe written into **each** mode package's `src`. ~~a repo-shape test that does not exist~~ **corrected: it exists, and §3.1's cell is stale** |
+| **2a** Freeform played end to end | **NO — C2, a person** | The mode exists and is loadable ([P7.9]); playing it is nobody's assertion. **Open.** |
+| **2b** No `switch (mode)` in the engine | **YES in part — AUTO** | `repo-shape.test.ts`'s *the engine names no mode*: no `switch` keyed on a mode, and **no mode id spelled in engine code** outside a two-entry allowlist with a reason on each. That is §3.1's *"shape that matters"*. *The lint-rule half is not built*, so a new violation is caught at the next `pnpm test` rather than as it is typed. **And the violation §3.1 names has moved**: `sessions/channels.ts`'s `'storyengine.scene'` is gone; what remains is `mode-registry.ts`'s `DEFAULT_MODE_ID`, which is the distribution's choice of default rather than knowledge about a mode, and is allowlisted with that argument |
+| **3** A mode's channel: registry, policy, widget, reconstruction | **YES — AUTO** | Registry: `mode-registry.test.ts`. Policy: `effects.test.ts`'s *a proposal is judged against the channel that owns it*. Widget: `channels.test.ts` and `ChannelHud.test.tsx`. Reconstruction: `reconstruct-property.test.ts`, whose fixture drives `se.clock` — **declared by the Scene package**, so the fourth clause is already a mode-declared channel |
+| **4** A hook fires; held ≠ judged-none | **YES for the record half — AUTO** | `hook-selector.test.ts`'s *the five answers are five answers*, added at [P7.9]: five situations driven, five verdicts, `new Set(…).size === 5`. Four of the five were asserted before, **one at a time in three files** — which is not the claim the row makes, and `cooling` had never reached a record at all. The *reading* half stays Standing, as §3.1 says |
+| **5** Commit, rewind past it, uncommitted | **YES — AUTO** | `hooks.test.ts`'s *a commitment rewound past*, added at [P7.9]: committed on one line, absent on its sibling, and the case that would survive a broken implementation — a rewind landing **between** a commitment and its lapse. Also asserted for `fired`, which is the half [03 §4.1] states first |
+| **6** A goal completes; three offers; *Advance*; readable after *End* | **YES for the mechanics — AUTO** | `sessions.test.ts`'s *advances, carries on and ends through the channel write*; `goals.test.ts` for retention and the completing turn; `GoalPanel.test.tsx` for the three offers; `runner.test.ts` for a still-running turn after *End*. **Plus the confirmation gate** ([25 C12], answered *ask* at P7.6), which §3.1's cell did not ask for because the question was open when it was written |
+| **7** Dead on one branch, alive on the other | **Standing, unchanged** | Fails clause (i) — it is P6's check, covered at P6.3. The new clause is *"with no special case in the panel's code"*, a component test and a code read |
+| **8** Mentions highlight what matched; unresolved offers | **YES for the half that compounds — AUTO** | `mentions.test.ts` for the highlight set; `extract.test.ts`'s *an unresolved name*, added at [P7.9], for **never creates** — no span for a name nobody answers to, no effect of any kind, no model call, and no cast channel in `writes`. ***The gate and the stage disagree about the word `offers`***: [P7.7]'s Done cell defers the `proposed` span with its reason, so what shipped is *never creates* and not *offers*. §3.1 anticipated this — *"the clause that actually compounds is not in the gate"* — and the structural clause it names is the one that landed |
+| **9a** A wizard for a mode the engine knows nothing about | **NO — C3, a person** | Freeform declares one ([P7.9]) and `modes.test.ts` proves the declaration crosses the wire intact. **Rendering it in a browser is the walk.** Open |
+| **9b** A failed part retried without discarding the rest | **YES — AUTO** | `sessions.test.ts`'s *keeps what succeeded when a part fails*, against the scripted provider, over `GENERATING_MODE`'s two parts |
+| **10** Author a small mode against the SDK, no `server` | **NO — C1, the anchor** | *"No assertion covers it"*, and none does. What [P7.9] can say is that **the second mode was written this way and the contract held with three holes** — [25 C16]'s engine-computed gap, the process-wide registry, and `inputs` enforcing nothing — all three found by writing it and two of them fixed. That is evidence about the contract and it is **not the walk**, because the writer knew what the contract permitted. Open |
+| **The standing line** — no configuration without a surface | **YES for this phase's own, in part** | Discharged at [P7.9]: the **input-kind selector** has one, and so does every channel this phase declared — the two dials (`DialPanel`), hook pacing (`HookPanel`, [P7.5]), the goal chain (`GoalPanel`, [P7.6]) and the suggestion toggle (`Suggestions`). ***Two of §0.1a's four remain***: `SlotSource.outlet` and the five per-book retrieval knobs, neither of which this phase declared. *And `se.backdrop` ships state with no surface, knowingly* — [06 §9]'s *contribute UI surfaces* is the part of the contract P7 does not build, so there is no place for a mode to put a picture yet |
+
+**Eight of thirteen rows answered by tests; three await a person; two stay
+Standing.** The three are [§3.1]'s derived critical list unchanged — C1, C2, C3 —
+and every one of them is *one sitting against something the walker builds*. **A
+phase closes when its buildable work is done and its critical list is walked**
+([manual testing §7]); the buildable work is done.
+
 ---
 
 ## 4. Out of scope, deliberately

@@ -375,3 +375,120 @@ function sourceFiles(dir: string): string[] {
   }
   return out;
 }
+
+/**
+ * ***Gate step 2's second clause, as the tracked-file survey §3.1 asks for*** —
+ * [06 §2](../docs/design/06-modes-and-turn-pipeline.md), [P7 §3] row 2b, written
+ * at [P7.9].
+ *
+ * The step: *"the engine contains no `switch (mode)` — the survey is a grep and
+ * it belongs in the gate."* §3.1 sharpens it and is worth quoting, because the
+ * literal reading is the weak one: *"[06 §2] says the host never has one, which
+ * also fails as an `if`, a mode-keyed lookup, or **a mode id spelled in engine
+ * code**. The last of those is the shape that matters."*
+ *
+ * ***So this surveys for mode ids, not for `switch`.*** A `switch` on a mode is
+ * the easy shape to avoid and the easy shape to find; what actually erodes a
+ * contract is one engine file quietly naming one mode, after which the next one
+ * is a precedent rather than a decision. **Every id that reaches this file is
+ * therefore an allowlist entry with a reason**, which is the mechanism: adding a
+ * line here is a visible act, and a build that needs to add a third should stop
+ * and ask why.
+ *
+ * *Two kinds of file are exempt and both are stated rather than assumed.* Tests
+ * name modes constantly — that is what a test of a mode is — and
+ * `test-mode.ts`'s fixtures declare ids of their own, which are modes the engine
+ * ships for itself and not knowledge about somebody else's.
+ *
+ * **This is the survey half. The lint-rule half is not built** — §3.1 asks for
+ * *"a lint rule with fixtures, plus a tracked-file survey"* and what exists is
+ * the second. A rule would catch a new `switch (mode)` at the moment somebody
+ * typed it rather than at the next `pnpm test`, which is better and is not the
+ * difference between enforced and unenforced.
+ */
+describe('the engine names no mode', () => {
+  const ENGINE = join(ROOT, 'packages', 'server', 'src');
+
+  /**
+   * **Each of these is a deliberate literal with a reason on it**, and the
+   * reason is in the source beside the line. A fourth arriving without a
+   * paragraph is what this list exists to make awkward.
+   */
+  const ALLOWED = new Map<string, string>([
+    [
+      'mode-registry.ts',
+      "DEFAULT_MODE_ID — the distribution's choice of default, which is a fact about this build rather than knowledge about the mode. Pinned to the package's own spelling by mode-loader.test.ts, which imports neither side.",
+    ],
+    [
+      'test-mode.ts',
+      "The engine's own fixtures declare ids of their own. A mode the engine ships for itself is not the engine knowing about somebody else's.",
+    ],
+  ]);
+
+  /** Every `.ts` under the engine's source that is not a test. */
+  function engineSources(dir: string, found: string[] = []): string[] {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) engineSources(path, found);
+      else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) found.push(path);
+    }
+    return found;
+  }
+
+  const sources = engineSources(ENGINE);
+
+  it('finds the engine’s sources, or every assertion below is vacuously true', () => {
+    expect(sources.length).toBeGreaterThan(50);
+  });
+
+  /**
+   * *The literal reading of the step, kept because it is what the step says*,
+   * and because a `switch` is what somebody reaches for first when the pressure
+   * to special-case one mode finally arrives.
+   */
+  it('switches on no mode', () => {
+    const switching: string[] = [];
+    for (const path of sources) {
+      const body = readFileSync(path, 'utf8');
+      if (/switch\s*\(\s*[A-Za-z.]*\bmode(Id)?\b/i.test(body)) switching.push(path);
+    }
+    expect(switching).toEqual([]);
+  });
+
+  /**
+   * ***The shape that matters.*** A mode id in engine code is the engine knowing
+   * which modes exist, which is the bet [19 §10](../docs/design/19-tech-stack.md)
+   * calls the design's central one.
+   */
+  it('spells no mode id outside the two places that have a reason', () => {
+    const named: string[] = [];
+    for (const path of sources) {
+      const file = path.slice(ENGINE.length + 1);
+      const base = file.split('/').at(-1) ?? file;
+      if (ALLOWED.has(base)) continue;
+
+      const body = readFileSync(path, 'utf8');
+      // Code only: a docstring naming a mode is a reference to a design note,
+      // and this file is about what the engine *does*.
+      const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      for (const match of code.matchAll(
+        /['"`]storyengine\.(scene|freeform|campaign|messages)[^'"`]*['"`]/g,
+      )) {
+        named.push(`${file} → ${match[0]}`);
+      }
+    }
+    expect(
+      named,
+      'a mode id in engine code — see this file for why that is the shape that matters',
+    ).toEqual([]);
+  });
+
+  /**
+   * *And the allowlist is held to being small.* A list that grows is a contract
+   * that is being eroded one justified exception at a time, which is exactly how
+   * the erosion this gate step is about would look from the inside.
+   */
+  it('keeps the allowlist to the two entries that have arguments', () => {
+    expect([...ALLOWED.keys()].sort()).toEqual(['mode-registry.ts', 'test-mode.ts']);
+  });
+});

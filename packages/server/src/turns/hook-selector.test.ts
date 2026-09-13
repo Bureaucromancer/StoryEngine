@@ -740,3 +740,93 @@ describe('a forced hook', () => {
     expect(run.report.selection.hookId).toBe('hook-war');
   });
 });
+
+/**
+ * ***Gate step 4's record half, as the one assertion it asks for*** —
+ * [06 §6.1], [10 §10.1], [P7 §3] row 4, written at [P7.9].
+ *
+ * §3.1: *"drive the selector into pacing-held, nothing-eligible, judged-none and
+ * fired, assert **four distinguishable lines**."* Every one of those is
+ * already asserted somewhere in this build — and **in three different files**,
+ * one verdict at a time, which is not the same claim. *Distinguishable* is a
+ * statement about the set, and a set is what nothing was checking: four tests
+ * that each assert one arm all pass on an implementation that answers `fired`
+ * for everything except the case each of them happens to drive.
+ *
+ * *`cooling` is the fifth and had never reached a record at all* — it existed
+ * only as an arithmetic answer from `gate()`. [06 §6.1] separates it from `held`
+ * deliberately, because *waiting* is the remedy rather than the dial, and a
+ * verdict with no path to a turn cannot say that to anybody.
+ */
+describe('the five answers are five answers', () => {
+  const WAR = 'hook-war';
+
+  /** A turn that fired the hook `n` turns ago, which is what a cooldown counts. */
+  function after(n: number): Turn[] {
+    const turns: Turn[] = [];
+    for (let index = 0; index < n; index += 1) {
+      turns.push({
+        id: `t${String(index)}`,
+        sessionId: 's',
+        parentTurnId: index === 0 ? null : `t${String(index - 1)}`,
+        createdAt: '2026-09-13T00:00:00.000Z',
+        status: 'complete',
+        tape: [],
+        effects:
+          index === 0
+            ? [
+                {
+                  id: 'e0',
+                  turnId: 't0',
+                  channelId: SE_HOOK,
+                  scopeKey: WAR,
+                  op: { type: 'set', path: '/' },
+                  before: null,
+                  after: 'fired',
+                  proposedBy: { kind: 'engine' },
+                  applied: true,
+                  rejectedReason: null,
+                  supersedes: null,
+                  channelVersion: 1,
+                  scope: 'session',
+                },
+              ]
+            : [],
+      });
+    }
+    return turns;
+  }
+
+  it('answers each of the five for the situation that is its own', async () => {
+    const held = await line({ pool: pooled(hook()), pacing: 'manual-only' });
+
+    const spent = await line({
+      pool: pooled(hook()),
+      channels: { [channelKey(SE_HOOK, WAR)]: { value: 'fired' } },
+    });
+
+    /**
+     * *A second hook, so the pool is not empty while the first one cools.*
+     * Without it the gate answers `nothing-eligible` — which is true and is a
+     * different question, and is exactly the confusion [06 §6.1] separates the
+     * two verdicts to prevent.
+     */
+    const cooling = await line({
+      pool: pooled(hook(), hook({ id: 'hook-peace' })),
+      channels: { [channelKey(SE_HOOK, WAR)]: { value: 'fired' } },
+      history: after(2),
+      pacing: 'sparse',
+    });
+
+    const none = await line({ pool: pooled(hook()), answer: { object: { hookId: null } } });
+    const fired = await line({ pool: pooled(hook()), answer: { object: { hookId: WAR } } });
+
+    const verdicts = [held.verdict, spent.verdict, cooling.verdict, none.verdict, fired.verdict];
+
+    expect(verdicts).toEqual(['held', 'nothing-eligible', 'cooling', 'judged-none', 'fired']);
+    // **The claim the row is actually making**: five situations, five answers,
+    // no two the same. A merged pair is what makes a correctly-quiet session
+    // indistinguishable from a broken one.
+    expect(new Set(verdicts).size).toBe(5);
+  });
+});
