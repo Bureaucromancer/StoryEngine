@@ -79,7 +79,13 @@ describe('the architectural boundary graph (docs/design/workplan/03-testing.md �
     }
   });
 
-  it('blocks modes → server, before packages/modes/ exists', async () => {
+  // ~~*before `packages/modes/` exists*~~ — it exists, with two packages in it
+  // since [P7.0] and [P7.9], so the clause stopped being true three stages after
+  // it was written. What the fixture proves is unchanged and is the more
+  // interesting half anyway: the rule fires on a **path** that has no package
+  // behind it, so a third mode is covered the moment somebody adds the directory
+  // and before it has a `package.json`. Renamed 2026-09-13.
+  it('blocks modes → server, on a path with no package behind it', async () => {
     const fired = await rulesFiredIn('packages/modes/scene/src/imports-server.ts');
     expect(fired).toContain('boundaries/dependencies');
     expect(fired).toContain('no-restricted-imports');

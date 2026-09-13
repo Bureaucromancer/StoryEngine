@@ -312,7 +312,30 @@ export const MediaRole = Type.Union(
     Type.Literal('portrait-source'),
     /** Canonical likeness — of a person, or of a place. */
     Type.Literal('reference'),
+    /**
+     * ***One face out of a set, chosen per moment*** — [03 §5.2.2]'s *"a curated
+     * expression set"*, and the union's first arm with an actual reader
+     * ([P7.12](../../../../docs/design/workplan/23-p7-implementation.md)).
+     *
+     * **This is the arm `label` exists for.** Scene's stager offers a model that
+     * actor's own labels as an enum and matches the answer back to a media id,
+     * so *an expression with no label is an expression nothing can select* —
+     * which is why the importer names one from the filename stem rather than
+     * leaving it unset. `role` is what the engine branches on; `label` is what
+     * distinguishes members *within* the role, and here the two are a pair.
+     *
+     * *Distinct from `reference`, which is one canonical likeness.* An
+     * expression is a member of a set and is meaningless alone.
+     */
     Type.Literal('expression'),
+    /**
+     * **One body out of a set, the same way** — and still without a reader.
+     * [17 §3]'s Character Studio generates expression *and* pose sets, and Scene
+     * selects only on expression, so this arm ships ahead of anything that
+     * chooses between poses. Kept beside `expression` rather than folded into it
+     * because a scene may want both axes at once and a single role could not say
+     * which was which.
+     */
     Type.Literal('pose'),
     /** Style exemplar, not likeness. */
     Type.Literal('style'),

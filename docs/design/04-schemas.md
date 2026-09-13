@@ -181,11 +181,12 @@ interface VisualDescriptors {
 type MediaRole =
   | "portrait-source"   // the uncropped original behind the card's own pixels
   | "reference"         // canonical likeness — of a person, or of a place
-  | "expression"
-  | "pose"
+  | "expression"        // one face from a set the scene chooses between
+  | "pose"              // one body from a set, the same way
   | "style"             // style exemplar, not likeness
   | "map"               // a diagram rather than a likeness. Lore, mostly
   | "gallery"
+  | "background"        // the backdrop a scene is staged against [06 §10.1a]
 
 // One vocabulary, not one per kind. `reference` means the same thing on a
 // lorebook entry as on an actor — *this is what it looks like*, suitable for
@@ -194,6 +195,20 @@ type MediaRole =
 // ([24 §3](24-roadmap.md)). `map` is the only addition lore needed, because a
 // diagram is genuinely not a likeness. `illustration` was considered and
 // rejected as a synonym for `reference` that would leave authors guessing.
+//
+// `background` was added at P7.9 and this listing was not: the union had no
+// role naming what an uploaded backdrop *is*, because nothing pointed at one
+// until a channel did. The nearest was `reference`, which this section reserves
+// for a likeness of a place — and a likeness is what a backdrop is conditioned
+// on rather than what it is. Distinct from `Rendition.purpose`, which says the
+// same thing about a *generated* image ([06 §10.1a]: "two fields because there
+// are two questions"). Corrected 2026-09-13.
+//
+// `expression` and `pose` are the two arms a *set* is chosen from rather than
+// a single canonical image, which is why `label` matters on them and on almost
+// nothing else: Scene's stager matches a model's answer against those labels
+// ([06 §7.2], P7.12), and a set whose members are unlabelled is a set nothing
+// can select within.
 
 /** Media carried *inside* the card envelope. Bounded by policy — bulk galleries
  *  and video live in the folder as `assets`. */
