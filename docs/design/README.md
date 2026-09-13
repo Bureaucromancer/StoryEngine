@@ -7,8 +7,8 @@ of the code. Where a document still says *proposal*, it is one; the decisions
 that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
 [25](25-open-questions.md), and the phase plans from
 [P1](workplan/07-p1-implementation.md) through
-[P6A](workplan/19-p6a-alpha-1.md) have been worked from rather than argued with,
-each carrying its own record of what shipped.
+[P7](workplan/23-p7-implementation.md) have been worked from rather than argued
+with, each carrying its own record of what shipped.
 
 **Phase: alpha, with Alpha 1 — the first tagged build, private and for the
 project's own use — cut 2026-09-06 as `v1.0.0-alpha.1`**
@@ -155,12 +155,20 @@ scheduled leaves it for a design note of its own.
 [`workplan/`](workplan/) has its own index. In reading order it is the work plan
 itself, the triage the plan is built on, the phase documents — one per phase from
 P1 to P11, plus P2A, P2B, P2C, P6A and P6B — the polish list, testing, the
-release model, and the supplements the two manual phases carry. The phase
-documents are numbered in the order they were written, so P2A, P2B and P2C are
-13, 14 and 15 rather than sitting between P2 and P3, P7 through P11 are 18
-through 22, P6A is 23, and P6B is 24 with its findings log at 25. **26 is the
-manual ledger** — every gate's walk state and every deferral with an owner,
-which 12 does for the P2 phases and 26 does for the rest.
+release model, and the supplements the two manual phases carry.
+
+~~The phase documents are numbered in the order they were written, so P2A, P2B
+and P2C are 13, 14 and 15 rather than sitting between P2 and P3, P7 through P11
+are 18 through 22, P6A is 23, and P6B is 24 with its findings log at 25. **26 is
+the manual ledger**~~ ***That paragraph described the filing this file's own
+renumber replaced, and outlived it by four days*** (corrected 2026-09-13). **The
+work plan is in execution order too**: P7 through P11 are 23 through 27, P6A and
+P6B are 19 and 20 with the PLAYABLE log at 21, and **05 is the manual ledger** —
+every gate's walk state and every deferral with an owner, which 11 does for the
+P2 phases and 05 does for the rest. *That this went stale at all is the argument
+for the rule two paragraphs up: nothing cites a work-plan number, so moving one
+costs nothing — and a sentence that **spells** the numbers out is the one place
+that freedom has a price.*
 
 **02 and 10 are a pair.** 02 carries the reasoning and the alternatives
 considered; 10 carries the definitions. Where they disagree, 10 is current.

@@ -2,11 +2,13 @@
 
 A self-hosted, multi-user engine for character-driven interactive fiction.
 
-**Status: alpha, with the first tagged build about to be cut.** The design is
-written down in [`docs/design/`](docs/design/); the code is through
-[P6A](docs/design/workplan/19-p6a-alpha-1.md) — P1 to P6 of the
-[work plan](docs/design/workplan/01-work-plan.md) and the four lettered phases
-beside them, every one landed. What exists: the storage spine and a derived
+**Status: alpha.** The design is written down in
+[`docs/design/`](docs/design/); the code is through
+[P7](docs/design/workplan/23-p7-implementation.md) — P1 to P7 of the
+[work plan](docs/design/workplan/01-work-plan.md) and the five lettered phases
+beside them. P7's buildable work landed 2026-09-13; **three of its exit-gate
+checks await a person**, which is the state its §3.2 records rather than
+glosses. What exists: the storage spine and a derived
 index that can be thrown away and rebuilt from it; accounts and sign-in; the
 library, with import from SillyTavern, Marinara and Aventuras; **the turn, end
 to end**, as a resumable server-side job with a streamed reply; the workbench
@@ -46,6 +48,17 @@ edit its entries and drag them into order. Open Settings to change your own
 preferences or, as an admin, the install's configuration, its accounts and its
 model connections.
 
+**Since P6B and P7**: a mode is a package rather than a shape the engine happens
+to fit. Scene and Freeform are two of them, each consuming the published SDK and
+permitted to import nothing else — channels with their own schemas, their own
+setup wizards, their own steps, their own participant policies and their own
+contributed UI. Around that: plot hooks with a selector that says why it held or
+fired, goals as a chain with a cursor and a judge whose completion you confirm,
+party and presence as channels so a character can be dead on one branch and alive
+on another, mentions highlighted against what the lore scanner matched, two
+difficulty dials, suggested actions, and a staged scene with backdrops and
+per-actor expressions imported from the card that carried them.
+
 Actors and lorebooks have editors, with automatic version history behind a
 History control: every change snapshots the state it replaced, hand edits
 included, and any version can be restored, diffed, pinned or renamed. Name one
@@ -53,13 +66,13 @@ on the library page to make it, and delete anything you own from its detail
 page — the folder moves to your trash rather than being erased. The other four
 kinds are read-only for now, so one of those arrives by import or through the
 API ([`docs/api.md`](docs/api.md)) rather than from a blank page; creation
-follows each kind's editor. One gap worth knowing before you go looking:
-**choosing which lorebooks a session uses has no UI yet.** A book is in play
-only if the session names it or the treatment the session names links it, and
-nothing in the browser sets either — nor does `pnpm seed` — so a session made
-either way resolves no books until the API sets them
-(`PUT /api/sessions/:id/lore`;
-[P5 §0.5](docs/design/workplan/17-p5-implementation.md)).
+follows each kind's editor. ~~One gap worth knowing before you go looking:
+**choosing which lorebooks a session uses has no UI yet.**~~ **Repaired at
+[P6B.0](docs/design/workplan/20-p6b-playable.md)** — the create form and a
+mid-session panel both set a session's books, and `pnpm seed` names the treatment
+it builds. A book is in play only if the session names it or the treatment the
+session names links it, and now both are reachable from a browser
+([P5 §0.5](docs/design/workplan/17-p5-implementation.md)).
 
 The storage thesis does work end to end: create an actor through the API, watch
 the folder appear, hand-edit a lorebook on disk in a text editor, and see the
@@ -323,6 +336,9 @@ packages/server/
   src/retrieval/     lore activation, budgets, and the report that says why
   src/import/        the three sources, and the sweep over a directory
   src/rng/           the RNG service, and the tape a rewrite replays
+packages/modes/      the built-in modes, one package each — Scene and Freeform.
+  scene/             each consumes the SDK exactly as a third party would, and
+  freeform/          may import nothing else
 packages/client/     React + Vite. Play, the library, the workbench, settings,
                      and the actor and lorebook editors.
 deploy/unraid/       the unraid template — committed, submitted to nobody
@@ -332,8 +348,13 @@ tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
                      tested rather than trusted
 ```
 
-`packages/modes/` does not exist yet — but the lint rules governing it do, which
-is the point ([19 §10](docs/design/19-tech-stack.md)).
+~~`packages/modes/` does not exist yet — but the lint rules governing it do, which
+is the point~~ — **it exists, since P7.0, and the rules were there first, which
+is still the point** ([19 §10](docs/design/19-tech-stack.md)). A mode package
+depends on `@storyengine/sdk` and on nothing else; a reference to `../../server`
+would resolve, compile and quietly reverse the decision the split exists to
+enforce, so the boundary graph makes it a lint failure and the single project
+reference makes it a build error.
 
 ## The rules that are build errors
 
@@ -352,6 +373,14 @@ fixture test asserting the enforcement actually fires:
   `eslint.config.js` ([19 §14.4](docs/design/19-tech-stack.md)).
 - **Logical CSS properties only**, in stylesheets *and* in Tailwind utility
   classes ([19 §12.6](docs/design/19-tech-stack.md)).
+- **The engine names no mode.** No `switch` on one, no comparison against a mode
+  id, no table keyed by one, anywhere under `packages/server/src` — because an
+  engine that knows which modes exist is an engine a third party cannot add one
+  to ([06 §2](docs/design/06-modes-and-turn-pipeline.md)). Two layers, as with
+  the boundary: selectors that fire in the editor, and a survey that enumerates
+  every mode id in engine source against an allowlist with a reason on each
+  entry. A selector cannot recognise the id of a mode nobody has written yet,
+  which is why both exist.
 - **An SPDX header** on every source file.
 
 ## Licence
