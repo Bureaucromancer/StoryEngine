@@ -6,10 +6,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Goal } from '@storyengine/shared';
 
 import { installBuiltIns } from '../mode-loader.js';
+import { acceptEffect } from '../turns/effects.js';
 import { channelDefinition, channelKey } from './channels.js';
 import {
   achievedOn,
   goalRows,
+  pendingAchievement,
   readConcluded,
   readCurrentGoal,
   readGoalState,
@@ -52,6 +54,36 @@ function turn(over: Partial<Turn> = {}): Turn {
     effects: [],
     ...over,
   };
+}
+
+/**
+ * A turn on which the judge proposed a completion and [25 C12]'s gate refused
+ * it — the shape `pendingAchievement` reads.
+ */
+function proposing(id: string, goalId: string): Turn {
+  return turn({
+    id,
+    effects: [
+      {
+        id: `e-${id}`,
+        turnId: id,
+        channelId: SE_GOAL,
+        scopeKey: goalId,
+        op: { type: 'set', path: '/' },
+        before: null,
+        // `after` is the value the model *wanted*, which is the [P7.2]
+        // correction the panel depends on — a refusal that stamped `before`
+        // back would record that something was refused and not what.
+        after: 'achieved',
+        proposedBy: { kind: 'model', callId: 'c1' },
+        applied: false,
+        rejectedReason: 'needs-confirmation',
+        supersedes: null,
+        channelVersion: 1,
+        scope: 'session',
+      },
+    ],
+  });
 }
 
 /** A turn whose one effect completes a goal, which is what `achievedOn` reads. */
@@ -186,10 +218,17 @@ describe('the channels this declares', () => {
   });
 
   /**
-   * ***The build's first `model-proposed` channel*** — [06 §7.3.3] settles the
-   * policy: *"the narrator's judgement is the only signal available"* in
-   * Freeform, where there is nothing to compute from. Campaign's
+   * ***The first channel a model's own judgement is written to*** — [06 §7.3.3]
+   * settles the policy: *"the narrator's judgement is the only signal
+   * available"* in Freeform, where there is nothing to compute from. Campaign's
    * `engine-computed` declaration is [work plan §5]'s and not here.
+   *
+   * *Not the first `model-proposed` channel*, which is what this said until
+   * 2026-09-13 and is false: `se.presence`, `se.status` and `se.party` carry
+   * the policy and have since [P3.0]. They are declared open to a model and
+   * nothing in the build had ever written one that way — the assertion below is
+   * about the declaration, and {@link goalJudge}'s own test is what covers the
+   * `proposedBy` stamp that makes the distinction real.
    */
   it('lets the narrator propose that a goal is met, which nothing else does', () => {
     expect(channelDefinition(SE_GOAL)?.update).toBe('model-proposed');
@@ -252,5 +291,121 @@ describe('what the panel is shown', () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.visibility).toBe('hidden');
+  });
+});
+
+/**
+ * [25 C12]'s gate — answered *ask* at [P7.6] and enforced by a three-word field
+ * rather than a prompt, which is the whole reason the question stopped being
+ * worth deferring.
+ */
+describe('the confirmation before a completion fires', () => {
+  it('declares the loaded state a model may not set on its own', async () => {
+    await installBuiltIns();
+    expect(channelDefinition(SE_GOAL)?.confirm).toEqual(['achieved']);
+  });
+
+  /**
+   * ***The gate is the asymmetry and nothing else.*** [25 C12]: *"a missed
+   * completion is an annoyance the player resolves manually, a false one ends
+   * the story on a turn that did not earn it."* So the model's proposal waits
+   * and the person's write does not — same channel, same value, opposite
+   * answers, which is `refuse()` checking `confirm` for `model` and `step` only.
+   */
+  it('refuses the narrator and admits the person', async () => {
+    await installBuiltIns();
+
+    const proposal = {
+      channelId: SE_GOAL,
+      scopeKey: 'g-ledger',
+      op: { type: 'set', path: '/' },
+      after: 'achieved',
+    } as const;
+
+    const judged = acceptEffect(
+      't1',
+      { ...proposal, proposedBy: { kind: 'model', callId: 'c1' } },
+      {},
+    );
+    expect(judged.applied).toBe(false);
+    expect(judged.rejectedReason).toBe('needs-confirmation');
+
+    // The manual path [06 §7.3.3] calls always-available, arriving at the same
+    // channel by the other door.
+    const said = acceptEffect('t1', { ...proposal, proposedBy: { kind: 'user' } }, {});
+    expect(said.applied).toBe(true);
+  });
+
+  /**
+   * *The step arm matters because the runner falls back to it.* With no call to
+   * attribute a completion to, the runner stamps `step` rather than `engine` —
+   * and if `step` were admitted here that fallback would be a bypass.
+   */
+  it('refuses a step proposal too, which is what makes the runner’s fallback safe', async () => {
+    await installBuiltIns();
+
+    const effect = acceptEffect(
+      't1',
+      {
+        channelId: SE_GOAL,
+        scopeKey: 'g-ledger',
+        op: { type: 'set', path: '/' },
+        after: 'achieved',
+        proposedBy: { kind: 'step', stepId: 'se.goals.judge' },
+      },
+      {},
+    );
+
+    expect(effect.rejectedReason).toBe('needs-confirmation');
+  });
+
+  it('leaves an unruled proposal outstanding', () => {
+    expect([...pendingAchievement([proposing('t1', 'g-ledger')])]).toEqual(['g-ledger']);
+  });
+
+  /**
+   * **Answered, not acknowledged** — the rule `pendingStatuses` settled at
+   * [P7.2]. Both of the panel's buttons write, so both clear it; nothing else
+   * does, which is why a proposal a player never looked at is still waiting
+   * next session.
+   */
+  it('clears once a person has ruled, whichever way they ruled', () => {
+    const confirmed = [proposing('t1', 'g-ledger'), completing('t2', 'g-ledger')];
+    expect(pendingAchievement(confirmed).size).toBe(0);
+
+    // *Not yet* writes the standing null, which is an applied effect and so is
+    // equally an answer. A dismissal that wrote nothing would never clear.
+    const dismissed = [proposing('t1', 'g-ledger'), completing('t2', 'g-ledger', null)];
+    expect(pendingAchievement(dismissed).size).toBe(0);
+  });
+
+  /**
+   * *A dismissal is not remembered as a dismissal.* The judge may propose again
+   * on a later turn and should — the second time it may be right — so the walk
+   * carries no memory beyond the last word on each goal.
+   */
+  it('goes outstanding again when the narrator proposes a second time', () => {
+    const path = [
+      proposing('t1', 'g-ledger'),
+      completing('t2', 'g-ledger', null),
+      proposing('t3', 'g-ledger'),
+    ];
+    expect([...pendingAchievement(path)]).toEqual(['g-ledger']);
+  });
+
+  /**
+   * The row the panel renders. `proposed` and `achieved` are never both true:
+   * confirming *is* an applied effect, so the same walk that sets one clears
+   * the other.
+   */
+  it('reaches the panel as a row, and never alongside achieved', () => {
+    const waiting = goalRows([goal()], {}, [proposing('t1', 'g-ledger')]);
+    expect(waiting[0]).toMatchObject({ proposed: true, achieved: false });
+
+    const ruled = goalRows([goal()], { [channelKey(SE_GOAL, 'g-ledger')]: { value: 'achieved' } }, [
+      proposing('t1', 'g-ledger'),
+      completing('t2', 'g-ledger'),
+    ]);
+    expect(ruled[0]).toMatchObject({ proposed: false, achieved: true });
   });
 });

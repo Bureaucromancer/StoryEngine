@@ -687,7 +687,14 @@ walker the row exists to fail.
   `[]` for the slot and reports `no-producer`. Everything else is runtime and
   absent: no goal channel, no cursor for which goal is current, no achieved state,
   no link to the completing turn, no session-authored goal, no concluded state, no
-  evaluation step. **The first `model-proposed` channel in the build is this one.**
+  evaluation step. ~~**The first `model-proposed` channel in the build is this
+  one.**~~ **Wrong, and the survey that wrote it did not check** (corrected
+  2026-09-13): `se.presence`, `se.status` and `se.party` have carried
+  `update: 'model-proposed'` since [P3.0] (`sessions/cast.ts:97,120,186`). What
+  `se.goal` is first at is narrower and is the thing that actually mattered —
+  **the first channel a model's own judgement is written to**, stamped
+  `proposedBy: { kind: 'model', callId }`; before P7.6 that arm of
+  `EffectProposal` had no production writer at all, only tests.
 
 #### Two more things nothing reads, and one live defect
 
@@ -3552,9 +3559,12 @@ The chain, not a field — *and it is already the chain in schema*: `Goal` ships
 with `next`, `thenDefault`, `completion: narrative | manual` and `visibility`, and
 `Setup.goals` is ordered with `goals[0]` where play begins
 ([06 §7.3.3](../06-modes-and-turn-pipeline.md) is what it answers to). The
-progress channel with `model-proposed` in Freeform — **the first `model-proposed`
-channel in the build, and the first time anything parses model output into
-validated state**; narrative completion biased toward under-firing with manual
+progress channel with `model-proposed` in Freeform — ~~**the first
+`model-proposed` channel in the build**~~ **the first channel a model's own
+judgement is *written to*** (corrected 2026-09-13; three `model-proposed`
+channels shipped at [P3.0], but nothing in the build had ever stamped an effect
+`proposedBy: { kind: 'model' }`) **and the first time anything parses model
+output into validated state**; narrative completion biased toward under-firing with manual
 completion always available; the three offers at conclusion, chosen **at
 completion rather than at setup**; completed goals retained with the turn that
 completed them, which is
@@ -3563,6 +3573,8 @@ signal. [25 C12](../25-open-questions.md) — confirmation before completion fir
 — is decided here or explicitly left open with its reason. *C12 leaves only the
 confirmation gate open: the bias and the always-available manual escape are
 settled, and this phase commits to the same bias twice, at P7.2 for death.*
+**Decided (2026-09-13): ask** — and the second half of that sentence is why it
+was cheap, because P7.2's death commitment is the mechanism this one reuses.
 
 **The whole gap is runtime, which is the stage's actual size** (2026-09-10).
 `Goal` is a clean subset of what 06 §7.3.3 asks for; what does not exist is
@@ -3591,13 +3603,19 @@ before it.** [06 §7.3.3] settles the ownership in one sentence: *"a `Goal` sits
 on Setup, which is authored content, so the condition belongs to whoever wrote
 the game rather than to the mode running it."*
 
-- ***`se.goal` is the build's first `model-proposed` channel***, which is what
-  [06 §7.3.3] declares it as — *"the narrator's judgement is the only signal
-  available"* in Freeform, where there is nothing to compute from. **And the
-  effect is attributed to the model with the call it judged in**, not to the step
-  that plumbed it: that attribution is the entire content of the policy, and a
-  `step` stamp would have been true of the machinery and false about the
-  decision. *One value and not a percentage* — a progress number would be a field
+- ***`se.goal` is the first channel a model's own judgement is written to***,
+  which is what [06 §7.3.3] declares it as — *"the narrator's judgement is the
+  only signal available"* in Freeform, where there is nothing to compute from.
+  ~~*the build's first `model-proposed` channel*~~ **was how this line and the
+  survey above it both put it, and it is false** (corrected 2026-09-13, same
+  day): `se.presence`, `se.status` and `se.party` are `model-proposed` and have
+  been since [P3.0]. The true claim is the narrower one and is also the one the
+  rest of this bullet was already making — **the effect is attributed to the
+  model with the call it judged in**, not to the step that plumbed it, and
+  `{ kind: 'model' }` had **no production writer anywhere in the build** before
+  this one (`grep` finds it in `runner.ts` and otherwise only in tests). That
+  attribution is the entire content of the policy, and a `step` stamp would have
+  been true of the machinery and false about the decision. *One value and not a percentage* — a progress number would be a field
   with no reader, which is the placeholder shape this phase keeps refusing.
 - **`se.goal.current` is the cursor, and `engine-computed`**, which refuses a
   model and a step and admits a person. Moving it is *Advance*, and [06 §7.3.4]
@@ -3637,14 +3655,41 @@ not move. So the collector fills the arm that returned `[]` since P2, **and its
 same change of meaning [P5.9] made for lore: an empty goal slot now says *this
 session has no goal* rather than *waiting on the engine*.
 
-**[25 C12] is left open, and the mechanics narrow it.** The question is whether
+~~**[25 C12] is left open, and the mechanics narrow it.** The question is whether
 narrative completion should require confirmation before it fires. What this stage
 can say is that **completion is not the destructive act**: it marks `achieved`
 and raises three offers, and the one that ends a story is a separate, explicit
 press. So the question reduces to whether a *false* completion is annoying rather
 than costly — which is tuning, and [25 C12] is right that it *"wants real
 sessions to judge"*. The bias and the always-available manual escape are settled
-and built; the gate is not needed to make a false completion recoverable.
+and built; the gate is not needed to make a false completion recoverable.~~
+
+***[25 C12] is answered: ask.*** (Corrected 2026-09-13, the same day, after a
+review of this cell found the gate's mechanism already built.) The narrowing
+above is sound as far as it goes and it **reached the wrong conclusion by
+pricing the wrong thing**. It, and C12 itself, assumed a confirmation meant a
+*prompt* — a second model round trip at the session's most dramatically loaded
+moment — which is a real cost worth deferring for evidence.
+`ChannelDefinition.confirm` has existed since [P7.2], its docstring names goal
+completion as its second consumer in as many words, and what it produces is a
+**recorded, unapplied effect with two buttons on it**. That costs one line in
+the declaration and no call at all. So `se.goal` declares
+`confirm: ['achieved']`: the judge's completion is refused
+`needs-confirmation`, the three offers stay down until a person rules, and
+`pendingAchievement` keeps an unruled proposal outstanding across sessions.
+
+*The narrowing's own argument survives the reversal and is why this is cheap to
+undo.* Completion is indeed not the destructive act, so the gate is insurance
+rather than a load-bearing safety property — which means if real sessions show
+the judge is reliable, deleting the field is a one-line change and a mode may
+declare its own goal channel without it today. **Left open, the question would
+have waited on evidence for a decision that was free either way.**
+
+*A second thing the review caught and fixed:* the runner's fallback attribution
+was `{ kind: 'engine' }` when there was no call to point at, and `confirm` is
+checked for `model` and `step` only — so that arm would have applied a judged
+completion **unasked**. It is `{ kind: 'step', stepId }` now, which is both
+gated and the truer claim.
 
 *One surface decision worth recording: the panel tells **never having a goal**
 from **playing on after one**.* Both have a null cursor, and [06 §7.3.4]'s
@@ -3831,7 +3876,7 @@ the work of this section.
 | **3** A mode's channel: in the registry, enforced, rendered, reconstructing | **tests**, with the fourth clause folded into the P6 property fixture | **AUTO** — registry membership and `update` enforcement are unit tests; reconstruction-at-a-node is already carried by `sessions/reconstruct-property.test.ts` and needs a mode-declared channel added to its fixture. The *renders* clause is the weak form of step 9 and should be merged there rather than walked twice |
 | **4** A hook fires, the record says why, held ≠ judged-none | **a test** for the four states; **a person** for whether the line explains anything | **AUTO** for the record half — drive the selector into pacing-held, nothing-eligible, judged-none and fired, assert four distinguishable lines. **Standing** for the reading half: [work plan P11](01-work-plan.md) owns selector legibility as tuning, so clause (ii) has nothing to say |
 | **5** Commit, rewind past it, uncommitted | **a property test** — the [testing §1](03-testing.md) row, which the step already says | **AUTO**, and it should not reach a walk sheet. Cheapest of the four hook rows: P6 property-tested the fold that answers it, so it is satisfiable the day the channel is declared |
-| **6** A goal completes, three offers, *Advance*, readable after *End* | **a test** for the mechanics; **a person** for the moment | **AUTO** for the mechanics — completed goal retained with its turn, *Advance* writing the next, branchable after *End*. **Standing** for the rest: [25 C12](../25-open-questions.md) says the confirmation question *"wants real sessions to judge"*, and a judgement at the most dramatically loaded moment is as answerable in November |
+| **6** A goal completes, three offers, *Advance*, readable after *End* | **a test** for the mechanics; **a person** for the moment | **AUTO** for the mechanics — completed goal retained with its turn, *Advance* writing the next, branchable after *End*, **and the confirmation gate refusing the judge's completion** ([25 C12](../25-open-questions.md), answered *ask* at P7.6). **Standing** for the rest: whether the judge is *accurate* still wants real sessions, and a judgement at the most dramatically loaded moment is as answerable in November |
 | **7** Dead on one branch, alive on the other, in the panel | **nothing here** | **Standing** — and it fails clause **(i)** outright. [P6 §3](18-p6-implementation.md)'s step 5 is the same check, *covered at P6.3*, through the replay and through the head. What is new is only *"with no special case in the panel's code"*, which is a component test and a code read |
 | **8** Mentions highlight what the scanner matched; unresolved offers | **tests** | **AUTO** — both clauses are assertions: highlight set equals match set over one text, and an unresolved name produces an offer and writes no actor. **But the clause that actually compounds is not in the gate**: §1.7's *the type must not carry an actor reference in its name or its shape*, which [13 §13](../13-write-mode.md) prices at migrating every stored turn or growing a second span type. That is a code-shape check and wants its own step |
 | **9a** A wizard for a mode the engine has no knowledge of | **a person** | **critical — C3.** (i) ✓ §5 calls it the contract's hardest single claim; (ii) ✓ `SetupSchema` ships with the SDK and every extension author afterwards discovers it wrong; (iii) ✓ a throwaway declaration and a browser |

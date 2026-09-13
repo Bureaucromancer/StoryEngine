@@ -125,6 +125,38 @@ export const GOAL_CHANNEL: ChannelDefinition = {
    * a rewound completion could never be undone.
    */
   schema: { type: ['string', 'null'], enum: [...GOAL_STATES, null] },
+  /**
+   * ***[25 C12]'s confirmation gate, settled here rather than left open***
+   * (2026-09-13, [P7.6]). The question was *"whether narrative completion
+   * should require confirmation before it fires"*, and the answer is **yes**,
+   * for the reason C12 itself gives and nothing more: *"a missed completion is
+   * an annoyance the player resolves manually, a false one ends the story on a
+   * turn that did not earn it"*, and **that asymmetry is not a judgement about
+   * how good the judge is** — it holds at every accuracy short of perfect.
+   *
+   * ***Declared, not built.*** The leaning said the gate *"wants real sessions
+   * to judge"*, which would have been a reason to defer if answering it cost
+   * anything. It costs a three-word field: {@link ChannelDefinition.confirm}
+   * shipped at [P7.2] for terminal statuses and its docstring already named
+   * this as its second consumer — *"building one status-shaped now is the
+   * reinvention this phase keeps catching itself about"*. Leaving C12 open
+   * while the mechanism sat built, unused, with a docstring pointing at goals,
+   * would have been the deferral costing more than the decision.
+   *
+   * **What the refusal does and does not stop.** `refuse()` answers
+   * `needs-confirmation` for `model` and `step` only, so the judge's proposal
+   * lands on the turn **recorded and unapplied** — the value stays `null`, the
+   * three offers do not raise, and the panel surfaces the proposal with two
+   * buttons. A *person* writing `achieved` is untouched, which is [06 §7.3.3]'s
+   * always-available manual completion arriving at the same channel by the
+   * other door.
+   *
+   * *One string, because one state.* {@link GOAL_STATES} has a single member
+   * and `confirm` names loaded values rather than all of them — so the two
+   * lists being identical here is a coincidence of a one-state channel, not a
+   * rule, and a second non-loaded state later would not join this list.
+   */
+  confirm: ['achieved'],
   init: { kind: 'literal', value: null },
   budget: null,
 };
@@ -226,6 +258,42 @@ export function achievedOn(path: readonly Turn[]): Map<string, string> {
  * turn"* — a panel row is the same trade, and the row a person reads is the
  * sentence they are playing toward.
  */
+/**
+ * Goals the narrator said were met and a person has not ruled on — [25 C12]'s
+ * gate seen from the panel's side.
+ *
+ * ***Answered, not acknowledged***, which is the rule {@link pendingStatuses}
+ * settled at [P7.2] and this is deliberately the same walk: a refusal stops
+ * being outstanding when an **applied** effect lands on that goal afterwards,
+ * and both of the panel's buttons produce one — *Yes* writes `achieved`, *Not
+ * yet* writes the standing `null`. Nothing else clears it, so a completion the
+ * player never looked at is still waiting next session, which is the entire
+ * reason for surfacing it. A dismissed proposal is *not* remembered as
+ * dismissed: the judge may propose again on a later turn, and it should, because
+ * the second time it may be right.
+ *
+ * **A set rather than a map, unlike statuses.** `pendingStatuses` carries *which
+ * value* was refused because `se.status` has several and *the narrator proposed
+ * something* would be the quiet half of what [06 §8.1] rules out. This channel
+ * has one loaded state, so the goal id **is** the proposal and a map would carry
+ * the string `'achieved'` in every slot.
+ *
+ * *Oldest-first, so a later applied effect beats an earlier refusal.*
+ */
+export function pendingAchievement(path: readonly Turn[]): Set<string> {
+  const pending = new Set<string>();
+  for (const turn of path) {
+    for (const effect of turn.effects) {
+      if (effect.channelId !== SE_GOAL || effect.scopeKey === null) continue;
+      if (effect.scope === 'escaped') continue;
+
+      if (effect.applied) pending.delete(effect.scopeKey);
+      else if (effect.rejectedReason === 'needs-confirmation') pending.add(effect.scopeKey);
+    }
+  }
+  return pending;
+}
+
 export interface GoalRow {
   goalId: string;
   statement: string;
@@ -234,6 +302,12 @@ export interface GoalRow {
   /** Whether play is on this one. Exactly one row is current, or none. */
   current: boolean;
   achieved: boolean;
+  /**
+   * The narrator judged this met and it is waiting on a person — [25 C12].
+   * Never true at the same time as {@link achieved}: confirming applies the
+   * write, which clears this on the same walk.
+   */
+  proposed: boolean;
   /** The turn it was completed on. */
   achievedOn?: string;
   /** The authored successor, if the chain names one. */
@@ -250,6 +324,7 @@ export function goalRows(
 ): GoalRow[] {
   const current = readCurrentGoal(channels, goals);
   const when = achievedOn(path);
+  const waiting = pendingAchievement(path);
 
   return goals.map((goal) => {
     const completedOn = when.get(goal.id);
@@ -260,6 +335,7 @@ export function goalRows(
       completion: goal.completion.kind,
       current: current?.id === goal.id,
       achieved: readGoalState(channels, goal.id) === 'achieved',
+      proposed: waiting.has(goal.id),
       ...(completedOn === undefined ? {} : { achievedOn: completedOn }),
       next: goal.next,
       thenDefault: goal.thenDefault,

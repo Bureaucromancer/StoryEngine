@@ -92,6 +92,15 @@ function summaryLine(
   concluded: boolean,
 ): string {
   if (concluded) return 'The story has ended';
+  /**
+   * **A waiting completion outranks the statement**, and it is the only thing
+   * that does. The closed disclosure's job is the sentence being played toward;
+   * a proposal nobody has ruled on is the one moment where the useful fact is
+   * that the panel needs opening — and [25 C12]'s whole cost is a person not
+   * noticing.
+   */
+  const waiting = rows.find((row) => row.proposed && !row.achieved);
+  if (waiting !== undefined) return `Done? The narrator thinks so: ${waiting.statement}`;
   if (current !== null) return `Working toward: ${current.statement}`;
   if (rows.some((row) => row.achieved)) return 'Playing on, with no objective';
   return rows.length === 0 ? 'No objective' : 'No objective set';
@@ -118,6 +127,52 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
             longer hidden from them by anything. */}
         {row.visibility === 'hidden' && !row.achieved ? <Fine>the narrator’s arc</Fine> : null}
       </div>
+
+      {/**
+       * ***The narrator's judgement, waiting on a person*** — [25 C12], settled
+       * at [P7.6]. `se.goal` declares `confirm: ['achieved']`, so a completion
+       * the judge proposed is **recorded and unapplied** until this is pressed.
+       *
+       * *Above the manual button rather than replacing it*, because they are
+       * different acts: this one rules on a claim somebody else made, and the
+       * one below makes the claim. A player who agrees presses *Yes*; a player
+       * who would have marked it done anyway has not lost that button.
+       *
+       * **Both buttons write, and that is what makes the refusal stop being
+       * outstanding** — *Not yet* writes the standing `null`, which is an
+       * applied effect on the goal and clears it from
+       * `pendingAchievement`'s walk. A dismissal that wrote nothing would leave
+       * this here forever.
+       */}
+      {row.proposed && !row.achieved ? (
+        <Alert tone="neutral" role="status" className="flex flex-col gap-2">
+          <span>The narrator thinks this is done. Is it?</span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              disabled={write.isPending}
+              onClick={() => {
+                set(`se.goal#${row.goalId}`, 'achieved');
+              }}
+            >
+              Yes, that’s done
+            </Button>
+            <Button
+              type="button"
+              disabled={write.isPending}
+              onClick={() => {
+                set(`se.goal#${row.goalId}`, null);
+              }}
+            >
+              Not yet
+            </Button>
+          </div>
+          <Fine>
+            Nothing has happened yet. Saying no leaves the story where it is — the narrator can
+            raise it again later.
+          </Fine>
+        </Alert>
+      ) : null}
 
       {/**
        * ***Manual completion, always available*** — [06 §7.3.3]'s other half.

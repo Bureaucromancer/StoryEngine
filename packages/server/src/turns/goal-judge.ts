@@ -83,10 +83,13 @@ export interface GoalJudgeContext {
  * directly would be a `model-proposed` write attributed to a step rather than to
  * the model whose judgement it is.
  *
- * *Attribution matters here more than it did for hooks.* `se.goal` is the
- * build's first `model-proposed` channel, and the whole point of that policy is
- * that a **model** may propose. The runner stamps `{ kind: 'model', callId }`,
- * so the record says a model judged this and the workbench can show the call.
+ * *Attribution matters here more than it did for hooks.* `se.goal` is not the
+ * build's first `model-proposed` channel — `se.presence`, `se.status` and
+ * `se.party` have been since [P3.0] — but it is **the first one a model's own
+ * judgement is written to**, and until this step nothing in the build stamped
+ * an effect `{ kind: 'model' }` at all. The whole point of the policy is that a
+ * **model** may propose; the runner stamps `{ kind: 'model', callId }`, so the
+ * record says a model judged this and the workbench can show the call.
  */
 export function goalJudge(context: GoalJudgeContext): {
   definition: StepDefinition;

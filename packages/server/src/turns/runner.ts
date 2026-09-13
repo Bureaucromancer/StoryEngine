@@ -37,7 +37,7 @@ import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
-import { goalJudge, type GoalJudgeReport } from './goal-judge.js';
+import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
@@ -1104,15 +1104,32 @@ export class TurnRunner {
     }
 
     /**
-     * **A goal met, after the loop** — [06 §7.3.3], [P7.6].
+     * **A goal met, after the loop** — [06 §7.3.3], [P7.6], [25 C12].
      *
      * ***Attributed to the **model**, which is the one thing that makes
-     * `model-proposed` mean anything here.*** `se.goal` is the build's first
-     * channel with that policy, and the policy exists because [06 §7.3.3] says
-     * *"the narrator's judgement is the only signal available"* — so the record
-     * has to say a model judged this, with the call it judged it in. A step
-     * attribution would have been true of the plumbing and false about the
-     * decision.
+     * `model-proposed` mean anything here.*** The policy exists because
+     * [06 §7.3.3] says *"the narrator's judgement is the only signal
+     * available"* — so the record has to say a model judged this, with the call
+     * it judged it in. A step attribution would have been true of the plumbing
+     * and false about the decision. (`se.goal` is not the *first*
+     * `model-proposed` channel — three cast channels have carried the policy
+     * since [P3.0] — it is the first one a model's judgement is written to.)
+     *
+     * ***And it is expected to be refused.*** `se.goal` declares
+     * `confirm: ['achieved']`, so this proposal normally lands
+     * `applied: false, rejectedReason: 'needs-confirmation'`: recorded on the
+     * turn, changing nothing, surfaced by the goal panel for a person to rule
+     * on. `applyEffects` skips an unapplied effect, so the line below is a
+     * deliberate no-op on the ordinary path and is kept because the path where
+     * it is not — a mode that redeclares the channel without `confirm` — must
+     * not silently leave `running` stale for the clock write underneath it.
+     *
+     * *The fallback is `step` rather than `engine`, and that is the gate rather
+     * than tidiness.* `confirm` is checked for `model` and `step` only, so an
+     * `engine` stamp here would have been a **bypass**: a judged completion
+     * applying itself unasked on the one path where `calls` came back empty.
+     * `step` is also the truer claim — with no call to point at, what is known
+     * is that the judge step reported it.
      *
      * *Written by the runner rather than proposed by the step* for the reason
      * the firing is: what an achievement **means** for the session — which
@@ -1129,7 +1146,9 @@ export class TurnRunner {
           op: { type: 'set', path: '/' },
           after: 'achieved',
           proposedBy:
-            judged === undefined ? { kind: 'engine' } : { kind: 'model', callId: judged.id },
+            judged === undefined
+              ? { kind: 'step', stepId: GOAL_JUDGE_STEP.id }
+              : { kind: 'model', callId: judged.id },
         },
         running,
       );

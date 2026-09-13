@@ -41,6 +41,7 @@ const LEDGER = {
   completion: 'narrative' as const,
   current: true,
   achieved: false,
+  proposed: false,
   next: null as string | null,
   thenDefault: 'advance' as const,
 };
@@ -78,7 +79,12 @@ beforeEach(() => {
  * and the alert under it — and a query that matched two elements would fail for
  * a reason that has nothing to do with the test.
  */
-async function renderPanel(): Promise<void> {
+/**
+ * Returns the render container so a test can read the **summary** — the
+ * disclosure's closed line is queried off this rather than off `screen`,
+ * because `getByText` would match the statement in the body too.
+ */
+async function renderPanel(): Promise<{ container: HTMLElement }> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { container } = render(
     <QueryClientProvider client={client}>
@@ -89,6 +95,7 @@ async function renderPanel(): Promise<void> {
     expect(container.querySelector('details')).not.toBeNull();
   });
   container.querySelector('details')?.setAttribute('open', '');
+  return { container };
 }
 
 describe('the goal panel', () => {
@@ -246,5 +253,74 @@ describe('the goal panel', () => {
     await renderPanel();
 
     expect(screen.queryByRole('textbox', { name: 'Set an objective' })).toBeNull();
+  });
+
+  /**
+   * ***[25 C12]'s gate, seen from the surface it exists for.*** The judge's
+   * completion is recorded and unapplied, so nothing about the story has moved
+   * — and the panel's job is to make that visible and rulable rather than to
+   * let it sit in the effect log.
+   */
+  describe('a completion the narrator proposed', () => {
+    it('asks rather than raising the three offers', async () => {
+      answerWith([{ ...LEDGER, proposed: true }]);
+      await renderPanel();
+
+      expect(screen.getByText('The narrator thinks this is done. Is it?')).toBeTruthy();
+      // The offers belong to an *achieved* goal. A proposal is not one.
+      expect(screen.queryByRole('button', { name: 'End the story' })).toBeNull();
+      expect(screen.queryByText('Done. What now?')).toBeNull();
+    });
+
+    it('writes the completion when the person agrees', async () => {
+      answerWith([{ ...LEDGER, proposed: true }]);
+      await renderPanel();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Yes, that’s done' }));
+      await waitFor(() => {
+        expect(writeSessionChannel).toHaveBeenCalledWith(
+          SESSION_ID,
+          'se.goal#g-ledger',
+          'achieved',
+        );
+      });
+    });
+
+    /**
+     * **A dismissal writes too.** The refusal stops being outstanding when an
+     * *applied* effect lands afterwards, so *Not yet* writes the standing
+     * `null` — a button that wrote nothing would leave the question here
+     * forever.
+     */
+    it('writes the standing value when the person says not yet', async () => {
+      answerWith([{ ...LEDGER, proposed: true }]);
+      await renderPanel();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Not yet' }));
+      await waitFor(() => {
+        expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.goal#g-ledger', null);
+      });
+    });
+
+    /** The manual path is not replaced by the question — they are two acts. */
+    it('keeps manual completion available beside it', async () => {
+      answerWith([{ ...LEDGER, proposed: true }]);
+      await renderPanel();
+
+      expect(screen.getByRole('button', { name: 'Mark it done' })).toBeTruthy();
+    });
+
+    /**
+     * *The closed disclosure has to say it*, because the whole cost of the gate
+     * is a person not noticing there is something to rule on.
+     */
+    it('says so on the summary line, over the statement it would otherwise show', async () => {
+      answerWith([{ ...LEDGER, proposed: true }]);
+      const { container } = await renderPanel();
+
+      const summary = container.querySelector('summary');
+      expect(summary?.textContent).toContain('The narrator thinks so');
+      expect(summary?.textContent).not.toContain('Working toward');
+    });
   });
 });

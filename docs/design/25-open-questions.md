@@ -680,7 +680,41 @@ so branching from any of them is an operation on that node. The related
 ambiguity also resolves cleanly rather than needing a convention: *redo* adds a
 sibling, *continue differently* adds a child. Both are offered explicitly.
 
-**C12. Confirmation before a narrative goal completion fires.** Goals with
+**C12. Confirmation before a narrative goal completion fires. — RESOLVED:
+ask.** (2026-09-13, [P7.6](workplan/23-p7-implementation.md).) `se.goal`
+declares `confirm: ['achieved']`, so the judge's completion lands on the turn
+**recorded and unapplied**, the three offers do not raise, and the goal panel
+asks. The original text stands below and the leaning in it was right; what
+changed is that the leaning turned out to cost nothing to act on.
+
+***The deferral was costing more than the decision.*** The leaning said the gate
+*"wants real sessions to judge"* — true of the **prompt** the question imagined,
+and the question imagined one because it was written before
+`ChannelDefinition.confirm` existed. That field shipped at
+[P7.2](workplan/23-p7-implementation.md) for terminal statuses, with a docstring
+naming this as its second consumer and warning that *"building one status-shaped
+now is the reinvention this phase keeps catching itself about"*. So by P7.6 the
+mechanism was built, unused, and pointing here — and *ask* was three words in a
+channel declaration rather than a prompt at the most dramatically loaded moment
+in the session. **A confirmation is not a call.** That is the whole correction:
+the cost this question priced was a second model round trip, and the thing built
+is a refusal a person rules on at their own pace, on a surface already there.
+
+*What real sessions can still judge* is the judge's **accuracy**, and the
+asymmetry the question turns on does not depend on it: a false completion ends a
+story that did not earn it at any hit rate short of perfect. If sessions show
+the judge is right nearly always, the remedy is to drop `confirm` from the
+declaration — one line, and a mode may already declare its own goal channel
+without it. The decision is reversible in the direction the evidence could
+point, which is the shape a question *"wanting real sessions"* should be settled
+in rather than left open.
+
+*Also settled in passing: the runner's fallback attribution.* With no call to
+point at, a completion stamps `{ kind: 'step' }` rather than `{ kind: 'engine' }`
+— `confirm` is checked for `model` and `step` only, so the engine stamp would
+have been a bypass of this gate on the one path it applied to.
+
+**C12 as written (kept):** Goals with
 `completion: { kind: "narrative" }` are judged by an evaluation step
 ([06 §7.3.3](06-modes-and-turn-pipeline.md)), and the two error directions are
 not symmetric: a missed completion is an annoyance the player resolves manually,

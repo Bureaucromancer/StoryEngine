@@ -3002,12 +3002,19 @@ describe('a session with a goal', () => {
 
   /**
    * ***Attributed to the model, which is the one thing that makes
-   * `model-proposed` mean anything here.*** `se.goal` is the build's first
-   * channel with that policy, and the policy exists because the narrator's
-   * judgement is the only signal available — so the record has to say a model
-   * judged it, with the call it judged it in.
+   * `model-proposed` mean anything here.*** The policy exists because the
+   * narrator's judgement is the only signal available — so the record has to
+   * say a model judged it, with the call it judged it in. (`se.goal` is not the
+   * first channel carrying the policy — three cast channels have since [P3.0] —
+   * it is the first one a model's judgement is *written to*.)
+   *
+   * ***And it is refused, which is [25 C12]'s answer.*** `confirm: ['achieved']`
+   * makes the judgement a **recorded, unapplied** proposal: the record says what
+   * the narrator thought, the session has not moved, and the goal panel asks. A
+   * false completion ending a story that did not earn it is the error the
+   * asymmetry is about, and the refusal is where it is stopped.
    */
-  it('records a met goal as a model proposal on the goal’s own key', async () => {
+  it('records a met goal as a refused model proposal on the goal’s own key', async () => {
     await seedGoals([ledger()]);
     makeRunner({ script: [{ text: 'She walked out with it.' }, { object: { met: true } }] });
 
@@ -3016,14 +3023,37 @@ describe('a session with a goal', () => {
 
     expect(achieved).toMatchObject({
       scopeKey: 'g-ledger',
+      // `after` is the value the model *wanted* — the [P7.2] correction the
+      // panel depends on, since a refusal stamping `before` back would record
+      // that something was refused and not what.
       after: 'achieved',
-      applied: true,
+      applied: false,
+      rejectedReason: 'needs-confirmation',
       proposedBy: { kind: 'model' },
     });
     // The call it judged in, so the workbench can show the reasoning.
     expect(turn.request?.calls.map((call) => call.id)).toContain(
       (achieved?.proposedBy as { callId?: string }).callId,
     );
+  });
+
+  /**
+   * *The state does not move on the proposal*, which is the half that matters
+   * more than the record: [06 §7.3.4]'s three offers are raised off `achieved`,
+   * so a story whose channel still reads `null` is a story that has not ended.
+   */
+  it('leaves the goal unachieved until a person rules on it', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'She walked out with it.' }, { object: { met: true } }] });
+
+    await runTurn();
+
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as {
+      channels?: Record<string, { value: unknown }>;
+    };
+
+    expect(session.channels?.['se.goal#g-ledger']?.value ?? null).toBeNull();
   });
 
   it('writes nothing when the judge says not yet', async () => {

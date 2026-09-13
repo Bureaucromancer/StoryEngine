@@ -997,6 +997,11 @@ export interface GoalRow {
   /** Whether play is on this one. Exactly one row, or none. */
   current: boolean;
   achieved: boolean;
+  /**
+   * The narrator judged this met and it is waiting on a person ([25 C12]).
+   * Never true at the same time as `achieved`.
+   */
+  proposed: boolean;
   /** The turn it was completed on. */
   achievedOn?: string;
   /** The authored successor, if the chain names one. */

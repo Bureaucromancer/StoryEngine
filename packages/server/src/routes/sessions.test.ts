@@ -2107,6 +2107,9 @@ describe('a session’s goals', () => {
         completion: 'narrative',
         current: true,
         achieved: false,
+        // [25 C12]'s gate, seen from the wire: a goal nobody has judged yet is
+        // neither done nor waiting on an answer.
+        proposed: false,
         next: 'g-two',
         thenDefault: 'advance',
       },

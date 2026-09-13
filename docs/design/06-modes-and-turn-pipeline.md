@@ -1048,9 +1048,19 @@ symmetric: a missed completion is an annoyance the player can resolve manually,
 while a false completion ends the story on a turn that did not earn it.
 **Bias toward under-firing, and make manual completion always available.**
 
-**[OPEN]** Whether narrative completion should require confirmation before it
+~~**[OPEN]** Whether narrative completion should require confirmation before it
 fires. Cheap insurance against the worse error, at the cost of a prompt at the
-most dramatically loaded moment in the session.
+most dramatically loaded moment in the session.~~
+
+***[RESOLVED] — ask*** (2026-09-13, [25 C12](25-open-questions.md),
+[P7.6](workplan/23-p7-implementation.md)). `se.goal` declares
+`confirm: ['achieved']`, so the judge's completion is recorded on the turn and
+**not applied**: the three offers of §7.3.4 do not raise and the goal panel asks.
+*The cost priced above was wrong* — it assumed a confirmation meant a second
+prompt, and `ChannelDefinition.confirm` (built at P7.2 for terminal statuses)
+makes it a refusal a person rules on at their own pace instead. Manual
+completion is unaffected, because the gate is checked for `model` and `step`
+proposals only.
 
 #### 7.3.4 What happens at the end: both answers
 
