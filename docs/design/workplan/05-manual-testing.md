@@ -722,7 +722,7 @@ a claim nobody made.*
 | **P6A** | 13 | 1, 2, 13 partly | **1 walked; closed 2026-09-09** | **I**, now ten rows rather than a paragraph: one `PASS`, three `PART` from the first install with all three findings fixed, six blank. It set the precedent §0 made a rule |
 | **P6B** | 10 | **6, 7** — §5 | **K, pending** | **The first gate to split under [§0](#the-two-tier-gate).** Steps 1–5, 9 and 10 are sitting **K**, the critical list, and the phase does not close until they have results. Step 8 is P5's eighteen wearing P6B's number — criterion (i) — and is **F** |
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
-| **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **critical list pending** | **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)). Eight rows answered by tests, two Standing, and **three await a person**: C1 author a small mode against the SDK with no `server`; C2 Freeform played end to end; C3 a wizard for a mode the engine knows nothing about. Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
+| **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **critical list pending** | **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing, and **three await a person**: C1 author a small mode against the SDK with no `server`; C2 Freeform played end to end; C3 a wizard for a mode the engine knows nothing about. Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
 | **P8 … P11** | 10 / 15 / 10 / 10 | — | not yet opened | **45 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is |
 
 **Two things this table makes plain and no single document did.** Every gate
@@ -846,6 +846,25 @@ that only grows. Their state today:
   between *checked* and *believed*. **Sixty-three other temp roots in the suite
   still call `mkdtemp` directly**; none of them compares a path across the
   server boundary today, and nothing stops the next one doing so.
+
+- **No test can see an empty frame** — added by [P7.12] (2026-09-13).
+  [10 §2.3] requires that with the backdrop off *"Play is the surface it was
+  before, not a surface with an empty frame in it"*, and `ModeRegion.test.tsx`
+  asserts the component renders nothing. **That is not the claim.** The claim is
+  about the *page*: a wrapper with padding around nothing, a grid row that still
+  reserves its height, a gap where the stage would be. Every one of those passes
+  a `textContent === ''` assertion and is visible to a person in a second. **This
+  is the by-hand item P7.12 owes**, and it is a should-be-a-test only in the weak
+  sense — a layout assertion at this tier would pin a stylesheet, which
+  `tailwind-utilities.test.ts` already declines to do.
+
+- **The stager's prompt has never met a model** — added by [P7.12]. Its schema
+  is enforced structurally, so a wrong *label* cannot reach a channel; what is
+  untested is whether a local model, asked for *a place and not an event*, gives
+  a place. That is [work plan P11]'s tuning class rather than a missing
+  assertion, and it is recorded here because the cassette tier is where it would
+  eventually be caught: nothing in `captures/live-tests/` exercises a `stage`
+  call, and nothing will until somebody plays a staged session.
 
 
 ---

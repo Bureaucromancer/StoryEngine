@@ -2,10 +2,17 @@
 
 **Status: ~~skeleton~~ ~~skeleton, audited 2026-09-07 at `5602ded`~~ ~~startable in
 part, re-audited 2026-09-10 at `46bec98` — and this is now the phase in front of
-us.~~ Buildable work done, 2026-09-13 — ten stages landed, **§3.2**
-is the gate's results table, and three criticals await a person (C1, C2, C3).
-Scene grown up is the one stage deliberately left to wait on PLAYABLE, for
-**§0.2**'s stated reason.** Drafted 2026-08-29, with P3 landed and
+us.~~ ~~Buildable work done, 2026-09-13 — ten stages landed~~ Buildable work
+done, 2026-09-13 — **fifteen stages landed**, **§3.2** is the gate's results
+table, and three criticals await a person (C1, C2, C3). ~~Scene grown up is the
+one stage deliberately left to wait on PLAYABLE, for **§0.2**'s stated
+reason.~~ ***Scene is grown up*** (P7.12), built around the hold rather than
+through it: the three channels §7.2 asks for, a step in the mode package that
+writes two of them, and `SCENE_PRESET` still at its sixteen blocks. **What waits
+on [sitting K](05-manual-testing.md) is now one preset slot** — `se.location`'s —
+rather than a feature. P7.10–P7.14 also built [06 §9]'s `surfaces`, the media
+route and expression import both needed, row 2b's lint rule, and the last two
+configuration-without-a-surface instances. Drafted 2026-08-29, with P3 landed and
 [P4](16-p4-implementation.md) planned but not started, so it was written four
 phases ahead of its phase and §0 says what that kind of document is honestly
 for. ~~Four have landed since — P4, P5, P6 and P6A, the last of them cutting
