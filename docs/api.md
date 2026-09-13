@@ -1113,6 +1113,17 @@ decision and a selector able to widen its own gate is not a dial.
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
 
+`hooks` is the hook panel's surface ([10 §10.1]): `{ pacing, rows }`, where
+`pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
+a Setup's, a Treatment's — and each row carries a hook's `title`, `source`,
+`state`, the `refusal` class blocking it (`null` when it is eligible now), a
+`committed: { overrode }` when a person's Commit is carrying it, the `firedOn`
+turn if it has gone, and its `entrances` **by label**. *The `premise` appears
+only once the hook has fired and entrance **text** never appears at all*: an
+unfired hook's premise is hidden content ([08 §6]), and the workbench's block
+list already shows a fired hook's exact words. Empty `rows` for a session with no
+pool, which is every session that was not created with one.
+
 `health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
 channels declaring a `surface`, already rendered through their own `render`
 template; `cast` is one row per person this story is about — presence, status,

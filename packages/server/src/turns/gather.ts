@@ -13,10 +13,7 @@ import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessi
 import type { SessionContext } from '../sessions/store.js';
 import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/types.js';
 import { readRegistry } from '../tags/store.js';
-import { ACTOR_SCHEMA } from '@storyengine/shared';
-
-import { read } from '../library.js';
-import type { LibraryContext } from '../library.js';
+import { resolvableActors } from '../sessions/hook-pool.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -211,43 +208,4 @@ export async function gatherAssemblyInputs(
     lore,
     hooks: { pool, known: resolvableActors(library, request.account, pool) },
   };
-}
-
-/**
- * Which of a pool's actors resolve — the set `FilterContext.known` wants.
- *
- * **Ids, never cards.** The filter asks one question of each — *is there an
- * object behind this `Ref`* — and reading the actor whole would put an unfired
- * introduction's subject into memory on every turn for a hook that will fire on
- * none of them. [04 §6.1a] makes the dangling case a *visible* refusal rather
- * than a quiet retirement, which is the only thing this has to be able to say.
- *
- * *Reads each id once* even when six hooks name the same person, because a pool
- * with thirty hooks is the case [06 §6.1] sizes the mechanical filter for.
- */
-function resolvableActors(
-  library: LibraryContext,
-  handle: string,
-  pool: readonly PooledHook[],
-): ReadonlySet<string> {
-  const asked = new Set<string>();
-  for (const { hook } of pool) {
-    for (const who of hook.involves) asked.add(who.id);
-    if (hook.introduces !== undefined) asked.add(hook.introduces.actor.id);
-  }
-
-  const known = new Set<string>();
-  for (const id of asked) {
-    try {
-      read(library, handle, id, ACTOR_SCHEMA);
-      known.add(id);
-    } catch {
-      // **The throw is the answer**, which is what `read` gives back for an id
-      // that is not there, is not an actor, or is a file that no longer parses
-      // as one. All three are *gone* as far as a hook is concerned, and saying
-      // so beats failing the turn — the same never-throws posture `resolveCast`
-      // takes one function over.
-    }
-  }
-  return known;
 }

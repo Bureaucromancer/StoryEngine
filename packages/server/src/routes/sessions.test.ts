@@ -1721,4 +1721,119 @@ describe('a session’s hook pool', () => {
     const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
     expect(after.body.session.hooks[0].hook.id).toBe('hook-war');
   });
+
+  /**
+   * **What the hook panel is shown** — [10 §10.1], [P7.5].
+   *
+   * *"Which hooks have fired and when, which are eligible right now, and which
+   * are blocked **with the clause that blocked them**."* Eligibility is live
+   * because the mechanical filter already runs every turn, so the route runs the
+   * same filter the selector does rather than a second reading of the rules.
+   */
+  it('sends the panel its rows and the dial that explains an empty one', async () => {
+    const id = await aTreatment([
+      hook('hook-war'),
+      { ...hook('hook-late'), notBefore: { turn: 40 } },
+    ]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.body.hooks.pacing).toBe('normal');
+    expect(read.body.hooks.rows).toEqual([
+      {
+        hookId: 'hook-war',
+        title: 'hook-war',
+        source: { kind: 'treatment', id },
+        state: null,
+        refusal: null,
+        entrances: [],
+      },
+      {
+        hookId: 'hook-late',
+        title: 'hook-late',
+        source: { kind: 'treatment', id },
+        state: null,
+        // The clause, not a boolean — an author must see *which are blocked and
+        // by what*, and the remedy for this one is to wait or lower the bound.
+        refusal: 'too-early',
+        entrances: [],
+      },
+    ]);
+    // **The premise is not on the wire**, which is the panel's defining
+    // constraint rather than an omission: an unfired hook's premise is hidden
+    // content ([08 §6]), and the one thing worse than spoiling it in a panel is
+    // spoiling it in the prompt.
+    expect(JSON.stringify(read.body.hooks)).not.toContain('declare war');
+  });
+
+  /**
+   * The dial is [04 §6.1b]'s three rungs, and the panel shows the resolved
+   * value — a control reading the channel alone would say `normal` for every
+   * session whose treatment asked for something else and has not been turned.
+   */
+  it('resolves the dial through the treatment that proposed it', async () => {
+    const made = {
+      ...newTreatment('Rain City, noir'),
+      hooks: [hook('hook-war')],
+      hookPacing: 'sparse',
+    };
+    const treatment = await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: made,
+    });
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: treatment.body.object.id as string },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(before.body.hooks.pacing).toBe('sparse');
+
+    // And the running session owns it thereafter, which is the top rung.
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.hook.pacing`,
+      payload: { value: 'aggressive' },
+    });
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.hooks.pacing).toBe('aggressive');
+  });
+
+  /**
+   * **Commit goes through the channel write and needed no route of its own** —
+   * [06 §6.1], and the panel's one control. The first rule is that skipping the
+   * filter says what it skipped, so the row carries the clause it walked past.
+   */
+  it('commits a blocked hook and reports the clause it overrode', async () => {
+    const id = await aTreatment([{ ...hook('hook-late'), notBefore: { turn: 40 } }]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent('se.hook#hook-late')}`,
+      payload: { value: 'committed' },
+    });
+    expect(written.body.effect.applied).toBe(true);
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.body.hooks.rows[0]).toMatchObject({
+      state: 'committed',
+      refusal: null,
+      committed: { overrode: 'too-early' },
+    });
+  });
 });

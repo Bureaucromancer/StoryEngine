@@ -32,7 +32,8 @@ import {
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
-import { poolFor } from '../sessions/hook-pool.js';
+import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
+import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
@@ -750,12 +751,72 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       session.headTurnId,
     );
 
+    /**
+     * **The hook panel's rows** — [10 §10.1], [06 §6.1], [P7.5].
+     *
+     * *"Which hooks have fired and when, which are eligible right now, and which
+     * are blocked **with the clause that blocked them**."* And [10 §10.1] is
+     * explicit that *eligibility is live rather than computed on demand, because
+     * the selector's mechanical filter already runs every turn* — so this is the
+     * same `filterHooks` the selector calls, over the same pool at the same node.
+     *
+     * **Two library reads, and both are the ones the turn makes.** The active
+     * books decide whether a lorebook-borne hook is eligible at all ([03 §4.1]),
+     * and `resolvableActors` answers whether an `introduces.actor` exists —
+     * shared with `gather.ts` rather than reimplemented, because *a panel that
+     * disagreed with the selector about why a hook is blocked would be worse than
+     * no panel*.
+     *
+     * *Skipped entirely for a session with no pool*, which is every session
+     * today: the reads are real, the route is on the path of every poll, and an
+     * empty array costs nothing to send.
+     */
+    const pool = session.hooks ?? [];
+    const library = {
+      db: services.sessions.index,
+      layout: services.sessions.layout,
+      keepHistoryPerObject: 0,
+    };
+    const lore = pool.length === 0 ? null : resolveLore(library, account.handle, session);
+
+    /**
+     * **The dial travels with the rows, and it is not in the `hud`.**
+     * [10 §10.1] puts it *in the panel*: *"the pacing dial sits here, because it
+     * is the control that explains an empty panel — a session at `sparse` with
+     * six eligible hooks and nothing firing is working correctly, and without the
+     * dial in view that is indistinguishable from broken."* A `surface` on the
+     * channel would put it in the strip above the transcript instead, which is a
+     * different place and a different claim.
+     *
+     * *Resolved here rather than read off the channel*, because the value is
+     * [04 §6.1b]'s three rungs — the session's own, a Setup's, a Treatment's —
+     * and a control showing only the first would read as `normal` for every
+     * session that authored one and never turned it.
+     */
+    const hooks = {
+      pacing: readPacing(session.channels, {
+        ...(isRecord(session.setup) ? { setup: session.setup } : {}),
+        ...(isRecord(lore?.treatment?.treatment) ? { treatment: lore.treatment.treatment } : {}),
+      }),
+      rows:
+        lore === null
+          ? []
+          : hookRows(pool, {
+              channels: session.channels,
+              path,
+              activeBooks: new Set(lore.books.map((book) => book.id)),
+              known: resolvableActors(library, account.handle, pool),
+              persona: session.cast?.persona ?? null,
+            }),
+    };
+
     return reply.send({
       session,
       activeJob: job,
       health: degradedChannels(session.channels),
       hud: channelSurfaces(session.channels),
       cast: castRows(session.cast, session.channels, path),
+      hooks,
     });
   });
 
@@ -1677,4 +1738,16 @@ function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefine
   return typeof config === 'object' && config !== null && !Array.isArray(config)
     ? (config as Record<string, unknown>)
     : undefined;
+}
+
+/**
+ * A plain object, for the two authored values the pacing dial layers over.
+ *
+ * Both reach here as `unknown`: a Setup is stored on the session record and a
+ * treatment comes back from a resolver that never throws, so a hand-edited file
+ * puts a string or a number in either. `readPacing` validates the level itself;
+ * this is only what makes the property access legal.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

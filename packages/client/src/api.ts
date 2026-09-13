@@ -940,9 +940,70 @@ export function readSession(sessionId: string): Promise<{
   health: DegradedChannel[];
   hud: ChannelSurface[];
   cast: CastRow[];
+  /**
+   * The hook panel's rows and the dial above them — [10 §10.1].
+   *
+   * *The dial travels with the rows rather than in `hud`*, because 10 §10.1 puts
+   * it **in the panel**: it is the control that explains an empty one, and the
+   * strip above the transcript is a different place making a different claim.
+   */
+  hooks: { pacing: 'sparse' | 'normal' | 'aggressive' | 'manual-only'; rows: HookRow[] };
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
 }
+
+/**
+ * One row of the hook panel — [10 §10.1], [06 §6.1], [P7.5].
+ *
+ * *"Which hooks have fired and when, which are eligible right now, and which are
+ * blocked **with the clause that blocked them**."*
+ *
+ * ***The content is not here, and that is the panel's defining constraint.***
+ * [08 §6] makes an unfired hook's premise hidden content and [10 §10.1] says it
+ * of entrances twice — *"a panel that spoils the arrival to the person about to
+ * read it defeats the feature"*. So a row is named by its `title`, which
+ * [04 §6.1] calls *"for the author's list. Never injected."*; `premise` arrives
+ * only once the hook has gone, and entrance **text** never arrives at all,
+ * because the workbench's block list already shows a fired hook's exact words.
+ */
+export interface HookRow {
+  hookId: string;
+  title: string;
+  /** Which object owns it, so editing can navigate there — [03 §4.1]. */
+  source: { kind: 'treatment' | 'setup' | 'lore' | 'session'; id?: string };
+  /** `null` is *in the pool*. */
+  state: 'fired' | 'provisional' | 'committed' | null;
+  /** `null` when it is eligible right now. */
+  refusal: HookRefusal | null;
+  /** Present when a person's Commit is carrying it, with the clause it skipped. */
+  committed?: { overrode: HookRefusal | null };
+  /** The turn it fired on. */
+  firedOn?: string;
+  /** Only once it has gone. */
+  premise?: string;
+  /** **Labels, never text.** Empty for a hook that is an event rather than an arrival. */
+  entrances: { id: string; label: string }[];
+}
+
+/**
+ * Why a hook is not eligible — a class, not prose, and the panel maps it to a
+ * sentence ([06 §6.1]: an author must see *which are blocked and by what*).
+ *
+ * **A string union rather than a copy of the engine's type**: this package does
+ * not import `@storyengine/shared`'s record types, and a wire shape is a wire
+ * shape. A value this build does not know reads as a class the panel has no
+ * sentence for, which `hookWords` answers rather than throwing.
+ */
+export type HookRefusal =
+  | 'fired'
+  | 'pending'
+  | 'book-inactive'
+  | 'blocked'
+  | 'too-early'
+  | 'cast-gone'
+  | 'subject-gone'
+  | 'subject-met'
+  | 'subject-unavailable';
 
 /**
  * One row of the cast panel — [10 §13.2], [P7.2].

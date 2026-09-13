@@ -31,6 +31,7 @@ import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
+import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
@@ -367,6 +368,13 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           closed by default: it is a fact about the session rather than about
           any turn, and the story column is the surface. */}
       <LorePanel sessionId={sessionId} />
+
+      {/* **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
+          the lore panel rather than beside the cast, which 10 §10.1 chose
+          deliberately: the cast panel is *"two views of one observation about
+          identity resolution"* and a hook shares neither the observation nor the
+          subject. Renders nothing for a session with no hook pool. */}
+      <HookPanel sessionId={sessionId} />
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (

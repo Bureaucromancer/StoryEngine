@@ -549,3 +549,113 @@ export function gate(options: {
   if (!Number.isFinite(cadence) || options.depth % cadence !== 0) return 'held';
   return 'judged';
 }
+
+/**
+ * One hook as the panel shows it — [10 §10.1], [06 §6.1], built at [P7.5].
+ *
+ * *"Which hooks have fired and when, which are eligible right now, and which are
+ * blocked **with the clause that blocked them**."* That list is the panel's whole
+ * specification, and every field here answers one clause of it.
+ *
+ * ***What is deliberately not here is the content.*** [08 §6] makes an unfired
+ * hook's premise hidden content and [10 §10.1] says it twice — *"entrances are
+ * shown by label, never by text… a panel that spoils the arrival to the person
+ * about to read it defeats the feature"*. So `title` is what a row is named by:
+ * [04 §6.1]'s own words for it are *"for the author's list. Never injected."*
+ *
+ * **`premise` appears only once the hook has gone**, and that is not a
+ * relaxation of the rule — it is the rule running out. A fired hook's words have
+ * already been read; withholding them then would hide from an author the one
+ * thing they most need to see, which is what the hook actually did. *Entrance
+ * text never appears at all, because the workbench's block list already shows a
+ * fired hook's exact words with their source — [10 §10.1]'s "half of this is
+ * already free".*
+ */
+export interface HookRow {
+  hookId: string;
+  title: string;
+  /** Which object owns it, so editing can navigate there — [03 §4.1]. */
+  source: PooledHook['source'];
+  /** `null` is *in the pool*. */
+  state: HookState | null;
+  /** `null` when it is eligible right now. */
+  refusal: HookRefusal | null;
+  /** Present when a person's Commit is carrying it, with the clause it skipped. */
+  committed?: { overrode: HookRefusal | null };
+  /** The turn it fired on — [10 §10.1]'s *and when*. */
+  firedOn?: string;
+  /** Only once it has gone. See above. */
+  premise?: string;
+  /** **Labels, never text.** Empty for a hook that is an event rather than an arrival. */
+  entrances: readonly { id: string; label: string }[];
+}
+
+/**
+ * The hook panel's rows, at a node — the same shape `castRows` has and for the
+ * same reason: *eligibility is live rather than computed on demand, because the
+ * selector's mechanical filter already runs every turn* ([10 §10.1]).
+ *
+ * **The same `filterHooks` the selector calls**, not a second reading of the
+ * rules. A panel that disagreed with the selector about why a hook is blocked
+ * would be worse than no panel: the whole point of the surface is to answer
+ * *which are blocked and by what*, and a second implementation is a second
+ * answer waiting to drift.
+ */
+export function hookRows(pool: readonly PooledHook[], context: FilterContext): HookRow[] {
+  const fired = firedOn(context.path);
+  // Once, not once per hook: `filterHooks` is a fold over the whole pool, and a
+  // panel with thirty hooks is the case [06 §6.1] sizes the filter for.
+  const verdicts = filterHooks(pool, context);
+
+  return pool.map((entry, at) => {
+    const verdict = verdicts[at];
+    const state = readHookState(context.channels, entry.hook.id);
+    const spent = state === 'fired' || state === 'provisional';
+    const when = fired.get(entry.hook.id);
+
+    return {
+      hookId: entry.hook.id,
+      title: entry.hook.title,
+      source: entry.source,
+      state,
+      refusal: verdict?.refusal ?? null,
+      ...(verdict?.committed === undefined ? {} : { committed: verdict.committed }),
+      ...(when === undefined ? {} : { firedOn: when }),
+      ...(spent ? { premise: entry.hook.premise } : {}),
+      entrances: (entry.hook.introduces?.entrances ?? []).map((entrance) => ({
+        id: entrance.id,
+        label: entrance.label,
+      })),
+    };
+  });
+}
+
+/**
+ * Which turn each hook last fired on — [10 §10.1]'s *and when*.
+ *
+ * **Derived from the path rather than stored**, like every other *when* in this
+ * feature: the answer has to change under a rewind, and a stored turn id would
+ * point at a node this branch does not contain. *A provisional firing counts* —
+ * the attempt is what happened, and an author looking at a hook that never
+ * arrived needs the turn it was tried on.
+ */
+function firedOn(path: readonly Turn[]): Map<string, string> {
+  const when = new Map<string, string>();
+  for (const turn of path) {
+    for (const effect of turn.effects) {
+      if (!effect.applied || effect.channelId !== SE_HOOK) continue;
+      // An unscoped write to a hook-scoped channel is a hand edit; it names no
+      // hook, so there is nothing for a row to say about it.
+      if (effect.scopeKey === null) continue;
+      if (effect.after === 'fired' || effect.after === 'provisional') {
+        when.set(effect.scopeKey, turn.id);
+      } else {
+        // A commitment or a lapse is not a firing, and it supersedes an earlier
+        // one: a hook re-committed after it fired has not fired *on this path*
+        // in any sense a panel should claim.
+        when.delete(effect.scopeKey);
+      }
+    }
+  }
+  return when;
+}

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { PlotHook, Setup } from '@storyengine/shared';
+import { ACTOR_SCHEMA, type PlotHook, type Setup } from '@storyengine/shared';
+
+import { read } from '../library.js';
+import type { LibraryContext } from '../library.js';
 
 import type { ResolvedLore } from '../turns/lore.js';
 import type { PooledHook } from './types.js';
@@ -85,4 +88,50 @@ export function poolFor(options: {
   }
 
   return pool;
+}
+
+/**
+ * Which of a pool's actors resolve — the set `FilterContext.known` wants.
+ *
+ * **Here rather than in `gather.ts`, because a second caller arrived** — the
+ * hook panel ([10 §10.1]) reads the same pool at the same node and has to get
+ * the same answer. *A panel that disagreed with the selector about whether a
+ * hook's subject exists would be the exact failure the surface is built to
+ * prevent.* This module is where a hook question that needs the library already
+ * lives.
+ *
+ * **Ids, never cards.** The filter asks one question of each — *is there an
+ * object behind this `Ref`* — and reading the actor whole would put an unfired
+ * introduction's subject into memory on every turn for a hook that will fire on
+ * none of them. [04 §6.1a] makes the dangling case a *visible* refusal rather
+ * than a quiet retirement, which is the only thing this has to be able to say.
+ *
+ * *Reads each id once* even when six hooks name the same person, because a pool
+ * with thirty hooks is the case [06 §6.1] sizes the mechanical filter for.
+ */
+export function resolvableActors(
+  library: LibraryContext,
+  handle: string,
+  pool: readonly PooledHook[],
+): ReadonlySet<string> {
+  const asked = new Set<string>();
+  for (const { hook } of pool) {
+    for (const who of hook.involves) asked.add(who.id);
+    if (hook.introduces !== undefined) asked.add(hook.introduces.actor.id);
+  }
+
+  const known = new Set<string>();
+  for (const id of asked) {
+    try {
+      read(library, handle, id, ACTOR_SCHEMA);
+      known.add(id);
+    } catch {
+      // **The throw is the answer**, which is what `read` gives back for an id
+      // that is not there, is not an actor, or is a file that no longer parses
+      // as one. All three are *gone* as far as a hook is concerned, and saying
+      // so beats failing the turn — the same never-throws posture `resolveCast`
+      // takes one function over.
+    }
+  }
+  return known;
 }

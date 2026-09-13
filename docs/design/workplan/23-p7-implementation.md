@@ -3385,10 +3385,69 @@ unknown-channel fixture having to stop being `se.party` when that channel was
 declared. **A fixture naming a value the build is about to have is a test with an
 expiry date on it.**
 
-**Next:** the hook panel ([10 §10.1]) with Commit on it and force-fire
-deliberately in the workbench instead; session-local hooks addable to a *running*
-session; and `introduces`' provisional firings confirmed by the extract stage,
-which is [P7.7]'s and is what closes this stage's fourth property row.
+**Done: stage five — the hook panel, which is the half nothing else can show**
+(2026-09-13).
+
+[06 §6.1] calls authoring affordances *"part of the feature, not polish"* and
+says why: *"somebody with thirty hooks cannot test them by playing to turn 200."*
+[10 §10.1] turns that into a list, and every clause of it is a field —
+`state` and `firedOn` for *which have fired and when*, `refusal` for *which are
+blocked and by what*, and `committed.overrode` for the one a person carried past.
+
+**The panel runs the selector's own filter, not a second reading of the rules.**
+[10 §10.1] is explicit that *eligibility is live rather than computed on demand,
+because the selector's mechanical filter already runs every turn* — so
+`hookRows` calls `filterHooks` over the same pool at the same node. *A panel that
+disagreed with the selector about why a hook is blocked would be worse than no
+panel*, since answering **which are blocked and by what** is the whole reason the
+surface exists. `resolvableActors` moved out of `gather.ts` into `hook-pool.ts`
+for the same reason: the route needed it, and two implementations of *does this
+subject exist* is the drift that argument is about.
+
+***The content is the constraint the surface is built around.*** [08 §6] makes an
+unfired hook's premise hidden content and [10 §10.1] says it of entrances twice.
+So a row is its **title** — [04 §6.1]'s own words are *"for the author's list.
+Never injected"* — and `premise` arrives **only once the hook has gone**. That is
+not the rule relaxing but running out: a fired hook's words have been read
+already, and withholding them then would hide from an author the one thing they
+most need to see. *Entrance text never arrives at all*, because [10 §10.1]'s
+*"half of this is already free"* is the workbench's block list, which shows a
+fired hook's exact words with their source.
+
+**The dial travels with the rows and is deliberately not in the `hud`.** 10 §10.1
+puts it *in the panel* — *"it is the control that explains an empty panel: a
+session at `sparse` with six eligible hooks and nothing firing is working
+correctly, and without the dial in view that is indistinguishable from broken"* —
+and a `surface` on the channel would have put it in the strip above the
+transcript instead, which is a different place making a different claim. *It is
+sent resolved through [04 §6.1b]'s three rungs rather than read off the channel*,
+or a session whose treatment asked for `sparse` would show `normal` until
+somebody turned it.
+
+***One control, not both.*** **Commit is here; force-fire is not**, and there is
+a test for the absence because the pressure to add it will come from this panel.
+10 §10.1: force-fire *"is a test of the material and lives in the workbench
+beside the keyword test and the dry run"*, and splitting them *"keeps a control
+that skips the engine's judgement out of the surface people play on"*.
+**Committing past a refusal asks first and names the clause** — §6.1's first
+rule, rendered as the row's own sentence read back with a button under it rather
+than as a modal, so the claim stays next to the thing it is about.
+
+*The class-to-sentence map is its own module*, which `castBadge` settled the
+argument for: a derivation inside a component is a derivation nothing tests. Its
+test holds the nine arms to producing nine *distinct* sentences, which is
+[06 §6.1]'s own test for the vocabulary — *each arm is a different remedy* — and
+pins that `subject-gone` reads as **broken** where the others read as *waiting*,
+because [04 §6.1a] makes it the one arm that is an authoring error rather than a
+state. **A class this build does not know gets a sentence rather than a throw**:
+a client one deploy behind a server is ordinary, and an empty row would read as
+*eligible* about a hook the engine is refusing.
+
+**Next:** session-local hooks addable to a *running* session ([03 §4.1] calls it
+*the primary path* and creation is the only way in today); force-fire in the
+workbench beside the keyword test; and `introduces`' provisional firings
+confirmed by the extract stage, which is [P7.7]'s and is what closes this stage's
+fourth property row.
 
 ### P7.6 — Goals
 

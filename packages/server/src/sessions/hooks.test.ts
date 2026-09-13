@@ -11,6 +11,7 @@ import { channelDefinition, channelKey, registerChannel } from './channels.js';
 import {
   filterHooks,
   gate,
+  hookRows,
   readHookState,
   readPacing,
   SE_HOOK,
@@ -76,6 +77,35 @@ function metThem(...actorIds: string[]): Turn {
       channelVersion: 1,
       scope: 'session' as const,
     })),
+  };
+}
+
+/** A turn whose one effect is a firing, which is what `firedOn` reads. */
+function firingTurn(id: string, hookId: string, after: 'fired' | 'committed' = 'fired'): Turn {
+  return {
+    id,
+    sessionId: 's',
+    parentTurnId: null,
+    createdAt: '2026-09-13T00:00:00.000Z',
+    status: 'complete',
+    tape: [],
+    effects: [
+      {
+        id: `e-${id}`,
+        turnId: id,
+        channelId: SE_HOOK,
+        scopeKey: hookId,
+        op: { type: 'set' as const, path: '/' },
+        before: null,
+        after,
+        proposedBy: { kind: 'engine' as const },
+        applied: true,
+        rejectedReason: null,
+        supersedes: null,
+        channelVersion: 1,
+        scope: 'session' as const,
+      },
+    ],
   };
 }
 
@@ -623,5 +653,108 @@ describe('the pacing gate', () => {
     for (const depth of [1, 2, 3, 6, 12, 60]) {
       expect(gate({ pacing: 'manual-only', depth, firedAt: null, eligible: 3 })).toBe('held');
     }
+  });
+});
+
+/**
+ * **The hook panel's rows** — [10 §10.1], built at [P7.5].
+ *
+ * *"Which hooks have fired and when, which are eligible right now, and which are
+ * blocked **with the clause that blocked them**."* And the panel is *the half
+ * nothing else can show*: [10 §10.1] notes that the workbench's block list
+ * already makes a **fired** hook legible, so what this exists for is the hooks
+ * that have not fired.
+ */
+describe('what the panel is shown', () => {
+  function rows(pool: PooledHook[], over: Partial<FilterContext> = {}) {
+    return hookRows(pool, context(over));
+  }
+
+  it('names a hook by its title and says who owns it', () => {
+    // `title` is [04 §6.1]'s *"for the author's list. Never injected."*, and
+    // `source` is [03 §4.1]'s mitigation for four sourcing paths — *"every hook
+    // shows its source, and editing navigates to whichever object owns it"*.
+    expect(rows(pooled(hook()))).toEqual([
+      {
+        hookId: 'hook-war',
+        title: 'War',
+        source: { kind: 'treatment', id: 't1' },
+        state: null,
+        refusal: null,
+        entrances: [],
+      },
+    ]);
+  });
+
+  /**
+   * ***The premise is hidden content until the hook has gone*** — [08 §6],
+   * [10 §10.1]. A panel that spoils the twist to the person about to read it
+   * defeats the feature; a panel that withholds it *afterwards* hides from an
+   * author the one thing they most need to see.
+   */
+  it('withholds the premise until the hook has fired', () => {
+    expect(rows(pooled(hook()))[0]?.premise).toBeUndefined();
+
+    const gone = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'fired' } };
+    expect(rows(pooled(hook()), { channels: gone })[0]?.premise).toBe(
+      'The Flower Kingdom will declare war.',
+    );
+  });
+
+  /**
+   * *Entrances are shown by label, **never** by text* — and unlike the premise
+   * there is no *afterwards*: the workbench's block list shows a fired hook's
+   * exact words with their source, so the panel never needs the text at all.
+   */
+  it('shows entrance labels and never entrance text', () => {
+    const arrival = hook({
+      introduces: {
+        actor: { id: 'actor-vera', name: 'Vera' },
+        entrances: [{ id: 'e-rain', label: 'In the rain', text: 'She is soaked to the skin.' }],
+        primaryEntranceId: null,
+      },
+    });
+    const gone = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'fired' } };
+
+    expect(rows(pooled(arrival), { channels: gone })[0]?.entrances).toEqual([
+      { id: 'e-rain', label: 'In the rain' },
+    ]);
+  });
+
+  it('says which clause is blocking each hook', () => {
+    const pool = [
+      ...pooled(hook({ id: 'hook-war', notBefore: { turn: 40 } })),
+      ...pooled(hook({ id: 'hook-vera', involves: [{ id: 'actor-vera', name: 'Vera' }] })),
+    ];
+
+    expect(rows(pool).map((row) => [row.hookId, row.refusal])).toEqual([
+      ['hook-war', 'too-early'],
+      ['hook-vera', 'cast-gone'],
+    ]);
+  });
+
+  /**
+   * [10 §10.1]'s *and when*, **derived from the path** like every other *when* in
+   * this feature: the answer has to change under a rewind, and a stored turn id
+   * would point at a node this branch does not contain.
+   */
+  it('says which turn a hook fired on', () => {
+    const channels = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'fired' } };
+    const path = [firingTurn('t-early', 'hook-war'), { ...metThem(), id: 't-later' }];
+
+    expect(rows(pooled(hook()), { channels, path })[0]?.firedOn).toBe('t-early');
+    // And on a branch where it never happened, the same channel value has no
+    // turn to point at — which is honest rather than a gap: the state came from
+    // somewhere this path cannot see.
+    expect(rows(pooled(hook()), { channels })[0]?.firedOn).toBeUndefined();
+  });
+
+  it('carries a commitment and the clause it overrode', () => {
+    const channels = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'committed' } };
+    const row = rows(pooled(hook({ notBefore: { turn: 40 } })), { channels })[0];
+
+    expect(row?.state).toBe('committed');
+    expect(row?.refusal).toBeNull();
+    expect(row?.committed).toEqual({ overrode: 'too-early' });
   });
 });
