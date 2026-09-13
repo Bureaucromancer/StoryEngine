@@ -5,7 +5,7 @@ import type { Mode } from '@storyengine/sdk';
 
 import { registerMode } from './mode-registry.js';
 import { PARTY_CHANNEL, PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
-import { HOOK_CHANNEL } from './sessions/hooks.js';
+import { HOOK_CHANNEL, HOOK_PACING_CHANNEL } from './sessions/hooks.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
 /**
@@ -98,6 +98,25 @@ export async function installBuiltIns(): Promise<void> {
    * every mode with a hook pool wants it and none of them owns it.
    */
   registerChannel(HOOK_CHANNEL);
+  /**
+   * And the dial that decides how often the selector thinks — [06 §6.1], [P7.5].
+   *
+   * **Registered here rather than declared by a mode, which is not the same
+   * answer `se.clock` got and is the right one for this.** The clock moved into
+   * Scene's declaration at [P7.1] because a clock is a claim about *that mode's*
+   * fiction; pacing is a property of a session's hook pool, and the pool is
+   * assembled from a treatment, its lorebooks and the session's own hooks
+   * ([03 §4.1]) — none of which is a mode. A mode that declared it would make
+   * every other mode either import that one or declare a second `se.hook.pacing`,
+   * which is `registerChannel`'s last-write-wins rule being asked to arbitrate
+   * between two definitions of the same dial.
+   *
+   * *It is also the build's first `update: 'user-only'` channel, which [P7 §1.4]
+   * records as an unexercised branch — and being engine-registered is what makes
+   * it reachable through the channel write route on every session rather than on
+   * the sessions whose mode happened to enable it.*
+   */
+  registerChannel(HOOK_PACING_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {

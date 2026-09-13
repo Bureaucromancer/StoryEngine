@@ -11,6 +11,7 @@ import {
   SE_CLOCK,
   SE_LORE_TIMING,
 } from '../sessions/channels.js';
+import { readPacing, SE_HOOK_PACING } from '../sessions/hooks.js';
 import { applyEffects } from '../sessions/store.js';
 import type { ChannelState } from '../sessions/types.js';
 import { installBuiltIns } from '../mode-loader.js';
@@ -83,8 +84,9 @@ describe('a proposal is judged against the channel that owns it', () => {
       // The *which* policy, not one merged string — [P3.0]. `'update-policy'`
       // could not say whether the remedy was "the engine computes this" or
       // "only a person may change this", and those are different sentences.
-      // (The `'user-only'` reason gains a producer with the first user-only
-      // channel; no shipped channel declares that policy yet.)
+      // ~~(The `'user-only'` reason gains a producer with the first user-only
+      // channel; no shipped channel declares that policy yet.)~~ **It has one:
+      // `se.hook.pacing`, at [P7.5] — see below.**
       expect(effect.rejectedReason).toBe('engine-computed');
       /**
        * ***And the record says what was wanted*** — corrected at [P7.2].
@@ -105,6 +107,66 @@ describe('a proposal is judged against the channel that owns it', () => {
       expect(readClock(applyEffects(atStart(), [effect]))).toEqual(clockStart());
     });
   }
+
+  /**
+   * **The other policy, and the first channel in the build that declares it** —
+   * `se.hook.pacing` at [P7.5]. [P7 §1.4] recorded `update: 'user-only'` as
+   * *"never exercised"*, and the note two tests up said the reason class had no
+   * producer; both are discharged here.
+   *
+   * ***`engine` is refused too, which is what makes this policy different from
+   * the one above rather than a stricter spelling of it.*** [06 §6.1] calls the
+   * dial *author-facing*: how much authored plot a session pushes at a player is
+   * a person's decision, and an engine that could adjust it is a selector able
+   * to widen its own gate. So the refusal is *everything but a person*, and the
+   * three refused proposers are the three there are.
+   */
+  for (const by of [
+    { kind: 'model', callId: 'c1' },
+    { kind: 'step', stepId: 'se.hooks.select' },
+    { kind: 'engine' },
+  ] as const) {
+    it(`refuses a ${by.kind} proposal on the pacing dial, and records it`, () => {
+      const effect = acceptEffect(
+        't1',
+        proposal({ channelId: SE_HOOK_PACING, after: 'aggressive', proposedBy: by }),
+        { [SE_HOOK_PACING]: { version: 1, value: 'sparse' } },
+      );
+
+      expect(effect.applied).toBe(false);
+      // The *which* policy, not one merged string: "only a person may change
+      // this" is a different sentence from "the engine computes this", and a
+      // client offering a remedy needs to know which one it is looking at.
+      expect(effect.rejectedReason).toBe('user-only');
+      // And what was wanted survives, for the reason the clock's test gives at
+      // length: the record is what the workbench renders.
+      expect(effect.after).toBe('aggressive');
+      expect(
+        readPacing(applyEffects({ [SE_HOOK_PACING]: { version: 1, value: 'sparse' } }, [effect])),
+      ).toBe('sparse');
+    });
+  }
+
+  it('lets a person turn the pacing dial', () => {
+    const effect = acceptEffect(
+      't1',
+      proposal({
+        channelId: SE_HOOK_PACING,
+        after: 'aggressive',
+        proposedBy: { kind: 'user' },
+      }),
+      { [SE_HOOK_PACING]: { version: 1, value: 'sparse' } },
+    );
+
+    expect(effect.applied).toBe(true);
+    expect(effect.rejectedReason).toBeNull();
+    // Through the reader a turn actually uses, rather than off the effect: the
+    // dial's value is what the gate consults, and an effect the fold does not
+    // land is a passing test about a channel nobody can turn.
+    expect(
+      readPacing(applyEffects({ [SE_HOOK_PACING]: { version: 1, value: 'sparse' } }, [effect])),
+    ).toBe('aggressive');
+  });
 
   it('records an unknown channel rather than failing the turn', () => {
     // A mode or extension that is not loaded may own it. A turn that died

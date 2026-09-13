@@ -1086,6 +1086,17 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
+**And it is the only way to turn a `user-only` channel**, of which the build has
+one: `se.hook.pacing`, the hook selector's dial —
+`sparse` | `normal` | `aggressive` | `manual-only`
+([06 §6.1](design/06-modes-and-turn-pipeline.md),
+[04 §6.1b](design/04-schemas.md)). A treatment may propose a level and a setup
+override it, but once a session has been through this route its own value
+outranks both, and rewinding past that turn hands the authored answer back. Every
+other proposer is refused and recorded — a model or a step, and **the engine
+too**, because how much authored plot a session pushes at a player is a person's
+decision and a selector able to widen its own gate is not a dial.
+
 ### `GET /api/sessions/:sessionId`
 
 `{ session, activeJob | null, health, hud, cast }`. The job travels with the

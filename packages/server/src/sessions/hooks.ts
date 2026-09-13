@@ -2,10 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ChannelDefinition } from '@storyengine/sdk';
-import type { PlotHook, Ref } from '@storyengine/shared';
+import type { HookPacing, PlotHook, Ref } from '@storyengine/shared';
 
 import { introducedOn, isTerminal, readParty, readStatus } from './cast.js';
-import { channelKey } from './channels.js';
+import { channelKey, initialValue } from './channels.js';
 import type { PooledHook, Turn } from './types.js';
 
 /**
@@ -274,4 +274,211 @@ function refuseIntroduction(
   if (readParty(context.channels, subject.id, context.persona) !== null)
     return 'subject-unavailable';
   return null;
+}
+
+/**
+ * How much authored plot to push at a player — [06 §6.1], [04 §6.1b], [P7.5].
+ *
+ * ***The dial is a channel***, and 06 §6.1 lists the properties that makes free:
+ * session scope, `user-only`, `budget: null` so it never enters a prompt, and
+ * `init` from the authored value. *"Every property it needs is already there —
+ * it is changeable mid-session, the change is an effect on the record, and it
+ * branches correctly — so it costs no new concept."*
+ *
+ * **`user-only` is [P7 §1.4]'s first exercise of a branch nothing had reached.**
+ * That section records `update: 'user-only'` as *"never exercised —
+ * `turns/effects.ts:110-112` is the only branch that returns it and no shipped
+ * channel declares the policy"*. This is the first channel that does, so the
+ * first thing that proves the refusal works: a model proposing a pacing change
+ * is a model turning its own volume up.
+ *
+ * ***And it refuses the engine too, which is what makes this policy a different
+ * one rather than a stricter spelling of `engine-computed`.*** 06 §6.1 calls the
+ * dial *author-facing*, and every other clause of that section is about keeping
+ * the selector from deciding how often it gets to decide — *"`aggressive` must
+ * not reach railroading"* is the same worry one level up. An engine that could
+ * adjust this is a selector able to widen its own gate, so the refusal is
+ * everything but a person, and `effects.test.ts` proves all three proposers.
+ *
+ * **`visibility: 'player'`, where `se.hook` beside it is hidden**, and the two
+ * are consistent: [08 §6] makes an *unfired hook's premise* hidden content, and
+ * this holds no premise. It is a setting somebody chose about their own session,
+ * which a HUD may show and which `budget: null` keeps out of a prompt regardless
+ * — visibility governs what may reach one, and there is nothing here to send.
+ *
+ * **`init: authored`**, which is the arm [P7.1] declared and nothing read — the
+ * `field` is a name on a Treatment and on a Setup, and 04 §6.1b's layering is
+ * *"a Treatment proposes, a Setup overrides, and the running session owns it"*.
+ * `readPacing` is where those three rungs are resolved; the `fallback` is what an
+ * unauthored session gets, and 04 §6.1b is explicit that *unspecified* does not
+ * mean the middle of the range — the channel says what it resolves to, and
+ * `normal` is that answer.
+ */
+export const SE_HOOK_PACING = 'se.hook.pacing';
+
+export const PACING_LEVELS = ['sparse', 'normal', 'aggressive', 'manual-only'] as const;
+
+export const HOOK_PACING_CHANNEL: ChannelDefinition = {
+  id: SE_HOOK_PACING,
+  owner: 'storyengine.hooks',
+  version: 1,
+  scope: 'session',
+  update: 'user-only',
+  visibility: 'player',
+  schema: { type: 'string', enum: [...PACING_LEVELS] },
+  init: { kind: 'authored', field: 'hookPacing', fallback: 'normal' },
+  budget: null,
+};
+
+/**
+ * The dial at a node — [04 §6.1b]'s three rungs, resolved in order, over the
+ * declaration's own answer for a session that authored none.
+ *
+ * **The session owns it, a Setup overrides, a Treatment proposes.** The channel
+ * value is the session's own and wins outright; below it the Setup the session
+ * was created from, which [P7.4] made reachable by recording it; below that the
+ * treatment, which is a **link** and so is passed in resolved rather than read
+ * here.
+ *
+ * ***Why this resolves the rungs rather than `init` doing it.*** The
+ * `authored` arm was built at [P7.1] with no reader, and `initialValue` returns
+ * its `fallback` without consulting anything an author wrote — deliberately, per
+ * its own test: the channel module *"has no business reading"* a session's
+ * treatment and setup, which are a library link and a record field it would have
+ * to resolve. So the arm names the field and the reader finds it, which is also
+ * the only arrangement under which a Setup can outrank a Treatment: `init` is
+ * one value, and [04 §6.1b] is an ordering over two.
+ *
+ * *A value this build does not know reads as unset rather than as itself*, which
+ * is the posture every other reader here takes: the channel's schema refuses one
+ * on the way in, and a hand-edited file is the path that gets past it.
+ *
+ * **Authored values are read untyped and validated here** rather than taken as
+ * `HookPacing` from the portable schema, because the caller reads them off a
+ * `Treatment` and a `Setup` that were parsed somewhere else and may be a build
+ * ahead of this one — [04 §2]'s additive door is exactly how a `/1` acquires a
+ * level this engine has never heard of.
+ */
+export function readPacing(
+  channels: Readonly<Record<string, { value: unknown }>>,
+  authored: {
+    setup?: { hookPacing?: unknown } | undefined;
+    treatment?: { hookPacing?: unknown } | undefined;
+  } = {},
+): HookPacing {
+  return (
+    asPacing(channels[SE_HOOK_PACING]?.value) ??
+    asPacing(authored.setup?.hookPacing) ??
+    asPacing(authored.treatment?.hookPacing) ??
+    asPacing(initialValue(SE_HOOK_PACING)) ??
+    FALLBACK_PACING
+  );
+}
+
+/**
+ * What the dial reads in a build where nothing registered it.
+ *
+ * **Not a second opinion about how much plot a session should be pushed** — it
+ * is what a reader with no pacing channel in the registry has to say, and the
+ * honest options were this or a throw. `clockStart` faced the identical choice
+ * and answered it the same way: a throw would mean a session that cannot take a
+ * turn because a channel is missing, which [00 §3.3] and [06 §4.2] refuse.
+ *
+ * *The fourth rung above is the declaration read back rather than restated* —
+ * the same round trip `clockStart` makes through {@link initialValue}. Writing
+ * `?? 'normal'` there would have been a second statement of
+ * `HOOK_PACING_CHANNEL.init.fallback`, and [04 §6.1b] is explicit that the
+ * channel is what says what unspecified resolves to. Change the declaration and
+ * this follows; the constant below is only reachable when there is no
+ * declaration to follow.
+ */
+const FALLBACK_PACING: HookPacing = 'normal';
+
+function asPacing(value: unknown): HookPacing | null {
+  return typeof value === 'string' && (PACING_LEVELS as readonly string[]).includes(value)
+    ? (value as HookPacing)
+    : null;
+}
+
+/**
+ * What each level costs the selector, in turns.
+ *
+ * ***Engine code, and the level's prose is the prompt pack's*** — [06 §6.1]
+ * draws that line and gives the reason: [06 §7.3.1] puts difficulty's levels in
+ * the pack, and *"the half of that argument which transfers is the half about
+ * **prose**"*. The numbers do not transfer, because *"their effect is that a
+ * step does not run, which is invisible in the turn record by construction, and
+ * letting a portable preset set internal scheduling inverts the dependency the
+ * step contract exists to keep one-way"*.
+ *
+ * `cadence` is how often the **judgement** runs; `cooldown` is how long after a
+ * firing before it may run again. *A cooldown longer than the cadence is the
+ * point of having both: `sparse` considers rarely and, having fired, waits
+ * longer still.*
+ *
+ * **`manual-only` has no cadence at all, and is a coherent state rather than a
+ * dead step**: 06 §6.1 says the filter still runs and still reports, and only
+ * the judgement is off. An author with thirty hooks can still see which are
+ * eligible.
+ */
+const PACING: Record<HookPacing, { cadence: number; cooldown: number }> = {
+  sparse: { cadence: 6, cooldown: 20 },
+  normal: { cadence: 3, cooldown: 10 },
+  aggressive: { cadence: 1, cooldown: 4 },
+  // Never judged. The cooldown is irrelevant and is written as the cadence so a
+  // reader is not invited to wonder whether the two disagree.
+  'manual-only': { cadence: Number.POSITIVE_INFINITY, cooldown: Number.POSITIVE_INFINITY },
+};
+
+/**
+ * Why the judgement pass did or did not run — a class, not prose.
+ *
+ * *"A selector that returns early because of pacing is indistinguishable, from
+ * the outside, from one that ran and judged none"* ([06 §6.1]) — so these are
+ * the answers that have to be told apart, and `nothing-eligible` is separate
+ * from `held` for exactly that reason. `judged` means the call happened; what it
+ * answered is the selector's line, not the gate's.
+ */
+export type GateVerdict = 'held' | 'cooling' | 'nothing-eligible' | 'judged';
+
+/**
+ * [06 §6.1]'s gate, inside the step rather than on it.
+ *
+ * ***Not a `StepCondition`, and the reason is invisible from the design document
+ * — which is why that section records it.*** A committed hook needs the selector
+ * consulted every turn and a `sparse` dial needs it consulted rarely; one step
+ * cannot declare both. And a condition cannot see channel state at all, so it
+ * can know neither how long since the last firing nor that a hook is committed.
+ * **So the step runs every turn and this gates the judgement** — which costs
+ * nothing, because stage one is deliberately model-free.
+ *
+ * *Two things follow that are worth having anyway, and 06 §6.1 names them:
+ * eligibility can be shown live on every turn, and `manual-only` is a coherent
+ * state rather than a dead step.*
+ *
+ * **Counted on the path**, like every cadence here: `firedAt` is where on the
+ * path the last firing sits, so a rewind past it correctly restores the
+ * selector's freedom rather than leaving a cooldown that outlived the turn that
+ * started it.
+ */
+export function gate(options: {
+  pacing: HookPacing;
+  /** Turns on the path to the node being judged. */
+  depth: number;
+  /** How deep the most recent firing sits on that path, or null for none. */
+  firedAt: number | null;
+  /** Whether stage one left anything to judge. */
+  eligible: number;
+}): GateVerdict {
+  const { cadence, cooldown } = PACING[options.pacing];
+
+  /**
+   * **Nothing eligible is reported before the dial**, because it is the more
+   * specific answer and the one an author acts on: *held* invites a person to
+   * turn the dial up, and turning it up changes nothing when the pool is empty.
+   */
+  if (options.eligible === 0) return 'nothing-eligible';
+  if (options.firedAt !== null && options.depth - options.firedAt < cooldown) return 'cooling';
+  if (!Number.isFinite(cadence) || options.depth % cadence !== 0) return 'held';
+  return 'judged';
 }

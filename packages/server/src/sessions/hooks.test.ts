@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { PlotHook } from '@storyengine/shared';
 
+import { installBuiltIns } from '../mode-loader.js';
 import { SE_PARTY, SE_PRESENCE, SE_STATUS } from './cast.js';
-import { channelKey } from './channels.js';
+import { channelDefinition, channelKey, registerChannel } from './channels.js';
 import {
   filterHooks,
+  gate,
   readHookState,
+  readPacing,
   SE_HOOK,
+  SE_HOOK_PACING,
   type FilterContext,
   type HookRefusal,
 } from './hooks.js';
@@ -347,5 +351,185 @@ describe('what comes back', () => {
       { hook: expect.objectContaining({ id: 'hook-peace' }), refusal: 'fired' },
       { hook: expect.objectContaining({ id: 'hook-war' }), refusal: null },
     ]);
+  });
+});
+
+/**
+ * [04 §6.1b]'s ordering, and the reason it is a reader rather than an `init`.
+ *
+ * *"A Treatment proposes, a Setup overrides, and the running session owns it."*
+ * Three rungs is one more than `InitPolicy` can express — `init` is a single
+ * value and this is an ordering over two — so the arm names the field and
+ * {@link readPacing} finds it, with `initialValue` underneath for the session
+ * that authored nothing.
+ */
+describe('the pacing dial', () => {
+  beforeEach(async () => {
+    // The fourth rung reads the declaration back, the way `clockStart` does, so
+    // these need the channel registered rather than a literal to compare with.
+    await installBuiltIns();
+  });
+
+  it('is declared as the one thing a model may not turn', () => {
+    const declared = channelDefinition(SE_HOOK_PACING);
+
+    // `user-only` is the whole point: a model proposing a pacing change is a
+    // model turning its own volume up. `budget: null` is the second half — [06
+    // §6.1] says the dial *"never enters a prompt"*, and a channel with no
+    // budget line has nothing to enter one with.
+    expect(declared?.update).toBe('user-only');
+    expect(declared?.budget).toBeNull();
+    expect(declared?.scope).toBe('session');
+  });
+
+  it('reads normal for a session that authored nothing', () => {
+    expect(readPacing({})).toBe('normal');
+  });
+
+  /**
+   * **Through the declaration rather than beside it.** Substituting the
+   * channel's `init` moves the answer, which is what proves `?? 'normal'` is not
+   * written twice — the same substitution `clockStart`'s test makes, restored in
+   * a `finally` for the same reason: the registry is a module global.
+   */
+  it('takes its unauthored answer from whoever declared the channel', () => {
+    const original = channelDefinition(SE_HOOK_PACING);
+    if (original === null) throw new Error('the pacing channel is not registered');
+
+    try {
+      registerChannel({
+        ...original,
+        init: { kind: 'authored', field: 'hookPacing', fallback: 'sparse' },
+      });
+      expect(readPacing({})).toBe('sparse');
+    } finally {
+      registerChannel(original);
+    }
+
+    expect(readPacing({})).toBe('normal');
+  });
+
+  it('lets a treatment propose one', () => {
+    expect(readPacing({}, { treatment: { hookPacing: 'sparse' } })).toBe('sparse');
+  });
+
+  it('lets the setup over it win', () => {
+    expect(
+      readPacing({}, { setup: { hookPacing: 'aggressive' }, treatment: { hookPacing: 'sparse' } }),
+    ).toBe('aggressive');
+  });
+
+  /**
+   * The rung that matters in play: turning the dial writes an effect, and from
+   * that turn on the session's own answer outranks everything it was created
+   * with. *Which is also what makes it branch* — rewind past the change and the
+   * authored value is what the reader sees again, for free.
+   */
+  it('lets the running session own it outright', () => {
+    const channels = { [SE_HOOK_PACING]: { value: 'manual-only' } };
+
+    expect(
+      readPacing(channels, {
+        setup: { hookPacing: 'aggressive' },
+        treatment: { hookPacing: 'sparse' },
+      }),
+    ).toBe('manual-only');
+  });
+
+  /**
+   * *A level this build does not know reads as unset rather than as itself*, at
+   * every rung — and the rungs are not equally protected. The channel's schema
+   * refuses an unknown value on the way in, so only a hand-edited file gets one
+   * there; a Treatment and a Setup are **portable** and [04 §2]'s additive door
+   * is exactly how a `/1` acquires a level a later build understands. Falling
+   * through to the next rung is the reading that keeps such a file playable.
+   */
+  it('falls through a level it does not know, at every rung', () => {
+    expect(readPacing({ [SE_HOOK_PACING]: { value: 'glacial' } })).toBe('normal');
+    expect(
+      readPacing(
+        { [SE_HOOK_PACING]: { value: 'glacial' } },
+        { treatment: { hookPacing: 'sparse' } },
+      ),
+    ).toBe('sparse');
+    expect(readPacing({}, { setup: { hookPacing: 7 }, treatment: { hookPacing: 'sparse' } })).toBe(
+      'sparse',
+    );
+  });
+});
+
+/**
+ * [06 §6.1]'s gate — *"the selector step runs every turn and the dial is a gate
+ * inside it, before the judgement call"*.
+ *
+ * Not a `StepCondition`, and the section says why: a committed hook needs the
+ * selector consulted every turn and a `sparse` dial needs it consulted rarely,
+ * and one step cannot declare both — nor can a condition see channel state at
+ * all. The four verdicts are what [P7 §1.5] means by *held by pacing* and
+ * *judged: none* being **different answers**.
+ */
+describe('the pacing gate', () => {
+  it('judges on the cadence and holds between', () => {
+    expect(gate({ pacing: 'normal', depth: 3, firedAt: null, eligible: 2 })).toBe('judged');
+    expect(gate({ pacing: 'normal', depth: 4, firedAt: null, eligible: 2 })).toBe('held');
+    expect(gate({ pacing: 'normal', depth: 5, firedAt: null, eligible: 2 })).toBe('held');
+    expect(gate({ pacing: 'normal', depth: 6, firedAt: null, eligible: 2 })).toBe('judged');
+  });
+
+  it('considers every turn at the top of the dial and rarely at the bottom', () => {
+    for (const depth of [1, 2, 3, 4]) {
+      expect(gate({ pacing: 'aggressive', depth, firedAt: null, eligible: 1 })).toBe('judged');
+    }
+    expect(gate({ pacing: 'sparse', depth: 3, firedAt: null, eligible: 1 })).toBe('held');
+    expect(gate({ pacing: 'sparse', depth: 6, firedAt: null, eligible: 1 })).toBe('judged');
+  });
+
+  /**
+   * **A cooldown longer than the cadence is the point of having both**: a dial
+   * that considers rarely and, having fired, waits longer still. `normal`
+   * considers every third turn and waits ten after a firing, so the two turns
+   * this checks are both on the cadence and both refused.
+   */
+  it('cools after a firing for longer than the cadence', () => {
+    expect(gate({ pacing: 'normal', depth: 12, firedAt: 9, eligible: 2 })).toBe('cooling');
+    expect(gate({ pacing: 'normal', depth: 18, firedAt: 9, eligible: 2 })).toBe('cooling');
+    expect(gate({ pacing: 'normal', depth: 21, firedAt: 9, eligible: 2 })).toBe('judged');
+  });
+
+  /**
+   * **Counted on the path, like every other cadence here.** `firedAt` is where
+   * on the path the firing sits rather than how long ago it was, so a rewind
+   * past it restores the selector's freedom instead of leaving a cooldown that
+   * outlived the turn which started it — the property [06 §6.1] states for
+   * Commit's patience and which every count in this file shares.
+   */
+  it('restores the selector when the firing is rewound off the path', () => {
+    expect(gate({ pacing: 'normal', depth: 12, firedAt: 9, eligible: 2 })).toBe('cooling');
+    // The same node, reached down a branch where the firing never happened.
+    expect(gate({ pacing: 'normal', depth: 12, firedAt: null, eligible: 2 })).toBe('judged');
+  });
+
+  /**
+   * *"Nothing eligible"* is reported **before** the dial, because it is the more
+   * specific answer and the one an author acts on: *held* invites somebody to
+   * turn the dial up, and turning it up changes nothing when the pool is empty.
+   */
+  it('says nothing was eligible before it says anything about pacing', () => {
+    expect(gate({ pacing: 'sparse', depth: 4, firedAt: 2, eligible: 0 })).toBe('nothing-eligible');
+    expect(gate({ pacing: 'manual-only', depth: 4, firedAt: null, eligible: 0 })).toBe(
+      'nothing-eligible',
+    );
+  });
+
+  /**
+   * **`manual-only` is a coherent state rather than a dead step.** [06 §6.1]:
+   * the filter still runs and still reports, and only the judgement is off — so
+   * an author with thirty hooks can still see which are eligible, and this
+   * answers `held` rather than `nothing-eligible` when they are.
+   */
+  it('never judges on manual-only, and still says why', () => {
+    for (const depth of [1, 2, 3, 6, 12, 60]) {
+      expect(gate({ pacing: 'manual-only', depth, firedAt: null, eligible: 3 })).toBe('held');
+    }
   });
 });

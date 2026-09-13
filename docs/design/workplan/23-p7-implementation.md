@@ -1301,6 +1301,36 @@ stable-tier schemas** with an emitted artefact and a round trip behind them.
 channel declares the policy, so the first user-only channel this stage builds is
 also the first thing that proves that branch works.
 
+***Both halves of that last sentence came true at P7.5, and the second one was
+the interesting half*** (2026-09-13). `se.hook.pacing` is declared, registered by
+`installBuiltIns` beside presence and the party, and `effects.test.ts` now
+proves the branch over a shipped channel rather than a fixture: a `model`, a
+`step` **and an `engine`** proposal all refused with `rejectedReason:
+'user-only'`, and a `user` one applied. *Engine is in that list on purpose and is
+what makes the policy different from `engine-computed` rather than a stricter
+spelling of it: [06 §6.1](../06-modes-and-turn-pipeline.md) calls the dial
+author-facing, and an engine that could adjust it is a selector able to widen its
+own gate.* The parenthetical in `effects.test.ts` saying the reason class had no
+producer is corrected in place.
+
+***And the init arm does not read the Treatment, which is this section's one
+wrong sentence*** (2026-09-13). *"An init reading a Treatment's advisory value"*
+is what the paragraph above promises and what `initialValue` does not do: the
+`authored` arm returns its own `fallback` and consults nothing — deliberately,
+and `channels.test.ts` has said so since P7.1, because resolving a treatment is a
+library read and a setup is a record field, neither of which the channel module
+has any business doing. So `init` **names the field and declares what unauthored
+means**, and `readPacing` is what finds it.
+
+*That is not a shortfall in `InitPolicy`; it is [04 §6.1b](../04-schemas.md)
+being an ordering rather than a value.* *"A Treatment proposes, a Setup
+overrides, and the running session owns it"* is three rungs, and an `init` is one
+— so no arm of that union, however designed, could have expressed it. What the
+declaration still owns is the bottom of the ladder: `readPacing`'s last rung
+reads `initialValue(SE_HOOK_PACING)` back rather than restating `'normal'`, the
+same round trip `clockStart()` makes, so changing the declaration moves the
+answer and a test substitutes the channel to prove it.
+
 `migrate` has no such consumer and should not acquire one speculatively; what it
 does need is [25 B7](../25-open-questions.md)'s
 validate-coerce-migrate-quarantine path being real once author-declared channels
@@ -3092,9 +3122,82 @@ builder moved to `hook-pool.ts`; filtering a pool is a function of its arguments
 and only building one does I/O. [P7.3] moved `Binding` for this and this stage
 moved `PooledHook` for it an hour earlier.
 
-**Next:** stage two — the judgement pass firing through the guidance slot, the
-pacing dial as a `user-only` channel with its `init` from the treatment, and the
-selector's own line in the turn record, which §1.5 says has nowhere to land.
+**Done: the dial and the gate — everything the selector consults before it
+thinks** (2026-09-13).
+
+***Stage two was scoped as three things and ships two, and the reason is the
+third one's writer.*** The line above named the judgement pass, the dial and the
+selector's record line together. The record line is a field on
+`@storyengine/shared`'s turn types, and a field whose only writer is a selector
+that does not exist yet is the **placeholder shape this phase keeps refusing** —
+the same argument that kept `committed` out of `HOOK_STATES` an hour earlier. So
+the line ships with the pass that writes it, and what ships here is everything
+that pass consults before it runs.
+
+**`se.hook.pacing` is the build's first `user-only` channel, and §1.4 is
+corrected twice over it.** The branch is proven over a shipped channel rather
+than a fixture — `model`, `step` and `engine` all refused, `user` applied — and
+`engine` being in that list is what makes the policy different from
+`engine-computed` rather than a stricter spelling of it: [06 §6.1] calls the dial
+author-facing, and an engine that could adjust it is a selector able to widen its
+own gate. *Registered by `installBuiltIns` rather than declared by a mode*, which
+is the opposite of what `se.clock` got at P7.1 and right for the same reason
+presence and the party are: a clock is a claim about one mode's fiction, and
+pacing is a property of a pool assembled from a treatment, its lorebooks and the
+session's own hooks ([03 §4.1]) — none of which is a mode.
+
+**The init arm does not read the treatment, and no arm of `InitPolicy` could
+have.** §1.4 promised *"an init reading a Treatment's advisory value"*;
+`initialValue` returns the `authored` arm's own `fallback` and consults nothing,
+which `channels.test.ts` has said since P7.1 — resolving a treatment is a library
+read and a setup is a record field. *The deeper reason is that
+[04 §6.1b](../04-schemas.md) is an **ordering over two sources** and an `init` is
+one value.* So the arm names the field, `readPacing` resolves the rungs, and the
+declaration keeps the bottom of the ladder: the last rung reads
+`initialValue(SE_HOOK_PACING)` back rather than restating `'normal'`, the round
+trip `clockStart()` makes, and a test substitutes the channel to prove the
+constant is not written twice.
+
+*Unknown levels fall through at every rung*, and the rungs are not equally
+exposed: the channel's schema refuses one on the way in, so only a hand-edited
+file gets a bad value there — but a Treatment and a Setup are **portable**, and
+[04 §2]'s additive door is exactly how a `/1` acquires a level a later build
+understands. Falling through keeps such a file playable.
+
+**The gate is inside the step, and [06 §6.1] records why because it is invisible
+from the design.** A committed hook needs the selector consulted every turn and a
+`sparse` dial needs it consulted rarely; one step cannot declare both, and a
+`StepCondition` cannot see channel state at all — so it can know neither how long
+since the last firing nor that a hook is committed. The step runs every turn and
+the dial gates the judgement, which costs nothing because stage one is
+model-free, and buys the two things that section says are worth having anyway:
+live eligibility every turn, and `manual-only` as a coherent state rather than a
+dead step.
+
+*Four verdicts, and `nothing-eligible` is reported **before** the dial* — the
+more specific answer and the one an author acts on, since *held* invites somebody
+to turn the dial up and turning it up changes nothing when the pool is empty.
+**A cooldown longer than the cadence is the point of having both**: `sparse`
+considers rarely and, having fired, waits longer still. And the cooldown is
+**counted on the path** like every other cadence here, so a rewind past the
+firing restores the selector's freedom rather than leaving one that outlived the
+turn which started it — tested as the same node reached down a branch where the
+firing never happened.
+
+*The numbers are engine code and the levels' prose is the prompt pack's*, which
+is [06 §6.1] declining to transfer the whole of §7.3.1's argument: how `sparse`
+should **read** to a model belongs where an author can edit it, but the numbers'
+effect is that a step does not run, and letting a portable preset set internal
+scheduling inverts the dependency the step contract exists to keep one-way.
+
+**Next:** stage three — the judgement pass over the survivors, firing through the
+guidance slot as [06 §5.1]'s fourth producer, and the selector's own record line,
+which ships with it. Two things it has to answer on the way: the selector is
+server-side (`filterHooks` reads the session's pool) and every step today is a
+mode's, so the plan gains an engine-owned `{ definition, run }` pair or the
+boundary gets crossed; and §1.5's *"the guidance slot cannot position a step's
+block"* — [25 C13(c)](../25-open-questions.md) — means a fired hook's text lands
+at the end of the prompt rather than where the preset put guidance.
 
 ### P7.6 — Goals
 
