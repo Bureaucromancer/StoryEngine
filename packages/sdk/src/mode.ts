@@ -3,7 +3,7 @@
 
 import type { Preset } from '@storyengine/shared';
 
-import type { ChannelDefinition } from './channels.js';
+import type { ChannelDefinition, WidgetSpec } from './channels.js';
 import type { StepDefinition, StepImplementation } from './steps.js';
 
 /**
@@ -375,12 +375,65 @@ function answerShapeOf(widget: FieldWidget): object {
 }
 
 /**
- * [06 §9]'s three regions. What a contribution *renders* is a `WidgetSpec`,
- * which [21 §6] keeps deliberately absent — so this names the slot and carries
- * no payload.
+ * ***Where a mode puts something*** — [06 §9]'s fifth bullet, *"contribute UI
+ * surfaces (a HUD region, a side panel, a message decoration)"*, built at
+ * [P7.11](../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * ~~What a contribution *renders* is a `WidgetSpec`, which [21 §6] keeps
+ * deliberately absent — so this names the slot and carries no payload.~~
+ * ***`WidgetSpec` arrived at [P7.1] and this did not grow with it***, which
+ * left a field that was compile-time required, runtime-unchecked, sent on the
+ * wire and read by nothing. The payload is the shape
+ * [13 §6.1](../../../docs/design/13-write-mode.md) already proposed for 2.0,
+ * built here because [06 §7.2] needs it now.
+ *
+ * ***One vocabulary, two ways to place it, and the second is defined in terms
+ * of the first.*** {@link ChannelDefinition.surface} means exactly
+ * `{ region: 'hud', channelId: <that channel>, widget: <that spec> }` — it is
+ * the shorthand for the common case, not a rival mechanism. The two are
+ * **additive** and need no precedence rule, which is what keeps this from being
+ * the two-vocabularies-for-one-thing failure [21 §1.1] exists to prevent: a
+ * channel says *this value is worth showing*, and a mode says *and it goes
+ * here*.
+ *
+ * **Nothing crosses the boundary**, which is [22 §3]'s claim for this bullet
+ * and the reason it costs nothing: a region name, a channel id and a widget
+ * declaration are all data. The client renders; the mode never does. **And
+ * never an `html` field** — [10 §8] names it as *"how this decision would be
+ * undone by accident rather than on purpose"*, and `mode.test.ts` asserts its
+ * absence rather than only saying so.
  */
 export interface SurfaceContribution {
-  region: 'hud' | 'panel' | 'message';
+  /**
+   * ***Four, where [06 §9] names three***, and the fourth is not an
+   * embellishment.
+   *
+   * - `hud` — the strip of short labelled values above the story ([10 §8]).
+   * - `panel` — the stack beside it, where the cast, lore, goal and hook panels
+   *   already are.
+   * - `message` — a decoration on a turn. [P7.7]'s mention overlay is the
+   *   engine's own instance of one.
+   * - `stage` — **the picture behind the story.** [06 §9]'s three were written
+   *   before [06 §10.1a] existed, and a backdrop is none of them:
+   *   [10 §2.3] calls it *chrome* — *"The prose wins, always… On a phone it is
+   *   the first thing to go"* — which is not a strip row, not a panel and not a
+   *   mark on a message. Adding an arm is exactly what [10 §8.1]'s paired
+   *   commitment requires of the widget vocabulary, and the same sentence
+   *   governs regions: *"ask what widget would let it, and add that."*
+   */
+  region: 'hud' | 'panel' | 'message' | 'stage';
+  /**
+   * The channel whose value this renders.
+   *
+   * **A contribution shows state and never invents it**, which is what keeps
+   * this declarative all the way down: there is no text field here, no
+   * template and no payload of the mode's own. If a mode wants to show
+   * something, it declares a channel holding it — and everything that already
+   * governs a channel (its `update` policy, its `visibility`, the
+   * `channelInPlay` rule) governs the surface for free.
+   */
+  channelId: string;
+  widget: WidgetSpec;
 }
 
 /**

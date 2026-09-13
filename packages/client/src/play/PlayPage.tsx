@@ -13,6 +13,7 @@ import {
   moveHead,
   submitTurn,
   undoTurn,
+  type ModeSurface,
   type TurnRecord,
 } from '../api.js';
 import {
@@ -34,6 +35,7 @@ import { CastPanel } from './CastPanel.js';
 import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
+import { ModeRegion } from './ModeRegion.js';
 import { Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
@@ -414,10 +416,30 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           is [04 §7]'s explicit case. */}
       <DialPanel sessionId={sessionId} />
 
+      {/* **Whatever else this mode's declaration asked for** — [06 §9], [P7.11].
+          Last in the panel stack because the four above it are the engine's own
+          and a mode's additions belong after them, and because a mode that
+          declares none renders nothing here at all. */}
+      <ModeRegion sessionId={sessionId} surfaces={session.data?.surfaces} region="panel" />
+
+      {/* **The stage** — [06 §7.2], [10 §2.3], [P7.11]. The picture the story is
+          staged against, and it behaves like chrome: *"The prose wins,
+          always… On a phone it is the first thing to go."* Renders nothing at
+          all when the session has no backdrop, which 10 §2.3 requires in as
+          many words — there must be no placeholder where the picture would go. */}
+      <ModeRegion
+        sessionId={sessionId}
+        surfaces={session.data?.surfaces}
+        region="stage"
+        className="flex flex-col gap-2"
+      />
+
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
             key={turn.id}
+            sessionId={sessionId}
+            surfaces={session.data?.surfaces}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
             busy={
@@ -595,9 +617,14 @@ function TurnView({
   onUndo,
   onGoToSibling,
   onName,
+  sessionId,
+  surfaces,
 }: {
   turn: TurnRecord;
   siblings: string[];
+  sessionId: string;
+  /** A mode's message decorations, read once by the page — see `ModeRegion`. */
+  surfaces: readonly ModeSurface[] | undefined;
   busy: boolean;
   onRedo: (turn: TurnRecord, rewrite: boolean, guidance?: string) => void;
   onContinueFrom: (turn: TurnRecord) => void;
@@ -644,6 +671,18 @@ function TurnView({
           className="whitespace-pre-wrap text-story text-ink"
         />
       )}
+      {/* **A mode's own decoration on the message** — [06 §9]'s third region,
+          [P7.11]. The engine already has one of these in the overlay above; this
+          is the same idea declared rather than written, and Scene's expression
+          sprite is what asked for it. *Below the prose rather than beside it*:
+          the message is the story and a picture is an accompaniment, which is
+          the same order [10 §2.3] puts the backdrop in. */}
+      <ModeRegion
+        sessionId={sessionId}
+        surfaces={surfaces}
+        region="message"
+        className="flex flex-wrap gap-2"
+      />
       {/* A failed turn is shown rather than hidden: it is on the record with
           what it managed, and hiding it would make a re-run unexplainable. */}
       {turn.status === 'failed' ? (

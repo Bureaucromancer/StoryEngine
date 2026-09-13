@@ -1008,6 +1008,26 @@ export function removeSessionHook(
  * the prompt pack's, so a client with its own list would be a control that
  * produces recorded refusals the day a pack ships a fourth.
  */
+/**
+ * One thing a mode asked to have shown, already rendered — [06 §9], [P7.11].
+ *
+ * `kind` is the widget arm and `region` is where it goes. Both are open strings
+ * on this side for the reason `ChannelSurface.kind` is: a session opened
+ * against a newer build should render what it understands and skip the rest,
+ * not break.
+ */
+export interface ModeSurface {
+  region: string;
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  kind: string;
+  label: string;
+  text?: string;
+  image?: { url: string; alt: string };
+  on?: boolean;
+}
+
 export interface DialAxes {
   difficulty?: { levelId: string | null; levels: { id: string; label: string }[] };
   directedness?: { levelId: string | null; levels: { id: string; label: string }[] };
@@ -1087,6 +1107,14 @@ export function readSession(sessionId: string): Promise<{
   inputs?: string[];
   /** Whether this session asks for suggested actions ([R11]). */
   suggesting?: boolean;
+  /**
+   * What this session's mode put where — [06 §9], [P7.11].
+   *
+   * Rendered by the server down to the value, like `hud` beside it: what
+   * crosses is a region, a label and something to show. A `kind` this build
+   * does not know is skipped, which is what keeps the vocabulary additive.
+   */
+  surfaces?: ModeSurface[];
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
 }

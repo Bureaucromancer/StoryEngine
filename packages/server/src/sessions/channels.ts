@@ -723,6 +723,17 @@ export function channelSurfaces(
   for (const definition of registeredChannels()) {
     if (definition.surface === undefined || definition.visibility === 'hidden') continue;
     if (definition.render === undefined) continue;
+    /**
+     * ***The strip is text, and the other arms are a region's business*** —
+     * [P7.11]. `WidgetSpec` gained `image` and `toggle`; [10 §8] describes the
+     * HUD as *"a strip of short labelled values"*, which a picture is not and a
+     * control is not either. A channel wanting one of those declares a
+     * {@link SurfaceContribution} naming the region it belongs in, which is
+     * what that field is for — so this skips rather than grows an arm it has
+     * nowhere to put.
+     */
+    if (definition.surface.kind !== 'text') continue;
+    const surface = definition.surface;
 
     /**
      * **Every key the channel owns, not just the unscoped one.** A per-actor
@@ -748,8 +759,8 @@ export function channelSurfaces(
         key,
         channelId,
         scopeKey,
-        kind: definition.surface.kind,
-        label: definition.surface.label,
+        kind: surface.kind,
+        label: surface.label,
         text: rendered.text.trim(),
       });
     }

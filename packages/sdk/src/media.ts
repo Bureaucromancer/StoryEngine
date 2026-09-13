@@ -39,10 +39,23 @@
 export type MediaSelection =
   /**
    * A picture somebody put in the library — the media entry `mediaId` on the
-   * object `objectId`. Two ids because media is embedded in its owner: the
-   * entry's id is unique within that object and not across the library.
+   * object `objectId`, of kind `kind`.
+   *
+   * Two ids because media is embedded in its owner: the entry's id is unique
+   * within that object and not across the library. ***And the kind, because a
+   * pointer that cannot be followed is not a pointer*** — added at [P7.11],
+   * when the first thing that had to turn one of these into a URL found it
+   * could not. A library object is addressed by kind and id everywhere else in
+   * this build; a media reference that carried only the id would make every
+   * reader look the kind up, and the ones that can (`read` takes an optional
+   * kind) would be doing it to rebuild a fact the writer already had.
+   *
+   * *Free now and a migration later*, which is the same argument [06 §10.1a]
+   * makes for the union itself: nothing has written one of these yet, and the
+   * day something has, adding a required field means changing a channel's
+   * schema under live sessions ([06 §4.2]).
    */
-  | { from: 'authored'; objectId: string; mediaId: string }
+  | { from: 'authored'; kind: string; objectId: string; mediaId: string }
   /**
    * A picture the engine made — [06 §10.1a]'s *"the artefact hangs off a turn;
    * the selection is channel state"*. **Nothing writes this arm until [P9]**,
@@ -67,10 +80,11 @@ export const MEDIA_SELECTION_SCHEMA = {
       type: 'object',
       properties: {
         from: { const: 'authored' },
+        kind: { type: 'string', minLength: 1 },
         objectId: { type: 'string', minLength: 1 },
         mediaId: { type: 'string', minLength: 1 },
       },
-      required: ['from', 'objectId', 'mediaId'],
+      required: ['from', 'kind', 'objectId', 'mediaId'],
       additionalProperties: false,
     },
     {

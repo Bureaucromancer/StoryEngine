@@ -1170,8 +1170,8 @@ decision and a selector able to widen its own gate is not a dial.
 
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null, health, hud, cast, hooks, goals, dials, inputs,
-suggesting }`. The job travels with the
+`{ session, activeJob | null, health, hud, surfaces, cast, hooks, goals, dials,
+inputs, suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
 
@@ -1201,6 +1201,17 @@ person has not ruled ([25 C12], answered *ask* at P7.6). `se.goal` declares
 **unapplied**: the three offers stay down and the panel asks. `proposed` and
 `achieved` are never both true, because confirming *is* the applied effect that
 clears the first.
+
+`surfaces` is what this session's **mode** asked to have shown, and where
+([06 §9], [P7.11]): `{ region, key, channelId, scopeKey, kind, label }` plus one
+of `text`, `image: { url, alt }` or `on`, already resolved. Four regions — `hud`
+(the strip, which a contribution *appends* to), `panel` (the stack beside the
+story), `message` (a decoration on a turn) and `stage` (the picture behind it,
+[10 §2.3]'s chrome). **Separate from `hud` because they answer different
+questions**: `hud` is every channel that declared itself worth a strip row, and
+this is every placement a mode asked for. A `kind` or a `region` a client does
+not know is **skipped**, which is what keeps both vocabularies additive — and
+there is deliberately no `html` anywhere in either ([10 §8]).
 
 `inputs` is the kinds this session's mode accepts ([06 §1], [06 §9]) — Scene
 sends `['do']`, Freeform `['do','say','think','story']`. It is the same list

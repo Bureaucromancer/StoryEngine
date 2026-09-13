@@ -170,3 +170,161 @@ function fakeMode(id: string): import('@storyengine/sdk').Mode {
     run: { [narrate.id]: () => Promise.resolve({}) },
   };
 }
+
+/**
+ * ***What a mode put where*** — [06 §9]'s fifth bullet, [P7.11].
+ *
+ * `surfaces` was a compile-time-required, runtime-unchecked, wire-transmitted
+ * field that **nothing read**. These are the assertions that make it mean
+ * something, and the two that matter are about what is *skipped*: the
+ * composition must narrow to the session's mode and to channels that mode may
+ * see, because the registry is process-wide and a session is not.
+ */
+describe('a mode’s contributed surfaces', () => {
+  // Loaded fresh per test, for the reason the describe above states: the
+  // registry is a module global and every other test in the suite has already
+  // put Scene in it.
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function freshRegistry(): Promise<typeof import('./mode-registry.js')> {
+    return import('./mode-registry.js');
+  }
+
+  const backdrop = {
+    id: 'example.backdrop',
+    owner: 'example.quiet',
+    version: 1,
+    scope: 'session',
+    update: 'engine-computed',
+    visibility: 'player',
+    budget: null,
+    schema: { type: ['object', 'null'] },
+    init: { kind: 'literal', value: null },
+  } as const;
+
+  async function withBackdrop(): Promise<typeof import('./mode-registry.js')> {
+    const registry = await freshRegistry();
+    const mode = fakeMode('example.quiet');
+    registry.registerMode({
+      ...mode,
+      definition: {
+        ...mode.definition,
+        channels: [backdrop],
+        surfaces: [
+          {
+            region: 'stage',
+            channelId: backdrop.id,
+            widget: { kind: 'image', label: 'Behind you' },
+          },
+        ],
+      },
+    });
+    return registry;
+  }
+
+  /**
+   * **The server resolves the pointer, down to a URL.** [04 §3] makes
+   * `EmbeddedMedia` *"a reference to bytes carried by the container"*; a client
+   * that followed one itself would be a second implementation of the manifest
+   * living in a browser.
+   */
+  it('resolves an authored media reference to something a browser can fetch', async () => {
+    const registry = await withBackdrop();
+    const surfaces = registry.modeSurfaces(
+      {
+        'example.backdrop': {
+          version: 1,
+          value: { from: 'authored', kind: 'actors', objectId: 'a-1', mediaId: 'm-1' },
+        },
+      },
+      'example.quiet',
+    );
+
+    expect(surfaces).toHaveLength(1);
+    expect(surfaces[0]?.image?.url).toBe('/api/library/actors/a-1/media/m-1');
+    expect(surfaces[0]?.region).toBe('stage');
+  });
+
+  /**
+   * ***`null` for the rendition arm is not a gap*** — nothing generates a
+   * picture until [P9], and the arm exists so the channel's schema does not have
+   * to change under live sessions when something does ([06 §10.1a]).
+   */
+  it('shows nothing for a generated backdrop, because nothing generates one yet', async () => {
+    const registry = await withBackdrop();
+    const surfaces = registry.modeSurfaces(
+      { 'example.backdrop': { version: 1, value: { from: 'rendition', renditionId: 'r-1' } } },
+      'example.quiet',
+    );
+
+    expect(surfaces).toEqual([]);
+  });
+
+  /**
+   * ***Nothing when there is nothing***, which for the stage is a requirement:
+   * [10 §2.3] — *"with the backdrop off Play is the surface it was before, not a
+   * surface with an empty frame in it."*
+   */
+  it('shows nothing at all when the channel is unset', async () => {
+    const registry = await withBackdrop();
+    expect(registry.modeSurfaces({}, 'example.quiet')).toEqual([]);
+  });
+
+  /**
+   * ***A contribution belongs to the session playing that mode*** — the same
+   * rule `channelInPlay` enforces for the HUD and the channel write route, and
+   * the defect that was invisible until a second mode declared anything.
+   */
+  it('contributes nothing to a session playing something else', async () => {
+    const registry = await withBackdrop();
+    const surfaces = registry.modeSurfaces(
+      {
+        'example.backdrop': {
+          version: 1,
+          value: { from: 'authored', kind: 'actors', objectId: 'a-1', mediaId: 'm-1' },
+        },
+      },
+      'example.loud',
+    );
+
+    expect(surfaces).toEqual([]);
+  });
+
+  /**
+   * *A hidden channel has no surface*, whatever a mode declares — `visibility`
+   * governs what may be shown and a contribution does not override it. The
+   * alternative would make `hidden` mean *unless somebody asks*.
+   */
+  it('refuses to show a hidden channel', async () => {
+    const registry = await freshRegistry();
+    const mode = fakeMode('example.quiet');
+    registry.registerMode({
+      ...mode,
+      definition: {
+        ...mode.definition,
+        channels: [{ ...backdrop, visibility: 'hidden' }],
+        surfaces: [
+          {
+            region: 'stage',
+            channelId: backdrop.id,
+            widget: { kind: 'image', label: 'Behind you' },
+          },
+        ],
+      },
+    });
+
+    const surfaces = registry.modeSurfaces(
+      {
+        'example.backdrop': {
+          version: 1,
+          value: { from: 'authored', kind: 'actors', objectId: 'a-1', mediaId: 'm-1' },
+        },
+      },
+      'example.quiet',
+    );
+
+    expect(surfaces).toEqual([]);
+  });
+});

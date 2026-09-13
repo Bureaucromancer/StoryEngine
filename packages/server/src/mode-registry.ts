@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Mode, ModeDefinition, StepDefinition } from '@storyengine/sdk';
+import type {
+  Mode,
+  ModeDefinition,
+  StepDefinition,
+  SurfaceContribution,
+  WidgetSpec,
+} from '@storyengine/sdk';
 
 import {
   channelDefinition,
   channelSurfaces,
+  initialValue,
+  keyBelongsTo,
   registerChannel,
+  splitChannelKey,
   type ChannelSurface,
 } from './sessions/channels.js';
 import type { ChannelState } from './sessions/types.js';
@@ -318,4 +327,140 @@ export function sessionSurfaces(
   modeId: string,
 ): ChannelSurface[] {
   return channelSurfaces(channels).filter((surface) => channelInPlay(surface.channelId, modeId));
+}
+
+/**
+ * ***What a mode put where*** — [06 §9]'s fifth bullet, built at
+ * [P7.11](../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * **Composed here for the reason {@link sessionSurfaces} is**: it needs the
+ * mode *and* the channel registry, and this is the file that may import both.
+ *
+ * ***Rendered server-side, down to the string*** — the posture
+ * `channelSurfaces` sets and this one keeps: what crosses is a label and a
+ * value, never a template, a media manifest or a registry. A client that
+ * resolved a {@link MediaSelection} itself would be a second implementation of
+ * [04 §3]'s *"a reference to bytes carried by the container"* living in a
+ * browser.
+ *
+ * **Narrowed by the mode before anything else**, which is free here and was a
+ * defect one stage ago: a contribution is a mode's, so only the session playing
+ * it can have one. The channel it names still goes through `channelInPlay`,
+ * because a mode may name a package's channel — the suggestion toggle is the
+ * case — and may not name another mode's.
+ */
+export interface ModeSurface {
+  region: SurfaceContribution['region'];
+  /** The composite key, so a scoped channel has one entry per scope. */
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  /** The widget arm. A client meeting one it does not know skips that entry. */
+  kind: string;
+  label: string;
+  /** `text`: the rendered value. */
+  text?: string;
+  /** `image`: where the picture is, and what it is of. */
+  image?: { url: string; alt: string };
+  /** `toggle`: what the switch is currently on. */
+  on?: boolean;
+}
+
+export function modeSurfaces(
+  channels: Readonly<Record<string, ChannelState>>,
+  modeId: string,
+): ModeSurface[] {
+  const mode = modeById(modeId);
+  if (mode === null) return [];
+
+  const out: ModeSurface[] = [];
+  for (const contribution of mode.definition.surfaces) {
+    if (!channelInPlay(contribution.channelId, modeId)) continue;
+    const definition = channelDefinition(contribution.channelId);
+    if (definition === null || definition.visibility === 'hidden') continue;
+
+    /**
+     * **Every key the channel owns**, the same walk the HUD makes — an
+     * actor-scoped channel is one surface per actor, which is what a sprite
+     * beside each speaker's line *is*.
+     */
+    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+      const value = channels[key]?.value ?? initialValue(definition.id);
+      const rendered = renderSurface(contribution.widget, value);
+      // Nothing to show is not shown — the same answer `omitWhenEmpty` gives a
+      // preset slot, and the one [10 §2.3] insists on for a backdrop: *"with
+      // the backdrop off Play is the surface it was before, not a surface with
+      // an empty frame in it."*
+      if (rendered === null) continue;
+      const { channelId, scopeKey } = splitChannelKey(key);
+      out.push({
+        region: contribution.region,
+        key,
+        channelId,
+        scopeKey,
+        kind: contribution.widget.kind,
+        label: contribution.widget.label,
+        ...rendered,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * One value, as its widget shows it — or `null` when there is nothing to show.
+ *
+ * *A `text` widget still renders through the channel's own `render` template*,
+ * because that is what `render` is for and a second way to turn a channel value
+ * into a string is the drift this file's neighbour spends a paragraph
+ * preventing.
+ */
+function renderSurface(
+  widget: WidgetSpec,
+  value: unknown,
+): Pick<ModeSurface, 'text' | 'image' | 'on'> | null {
+  switch (widget.kind) {
+    case 'text':
+      return typeof value === 'string' && value.trim() !== '' ? { text: value.trim() } : null;
+    case 'toggle':
+      // A toggle shows a switch whatever the value is — *off* is a state, not
+      // an absence, which is the whole of why the control exists.
+      return { on: value === true };
+    case 'image': {
+      const url = mediaUrlFor(value);
+      return url === null ? null : { image: { url, alt: widget.label } };
+    }
+  }
+}
+
+/**
+ * A {@link MediaSelection} as a URL the browser can fetch.
+ *
+ * **`null` for the rendition arm, and that is not a gap** — nothing generates a
+ * picture until [P9], and the arm exists so the channel's schema does not have
+ * to change under live sessions when something does ([06 §10.1a]). A backdrop
+ * pointing at a rendition renders nothing here and renders a picture there,
+ * with no change to this function's callers.
+ */
+function mediaUrlFor(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const selection = value as {
+    from?: unknown;
+    kind?: unknown;
+    objectId?: unknown;
+    mediaId?: unknown;
+  };
+  if (selection.from !== 'authored') return null;
+  if (
+    typeof selection.kind !== 'string' ||
+    typeof selection.objectId !== 'string' ||
+    typeof selection.mediaId !== 'string'
+  ) {
+    return null;
+  }
+  return (
+    `/api/library/${encodeURIComponent(selection.kind)}/${encodeURIComponent(selection.objectId)}` +
+    `/media/${encodeURIComponent(selection.mediaId)}`
+  );
 }

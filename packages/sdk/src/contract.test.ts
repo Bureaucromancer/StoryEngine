@@ -12,6 +12,8 @@ import {
   type StepImplementation,
   type StepInput,
   type StepResult,
+  type SurfaceContribution,
+  type WidgetSpec,
 } from './index.js';
 
 /**
@@ -115,6 +117,57 @@ describe('a mode can be written against the SDK alone', () => {
 
     expect(structuredClone(input)).toEqual(input);
     expect(structuredClone(result)).toEqual(result);
+  });
+
+  /**
+   * ***The prohibition [10 §8] names, as an assertion rather than a
+   * docstring*** — [P7.11].
+   *
+   * *"What must **not** happen is the vocabulary quietly acquiring an
+   * `html: string` field. That is the escape hatch arriving without any of the
+   * safety, and it is how this decision would be undone by accident rather than
+   * on purpose."*
+   *
+   * **A test is what makes *by accident* impossible.** Every widget arm is a
+   * label plus something the server already rendered; the day one of them takes
+   * markup is the day an extension can break the app's rendering, and the day
+   * the frontend framework stops being a reversible decision ([19 §6]). Written
+   * over a value rather than over the type because a type cannot be asserted at
+   * run time — what this catches is a field arriving on a declaration, which is
+   * where it would arrive.
+   */
+  it('has no way for a mode to ship markup, now or later', () => {
+    const arms: WidgetSpec[] = [
+      { kind: 'text', label: 'Time' },
+      { kind: 'image', label: 'Behind you' },
+      { kind: 'toggle', label: 'Show the scene' },
+    ];
+
+    for (const widget of arms) {
+      const keys = Object.keys(widget);
+      expect(keys, widget.kind).toEqual(expect.arrayContaining(['kind', 'label']));
+      // Not `html`, and not anything that would smuggle one in.
+      for (const banned of ['html', 'dangerouslySetInnerHTML', 'component', 'render', 'script']) {
+        expect(keys, `${widget.kind} carries ${banned}`).not.toContain(banned);
+      }
+    }
+  });
+
+  /**
+   * *A contribution shows state and never invents it*, which is what keeps this
+   * declarative all the way down: no text field, no template, no payload of the
+   * mode's own — a channel id and a widget, and everything that already governs
+   * a channel governs the surface for free.
+   */
+  it('lets a mode place a widget and say nothing else about it', () => {
+    const contribution: SurfaceContribution = {
+      region: 'stage',
+      channelId: 'se.backdrop',
+      widget: { kind: 'image', label: 'Behind you' },
+    };
+
+    expect(Object.keys(contribution).sort()).toEqual(['channelId', 'region', 'widget']);
+    expect(structuredClone(contribution)).toEqual(contribution);
   });
 
   it('hands over the portable schemas too, so a mode needs one import', () => {

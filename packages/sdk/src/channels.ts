@@ -106,25 +106,65 @@ export type InitPolicy =
  * is the escape hatch arriving without any of the safety, and it is how this
  * decision would be undone by accident rather than on purpose."*
  */
-export interface WidgetSpec {
+export type WidgetSpec =
   /**
-   * The arm. **An interface with one literal rather than a union today**, which
-   * becomes a union the moment there is a second arm — additive either way,
-   * because a declaration naming a `kind` the host does not know is one the host
-   * can ignore rather than one that breaks it.
-   */
-  kind: 'text';
-  /**
-   * What the HUD calls it.
+   * A short value, read. The clock is the shipped one.
    *
-   * **Not rendered from the channel id**, because an id is a reverse-domain name
-   * and a label is for reading. Plain text rather than a key into a catalogue:
-   * [01 §2] keeps English out of what the *server* sends, and this is authored
-   * content travelling with a mode — the same status as a preset's prose, and
-   * subject to the same translation posture rather than to the UI's.
+   * ~~**An interface with one literal rather than a union today**, which becomes
+   * a union the moment there is a second arm.~~ ***It did, at [P7.11]*** — and
+   * the shape the docstring promised is the shape it took: additive, because a
+   * declaration naming a `kind` the host does not know is one the host can
+   * ignore rather than one that breaks it.
    */
-  label: string;
-}
+  | { kind: 'text'; label: string }
+  /**
+   * ***A picture*** — [06 §7.2], [06 §10.1a], added at [P7.11].
+   *
+   * **The arm a backdrop and a sprite both needed, and neither could have.**
+   * §7.2 has described Scene as *"staged scene, optional background and
+   * sprites"* since the first draft; what was missing was not the channel — it
+   * ships — but any way for a mode to say *this value is a picture, show it*.
+   *
+   * *What crosses the wire is a URL and an alt text*, which is the same posture
+   * `text` takes: the server resolves the channel's {@link MediaSelection} the
+   * way it renders a template, and a browser is handed something to display
+   * rather than something to interpret. A client that resolved a media
+   * reference itself would be a second implementation of the manifest living in
+   * a browser.
+   *
+   * *No dimensions and no fit.* Where a picture goes and how big it is are the
+   * region's business, not the declaration's — [10 §2.3] settles it for the one
+   * region that exists: a backdrop is *chrome*, *"the first thing to go"* on a
+   * phone. A mode that could specify a height could break the layout, which is
+   * the whole thing 10 §8 is preventing.
+   */
+  | { kind: 'image'; label: string }
+  /**
+   * ***A boolean somebody can change*** — added at [P7.11], and it is the
+   * vocabulary's **first writable arm**.
+   *
+   * **Everything before this was a readout.** A channel could say *here is the
+   * time*; nothing could say *here is a switch*. [P7.9] left two controls as
+   * hand-written client components for want of this, and `turns/suggest.ts`
+   * says so in as many words: *"no `surface` yet: the control belongs beside the
+   * suggestions, and that is a layout a mode cannot declare until `surfaces` is
+   * built."*
+   *
+   * ***Writable does not mean the widget writes.*** It renders a control; the
+   * write goes through `PUT /sessions/:id/channels/:key`, which already refuses
+   * a channel the session's mode does not own and already records the result as
+   * an effect. So a mode gains a control and gains no new authority — the
+   * policy that decides whether a person may set this is still the channel's
+   * own `update`, and a `toggle` over an `engine-computed` channel produces a
+   * recorded refusal rather than a change.
+   *
+   * *Boolean and nothing else, which is the honest minimum again.* A `choice`
+   * is the obvious next arm and it wants a vocabulary to choose from — the
+   * dials' levels come from the prompt pack rather than from the channel's
+   * schema, so the arm that serves them is a different shape and should be
+   * designed against them rather than ahead of them.
+   */
+  | { kind: 'toggle'; label: string };
 
 export interface ChannelDefinition {
   id: string;

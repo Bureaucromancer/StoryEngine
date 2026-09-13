@@ -46,7 +46,7 @@ import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { resolveLore } from '../turns/lore.js';
-import { channelInPlay, sessionSurfaces } from '../mode-registry.js';
+import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
 import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
 import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
@@ -946,6 +946,17 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // process-wide; a session is not. Before a second mode declared channels
       // this walked the union and was right by accident.
       hud: sessionSurfaces(session.channels, modeId),
+      /**
+       * ***What this session's mode put where*** — [06 §9], [P7.11].
+       *
+       * Separate from `hud` rather than merged into it, because they answer
+       * different questions and a client renders them in different places: `hud`
+       * is every channel that declared itself worth a strip row, and this is
+       * every placement a **mode** asked for. A contribution naming `hud`
+       * appends to the strip; the other three regions have nowhere else to come
+       * from.
+       */
+      surfaces: modeSurfaces(session.channels, modeId),
       cast: castRows(session.cast, session.channels, path),
       hooks,
       goals,
@@ -1275,6 +1286,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
         hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
+        surfaces: modeSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
       });
     },
   );
