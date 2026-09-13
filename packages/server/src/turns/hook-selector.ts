@@ -215,12 +215,47 @@ export function hookSelector(context: HookSelectorContext): {
         hookId: verdict.hook.id,
         refusal: verdict.refusal,
         ...(verdict.committed === undefined ? {} : { committed: verdict.committed }),
+        ...(verdict.forced === undefined ? {} : { forced: verdict.forced }),
       }));
       const eligible = verdicts.filter((verdict) => verdict.refusal === null);
       const committed = eligible.filter((verdict) => verdict.committed !== undefined);
       // Never written empty: *absent* is the ordinary turn.
       const lapse = lapses.length === 0 ? {} : { lapses };
       const said = lapses.length === 0 ? {} : { lapsed: lapses };
+
+      /**
+       * ***Force-fire: no gate and no call*** — [06 §6.1], [P7.5]. *"The hook is
+       * delivered on the next turn with no judgement call at all."*
+       *
+       * **Before the gate rather than through it**, which is what makes the
+       * record honest: a `fired` verdict reached this way carries `forced` on the
+       * hook it names, and a reader can see that nobody was asked. Routing it
+       * through the gate as a stronger `committed` would have produced the same
+       * verdict with a call that did not happen implied behind it.
+       *
+       * *This is the whole of the difference between the two hand controls.*
+       * Commit opens the gate and still asks **where**; force answers **now**.
+       * [06 §6.1] keeps them in different surfaces for that reason — *"splitting
+       * them keeps a control that skips the engine's judgement out of the surface
+       * people play on"*.
+       */
+      const forced = eligible.find((verdict) => verdict.forced !== undefined);
+      if (forced !== undefined) {
+        const entrance = await pickEntrance(forced.hook, host);
+        context.report({
+          selection: {
+            verdict: 'fired',
+            pacing: context.pacing,
+            hookId: forced.hook.id,
+            considered,
+            ...said,
+          },
+          guidance: guidanceFor(forced.hook, entrance),
+          fired: { hookId: forced.hook.id, state: stateFor(forced.hook) },
+          ...lapse,
+        });
+        return {};
+      }
 
       const decision = gate({
         pacing: context.pacing,

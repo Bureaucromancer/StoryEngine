@@ -71,6 +71,8 @@ export function hookState(row: Pick<HookRow, 'state'>): string | null {
       return 'Firing';
     case 'committed':
       return 'Committed';
+    case 'forced':
+      return 'Firing next turn';
     default:
       return null;
   }

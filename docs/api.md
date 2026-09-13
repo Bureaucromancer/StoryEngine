@@ -1114,15 +1114,22 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
-**It is also how a hook is committed** — [06 §6.1]'s Commit, and the reason it
-needed no route of its own: `se.hook#<hookId>` set to `"committed"` marks a hook
-must-fire, which skips eligibility, exempts it from cooldown and cadence, and
-opens the pacing gate every turn until it lands. The channel is
-`engine-computed`, which refuses a model and a step and **admits a person** — so
-this route is the one thing that may write it. *What a commitment does not do is
-choose the moment*: the selector still runs, with the question changed from
-*whether* to *where*, and after **three turns** an unplaced commitment lapses
-back into the pool, which the turn's `hooks.lapsed` records.
+**It is also how a hook is committed or forced** — [06 §6.1]'s two hand
+controls, and the reason neither needed a route of its own. The channel is
+`engine-computed`, which refuses a model and a step and **admits a person**, so
+this route is the one thing that may write either.
+
+`se.hook#<hookId>` set to `"committed"` marks a hook must-fire: it skips
+eligibility, is exempt from cooldown and cadence, and opens the pacing gate every
+turn until it lands. *What it does not do is choose the moment* — the selector
+still runs, with the question changed from *whether* to *where*, and after
+**three turns** an unplaced commitment lapses back into the pool, which the
+turn's `hooks.lapsed` records.
+
+`"forced"` is the other one and is what it sounds like: **delivered on the next
+turn with no judgement call at all**, no gate and no model call. A `fired`
+verdict whose `considered` entry carries `forced` is the record saying nobody was
+asked. Both say what they skipped, in `overrode`.
 
 **And it is the only way to turn a `user-only` channel**, of which the build has
 one: `se.hook.pacing`, the hook selector's dial —
@@ -1145,8 +1152,9 @@ it decides whether to open a stream or offer an input box.
 `pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
 a Setup's, a Treatment's — and each row carries a hook's `title`, `source`,
 `state`, the `refusal` class blocking it (`null` when it is eligible now), a
-`committed: { overrode }` when a person's Commit is carrying it, the `firedOn`
-turn if it has gone, and its `entrances` **by label**. *The `premise` appears
+`committed: { overrode }` when a person's Commit is carrying it (or
+`forced: { overrode }` when they force-fired it), the `firedOn` turn if it has
+gone, and its `entrances` **by label**. *The `premise` appears
 only once the hook has fired and entrance **text** never appears at all*: an
 unfired hook's premise is hidden content ([08 §6]), and the workbench's block
 list already shows a fired hook's exact words. Empty `rows` for a session with no

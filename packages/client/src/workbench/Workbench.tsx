@@ -23,6 +23,7 @@ import {
   workbenchSizeFromPrefs,
   workbenchSizePatch,
 } from './prefs.js';
+import { ForceFire } from './ForceFire.js';
 import { ImportSubject } from './import/ImportSubject.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
@@ -306,6 +307,30 @@ function ResizeHandle(props: {
  * ([P3.6]).
  */
 function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
+  /**
+   * **Force-fire sits under whichever subject is showing** — [10 §10.1], [P7.5].
+   *
+   * That section puts it here rather than on the hook panel: *"Commit is a move
+   * in the story and belongs where the story is played; force-fire is a test of
+   * the material and belongs in the workbench, beside the keyword test and the
+   * dry run it is a sibling of."* Both siblings are in this panel — the dry run
+   * is `PreviewSubject` and the generalised keyword test is `LoreReportView`
+   * inside it.
+   *
+   * *Under all four branches rather than one*, because it is a fact about the
+   * session's material and not about whichever turn the panel happens to be
+   * describing — and it renders nothing when there is no hook left to audition,
+   * which is every session without a pool.
+   */
+  return (
+    <div className="flex flex-col gap-4">
+      <TurnOrPreview sessionId={sessionId} />
+      <ForceFire sessionId={sessionId} />
+    </div>
+  );
+}
+
+function TurnOrPreview({ sessionId }: { sessionId: string }): JSX.Element {
   const transcript = useTranscript(sessionId);
   const preview = usePreview(sessionId);
   const liveTurn = useLiveTurn(sessionId);

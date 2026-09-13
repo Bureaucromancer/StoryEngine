@@ -655,3 +655,88 @@ describe('a commitment that runs out of patience', () => {
     expect(run.host.asked).toHaveLength(0);
   });
 });
+
+/**
+ * **Force-fire** — [06 §6.1]'s other hand control, [P7.5].
+ *
+ * *"It stays what it sounds like: the hook is delivered on the next turn with no
+ * judgement call at all."* Where Commit opens the gate and still asks **where**,
+ * this answers **now** — which is the whole of the difference between them, and
+ * the reason [10 §10.1] keeps them in different surfaces.
+ */
+describe('a forced hook', () => {
+  const FORCED = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'forced' } };
+
+  it('fires without asking anybody', async () => {
+    const run = await select({
+      pool: pooled(hook()),
+      channels: FORCED,
+      // At the setting that refuses everything, and straight after a firing:
+      // neither the dial nor the cooldown is consulted at all.
+      pacing: 'manual-only',
+      history: [fired('hook-peace')],
+    });
+
+    expect(run.host.asked).toHaveLength(0);
+    expect(run.report.selection).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+    expect(run.report.fired).toEqual({ hookId: 'hook-war', state: 'fired' });
+    expect(run.report.guidance).toContain('The Flower Kingdom will declare war.');
+  });
+
+  /**
+   * **The record says nobody was asked**, which is what makes a forced firing
+   * readable as one: a `fired` verdict carrying `forced` on the hook it names is
+   * a different fact from the same verdict without it.
+   */
+  it('says so on the record, and says what it skipped', async () => {
+    const run = await select({
+      pool: pooled(hook({ notBefore: { turn: 40 } })),
+      channels: FORCED,
+    });
+
+    expect(run.report.selection.considered).toEqual([
+      { hookId: 'hook-war', refusal: null, forced: { overrode: 'too-early' } },
+    ]);
+  });
+
+  /**
+   * *An introduction forced is still provisional.* Guidance stays advisory at
+   * every setting — [06 §6.1] is explicit that none of this makes the narrator
+   * comply — so the decline that costs an introduction *"a silent permanent
+   * loss"* is just as possible here, and the same under-firing bias applies.
+   */
+  it('is still only provisional when it introduces somebody', async () => {
+    const arrival = hook({
+      premise: '',
+      introduces: {
+        actor: { id: 'actor-vera', name: 'Vera' },
+        entrances: [{ id: 'e-rain', label: 'In the rain', text: 'She is soaked to the skin.' }],
+        primaryEntranceId: null,
+      },
+    });
+    const run = await select({ pool: pooled(arrival), channels: FORCED, known: ['actor-vera'] });
+
+    expect(run.report.fired).toEqual({ hookId: 'hook-war', state: 'provisional' });
+    expect(run.report.guidance).toContain('She is soaked to the skin.');
+  });
+
+  /**
+   * **A force outranks a commitment**, and it has to: the two are exclusive on
+   * one channel, so a hook cannot be both — but a *different* hook being
+   * committed must not delay the one somebody forced, which is the case this
+   * pins.
+   */
+  it('goes ahead of a commitment on another hook', async () => {
+    const channels = {
+      ...FORCED,
+      [channelKey(SE_HOOK, 'hook-peace')]: { value: 'committed' },
+    };
+    const run = await select({
+      pool: pooled(hook({ id: 'hook-war' }), hook({ id: 'hook-peace' })),
+      channels,
+    });
+
+    expect(run.host.asked).toHaveLength(0);
+    expect(run.report.selection.hookId).toBe('hook-war');
+  });
+});

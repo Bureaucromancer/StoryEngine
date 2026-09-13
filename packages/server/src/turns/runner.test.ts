@@ -2853,6 +2853,36 @@ describe('a session with a hook pool', () => {
   });
 
   /**
+   * **Force-fire, end to end** — [06 §6.1], [10 §10.1], [P7.5]. *"The hook is
+   * delivered on the next turn with no judgement call at all."*
+   *
+   * Through the same channel route Commit uses, because the intent has to
+   * survive between the click and the turn and a channel is the only home that
+   * branches.
+   */
+  it('delivers a forced hook on the next turn without asking anybody', async () => {
+    await seedPool(war({ notBefore: { turn: 40 } }));
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook#hook-war', 'forced');
+    // One reply, and the narrator is the only caller: a second would mean a
+    // judgement call happened.
+    makeRunner({ script: [{ text: 'The door opened.' }] });
+
+    const turn = await runNextTurn();
+
+    expect(turn.request?.calls).toHaveLength(1);
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+    // The record says nobody was asked, and says what the force skipped.
+    expect(turn.hooks?.considered).toEqual([
+      { hookId: 'hook-war', refusal: null, forced: { overrode: 'too-early' } },
+    ]);
+    // And the words reached the slot the preset positioned, like any firing.
+    const hookBlock = turn.request?.calls[0]?.blocks?.find(
+      (block) => block.source.kind === 'guidance' && block.source.producer === 'step',
+    );
+    expect(hookBlock?.text).toContain('The Flower Kingdom will declare war.');
+  });
+
+  /**
    * **Patience runs out, and the deadline is a lapse rather than a firing** —
    * [06 §6.1], [P7.5]. *"One that fires anyway at the deadline delivers the
    * twist at the exact moment the selector has already rejected three times —

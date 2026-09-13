@@ -547,6 +547,13 @@ export interface HookSelection {
     hookId: string;
     refusal: HookRefusal | null;
     committed?: { overrode: HookRefusal | null };
+    /**
+     * Present when a person **force-fired** it — [06 §6.1]'s other hand control,
+     * and the one that means *no judgement call at all*. A `fired` verdict with
+     * this on the hook it names is the record saying nobody was asked; the same
+     * verdict without it is the record of a call that chose.
+     */
+    forced?: { overrode: HookRefusal | null };
   }[];
   /**
    * Commitments that ran out of patience on this turn — [06 §6.1], [P7.5].

@@ -3489,10 +3489,62 @@ blast radius, ordinary weight, woven rather than expanded, once. *The premise is
 required at the control rather than refused after it*: the premise **is** the
 hook, and one with nothing to weave would sit in the pool being eligible forever.
 
-**Next:** force-fire in the workbench beside the keyword test and the dry run —
-[10 §10.1] is explicit that it belongs there and not on the panel; and
-`introduces`' provisional firings confirmed by the extract stage, which is
-[P7.7]'s and is what closes this stage's fourth property row.
+**Done: stage seven — force-fire, and the surface it deliberately is not on**
+(2026-09-13).
+
+*"It stays what it sounds like: the hook is delivered on the next turn with no
+judgement call at all"* ([06 §6.1]). **No gate and no call** — where Commit opens
+the gate and still asks *where*, this answers *now*, and that is the whole of the
+difference between the two.
+
+***A fourth `HOOK_STATES` arm, because the intent has to live somewhere between
+the click and the turn*** — and a channel is the only home that branches: force a
+hook, rewind past the forcing, and it is not forced on the line you came back to.
+The same argument that made `se.hook` a channel rather than a session field, one
+control over.
+
+***Its own field on the record rather than a `kind` on `committed`.*** The two
+share a shape and nothing else: a commitment says *make this happen, not
+necessarily now* and keeps asking where until its patience runs out; a force says
+*deliver it next turn*. A reader must not have to infer which from elsewhere, and
+the states being exclusive on one channel means exactly one is ever present. *A
+`fired` verdict whose hook carries `forced` is the record saying nobody was
+asked; the same verdict without it is the record of a call that chose.*
+
+**Short-circuited before the gate rather than routed through it as a stronger
+commitment**, which is what keeps that readable: running it through the gate
+would have produced the same verdict with a call that never happened implied
+behind it.
+
+**In the workbench, and the panel has a test asserting it is not there.**
+[10 §10.1] decides this rather than files it: *"Commit is a move in the story and
+belongs where the story is played; force-fire is a test of the material and
+belongs in the workbench, beside the keyword test and the dry run it is a sibling
+of"*, because *"splitting them keeps a control that skips the engine's judgement
+out of the surface people play on"*. **Both named siblings are real ones** —
+`PreviewSubject` is the dry run and `LoreReportView` inside it is [P5.8]'s
+generalised keyword test — so it landed beside them rather than beside a
+promise. *And [06 §6.1]'s declined alternative stays declined: no scratch
+preview, because rewind is a pointer and a second assembly path to keep correct
+is a bad trade for a marginally shorter loop.*
+
+*The clause is said before it is skipped*, like Commit's confirmation — a control
+that skips **more** owes the sentence more, not less — and only hooks that have
+not gone are offered, because offering a fired one would be offering to *un-fire*
+it as a side effect of the states being exclusive.
+
+***One real bug, found by twenty-two dock tests at once***: `session.data?.hooks.rows`
+stops its optional chain at the `?.` that made it one, so a session answered by a
+build without the field threw on the second access rather than reading as *no
+hooks*. `HookPanel` had it right two lines apart, and the difference is why —
+**binding the intermediate gives it an `undefined` of its own**, which is also
+what makes the second `?.` necessary rather than the lint error the one-liner
+earned when it was "fixed" the obvious way. Both now hold the same shape, and a
+test renders the control against a response with no `hooks` at all.
+
+**Next:** `introduces`' provisional firings confirmed by the extract stage, which
+is [P7.7]'s and is what closes this stage's fourth property row — the last thing
+this stage's *ends at* line names that is not built.
 
 ### P7.6 — Goals
 

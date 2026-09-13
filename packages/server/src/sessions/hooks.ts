@@ -73,6 +73,17 @@ export const SE_HOOK = 'se.hook';
  * *whether* to *where*, which is the difference between committing a hook and
  * forcing one.
  *
+ * `forced` is the **other** hand control, and [06 §6.1] keeps the two apart for
+ * a reason that is not filing: *"Commit is a move in the story and belongs where
+ * the story is played; force-fire is a test of the material and belongs in the
+ * workbench."* It stays what it sounds like — *"the hook is delivered on the next
+ * turn with no judgement call at all"* — so where a commitment opens the gate and
+ * still asks **where**, this skips the gate and the call alike. **It is a state
+ * rather than a request because the intent has to live somewhere between the
+ * click and the turn**, and a channel is the only home that branches: force a
+ * hook, rewind past the forcing, and it is not forced on the line you came back
+ * to.
+ *
  * `provisional` is [06 §6.1]'s honest reading of the slot an introduction fires
  * through: guidance is advisory and the narrator may decline it, and for an
  * introduction a decline is *"a silent permanent loss — marked fired, character
@@ -82,7 +93,7 @@ export const SE_HOOK = 'se.hook';
  * lapsed *commitment* returns to. The attempt stays on the record either way,
  * which is what the effect log is.
  */
-export const HOOK_STATES = ['fired', 'provisional', 'committed'] as const;
+export const HOOK_STATES = ['fired', 'provisional', 'committed', 'forced'] as const;
 export type HookState = (typeof HOOK_STATES)[number];
 
 /**
@@ -174,6 +185,22 @@ export interface HookVerdict {
    * second without the first.
    */
   committed?: { overrode: HookRefusal | null };
+  /**
+   * Present when a person has **force-fired** it — [06 §6.1], [P7.5].
+   *
+   * ***A field of its own rather than a `kind` on the one above, because the two
+   * are different acts and a reader must not have to infer which.*** A
+   * commitment says *make this happen, not necessarily now* and keeps asking
+   * where until its patience runs out; a force says *deliver it on the next
+   * turn with no judgement call at all*. They share a shape and nothing else,
+   * and the states are exclusive on one channel, so exactly one of the two is
+   * ever present.
+   *
+   * `overrode` carries the same obligation for the same reason: skipping the
+   * filter must say what it skipped, and a control that skips **more** owes the
+   * sentence more, not less.
+   */
+  forced?: { overrode: HookRefusal | null };
 }
 
 export interface FilterContext {
@@ -242,9 +269,14 @@ export function filterHooks(pool: readonly PooledHook[], context: FilterContext)
      * for this, so every clause below is still evaluated and the first failure is
      * what a person overrode.
      */
-    return readHookState(context.channels, entry.hook.id) === 'committed'
-      ? { hook: entry.hook, refusal: null, committed: { overrode: refusal } }
-      : { hook: entry.hook, refusal };
+    const state = readHookState(context.channels, entry.hook.id);
+    if (state === 'committed') {
+      return { hook: entry.hook, refusal: null, committed: { overrode: refusal } };
+    }
+    if (state === 'forced') {
+      return { hook: entry.hook, refusal: null, forced: { overrode: refusal } };
+    }
+    return { hook: entry.hook, refusal };
   });
 }
 
@@ -259,8 +291,9 @@ function refuse(
   const state = readHookState(context.channels, hook.id);
   if (state === 'fired') return 'fired';
   if (state === 'provisional') return 'pending';
-  // `committed` is deliberately not a third early return: its caller wants every
-  // clause below evaluated, so that skipping the filter can say what it skipped.
+  // `committed` and `forced` are deliberately not early returns: their caller
+  // wants every clause below evaluated, so that skipping the filter can say what
+  // it skipped.
 
   if (source.kind === 'lore' && !context.activeBooks.has(source.id)) return 'book-inactive';
 
@@ -582,6 +615,8 @@ export interface HookRow {
   refusal: HookRefusal | null;
   /** Present when a person's Commit is carrying it, with the clause it skipped. */
   committed?: { overrode: HookRefusal | null };
+  /** Present when a person has force-fired it — the workbench's control, not the panel's. */
+  forced?: { overrode: HookRefusal | null };
   /** The turn it fired on — [10 §10.1]'s *and when*. */
   firedOn?: string;
   /** Only once it has gone. See above. */
@@ -620,6 +655,7 @@ export function hookRows(pool: readonly PooledHook[], context: FilterContext): H
       state,
       refusal: verdict?.refusal ?? null,
       ...(verdict?.committed === undefined ? {} : { committed: verdict.committed }),
+      ...(verdict?.forced === undefined ? {} : { forced: verdict.forced }),
       ...(when === undefined ? {} : { firedOn: when }),
       ...(spent ? { premise: entry.hook.premise } : {}),
       entrances: (entry.hook.introduces?.entrances ?? []).map((entrance) => ({

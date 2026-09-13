@@ -1004,11 +1004,21 @@ export interface HookRow {
   /** Which object owns it, so editing can navigate there — [03 §4.1]. */
   source: { kind: 'treatment' | 'setup' | 'lore' | 'session'; id?: string };
   /** `null` is *in the pool*. */
-  state: 'fired' | 'provisional' | 'committed' | null;
+  state: 'fired' | 'provisional' | 'committed' | 'forced' | null;
   /** `null` when it is eligible right now. */
   refusal: HookRefusal | null;
   /** Present when a person's Commit is carrying it, with the clause it skipped. */
   committed?: { overrode: HookRefusal | null };
+  /**
+   * Present when a person has **force-fired** it — [06 §6.1]'s other hand
+   * control, and the workbench's rather than the panel's.
+   *
+   * *A field of its own rather than a `kind` on the one above*: a commitment
+   * says *make this happen, not necessarily now* and keeps asking where until
+   * its patience runs out; a force says *deliver it on the next turn with no
+   * judgement call at all*. They share a shape and nothing else.
+   */
+  forced?: { overrode: HookRefusal | null };
   /** The turn it fired on. */
   firedOn?: string;
   /** Only once it has gone. */
