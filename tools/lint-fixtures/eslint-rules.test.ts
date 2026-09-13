@@ -208,6 +208,83 @@ describe('the AGPL header', () => {
   });
 });
 
+/**
+ * ***The engine names no mode*** — [06 §2](../../docs/design/06-modes-and-turn-pipeline.md),
+ * and the P7 exit gate's **row 2b**, which asks for *"a lint rule with fixtures,
+ * plus a tracked-file survey"*. The survey has existed since the gate was
+ * written (`tools/repo-shape.test.ts`); the rule is [P7.13]'s, and these are its
+ * fixtures.
+ *
+ * **Two layers on purpose, the way the boundary rules already are.** The survey
+ * enumerates every mode id in engine source against an allowlist with a reason
+ * on each entry, which is the only half able to notice an id nobody has coined
+ * yet. These selectors catch the three *shapes* §3.1 names — *"an `if`, a
+ * mode-keyed lookup, or a mode id spelled in engine code"* — in the editor, as
+ * they are typed. Neither is redundant.
+ *
+ * ***The control fixture is the load-bearing one.*** A rule that fires on
+ * everything is as useless as one that fires on nothing, and this one is easy to
+ * write too broadly: the engine does per-mode work constantly, by reading a
+ * declaration. `reads-the-declaration.ts` is that work, and it must stay silent.
+ */
+describe('the engine names no mode (docs/design/06-modes-and-turn-pipeline.md §2)', () => {
+  const SWITCH = /`switch` on a mode/;
+  const BRANCH = /comparison against a mode id/;
+  const KEY = /lookup keyed by mode id/;
+  const MODE_RULES = /switch` on a mode|comparison against a mode id|lookup keyed by mode id/;
+
+  it('catches a switch on a mode, by identifier and by property', async () => {
+    const fired = await syntaxReportsMatching('packages/server/src/switches-on-mode.ts', SWITCH);
+    // Two: `switch (mode)` and `switch (session.modeId)`. A selector anchored
+    // only on the identifier would let the second through, and the second is
+    // what engine code actually looks like.
+    expect(fired).toHaveLength(2);
+  });
+
+  it('catches a comparison against a mode id, both operators and both sides', async () => {
+    const fired = await syntaxReportsMatching('packages/server/src/branches-on-mode.ts', BRANCH);
+    // Three: `===` with the literal on the right, `===` with it on the left, and
+    // `!==`. The rewrite between them is one keystroke, so all three have to
+    // fire or the rule is a speed bump.
+    expect(fired).toHaveLength(3);
+  });
+
+  it('catches a table keyed by mode id', async () => {
+    const fired = await syntaxReportsMatching('packages/server/src/keys-by-mode.ts', KEY);
+    expect(fired).toHaveLength(2);
+  });
+
+  /**
+   * ***And fires on none of the things that are fine***, which is the half a
+   * too-broad selector breaks. Everything in the control fixture is the engine
+   * doing per-mode work *without* knowing which mode: a switch on a declared
+   * `dispatch`, a comparison against a namespaced string that is not a mode id,
+   * a table keyed by channel, and the declaration simply being read.
+   */
+  it('fires on nothing in code that reads the declaration instead', async () => {
+    const fired = await syntaxReportsMatching(
+      'packages/server/src/reads-the-declaration.ts',
+      MODE_RULES,
+    );
+    expect(fired).toEqual([]);
+  });
+
+  /**
+   * **Scoped to the engine, and the scope is half the rule.** A mode package
+   * naming its own id is a package naming itself; the client's
+   * `storyengine.scene` is a value the server handed it. Proved over the
+   * *same* fixture body, which is what makes this a statement about scope rather
+   * than about the file.
+   */
+  it('leaves a mode package free to name itself', async () => {
+    const fired = await syntaxReportsMatching(
+      'packages/modes/scene/src/names-itself.ts',
+      MODE_RULES,
+    );
+    expect(fired).toEqual([]);
+  });
+});
+
 describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.md §2)', () => {
   const ASSEMBLY = /assembled from fragments/;
   const DISPLAYED = /Branching on displayed text/;

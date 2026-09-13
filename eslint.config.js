@@ -300,6 +300,35 @@ export default tseslint.config(
     files: ['packages/client/src/router.tsx'],
     rules: { '@typescript-eslint/only-throw-error': 'off' },
   },
+  /**
+   * ***The engine names no mode*** — docs/design/06-modes-and-turn-pipeline.md
+   * §2, and the P7 exit gate's row 2b, which asked for *"a lint rule with
+   * fixtures, plus a tracked-file survey"* and had only the survey until P7.13.
+   *
+   * Scoped to the engine's own source, which is the only place the rule means
+   * anything: a mode package naming its own id is a package naming itself, and
+   * the client's `storyengine.scene` is a value it was handed by the server.
+   *
+   * *No carve-outs, and that is worth stating* — `tools/repo-shape.test.ts`'s
+   * survey needs two (`mode-registry.ts`'s `DEFAULT_MODE_ID` and
+   * `test-mode.ts`'s own fixtures) because it enumerates *every* mode id in
+   * engine source. These selectors match shapes rather than occurrences, and
+   * neither allowlisted file has one, so the rule is narrower and the exceptions
+   * fall away with it.
+   *
+   * ***Placed above the two randomness exemptions rather than below them***,
+   * because a flat config's later block **replaces** a rule rather than merging
+   * into it: below, this would have silently reopened `rng/source.ts` and
+   * `auth/secrets.ts` to the randomness selector it took two paragraphs each to
+   * close. They carry `engineOnly` themselves for the mirror-image reason.
+   */
+  {
+    files: ['packages/server/src/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({ engineOnly: true }),
+    },
+  },
+
   // **The RNG service itself** — the destination the rule has been pointing at
   // since P1.0, landed at P2.2. It is the one place allowed to call
   // `node:crypto`'s random functions, because everything above it draws through
@@ -316,7 +345,10 @@ export default tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
-      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+      // `engineOnly` carried through: this block *replaces* the syntax rule for
+      // these files, and they are engine files. Dropping it here would open a
+      // two-file hole in the mode rule to buy a randomness exemption.
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true, engineOnly: true }),
     },
   },
 
@@ -358,7 +390,8 @@ export default tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
-      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+      // `engineOnly` carried through, for the rng block's reason.
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true, engineOnly: true }),
     },
   },
 

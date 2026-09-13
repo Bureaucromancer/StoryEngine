@@ -79,6 +79,15 @@ export const fixtureConfig = tseslint.config(
     },
   },
 
+  // The engine names no mode — the same scope `eslint.config.js` gives it, and
+  // placed above the randomness carve-outs there for the reason stated there.
+  {
+    files: [`${FIXTURE_ROOT}/packages/server/src/**/*.ts`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({ engineOnly: true }),
+    },
+  },
+
   {
     files: [`${FIXTURE_ROOT}/packages/server/src/storage/**/*.ts`],
     rules: {
@@ -133,7 +142,7 @@ export const fixtureConfig = tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
-      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true, engineOnly: true }),
     },
   },
 
@@ -145,7 +154,7 @@ export const fixtureConfig = tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
-      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true, engineOnly: true }),
     },
   },
 

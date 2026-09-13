@@ -4271,6 +4271,62 @@ visible rather than hidden, and the fix is a question rather than a stage.*
 
 ---
 
+### P7.13 — Row 2b's other half
+
+**The gate asked for two things and had one.** §3.1: *"a lint rule with
+fixtures, plus a tracked-file survey"* — `tools/repo-shape.test.ts` has surveyed
+the engine's source for mode ids since the gate was written, and no rule fired
+on anything as it was typed.
+
+***No bespoke AST rule exists in this repo and this does not add one.*** Every
+rule here is stock-rule configuration, and the boundary rules are already **two
+layers on purpose** — `eslint.rules.js` calls the second *"the second, dumber
+layer"* and says why. Row 2b gets the same treatment: `restrictedSyntax` gains an
+`engineOnly` option adding selectors for the three shapes §3.1 names, *"an `if`,
+a mode-keyed lookup, or a mode id spelled in engine code"*:
+
+| Shape | Selector | Fixture |
+|---|---|---|
+| `switch (mode)` / `switch (session.modeId)` | `SwitchStatement[discriminant.name=…]`, plus the `.property.name` variant | `switches-on-mode.ts` |
+| `if (modeId === 'storyengine.scene')` | `BinaryExpression[operator=/^[=!]==?$/] > Literal[…]` | `branches-on-mode.ts` |
+| `{ 'storyengine.scene': … }` | `Property[key.value=…]` | `keys-by-mode.ts` |
+
+**Scoped to `packages/server/src/**`**, which is half the rule: a mode package
+naming its own id is a package naming itself, and the client's
+`storyengine.scene` is a value the server handed it. *Proved over the same
+fixture body in both places*, so the claim is about scope rather than about a
+file.
+
+***Two of the four fixtures are controls, and they are the load-bearing ones.***
+A rule that fires on everything is as useless as one that fires on nothing, and
+this one is easy to write too broadly — **the engine does per-mode work
+constantly, by reading a declaration**. `reads-the-declaration.ts` is that work:
+a `switch` on a declared `dispatch`, a comparison against `storyengine.cast`
+(namespaced and not a mode), a table keyed by channel id, and
+`mode.assembly.historyWindow` simply being read. It must stay silent, and the
+test asserts that it does.
+
+**No carve-outs, which the survey needs two of.** `mode-registry.ts`'s
+`DEFAULT_MODE_ID` and `test-mode.ts`'s own fixture ids are allowlisted in
+`repo-shape.test.ts` because it enumerates *every occurrence*; a literal
+assignment is none of the three shapes, so the rule never sees them. **The rule
+is narrower and its exceptions fall away with it** — which is the argument for
+having both rather than replacing one with the other.
+
+*One ordering trap, found by walking into it.* A flat config's later block
+**replaces** a rule rather than merging into it, so placing the engine block
+below `rng/source.ts` and `auth/secrets.ts` would have silently reopened them to
+the randomness selector each took a paragraph to close. The block sits above them
+and they carry `engineOnly` themselves.
+
+**And the survey stays.** A selector cannot tell `storyengine.scene` from
+`storyengine.cast` by shape, and it cannot recognise the id of a mode nobody has
+written yet — so the *enumeration* with its reasoned allowlist is the only half
+that notices a fourth mode arriving. The rule catches the shapes at type time.
+Neither is redundant, which is the same argument the two boundary layers make.
+
+---
+
 ## 3. Verification — the P7 exit gate
 
 ~~Sketch; expand on revisit.~~ *The ten steps were the sketch and they stand.
@@ -4376,7 +4432,7 @@ the code and this was written after it — both stay.*
 |---|---|---|
 | **1** `modes/` gone; mode→server fails the build | **YES — AUTO** | `tools/repo-shape.test.ts`, which §3.1 says *"does not exist"* and which landed at P7.0 (`64a676b`) — the directory's absence, the server's manifest, its tsconfig and its imports, plus a live eslint probe written into **each** mode package's `src`. ~~a repo-shape test that does not exist~~ **corrected: it exists, and §3.1's cell is stale** |
 | **2a** Freeform played end to end | **NO — C2, a person** | The mode exists and is loadable ([P7.9]); playing it is nobody's assertion. **Open.** |
-| **2b** No `switch (mode)` in the engine | **YES in part — AUTO** | `repo-shape.test.ts`'s *the engine names no mode*: no `switch` keyed on a mode, and **no mode id spelled in engine code** outside a two-entry allowlist with a reason on each. That is §3.1's *"shape that matters"*. *The lint-rule half is not built*, so a new violation is caught at the next `pnpm test` rather than as it is typed. **And the violation §3.1 names has moved**: `sessions/channels.ts`'s `'storyengine.scene'` is gone; what remains is `mode-registry.ts`'s `DEFAULT_MODE_ID`, which is the distribution's choice of default rather than knowledge about a mode, and is allowlisted with that argument |
+| **2b** No `switch (mode)` in the engine | **YES — AUTO, both halves** | `repo-shape.test.ts`'s *the engine names no mode*: no `switch` keyed on a mode, and **no mode id spelled in engine code** outside a two-entry allowlist with a reason on each. That is §3.1's *"shape that matters"*. ~~*The lint-rule half is not built*~~ — **built at [P7.13]**: `restrictedSyntax({ engineOnly: true })` over `packages/server/src/**`, with selectors for all three shapes §3.1 names and four fixtures under `tools/lint-fixtures/`, two of which are **controls** — code that reads the declaration instead, and a mode package naming itself, both of which must stay silent. So a violation is now caught as it is typed *and* at the next `pnpm test`, which is the two-layer posture the boundary rules already take. **And the violation §3.1 names has moved**: `sessions/channels.ts`'s `'storyengine.scene'` is gone; what remains is `mode-registry.ts`'s `DEFAULT_MODE_ID`, which is the distribution's choice of default rather than knowledge about a mode, and is allowlisted with that argument — *and needs no lint carve-out, because a literal assignment is none of the three shapes* |
 | **3** A mode's channel: registry, policy, widget, reconstruction | **YES — AUTO** | Registry: `mode-registry.test.ts`. Policy: `effects.test.ts`'s *a proposal is judged against the channel that owns it*. Widget: `channels.test.ts` and `ChannelHud.test.tsx`. Reconstruction: `reconstruct-property.test.ts`, whose fixture drives `se.clock` — **declared by the Scene package**, so the fourth clause is already a mode-declared channel |
 | **4** A hook fires; held ≠ judged-none | **YES for the record half — AUTO** | `hook-selector.test.ts`'s *the five answers are five answers*, added at [P7.9]: five situations driven, five verdicts, `new Set(…).size === 5`. Four of the five were asserted before, **one at a time in three files** — which is not the claim the row makes, and `cooling` had never reached a record at all. The *reading* half stays Standing, as §3.1 says |
 | **5** Commit, rewind past it, uncommitted | **YES — AUTO** | `hooks.test.ts`'s *a commitment rewound past*, added at [P7.9]: committed on one line, absent on its sibling, and the case that would survive a broken implementation — a rewind landing **between** a commitment and its lapse. Also asserted for `fired`, which is the half [03 §4.1] states first |
@@ -4386,12 +4442,13 @@ the code and this was written after it — both stay.*
 | **9a** A wizard for a mode the engine knows nothing about | **NO — C3, a person** | Freeform declares one ([P7.9]) and `modes.test.ts` proves the declaration crosses the wire intact. **Rendering it in a browser is the walk.** Open |
 | **9b** A failed part retried without discarding the rest | **YES — AUTO** | `sessions.test.ts`'s *keeps what succeeded when a part fails*, against the scripted provider, over `GENERATING_MODE`'s two parts |
 | **10** Author a small mode against the SDK, no `server` | **NO — C1, the anchor** | *"No assertion covers it"*, and none does. What [P7.9] can say is that **the second mode was written this way and the contract held with three holes** — [25 C16]'s engine-computed gap, the process-wide registry, and `inputs` enforcing nothing — all three found by writing it and two of them fixed. That is evidence about the contract and it is **not the walk**, because the writer knew what the contract permitted. Open |
-| **The standing line** — no configuration without a surface | **YES for this phase's own, in part** | Discharged at [P7.9]: the **input-kind selector** has one, and so does every channel this phase declared — the two dials (`DialPanel`), hook pacing (`HookPanel`, [P7.5]), the goal chain (`GoalPanel`, [P7.6]) and the suggestion toggle (`Suggestions`). ***Two of §0.1a's four remain***: `SlotSource.outlet` and the five per-book retrieval knobs, neither of which this phase declared. *And `se.backdrop` ships state with no surface, knowingly* — [06 §9]'s *contribute UI surfaces* is the part of the contract P7 does not build, so there is no place for a mode to put a picture yet |
+| **The standing line** — no configuration without a surface | **YES for this phase's own; the two inherited ones closed at [P7.14]** | Discharged at [P7.9]: the **input-kind selector** has one, and so does every channel this phase declared — the two dials (`DialPanel`), hook pacing (`HookPanel`, [P7.5]), the goal chain (`GoalPanel`, [P7.6]) and the suggestion toggle (`Suggestions`). ~~***Two of §0.1a's four remain***~~ — **built at [P7.14]**: the per-book retrieval knobs get a fieldset on the lorebook editor, and an entry can be made an outlet and named. *The outlet's **authoring** half is not closed and cannot be here*: an outlet only lands if a preset slot names it, and there is no preset editor in the client at all — flagged for P11, where [10 §11]'s editor sweep lives. ~~*And `se.backdrop` ships state with no surface, knowingly*~~ — **it has one at [P7.12]**, over the vocabulary [P7.11] built |
 
-**Eight of thirteen rows answered by tests; three await a person; two stay
-Standing.** The three are [§3.1]'s derived critical list unchanged — C1, C2, C3 —
-and every one of them is *one sitting against something the walker builds*. **A
-phase closes when its buildable work is done and its critical list is walked**
+~~**Eight of thirteen rows answered by tests**~~ — **nine**, after [P7.13]
+finished row 2b's lint-rule half; three await a person; two stay Standing. The
+three are [§3.1]'s derived critical list unchanged — C1, C2, C3 — and every one
+of them is *one sitting against something the walker builds*. **A phase closes
+when its buildable work is done and its critical list is walked**
 ([manual testing §7]); the buildable work is done.
 
 ---
