@@ -165,6 +165,26 @@ export async function previewAssembly(
     // `lore` above because a sample rides with its carrier rather than with an
     // activation: a book's prose is offered because the book is in play.
     carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
+    /**
+     * ***The goal and the dials, which this call was missing*** — [06 §7.3.3],
+     * [06 §7.3.1], found and fixed at [P7.8].
+     *
+     * **A preview that omits a block the turn will send is a preview that
+     * lies**, and the goal is the sharpest case in the build because 7.3.3 calls
+     * it *"always injected"*: every session with a cursor would have previewed a
+     * prompt one block shorter than the one it sends, with the budget arithmetic
+     * under it correspondingly wrong. It shipped that way at [P7.6] — the arm
+     * was added to the collector and wired into the runner, and this second
+     * caller was not — and the dials would have shipped the same way for the
+     * same reason one stage later, which is why both are here in one line.
+     *
+     * *The gather resolves both*, so there is nothing to duplicate: the two
+     * callers hand over the same values or the preview is not a preview.
+     */
+    ...(inputs.goals.current === null
+      ? {}
+      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
+    dials: inputs.dials,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });

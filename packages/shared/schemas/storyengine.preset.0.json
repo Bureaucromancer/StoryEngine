@@ -342,6 +342,30 @@
                     ],
                     "properties": {
                       "of": {
+                        "const": "difficulty",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "directedness",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
                         "const": "guidance",
                         "type": "string"
                       }
@@ -660,6 +684,55 @@
       ]
     },
     "difficultyLevels": {
+      "type": "array",
+      "items": {
+        "title": "DifficultyLevel",
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "rank",
+          "fragments"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "number"
+          },
+          "fragments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "text",
+                "priority"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "patternProperties": {
+              "^(.*)$": {}
+            }
+          }
+        }
+      }
+    },
+    "directednessLevels": {
       "type": "array",
       "items": {
         "title": "DifficultyLevel",

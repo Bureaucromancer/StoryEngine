@@ -989,6 +989,18 @@ export function removeSessionHook(
  * and is a different field from the channel visibility that governs prompts. A
  * hidden goal is still narrated toward; it is the reader who is not told.
  */
+/**
+ * What a dial control needs: the level in play, and the vocabulary it may write.
+ *
+ * **The levels travel rather than being hard-coded** — [06 §7.3.1] makes them
+ * the prompt pack's, so a client with its own list would be a control that
+ * produces recorded refusals the day a pack ships a fourth.
+ */
+export interface DialAxes {
+  difficulty?: { levelId: string | null; levels: { id: string; label: string }[] };
+  directedness?: { levelId: string | null; levels: { id: string; label: string }[] };
+}
+
 export interface GoalRow {
   goalId: string;
   statement: string;
@@ -1047,6 +1059,15 @@ export function readSession(sessionId: string): Promise<{
    * plus `next`, both of which travel.
    */
   goals: { rows: GoalRow[]; concluded: boolean };
+  /**
+   * The two dials, for a mode that declares them ([06 §7.3.1], [06 §7.3.2]).
+   *
+   * **Absent for a mode with no difficulty**, which is [04 §7]'s explicit case:
+   * Scene and Messages declare neither channel, so there is nothing to send and
+   * nothing to render. An axis is present only when the pack also ships levels
+   * for it.
+   */
+  dials?: DialAxes;
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
 }

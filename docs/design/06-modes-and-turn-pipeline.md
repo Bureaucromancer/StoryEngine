@@ -963,6 +963,10 @@ edit, and its effect should be visible in the turn record rather than buried in 
 conditional. "Hard" meaning something different in one prompt pack than another
 is a feature.
 
+*Built at [P7.8](workplan/23-p7-implementation.md): `Preset.difficultyLevels`
+and `Preset.directednessLevels`, positioned by a `{ of: "difficulty" }` or
+`{ of: "directedness" }` slot, one emitted block per ranked fragment.*
+
 **It must be changeable mid-session**, recorded as an effect like anything else.
 Difficulty chosen at setup is chosen with the least information anyone will ever
 have about the session. The predictable failure is picking Hard, discovering
@@ -991,6 +995,13 @@ A naive difficulty implementation raises both together, because the prompt
 language for "push back" and the prompt language for "assert your own plot" look
 similar from the outside. The result is railroading wearing difficulty's
 clothes, and players report it as *the AI ignoring me* rather than as *hard*.
+
+*Built at [P7.8](workplan/23-p7-implementation.md): two channels a mode declares
+through the SDK's `dialChannel`, `user-only` so the sycophancy dial is not wired
+to the sycophant, and two slot arms rather than one with a discriminator — the
+conflation this section is about, refused at the point where layout would
+otherwise decide it. [04 §7](04-schemas.md)'s standing `[OPEN]` about where a
+dial's live value lives is answered there.*
 
 **So: two settings.** Difficulty is the headline one and maps to resistance.
 Directedness is a separate control with a low default — some is wanted, since a

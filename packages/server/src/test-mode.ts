@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { dialChannel } from '@storyengine/sdk';
 import type {
   ChannelDefinition,
   DeclaredSetup,
@@ -663,4 +664,170 @@ const HOUR_SCHEMA = {
   properties: { hour: { type: 'integer', minimum: 0, maximum: 23 } },
   required: ['hour'],
   additionalProperties: false,
+};
+
+/**
+ * ***The dials' witness*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
+ *
+ * A mode that declares both dials and a pack that ships levels for both, which
+ * is the only arrangement in which [P7.8]'s *ends at* is checkable: *"two levels
+ * of difficulty producing visibly different friction against the same goal, with
+ * the level's prose coming from the pack and the scheduling from engine code."*
+ * The visible difference is a block-for-block one and it is asserted rather than
+ * read, which is what a stage can produce before the mode that *has* a
+ * difficulty exists — Freeform is [P7.9]'s, and it will declare the same two
+ * channels through the same builder.
+ *
+ * *A fixture rather than a shipped mode, for the reason `SETUP_MODE` is one*,
+ * and registered only by the tests that want it: `registerMode` installs a
+ * mode's channels into a process-wide registry, and two dials installed for
+ * every test would make `channelDefinition(SE_DIFFICULTY)` answer in suites that
+ * never declared one.
+ */
+export const DIALS_MODE_ID = 'storyengine.test.dials';
+
+/**
+ * **Three levels, and the fragments say what the dial is about.** [06 §7.3.1]:
+ * what varies is *"how readily the world grants what you attempt"*, which is a
+ * dial on narrator sycophancy rather than a number added to rolls — so the
+ * prose concedes, or does not.
+ *
+ * ***And the floor is in the fragments***, which is where 7.3.1 puts it:
+ * *"Obstruction must not reach unreachability. Difficulty modulates the cost and
+ * the route, never whether the goal can be attained at all."* `harsh` says so in
+ * its own words, because the rule is a claim about what the model is told and
+ * engine code has no way to enforce it — a pack that drops the clause has built
+ * the losing game the section warns about, and the only mechanism against that
+ * is that the clause is readable in the file.
+ */
+const DIFFICULTY_LEVELS = [
+  {
+    id: 'gentle',
+    label: 'Gentle',
+    rank: 1,
+    fragments: [
+      {
+        text: 'When the player attempts something, let it work. Complications are colour, not obstacles.',
+        priority: 90,
+      },
+      { text: 'The world volunteers help before it is asked.', priority: 40 },
+    ],
+  },
+  {
+    id: 'even',
+    label: 'Even',
+    rank: 2,
+    fragments: [
+      {
+        text: 'An attempt succeeds when it is reasonable and costs something when it is not.',
+        priority: 90,
+      },
+    ],
+  },
+  {
+    id: 'harsh',
+    label: 'Harsh',
+    rank: 3,
+    fragments: [
+      {
+        text: 'Concede little. Most attempts work partially, late, or at a price the player did not price in.',
+        priority: 90,
+      },
+      {
+        text: 'The route to the objective may be long and expensive. It is never closed.',
+        priority: 80,
+      },
+      { text: 'Nothing volunteers help.', priority: 30 },
+    ],
+  },
+];
+
+/**
+ * **Two levels on the other axis, and their prose is about steering rather than
+ * about resistance** — which is [06 §7.3.2]'s whole distinction, written out so
+ * a reader can see that the two lists could not be swapped.
+ */
+const DIRECTEDNESS_LEVELS = [
+  {
+    id: 'following',
+    label: 'Following',
+    rank: 1,
+    fragments: [
+      { text: 'Follow where the player goes. You may offer, never insist.', priority: 90 },
+    ],
+  },
+  {
+    id: 'steering',
+    label: 'Steering',
+    rank: 2,
+    fragments: [
+      {
+        text: 'You have an idea of where this is going. Bend scenes back toward it when you can do so without contradicting what happened.',
+        priority: 90,
+      },
+    ],
+  },
+];
+
+export const DIALS_PRESET: Preset = {
+  ...TEST_PRESET,
+  id: '0199c000-0000-7000-8000-0000000d1a15',
+  name: 'Engine test fixture — dials',
+  modes: [DIALS_MODE_ID],
+  difficultyLevels: DIFFICULTY_LEVELS,
+  directednessLevels: DIRECTEDNESS_LEVELS,
+  blocks: [
+    ...TEST_PRESET.blocks,
+    /**
+     * **Two slots, adjacent but separate**, which is the layout [06 §7.3.2]
+     * argues for: an author who wants them together writes them together and has
+     * *said so*, where one slot with a discriminator would have decided it for
+     * every pack.
+     */
+    {
+      id: 'se.difficulty',
+      label: 'difficulty',
+      role: 'system',
+      enabled: true,
+      placement: { at: 'sequence' },
+      priority: 85,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: { of: 'difficulty' },
+    },
+    {
+      id: 'se.directedness',
+      label: 'directedness',
+      role: 'system',
+      enabled: true,
+      placement: { at: 'sequence' },
+      priority: 84,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: { of: 'directedness' },
+    },
+  ],
+};
+
+export const DIALS_MODE: Mode = {
+  definition: {
+    ...SETUP_MODE.definition,
+    id: DIALS_MODE_ID,
+    displayName: 'Engine test fixture — dials',
+    /**
+     * *Through the builder rather than as two literals*, which is the contract
+     * decision `sdk/src/dials.ts` is: a mode that spelled these out would be
+     * restating three policy choices, and the second mode to restate them is
+     * where they stop agreeing.
+     */
+    channels: [
+      dialChannel('difficulty', DIALS_MODE_ID),
+      dialChannel('directedness', DIALS_MODE_ID),
+    ],
+  },
+  run: SETUP_MODE.run,
 };

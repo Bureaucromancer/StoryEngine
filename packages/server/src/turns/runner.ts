@@ -837,6 +837,11 @@ export class TurnRunner {
                             statement: inputs.goals.current.statement,
                           },
                         }),
+                    // [06 §7.3.1]'s two dials, resolved by the gather for the
+                    // reason the goal is: the authored rung runs through
+                    // `mode.config` and the level is looked up in the pack, and
+                    // neither is in the collector's hand.
+                    dials: inputs.dials,
                     ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
                   });
 

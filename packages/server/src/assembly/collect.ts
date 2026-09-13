@@ -3,6 +3,7 @@
 
 import type {
   Actor,
+  DifficultyLevel,
   Lorebook,
   Preset,
   PresetBlock,
@@ -12,6 +13,7 @@ import type {
 
 import { estimateTokens } from './assemble.js';
 import { channelDefinition, initialValue } from '../sessions/channels.js';
+import { levelFragments } from '../sessions/dials.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
 import { renderChannelValue, renderTemplate, type RenderContext } from './template.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
@@ -67,6 +69,21 @@ export interface CollectContext {
    * *continue open* at a completion.
    */
   goal?: { id: string; statement: string };
+  /**
+   * Which level each dial is on — [06 §7.3.1], [06 §7.3.2], [P7.8].
+   *
+   * **Resolved by the caller**, which is this context's standing rule and has a
+   * sharper reason here than for the cast: a dial's rungs run through
+   * `mode.config`, which [04 §7] keeps *"opaque to the host"* and which lives on
+   * the session record rather than in channel state. A collector that reached
+   * for it would be doing the gather's job in a place a preview and a turn could
+   * answer differently.
+   *
+   * *An axis is absent when the pack ships no levels for it or the mode declares
+   * no such dial* — the two cases [04 §7] says are the same case, and both
+   * report `empty-source`.
+   */
+  dials?: Partial<Record<'difficulty' | 'directedness', { level: DifficultyLevel }>>;
   /**
    * The attempt a guided redo is redoing — its output, and which turn it was
    * ([06 §5.1], [07 §7]).
@@ -251,6 +268,21 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      * missing phase.
      */
     case 'goal':
+      return 'empty-source';
+
+    /**
+     * **`empty-source` from the first line, and never `no-producer`.** The
+     * producer arrives in the same stage the arm does, so the reason this slot
+     * is empty is never *waiting on the engine* — it is that **this pack ships
+     * no levels for this axis**, or the mode declares no such dial. [04 §7] calls
+     * the second of those the explicit case rather than a misconfiguration:
+     * *"Modelling it on Setup would imply Messages and Scene have a difficulty,
+     * which they do not."* An author who positioned the slot anyway is told the
+     * source is empty, which is the sentence with the repair in it — add levels
+     * to the pack, or take the slot out.
+     */
+    case 'difficulty':
+    case 'directedness':
       return 'empty-source';
 
     /**
@@ -692,6 +724,48 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       const goal = context.goal;
       if (goal === undefined) return [];
       return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined);
+    }
+
+    /**
+     * ***The two dials' fragments*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
+     *
+     * **One candidate per fragment, and that is the arm's whole reason for
+     * existing.** [04 §8]'s `DifficultyLevel.fragments` are *ranked* precisely so
+     * [19 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
+     * mid-sentence"*, and a slot that joined them into one string would have
+     * discarded that at the point it was built. So the slot fans out, each
+     * candidate carrying the block's priority and its own identity.
+     *
+     * ***The ids are suffixed rather than shared***, which is the same
+     * arrangement [P7.5] made for the second guidance candidate: `assemble`
+     * keys on candidate id, so two candidates from one slot need two ids or the
+     * second silently replaces the first. `${block.id}.${index}` is the
+     * fragment's position in the level, so a workbench row is stable when the
+     * pack is edited between turns and the *order* changes but the entry does
+     * not.
+     *
+     * *Which level is the caller's, resolved in `gather`*, for the reason the
+     * goal and the cast are: the dial's rungs run through `mode.config`, which
+     * is a record field, and a collector that read it would be doing the
+     * gather's job somewhere a preview and a turn could disagree about it.
+     */
+    case 'difficulty':
+    case 'directedness': {
+      const dial = context.dials?.[source.of];
+      if (dial === undefined) return [];
+      return levelFragments(dial.level).flatMap((fragment) =>
+        emit(
+          block,
+          fragment.text,
+          {
+            kind: 'difficulty',
+            axis: source.of,
+            levelId: dial.level.id,
+            fragmentIndex: fragment.index,
+          },
+          `${block.id}.${String(fragment.index)}`,
+        ),
+      );
     }
 
     /** Nothing, for its own stated reason: a P2.6 session carries no Treatment. */

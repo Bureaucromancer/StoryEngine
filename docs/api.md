@@ -1194,6 +1194,26 @@ the offer. **The three offers are not sent** — they are the same three every
 time, and what decides whether to raise them is `achieved` plus `next`. *The
 author's fuller `detail` does not travel*: [04 §7.1] reserves it for steps.
 
+`goals` rows also carry `proposed` — the narrator judged the goal met and a
+person has not ruled ([25 C12], answered *ask* at P7.6). `se.goal` declares
+`confirm: ['achieved']`, so the judge's completion lands on the turn recorded and
+**unapplied**: the three offers stay down and the panel asks. `proposed` and
+`achieved` are never both true, because confirming *is* the applied effect that
+clears the first.
+
+`dials` is difficulty and directedness ([06 §7.3.1], [06 §7.3.2]), **present only
+for a mode that declares them**: `{ difficulty?, directedness? }`, each
+`{ levelId, levels: [{ id, label }] }` with the levels in `rank` order. `levelId`
+is already resolved over the channel and then `mode.config`, falling to the
+pack's lowest rank for a level the pack does not have — so a control renders it
+directly. *The levels travel because they are the prompt pack's rather than the
+engine's* ([06 §7.3.1]: *"'Hard' meaning something different in one prompt pack
+than another is a feature"*), and a client with its own list would produce a
+recorded refusal against a pack that ships a fourth. **The fragments do not
+travel**: they are what goes to the model, and the surface needs the label.
+*Absent for Scene and Messages*, which declare no difficulty — [04 §7]'s
+explicit case rather than an empty one.
+
 `health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
 channels declaring a `surface`, already rendered through their own `render`
 template; `cast` is one row per person this story is about — presence, status,

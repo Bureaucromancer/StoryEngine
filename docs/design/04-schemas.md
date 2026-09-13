@@ -1176,6 +1176,34 @@ not reach pacing at all.
 > question being answered, and it stays open for the first one that does not —
 > which will be a dial belonging to a single mode, since that is what puts a value
 > in `mode.config` and out of the host's reach.
+>
+> ***Answered 2026-09-13 at [P7.8](workplan/23-p7-implementation.md), by the dial
+> this paragraph predicted.*** Difficulty is exactly the case it named — a dial
+> belonging to a single mode — and the answer is **a channel the mode itself
+> declares**, which is not the evasion it looks like. This question was posed
+> when a channel could only be engine-owned, so it framed a choice between two
+> bad options: `mode.config`, opaque and unable to take an effect, or Setup,
+> which *"would imply Messages and Scene have a difficulty, which they do not"*.
+> [P7](workplan/23-p7-implementation.md) added a third that did not exist when
+> the paragraph was written. A mode declares its own channels, the registry
+> enforces them, and the engine special-cases nothing — so:
+>
+> - **`mode.config` keeps the wizard's answer**, which is what *"opaque to the
+>   host"* was protecting, and is read as a rung rather than written.
+> - **The channel carries the live value**, so [06 §7.3.1]'s *"changeable
+>   mid-session, recorded as an effect like anything else"* is satisfied by the
+>   ordinary effect path with no special case in it.
+> - **A mode with no difficulty declares neither channel**, which is precisely
+>   the discrimination Setup could not express. Scene and Messages have none
+>   because of what they declare, not because a field was left blank.
+>
+> The two ids and the declaration live in the SDK (`sdk/src/dials.ts`) rather
+> than in each mode: a **surface** for a channel two modes declare independently
+> requires them to declare it under one id, and three policy choices restated per
+> mode is where they stop agreeing. *So the prediction held a third time in
+> substance — the dial did not inherit the problem — but for a new reason, and
+> the reason is worth the paragraph: the question was about where a value lives,
+> and P7 changed who may own a place for it to live.*
 
 ---
 

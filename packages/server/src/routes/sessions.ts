@@ -46,7 +46,8 @@ import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { resolveLore } from '../turns/lore.js';
-import { channelSurfaces, degradedChannels } from '../sessions/channels.js';
+import { channelDefinition, channelSurfaces, degradedChannels } from '../sessions/channels.js';
+import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
 import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
@@ -881,6 +882,55 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       concluded: readConcluded(session.channels),
     };
 
+    /**
+     * ***The two dials*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
+     *
+     * **Sent only for a mode that declares them**, which is the whole shape of
+     * [04 §7]'s answer: Scene and Messages have no difficulty because they
+     * declare no such channel, and a payload that carried an empty dial for them
+     * would put the distinction back where Setup had it — a blank field rather
+     * than an absence.
+     *
+     * ***The levels travel with the value, and that is not padding.*** A control
+     * needs the vocabulary it may write, and unlike hook pacing this vocabulary
+     * is **the pack's** — [06 §7.3.1]: *"'Hard' meaning something different in
+     * one prompt pack than another is a feature."* A client with a hard-coded
+     * three-option list would be a control that produces recorded refusals the
+     * day somebody ships a pack with four.
+     *
+     * *Resolved through the same functions the turn uses*, for the reason the
+     * pacing dial is: a panel that disagreed with the assembler about which
+     * level is in play would be worse than no panel. The `label` and `rank` are
+     * what a control renders; the fragments are hidden content and stay off the
+     * wire.
+     */
+    /**
+     * *The same resolution `gather.ts` makes*, in the one line that is the whole
+     * of it: a session's own copied preset, or the mode's default. Copied at
+     * creation, so editing a preset does not change a game in progress ([03 §8]).
+     */
+    const preset =
+      session.preset ??
+      (modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID))?.definition
+        .assembly.defaultPreset;
+    const dials: Record<
+      string,
+      { levelId: string | null; levels: { id: string; label: string }[] }
+    > = {};
+    for (const axis of ['difficulty', 'directedness'] as const) {
+      if (preset === undefined || channelDefinition(DIAL_CHANNELS[axis]) === null) continue;
+      const levels = packLevels(preset, axis);
+      if (levels.length === 0) continue;
+      dials[axis] = {
+        levelId:
+          resolveLevel(preset, axis, readDial(axis, session.channels, session.mode?.config))?.id ??
+          null,
+        levels: [...levels]
+          .sort((left, right) => left.rank - right.rank)
+          .map((level) => ({ id: level.id, label: level.label })),
+      };
+    }
+
     return reply.send({
       session,
       activeJob: job,
@@ -889,6 +939,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       cast: castRows(session.cast, session.channels, path),
       hooks,
       goals,
+      dials,
     });
   });
 

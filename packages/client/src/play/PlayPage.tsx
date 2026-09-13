@@ -31,6 +31,7 @@ import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
+import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
@@ -387,6 +388,17 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           empty pool because the control that adds one is inside it — [03 §4.1]
           calls adding a hook to a running session *the primary path*. */}
       <HookPanel sessionId={sessionId} />
+
+      {/* **The two dials** — [06 §7.3.1], [06 §7.3.2], [P7.8]. Not a disclosure,
+          unlike its three neighbours, and the difference is deliberate: those
+          hold lists that grow, and this is two selects that are always exactly
+          two selects. *Below the hook panel* because the third dial is in it —
+          [06 §7.3.2] calls hook pacing the honest form of directedness, so the
+          reading order puts the two axes next to the control that is the third,
+          where somebody wondering why the story keeps pulling can see all three
+          at once. Renders nothing for a mode that declares no difficulty, which
+          is [04 §7]'s explicit case. */}
+      <DialPanel sessionId={sessionId} />
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (

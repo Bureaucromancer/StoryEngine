@@ -15,7 +15,8 @@ import {
   type WritingSample,
 } from '@storyengine/shared';
 
-import { TEST_PRESET } from '../test-mode.js';
+import { DIALS_PRESET, TEST_PRESET } from '../test-mode.js';
+import { resolveLevel } from '../sessions/dials.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
 import type { Turn } from '../sessions/types.js';
@@ -1583,5 +1584,114 @@ describe('a channel slot', () => {
     );
 
     expect(candidates).toHaveLength(0);
+  });
+});
+
+/**
+ * ***The two dials' fragments*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
+ *
+ * This is where [P7.8]'s *ends at* is checkable in the only form a stage can
+ * produce: *"two levels of difficulty producing visibly different friction
+ * against the same goal, with the level's prose coming from the pack and the
+ * scheduling from engine code."* Same preset, same goal, two levels, and the
+ * blocks differ — by content, which is the pack's, and not by count of
+ * anything the engine decided.
+ */
+describe('the difficulty and directedness slots', () => {
+  const DIALS = preset([
+    block({ kind: 'slot', id: 'se.difficulty', source: { of: 'difficulty' }, priority: 85 }),
+  ]);
+
+  function withLevel(levelId: string): CollectContext {
+    const level = resolveLevel(DIALS_PRESET, 'difficulty', levelId);
+    return context({
+      preset: { ...DIALS, difficultyLevels: DIALS_PRESET.difficultyLevels ?? [] },
+      ...(level === null ? {} : { dials: { difficulty: { level } } }),
+    });
+  }
+
+  /**
+   * ***One candidate per fragment, which is the arm's reason for existing.***
+   * [04 §8] ranks them so [19 §5.3]'s cap can *"drop the lowest-ranked rather
+   * than cutting mid-sentence"*; a slot that joined them into one string would
+   * have thrown that away where it was built.
+   */
+  it('fans one slot out into one candidate per fragment', () => {
+    const collected = collectCandidates(withLevel('harsh'));
+
+    expect(collected.candidates).toHaveLength(3);
+    expect(new Set(collected.candidates.map((one) => one.id)).size).toBe(3);
+  });
+
+  /** Highest priority first, so what the cap drops is what the pack ranked last. */
+  it('orders them so the cap drops what the pack ranked lowest', () => {
+    const texts = collectCandidates(withLevel('harsh')).candidates.map((one) => one.text);
+
+    expect(texts.at(0)).toContain('Concede little');
+    expect(texts.at(-1)).toBe('Nothing volunteers help.');
+  });
+
+  /**
+   * ***Two levels, visibly different friction — the stage's exit line.*** The
+   * difference is entirely in text that came off the pack: nothing about the
+   * engine's behaviour changed between these two calls.
+   */
+  it('produces different prose at two levels of the same pack', () => {
+    const gentle = collectCandidates(withLevel('gentle')).candidates.map((one) => one.text);
+    const harsh = collectCandidates(withLevel('harsh')).candidates.map((one) => one.text);
+
+    expect(gentle).not.toEqual(harsh);
+    expect(gentle.join(' ')).toContain('let it work');
+    expect(harsh.join(' ')).toContain('Concede little');
+  });
+
+  /**
+   * **The block says which level and which fragment**, which is what makes
+   * [04 §8]'s claim true — *"someone who dislikes how 'hard' behaves can read
+   * the fragment that caused it and change it"*. A block carrying only the text
+   * would leave a reader the sentence and no way back to the file.
+   */
+  it('records the level and the fragment’s place in it', () => {
+    const sources = collectCandidates(withLevel('harsh')).candidates.map((one) => one.source);
+
+    expect(sources).toContainEqual({
+      kind: 'difficulty',
+      axis: 'difficulty',
+      levelId: 'harsh',
+      fragmentIndex: 2,
+    });
+  });
+
+  /**
+   * *A mode with no difficulty is [04 §7]'s explicit case*, not a
+   * misconfiguration — so the slot reports `empty-source`, which is the sentence
+   * with the repair in it, rather than `no-producer`, which would say a phase is
+   * outstanding.
+   */
+  it('says the source is empty rather than that a phase is missing', () => {
+    const collected = collectCandidates(context({ preset: DIALS }));
+
+    expect(collected.candidates).toHaveLength(0);
+    expect(collected.notFilled).toContainEqual(
+      expect.objectContaining({ blockId: 'se.difficulty', reason: 'empty-source' }),
+    );
+  });
+
+  /**
+   * ***The two axes do not share a slot, and a preset that positions one does
+   * not get the other.*** [06 §7.3.2]'s conflation expressed as layout is the
+   * failure this prevents: an author who wants them adjacent writes two blocks
+   * and has said so.
+   */
+  it('fills only the axis the slot names', () => {
+    const level = resolveLevel(DIALS_PRESET, 'directedness', 'steering');
+    const collected = collectCandidates(
+      context({
+        preset: DIALS,
+        ...(level === null ? {} : { dials: { directedness: { level } } }),
+      }),
+    );
+
+    expect(collected.candidates).toHaveLength(0);
   });
 });

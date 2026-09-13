@@ -3798,6 +3798,85 @@ frequency dial stays a **separate** channel from difficulty, because folding
 the same goal, with the level's prose coming from the pack and the scheduling from
 engine code.
 
+#### Done — 2026-09-13
+
+**The stage's real content turned out to be a question this cell does not
+mention**, and it is the one thing here worth reading first.
+[04 §7](../04-schemas.md) has carried an `[OPEN]` since the schema was written —
+*"Where difficulty's **live** value lives"* — with `mode.config` opaque to the
+host by design and [06 §7.3.1] requiring the dial to be *"changeable
+mid-session, recorded as an effect like anything else"*. That paragraph names
+its own trigger: *"it stays open for the first [dial] that does not [follow hook
+pacing's precedent] — which will be a dial belonging to a single mode."*
+**Difficulty is that dial**, so P7.8 could not be built without answering it.
+
+***The answer is a channel the mode declares, and it exists because of P7 rather
+than in spite of it.*** The question was posed when a channel could only be
+engine-owned, which is why it reads as a choice between two bad options. A mode
+declaring its own channels is a third, and it lands all three requirements at
+once: `mode.config` keeps the wizard's answer as a **rung**, the channel carries
+the live value so a change is an ordinary effect a rewind undoes, and a mode
+with no difficulty declares neither channel — which is exactly the
+discrimination [04 §7] says Setup could not express.
+
+**The contract grew two exports and that was the harder call.** `dialChannel`
+and the two ids are in `packages/sdk/src/dials.ts`, not in each mode that wants
+them. A mode writing its own literals would restate three policy choices —
+`user-only`, `player`-visible, and an enum-free schema — and *the second
+restatement is where they stop agreeing*: a dial that is `user-only` in one mode
+and `model-proposed` in another is [06 §7.3.1]'s sycophancy dial wired to the
+sycophant in half the build. The shared **id** is the same argument from the
+other end: one HUD row, one route and one workbench line can only exist for a
+channel two modes declare independently if they spell it the same way.
+
+- ***Two slots, never one with a `part`.*** [06 §7.3.2]'s failure —
+  *"railroading wearing difficulty's clothes"* — is a conflation of two axes, and
+  a single slot taking a discriminator would put both sets of fragments at one
+  position by default. That is the conflation expressed as layout, in the one
+  place no downstream prompt language could undo it. The panel is two selects for
+  the identical reason, and `DialPanel.test.tsx`'s load-bearing assertion is that
+  changing one writes **one** channel.
+- **`Preset.directednessLevels`, the same shape as `difficultyLevels`** — same
+  kind of thing, different content, and a single list discriminated by axis would
+  let a pack ship four entries and never notice it had written the same prose
+  twice. `dials.test.ts` refuses the identical-prose case, which is as close to
+  judging fragments as anything mechanical gets.
+- ***One candidate per fragment, ranked.*** [04 §8] made the fragments a ranked
+  array so [19 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
+  mid-sentence"*, and a slot that joined them into one string would have
+  discarded that where it was built. The emitted block records the **level and
+  the fragment's index**, because [04 §8]'s claim for the pack layer is that
+  *"someone who dislikes how 'hard' behaves can read the fragment that caused it
+  and change it"* — which a block carrying only text cannot support.
+- **[23 §5.4]'s constraint, held as an assertion rather than as prose.** A
+  frequency dial stays a separate channel from difficulty; `dials.test.ts`
+  asserts the three ids are three, so the day somebody merges two of them the
+  suite says so.
+- ***The floor is in the fragments and the panel says it too.*** *"Obstruction
+  must not reach unreachability."* Engine code cannot enforce a claim about
+  prose — what it can do is fail when the shipped pack stops making it, which is
+  what the fixture test reads, and tell the player, which is what the panel's
+  last line does. A person on Harsh who cannot tell hard from broken is the
+  failure the sentence exists to prevent, and it is a failure of the surface as
+  much as of the pack.
+
+*Witnessed by a fixture rather than by a shipped mode, and that is the stage's
+honest limit.* The mode that **has** a difficulty is Freeform and Freeform is
+[P7.9]'s; Scene has none and declaring one for it would have been a mode
+acquiring a feature to give a stage a subject. So `DIALS_MODE` and `DIALS_PRESET`
+in `test-mode.ts` are the witness, and the exit line — *two levels producing
+visibly different friction* — is discharged as a block-for-block assertion over
+one pack at `gentle` and at `harsh`. **The person-side version of that line
+belongs to the gate**, and it is walked against Freeform.
+
+***And one defect fixed in passing, found by wiring the second caller.***
+`turns/preview.ts` never passed `goal` to the collector — so since [P7.6] every
+session with a cursor previewed a prompt one block shorter than the one it sends,
+with the budget arithmetic under it correspondingly wrong, and [06 §7.3.3] calls
+the goal *"always injected"*. The dials would have shipped the same hole for the
+same reason one stage later. **A preview that omits a block the turn will send is
+a preview that lies**, and both are handed over in one line now.
+
 ### P7.9 — Freeform, and Scene grown up
 
 The second mode — **`packages/modes/freeform`, and it is the second package, not

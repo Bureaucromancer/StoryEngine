@@ -181,6 +181,28 @@ export type BlockSource =
   | { kind: 'treatment'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }
   /**
+   * One fragment of one dial's level — [06 §7.3.1], [06 §7.3.2], [P7.8].
+   *
+   * **`axis` and `levelId` rather than a rendered string**, because the whole
+   * claim [04 §8] makes for putting this in the pack is that *"someone who
+   * dislikes how 'hard' behaves can read the fragment that caused it and change
+   * it"* — which requires the block to say which level it came from and which
+   * dial that level was on. A block recording only the text would leave a reader
+   * with the sentence and no way back to the file it is in.
+   *
+   * `fragmentIndex` addresses it within the level, so the workbench can line two
+   * turns' blocks up when a pack is edited between them and the text has moved.
+   * *Index rather than an id, because {@link DifficultyLevel}'s fragments have
+   * none* — they are a ranked array, and giving them ids would be a portable
+   * schema change made for a debugging affordance.
+   */
+  | {
+      kind: 'difficulty';
+      axis: 'difficulty' | 'directedness';
+      levelId: string;
+      fragmentIndex: number;
+    }
+  /**
    * The guidance slot — [06 §5.1]. `producer` because one slot has several
    * producers — the user's box, a rule's `giveGuidance`, a Narrative Director
    * push — and the workbench should say which.

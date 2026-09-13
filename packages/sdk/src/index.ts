@@ -28,6 +28,13 @@
 export * from '@storyengine/shared';
 
 export type { ChannelDefinition, InitPolicy, WidgetSpec } from './channels.js';
+export {
+  DIAL_CHANNELS,
+  dialChannel,
+  SE_DIFFICULTY,
+  SE_DIRECTEDNESS,
+  type DialAxis,
+} from './dials.js';
 export { PARTICIPANT_SELECTORS, setupAnswerSchema } from './mode.js';
 export type {
   AssemblyPlan,
