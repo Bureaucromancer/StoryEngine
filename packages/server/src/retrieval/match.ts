@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { containsTerm, type Lorebook, type LoreEntry } from '@storyengine/shared';
+import { literalSpans, type Lorebook, type LoreEntry, type Span } from '@storyengine/shared';
 
 import { testPattern, type PatternOutcome } from './regex.js';
 
@@ -73,6 +73,26 @@ export interface KeyHit {
   key: string;
   /** `'message'`, or the name of an additional source. */
   source: string;
+  /**
+   * ***Where it fired*** — added at [P7.7], and named as unpriced by
+   * [P7 §1.7](../../../../docs/design/workplan/23-p7-implementation.md).
+   *
+   * That section measured the gap exactly: *"the scanner knows **which** key
+   * fired and **in which** haystack, never **where**, so P7.7's
+   * one-scan-two-consumers claim needs the matcher widened to carry offsets
+   * through."* This is that widening, and it is what lets §P7.7's *"sharing
+   * P5's keyword scanner so highlighting and inclusion reasons cannot disagree
+   * about who the fixer is"* be one scan rather than two implementations of one
+   * rule.
+   *
+   * **Absent under `useRegex`**, and that is the honest answer rather than a
+   * gap: a pattern is run by `testPattern`, which reports whether it matched and
+   * not where — and [P5.8] is emphatic that a browser must not run a stranger's
+   * pattern, so widening *that* is a different question with a security half.
+   * An entry whose key is a pattern therefore contributes an inclusion reason
+   * and no highlight, which the surface reports rather than hides.
+   */
+  at?: Span;
 }
 
 /** A pattern that could not be run, carried so a surface can name it. */
@@ -120,7 +140,7 @@ function keyMatches(
   entry: LoreEntry,
   key: string,
   haystack: string,
-): { hit: boolean; refusal?: PatternRefusal } {
+): { hit: boolean; at?: Span; refusal?: PatternRefusal } {
   if (entry.useRegex) {
     /**
      * **`matchWholeWords` is ignored under `useRegex`**, and that is a decision
@@ -142,9 +162,28 @@ function keyMatches(
     };
   }
 
-  return entry.caseSensitive
-    ? { hit: containsTerm(haystack, key, entry.matchWholeWords) }
-    : { hit: containsTerm(haystack.toLowerCase(), key.toLowerCase(), entry.matchWholeWords) };
+  /**
+   * ***`literalSpans` rather than `containsTerm`, which is the same scan asked
+   * for its answer instead of for a boolean*** — [P7.7]. `containsTerm` is
+   * itself a length check over `literalSpans`, so this costs nothing and returns
+   * the offsets [P7 §1.7] says the matcher has to carry through.
+   *
+   * *The first hit, because that is what `KeyHit` has always meant*: `firstHit`
+   * returns on the first key that fires and the surface highlights the whole
+   * entry's keys separately through `entrySpans`. A list here would be a second
+   * answer to a question this shape does not ask.
+   *
+   * **Case folding is applied to both sides rather than passed as a flag**,
+   * which is what the previous spelling did — and `literalSpans` keeps the
+   * *original* offsets through a fold, which is exactly the property its own
+   * docstring promises and the reason this stays correct.
+   */
+  const spans = literalSpans(haystack, key, {
+    wholeWords: entry.matchWholeWords,
+    caseSensitive: entry.caseSensitive,
+  });
+  const first = spans[0];
+  return first === undefined ? { hit: false } : { hit: true, at: first };
 }
 
 /**
@@ -201,7 +240,12 @@ function firstHit(
     for (const key of keys) {
       const outcome = keyMatches(entry, key, text);
       if (outcome.refusal) refused.push(outcome.refusal);
-      if (outcome.hit) return { hit: { key, source }, refused };
+      if (outcome.hit) {
+        return {
+          hit: { key, source, ...(outcome.at === undefined ? {} : { at: outcome.at }) },
+          refused,
+        };
+      }
     }
   }
   return { hit: null, refused };

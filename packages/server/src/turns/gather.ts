@@ -91,7 +91,16 @@ export interface AssemblyInputs {
    * is whether the `Ref` resolves to an object at all, which only the library
    * can answer.
    */
-  hooks: { pool: readonly PooledHook[]; known: ReadonlySet<string> };
+  hooks: {
+    pool: readonly PooledHook[];
+    known: ReadonlySet<string>;
+    /**
+     * What each of those actors answers to — [06 §6.1]'s *"adds their aliases to
+     * the shared keyword scan"*, [P7.7]. Keyed by actor id; the name first, then
+     * the card's own alias list.
+     */
+    terms: ReadonlyMap<string, string[]>;
+  };
   /**
    * The session's goal chain and the one play is on — [06 §7.3.3], [P7.6].
    *
@@ -222,7 +231,7 @@ export async function gatherAssemblyInputs(
     preset,
     cast,
     lore,
-    hooks: { pool, known: resolvableActors(library, request.account, pool) },
+    hooks: { pool, ...resolvableActors(library, request.account, pool) },
     goals: {
       chain,
       current: readCurrentGoal(channels, chain),

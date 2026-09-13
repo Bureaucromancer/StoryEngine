@@ -3126,3 +3126,168 @@ describe('a session with a goal', () => {
     );
   });
 });
+
+/**
+ * **Mention resolution, through the pipeline** — [06 §8.2], [03 §8], [P7.7].
+ *
+ * ***And the property [P7.5] left open.*** [06 §6.1] leaves an introduction hook
+ * *provisionally fired* until *"the extract stage confirms the subject present
+ * on that turn; unconfirmed, it returns to the pool with the attempt on the
+ * record."* This is the stage, and these are the two outcomes.
+ */
+describe('what the engine understood about a turn', () => {
+  async function seedCast(): Promise<string> {
+    const actor = { ...newActor('Vera Kohl'), aliases: ['Vera'] };
+    await create(library, ACCOUNT, actor);
+    return actor.id;
+  }
+
+  it('records who the prose named, as an overlay rather than a rewrite', async () => {
+    const actorId = await seedCast();
+    const withCast = await createSession(sessions, ACCOUNT, {
+      name: 'Rain',
+      preset: TEST_PRESET,
+      cast: { persona: null, actors: [actorId] },
+    });
+    makeRunner({ script: [{ text: 'Vera opened the door.' }] });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withCast.id,
+      idempotencyKey: 'spans-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withCast.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+
+    expect(turn.spans).toEqual([
+      {
+        field: 'output',
+        start: 0,
+        end: 4,
+        target: { kind: 'actor', ref: { id: actorId, name: 'Vera Kohl' } },
+        method: 'matched',
+        confidence: null,
+      },
+    ]);
+    // *Never a rewrite of the message text* — the prose is exactly what the
+    // model wrote, and the overlay sits beside it.
+    expect(turn.output?.text).toBe('Vera opened the door.');
+  });
+
+  it('leaves the field off a turn with nobody to find', async () => {
+    // **Absent rather than empty** — [03 §8]'s distinction: *empty* would claim a
+    // pass ran and found nobody, which is a different fact from *nobody looked*.
+    const { turn } = await runTurn();
+
+    expect(turn.spans).toBeUndefined();
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+  });
+});
+
+/**
+ * ***An introduction hook's firing is provisional until somebody arrives*** —
+ * [06 §6.1], and [P7.5]'s fourth property row, which that stage could not close
+ * because the extract stage did not exist.
+ *
+ * *"Guidance is advisory; the narrator may decline it. For an event hook a
+ * decline is a miss and the pool is none the worse. For an introduction hook it
+ * is a silent permanent loss — marked fired, character never arrived, and
+ * once-only. So the hook is recorded provisionally fired and becomes fired only
+ * when the extract stage confirms the subject present on that turn;
+ * unconfirmed, it returns to the pool with the attempt on the record."*
+ */
+describe('an introduction the narrator was asked to make', () => {
+  async function aSessionIntroducing(): Promise<{ sessionId: string; actorId: string }> {
+    const actor = { ...newActor('Vera Kohl'), aliases: ['Vera'] };
+    await create(library, ACCOUNT, actor);
+    const made = await createSession(sessions, ACCOUNT, {
+      name: 'Rain',
+      preset: TEST_PRESET,
+      hooks: [
+        {
+          hook: {
+            id: 'hook-vera',
+            title: 'Vera arrives',
+            premise: '',
+            magnitude: 'personal',
+            involves: [],
+            weight: 1,
+            delivery: 'guidance',
+            once: true,
+            introduces: {
+              actor: { id: actor.id, name: 'Vera Kohl' },
+              entrances: [{ id: 'e-rain', label: 'In the rain', text: 'Soaked to the skin.' }],
+              primaryEntranceId: null,
+            },
+          },
+          source: { kind: 'session' as const },
+        },
+      ],
+    });
+    return { sessionId: made.id, actorId: actor.id };
+  }
+
+  async function takeTurn(sessionId: string, key: string): Promise<Turn> {
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId,
+      idempotencyKey: key,
+      headTurnId: (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const turn = written.at(-1)?.turn;
+    if (!turn) throw new Error('no turn was appended');
+    return turn;
+  }
+
+  it('becomes fired when the subject actually arrives', async () => {
+    const { sessionId, actorId } = await aSessionIntroducing();
+    makeRunner({
+      script: [{ object: { hookId: 'hook-vera' } }, { text: 'Vera came in, soaked to the skin.' }],
+    });
+
+    const turn = await takeTurn(sessionId, 'intro-1');
+
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-vera' });
+    const firing = turn.effects.find((effect) => effect.channelId === 'se.hook');
+    expect(firing).toMatchObject({ scopeKey: 'hook-vera', after: 'fired', applied: true });
+    // And the overlay is what confirmed it — the same finding, not a second scan.
+    expect(turn.spans?.some((span) => span.target.ref.id === actorId)).toBe(true);
+  });
+
+  /**
+   * ***The decline, which is the whole reason the state exists.*** The narrator
+   * was asked and wrote about something else; the hook goes back in the pool, and
+   * the attempt stays on the record in the turn's own `hooks` line.
+   */
+  it('returns to the pool when the narrator declined, with the attempt on the record', async () => {
+    const { sessionId } = await aSessionIntroducing();
+    makeRunner({
+      script: [{ object: { hookId: 'hook-vera' } }, { text: 'The rain kept on and nobody came.' }],
+    });
+
+    const turn = await takeTurn(sessionId, 'intro-2');
+
+    // The attempt: the record says it fired and names the hook.
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-vera' });
+    // And the pool: nothing was written, so it is eligible again.
+    expect(turn.effects.find((effect) => effect.channelId === 'se.hook')).toBeUndefined();
+
+    makeRunner({ script: [{ object: { hookId: null } }, { text: 'Still raining.' }] });
+    const next = await takeTurn(sessionId, 'intro-3');
+    expect(next.hooks?.considered).toEqual([{ hookId: 'hook-vera', refusal: null }]);
+  });
+});

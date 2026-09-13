@@ -1335,6 +1335,20 @@ correctly-quiet session indistinguishable from a broken one. **Absent means the
 selector did not run**, which is every session with no pool — never *it ran and
 had nothing to say*.
 
+`turn.spans` is what the engine understood about the turn's text — [06 §8.2],
+[03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span
+carries the `field` it indexes into (`input` or `output`), half-open `start` and
+`end` offsets, a **tagged** `target` (one arm at 1.0: `{ kind: "actor", ref }`),
+the `method` that asserted it (`explicit`, `matched`, `proposed` — only `matched`
+is produced today), and a `confidence` that is meaningful only for `proposed`.
+
+**An overlay, never a rewrite**: the prose is exactly what the model wrote and
+the spans sit beside it, so a client that ignores the field renders the text
+unchanged. **Absent rather than empty** when the extract pass did not run — which
+is every turn of a session with nobody to find, and every turn taken before
+P7.7. *Nothing on this path creates an actor*: the scan resolves only people the
+session already has.
+
 A `considered` entry carries `committed: { overrode }` when a person's Commit is
 carrying that hook, where `overrode` is the eligibility clause it skipped or
 `null` if there was none — [06 §6.1]'s rule that *skipping the filter must say

@@ -862,7 +862,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               channels: session.channels,
               path,
               activeBooks: new Set(lore.books.map((book) => book.id)),
-              known: resolvableActors(library, account.handle, pool),
+              known: resolvableActors(library, account.handle, pool).known,
               persona: session.cast?.persona ?? null,
             }),
     };

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { HookPacing } from './schema/common.js';
+import type { HookPacing, Ref } from './schema/common.js';
+import type { Span } from './matching.js';
 import type { GenerationParams } from './schema/preset.js';
 
 /**
@@ -20,10 +21,10 @@ import type { GenerationParams } from './schema/preset.js';
  * this freedom**: the day a stored turn becomes a portable artefact, these
  * graduate to `schema/` and the registry, and not before.
  *
- * **`spans` is the one field of [03 §8] still absent**, and deliberately: it is
- * an overlay of resolved references over `input.text` and `output.text`
- * ([06 §8.2]), and resolving them is an `extract` step — fenced to P7.
- * Re-pointed here rather than left to be rediscovered.
+ * ~~**`spans` is the one field of [03 §8] still absent**~~ — **present since
+ * [P7.7]**, which built the `extract` step it was fenced to. It is an overlay of
+ * resolved references over `input.text` and `output.text` ([06 §8.2]), and the
+ * text itself is never rewritten with markup.
  *
  * *~~`mentions`~~, and the rename is the point rather than tidying.* 03 §8
  * called the field `mentions` and its type `MentionSpan`, with `ref:
@@ -443,6 +444,80 @@ export type StepFailureReason =
 export type StepSkipReason = 'cadence' | 'stage' | 'not-armed';
 
 /**
+ * ***Where in a text, and what it points at*** — [03 §8], [06 §8.2],
+ * [10 §13.1](../../../docs/design/10-ui-surfaces.md), built at [P7.7].
+ *
+ * **An overlay, never a rewrite.** 06 §8.2 is explicit: *"spans on the turn
+ * record — never a rewrite of the message text."* The prose a model wrote is
+ * what it wrote; what the engine understood about it sits beside it, and a
+ * reader that wanted neither can ignore the field entirely.
+ *
+ * *Built on `Span` from `matching.ts` rather than beside it*, which is
+ * [P7 §1.7]'s pricing: the scanner's three functions already produced the
+ * geometry anonymously, so **this is that plus a target** rather than a second
+ * shape with the same two numbers.
+ */
+export interface TextSpan extends Span {
+  /**
+   * Which text this indexes into — the turn stores two, separately.
+   *
+   * *This union is the turn's*, and 03 §8 says so: a different record supplies
+   * its own field names. It is why 06 §8.2's original four-field shape was
+   * ambiguous and now points here.
+   */
+  field: 'input' | 'output';
+  target: SpanTarget;
+  /**
+   * How the span came to be asserted — [10 §13.1].
+   *
+   * *"Rendered differently per method, because a tentative match that looks
+   * certain is worse than no highlighting."* `explicit` is a person having said
+   * so; `matched` is the scanner having found an alias; `proposed` is a model
+   * suggesting somebody the session does not have, which is the arm that must
+   * **offer** rather than create.
+   */
+  method: 'explicit' | 'matched' | 'proposed';
+  /** Only meaningful for `proposed`. */
+  confidence: number | null;
+}
+
+/**
+ * What a span points into — ***tagged, from the first span ever written***.
+ *
+ * **One arm at 1.0, and the tag is the whole point** ([13 §13], [P7 §1.7]).
+ * Write needs three consumers of one span shape — mentions, machine-written
+ * provenance and beat positions — and the second two are 2.0's, so adding them
+ * has to be an **arm rather than a migration**.
+ *
+ * ***A tag was required rather than merely tidy, and the reason is phantom
+ * types.*** [04 §3] makes a `Ref` `{ id, name, fingerprint? }`, so the `<Actor>`
+ * in `Ref<Actor>` is documentation that **erases into JSON**. A stored span
+ * whose `ref` had no `kind` would be a span that cannot say what it points at,
+ * and a reader added later could not tell an actor span from a beat span without
+ * guessing from context.
+ *
+ * *Shaped like {@link BlockSource} deliberately*: this codebase already has one
+ * tagged-reference vocabulary and does not need a second.
+ *
+ * ***The arm is named and the union is one line, which is a concession to two
+ * tools disagreeing and turned out to be the better shape anyway.*** A one-arm
+ * union written inline is a type alias for an object literal, which
+ * `consistent-type-definitions` rejects; written with a leading pipe to say
+ * *union*, Prettier removes the pipe and eslint rejects it again. Naming
+ * {@link ActorSpanTarget} settles it — and unlike making `SpanTarget` itself an
+ * `interface`, it keeps the growth story the paragraph above insists on: the
+ * second arm is `| BeatSpanTarget` on the line below, not an unpicking of a
+ * declaration that said *this is one shape*.
+ */
+export interface ActorSpanTarget {
+  kind: 'actor';
+  /** Somebody in the session's cast. */
+  ref: Ref;
+}
+
+export type SpanTarget = ActorSpanTarget;
+
+/**
  * Why a hook is not eligible — a **class, not prose**.
  *
  * [06 §6.1](../../../docs/design/06-modes-and-turn-pipeline.md) wants an author
@@ -738,6 +813,17 @@ export interface Turn {
    * nothing to say*, which is what `nothing-eligible` is for.
    */
   hooks?: HookSelection;
+  /**
+   * What the engine understood about the turn's text — [03 §8], [06 §8.2],
+   * [P7.7].
+   *
+   * **Absent rather than empty when the extract step did not run**, which is
+   * every turn taken before P7.7 and every turn of a session with no cast to
+   * resolve against. *Empty* would claim a pass ran and found nothing, which is
+   * a different fact and one a reader of [10 §13.1]'s overlay acts on
+   * differently.
+   */
+  spans?: TextSpan[];
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;

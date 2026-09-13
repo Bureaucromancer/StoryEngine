@@ -14,11 +14,13 @@ import type {
   ChannelEffect,
   ChannelState,
   ModelCall,
+  PooledHook,
   StepFailureReason,
   StepOutcome,
   Turn,
   TurnCost,
 } from '../sessions/types.js';
+import type { CastMember } from './cast.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
   callFinished,
@@ -37,9 +39,11 @@ import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
+import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
+import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
-import { readPacing, SE_HOOK } from '../sessions/hooks.js';
+import { readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
@@ -384,6 +388,13 @@ export class TurnRunner {
      */
     const goals: { report: GoalJudgeReport | null } = { report: null };
     /**
+     * What the extract pass understood about the turn's text — [06 §8.2],
+     * [P7.7]. The overlay lands on the turn record and the introduction verdict
+     * decides a hook's fate, so like the two cells above it this is the engine's
+     * to read rather than the step's to write.
+     */
+    const extracted: { report: ExtractReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -415,6 +426,15 @@ export class TurnRunner {
       }
       draft.steps = steps;
       draft.effects = effects;
+      /**
+       * **Absent rather than empty when the pass did not run** — [03 §8]'s
+       * distinction, and the one [10 §13.1]'s overlay acts on: *empty* claims a
+       * pass ran and found nobody, which is a different fact from *nobody
+       * looked*.
+       */
+      if (extracted.report !== null && extracted.report.spans.length > 0) {
+        draft.spans = extracted.report.spans;
+      }
       // Absent means the selector did not run, which is every session with no
       // hook pool — never *it ran and had nothing to say*, which is what the
       // `nothing-eligible` verdict is for.
@@ -619,11 +639,60 @@ export class TurnRunner {
         }
       : declaredPlan;
 
+    /**
+     * **The mention pass, after the prose and before the judge** — [06 §8.2],
+     * [P7.7], and the third engine-owned step.
+     *
+     * *Every turn with somebody to find*, which is the cast plus any subject an
+     * introduction hook is trying to bring in — [06 §6.1] is explicit that a
+     * firing *"contributes the subject's card for that turn and adds their
+     * aliases to the shared keyword scan"*, and a subject who is not in the cast
+     * is exactly the one the scan must not miss on the one turn it matters.
+     */
+    const pendingHooks = provisionalHooks(inputs.hooks.pool, running);
+    /**
+     * *Whether there is anybody findable at all*, which is what decides whether
+     * the step joins the plan — as against **who**, which is settled inside it
+     * because the selector has not run yet.
+     */
+    const findable =
+      cast.persona !== null ||
+      cast.actors.length > 0 ||
+      inputs.hooks.pool.some((entry) => entry.hook.introduces !== undefined);
+
+    const withExtract: TurnPlan =
+      payload.setup !== true && findable
+        ? {
+            steps: [
+              ...plan.steps,
+              extractMentions({
+                subjects: () => {
+                  const introducing = pendingIntroduction(hooks, inputs.hooks.pool);
+                  return {
+                    cast: castTerms(
+                      cast,
+                      introducing,
+                      pendingHooks,
+                      inputs.hooks.pool,
+                      inputs.hooks.terms,
+                    ),
+                    introducing,
+                    pending: pendingHooks,
+                  };
+                },
+                report: (report) => {
+                  extracted.report = report;
+                },
+              }),
+            ],
+          }
+        : plan;
+
     const withJudge: TurnPlan =
       judging && inputs.goals.current !== null
         ? {
             steps: [
-              ...plan.steps,
+              ...withExtract.steps,
               goalJudge({
                 goal: inputs.goals.current,
                 report: (report) => {
@@ -632,7 +701,7 @@ export class TurnRunner {
               }),
             ],
           }
-        : plan;
+        : withExtract;
 
     for (const { definition, run } of withJudge.steps) {
       const decision = evaluateCondition(definition.when, {
@@ -1087,13 +1156,65 @@ export class TurnRunner {
 
       if (hooks.report.fired !== undefined) {
         const { hookId, state } = hooks.report.fired;
+        /**
+         * ***The extract pass decides what a provisional firing becomes*** —
+         * [06 §6.1], [P7.7], and this closes [P7.5]'s fourth property row.
+         *
+         * *"Recorded provisionally fired, and becomes fired only when the
+         * extract stage confirms the subject present on that turn;
+         * unconfirmed, it returns to the pool with the attempt on the
+         * record."* So: confirmed writes `fired`; **unconfirmed writes
+         * nothing**, which is what *returns to the pool* is — and the attempt
+         * is on the record either way, in the turn's own `hooks` line saying it
+         * fired and naming the hook.
+         *
+         * **`provisional` is what a turn that could not answer leaves behind**,
+         * which is the one path that still writes it: the extract step is
+         * `failure: 'warn'`, so a pass that threw leaves the firing unresolved
+         * rather than silently confirmed — the under-firing direction — and the
+         * next turn's pass resolves it through `ExtractReport.resolved`.
+         */
+        const verdict = state === 'provisional' ? (extracted.report?.introduced ?? null) : null;
+        const after =
+          state !== 'provisional'
+            ? state
+            : verdict === null
+              ? 'provisional'
+              : verdict.confirmed
+                ? 'fired'
+                : null;
+
+        if (after !== null) {
+          const effect = acceptEffect(
+            job.turnId,
+            {
+              channelId: SE_HOOK,
+              scopeKey: hookId,
+              op: { type: 'set', path: '/' },
+              after,
+              proposedBy: { kind: 'engine' },
+            },
+            running,
+          );
+          effects.push(effect);
+          running = applyEffects(running, [effect]);
+        }
+      }
+
+      /**
+       * Provisional firings from earlier turns, resolved — the recovery path.
+       * Confirmed if the subject turned up now; otherwise back in the pool,
+       * because a hook the filter refuses as `pending` forever is worse than
+       * one that lost its moment.
+       */
+      for (const one of extracted.report?.resolved ?? []) {
         const effect = acceptEffect(
           job.turnId,
           {
             channelId: SE_HOOK,
-            scopeKey: hookId,
+            scopeKey: one.hookId,
             op: { type: 'set', path: '/' },
-            after: state,
+            after: one.confirmed ? 'fired' : null,
             proposedBy: { kind: 'engine' },
           },
           running,
@@ -1311,4 +1432,102 @@ function failureShape(error: unknown): Record<string, unknown> {
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The introduction this turn fired, if it fired one — [06 §6.1], [P7.7].
+ *
+ * Read off the selector's report rather than off channel state, because the
+ * firing has not been applied yet: the runner writes it after the loop, and the
+ * extract step runs inside it.
+ */
+function pendingIntroduction(
+  hooks: { report: HookSelectorReport | null },
+  pool: readonly PooledHook[],
+): { hookId: string; actorId: string } | null {
+  const fired = hooks.report?.fired;
+  if (fired?.state !== 'provisional') return null;
+  const subject = pool.find((entry) => entry.hook.id === fired.hookId)?.hook.introduces?.actor.id;
+  return subject === undefined ? null : { hookId: fired.hookId, actorId: subject };
+}
+
+/**
+ * Provisional firings already on the record — the recovery path [P7.7]'s
+ * `ExtractReport.resolved` exists for.
+ *
+ * A firing is confirmed on its own turn; one whose turn could not answer would
+ * otherwise sit `pending` forever, because the filter refuses it and nothing
+ * else looks at it again.
+ */
+function provisionalHooks(
+  pool: readonly PooledHook[],
+  channels: Readonly<Record<string, ChannelState>>,
+): { hookId: string; actorId: string }[] {
+  const out: { hookId: string; actorId: string }[] = [];
+  for (const entry of pool) {
+    if (readHookState(channels, entry.hook.id) !== 'provisional') continue;
+    const subject = entry.hook.introduces?.actor.id;
+    if (subject !== undefined) out.push({ hookId: entry.hook.id, actorId: subject });
+  }
+  return out;
+}
+
+/**
+ * Everybody the scan should look for, and the surface forms that name them.
+ *
+ * ***The cast, plus the subject of any introduction in flight*** — [06 §6.1]:
+ * a firing *"contributes the subject's card for that turn and adds their aliases
+ * to the shared keyword scan… the scan is the third consumer of the one pass,
+ * which is the argument for having built it as a pass rather than a lorebook
+ * feature."* A subject who is not in the cast is precisely the one the scan must
+ * not miss **on the one turn it matters**.
+ *
+ * *The subject's own card is not loaded here*: `resolveCast` unions the roster
+ * with whoever the channels name, so an actor who has arrived is already in
+ * `cast`. What this adds is the name the hook itself carries, which is enough to
+ * find them in the prose and is all the confirmation needs.
+ */
+function castTerms(
+  cast: { persona: CastMember | null; actors: CastMember[] },
+  introducing: { hookId: string; actorId: string } | null,
+  pending: readonly { hookId: string; actorId: string }[],
+  pool: readonly PooledHook[],
+  terms: ReadonlyMap<string, string[]>,
+): Mentionable[] {
+  const out = new Map<string, Mentionable>();
+  for (const member of [...(cast.persona === null ? [] : [cast.persona]), ...cast.actors]) {
+    out.set(member.actor.id, {
+      actorId: member.actor.id,
+      name: member.actor.name,
+      terms: [member.actor.name, ...member.actor.aliases],
+    });
+  }
+
+  for (const entry of pool) {
+    const subject = entry.hook.introduces?.actor;
+    if (subject === undefined) continue;
+    // Only the ones in flight: a pool of thirty introductions would otherwise
+    // put thirty names into every turn's scan for arrivals that are not
+    // happening, which is a highlight claiming somebody is here who is not.
+    const inFlight =
+      introducing?.actorId === subject.id || readHookState({}, entry.hook.id) === 'provisional';
+    if (!inFlight || out.has(subject.id)) continue;
+    /**
+     * ***The card's aliases, not just the `Ref`'s name*** — [06 §6.1] requires
+     * exactly this, and the reason is the failure without it: a hook naming
+     * *Vera Kohl* over prose that says *Vera came in* finds nothing, and a
+     * provisional firing the narrator honoured is recorded as declined.
+     *
+     * *Measured rather than reasoned to.* The `Ref` carries a name and nothing
+     * else, and the gather already reads the card to answer whether the subject
+     * resolves — so the aliases were one field away on a read that was already
+     * happening.
+     */
+    out.set(subject.id, {
+      actorId: subject.id,
+      name: subject.name,
+      terms: terms.get(subject.id) ?? [subject.name],
+    });
+  }
+  return [...out.values()];
 }

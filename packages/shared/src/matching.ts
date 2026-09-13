@@ -36,6 +36,28 @@ import type { LoreEntry } from './schema/lorebook.js';
 /** Characters that count as being inside a word, for whole-word matching. */
 const WORD = /[\p{L}\p{N}_]/u;
 
+/**
+ * ***Where something is in a text, and nothing about what*** — named at
+ * [P7.7](../../../docs/design/workplan/23-p7-implementation.md), where three
+ * functions in this file had been returning it anonymously since P5.8.
+ *
+ * **[P7 §1.7] is the reason it gets a name rather than a rename.** That section
+ * prices the span obligation precisely: *"the obligation is free if the shared
+ * scanner's return type is widened in the same change and expensive if the
+ * tagged type is bolted on beside an untagged one that three functions already
+ * produce."* This is the widening — the geometry, alone, so `TextSpan` in
+ * `turn.ts` is *this plus what it points at* rather than a second shape that
+ * happens to have the same two numbers.
+ *
+ * **Half-open, like every offset pair in this file**: `start` is the first
+ * character and `end` the one after the last, so `end - start` is the length and
+ * `text.slice(start, end)` is the match.
+ */
+export interface Span {
+  start: number;
+  end: number;
+}
+
 export function isWordCharacter(character: string): boolean {
   return character !== '' && WORD.test(character);
 }
@@ -64,7 +86,7 @@ export function literalSpans(
   haystack: string,
   term: string,
   options: { wholeWords: boolean; caseSensitive: boolean },
-): { start: number; end: number }[] {
+): Span[] {
   if (term === '' || haystack === '') return [];
 
   /**
@@ -78,7 +100,7 @@ export function literalSpans(
   const hay = options.caseSensitive ? haystack : haystack.toLowerCase();
   const needle = options.caseSensitive ? term : term.toLowerCase();
 
-  const spans: { start: number; end: number }[] = [];
+  const spans: Span[] = [];
   let at = hay.indexOf(needle);
   while (at !== -1) {
     const before = at === 0 ? '' : hay.charAt(at - 1);
@@ -108,7 +130,7 @@ export function containsTerm(haystack: string, term: string, wholeWords: boolean
  * looks for, and a highlight that showed only the primaries would be a partial
  * answer wearing a complete one's clothes.
  */
-export function entrySpans(entry: LoreEntry, text: string): { start: number; end: number }[] {
+export function entrySpans(entry: LoreEntry, text: string): Span[] {
   if (entry.useRegex) return [];
 
   return [...entry.keys, ...entry.secondaryKeys].flatMap((key) =>
@@ -126,11 +148,9 @@ export function entrySpans(entry: LoreEntry, text: string): { start: number; end
  * highlight, and nested `<mark>` elements would render as a darker patch that
  * looks like a third kind of match.
  */
-export function mergeSpans(
-  spans: readonly { start: number; end: number }[],
-): { start: number; end: number }[] {
+export function mergeSpans(spans: readonly Span[]): Span[] {
   const sorted = [...spans].sort((left, right) => left.start - right.start);
-  const merged: { start: number; end: number }[] = [];
+  const merged: Span[] = [];
 
   for (const span of sorted) {
     const last = merged[merged.length - 1];

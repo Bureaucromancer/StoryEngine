@@ -84,7 +84,7 @@ describe('against entries the converters produced', () => {
     // The fixture's keys are `docks` and `harbour`; the second one is the test,
     // because a matcher that only ever consulted the first would pass on the
     // first.
-    expect(matchEntry(imported, docks, scan('the harbour was quiet')).by).toEqual({
+    expect(matchEntry(imported, docks, scan('the harbour was quiet')).by).toMatchObject({
       key: 'harbour',
       source: 'message',
     });
@@ -276,7 +276,7 @@ describe('secondary keys and selective logic', () => {
   it('says which primary key hit even when the secondary condition held it', () => {
     const held = matchEntry(book(), withSecondary('and_any'), scan('the harbour'));
 
-    expect(held.by).toEqual({ key: 'harbour', source: 'message' });
+    expect(held.by).toMatchObject({ key: 'harbour', source: 'message' });
   });
 });
 
@@ -339,12 +339,19 @@ describe('the places other than messages', () => {
   it('reports where the hit was, not just that there was one', () => {
     const persona = entry({ keys: ['dockhand'], additionalMatchingSources: ['persona'] });
 
+    /**
+     * ***And where in it, since [P7.7]*** — [P7 §1.7] measured the gap as
+     * *"the scanner knows which key fired and in which haystack, never
+     * **where**"*, and this is the test whose name already promised the third.
+     * The offsets are into the **source's own text**, which is what a highlight
+     * over that source needs: `'a dockhand'` puts `dockhand` at 2.
+     */
     expect(
       matchEntry(book(), persona, {
         messages: ['nothing'],
         sources: { persona: 'a dockhand' },
       }).by,
-    ).toEqual({ key: 'dockhand', source: 'persona' });
+    ).toEqual({ key: 'dockhand', source: 'persona', at: { start: 2, end: 10 } });
   });
 
   /**

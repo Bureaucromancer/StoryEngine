@@ -100,11 +100,16 @@ export function poolFor(options: {
  * prevent.* This module is where a hook question that needs the library already
  * lives.
  *
- * **Ids, never cards.** The filter asks one question of each — *is there an
- * object behind this `Ref`* — and reading the actor whole would put an unfired
- * introduction's subject into memory on every turn for a hook that will fire on
- * none of them. [04 §6.1a] makes the dangling case a *visible* refusal rather
- * than a quiet retirement, which is the only thing this has to be able to say.
+ * ~~**Ids, never cards.**~~ ***Ids and the names they answer to, since [P7.7]***
+ * — the filter asks one question of each (*is there an object behind this
+ * `Ref`*), and [04 §6.1a] makes the dangling case a *visible* refusal rather
+ * than a quiet retirement, which is all the filter needs. But [06 §6.1] requires
+ * the other half: a firing *"adds their aliases to the shared keyword scan"*,
+ * and a subject who is not in the cast has no other way into it.
+ *
+ * *Still not the card*, which is what that sentence was protecting: what travels
+ * is a string array per hook, off the same `read` the existence check already
+ * makes.
  *
  * *Reads each id once* even when six hooks name the same person, because a pool
  * with thirty hooks is the case [06 §6.1] sizes the mechanical filter for.
@@ -113,7 +118,7 @@ export function resolvableActors(
   library: LibraryContext,
   handle: string,
   pool: readonly PooledHook[],
-): ReadonlySet<string> {
+): { known: ReadonlySet<string>; terms: ReadonlyMap<string, string[]> } {
   const asked = new Set<string>();
   for (const { hook } of pool) {
     for (const who of hook.involves) asked.add(who.id);
@@ -121,10 +126,34 @@ export function resolvableActors(
   }
 
   const known = new Set<string>();
+  const terms = new Map<string, string[]>();
   for (const id of asked) {
     try {
-      read(library, handle, id, ACTOR_SCHEMA);
+      const row = read(library, handle, id, ACTOR_SCHEMA);
       known.add(id);
+      /**
+       * ***And the surface forms, which [06 §6.1] requires by name.*** A firing
+       * *"contributes the subject's card for that turn and **adds their aliases
+       * to the shared keyword scan**"* — and a subject who is not in the cast has
+       * no other way in, which is the one turn the scan matters on.
+       *
+       * *This is why the read is a read and not an existence check*, and it is
+       * where the paragraph above narrows: the **filter** needs only an id, and
+       * the **scan** needs the names. Both come off one `read`, so carrying the
+       * second costs a string array per hook rather than a second pass.
+       */
+      const body: unknown = row.body;
+      const aliases =
+        typeof body === 'object' &&
+        body !== null &&
+        'aliases' in body &&
+        Array.isArray(body.aliases)
+          ? body.aliases.filter((one): one is string => typeof one === 'string')
+          : [];
+      // `row.name` is the index's own copy of the object's name, which is what
+      // the rest of the app resolves a `Ref` through — so the scan and the panel
+      // agree about what somebody is called without a second read.
+      terms.set(id, [row.name, ...aliases]);
     } catch {
       // **The throw is the answer**, which is what `read` gives back for an id
       // that is not there, is not an actor, or is a file that no longer parses
@@ -133,5 +162,5 @@ export function resolvableActors(
       // takes one function over.
     }
   }
-  return known;
+  return { known, terms };
 }

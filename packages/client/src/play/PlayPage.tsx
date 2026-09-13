@@ -32,6 +32,7 @@ import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
 import { GoalPanel } from './GoalPanel.js';
+import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
@@ -584,8 +585,16 @@ function TurnView({
       {turn.input === undefined ? null : (
         <p className="text-story text-ink-subtle">{turn.input.text}</p>
       )}
+      {/* **What the engine understood, drawn over the prose** — [10 §13.1],
+          [P7.7]. An overlay and never a rewrite: with no spans this renders the
+          same characters the model wrote, which is what makes the marks
+          subtractable rather than baked in. */}
       {turn.output === undefined ? null : (
-        <p className="whitespace-pre-wrap text-story text-ink">{turn.output.text}</p>
+        <MentionOverlay
+          text={turn.output.text}
+          spans={(turn.spans ?? []).filter((span) => span.field === 'output')}
+          className="whitespace-pre-wrap text-story text-ink"
+        />
       )}
       {/* A failed turn is shown rather than hidden: it is on the record with
           what it managed, and hiding it would make a re-run unexplainable. */}

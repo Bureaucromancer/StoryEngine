@@ -694,7 +694,7 @@ walker the row exists to fail.
   `se.goal` is first at is narrower and is the thing that actually mattered —
   **the first channel a model's own judgement is written to**, stamped
   `proposedBy: { kind: 'model', callId }`; before P7.6 that arm of
-  `EffectProposal` had no production writer at all, only tests.
+  {@link EffectProposal} had no production writer at all, only tests.
 
 #### Two more things nothing reads, and one live defect
 
@@ -3613,9 +3613,9 @@ the game rather than to the mode running it."*
   rest of this bullet was already making — **the effect is attributed to the
   model with the call it judged in**, not to the step that plumbed it, and
   `{ kind: 'model' }` had **no production writer anywhere in the build** before
-  this one (`grep` finds it in `runner.ts` and otherwise only in tests). That
-  attribution is the entire content of the policy, and a `step` stamp would have
-  been true of the machinery and false about the decision. *One value and not a percentage* — a progress number would be a field
+  this one (`grep` finds it in `runner.ts:1253` and otherwise only in tests).
+  That attribution is the entire content of the policy, and a `step` stamp would
+  have been true of the machinery and false about the decision. *One value and not a percentage* — a progress number would be a field
   with no reader, which is the placeholder shape this phase keeps refusing.
 - **`se.goal.current` is the cursor, and `engine-computed`**, which refuses a
   model and a step and admits a person. Moving it is *Advance*, and [06 §7.3.4]
@@ -3676,7 +3676,8 @@ completion as its second consumer in as many words, and what it produces is a
 the declaration and no call at all. So `se.goal` declares
 `confirm: ['achieved']`: the judge's completion is refused
 `needs-confirmation`, the three offers stay down until a person rules, and
-`pendingAchievement` keeps an unruled proposal outstanding across sessions.
+`pendingAchievement` keeps an unruled proposal outstanding across
+sessions.
 
 *The narrowing's own argument survives the reversal and is why this is cheap to
 undo.* Completion is indeed not the destructive act, so the gate is insurance
@@ -3716,6 +3717,71 @@ property row — so the two stages close together whatever order they are built 
 
 *Ends at:* a highlight set equal to the scanner's match set over one turn's text,
 and an unresolved name offering rather than creating.
+
+#### Done — 2026-09-13
+
+**The span type landed tagged, and the scanner's return type was widened in the
+same change** — which is exactly the condition §1.7 set for the obligation being
+free. `matching.ts`'s three functions had been returning an anonymous
+`{ start, end }` since P5.8; that pair is now `Span`, and `TextSpan` is **that
+plus a target** rather than a second shape with the same two numbers.
+`SpanTarget` has one arm and the tag is the whole point: `Ref<T>`'s parameter is
+phantom, so a stored span without a `kind` could not say what it points at, and
+[13 §13]'s other two consumers become an arm rather than a migration.
+
+***The first `extract` step in the build***, which is what [06 §8.2] named the
+stage for. It makes **no model call**: `explicit` and `matched` are both findings
+of a scanner, and the arm that would need one — `proposed` — is the one §P7.7
+defers on purpose.
+
+**And it closes [P7.5]'s fourth property row.** [06 §6.1] leaves an introduction
+hook *provisionally fired* until *"the extract stage confirms the subject present
+on that turn; unconfirmed, it returns to the pool with the attempt on the
+record"* — so confirmed writes `fired`, unconfirmed writes **nothing**, and the
+attempt is on the record either way in the turn's own `hooks` line. *`provisional`
+is what a turn that could not answer leaves behind*, which is the one path that
+still writes it: the step is `failure: 'warn'`, so a pass that threw leaves the
+firing unresolved rather than silently confirmed, and the next turn's pass
+resolves it. **The confirmation is a read of the overlay the same step produced**,
+so the panel's highlight and the hook's fate are one finding rather than two
+scans that could disagree.
+
+***Two things were measured wrong on the way, and both are corrections to what
+the stage assumed.***
+
+- **The subject's aliases were not reachable, and [06 §6.1] requires them.** A
+  firing *"contributes the subject's card for that turn and **adds their aliases
+  to the shared keyword scan**"*, and a subject who is not in the cast has no
+  other way in. The first build scanned for the hook's `Ref.name` alone — so a
+  hook naming *Vera Kohl* over prose saying *Vera came in* found nothing and
+  recorded a firing the narrator had honoured as declined. `resolvableActors`
+  now returns the surface forms beside the ids, off the **same read** the
+  existence check was already making. *Its "ids, never cards" note is narrowed
+  rather than reversed: the filter needs an id, the scan needs the names, and
+  what travels is a string array per hook.*
+- **The extract step's subjects have to be resolved when it runs, not when the
+  plan is built.** Who an introduction is about is whatever the **selector**
+  fired this turn, and the selector runs at `pre` — inside the loop this step is
+  a member of. A context built eagerly read the report before it was written,
+  scanned for nobody, and left the firing provisional. *Measured: it did.*
+
+***And one claim in this document is narrower than it reads.*** §1.7 says sharing
+the scanner is what stops highlighting and inclusion reasons *"disagreeing about
+who **the fixer** is"*, which invites the reading that the two passes are one
+scan. They are not and cannot be: the retriever matches over a **window** of
+messages it assembled and sliced by `scanDepth`, so its offsets address that
+haystack and could not address `turn.output.text`. **What is shared is the rule —
+both call `literalSpans` — which is all *cannot disagree* ever needed.** The
+`KeyHit` widening §1.7 calls unpriced is still worth having, and its consumer is
+[P5.8]'s keyword tester, which has been able to say *which* key fired and not
+*where* since it shipped.
+
+**The never-auto-create rule lands as structure rather than as a promise.** §P7.7
+ships it now and defers the *offer* with `proposed`, and the two halves are
+separable: the extract step is a pure function of its arguments with no library
+access at all, and the runner's scan resolves only actors that already exist. *So
+nothing on this path can create an actor, which is the property the gate's second
+clause is about; what waits on `proposed` is the surface that offers to.*
 
 ### P7.8 — Difficulty and directedness
 
