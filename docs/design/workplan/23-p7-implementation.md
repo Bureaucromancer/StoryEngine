@@ -1,8 +1,11 @@
 # 23 — P7 implementation plan
 
-**Status: ~~skeleton~~ ~~skeleton, audited 2026-09-07 at `5602ded`~~ startable in
+**Status: ~~skeleton~~ ~~skeleton, audited 2026-09-07 at `5602ded`~~ ~~startable in
 part, re-audited 2026-09-10 at `46bec98` — and this is now the phase in front of
-us.** Drafted 2026-08-29, with P3 landed and
+us.~~ Buildable work done, 2026-09-13 — ten stages landed, **§3.2**
+is the gate's results table, and three criticals await a person (C1, C2, C3).
+Scene grown up is the one stage deliberately left to wait on PLAYABLE, for
+**§0.2**'s stated reason.** Drafted 2026-08-29, with P3 landed and
 [P4](16-p4-implementation.md) planned but not started, so it was written four
 phases ahead of its phase and §0 says what that kind of document is honestly
 for. ~~Four have landed since — P4, P5, P6 and P6A, the last of them cutting
@@ -931,6 +934,17 @@ engine and ships no UI."* It applies here more strongly, not less.
   reshape. P7.9 is exposed for a different reason: it grows `SCENE_PRESET`, and
   `SCENE_PRESET` is the artefact **K4 is built to interrogate**. P6B.1 already moved
   it once, on an argument its own plan got wrong.
+
+  ***What was built at P7.9 does not touch that artefact, and the holding was
+  honoured by building around it*** (2026-09-13). `SCENE_PRESET`'s thirteen
+  blocks are unchanged: Scene gained a **channel declaration** — `se.backdrop`,
+  with the media union [06 §10.1a] requires from the declaration onward — and no
+  preset edit. Its sprites and expression selection, which are the half that
+  would reshape the pack, are **not built** and the stage's Done cell says so.
+  *Declaring a channel is not growing the artefact.* So the exposure this bullet
+  names is intact for whoever walks K, and the part of P7.9 that had to wait is
+  identified rather than assumed: **Scene grown up waits on K; Freeform did
+  not.**
 - **P7.7 waits on P7.1, not on PLAYABLE**, and inherits second-order risk through
   what an inclusion reason *says*.
 - **P7.2, P7.3, P7.4, P7.6 and P7.8 have no direct PLAYABLE contact.** No K item and
