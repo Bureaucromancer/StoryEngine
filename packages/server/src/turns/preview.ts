@@ -9,7 +9,7 @@ import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
 import type { SessionContext } from '../sessions/store.js';
-import type { StepDefinition } from './steps.js';
+import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
@@ -40,10 +40,22 @@ import { gatherAssemblyInputs } from './gather.js';
  * meter's question is whether the *story* context fits, and the answer names
  * the step it came from rather than leaving the reader to assume.
  *
- * Refused by name: evaluating the step's `when` condition. It would be more
+ * ~~Refused by name: evaluating the step's `when` condition. It would be more
  * honest for a cadence-gated step — *this turn will not narrate* — but Scene's
  * cadence is every turn, so it would be a fifth state no shipped mode can
- * reach. It arrives with the first mode that can exercise it.
+ * reach. It arrives with the first mode that can exercise it.~~
+ *
+ * ***It arrived, at [P7.9], and the condition is evaluated below.*** The
+ * refusal was right for as long as it stood — a state nothing can produce is a
+ * state nothing can test, and a client rendering a sentence for an unreachable
+ * case is worse than no sentence. What changed is that a prose step can now be
+ * gated to run less often than every turn, and the meter's honest answer on the
+ * turns in between is **nothing is being assembled**, not a context fill for a
+ * call that will not happen.
+ *
+ * *Evaluated with the same function the runner uses*, over the same path count,
+ * because a preview that disagreed with the turn about whether it is going to
+ * narrate would be worse than the silence it replaced.
  */
 
 export interface PreviewContext {
@@ -63,7 +75,13 @@ export interface PreviewRequest {
    * fact is a second file read per keystroke.
    */
   parentTurnId: string | null;
-  input?: { text: string };
+  /**
+   * `kind` since [P7.9] and optional: the box sends what the selector is on, so
+   * a preview of a `say` turn shows the block a `say` turn would send
+   * ([13 §8.3]). A caller that omits it previews the mode's kindless default,
+   * which is what every caller did before the selector existed.
+   */
+  input?: { text: string; kind?: string };
   guidance?: string;
 }
 
@@ -105,6 +123,38 @@ export async function previewAssembly(
       notFilled: [],
       // No call kind means no scan: `generationTriggerFilter` reads one, so a
       // scan here would have to invent the fact it filters on.
+      lore: NO_LORE_REPORT,
+    };
+  }
+
+  /**
+   * ***The fifth state*** — [P7.9], [P7 §0.1a] item 20. See the module
+   * docstring for why this could not exist until a mode could reach it.
+   *
+   * **The same evaluator the runner uses, over the same count**, so the two
+   * cannot disagree about whether this turn narrates. `stages` and `armed` are
+   * empty here on purpose and the effect is stated rather than hidden: a preview
+   * has no step loop, so no stage flag has been raised and nothing has been
+   * armed for a turn that has not been submitted — which makes a `stage` or
+   * `armed` gated prose step read as *not this turn* until it is one. That is
+   * the truthful answer to *what would happen if I sent this now*.
+   *
+   * *No scan, for `no-prose-step`'s reason inverted:* there is a call kind, but
+   * there is no call, and a scan would advance nothing while reporting what a
+   * turn that is not happening would have activated.
+   */
+  const gate = evaluateCondition(step.when, {
+    turnsOnPath: inputs.history.length,
+    stages: new Set<string>(),
+    armed: new Set<string>(),
+  });
+  if (!gate.ok) {
+    return {
+      state: 'unmeasurable',
+      headTurnId,
+      pendingInput,
+      reason: 'not-this-turn',
+      notFilled: [],
       lore: NO_LORE_REPORT,
     };
   }
@@ -156,6 +206,9 @@ export async function previewAssembly(
   const collected = collectCandidates({
     preset: inputs.preset,
     callKind: step.callKind,
+    // [13 §8.3]'s per-kind block, so a preview of a `say` turn shows the block a
+    // `say` turn sends.
+    ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
     history: inputs.windowed,
     persona: inputs.cast.persona,
     actors: inputs.cast.actors,

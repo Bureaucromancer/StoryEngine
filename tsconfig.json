@@ -14,6 +14,7 @@
     // compile against the mode at all — `mode-loader.ts` resolves it by
     // specifier at run time — so `tsc -b` has no other reason to know it exists.
     { "path": "./packages/modes/scene" },
+    { "path": "./packages/modes/freeform" },
 
     // Tests are excluded from every project above, so that `tsc -b` stops
     // emitting them into `dist`. The packages declare `"files": ["dist"]`, and a
@@ -30,6 +31,7 @@
     { "path": "./packages/sdk/tsconfig.spec.json" },
     { "path": "./packages/server/tsconfig.spec.json" },
     { "path": "./packages/client/tsconfig.spec.json" },
-    { "path": "./packages/modes/scene/tsconfig.spec.json" }
+    { "path": "./packages/modes/scene/tsconfig.spec.json" },
+    { "path": "./packages/modes/freeform/tsconfig.spec.json" }
   ]
 }

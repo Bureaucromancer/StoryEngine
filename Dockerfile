@@ -94,6 +94,8 @@ RUN pnpm --filter @storyengine/server --legacy deploy --prod /app
 # diff, and `mode-loader.test.ts` is what catches it before the diff.
 RUN pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
     /app/node_modules/@storyengine/mode-scene
+RUN pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
+    /app/node_modules/@storyengine/mode-freeform
 
 # The client is a separate package and not a dependency of the server, so it is
 # copied rather than deployed. `SE_CLIENT_ROOT` below points at it.

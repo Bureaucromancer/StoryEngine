@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { MEDIA_SELECTION_SCHEMA } from '@storyengine/sdk';
 import type {
   ChannelDefinition,
   Mode,
@@ -155,6 +156,77 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
   surface: { kind: 'text', label: 'Time' },
 };
 
+/**
+ * ***Which backdrop is showing*** — [06 §7.2], [06 §10.1a], declared at
+ * [P7.9].
+ *
+ * §7.2 has said *"a background channel says which backdrop is showing"* since
+ * the first draft, and this is that declaration. What it holds is a
+ * {@link MediaSelection}, which is the shape [06 §10.1a] requires **from the
+ * declaration onward** rather than from the stage that fills it: *"narrowing it
+ * to a filename now means changing a channel's schema under live sessions later
+ * to admit the generated case."* The rendition arm is dead until [P9] and is
+ * here so that it never has to arrive as a migration.
+ *
+ * ***`engine-computed`, which admits a person and refuses a model and a
+ * step.*** That is the exact set this channel wants, and it took saying out
+ * loud to see it:
+ *
+ * - **A person may pick a backdrop.** `engine-computed` refuses `model` and
+ *   `step` and admits `user` — deliberately, and stated in `effects.ts` in as
+ *   many words — so the manual path needs no policy of its own.
+ * - **A model may not**, because a narrator choosing what the scene looks like
+ *   is the narrator deciding where you are, which is a fact about the session
+ *   rather than about the prose.
+ * - **And P9's generator writes it through the engine rather than out of its
+ *   step**, which is the route [P7.5]'s hook firing and [P7.6]'s goal
+ *   achievement both take: what a new backdrop *means* for the session is the
+ *   engine's to apply.
+ *
+ * *`user-only` was the tempting answer and is wrong for the third reason.*
+ * [P7 §5] guessed this channel would be *"the build's first plausible
+ * `user-only` subject"*; it is not, because P9 has to be able to write it and
+ * `user-only` refuses everything but a person. (The first `user-only` channels
+ * were hook pacing at [P7.5] and the two dials at [P7.8].)
+ *
+ * ***Text-only stays first-class, and `null` is how.*** §7.2: *"Text-only must
+ * remain a fully supported first-class configuration, as it is in both
+ * sources."* A session that never sets this reads `null` forever, renders
+ * nothing, and costs nothing — no step runs, no prompt grows, and no surface
+ * appears. **A backdrop is a thing a session may have, not a thing it lacks.**
+ *
+ * *`budget: null` and no `render`: a backdrop is shown, not described.* [06
+ * §10.1a] is explicit that a background's own prompt comes from channel state
+ * and the treatment's tone rather than from the turn — so the picture never
+ * enters the narrator's prompt, and a channel that rendered *"you are in a
+ * tavern"* into it would be inventing a second, quieter source of place.
+ */
+export const BACKDROP_CHANNEL: ChannelDefinition = {
+  id: 'se.backdrop',
+  owner: SCENE_ID,
+  version: 1,
+  scope: 'session',
+  update: 'engine-computed',
+  visibility: 'player',
+  schema: {
+    // `null` is in the schema, which is the invariant every channel is held to
+    // since [P7.5] — and here it is also the *meaning* rather than only the
+    // initial value: nothing showing is a state a scene returns to.
+    oneOf: [...MEDIA_SELECTION_SCHEMA.oneOf, { type: 'null' }],
+  },
+  init: { kind: 'literal', value: null },
+  budget: null,
+  /**
+   * **No `surface`, and its absence is the decision.** [10 §8]'s HUD is a strip
+   * of short labelled values above the transcript, and a backdrop is neither
+   * short nor a value — it is the picture *behind* the story, which is a place
+   * in the layout rather than a row in a strip. A mode cannot declare that
+   * place yet ([06 §9]'s *"contribute UI surfaces"* is the part of the contract
+   * P7 does not build), so what ships is the state, and the surface that reads
+   * it arrives with `surfaces`.
+   */
+};
+
 export const NARRATE: StepDefinition = {
   id: 'se.narrate',
   stage: 'generate',
@@ -212,7 +284,7 @@ export const SCENE: ModeDefinition = {
    * thing the move fixed: a declaration nothing reads is decoration, and this
    * one was decoration for five stages.
    */
-  channels: [CLOCK_CHANNEL],
+  channels: [CLOCK_CHANNEL, BACKDROP_CHANNEL],
   /**
    * One kind, matching what the wire already defaults to — so nothing that
    * works today stops working. `say` / `think` / `story` arrive with the

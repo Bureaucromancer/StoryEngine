@@ -319,6 +319,30 @@ export const MediaRole = Type.Union(
     /** A diagram rather than a likeness. Lore, mostly. */
     Type.Literal('map'),
     Type.Literal('gallery'),
+    /**
+     * ***The backdrop a scene is staged against*** — [06 §7.2], [06 §10.1a],
+     * added at [P7.9](../../../../docs/design/workplan/23-p7-implementation.md).
+     *
+     * **It was missing, and the gap was invisible because nothing pointed at
+     * one.** §7.2 has described Scene as *"staged scene, optional background and
+     * sprites"* since the first draft, and this union had no role that named
+     * what an uploaded backdrop *is*: the nearest is `reference`, which §10.1a
+     * reserves for a *"canonical likeness — of a person, or of a place"*, and a
+     * likeness of a place is what a backdrop is **conditioned on** rather than
+     * what it is. Filing one as `gallery` would have made it unfindable by
+     * anything that wanted the backdrops.
+     *
+     * *Additive, which is what [04 §2]'s door is for* — an older build reading a
+     * newer file gets a role it has not heard of and keeps the media, and
+     * [04 §8.2] already refuses to emit this union as a hard enum.
+     *
+     * **Distinct from `Rendition.purpose`, which is the other half of the same
+     * pair.** That field says a *generated* image is a backdrop ([06 §10.1a]:
+     * *"two fields because there are two questions"*); this says an *authored*
+     * one is. The channel that holds the selection can name either, which is
+     * exactly why both had to exist.
+     */
+    Type.Literal('background'),
   ],
   { title: 'MediaRole' },
 );

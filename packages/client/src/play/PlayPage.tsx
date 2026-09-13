@@ -33,6 +33,8 @@ import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
 import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
+import { InputKind, promptFor } from './InputKind.js';
+import { Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
@@ -69,6 +71,15 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const queryClient = useQueryClient();
   const { state, dispatch } = useTurnStream(sessionId);
   const [draft, setDraft] = useState('');
+  /**
+   * ***Sticky across turns, deliberately*** — [P7.9]. A player having a
+   * conversation sends several `say` turns in a row, and a selector that reset
+   * to `do` after each one would make the common case the one that needs a click
+   * every time. It is cleared by nothing: changing what you are doing is the
+   * gesture, and it survives a reload the same way the draft does not, because
+   * it is a mode of composing rather than content.
+   */
+  const [kind, setKind] = useState<string | undefined>(undefined);
   const [guidance, setGuidance] = useState('');
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
@@ -93,6 +104,9 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
         text: draft,
+        // Absent unless the player chose, so the route applies the mode's
+        // default rather than the client guessing `do` for a mode without one.
+        ...(kind === undefined ? {} : { kind }),
         guidance,
       }),
     onSuccess: (accepted) => {
@@ -479,14 +493,25 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           busy={running || refresh.isPending}
           locale={locale}
         />
+        {/* **Above the box, and the order is the sentence.** A player picks
+            what kind of thing they are about to do and then writes it; a
+            selector to the right of the input would be a setting applied after
+            the fact. Renders nothing for a mode with one kind — [06 §1], and
+            Scene is that mode. */}
+        <InputKind
+          kinds={session.data?.inputs ?? []}
+          value={kind}
+          disabled={running}
+          onChange={setKind}
+        />
         <div className="flex gap-2">
           <label className="flex-1">
-            <span className="sr-only">What do you do?</span>
+            <span className="sr-only">{promptFor(kind)}</span>
             <input
               className={control}
               value={draft}
               disabled={running}
-              placeholder="What do you do?"
+              placeholder={promptFor(kind)}
               onChange={(event) => {
                 setDraft(event.target.value);
               }}
@@ -507,6 +532,17 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
             </Button>
           )}
         </div>
+        {/* **Below the composer and above the guidance box** — [R11], [P7.9].
+            The offers fill the box rather than taking a turn, so they belong
+            beside the thing they fill; the toggle rides with them because it is
+            the control that explains an empty row, which is the argument
+            [10 §10.1] makes for the pacing dial one panel over. */}
+        <Suggestions
+          sessionId={sessionId}
+          actions={transcript.data?.turns.at(-1)?.suggestions ?? []}
+          disabled={running}
+          onPick={setDraft}
+        />
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>
     </div>

@@ -1170,7 +1170,8 @@ decision and a selector able to widen its own gate is not a dial.
 
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null, health, hud, cast }`. The job travels with the
+`{ session, activeJob | null, health, hud, cast, hooks, goals, dials, inputs,
+suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
 
@@ -1200,6 +1201,17 @@ person has not ruled ([25 C12], answered *ask* at P7.6). `se.goal` declares
 **unapplied**: the three offers stay down and the panel asks. `proposed` and
 `achieved` are never both true, because confirming *is* the applied effect that
 clears the first.
+
+`inputs` is the kinds this session's mode accepts ([06 §1], [06 §9]) — Scene
+sends `['do']`, Freeform `['do','say','think','story']`. It is the same list
+`POST /turns` refuses against, so a client that renders a selector from it cannot
+offer a kind the server will reject. *One kind means no selector*, which the
+client decides.
+
+`suggesting` is whether this session asks for suggested actions ([R11]) — a
+channel, so it branches. **Off by default**, because a suggestion is a second
+model call on every turn and on a self-hosted build that is the player's own
+machine. The offers themselves travel on `turn.suggestions`, not here.
 
 `dials` is difficulty and directedness ([06 §7.3.1], [06 §7.3.2]), **present only
 for a mode that declares them**: `{ difficulty?, directedness? }`, each
@@ -1508,7 +1520,8 @@ somebody pauses typing. `POST` rather than `GET` because the body carries up to
 100 000 characters of prose, which does not belong in a URL.
 
 `input` is optional: its absence is *nothing typed yet*, which is what the
-context meter shows at rest. There is no `headTurnId` — the preview assembles
+context meter shows at rest. It takes an optional `kind`, so a preview of a
+`say` turn shows the block a `say` turn sends ([13 §8.3]). There is no `headTurnId` — the preview assembles
 against the session's current head and echoes back which one that was.
 `pendingInput` says whether an action or guidance was supplied, which is how the
 workbench decides between showing the composed turn and the last committed one.
@@ -1521,8 +1534,11 @@ context*, not a refused request:
 { "preview": { "state": "unmeasurable", "reason": "role-unbound", "notFilled": [] } }
 ```
 
-`reason` is `role-unbound`, `role-dangling` (a binding whose connection is gone)
-or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
+`reason` is `role-unbound`, `role-dangling` (a binding whose connection is
+gone), `no-prose-step` (the mode narrates nothing) or `not-this-turn` (it
+narrates, and not on this turn — a cadence-gated prose step, [P7.9]). The last
+two are different sentences with different remedies and are deliberately not
+collapsed. `notFilled` rides on **both** arms: *why is there no lore in
 this prompt* is answerable without a model.
 
 `lore` rides on both arms for the same reason, and it is what the keyword tester
@@ -2189,6 +2205,8 @@ I restart it?"* is a worse answer than one that says.
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
+| 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
+| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

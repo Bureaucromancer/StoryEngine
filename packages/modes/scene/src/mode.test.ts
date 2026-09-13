@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { validate } from '@storyengine/sdk';
 
 import { modes } from './index.js';
-import { CLOCK_CHANNEL, NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
+import { BACKDROP_CHANNEL, CLOCK_CHANNEL, NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -205,7 +205,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares se.clock, and owns it', () => {
+  it('declares se.clock and se.backdrop, and owns both', () => {
     // **Was "registering the mode is what enables it", asserted through the
     // engine's channel lookup** — which this package can no longer reach, and
     // should not: that a registered mode's declared channels become resolvable
@@ -217,9 +217,49 @@ describe('what Scene declares, and what the engine does with it', () => {
     // are pinned to each other by `mode-loader.test.ts`, which loads the
     // built-ins and looks the engine's constant up. Neither side imports the
     // other, which is why that check can exist at all.
-    expect(SCENE.channels).toEqual([CLOCK_CHANNEL]);
+    expect(SCENE.channels).toEqual([CLOCK_CHANNEL, BACKDROP_CHANNEL]);
     expect(CLOCK_CHANNEL.id).toBe('se.clock');
+    // [06 §7.2]'s background channel, declared at [P7.9]. The id is a literal
+    // here for the reason `se.clock`'s is — nothing in the engine names it yet,
+    // and [P9] will name it from the other side.
+    expect(BACKDROP_CHANNEL.id).toBe('se.backdrop');
     for (const channel of SCENE.channels) expect(channel.owner).toBe(SCENE_ID);
+  });
+
+  /**
+   * ***The backdrop channel's value must be able to name a generated image from
+   * the declaration onward*** — [06 §10.1a], and the obligation is to [P9]
+   * rather than to this stage: *"narrowing it to a filename now means changing a
+   * channel's schema under live sessions later to admit the generated case."*
+   * **This is the assertion that would catch somebody narrowing it**, and it is
+   * written now because the arm it protects has no writer until P9 and so no
+   * other test can fail when it goes.
+   */
+  it('can hold a generated backdrop before anything generates one', () => {
+    // The third arm is `{ type: 'null' }` — *nothing showing*, which is how
+    // text-only stays first-class — so the tags come off the arms that have one.
+    const arms =
+      (BACKDROP_CHANNEL.schema as { oneOf?: { properties?: Record<string, unknown> }[] }).oneOf ??
+      [];
+    const froms = arms.map(
+      (arm) => (arm.properties?.['from'] as { const?: string } | undefined)?.const,
+    );
+
+    expect(froms).toContain('authored');
+    expect(froms).toContain('rendition');
+    // Text-only is first-class: nothing showing is a state, not an absence.
+    expect(BACKDROP_CHANNEL.init).toEqual({ kind: 'literal', value: null });
+  });
+
+  /**
+   * *A person may pick one; a model and a step may not.* `engine-computed`
+   * refuses `model` and `step` and admits `user`, which is exactly the set this
+   * channel wants — and [P9]'s generator writes it through the engine rather
+   * than out of its own step, which is the route the hook firing and the goal
+   * achievement both take.
+   */
+  it('is not a thing the narrator decides', () => {
+    expect(BACKDROP_CHANNEL.update).toBe('engine-computed');
   });
 
   it('ships its empty fields empty, and its one-armed fields at one arm', () => {

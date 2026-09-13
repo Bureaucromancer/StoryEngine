@@ -1068,6 +1068,13 @@ export function readSession(sessionId: string): Promise<{
    * for it.
    */
   dials?: DialAxes;
+  /**
+   * The input kinds this session's mode accepts ([06 §1], [P7.9]). One kind
+   * means the player has no choice to make and no selector is shown.
+   */
+  inputs?: string[];
+  /** Whether this session asks for suggested actions ([R11]). */
+  suggesting?: boolean;
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
 }
@@ -1288,6 +1295,11 @@ export interface SubmitTurn {
   idempotencyKey: string;
   headTurnId: string | null;
   text: string;
+  /**
+   * What kind of thing this is — one of the mode's declared `inputs`
+   * ([06 §1], [P7.9]). Absent lets the server apply the mode's default.
+   */
+  kind?: string;
   /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
   /**
@@ -1317,7 +1329,18 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
   return request('POST', `/api/sessions/${submission.sessionId}/turns`, {
     idempotencyKey: submission.idempotencyKey,
     headTurnId: submission.headTurnId,
-    input: { text: submission.text },
+    /**
+     * `kind` only when the selector chose one — [06 §1], [13 §8.3], [P7.9].
+     *
+     * **Omitted rather than defaulted to `do`**, because the route defaults it
+     * and a mode that does not declare `do` would then be sent a kind it
+     * refuses. The wire says *the player did not pick*; the server says what
+     * that means for this mode.
+     */
+    input: {
+      text: submission.text,
+      ...(submission.kind === undefined ? {} : { kind: submission.kind }),
+    },
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
       : { guidance: submission.guidance }),

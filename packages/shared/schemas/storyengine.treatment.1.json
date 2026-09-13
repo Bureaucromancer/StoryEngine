@@ -611,6 +611,10 @@
               {
                 "const": "gallery",
                 "type": "string"
+              },
+              {
+                "const": "background",
+                "type": "string"
               }
             ]
           },

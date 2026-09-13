@@ -836,6 +836,30 @@ export interface Turn {
    */
   hooks?: HookSelection;
   /**
+   * What the player could do next — [06 §7.3]'s *suggested actions*,
+   * [R11](../../../docs/design/workplan/22-walkthrough-refinements.md), [P7.9].
+   *
+   * ***On the turn, which is a persisted-shape decision rather than a
+   * convenience*** — and [22 §4] says why it had to be made now rather than
+   * later: *"R11's 'save unselected suggestions' is a persisted-shape
+   * requirement, and that puts it on the critical path to P11's export freeze."*
+   * The fork it names is *"generate them inside the turn as a `post` step, or
+   * store them on the mutable half beside `lastSelectedChild`"*, and this is the
+   * first: a suggestion is a **reading of one turn's ending**, so it belongs to
+   * that turn the way `spans` and `hooks` do. A rewind takes it back, a branch
+   * inherits it, and *kept, unselected* needs no mechanism because an
+   * append-only record keeps what it recorded.
+   *
+   * **Absent means the step did not run** — the session has them off, or this
+   * build predates them. It never means *it ran and offered nothing*, which is
+   * the distinction every optional field on this record draws.
+   *
+   * *Strings and not ids.* A suggestion is text a player submits as their own
+   * input, so selecting one is typing it faster rather than referring to it —
+   * and an id would imply a thing to look up that the record does not have.
+   */
+  suggestions?: string[];
+  /**
    * What the engine understood about the turn's text — [03 §8], [06 §8.2],
    * [P7.7].
    *

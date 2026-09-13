@@ -3953,6 +3953,116 @@ for, to a goal completion, with the cast panel, the hook panel and the workbench
 all reading state a mode package declared and the engine never special-cased* —
 and `packages/server/src/modes/` gone, with a check that fails if it returns.
 
+#### Done — 2026-09-13, with two things left for a person and one for a later phase
+
+**`packages/modes/freeform` exists and is the second package**, written against
+`@storyengine/sdk` from its first line by something that could not reach past it.
+The five-place workspace edit is done — the workspace glob already admitted
+`packages/modes/*`, and the root dependency, both tsconfig references,
+`BUILT_IN_MODE_PACKAGES` and the `Dockerfile` deploy step are new — and
+`tools/repo-shape.test.ts` runs its boundary probes against both packages now,
+which is the *"an import from a mode package to `server` fails the build rather
+than a review"* half of gate step 1 covering a package nobody wrote it for.
+
+***What a second mode was for is finding holes, and it found three.***
+
+- ***A mode cannot declare a channel the engine computes for it*** —
+  [25 C16](../25-open-questions.md), and it is the real one. Freeform wanted
+  `se.freeform.input`, holding [06 §1]'s *world-state classification* in its
+  smallest true form: what kind of thing the last turn was, computed from the
+  submission's **validated** input kind, which is a fact the engine holds.
+  Nothing can write it. `acceptEffect` refuses an `engine-computed` channel for
+  a `step` proposal — correctly — and the engine writes exactly two channels
+  after the step loop, naming both by id. Scene's `se.clock` is
+  `engine-computed` *and written*, by a line older than the declaration, which
+  is exactly what kept the gap invisible: the policy works for a built-in whose
+  channel the engine already knew about and is unreachable for the author
+  [06 §9] is the test for. **The channel was withdrawn rather than shipped
+  null**, and `mode.test.ts` asserts the mode declares no `engine-computed`
+  channel so it cannot come back before a writer does.
+- ***The channel registry is process-wide and a session is not.*** Invisible
+  while one mode declared channels; a defect the moment two did. `channelSurfaces`
+  walked `registeredChannels()`, so Freeform declaring `se.difficulty` would have
+  given a **Scene** session a difficulty dial, a HUD row and an accepted write.
+  `channelInPlay` is the fix and the rule is `owner`'s own meaning: a channel
+  owned by a *mode* belongs to a session playing it, and one owned by a
+  *package* — cast, hooks, goals, lore, suggestions — is available everywhere,
+  which is why those were registered outside a mode to begin with. The channel
+  write route answers **404** for a channel another mode declared, because *that
+  exists but not for you* would leak the build's mode list from a session route.
+- ***`ModeDefinition.inputs` was a declaration nothing enforced.*** [06 §9] lists
+  *"define its own input kinds"* among what an extension mode must be able to do,
+  and a submission could carry any string. `POST /turns` now answers **422
+  `unknown-input-kind`** with the mode's list — a refusal rather than a
+  coercion to `do`, because the kinds change what the prompt says and narrating a
+  `think` as a `do` puts the player's private thought in the scene, which is the
+  one failure the kind exists to prevent.
+
+**The input-kind selector, which is [P7 §0.1a] item 19 and the standing line's
+first instance.** Four kinds declared, validated, selectable, and — this is
+[13 §8.3]'s claim arriving — **rendered by the preset with no new machinery**:
+`appliesTo` matches the turn's input kind as well as the call kind, so Freeform's
+pack carries four input blocks and four instruction blocks and a `think` is
+wrapped as a thought and told not to be reacted to. *That paragraph was written
+for Write at P8 and predicted its own vindication;* what it needed was for the
+turn's kind to reach the collector, which is one field and one clause.
+
+**The preview's fifth state** — item 20, *this turn will not narrate*. The
+refusal it replaces was right for as long as it stood: a state nothing could
+produce is a state nothing could test. It is evaluated with the same function
+the runner uses, over the same path count, so the two cannot disagree.
+
+**The backdrop channel, and the obligation is discharged in the only form it
+could be.** `se.backdrop` holds a `MediaSelection` — a two-arm tagged union
+whose **second arm is dead on arrival**, which is the entire content of
+[06 §10.1a]'s requirement: *"narrowing it to a filename now means changing a
+channel's schema under live sessions later."* `MediaRole` gained `background`,
+which it was missing and which was invisible because nothing pointed at one.
+*Its `update` is `engine-computed` rather than the `user-only` [§5] predicted*,
+and the correction is worth the line: `user-only` refuses everything but a
+person, and **[P9]'s generator has to be able to write it**; `engine-computed`
+refuses a model and a step and admits a person, which is exactly the set.
+***Text-only stays first-class through `null`***, which is a state rather than an
+absence.
+
+**[R11]'s suggested actions, and the persisted-shape fork answered.** [22 §4]
+put this on the critical path to P11's export freeze rather than in the
+discretionary pile, and named the fork: *inside the turn as a `post` step, or
+beside `lastSelectedChild`*. **On the turn.** A suggestion is a reading of one
+turn's ending, so a rewind takes it back, a branch inherits it, and *kept,
+unselected* needs no mechanism because an append-only record keeps what it
+recorded — where the mutable half would have been a map keyed by turn id,
+pruned by nothing, going stale the moment its turn was rewound past.
+
+*And the default is **off**, which the first draft got wrong.* It said on, on the
+grounds that a feature nobody finds is a feature nobody has. **A suggestion is a
+second model call on every turn**, and on a self-hosted build that is the
+player's own machine roughly doubling the wait for a list they may never read.
+The discoverability problem is answered by a surface instead: the toggle is on
+the play screen whether or not it is on, which is [work plan §2.3]'s standing
+line doing the work a default was being asked to do. *The offers fill the
+composer rather than taking a turn*, so the model's suggestion and the player's
+decision stay two gestures.
+
+***What is not done, said plainly.***
+
+- ***Scene is not grown up.*** §7.2's *"sprites, backgrounds and expression
+  selection are steps writing to channels"* has its **background** half — the
+  channel, its media union, and the role that names an authored one — and not
+  its sprites or its expression selection. Those want an actor's sprite set
+  addressed per-expression, which is a media question this stage did not open,
+  and **`SCENE_PRESET` is deliberately not grown**: §0.2 holds P7.9 behind
+  PLAYABLE precisely because that preset is *"the artefact K4 is built to
+  interrogate"*, and sitting K has not been walked. Declaring a channel is not
+  growing the artefact; rewriting its thirteen blocks would be.
+- ***The demo is a person's to walk.*** The *ends at* line is C2 on the gate's
+  critical list and no assertion covers it, which the gate says in as many
+  words.
+- ***`surfaces` is still empty on both modes.*** [06 §9]'s *"contribute UI
+  surfaces"* is the part of the contract P7 does not build, which is why the
+  backdrop channel ships state and no place to show it, and why the suggestion
+  toggle is a client component rather than a mode's declaration.
+
 ---
 
 ## 3. Verification — the P7 exit gate

@@ -41,6 +41,7 @@ import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
+import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
@@ -395,6 +396,21 @@ export class TurnRunner {
      */
     const extracted: { report: ExtractReport | null } = { report: null };
     /**
+     * What the suggestion step offered — [R11], [P7.9]. Same cell shape as the
+     * three above.
+     *
+     * ***Declared here rather than beside the step that fills it***, which is
+     * why all four are together: `write()` closes over every one of them to
+     * build the checkpoint draft, and it runs before the plan is assembled. A
+     * declaration further down is a **temporal dead zone** the compiler is happy
+     * with and the first turn is not — `Cannot access 'suggested' before
+     * initialization`, thrown out of the checkpoint, caught as *unstartable*,
+     * and recorded as a failed turn with no request on it. Found at [P7.9] by
+     * 141 route tests going red at once, and cheap to reintroduce, which is what
+     * this paragraph is for.
+     */
+    const suggested: { report: SuggestReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -439,6 +455,16 @@ export class TurnRunner {
       // hook pool — never *it ran and had nothing to say*, which is what the
       // `nothing-eligible` verdict is for.
       if (hooks.report !== null) draft.hooks = hooks.report.selection;
+      /**
+       * **Absent rather than empty when nothing ran** — the distinction `spans`
+       * draws two lines up and for the same reason: *empty* claims the step ran
+       * and the model offered nothing, which is a different fact from *the
+       * session has suggestions turned off*. [R11] wants the unselected kept,
+       * and keeping an empty list is not keeping anything.
+       */
+      if (suggested.report !== null && suggested.report.actions.length > 0) {
+        draft.suggestions = [...suggested.report.actions];
+      }
       // Only once something was assembled — [P3.0], and the record's own
       // docstring: *absent* means this never happened, and an empty `request`
       // on a turn that failed before assembly is a record claiming a prompt
@@ -703,7 +729,46 @@ export class TurnRunner {
           }
         : withExtract;
 
-    for (const { definition, run } of withJudge.steps) {
+    /**
+     * ***What the player could do next*** — [06 §7.3]'s *suggested actions*,
+     * [R11], [P7.9]. See `turns/suggest.ts` for why they land on the turn.
+     *
+     * **Appended after the judge**, which is the ordering the two steps want
+     * rather than an accident: a turn that just completed a goal is a turn whose
+     * suggestions should be read against a story that has ended or moved on, and
+     * a `post` stage runs its steps in declaration order.
+     *
+     * ***The toggle keeps the step out of the plan rather than idling it***, and
+     * the first draft had it the other way — the step always present, returning
+     * early when the session had suggestions off, the way [P7.5]'s pacing gate
+     * sits inside the selector. That is right for pacing and wrong here, for a
+     * reason the two do not share: **a held selector is a thing that happened**
+     * and its skip is the record a player reads to understand a quiet session,
+     * where a suggestion step nobody asked for has nothing to report. Leaving it
+     * in would put an `ok` row contributing nothing on every turn of every
+     * session in the build, which is a step outcome that means *this feature
+     * exists* rather than anything about the turn.
+     *
+     * *The step still holds its own gate*, because `enabled` is read here and a
+     * plan assembled elsewhere could disagree with it — the belt the selector
+     * wears for the same reason.
+     */
+    const suggesting = payload.setup !== true && readSuggesting(running);
+    const withSuggest: TurnPlan = suggesting
+      ? {
+          steps: [
+            ...withJudge.steps,
+            suggest({
+              enabled: true,
+              report: (report) => {
+                suggested.report = report;
+              },
+            }),
+          ],
+        }
+      : withJudge;
+
+    for (const { definition, run } of withSuggest.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath: history.length,
         stages: new Set<string>(),
@@ -814,6 +879,10 @@ export class TurnRunner {
                 : collectCandidates({
                     preset,
                     callKind: definition.callKind,
+                    // What the player did, for a preset's per-kind block —
+                    // [13 §8.3], [P7.9]. Absent on a call with no submission
+                    // behind it, which is what keeps a `say` block off a judge.
+                    ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
                     history: windowed,
                     persona: cast.persona,
                     actors: cast.actors,
@@ -1078,6 +1147,7 @@ export class TurnRunner {
             stepId: definition.id,
             reason,
             message: messageOf(error),
+
             ...(error instanceof CallFailed
               ? {
                   class: error.class,

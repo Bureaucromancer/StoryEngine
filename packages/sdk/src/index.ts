@@ -35,6 +35,7 @@ export {
   SE_DIRECTEDNESS,
   type DialAxis,
 } from './dials.js';
+export { MEDIA_SELECTION_SCHEMA, type MediaSelection } from './media.js';
 export { PARTICIPANT_SELECTORS, setupAnswerSchema } from './mode.js';
 export type {
   AssemblyPlan,

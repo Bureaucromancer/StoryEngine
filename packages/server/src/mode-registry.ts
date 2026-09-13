@@ -3,7 +3,13 @@
 
 import type { Mode, ModeDefinition, StepDefinition } from '@storyengine/sdk';
 
-import { registerChannel } from './sessions/channels.js';
+import {
+  channelDefinition,
+  channelSurfaces,
+  registerChannel,
+  type ChannelSurface,
+} from './sessions/channels.js';
+import type { ChannelState } from './sessions/types.js';
 import type { TurnPlan } from './turns/steps.js';
 
 /**
@@ -250,4 +256,66 @@ function withoutParts(setup: ModeDefinition['setup']): ModeDefinition['setup'] {
   // two fields that travel is the more honest spelling anyway, since a third
   // added to `DeclaredSetup` should have to decide whether it is client-facing.
   return setup.kind === 'declared' ? { kind: setup.kind, fields: setup.fields } : setup;
+}
+
+/*
+ * ***The two below live here rather than in `sessions/channels.ts`, and the
+ * reason is a cycle rather than a taxonomy.*** They are questions about a
+ * channel *and* a mode, and `mode-registry.ts` already imports
+ * `registerChannel` — so putting them on the channels side would have made the
+ * two modules import each other. That is not a style objection: ESM resolves a
+ * cycle by handing one side a half-initialised module, and the shape it took
+ * was a **green typecheck and a build whose every turn failed**, because
+ * `registerChannel` was `undefined` at the moment `registerMode` reached for
+ * it. Found at [P7.9] by 141 route tests going red at once.
+ */
+/**
+ * Whether a channel is in play for a session on this mode — [06 §4], [06 §4.1],
+ * found and built at [P7.9].
+ *
+ * ***The registry is process-wide and a session is not***, which was invisible
+ * while one mode declared channels and became a defect the moment a second one
+ * did. `registeredChannels()` holds the union of every built-in's declarations,
+ * so a reader that walks it is answering *does this build have such a channel*
+ * when the question is *does this session*. Freeform declares `se.difficulty`;
+ * without this, a **Scene** session would offer a difficulty dial, accept a
+ * write to it, and put whatever it held in front of a mode that has no such
+ * concept.
+ *
+ * ***The rule is `owner`, and it is the field's own meaning rather than a new
+ * one.*** [06 §4.1] admits two kinds of owner and draws exactly this line:
+ *
+ * - **A mode id** — the channel is that mode's, and belongs to a session
+ *   playing it. `se.clock` is Scene's; `se.difficulty` is a declaring mode's.
+ * - **A package** (`storyengine.cast`, `storyengine.hooks`,
+ *   `storyengine.goals`, `storyengine.lore`) — deliberately *not* a mode,
+ *   precisely because [06 §8]'s sixth rule says such state is *"available to
+ *   **every** mode, not a Freeform or Campaign feature"*. Those stay available
+ *   everywhere, which is why they were registered outside a mode in the first
+ *   place.
+ *
+ * So the test is *is there a registered mode with this owner, and is it not the
+ * one being played* — and an owner no mode answers to is a package's.
+ *
+ * *An unregistered channel is not in play either*, which keeps the two answers a
+ * caller cares about — **unknown** and **not yours** — from needing two calls.
+ */
+export function channelInPlay(channelId: string, modeId: string): boolean {
+  const definition = channelDefinition(channelId);
+  if (definition === null) return false;
+  return modeById(definition.owner) === null || definition.owner === modeId;
+}
+
+/**
+ * The HUD for one session — {@link channelSurfaces} narrowed by the mode.
+ *
+ * Kept as a wrapper rather than a parameter with a default so that the
+ * unfiltered walk stays available to the workbench, which is about the *build*
+ * rather than about a session and should keep seeing everything.
+ */
+export function sessionSurfaces(
+  channels: Readonly<Record<string, ChannelState>>,
+  modeId: string,
+): ChannelSurface[] {
+  return channelSurfaces(channels).filter((surface) => channelInPlay(surface.channelId, modeId));
 }

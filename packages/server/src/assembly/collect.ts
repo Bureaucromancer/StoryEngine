@@ -38,6 +38,32 @@ export interface CollectContext {
   preset: Preset;
   /** What kind of call this is; a block's `appliesTo` filters on it. */
   callKind: string;
+  /**
+   * What kind of thing the player did — `do`, `say`, `think`, `story` —
+   * [06 §1], [13 §8.3], [P7.9].
+   *
+   * ***A second thing `appliesTo` matches, and [13 §8.3] says this is the whole
+   * implementation.*** *"A mode declares its own input kinds, and a preset block
+   * filters on call kind — which [04 §8] deliberately left **open**… each is
+   * both an input kind and a call kind; and a preset carries a different
+   * instruction block per kind with no new machinery, which is the `appliesTo`
+   * filter doing the job it was built for."* That paragraph was written for
+   * Write at [P8] and predicted its own vindication; what it needed was for the
+   * turn's kind to reach this function, which it did not until here.
+   *
+   * **Matched alongside `callKind` rather than replacing it**, because they are
+   * genuinely two questions on one turn: *what is the engine asking the model to
+   * do* and *what did the player just do*. A block that applies to `narrate`
+   * applies to every narrating turn whatever the player typed, and one that
+   * applies to `say` applies when they spoke. A mode whose input kinds **are**
+   * its call kinds — Write's four — sees the two collapse, which is [13 §8.3]'s
+   * case and costs nothing here.
+   *
+   * *Absent for a call with no submission behind it* — a setup part, a judge, a
+   * selector — where a block filtered on an input kind should not apply, and
+   * does not.
+   */
+  inputKind?: string;
   /** Oldest first, already windowed by the mode's `historyWindow`. */
   history: readonly Turn[];
   /** With the hash of the bytes that were read, so the source can say which ([P3.0]). */
@@ -162,7 +188,16 @@ export function collectCandidates(context: CollectContext): Collected {
     }
     // Empty means all — which is what dissolves the eight special-cased
     // template fields [04 §8.4.3] describes.
-    if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) {
+    /**
+     * **Either kind matches** — [13 §8.3], [P7.9]. See
+     * {@link CollectContext.inputKind}: an input kind is also a call kind, and a
+     * block naming one applies when the turn carries it.
+     */
+    const applicable =
+      block.appliesTo.length === 0 ||
+      block.appliesTo.includes(context.callKind) ||
+      (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind));
+    if (!applicable) {
       skipped(block, 'not-applicable');
       continue;
     }

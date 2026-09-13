@@ -807,6 +807,49 @@ say *there is no sensible substitute for `vision`*. **Decide with the first step
 that genuinely cannot use `prose`**, which is an image or vision step rather than
 a cheaper text one. *[19 §5.1, 06 §6]*
 
+**C16. A mode cannot declare a channel the engine computes for it. — OPEN,
+found by writing the second mode** (2026-09-13,
+[P7.9](workplan/23-p7-implementation.md)). [06 §4] lets a mode declare a channel
+with any `update` policy, and one of the three is `engine-computed`. **Two of
+them a mode can actually use and the third it cannot**, which nothing noticed
+while one mode declared one channel:
+
+- `model-proposed` — a model proposes through a step's effects. Works.
+- `user-only` — a person writes through the channel route. Works; the two dials
+  are the shipped case.
+- `engine-computed` — *nothing writes it.* `acceptEffect` refuses such a channel
+  for a `step` proposal, deliberately and correctly ([06 §8.1]'s whole posture),
+  so the mode cannot write its own. And the engine writes exactly two channels
+  after the step loop, **naming both by id in `turns/runner.ts`**: the clock and
+  a judged goal. A mode-declared one would need the engine to know what that
+  mode's channel means, which is [06 §2]'s `switch (mode)` wearing different
+  clothes.
+
+*Scene's `se.clock` is `engine-computed` and is written*, which is what made the
+gap invisible: it is written by a line of engine code that names `SE_CLOCK`, and
+that line is older than the declaration. **A third-party mode gets no such
+line.** So the policy is reachable for a built-in whose channel the engine
+already knew about, and unreachable for exactly the author [06 §9] is the test
+for.
+
+The concrete instance: Freeform wanted a channel holding *what kind of thing the
+last turn was* — [06 §1]'s *world-state classification* in its smallest true form
+— computed from the submission's validated input kind, which is a fact the
+**engine** holds. It was declared, found unwritable, and withdrawn rather than
+shipped null; `mode.test.ts` asserts the mode declares no `engine-computed`
+channel so the placeholder cannot come back before a writer does.
+
+Three candidate answers. *(a)* **A step may write its own mode's
+`engine-computed` channels** — narrow, checkable against `owner`, and it weakens
+a rule whose whole value is that it is absolute. *(b)* **A fourth policy**,
+`step-computed`: honest about what is happening, and a fourth arm on a
+three-arm union that four stages have found sufficient. *(c)* **A declared
+*source*** — the mode names a turn fact (`input.kind`, `turn.status`) and the
+engine writes it after the loop with no mode-specific code, which is declarative
+in the way the rest of the contract is and is the only one of the three that
+scales past one field. **Decide with the first mode that cannot proceed without
+it**; Freeform proceeded. *[06 §4, 06 §4.1, 06 §9]*
+
 ---
 
 ## D. Deployment questions

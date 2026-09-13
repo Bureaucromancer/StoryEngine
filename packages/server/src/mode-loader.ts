@@ -7,6 +7,7 @@ import { registerMode } from './mode-registry.js';
 import { PARTY_CHANNEL, PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
 import { CONCLUDED_CHANNEL, GOAL_CHANNEL, GOAL_CURSOR_CHANNEL } from './sessions/goals.js';
 import { HOOK_CHANNEL, HOOK_PACING_CHANNEL } from './sessions/hooks.js';
+import { SUGGEST_CHANNEL } from './turns/suggest.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
 /**
@@ -65,7 +66,10 @@ import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
  * mechanism with a different failure mode, which is why this one stays a
  * literal somebody can read.
  */
-export const BUILT_IN_MODE_PACKAGES: readonly string[] = ['@storyengine/mode-scene'];
+export const BUILT_IN_MODE_PACKAGES: readonly string[] = [
+  '@storyengine/mode-scene',
+  '@storyengine/mode-freeform',
+];
 
 export async function installBuiltIns(): Promise<void> {
   /**
@@ -128,6 +132,16 @@ export async function installBuiltIns(): Promise<void> {
   registerChannel(GOAL_CURSOR_CHANNEL);
   registerChannel(GOAL_CHANNEL);
   registerChannel(CONCLUDED_CHANNEL);
+  /**
+   * Whether this session wants suggested actions — [06 §7.3], [R11], [P7.9].
+   *
+   * `storyengine.suggest` is a package for the reason the four above it are, and
+   * [06 §7.3] makes the argument about this feature specifically: *"Generalising
+   * it means Scene and Freeform get it free — which is exactly the
+   * cross-pollination the requirements ask for."* The step reads the turn's own
+   * prose and nothing else, so there is nothing mode-shaped to route it through.
+   */
+  registerChannel(SUGGEST_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {

@@ -46,13 +46,15 @@ import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { resolveLore } from '../turns/lore.js';
-import { channelDefinition, channelSurfaces, degradedChannels } from '../sessions/channels.js';
+import { channelInPlay, sessionSurfaces } from '../mode-registry.js';
+import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
 import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
 import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { previewAssembly } from '../turns/preview.js';
+import { readSuggesting } from '../turns/suggest.js';
 import { PathEscapeError } from '../storage/paths.js';
 import type { Tape } from '../rng/rng.js';
 
@@ -882,6 +884,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       concluded: readConcluded(session.channels),
     };
 
+    // What this session is playing, which three of the blocks below need and
+    // none of them needed before a second mode declared anything.
+    const modeId = session.mode?.id ?? DEFAULT_MODE_ID;
+
     /**
      * ***The two dials*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
      *
@@ -911,14 +917,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      */
     const preset =
       session.preset ??
-      (modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID))?.definition
-        .assembly.defaultPreset;
+      (modeById(modeId) ?? modeById(DEFAULT_MODE_ID))?.definition.assembly.defaultPreset;
     const dials: Record<
       string,
       { levelId: string | null; levels: { id: string; label: string }[] }
     > = {};
     for (const axis of ['difficulty', 'directedness'] as const) {
-      if (preset === undefined || channelDefinition(DIAL_CHANNELS[axis]) === null) continue;
+      // `channelInPlay` and not `channelDefinition`: Freeform declaring
+      // `se.difficulty` must not give a **Scene** session a difficulty dial.
+      if (preset === undefined || !channelInPlay(DIAL_CHANNELS[axis], modeId)) continue;
       const levels = packLevels(preset, axis);
       if (levels.length === 0) continue;
       dials[axis] = {
@@ -935,11 +942,39 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       session,
       activeJob: job,
       health: degradedChannels(session.channels),
-      hud: channelSurfaces(session.channels),
+      // **Narrowed to this session's mode** — [06 §4.1], [P7.9]. The registry is
+      // process-wide; a session is not. Before a second mode declared channels
+      // this walked the union and was right by accident.
+      hud: sessionSurfaces(session.channels, modeId),
       cast: castRows(session.cast, session.channels, path),
       hooks,
       goals,
       dials,
+      /**
+       * ***What the player may send*** — `ModeDefinition.inputs`, [06 §1],
+       * [06 §9], [P7.9].
+       *
+       * **Here rather than fetched from `GET /api/modes`**, which the play page
+       * does not call and should not have to: the kinds are a property of *this
+       * session's* mode, the page already polls this route, and a second request
+       * to learn one array would make the input box's affordances arrive after
+       * the box.
+       *
+       * *One kind means no selector*, which is what Scene sends and why nothing
+       * appeared before this phase. The client decides that; the server says
+       * what is accepted, which is the same list the submit route refuses
+       * against.
+       */
+      inputs: modeById(modeId)?.definition.inputs ?? [],
+      /**
+       * Whether this session wants suggested actions — [R11], [P7.9].
+       *
+       * **Sent even though it is off by default**, which is the whole of why the
+       * default could be off: [work plan §2.3] forbids configuration with no
+       * surface, and a toggle a client cannot read is a toggle nobody finds. The
+       * offers themselves travel on their turns, not here.
+       */
+      suggesting: readSuggesting(session.channels),
     });
   });
 
@@ -1205,6 +1240,31 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       const { sessionId, key } = request.params as { sessionId: string; key: string };
       const { value } = request.body as { value: unknown };
+
+      /**
+       * ***Not a channel another mode declared*** — [06 §4.1], [P7.9].
+       *
+       * The registry is process-wide, so once a second mode declares a channel
+       * this route would accept a write to it on **any** session — a Scene
+       * session acquiring a `se.difficulty` nothing reads, which then sits in
+       * `session.json` and in the effect log looking like state. `channelInPlay`
+       * is the `owner` rule: a channel owned by a *mode* belongs to a session
+       * playing it, and one owned by a *package* — cast, hooks, goals, lore —
+       * is available everywhere, which is why those were registered outside a
+       * mode to begin with.
+       *
+       * **A 404 rather than a 422**, and it is the same answer an unregistered
+       * id gets: from this session's point of view there is no such channel, and
+       * saying *that exists but not for you* would leak which modes the build
+       * ships from a session route.
+       */
+      const { channelId } = splitChannelKey(key);
+      if (!channelInPlay(channelId, session.mode?.id ?? DEFAULT_MODE_ID)) {
+        return reply
+          .code(404)
+          .send({ error: 'no-such-channel', message: 'This session has no such channel.' });
+      }
+
       const outcome = await writeChannel(services.sessions, account.handle, sessionId, key, value);
       if (outcome.kind === 'no-session') {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
@@ -1214,7 +1274,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         session: outcome.session,
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
-        hud: channelSurfaces(outcome.session.channels),
+        hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
       });
     },
   );
@@ -1662,6 +1722,42 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .send({ error: 'no-such-turn', message: 'No such turn in this session to redo.' });
         }
         attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
+      }
+
+      /**
+       * ***The input kind, checked against what the mode declares*** — [06 §1],
+       * [06 §9], [P7.9].
+       *
+       * `ModeDefinition.inputs` has documented five kinds since P2 and been read
+       * by one line of `presentMode`: **nothing validated a submission against
+       * it**, so a client could send `kind: 'sing'` and the record would carry
+       * it forever. [06 §9]'s list of what an extension mode must be able to do
+       * includes *"define its own input kinds"*, and a declaration nothing
+       * enforces is not a definition of anything.
+       *
+       * **A 422 rather than a silent coercion to `do`.** The kinds change what
+       * the prompt says ([13 §8.3]'s per-kind block), so quietly narrating a
+       * `think` as a `do` would put the player's private thought in the scene —
+       * which is the one failure the kind exists to prevent. [00 §3.3]'s
+       * visible-refusal posture, at the door where the request is still a
+       * request.
+       *
+       * *One session read on the submit path*, which the poll path already makes
+       * and `submitTurn` is about to make again under its lock. The alternative
+       * was a new outcome arm through the job layer for a check that is about
+       * the **request** rather than about scheduling.
+       */
+      const kind = body.input.kind;
+      if (kind !== undefined) {
+        const submitting = await readSession(services.sessions, account.handle, sessionId);
+        const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
+        if (submitting !== null && accepted !== undefined && !accepted.includes(kind)) {
+          return reply.code(422).send({
+            error: 'unknown-input-kind',
+            message: `This mode does not accept ${kind} input.`,
+            accepted,
+          });
+        }
       }
 
       const outcome = await submitTurn(services.jobs, {

@@ -34,7 +34,7 @@ import type { ChannelDefinition } from './channels.js';
 
 /**
  * Where a dial's live value lives — ***the answer to
- * [04 §7](../../../../docs/design/04-schemas.md)'s standing `[OPEN]`***, which
+ * [04 §7](../../../docs/design/04-schemas.md)'s standing `[OPEN]`***, which
  * predicted this stage by name.
  *
  * That paragraph: *"Where difficulty's **live** value lives is a question this
@@ -98,7 +98,7 @@ export const DIAL_CHANNELS: Record<DialAxis, string> = {
  * ***No enum in the schema, which is the deliberate half of this declaration.***
  * The levels are the pack's, so a build cannot know them: a preset that ships
  * five levels is as valid as one that ships three, and
- * [04 §8.2](../../../../docs/design/04-schemas.md)'s *"unions that must stay
+ * [04 §8.2](../../../docs/design/04-schemas.md)'s *"unions that must stay
  * open"* is the same argument one layer down. What checks a value is
  * `resolveLevel` (engine-side), at the point of use, against the preset actually in
  * play — and a value this preset does not know **reads as unset rather than as

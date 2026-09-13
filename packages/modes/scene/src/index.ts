@@ -5,7 +5,7 @@ import type { Mode } from '@storyengine/sdk';
 
 import { SCENE_MODE } from './mode.js';
 
-export { CLOCK_CHANNEL, NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
+export { BACKDROP_CHANNEL, CLOCK_CHANNEL, NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
 export { SCENE_PRESET } from './preset.js';
 
 /**
