@@ -15,13 +15,16 @@ import {
   type ImportNote,
   type ImportReport,
   type Actor,
+  type EmbeddedMedia,
   type Lorebook,
   type Treatment,
 } from '@storyengine/shared';
 
 import { identify, stampImported, type ConflictPolicy } from './identity.js';
 import { create, update, type LibraryContext } from '../library.js';
+import { contentHashOf } from '../index-db/ingest.js';
 import { codecFor } from '../storage/card/index.js';
+import type { BlobStore } from '../storage/card/envelope.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
@@ -299,11 +302,81 @@ class Writer {
       });
       return this.#write(actor, notes, null);
     }
-    return this.#write(actor, notes, pixels);
+
+    /**
+     * ***Every other asset is an expression*** — [03 §5.2.2], [06 §7.2],
+     * [P7.10].
+     *
+     * **`assets[0]` was the portrait and the rest were dropped**, which is why
+     * no actor in any install could carry a sprite: a CHARX collects every
+     * non-`card.json` entry ([import/charx/reader.ts]), Marinara's reader
+     * carries `sprites/` by name, and both arrived here and went in the bin.
+     * [06 §7.2] has asked for sprites since the first draft and P9 declines
+     * them in as many words — *"a sprite is not a rendition at 1.0… the backdrop
+     * is here because it has no source anywhere else; sprites have one"*. This
+     * is that source.
+     *
+     * ***`role: 'expression'`, and the filename stem is the `label`.***
+     * [03 §5.2.2] fixes the role vocabulary and calls the embedded set *"the
+     * character's visual identity — portrait source, references, a curated
+     * expression set"*, which is what a `sprites/` folder is. The **name** is
+     * the part with a choice in it: `EmbeddedMedia` carries both `label` and
+     * `tags`, and [04 §3] draws the line — *"role — closed union. The engine
+     * reads it and acts on it. tags — open. **Nothing in the engine branches on
+     * them.**"* Expression selection is the engine branching on a name, so the
+     * name is a `label`.
+     *
+     * *Counted in the review rather than done silently.* An import that
+     * quietly grew a character eight pictures is a surprise; one that says it
+     * did is a feature.
+     */
+    const rest = (candidate.assets ?? []).slice(1);
+    const expressions: EmbeddedMedia[] = [];
+    const blobs: BlobStore = new Map();
+
+    for (const path of rest) {
+      const bytes = await this.#request.files.read(path);
+      // Unreadable or not an image: skipped, never fatal. One bad asset must
+      // not cost the character it belongs to — the same rule the portrait above
+      // follows, one level down again.
+      const mime = mimeOf(path);
+      if (bytes === null || mime === null) continue;
+
+      const ref = uuidv7();
+      expressions.push({
+        id: uuidv7(),
+        role: 'expression',
+        mime,
+        digest: contentHashOf(bytes),
+        bytes: bytes.byteLength,
+        ref,
+        label: stemOf(path),
+        tags: [],
+      });
+      blobs.set(ref, bytes);
+    }
+
+    if (expressions.length > 0) {
+      notes.push({
+        key: 'import.card.expressions',
+        params: { actor: actor.name, count: String(expressions.length) },
+        level: 'info',
+      });
+    }
+
+    const withMedia =
+      expressions.length === 0 ? actor : { ...actor, media: [...actor.media, ...expressions] };
+
+    return this.#write(withMedia, notes, pixels, blobs.size === 0 ? undefined : blobs);
   }
 
-  async #write(actor: Actor, notes: ImportNote[], pixels: Uint8Array | null): Promise<string> {
-    return this.store(actor, ACTOR_SCHEMA, notes, pixels);
+  async #write(
+    actor: Actor,
+    notes: ImportNote[],
+    pixels: Uint8Array | null,
+    media?: BlobStore,
+  ): Promise<string> {
+    return this.store(actor, ACTOR_SCHEMA, notes, pixels, media);
   }
 
   /**
@@ -321,6 +394,8 @@ class Writer {
     schemaId: PortableSchemaId,
     notes: ImportNote[],
     pixels: Uint8Array | null = null,
+    /** Media that arrived beside the card — [P7.10]. Keyed by `EmbeddedMedia.ref`. */
+    media?: BlobStore,
   ): Promise<'created' | 'unchanged' | 'replaced' | 'kept-both' | 'skipped' | 'failed'> {
     const { library, handle } = this.#request;
     const identity = await identify(library, handle, schemaId, object);
@@ -389,7 +464,9 @@ class Writer {
         handle,
         object,
         undefined,
-        pixels === null ? undefined : { cardPixels: pixels },
+        pixels === null
+          ? undefined
+          : { cardPixels: pixels, ...(media === undefined ? {} : { media }) },
       );
       return identity.kind === 'changed' ? 'kept-both' : 'created';
     } catch (error) {
@@ -592,4 +669,47 @@ function countBy(items: readonly ImportItemReport[]): Record<ImportDisposition, 
   };
   for (const item of items) counts[item.disposition] += 1;
   return counts;
+}
+
+/**
+ * An image's media type from its extension — [P7.10].
+ *
+ * **Extension and not magic**, which is the opposite of `codecFor` above it and
+ * is right for this: the portrait has to be a *card*, so what it really is
+ * decides; an expression is just a picture the browser will render, and what it
+ * is called is what the `content-type` header has to say. **A file this list
+ * does not know is skipped** rather than guessed at — an unnamed type in a
+ * `content-type` is a download prompt where a face should be.
+ */
+function mimeOf(path: string): string | null {
+  const dot = path.lastIndexOf('.');
+  const extension = dot === -1 ? '' : path.slice(dot + 1).toLowerCase();
+  switch (extension) {
+    case 'png':
+      return 'image/png';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    default:
+      return null;
+  }
+}
+
+/**
+ * The filename without its directory or extension — `sprites/neutral.png` reads
+ * as `neutral`.
+ *
+ * *This is the expression's name*, and it comes from the filename because that
+ * is where both source programs put it: [03 §5.2]'s own layout sketch is
+ * `sprites/{neutral,angry,…}.png`. A person who wants a different word renames
+ * the file, which is the affordance the format already has.
+ */
+function stemOf(path: string): string {
+  const name = path.split('/').at(-1) ?? path;
+  const dot = name.lastIndexOf('.');
+  return dot === -1 ? name : name.slice(0, dot);
 }

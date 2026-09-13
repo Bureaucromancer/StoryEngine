@@ -673,6 +673,18 @@ export const api = {
 
   avatarUrl: (id: string, contentHash: string): string =>
     `/api/library/actors/${encodeURIComponent(id)}/avatar?v=${encodeURIComponent(contentHash)}`,
+
+  /**
+   * One embedded media entry's bytes — [P7.10].
+   *
+   * *Cache-busted by the media's own `digest` rather than by the object's
+   * content hash*, which is the same decision the route's etag makes: editing a
+   * line of a character's description must not re-fetch their whole expression
+   * set.
+   */
+  mediaUrl: (kind: string, id: string, mediaId: string, digest: string): string =>
+    `/api/library/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/media/` +
+    `${encodeURIComponent(mediaId)}?v=${encodeURIComponent(digest)}`,
 };
 
 /**
