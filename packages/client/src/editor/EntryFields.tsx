@@ -10,11 +10,12 @@ import { groupSummary } from '../library/entry-defaults.js';
 import {
   fieldsOf,
   groupsOf,
+  labelFor,
   loreEntrySchema,
   type FieldGroup,
   type FieldRow,
 } from '../library/fields.js';
-import { CheckboxField, Field } from '../ui/Field.js';
+import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
 import { joinLines, splitLines } from './form.js';
 
@@ -252,11 +253,88 @@ function EntryRow(props: {
           hint="Off keeps the entry in the book without ever firing it. A folder gate is separate and does not change this."
         />
       );
+    /**
+     * ***Where the entry lands, and the second half of [P7 §0.1a] item 11*** —
+     * [P7.14]. `outlet` is a position no surface could set: an entry could be
+     * made an outlet entry only by editing the file, which is [work plan §2.3]'s
+     * test failed outright — *"whether the feature can be used at all without
+     * someone setting the value"*.
+     *
+     * **A picker over the schema's own union**, the way `AdminInstall` renders a
+     * closed union and for the argument it records: a hand-written list is a
+     * second copy of the schema, and a second copy drifts. `positionOptions`
+     * reads the four literals out of `row.schema`.
+     */
+    case 'position':
+      return (
+        <SelectField
+          label={row.label}
+          value={entry.position}
+          options={positionOptions(row)}
+          onChange={(next) => {
+            onPatch({ position: next as LoreEntry['position'] });
+          }}
+          hint="Where an activated entry is pasted. An outlet entry lands wherever the preset puts it, rather than near the character."
+        />
+      );
+    /**
+     * ***Shown only at `outlet`***, and that is the one editorial judgement in
+     * this pair. The field is meaningless on a `before_char` entry — it names
+     * the `{{outlet::name}}` slot this entry fills — so a box sitting there
+     * inert on every other entry would be a question with no answer, which is
+     * what §11.2d's disclosure argument is about.
+     *
+     * *Read-only rather than hidden when it does not apply*, because a
+     * hand-edited book may carry a name on a non-outlet entry and a field that
+     * vanished would hide it. [04 §2]'s promise is that nothing is silently
+     * dropped, and the save keeps it either way — this is only about whether it
+     * can be typed into.
+     */
+    case 'outletName':
+      if (entry.position !== 'outlet') {
+        return (
+          <ReadOnlyField row={row} value={(entry as unknown as Record<string, unknown>)[row.key]} />
+        );
+      }
+      return (
+        <Field
+          label={row.label}
+          value={entry.outletName ?? ''}
+          onChange={(text) => {
+            // Empty is `null` rather than `''`: the schema's union is
+            // `string | null` and *no outlet named* is the null, so a blank box
+            // must not write a name that is the empty string.
+            onPatch({ outletName: text.trim() === '' ? null : text });
+          }}
+          hint="Exact and case-sensitive. The preset slot spelled {{outlet::name}} is where this lands."
+        />
+      );
     default:
       return (
         <ReadOnlyField row={row} value={(entry as unknown as Record<string, unknown>)[row.key]} />
       );
   }
+}
+
+/**
+ * The four placements, from the schema's own union rather than from a list here.
+ *
+ * **`labelFor` on the value**, so `before_char` reads as *Before char* and the
+ * words come from the same derivation every field label uses. A table mapping
+ * each literal to nicer prose is the second description this module is built to
+ * avoid — and it would be a table of English in a file [01 §2] keeps English out
+ * of, which is the same objection one level up.
+ *
+ * *An empty union falls back to the entry's own value*, so a build reading a
+ * schema it cannot parse renders a picker with one option rather than an empty
+ * one that would silently clear the field on focus.
+ */
+function positionOptions(row: FieldRow): [string, string][] {
+  const arms = (row.schema as { anyOf?: { const?: unknown }[] } | undefined)?.anyOf ?? [];
+  const values = arms
+    .map((arm) => arm.const)
+    .filter((value): value is string => typeof value === 'string');
+  return values.map((value) => [value, labelFor(value)]);
 }
 
 /**

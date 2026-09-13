@@ -4327,6 +4327,77 @@ Neither is redundant, which is the same argument the two boundary layers make.
 
 ---
 
+### P7.14 — The two configuration surfaces the standing line was still owed
+
+[work plan §2.3]'s own qualification governs both: *"The test is whether the
+feature can be used at all without someone setting the value."* Both fail it,
+for different reasons, and they are the two of [§0.1a] item 11's four that this
+phase did not declare and still inherits.
+
+**The per-book retrieval knobs.** `scanDepth`, `tokenBudget`, `entryLimit`,
+`recursiveScanning`, `maxRecursionDepth` and the book-level `enabled` gate all
+have live consumers in `retrieval/` — read on every turn that reaches the book —
+and **no write path anywhere**: a hand edit to the file was the only way to set
+one. `recursiveScanning` is the sharpest case, because it is off by default and
+nothing could turn it on, so a documented feature was unreachable rather than
+merely awkward.
+
+*Labels through `labelFor` rather than written here*, which comes out identical
+to the read view's five — the point rather than a coincidence, since
+[polish §1]'s *one description, two renderings* means the two surfaces must not
+be able to drift and two literal tables are how they would. **Bounds from the
+schema** for [10 §15.3]'s reason: `entryLimit` is 1–1000 in `lorebook.ts`, so the
+browser refuses an out-of-range value before the save does.
+
+***One label is written by hand and the exception is narrow.*** The book's own
+gate would be *Enabled*, and this page already has an *Enabled* — the selected
+entry's own switch, two sections down. Two controls with one accessible name is
+the ambiguity [10 §15.2] exists to prevent, and a section heading resolves it
+visually and not for anybody reading the controls in order. The five knobs keep
+the derivation because they have a second rendering; this one has none, so there
+is nothing to drift from.
+
+**Outlets were unreachable twice over.** `EntryFields`'s switch had five cases,
+and both `position` and `outletName` fell through to read-only — so an entry
+could not be made an outlet entry *or* named. Both are cases now, with
+`outletName` **offered only at `position === 'outlet'`** and read-only otherwise:
+the field names the `{{outlet::name}}` slot this entry fills, so on a
+`before_char` entry it is a question with no answer. *Read-only rather than
+hidden*, because a hand-edited book may carry a name on a non-outlet entry and a
+field that vanished would hide it — [04 §2]'s promise is that nothing is silently
+dropped, and this is only about whether it can be typed into.
+
+*The four placements come from the schema's own union*, so a fifth arrives here
+with no edit — `AdminInstall`'s argument, which it records having learned the
+hard way: a hand-written list carried a value the union did not have, and picking
+it answered 400 with the form saying nothing.
+
+***And a live bug found on the way, which is the part worth reading.***
+`reapplyBookEdits`'s docstring said everything outside `entries` and `folders`
+takes the newer object's value, *"which is correct only while this editor writes
+nothing else"*, and named the coupling to watch. **The coupling had already
+arrived when that was written**: the book's own **name** has been writable since
+this editor shipped, because the create control owes a rename and §11.2d's
+minimum does not. So *rename a book, lose the 412 race, reload-and-reapply, and
+the rename was silently theirs again.* The fix is the same three-way merge every
+entry field gets, through the same function — `withMyFields` made generic rather
+than restated, because *did I change this from what I opened* is the same
+question at both levels.
+
+***What is not done, and cannot be here.*** **The outlet's authoring half.** An
+outlet only lands if a **preset slot** names it, no shipped preset sets one, and
+**there is no preset editor in the client at all** — `fields.ts` routes editors
+for `actors` and `lorebooks` and nothing else. The *diagnostic* half is already
+closed: `blocks.ts` reports *"no preset slot positions the outlet X"* in the lore
+report, so an author who names an outlet nothing reads is told. Authoring it is
+**P11's**, where [10 §11]'s editor sweep lives — and it is the same surface
+`stagingNotes` and every Treatment and Setup field needs, since [§0.1a] records
+that there is no Treatment or Setup editor either. *One surface, four waiting
+consumers, no owner*: that is the shape that should be sized rather than
+absorbed.
+
+---
+
 ## 3. Verification — the P7 exit gate
 
 ~~Sketch; expand on revisit.~~ *The ten steps were the sketch and they stand.

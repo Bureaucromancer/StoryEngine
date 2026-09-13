@@ -254,12 +254,24 @@ function inMyOrder(merged: LoreEntry[], draft: Draft): LoreEntry[] {
  * the end. That is the mirror of the loss named above, taken in the direction
  * that costs one entry's position rather than an author's whole arrangement.
  *
- * Everything outside `entries` and `folders` takes the newer object's value,
+ * ~~Everything outside `entries` and `folders` takes the newer object's value,
  * which is correct **only while this editor writes nothing else** — the book's
  * own name, description and budgets are read-only at this stage ([10 §11.2d]'s
  * minimum), so there is no edit of mine to those that could be lost here. An
  * editor that gains a writable book-level field gains a line in this function,
- * and that is the coupling to watch.
+ * and that is the coupling to watch.~~
+ *
+ * ***The coupling it named arrived, and had already arrived when it was
+ * written*** ([P7.14]). The book's own **name** has been writable since this
+ * editor shipped — the create control owes a rename and §11.2d's minimum does
+ * not — so *rename a book, lose the race, reload-and-reapply, and the rename is
+ * silently theirs again*. [P7.14]'s retrieval fieldset makes it six more fields
+ * rather than one, which is what turned an invisible loss into an obvious one.
+ *
+ * **So the book's own fields get the three-way treatment every entry field
+ * gets**, through the same function: a field I changed from `pristine` is mine,
+ * and anything else is theirs. `entries` and `folders` are merged above and are
+ * excluded here, because their merge is finer than *did this change*.
  */
 export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): Draft {
   const mine = new Map(entriesOf(draft).map((entry) => [entry.id, entry]));
@@ -293,10 +305,33 @@ export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): D
 
   const merged = [...kept, ...rescued];
   return {
-    ...fresh,
+    ...withMyBookFields(pristine, draft, fresh),
     entries: reorderedByMe(pristine, draft) ? inMyOrder(merged, draft) : merged,
     folders: mergedFolders(pristine, draft, fresh),
   };
+}
+
+/**
+ * The book's own fields, merged the way an entry's are — [P7.14].
+ *
+ * **`withMyFields` reused rather than restated**, which is the whole reason this
+ * is four lines: the question *did I change this from what I opened* is the same
+ * question at both levels, and the answer has the same three cases. The two
+ * container fields are overwritten by the caller immediately after, so they are
+ * stripped here rather than special-cased inside — a merge that ran over
+ * `entries` would compare two forty-entry arrays by `JSON.stringify` to produce
+ * a value nothing reads.
+ */
+function withMyBookFields(pristine: Draft, draft: Draft, fresh: Draft): Draft {
+  const without = (book: Draft): Draft => {
+    const rest: Draft = {};
+    for (const [key, value] of Object.entries(book)) {
+      if (key !== 'entries' && key !== 'folders') rest[key] = value;
+    }
+    return rest;
+  };
+
+  return withMyFields(without(pristine), without(draft), without(fresh));
 }
 
 /**
@@ -307,10 +342,10 @@ export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): D
  * (which a hand-edited file can have and this editor cannot, yet) is removed
  * here too rather than resurrected from their copy.
  */
-function withMyFields(was: LoreEntry, held: LoreEntry, theirs: LoreEntry): LoreEntry {
-  const mine = held as unknown as Record<string, unknown>;
-  const original = was as unknown as Record<string, unknown>;
-  const yours = theirs as unknown as Record<string, unknown>;
+function withMyFields<T extends object>(was: T, held: T, theirs: T): T {
+  const mine = held as Record<string, unknown>;
+  const original = was as Record<string, unknown>;
+  const yours = theirs as Record<string, unknown>;
 
   // Built up rather than cloned-and-deleted, so a field I removed is simply
   // never added — and so that key order follows theirs, which the no-op rule
@@ -325,7 +360,7 @@ function withMyFields(was: LoreEntry, held: LoreEntry, theirs: LoreEntry): LoreE
     }
   }
 
-  return merged as unknown as LoreEntry;
+  return merged as T;
 }
 
 /**

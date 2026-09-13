@@ -52,6 +52,17 @@ import type { LibraryKind } from '../api.js';
 export interface SchemaNode {
   properties?: Record<string, unknown>;
   items?: unknown;
+  /**
+   * The numeric bounds, read by {@link boundsOf} — added at [P7.14], when the
+   * first editor over a bounded number needed them.
+   *
+   * Two more keywords the emitted artefact is *not obliged* to carry, which is
+   * why `boundsOf` returns what it finds rather than a pair: an unbounded field
+   * and a field whose bounds this build cannot see must render the same way, or
+   * the absence becomes a claim.
+   */
+  minimum?: number;
+  maximum?: number;
 }
 
 /** One field, as both renderings see it. */
@@ -301,11 +312,20 @@ export function schemaFor(schemaId: string): SchemaNode | undefined {
  * an acronym would come out wrong, and the answer to that is a `title` on the
  * field rather than a list of exceptions here, because a list of exceptions is
  * a second description again.
+ *
+ * **And on the underscore, added at [P7.14]** when the first caller passed an
+ * enum *value* rather than a key: `before_char` → *Before char*. No key in any
+ * of the 215 the portable schemas declare carries one — they are camelCase
+ * throughout — so this widens what the function accepts without changing what it
+ * answers for anything that already called it. *A value is a machine name like a
+ * key is*, which is the whole reason the same derivation serves both and a table
+ * of nicer prose does not get written.
  */
 export function labelFor(key: string): string {
   const words = key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Za-z])(\d)/g, '$1 $2')
+    .replace(/_+/g, ' ')
     .toLowerCase()
     .trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -404,6 +424,25 @@ export function groupsOf(rows: FieldRow[]): FieldGroup[] {
   }
 
   return groups;
+}
+
+/**
+ * What the schema says a number may be — [10 §15.3]'s precedent, at [P7.14]:
+ * *"its numeric inputs carry the server's own bounds, and it says so when a save
+ * is refused."*
+ *
+ * **Spread into the props rather than returned as a pair**, because
+ * `exactOptionalPropertyTypes` makes `min: undefined` and *no* `min` different
+ * things, and only the second renders an unbounded input.
+ */
+export function boundsOf(schema: SchemaNode | undefined): {
+  min?: number;
+  max?: number;
+} {
+  return {
+    ...(typeof schema?.minimum === 'number' ? { min: schema.minimum } : {}),
+    ...(typeof schema?.maximum === 'number' ? { max: schema.maximum } : {}),
+  };
 }
 
 /**
