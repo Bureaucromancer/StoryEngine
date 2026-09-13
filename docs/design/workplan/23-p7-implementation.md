@@ -4,7 +4,9 @@
 part, re-audited 2026-09-10 at `46bec98` — and this is now the phase in front of
 us.~~ ~~Buildable work done, 2026-09-13 — ten stages landed~~ Buildable work
 done, 2026-09-13 — **fifteen stages landed**, **§3.2** is the gate's results
-table, and three criticals await a person (C1, C2, C3). ~~Scene grown up is the
+table, and three criticals await a person (C1, C2, C3). **Merged into `main`
+2026-09-13 at `589900e`, `--no-ff`, and the merge is deliberately *not* the
+close.** ~~Scene grown up is the
 one stage deliberately left to wait on PLAYABLE, for **§0.2**'s stated
 reason.~~ ***Scene is grown up*** (P7.12), built around the hold rather than
 through it: the three channels §7.2 asks for, a step in the mode package that
@@ -15,7 +17,27 @@ route and expression import both needed, row 2b's lint rule, and the last two
 configuration-without-a-surface instances. Drafted 2026-08-29, with P3 landed and
 [P4](16-p4-implementation.md) planned but not started, so it was written four
 phases ahead of its phase and §0 says what that kind of document is honestly
-for. ~~Four have landed since — P4, P5, P6 and P6A, the last of them cutting
+for.
+
+***Why the merge is not the close, said here because three phases of precedent
+say it should be.*** [P6A](19-p6a-alpha-1.md)'s status line reads *"the merge is
+the close, as it was for P5 and P6"*, and
+[manual testing §7](05-manual-testing.md) — written after all three, with the
+two-tier gate adopted 2026-09-09 — says a phase closes when its buildable work is
+done **and its critical list is walked**. **P7 is the first phase where those two
+disagree**: P5's criterion returned an empty critical list and P6's close
+predates the model, so this is the first derived, non-empty critical list the
+rule has ever had to hold. C1, C2 and C3 are unwalked and each needs a person.
+
+**So the work is on the trunk and the phase is open.** Closing here would waive
+the two-tier gate on its first real test, which is the failure §0 of that
+document says the model was adopted to end — *five accumulated unwalked*. The
+separation has precedent of its own: [P6](18-p6-implementation.md) merged
+2026-09-03 and recorded its close on 09-09, six days apart. **What closes this
+phase is a one-line edit to this paragraph after the three sittings**, and §3.2
+is where their results go.
+
+~~Four have landed since — P4, P5, P6 and P6A, the last of them cutting
 Alpha 1~~ **Five have landed or opened since — P4, P5, P6, P6A and P6B** — so
 §0.1 is the readiness audit that started turning this into a plan and **§0.1a is
 the one that finishes the job**, because §0.1 went stale the day after it was
