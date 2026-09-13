@@ -190,8 +190,17 @@ export const PARTY_CHANNEL: ChannelDefinition = {
    * authors: 06 §8's second rule is *"default is one member, `control:
    * 'player'`"*, so membership and authorship arrive together and a member with
    * no control would be a state the design does not describe.
+   *
+   * ***`null` is in the enum, and leaving it out meant nobody could ever leave
+   * the party*** — found at [P7.5] by `channels.test.ts`'s new invariant, which
+   * holds every registered channel to being able to be written the value its own
+   * `init` declares. This one said *absent is not in the party* in the docstring
+   * below and then refused a proposal of `null` against this schema, so removing
+   * a companion was a write `acceptEffect` would have recorded as a **refusal**.
+   * It was invisible because nothing has removed anybody yet: [P7.3] built the
+   * reader and the declaration, and the control that writes it is [P7.9]'s.
    */
-  schema: { type: 'string', enum: [...CONTROLS] },
+  schema: { type: ['string', 'null'], enum: [...CONTROLS, null] },
   /**
    * **Absent is not in the party**, and the read-time invariant below is what
    * makes that compatible with 06 §8's first rule — *"the party always exists

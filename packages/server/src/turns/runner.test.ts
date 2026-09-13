@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
+import type { PlotHook } from '@storyengine/shared';
 
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
@@ -2659,21 +2660,27 @@ describe('a session with a hook pool', () => {
     await writeFile(file, JSON.stringify({ ...session, hooks }));
   }
 
-  const WAR: PooledHook[] = [
-    {
-      hook: {
-        id: 'hook-war',
-        title: 'War',
-        premise: 'The Flower Kingdom will declare war.',
-        magnitude: 'sweeping',
-        involves: [],
-        weight: 1,
-        delivery: 'guidance',
-        once: true,
+  /** One hook in a pool, attributed to a treatment. */
+  function war(over: Partial<PlotHook> = {}): PooledHook[] {
+    return [
+      {
+        hook: {
+          id: 'hook-war',
+          title: 'War',
+          premise: 'The Flower Kingdom will declare war.',
+          magnitude: 'sweeping',
+          involves: [],
+          weight: 1,
+          delivery: 'guidance',
+          once: true,
+          ...over,
+        },
+        source: { kind: 'treatment', id: 't1' },
       },
-      source: { kind: 'treatment', id: 't1' },
-    },
-  ];
+    ];
+  }
+
+  const WAR = war();
 
   it('runs the selector every turn and writes its line onto the record', async () => {
     await seedPool(WAR);
@@ -2803,6 +2810,89 @@ describe('a session with a hook pool', () => {
     // And the judgement call assembled nothing from the preset at all, which is
     // what `cheap` means and what makes the claim above checkable.
     expect(turn.request?.calls[0]?.notFilled ?? []).toHaveLength(0);
+  });
+
+  /**
+   * **Commit, end to end, through the route that already existed** — [06 §6.1],
+   * [P7.5] stage four.
+   *
+   * *"I want this to happen — not necessarily on this turn."* It needed no new
+   * route and no policy change: `se.hook` is `engine-computed`, which refuses a
+   * `model` and a `step` and **admits a `user`**, and the channel write is
+   * attributed to a person. The only thing that had to change was the enum, so
+   * the channel's schema would accept the value.
+   */
+  it('lets a person commit a hook the filter had refused, and fires it', async () => {
+    // `notBefore: { turn: 40 }` — forty turns away, and committed anyway.
+    await seedPool(war({ notBefore: { turn: 40 } }));
+    const written = await writeChannel(
+      sessions,
+      ACCOUNT,
+      sessionId,
+      'se.hook#hook-war',
+      'committed',
+    );
+    expect(written.kind === 'written' && written.effect.applied).toBe(true);
+
+    makeRunner({ script: [{ object: { hookId: 'hook-war' } }, { text: 'The door opened.' }] });
+    const turn = await runNextTurn();
+
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+    // And the record says what the commitment carried it past, which is [06
+    // §6.1]'s first rule for keeping Commit honest.
+    expect(turn.hooks?.considered).toEqual([
+      { hookId: 'hook-war', refusal: null, committed: { overrode: 'too-early' } },
+    ]);
+    // The firing replaces the commitment on the same key — the states are
+    // exclusive, which is what makes *absent is in the pool* readable.
+    expect(turn.effects.find((effect) => effect.channelId === 'se.hook')).toMatchObject({
+      scopeKey: 'hook-war',
+      after: 'fired',
+      applied: true,
+    });
+  });
+
+  /**
+   * **Patience runs out, and the deadline is a lapse rather than a firing** —
+   * [06 §6.1], [P7.5]. *"One that fires anyway at the deadline delivers the
+   * twist at the exact moment the selector has already rejected three times —
+   * the worst available moment."* So the hook goes back in the pool, and the
+   * turn record **says so**, because a silent lapse is worse than either
+   * outcome.
+   */
+  it('lapses a commitment nobody found a moment for, and says so', async () => {
+    await seedPool(WAR);
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook#hook-war', 'committed');
+    // One reply serves both calls of every turn: the judgement reads `object`
+    // and says *not yet*, the narrator reads `text`. The script clamps to its
+    // last entry, so this repeats for as many turns as the test runs.
+    makeRunner({ script: [{ object: { hookId: null }, text: 'The door opened.' }] });
+
+    // The commitment's own turn is the channel write; the three after it are the
+    // chances the selector gets.
+    for (let chance = 0; chance < 3; chance += 1) {
+      const waiting = await runNextTurn();
+      expect(waiting.hooks?.verdict, `chance ${String(chance + 1)}`).toBe('judged-none');
+      expect(waiting.hooks?.lapsed).toBeUndefined();
+    }
+
+    const expired = await runNextTurn();
+    expect(expired.hooks?.lapsed).toEqual(['hook-war']);
+    // Cleared to null, which on this channel *is* back in the pool:
+    // `se.hook`'s init is `{ kind: 'literal', value: null }`, so null is what an
+    // unfired hook already reads as. `before` carries the commitment away, which
+    // is what an undo of this turn would put back.
+    const cleared = expired.effects.find((effect) => effect.channelId === 'se.hook');
+    expect(cleared).toMatchObject({
+      scopeKey: 'hook-war',
+      before: 'committed',
+      after: null,
+      applied: true,
+    });
+
+    // And it really is back: the next turn considers it with no commitment on it.
+    const after = await runNextTurn();
+    expect(after.hooks?.considered).toEqual([{ hookId: 'hook-war', refusal: null }]);
   });
 
   /**

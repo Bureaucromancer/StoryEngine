@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Candidate, StepDefinition, StepImplementation } from '@storyengine/sdk';
+import type { Candidate, StepDefinition, StepImplementation, StepInput } from '@storyengine/sdk';
 import type { HookPacing, HookSelection, PlotHook, Turn } from '@storyengine/shared';
 
 import {
   filterHooks,
   gate,
+  HOOK_PATIENCE,
   SE_HOOK,
   SE_HOOK_PACING,
   type FilterContext,
   type HookState,
+  type HookVerdict,
 } from '../sessions/hooks.js';
+import { channelKey } from '../sessions/channels.js';
 import type { PooledHook } from '../sessions/types.js';
 
 /**
@@ -147,6 +150,18 @@ export interface HookSelectorReport {
    * — the refusal working exactly as designed on the first thing that tried it.*
    */
   fired?: { hookId: string; state: HookState };
+  /**
+   * Commitments that ran out of patience, for the runner to clear — [06 §6.1],
+   * [P7.5]. Same route as {@link fired} and for the same reason: `se.hook` is
+   * `engine-computed`, so a step cannot write it.
+   *
+   * *Cleared to null rather than deleted*, which on this channel is the same
+   * claim: `se.hook` declares `init: { kind: 'literal', value: null }`, so **null
+   * is what *in the pool* resolves to**. `store.ts`'s `inverseOf` draws the two
+   * apart for a timing counter whose init is an object; here there is nothing to
+   * draw apart — and `acceptEffect` admits only a whole-value set, deliberately.
+   */
+  lapses?: readonly string[];
 }
 
 export interface HookSelectorContext {
@@ -173,30 +188,74 @@ export function hookSelector(context: HookSelectorContext): {
     definition: HOOK_SELECTOR_STEP,
     run: async (input, host) => {
       const path = input.history ?? [];
-      const filter: FilterContext = { ...context.filter, channels: input.channels, path };
-      const verdicts = filterHooks(context.pool, filter);
+      const at = (channels: StepInput['channels']): FilterContext => ({
+        ...context.filter,
+        channels,
+        path,
+      });
+
+      /**
+       * **The filter runs before the lapses and again after them, when there are
+       * any.** A commitment that has run out of patience is *back in the pool* on
+       * this very turn, which means the filter has something to say about it that
+       * the commitment was suppressing — and the honest way to get that answer is
+       * to ask the filter against the state the lapse leaves behind, rather than
+       * to reconstruct it.
+       *
+       * *The second pass costs nothing on the overwhelming majority of turns,
+       * because `lapses` is empty on all of them.*
+       */
+      const lapses = lapsed(filterHooks(context.pool, at(input.channels)), path);
+      const verdicts =
+        lapses.length === 0
+          ? filterHooks(context.pool, at(input.channels))
+          : filterHooks(context.pool, at(without(input.channels, lapses)));
+
       const considered = verdicts.map((verdict) => ({
         hookId: verdict.hook.id,
         refusal: verdict.refusal,
+        ...(verdict.committed === undefined ? {} : { committed: verdict.committed }),
       }));
-      const eligible = verdicts.filter((verdict) => verdict.refusal === null).map((v) => v.hook);
+      const eligible = verdicts.filter((verdict) => verdict.refusal === null);
+      const committed = eligible.filter((verdict) => verdict.committed !== undefined);
+      // Never written empty: *absent* is the ordinary turn.
+      const lapse = lapses.length === 0 ? {} : { lapses };
+      const said = lapses.length === 0 ? {} : { lapsed: lapses };
 
       const decision = gate({
         pacing: context.pacing,
         depth: path.length,
         firedAt: lastFiredAt(path),
         eligible: eligible.length,
+        committed: committed.length > 0,
       });
 
       if (decision !== 'judged') {
-        context.report({ selection: { verdict: decision, pacing: context.pacing, considered } });
+        context.report({
+          selection: { verdict: decision, pacing: context.pacing, considered, ...said },
+          ...lapse,
+        });
         return {};
       }
 
-      const chosen = await judge(eligible, input.output?.text ?? lastOutput(path), host);
+      /**
+       * **A commitment changes the question from *whether* to *where***, which
+       * [06 §6.1] calls *"the difference between committing a hook and forcing
+       * one"*. So the candidates narrow to the committed ones and the call still
+       * runs — a person has said *this*, and the selector is still choosing
+       * *now*.
+       */
+      const offered = (committed.length > 0 ? committed : eligible).map((v) => v.hook);
+      const chosen = await judge(
+        offered,
+        input.output?.text ?? lastOutput(path),
+        committed.length > 0,
+        host,
+      );
       if (chosen === null) {
         context.report({
-          selection: { verdict: 'judged-none', pacing: context.pacing, considered },
+          selection: { verdict: 'judged-none', pacing: context.pacing, considered, ...said },
+          ...lapse,
         });
         return {};
       }
@@ -208,13 +267,93 @@ export function hookSelector(context: HookSelectorContext): {
           pacing: context.pacing,
           hookId: chosen.id,
           considered,
+          ...said,
         },
         guidance: guidanceFor(chosen, entrance),
         fired: { hookId: chosen.id, state: stateFor(chosen) },
+        ...lapse,
       });
       return {};
     },
   };
+}
+
+/**
+ * Which commitments have run out of patience — [06 §6.1], [P7.5].
+ *
+ * **Three turns, and the deadline is a lapse rather than a firing.** *"A
+ * commitment that waits forever is indistinguishable from no commitment, and one
+ * that fires anyway at the deadline delivers the twist at the exact moment the
+ * selector has already rejected three times — the worst available moment."* So
+ * the hook goes back in the pool and the turn record says so.
+ *
+ * ***Counted on the path, which is the clause that decides the implementation.***
+ * *"Commit at ten, fire at twelve, rewind to eleven, and the commitment
+ * correctly survives with one turn already spent — which only holds if the count
+ * is derived from the path rather than stored."* So this walks the path for the
+ * effect that wrote the commitment instead of reading a counter, exactly as
+ * `lastFiredAt` does one function down, and for the same reason.
+ *
+ * *A commitment with no effect on this path is one made on another branch*, and
+ * it is **not** lapsed: the channel value reconstructs at this node, so it is
+ * live here, and the honest reading is that its clock has not started. Anything
+ * else would expire a commitment a rewind had just restored.
+ */
+function lapsed(verdicts: readonly HookVerdict[], path: readonly Turn[]): string[] {
+  return verdicts
+    .filter((verdict) => verdict.committed !== undefined)
+    .filter((verdict) => {
+      const made = committedAt(path, verdict.hook.id);
+      if (made === null) return false;
+      /**
+       * **`chances`, written out, because the off-by-one here is the whole
+       * decision and a bare comparison hides it.**
+       *
+       * The commitment lands as an effect on the turn at `made`, and that turn
+       * is not one of them: `PUT /channels/:key` appends a turn carrying the
+       * effect and nothing else — no model call, no selector. So the first turn
+       * the selector is asked on is `made + 1`, and by the turn now being judged
+       * it has been asked `path.length - made` times **counting this one**.
+       *
+       * Patience is three of those. The lapse is therefore what happens when a
+       * fourth would be due — which is [06 §6.1]'s *"the selector has already
+       * rejected three times"*, and is why the deadline is a lapse rather than a
+       * firing: at that point the worst available moment is the one left.
+       */
+      const chances = path.length - made;
+      return chances > HOOK_PATIENCE;
+    })
+    .map((verdict) => verdict.hook.id);
+}
+
+/** Where on the path a hook's commitment was made, or null if not on it. */
+function committedAt(path: readonly Turn[], hookId: string): number | null {
+  let at: number | null = null;
+  path.forEach((turn, depth) => {
+    for (const effect of turn.effects) {
+      if (!effect.applied || effect.channelId !== SE_HOOK || effect.scopeKey !== hookId) continue;
+      // The *most recent* write wins, whatever it was: a commitment re-made
+      // after a lapse restarts its patience, which is the only reading under
+      // which committing something twice means anything.
+      at = effect.after === 'committed' ? depth : null;
+    }
+  });
+  return at;
+}
+
+/**
+ * The channel map as the lapse leaves it — the lapsed keys gone, not nulled.
+ *
+ * Rebuilt rather than deleted from, because the input is the step's own payload
+ * and a reader that mutated it would be writing into the runner's `running` map
+ * from inside a step.
+ */
+function without(
+  channels: StepInput['channels'],
+  hookIds: readonly string[],
+): StepInput['channels'] {
+  const gone = new Set(hookIds.map((id) => channelKey(SE_HOOK, id)));
+  return Object.fromEntries(Object.entries(channels).filter(([key]) => !gone.has(key)));
 }
 
 /**
@@ -262,12 +401,13 @@ export function lastFiredAt(path: readonly Turn[]): number | null {
 async function judge(
   eligible: readonly PlotHook[],
   recent: string,
+  committed: boolean,
   host: Parameters<StepImplementation>[1],
 ): Promise<PlotHook | null> {
   const ids = eligible.map((hook) => hook.id);
   const result = await host.call({
     candidates: [
-      block('se.hooks.select.task', 'system', TASK),
+      block('se.hooks.select.task', 'system', committed ? COMMITTED_TASK : TASK),
       block('se.hooks.select.pool', 'system', poolText(eligible)),
       ...(recent.length === 0 ? [] : [block('se.hooks.select.recent', 'user', recent)]),
     ],
@@ -298,6 +438,24 @@ async function judge(
  * refers to is still the pack's, and arrives as an ordinary block when the pack
  * grows one.
  */
+/**
+ * The question a **commitment** asks, which is not the one below it.
+ *
+ * [06 §6.1]: Commit *"does not choose the moment. Stage 2 still runs, with the
+ * question changed from whether to where, and that is the difference between
+ * committing a hook and forcing one."* So *prefer null* is gone — a person has
+ * already decided that this should happen — and what is left is whether this is
+ * the place. **Bounded patience is what stops that becoming *say yes eventually*
+ * and is the reason this prompt can afford to be permissive**: three turns, and
+ * then the commitment lapses rather than firing anyway.
+ */
+const COMMITTED_TASK = [
+  'Someone has decided that one of the beats below should happen in this story.',
+  'You are not choosing whether — only whether this is the moment for it.',
+  'Answer with the id of the beat if now is a reasonable place for it, or null to wait.',
+  'Do not wait for a perfect opening; a workable one is enough.',
+].join('\n');
+
 const TASK = [
   'You are choosing whether an authored plot beat should be introduced now.',
   'Answer with the id of at most one beat, or null.',

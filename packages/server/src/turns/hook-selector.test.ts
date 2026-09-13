@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { StepCallRequest, StepCallResult, StepHost, StepInput } from '@storyengine/sdk';
-import type { HookSelection, PlotHook } from '@storyengine/shared';
+import type { HookPacing, HookSelection, PlotHook } from '@storyengine/shared';
 
 import { installBuiltIns } from '../mode-loader.js';
 import { channelKey } from '../sessions/channels.js';
@@ -119,6 +119,7 @@ async function select(options: {
   history?: Turn[];
   known?: string[];
   answer?: Partial<StepCallResult>;
+  pacing?: HookPacing;
 }) {
   // A holder rather than a bare `let`, for the reason the runner's `inFlight` is
   // one: it is assigned from inside a closure the type checker cannot follow,
@@ -131,7 +132,7 @@ async function select(options: {
       activeBooks: new Set(),
       persona: null,
     },
-    pacing: 'aggressive',
+    pacing: options.pacing ?? 'aggressive',
     report: (given) => {
       held.report = given;
     },
@@ -418,5 +419,239 @@ describe('the step it declares itself as', () => {
      * `stepRoles`.
      */
     expect(definition.role).toBe('prose');
+  });
+});
+
+/**
+ * **Commit** — [06 §6.1]'s play affordance, [P7.5] stage four.
+ *
+ * *"Committing a hook marks it must-fire immediately: it skips eligibility, it
+ * is exempt from cooldown and cadence, and it opens the pacing gate every turn
+ * until it lands."* **What it does not do is choose the moment** — stage two
+ * still runs, *"with the question changed from whether to where, and that is the
+ * difference between committing a hook and forcing one."*
+ */
+describe('a commitment', () => {
+  const COMMITTED = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'committed' } };
+
+  /** A turn whose one effect is the commitment, which is what starts its clock. */
+  function commit(hookId = 'hook-war'): Turn {
+    return turn({
+      effects: [
+        {
+          id: 'e1',
+          turnId: 't',
+          channelId: SE_HOOK,
+          scopeKey: hookId,
+          op: { type: 'set', path: '/' },
+          before: null,
+          after: 'committed',
+          proposedBy: { kind: 'user' },
+          applied: true,
+          rejectedReason: null,
+          supersedes: null,
+          channelVersion: 1,
+          scope: 'session',
+        },
+      ],
+    });
+  }
+
+  it('is judged even at a setting that would otherwise hold', async () => {
+    const run = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: [commit()],
+      pacing: 'manual-only',
+      answer: { object: { hookId: 'hook-war' } },
+    });
+
+    expect(run.report.selection).toMatchObject({ verdict: 'fired', pacing: 'manual-only' });
+  });
+
+  /**
+   * *The question changes, and the record shows it.* A person has already decided
+   * **whether**; the call is only being asked **where**, so the prompt drops
+   * *prefer null* — which is the line that would otherwise make a committed hook
+   * wait out its patience against a selector told to be reluctant.
+   */
+  it('asks where rather than whether', async () => {
+    const plain = await select({ pool: pooled(hook()), answer: { object: { hookId: null } } });
+    const run = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: [commit()],
+      answer: { object: { hookId: null } },
+    });
+
+    const asked = (host: typeof run.host) =>
+      host.asked[0]?.candidates?.map((candidate) => candidate.text).join('\n') ?? '';
+    expect(asked(plain.host)).toContain('Prefer null');
+    expect(asked(run.host)).not.toContain('Prefer null');
+    expect(asked(run.host)).toContain('not choosing whether');
+  });
+
+  /**
+   * **It still may answer no**, which is what separates Commit from force-fire.
+   * The commitment persists — nothing is written, nothing lapses — and the
+   * selector is asked again next turn.
+   */
+  it('waits when the call says not yet, and stays committed', async () => {
+    const run = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: [commit()],
+      answer: { object: { hookId: null } },
+    });
+
+    expect(run.report.selection.verdict).toBe('judged-none');
+    expect(run.report.fired).toBeUndefined();
+    expect(run.report.lapses).toBeUndefined();
+  });
+
+  it('narrows the question to the committed hooks', async () => {
+    const run = await select({
+      pool: pooled(hook({ id: 'hook-war' }), hook({ id: 'hook-peace' })),
+      channels: COMMITTED,
+      history: [commit()],
+      answer: { object: { hookId: null } },
+    });
+
+    const asked = run.host.asked[0];
+    // Both are eligible; only the committed one is offered, because *whether*
+    // has been answered and only *where* is left.
+    expect(asked?.schema).toMatchObject({ properties: { hookId: { enum: ['hook-war', null] } } });
+  });
+
+  it('carries the clause it overrode into the turn record', async () => {
+    const run = await select({
+      pool: pooled(hook({ notBefore: { turn: 40 } })),
+      channels: COMMITTED,
+      history: [commit()],
+      answer: { object: { hookId: 'hook-war' } },
+    });
+
+    expect(run.report.selection.considered).toEqual([
+      { hookId: 'hook-war', refusal: null, committed: { overrode: 'too-early' } },
+    ]);
+  });
+});
+
+/**
+ * **Patience is bounded, and the deadline is a lapse rather than a firing** —
+ * [06 §6.1]. *"One that fires anyway at the deadline delivers the twist at the
+ * exact moment the selector has already rejected three times — the worst
+ * available moment."* So it returns to the pool and **says so**, because a
+ * silent lapse is worse than either outcome.
+ */
+describe('a commitment that runs out of patience', () => {
+  const COMMITTED = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'committed' } };
+
+  function commitAt(depth: number, length: number): Turn[] {
+    return Array.from({ length }, (_unused, at) =>
+      at === depth
+        ? turn({
+            effects: [
+              {
+                id: 'e1',
+                turnId: 't',
+                channelId: SE_HOOK,
+                scopeKey: 'hook-war',
+                op: { type: 'set', path: '/' },
+                before: null,
+                after: 'committed',
+                proposedBy: { kind: 'user' },
+                applied: true,
+                rejectedReason: null,
+                supersedes: null,
+                channelVersion: 1,
+                scope: 'session',
+              },
+            ],
+          })
+        : turn(),
+    );
+  }
+
+  it('holds for three turns and lapses on the fourth', async () => {
+    // Committed at 0, judged on the turns after it: two spent, then three.
+    const waiting = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: commitAt(0, 3),
+      answer: { object: { hookId: null } },
+    });
+    expect(waiting.report.lapses).toBeUndefined();
+    expect(waiting.report.selection.lapsed).toBeUndefined();
+
+    const spent = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: commitAt(0, 4),
+      answer: { object: { hookId: null } },
+    });
+    expect(spent.report.lapses).toEqual(['hook-war']);
+    expect(spent.report.selection.lapsed).toEqual(['hook-war']);
+  });
+
+  /**
+   * ***Counted on the path, which is the clause that decides the
+   * implementation.*** *"Commit at ten, fire at twelve, rewind to eleven, and the
+   * commitment correctly survives with one turn already spent."* The same node
+   * reached down a shorter path has spent less of its patience — which only
+   * holds because the count is derived rather than stored.
+   */
+  it('spends less patience on a path where fewer turns happened', async () => {
+    const long = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: commitAt(0, 4),
+      answer: { object: { hookId: null } },
+    });
+    const short = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: commitAt(0, 2),
+      answer: { object: { hookId: null } },
+    });
+
+    expect(long.report.lapses).toEqual(['hook-war']);
+    expect(short.report.lapses).toBeUndefined();
+  });
+
+  /**
+   * **A commitment made on another branch has not started its clock**, which is
+   * the reading a rewind forces: the channel value reconstructs at this node, so
+   * the hook *is* committed here, and expiring it because the effect that made it
+   * is not on this path would lapse a commitment the rewind had just restored.
+   */
+  it('does not lapse a commitment whose effect is not on this path', async () => {
+    const run = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: [turn(), turn(), turn(), turn(), turn()],
+      answer: { object: { hookId: null } },
+    });
+
+    expect(run.report.lapses).toBeUndefined();
+  });
+
+  /**
+   * **Back in the pool, and the filter gets its say again on the very turn it
+   * lapses.** The commitment was suppressing a refusal; once it is gone the
+   * record should show what the filter actually thinks, not a stale `null`.
+   */
+  it('hands the hook back to the filter as it goes', async () => {
+    const run = await select({
+      pool: pooled(hook({ notBefore: { turn: 40 } })),
+      channels: COMMITTED,
+      history: commitAt(0, 4),
+    });
+
+    expect(run.report.selection.lapsed).toEqual(['hook-war']);
+    expect(run.report.selection.considered).toEqual([{ hookId: 'hook-war', refusal: 'too-early' }]);
+    // Nothing was eligible once it went back, so nobody was asked.
+    expect(run.report.selection.verdict).toBe('nothing-eligible');
+    expect(run.host.asked).toHaveLength(0);
   });
 });

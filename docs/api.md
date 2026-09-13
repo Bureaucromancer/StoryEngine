@@ -1086,6 +1086,16 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
+**It is also how a hook is committed** — [06 §6.1]'s Commit, and the reason it
+needed no route of its own: `se.hook#<hookId>` set to `"committed"` marks a hook
+must-fire, which skips eligibility, exempts it from cooldown and cadence, and
+opens the pacing gate every turn until it lands. The channel is
+`engine-computed`, which refuses a model and a step and **admits a person** — so
+this route is the one thing that may write it. *What a commitment does not do is
+choose the moment*: the selector still runs, with the question changed from
+*whether* to *where*, and after **three turns** an unplaced commitment lapses
+back into the pool, which the turn's `hooks.lapsed` records.
+
 **And it is the only way to turn a `user-only` channel**, of which the build has
 one: `se.hook.pacing`, the hook selector's dial —
 `sparse` | `normal` | `aggressive` | `manual-only`
@@ -1243,6 +1253,13 @@ none* are deliberately different answers: a record that merged them would make a
 correctly-quiet session indistinguishable from a broken one. **Absent means the
 selector did not run**, which is every session with no pool — never *it ran and
 had nothing to say*.
+
+A `considered` entry carries `committed: { overrode }` when a person's Commit is
+carrying that hook, where `overrode` is the eligibility clause it skipped or
+`null` if there was none — [06 §6.1]'s rule that *skipping the filter must say
+what it skipped*. `hooks.lapsed` lists the commitments that ran out of patience
+on this turn and went back into the pool; it is absent on an ordinary turn and
+never written empty.
 
 ### `PUT /api/sessions/:sessionId/head`
 

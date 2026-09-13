@@ -980,8 +980,8 @@ export class TurnRunner {
     }
 
     /**
-     * **A fired hook, after the loop and not as a step** — [06 §6.1], [P7.5],
-     * and the same rule the clock states below.
+     * **A fired hook and a lapsed commitment, after the loop and not as a
+     * step** — [06 §6.1], [P7.5], and the same rule the clock states below.
      *
      * `se.hook` is `engine-computed` because *a firing is the selector's
      * decision and a model proposing one would be a hook firing itself*; the
@@ -995,21 +995,60 @@ export class TurnRunner {
      * bookkeeping* — the same ordering the retriever's counters get for the
      * mirror-image reason.
      */
-    if (!aborted && hooks.report?.fired !== undefined) {
-      const { hookId, state } = hooks.report.fired;
-      const effect = acceptEffect(
-        job.turnId,
-        {
-          channelId: SE_HOOK,
-          scopeKey: hookId,
-          op: { type: 'set', path: '/' },
-          after: state,
-          proposedBy: { kind: 'engine' },
-        },
-        running,
-      );
-      effects.push(effect);
-      running = applyEffects(running, [effect]);
+    if (!aborted && hooks.report !== null) {
+      /**
+       * **The lapses first, because one of them may be the hook that fired.**
+       * A commitment that ran out of patience goes back in the pool, and the
+       * selector re-filtered against that; applying the firing first and then
+       * deleting the key would clear the state it had just written. Ordering
+       * them is cheaper than special-casing the overlap.
+       *
+       * ***A set to null rather than a delete, and on this channel those are
+       * the same claim.*** `store.ts`'s `inverseOf` draws the distinction
+       * sharply — a key present holding null can mean *something happened and
+       * the record of it is broken* — but that argument is about a timing
+       * counter whose init is an object. `se.hook` declares
+       * `init: { kind: 'literal', value: null }`, so **null is what *in the pool*
+       * resolves to** and a reader cannot tell the two apart even in principle.
+       *
+       * *And `acceptEffect` admits only a whole-value set*, deliberately: every
+       * partial op is a reducer the P6 gate would have to be re-proved against,
+       * and [P7 §0.2] item 6 records the decision to add an arm only when a
+       * channel can say why its value cannot be scoped instead. This one cannot
+       * say that, because it does not need to.
+       */
+      for (const hookId of hooks.report.lapses ?? []) {
+        const effect = acceptEffect(
+          job.turnId,
+          {
+            channelId: SE_HOOK,
+            scopeKey: hookId,
+            op: { type: 'set', path: '/' },
+            after: null,
+            proposedBy: { kind: 'engine' },
+          },
+          running,
+        );
+        effects.push(effect);
+        running = applyEffects(running, [effect]);
+      }
+
+      if (hooks.report.fired !== undefined) {
+        const { hookId, state } = hooks.report.fired;
+        const effect = acceptEffect(
+          job.turnId,
+          {
+            channelId: SE_HOOK,
+            scopeKey: hookId,
+            op: { type: 'set', path: '/' },
+            after: state,
+            proposedBy: { kind: 'engine' },
+          },
+          running,
+        );
+        effects.push(effect);
+        running = applyEffects(running, [effect]);
+      }
     }
 
     /**

@@ -55,22 +55,50 @@ export const SE_HOOK = 'se.hook';
 /**
  * What has happened to one hook.
  *
- * **Two arms, and `committed` is not one of them yet.** [06 §6.1]'s Commit is a
- * third state — must-fire, exempt from cooldown, opening the pacing gate every
- * turn until it lands — and it arrives with the control that writes it. A value
- * the filter could read and nothing could produce is the placeholder shape this
- * phase keeps refusing; the schema widens additively when Commit ships.
+ * ~~**Two arms, and `committed` is not one of them yet.**~~ ***Three, as of
+ * [P7.5] stage four*** — the arm arrived with the control that writes it, which
+ * is the condition the paragraph below set. *A value the filter could read and
+ * nothing could produce is the placeholder shape this phase keeps refusing*, and
+ * what changed is not that the rule relaxed: `PUT /sessions/:id/channels/:key`
+ * writes this channel attributed to a **person**, and `engine-computed` refuses
+ * a `model` and a `step` and admits a `user` — deliberately, and stated in
+ * `effects.ts` in as many words. So Commit needed no route and no policy change,
+ * only this enum widening to let the schema accept the value.
+ *
+ * `committed` is [06 §6.1]'s *"I want this to happen — not necessarily on this
+ * turn"*: **must-fire, exempt from cooldown and cadence, opening the pacing gate
+ * every turn until it lands**, and skipping eligibility because *"a person
+ * overriding a filter is a decision, not a bug"*. What it does **not** do is
+ * choose the moment — stage two still runs, with the question changed from
+ * *whether* to *where*, which is the difference between committing a hook and
+ * forcing one.
  *
  * `provisional` is [06 §6.1]'s honest reading of the slot an introduction fires
  * through: guidance is advisory and the narrator may decline it, and for an
  * introduction a decline is *"a silent permanent loss — marked fired, character
  * never arrived, and once-only"*. So it is recorded provisionally and becomes
  * fired only when the extract stage confirms the subject present. **Absent is in
- * the pool**, which is also where a lapsed provisional returns to — the attempt
- * stays on the record, which is what the effect log is.
+ * the pool**, which is also where a lapsed provisional returns to — and where a
+ * lapsed *commitment* returns to. The attempt stays on the record either way,
+ * which is what the effect log is.
  */
-export const HOOK_STATES = ['fired', 'provisional'] as const;
+export const HOOK_STATES = ['fired', 'provisional', 'committed'] as const;
 export type HookState = (typeof HOOK_STATES)[number];
+
+/**
+ * How many turns a commitment waits before it lapses — [06 §6.1], [P7.5].
+ *
+ * **Three, and a constant rather than a setting**: *"pacing is untested, and a
+ * number nobody has played against is a guess, not a tunable."*
+ *
+ * ***And the deadline is a lapse rather than a firing***, which is the decision
+ * worth keeping in front of a reader who is tempted to "fix" it. *"A commitment
+ * that waits forever is indistinguishable from no commitment, and one that fires
+ * anyway at the deadline delivers the twist at the exact moment the selector has
+ * already rejected three times — the worst available moment."* So it returns to
+ * the pool and **says so**, because a silent lapse is worse than either outcome.
+ */
+export const HOOK_PATIENCE = 3;
 
 export const HOOK_CHANNEL: ChannelDefinition = {
   id: SE_HOOK,
@@ -86,7 +114,21 @@ export const HOOK_CHANNEL: ChannelDefinition = {
    * directly; nothing about that needs the channel to be player-visible.
    */
   visibility: 'hidden',
-  schema: { type: 'string', enum: [...HOOK_STATES] },
+  /**
+   * ***`null` is in the enum, and leaving it out was a real bug rather than
+   * tidiness*** — found at [P7.5] stage four, when a lapsing commitment tried to
+   * put a hook back in the pool and `acceptEffect` refused the write against
+   * this very schema.
+   *
+   * **A channel whose `init` is a value its schema rejects cannot be returned to
+   * its initial state.** That is what `{ type: 'string' }` said here: the
+   * declaration below starts every hook at `null`, and nothing could ever write
+   * `null` again. It was invisible for exactly as long as nothing tried —
+   * firing only ever writes a string — and `channels.test.ts` now holds every
+   * registered channel to the invariant, because the next declaration to get it
+   * wrong will get it wrong the same way.
+   */
+  schema: { type: ['string', 'null'], enum: [...HOOK_STATES, null] },
   init: { kind: 'literal', value: null },
   budget: null,
 };
@@ -114,6 +156,24 @@ export interface HookVerdict {
   hook: PlotHook;
   /** `null` when it is eligible. */
   refusal: HookRefusal | null;
+  /**
+   * Present when a person's commitment is carrying this hook — [06 §6.1],
+   * [P7.5].
+   *
+   * ***Its presence is the commitment, and `overrode` is the first of the three
+   * rules that keep Commit honest.*** *"Skipping the filter must say what it
+   * skipped. The failure this section names twice is a hook firing about someone
+   * dead four sessions ago; a control that permits it silently reintroduces that
+   * failure by hand."* So `refusal` goes to `null` — the hook **is** eligible,
+   * because a person said so — and the clause it walked past travels beside it,
+   * `null` when there was none.
+   *
+   * *One field rather than two, because the two facts are one fact*: a reader
+   * needs *this is committed* and *this is what committing it cost* together, and
+   * a `committed: true` beside an `overrode?:` would let a record carry the
+   * second without the first.
+   */
+  committed?: { overrode: HookRefusal | null };
 }
 
 export interface FilterContext {
@@ -168,10 +228,24 @@ export function filterHooks(pool: readonly PooledHook[], context: FilterContext)
   }
   const introduced = introducedOn(context.path);
 
-  return pool.map((entry) => ({
-    hook: entry.hook,
-    refusal: refuse(entry, context, fired, introduced),
-  }));
+  return pool.map((entry) => {
+    const refusal = refuse(entry, context, fired, introduced);
+    /**
+     * **A commitment carries a hook past the filter, and records what it carried
+     * it past** — [06 §6.1], [P7.5]. *"A person overriding a filter is a
+     * decision, not a bug"*, and the decision is still answerable afterwards
+     * because the clause travels with it.
+     *
+     * *`refuse` runs in full for a committed hook rather than being skipped*,
+     * which is the only way `overrode` can say anything: the state check at the
+     * top of it returns early for `fired` and `provisional` and deliberately not
+     * for this, so every clause below is still evaluated and the first failure is
+     * what a person overrode.
+     */
+    return readHookState(context.channels, entry.hook.id) === 'committed'
+      ? { hook: entry.hook, refusal: null, committed: { overrode: refusal } }
+      : { hook: entry.hook, refusal };
+  });
 }
 
 function refuse(
@@ -185,6 +259,8 @@ function refuse(
   const state = readHookState(context.channels, hook.id);
   if (state === 'fired') return 'fired';
   if (state === 'provisional') return 'pending';
+  // `committed` is deliberately not a third early return: its caller wants every
+  // clause below evaluated, so that skipping the filter can say what it skipped.
 
   if (source.kind === 'lore' && !context.activeBooks.has(source.id)) return 'book-inactive';
 
@@ -443,6 +519,22 @@ export function gate(options: {
   firedAt: number | null;
   /** Whether stage one left anything to judge. */
   eligible: number;
+  /**
+   * Whether a person has committed one of the eligible hooks — [06 §6.1],
+   * [P7.5].
+   *
+   * **This is what makes *immediately* an honest word under `sparse`.** A
+   * commitment *"is exempt from cooldown and cadence, and it opens the pacing
+   * gate every turn until it lands"*, which is the whole of its effect here —
+   * and `manual-only` is no exception, because a dial that could veto a person's
+   * own decision is not the dial [06 §6.1] describes.
+   *
+   * *It does not open the gate over an empty pool*: `nothing-eligible` still
+   * wins, and it has to, because a committed hook is by construction an eligible
+   * one — so a commitment with nothing eligible means the commitment is not in
+   * this pool at all.
+   */
+  committed?: boolean;
 }): GateVerdict {
   const { cadence, cooldown } = PACING[options.pacing];
 
@@ -452,6 +544,7 @@ export function gate(options: {
    * turn the dial up, and turning it up changes nothing when the pool is empty.
    */
   if (options.eligible === 0) return 'nothing-eligible';
+  if (options.committed === true) return 'judged';
   if (options.firedAt !== null && options.depth - options.firedAt < cooldown) return 'cooling';
   if (!Number.isFinite(cadence) || options.depth % cadence !== 0) return 'held';
   return 'judged';

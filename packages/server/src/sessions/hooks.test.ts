@@ -132,7 +132,14 @@ describe('what the pool has already done', () => {
     // The channel's schema refuses one on the way in; a hand-edited file is the
     // path that gets past it, and *in the pool* is the answer that keeps a
     // session playable.
-    const channels = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'committed' } };
+    //
+    // **This said `'committed'` until [P7.5] stage four**, when the state
+    // arrived and the test went red — which is the same shape as `effects.ts`'s
+    // unknown-channel fixture having to stop being `se.party` the moment that
+    // channel was declared. A fixture that names a value the build is *about* to
+    // have is a test with an expiry date on it; this one now names a value
+    // nothing will ever declare.
+    const channels = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'smouldering' } };
 
     expect(readHookState(channels, 'hook-war')).toBeNull();
   });
@@ -354,6 +361,65 @@ describe('what comes back', () => {
 });
 
 /**
+ * **Commit** — [06 §6.1]'s play affordance, [P7.5] stage four.
+ *
+ * *"I want this to happen — not necessarily on this turn"* is the sentence the
+ * whole feature is for, and until this arrived the only way to act on it was to
+ * add a hook and hope. What the filter owes it is one of §6.1's three rules:
+ * **skipping the filter must say what it skipped**, because *"the failure this
+ * section names twice is a hook firing about someone dead four sessions ago, and
+ * a control that permits it silently reintroduces that failure by hand."*
+ */
+describe('a committed hook', () => {
+  function committed(id = 'hook-war') {
+    return { [channelKey(SE_HOOK, id)]: { value: 'committed' } };
+  }
+
+  it('is eligible even when the filter would have refused it', () => {
+    const blocked = hook({ notBefore: { turn: 40 } });
+
+    expect(refusalOf(pooled(blocked), context())).toBe('too-early');
+    expect(refusalOf(pooled(blocked), context({ channels: committed() }))).toBeNull();
+  });
+
+  /**
+   * The first rule, and the whole of Commit's honesty: the clause a person
+   * overrode travels beside the hook, so *the confirmation names the clause that
+   * failed and proceeds* has something to name.
+   */
+  it('says what the commitment carried it past', () => {
+    const dead = hook({ involves: [{ id: 'actor-vera', name: 'Vera' }] });
+    const verdict = filterHooks(pooled(dead), context({ channels: committed() }))[0];
+
+    expect(verdict?.refusal).toBeNull();
+    expect(verdict?.committed).toEqual({ overrode: 'cast-gone' });
+  });
+
+  it('says so too when there was nothing to carry it past', () => {
+    // `null` rather than the field being absent: *committed and eligible anyway*
+    // is a different claim from *not committed*, and a panel offering a
+    // confirmation needs to tell them apart.
+    const verdict = filterHooks(pooled(hook()), context({ channels: committed() }))[0];
+
+    expect(verdict?.committed).toEqual({ overrode: null });
+  });
+
+  /**
+   * **The one clause a commitment does not override**, and it is the one that
+   * would make the record lie: a hook already `fired` has no `committed` value
+   * to read, because the two are the same channel and the states are exclusive.
+   * Committing a fired hook is therefore *un-firing* it, which is a person's
+   * decision and reads exactly as one.
+   */
+  it('replaces the firing it is written over, rather than stacking on it', () => {
+    const channels = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'committed' } };
+
+    expect(readHookState(channels, 'hook-war')).toBe('committed');
+    expect(refusalOf(pooled(hook()), context({ channels }))).toBeNull();
+  });
+});
+
+/**
  * [04 §6.1b]'s ordering, and the reason it is a reader rather than an `init`.
  *
  * *"A Treatment proposes, a Setup overrides, and the running session owns it."*
@@ -518,6 +584,33 @@ describe('the pacing gate', () => {
     expect(gate({ pacing: 'manual-only', depth: 4, firedAt: null, eligible: 0 })).toBe(
       'nothing-eligible',
     );
+  });
+
+  /**
+   * **A commitment opens the gate every turn until it lands** — [06 §6.1], and
+   * *"that is what makes **immediately** an honest word under `sparse`"*. Exempt
+   * from cooldown and from cadence both, and `manual-only` is no exception: a
+   * dial that could veto a person's own decision is not the dial that section
+   * describes.
+   */
+  it('opens the gate for a commitment, at every setting and through a cooldown', () => {
+    for (const pacing of ['sparse', 'normal', 'aggressive', 'manual-only'] as const) {
+      expect(gate({ pacing, depth: 5, firedAt: 4, eligible: 1, committed: true })).toBe('judged');
+    }
+    // And the same node without the commitment is refused, which is what makes
+    // the assertions above about the commitment rather than about the numbers.
+    expect(gate({ pacing: 'normal', depth: 5, firedAt: 4, eligible: 1 })).toBe('cooling');
+  });
+
+  /**
+   * *But not over an empty pool*, and it has to be that way round: a committed
+   * hook is by construction an eligible one, so a commitment with nothing
+   * eligible means the commitment is not in this pool at all.
+   */
+  it('still reports nothing eligible ahead of a commitment', () => {
+    expect(
+      gate({ pacing: 'aggressive', depth: 3, firedAt: null, eligible: 0, committed: true }),
+    ).toBe('nothing-eligible');
   });
 
   /**

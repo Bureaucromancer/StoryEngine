@@ -3304,11 +3304,91 @@ Recorded rather than refused, because a hook that cannot fire at all is the wors
 answer — the beat still reaches the turn, and what an author loses is that it is
 woven rather than printed.
 
-**Next:** Commit, with its bounded three-turn patience counted on the path and the
-third `HOOK_STATES` arm that arrives with it; the hook panel ([10 §10.1]) and
-force-fire in the workbench; session-local hooks addable to a *running* session;
-and `introduces`' provisional firings being confirmed by the extract stage, which
-is [P7.7]'s and is what closes this stage's fourth property row.
+**Done: stage four — Commit, and two channels that could not be written what
+they start as** (2026-09-13).
+
+**Commit needed no route and no policy change.** [06 §6.1] calls it *"the play
+affordance and the one this design had been missing"* — *"I want this to happen —
+not necessarily on this turn"* — and the only thing standing in the way was the
+`HOOK_STATES` enum, which stage one left at two arms *"until the control that
+writes it"* arrived. The control already existed: `PUT
+/sessions/:id/channels/:key` writes a channel attributed to a **person**, and
+`engine-computed` refuses a `model` and a `step` and **admits a `user`**,
+deliberately and stated in `effects.ts` in as many words. So the arm widened and
+Commit worked. *That is the placeholder rule paying off rather than being
+relaxed: the value arrived the day something could produce it.*
+
+**All three of §6.1's honesty rules are mechanisms rather than intentions.**
+
+- ***Skipping the filter says what it skipped.*** `refuse` runs in **full** for a
+  committed hook — the state check returns early for `fired` and `provisional`
+  and deliberately not for this — so the first clause it would have failed
+  travels beside the verdict as `committed: { overrode }`. The failure §6.1 names
+  twice is a hook firing about someone dead four sessions ago, and *"a control
+  that permits it silently reintroduces that failure by hand"*. One field rather
+  than two, because *committed* and *what committing it cost* are one fact: a
+  `committed: true` beside an `overrode?:` would let a record carry the second
+  without the first.
+- ***Patience is bounded and the deadline is a lapse.*** Three turns, a constant
+  rather than a setting because *"a number nobody has played against is a guess,
+  not a tunable"*. The count is written out as `chances = path.length - made`
+  with the off-by-one argued in place: the commitment's own turn is the channel
+  write, which runs no selector, so the first chance is the turn after it. A
+  fourth would be due at `chances > 3`, and that is where it lapses — *"one that
+  fires anyway at the deadline delivers the twist at the exact moment the
+  selector has already rejected three times"*.
+- ***Counted on the path.*** `committedAt` walks the path for the effect rather
+  than reading a counter, which is what makes *"commit at ten, fire at twelve,
+  rewind to eleven, and the commitment correctly survives with one turn already
+  spent"* true. **A commitment with no effect on this path has not started its
+  clock** — the channel value reconstructs at the node, so it is live here, and
+  expiring it would lapse a commitment a rewind had just restored.
+
+*The question changes from **whether** to **where**, and the prompt is where that
+lives*: the candidates narrow to the committed hooks and *prefer null* comes out
+of the task text, because a person has already answered whether. **Bounded
+patience is what lets that prompt be permissive** — it cannot degrade into *say
+yes eventually*, because at four it lapses instead.
+
+*A lapse is a field rather than a sixth verdict.* A turn can lapse a commitment
+**and** fire something else, or lapse one and be held; a verdict forced to be one
+or the other would lose whichever it did not name. And the hook goes back through
+the **filter** on the very turn it lapses — the commitment was suppressing a
+refusal, and the record should show what the filter actually thinks.
+
+***Two shipped channels could not be written the value their own `init`
+declares***, which is a finding the feature walked into rather than looked for.
+`se.hook` declared `init: { kind: 'literal', value: null }` beside `schema: {
+type: 'string', enum: [...] }`, so a lapsing commitment putting a hook back in
+the pool was **refused against the channel's own idea of what it starts as**.
+`se.party` had the identical bug with the identical consequence — *absent is not
+in the party* in its docstring, and a proposal of `null` refused — which nothing
+had noticed because [P7.3] shipped the reader and the declaration, and the
+control that removes a companion is [P7.9]'s. `mode-loader.test.ts` now holds
+**every channel `installBuiltIns` registers** to the invariant. *Two channels,
+one shape, neither author noticing: `init` and `schema` sit a dozen lines apart
+in one object literal and each reads correctly alone, which is what a property is
+for.* It lives there rather than in `channels.test.ts` because that file
+registers deliberately-invalid fixtures to test refusals, and the registry is a
+module global.
+
+*And the lapse clears to `null` rather than deleting the key*, which on this
+channel is the same claim — `init` **is** `null`, so there is nothing to draw
+apart, and `acceptEffect` admits only a whole-value set for the reason
+[P7 §0.2] item 6 records: every partial op is a reducer the P6 gate would have to
+be re-proved against.
+
+*One test expired and was rewritten rather than deleted.* `hooks.test.ts`'s
+unknown-state case used `'committed'` as the value this build does not know, and
+went red the moment it did — the same shape as `effects.test.ts`'s
+unknown-channel fixture having to stop being `se.party` when that channel was
+declared. **A fixture naming a value the build is about to have is a test with an
+expiry date on it.**
+
+**Next:** the hook panel ([10 §10.1]) with Commit on it and force-fire
+deliberately in the workbench instead; session-local hooks addable to a *running*
+session; and `introduces`' provisional firings confirmed by the extract stage,
+which is [P7.7]'s and is what closes this stage's fourth property row.
 
 ### P7.6 — Goals
 

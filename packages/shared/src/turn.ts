@@ -537,8 +537,34 @@ export interface HookSelection {
    * be invisible"*. Ids rather than hooks: the pool is on the session and a turn
    * that copied premises into the record would be [08 §6]'s hidden content
    * written into a file the workbench renders.
+   *
+   * `committed` is present when a person's Commit is carrying the hook, and its
+   * `overrode` is the clause that carried it past — [06 §6.1]'s first rule for
+   * keeping Commit honest: *"skipping the filter must say what it skipped"*.
+   * `null` there means there was nothing to skip.
    */
-  considered: readonly { hookId: string; refusal: HookRefusal | null }[];
+  considered: readonly {
+    hookId: string;
+    refusal: HookRefusal | null;
+    committed?: { overrode: HookRefusal | null };
+  }[];
+  /**
+   * Commitments that ran out of patience on this turn — [06 §6.1], [P7.5].
+   *
+   * ***A field of its own rather than a sixth verdict, because a lapse is not
+   * what the selector decided.*** Three turns pass, the hook goes back in the
+   * pool, and the selector still goes on to judge whatever else is eligible —
+   * so a turn can lapse a commitment **and** fire something, or lapse one and be
+   * held. A verdict that had to be one or the other would lose whichever it did
+   * not name.
+   *
+   * *It is here at all because [06 §6.1] requires it*: the deadline *"returns it
+   * to the pool and **says so**, because a silent lapse is worse than either
+   * outcome"* — worse than firing late and worse than waiting forever, both of
+   * which at least leave the person able to tell what happened. Absent is the
+   * ordinary turn; it is never written empty.
+   */
+  lapsed?: readonly string[];
 }
 
 export type StepStage = 'pre' | 'assemble' | 'generate' | 'extract' | 'post';

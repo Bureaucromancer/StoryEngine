@@ -5,7 +5,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BUILT_IN_MODE_PACKAGES, installBuiltIns, loadModes } from './mode-loader.js';
 import { DEFAULT_MODE_ID, modeById, planFor, registeredModes } from './mode-registry.js';
-import { channelDefinition, SE_CLOCK, SE_LORE_TIMING } from './sessions/channels.js';
+import { schemaFailure } from './sessions/channel-schema.js';
+import {
+  channelDefinition,
+  registeredChannels,
+  SE_CLOCK,
+  SE_LORE_TIMING,
+} from './sessions/channels.js';
 
 /**
  * **The seam the move created, which nothing else in the suite crosses** —
@@ -138,5 +144,51 @@ describe('a mode package that is not one', () => {
     // using a real one rather than a stub keeps this honest about what "resolved
     // but wrong" looks like.
     await expect(loadModes('node:path')).rejects.toThrow(/does not export a 'modes' array/);
+  });
+});
+
+/**
+ * ***Every channel's declared starting value has to satisfy its own schema*** —
+ * [P7.5], and a property written because two shipped channels did not.
+ *
+ * `se.hook` declared `init: { kind: 'literal', value: null }` beside
+ * `schema: { type: 'string', enum: [...] }`, which meant **the state every hook
+ * starts in could never be written again**: `acceptEffect` validates a proposal
+ * against the schema, so putting a lapsed commitment back in the pool was
+ * refused against the channel's own idea of what it starts as. `se.party` had
+ * the identical bug and the identical consequence — *absent is not in the party*
+ * in its docstring, and a proposal of `null` refused — which nothing had noticed
+ * because [P7.3] shipped the reader and the declaration and the control that
+ * removes somebody is [P7.9]'s.
+ *
+ * **Two channels, one shape, neither author noticing**: `init` and `schema` are
+ * a dozen lines apart in one object literal and each reads correctly on its own.
+ * That is what a property is for.
+ *
+ * *Here rather than in `channels.test.ts`, and the reason is the registry being
+ * a module global*: that file registers deliberately-invalid fixtures to test
+ * refusals, so a loop over the registry there sees whatever an earlier test left
+ * behind. This file's subject is exactly what `installBuiltIns` puts in it.
+ */
+describe('a channel can start where it says it starts', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('holds for every channel the built-ins register', () => {
+    const declared = registeredChannels();
+    // Not vacuous: a build that registered nothing would pass a loop over it.
+    expect(declared.length).toBeGreaterThan(0);
+
+    for (const definition of declared) {
+      // The `authored` arm is checked through its `fallback`, which is the value
+      // an unauthored session actually gets ([04 §6.1b]).
+      const starts =
+        definition.init.kind === 'literal' ? definition.init.value : definition.init.fallback;
+      expect(
+        schemaFailure(definition, starts),
+        `${definition.id} cannot be written its own initial value`,
+      ).toBeNull();
+    }
   });
 });
