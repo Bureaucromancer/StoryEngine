@@ -533,7 +533,11 @@ describe('what the editor writes and what it only shows', () => {
     expect(limit.getAttribute('max')).toBe('1000');
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Recursive scanning' }));
-    expect(screen.getByRole('checkbox', { name: 'Recursive scanning' }).checked).toBe(true);
+    // The generic rather than an assertion: `getByRole` narrows for the caller,
+    // and an `as` here is the one spelling eslint and tsc disagreed about.
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Recursive scanning' }).checked,
+    ).toBe(true);
   });
 
   /**
