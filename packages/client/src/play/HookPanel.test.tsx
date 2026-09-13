@@ -17,6 +17,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const readSession = vi.fn();
 const writeSessionChannel = vi.fn();
+const addSessionHook = vi.fn();
+const removeSessionHook = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -24,6 +26,8 @@ vi.mock('../api.js', async (importOriginal) => {
     ...actual,
     readSession: (...a: unknown[]) => readSession(...a) as unknown,
     writeSessionChannel: (...a: unknown[]) => writeSessionChannel(...a) as unknown,
+    addSessionHook: (...a: unknown[]) => addSessionHook(...a) as unknown,
+    removeSessionHook: (...a: unknown[]) => removeSessionHook(...a) as unknown,
   };
 });
 
@@ -58,33 +62,67 @@ beforeEach(() => {
     effect: { applied: true, rejectedReason: null },
     health: [],
   });
+  addSessionHook.mockResolvedValue({ session: { id: SESSION_ID } });
+  removeSessionHook.mockResolvedValue({ session: { id: SESSION_ID } });
 });
 
-function renderPanel() {
+/**
+ * Rendered **open**, because a disclosure's contents are what every test below
+ * is about and `<details>` is closed by default. Opening it in each test would
+ * be six lines of the same click asserting nothing.
+ */
+async function renderPanel(): Promise<void> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <HookPanel sessionId={SESSION_ID} />
     </QueryClientProvider>,
   );
+  const summary = await screen.findByText(/^Plot hooks/);
+  summary.closest('details')?.setAttribute('open', '');
 }
 
 describe('the hook panel', () => {
-  it('shows nothing at all for a session with no pool', async () => {
-    // The ordinary case today, and an empty heading over it would be a surface
-    // claiming a feature is configured when it is not.
+  /**
+   * ***Present even with no pool, and that is the one place this panel breaks
+   * the "nothing when there is nothing" pattern its neighbours follow.*** The
+   * add form is inside it, and [03 §4.1] calls adding a hook to a running
+   * session *the primary path* — a panel that appeared only once a session
+   * already had hooks would make the primary path reachable exclusively from the
+   * path it is primary over.
+   */
+  it('is one line with an offer when there is no pool at all', async () => {
     answerWith([]);
-    renderPanel();
+    await renderPanel();
 
-    await waitFor(() => {
-      expect(readSession).toHaveBeenCalled();
-    });
-    expect(screen.queryByLabelText('Plot hooks')).toBeNull();
+    expect(screen.getByText('Plot hooks — none yet')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeTruthy();
+    // And no dial, because there is nothing for it to pace.
+    expect(screen.queryByRole('combobox', { name: 'How often hooks fire' })).toBeNull();
+  });
+
+  /**
+   * **Eligible rather than total**, because the total is a fact about the
+   * treatment and the eligible count is a fact about *now*: six hooks of which
+   * none can fire is the session state worth noticing from a closed panel.
+   */
+  it('says how many are eligible without being opened', async () => {
+    answerWith([WAR, { ...WAR, hookId: 'hook-late', refusal: 'too-early' }]);
+    await renderPanel();
+
+    expect(screen.getByText('Plot hooks — 1 of 2 eligible')).toBeTruthy();
+  });
+
+  it('counts commitments separately, because they are the ones going to fire', async () => {
+    answerWith([{ ...WAR, state: 'committed', committed: { overrode: null } }]);
+    await renderPanel();
+
+    expect(screen.getByText('Plot hooks — 0 of 1 eligible, 1 committed')).toBeTruthy();
   });
 
   it('names a hook by its title and says where it came from', async () => {
     answerWith([WAR]);
-    renderPanel();
+    await renderPanel();
 
     expect(await screen.findByText('War with the Flower Kingdom')).toBeTruthy();
     expect(screen.getByText('from the treatment')).toBeTruthy();
@@ -100,14 +138,14 @@ describe('the hook panel', () => {
    */
   it('shows the premise only once the hook has fired', async () => {
     answerWith([WAR]);
-    renderPanel();
+    await renderPanel();
     expect(await screen.findByText('War with the Flower Kingdom')).toBeTruthy();
     expect(screen.queryByText('The Flower Kingdom will declare war.')).toBeNull();
 
     answerWith([
       { ...WAR, state: 'fired', refusal: 'fired', premise: 'The Flower Kingdom will declare war.' },
     ]);
-    renderPanel();
+    await renderPanel();
     expect(await screen.findByText('The Flower Kingdom will declare war.')).toBeTruthy();
   });
 
@@ -115,7 +153,7 @@ describe('the hook panel', () => {
     // [06 §6.1]'s *which are blocked **and by what***, in the words a person
     // can act on rather than the class the wire carries.
     answerWith([{ ...WAR, refusal: 'too-early' }]);
-    renderPanel();
+    await renderPanel();
 
     expect(await screen.findByText('Waiting for a later turn')).toBeTruthy();
   });
@@ -124,7 +162,7 @@ describe('the hook panel', () => {
     // A client one deploy behind a server is the ordinary shape of this, and an
     // empty row would say *eligible* about a hook the engine is refusing.
     answerWith([{ ...WAR, refusal: 'moon-phase' }]);
-    renderPanel();
+    await renderPanel();
 
     expect(
       await screen.findByText('Held back for a reason this version does not recognise'),
@@ -139,7 +177,7 @@ describe('the hook panel', () => {
    */
   it('shows the dial at the level the session resolves to, and turns it', async () => {
     answerWith([WAR], 'sparse');
-    renderPanel();
+    await renderPanel();
 
     const dial = await screen.findByRole<HTMLSelectElement>('combobox', {
       name: 'How often hooks fire',
@@ -154,7 +192,7 @@ describe('the hook panel', () => {
 
   it('commits an eligible hook without asking', async () => {
     answerWith([WAR]);
-    renderPanel();
+    await renderPanel();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Commit' }));
 
@@ -172,7 +210,7 @@ describe('the hook panel', () => {
    */
   it('names the clause before committing past it', async () => {
     answerWith([{ ...WAR, refusal: 'cast-gone' }]);
-    renderPanel();
+    await renderPanel();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Commit' }));
     // Asked, not done.
@@ -189,7 +227,7 @@ describe('the hook panel', () => {
     answerWith([
       { ...WAR, state: 'committed', refusal: null, committed: { overrode: 'too-early' } },
     ]);
-    renderPanel();
+    await renderPanel();
 
     expect(await screen.findByText('Committed past: waiting for a later turn.')).toBeTruthy();
 
@@ -208,18 +246,89 @@ describe('the hook panel', () => {
    */
   it('offers no way to fire a hook outright', async () => {
     answerWith([WAR]);
-    renderPanel();
+    await renderPanel();
 
     await screen.findByText('War with the Flower Kingdom');
     expect(screen.queryByRole('button', { name: /fire/i })).toBeNull();
   });
 
-  it('offers no control at all on a hook that has gone', async () => {
+  /**
+   * **No Commit on a hook that has gone.** Committing a fired hook is
+   * *un-firing* it — the states are exclusive on one channel — which is a real
+   * thing a person may want and is not something to offer by accident from a row
+   * that says *Fired*. Remove stays, because a spent hook cluttering the pool is
+   * exactly the thing an author wants gone.
+   */
+  it('offers no way to commit a hook that has gone', async () => {
     answerWith([{ ...WAR, state: 'fired', refusal: 'fired' }]);
-    renderPanel();
+    await renderPanel();
 
     expect(await screen.findByText('Fired')).toBeTruthy();
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy();
+  });
+
+  /**
+   * ***Adding one while the game is running*** — [03 §4.1]'s *primary path*.
+   * Two fields and not an editor: the sentence the feature exists for, with the
+   * rest taking the defaults a hook typed here would want.
+   */
+  it('adds a hook mid-session from a title and a premise', async () => {
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'Something you want to happen' }),
+      'The bridge falls',
+    );
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'What happens' }),
+      'The old bridge gives way in the storm.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => {
+      expect(addSessionHook).toHaveBeenCalledWith(SESSION_ID, {
+        title: 'The bridge falls',
+        premise: 'The old bridge gives way in the storm.',
+        magnitude: 'local',
+        involves: [],
+        weight: 1,
+        delivery: 'guidance',
+        once: true,
+      });
+    });
+  });
+
+  it('will not add a hook with nothing to weave', async () => {
+    // The premise *is* the hook, and one with nothing in it would sit in the
+    // pool being eligible forever. Refused at the control rather than after.
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'Something you want to happen' }),
+      'A title alone',
+    );
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(true);
+  });
+
+  /**
+   * *Remove takes **any** hook, whichever source put it there* — [00 §3.1]'s
+   * prefill-not-binding. The pool was copied at creation, so a treatment-borne
+   * row is this session's copy, and refusing to remove it would make the copy a
+   * binding.
+   */
+  it('removes a hook the treatment put there', async () => {
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => {
+      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war');
+    });
   });
 
   /**
@@ -228,7 +337,7 @@ describe('the hook panel', () => {
    */
   it('lists arrivals by label', async () => {
     answerWith([{ ...WAR, entrances: [{ id: 'e-rain', label: 'In the rain' }] }]);
-    renderPanel();
+    await renderPanel();
 
     expect(await screen.findByText('Arrivals: In the rain')).toBeTruthy();
   });

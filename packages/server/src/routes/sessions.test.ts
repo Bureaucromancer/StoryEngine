@@ -5,7 +5,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newPreset, newSetup, newTreatment, type PlotHook } from '@storyengine/shared';
+import {
+  newActor,
+  newPreset,
+  newSetup,
+  newTreatment,
+  uuidv7,
+  type PlotHook,
+} from '@storyengine/shared';
 
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
@@ -1720,6 +1727,164 @@ describe('a session’s hook pool', () => {
 
     const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
     expect(after.body.session.hooks[0].hook.id).toBe('hook-war');
+  });
+
+  /**
+   * ***The primary path, and creation was the only way in*** — [03 §4.1],
+   * [P7.5]. That section says a session *"may add its own while running"* and
+   * calls it that: a treatment is where hooks primarily live, but *I want this
+   * to happen in this game* is a thought people have while playing.
+   */
+  describe('adding one to a running session', () => {
+    async function aSession(): Promise<string> {
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { name: 'Rain' },
+      });
+      return created.body.session.id as string;
+    }
+
+    it('takes a hook mid-session, attributed to the session itself', async () => {
+      const sessionId = await aSession();
+
+      const added = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/hooks`,
+        payload: { hook: hook('hook-mine') },
+      });
+
+      expect(added.body.session.hooks).toEqual([
+        { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
+      ]);
+      // And it is in the panel the same turn, with its source named — the one
+      // source with no object to navigate to, because the session is what you
+      // are already looking at.
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      expect(read.body.hooks.rows[0]).toMatchObject({
+        hookId: 'hook-mine',
+        source: { kind: 'session' },
+        refusal: null,
+      });
+    });
+
+    /**
+     * ***An id is minted when there is none, and this is the one source where
+     * that is right.*** Every other hook in the pool was copied from an object
+     * that had one, and [15 §5]'s obligation is that copying keeps it. A
+     * session's own hook has no upstream to keep an id from — and without one it
+     * cannot be committed, blocked, or recorded as fired, because every one of
+     * those keys on `hook.id`.
+     */
+    it('mints an id for a hook that arrives without one', async () => {
+      const sessionId = await aSession();
+      const added = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/hooks`,
+        // Written out rather than derived from `hook()` with the id removed: a
+        // rest element would name a binding nothing reads, and this is the whole
+        // of what a client posts anyway.
+        payload: {
+          hook: {
+            title: 'Mine',
+            premise: 'The old bridge gives way in the storm.',
+            magnitude: 'local',
+            involves: [],
+            weight: 1,
+            delivery: 'guidance',
+            once: true,
+          },
+        },
+      });
+
+      const minted = added.body.session.hooks[0].hook.id as string;
+      expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+      // Usable, which is the whole point of minting it: a hook with no id cannot
+      // be committed, because Commit writes `se.hook#<id>`.
+      const written = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/${encodeURIComponent(`se.hook#${minted}`)}`,
+        payload: { value: 'committed' },
+      });
+      expect(written.body.effect.applied).toBe(true);
+    });
+
+    /**
+     * **An authoring act, not a story event** — [03 §4.1]: *"adding a hook
+     * mid-session is an authoring act, not a story event, and must survive a
+     * rewind"*. So it lands on the session file rather than as a channel effect,
+     * and the pool a turn is judged against is session-wide.
+     */
+    it('writes the pool and not an effect', async () => {
+      const sessionId = await aSession();
+      await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/hooks`,
+        payload: { hook: hook('hook-mine') },
+      });
+
+      const turns = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+      // A channel write appends a turn carrying the effect. This one appends
+      // nothing, because nothing happened in the story.
+      expect(turns.body.turns).toEqual([]);
+    });
+
+    /**
+     * *Removal takes **any** hook, whatever its source*, which is
+     * [00 §3.1]'s prefill-not-binding: the pool was copied at creation, so a
+     * treatment-borne entry in it is this session's copy, and declining to
+     * remove it would make the copy a binding.
+     */
+    it('removes a hook the treatment put there, without touching the treatment', async () => {
+      const id = await aTreatment([hook('hook-war')]);
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { name: 'Rain', treatment: id },
+      });
+      const sessionId = created.body.session.id as string;
+
+      const removed = await server.request({
+        method: 'DELETE',
+        url: `/api/sessions/${sessionId}/hooks/hook-war`,
+      });
+
+      // Absent rather than `[]` when the last one goes — the claim the creation
+      // path already makes.
+      expect('hooks' in (removed.body.session as object)).toBe(false);
+      const treatment = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${id}`,
+      });
+      expect(treatment.body.object.hooks).toHaveLength(1);
+    });
+
+    it('succeeds at removing a hook that is already gone', async () => {
+      const sessionId = await aSession();
+
+      const removed = await server.request({
+        method: 'DELETE',
+        url: `/api/sessions/${sessionId}/hooks/never-there`,
+      });
+
+      // The state the caller asked for. A 404 would make a double-click an
+      // error, where a missing *session* stays a 404 because it is a different
+      // claim.
+      expect(removed.status).toBe(200);
+    });
+
+    it('is a 404 for a session that is not there', async () => {
+      const response = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${uuidv7()}/hooks`,
+        payload: { hook: hook('hook-mine') },
+      });
+
+      expect(response.status).toBe(404);
+    });
   });
 
   /**

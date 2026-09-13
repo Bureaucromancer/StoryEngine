@@ -4,7 +4,13 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { PRESET_SCHEMA, SETUP_SCHEMA, type PlotHook, type Setup } from '@storyengine/shared';
+import {
+  PRESET_SCHEMA,
+  SETUP_SCHEMA,
+  uuidv7,
+  type PlotHook,
+  type Setup,
+} from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
@@ -22,6 +28,7 @@ import {
   renameBranchRef,
   setCast,
   setLore,
+  setSessionHooks,
   setSessionRoles,
   readTurns,
   readTurnById,
@@ -273,6 +280,27 @@ const SessionPatch = Type.Object(
 );
 
 /** What a session plays with — the same two links `CreateBody` takes. */
+/**
+ * One hook added to a running session — [03 §4.1], [P7.5].
+ *
+ * *Open, like the creation route's `hooks` array and for the same stated
+ * reason*: a hook the schema would refuse is an authoring mistake to **show**
+ * rather than a request to reject, and the filter is where a broken one stops
+ * being eligible with a class the panel can turn into a sentence. What is
+ * closed is the envelope — one hook, under one key, so a client cannot post an
+ * array and expect a pool.
+ */
+const HookBody = Type.Object(
+  { hook: Type.Object({}, { additionalProperties: true }) },
+  { additionalProperties: false },
+);
+
+/** A hook id addresses one entry in the pool; it is URL-encoded like every id here. */
+const HookParams = Type.Object({
+  sessionId: Type.String(),
+  hookId: Type.String({ maxLength: 200 }),
+});
+
 const LoreBody = Type.Object(
   {
     treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
@@ -861,6 +889,92 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * session with a dangling link, not a rejected request. The retriever reports
    * what it could not read, every turn, where somebody playing can see it.
    */
+  /**
+   * A hook added to a **running** session, or taken out of one — [03 §4.1],
+   * [06 §6.1], [P7.5].
+   *
+   * ***The primary path, and creation was the only way in.*** 03 §4.1 says a
+   * session *"may add its own while running"* and calls it that; a treatment is
+   * where hooks primarily live, but *I want this to happen in this game* is a
+   * thought people have while playing rather than while configuring.
+   *
+   * **Not a channel write, which is the same section's other sentence**:
+   * *"adding a hook mid-session is an authoring act, not a story event, and must
+   * survive a rewind"*. So the pool is on the session file and only what has
+   * *happened to* a hook is per-node. A hook added at turn forty is in the pool
+   * at turn one, and rewinding does not un-add it.
+   *
+   * *Unvalidated beyond the shape the handler reads*, like `cast`, `lore` and
+   * the creation route's own `hooks`: a malformed hook is an authoring mistake
+   * to show rather than a request to reject, and the selector's filter is where
+   * a broken one stops being eligible with a reason the panel can say.
+   */
+  app.post(
+    '/sessions/:sessionId/hooks',
+    { schema: { params: SessionParams, body: HookBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { hook } = request.body as { hook: Record<string, unknown> };
+      const { sessionId } = request.params as { sessionId: string };
+
+      /**
+       * ***An id is minted when there is none, and this is the one source where
+       * that is right.*** Every other hook in the pool was **copied** from an
+       * object that had one, and [15 §5]'s obligation is that copying keeps it —
+       * a corpus whose hooks have unrelated ids cannot be retro-fitted into a
+       * continuity. A session's own hook has no upstream to keep an id from, and
+       * without one it cannot be committed, blocked, or recorded as fired: every
+       * one of those keys on `hook.id`.
+       */
+      const id = typeof hook['id'] === 'string' && hook['id'] !== '' ? hook['id'] : uuidv7();
+      const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
+        add: { ...hook, id } as unknown as PlotHook,
+      });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * Taking a hook back out — the other half, and it takes **any** of them.
+   *
+   * The pool was copied at creation, so a treatment-borne entry in it is this
+   * session's copy; declining to remove it would make the copy a binding, which
+   * is the thing [00 §3.1]'s prefill-not-binding rules out. *What it does not do
+   * is reach the treatment*: the same asymmetry running the other way.
+   *
+   * **The session comes back, like every other mutation here**, so a panel that
+   * just removed a row has the pool it is now looking at rather than a promise
+   * it has to go and check.
+   *
+   * *Removing a hook that is already gone succeeds.* It is the state the caller
+   * asked for, and a 404 would make a double-click an error — where a missing
+   * **session** stays a 404, because that is a different claim.
+   */
+  app.delete(
+    '/sessions/:sessionId/hooks/:hookId',
+    { schema: { params: HookParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, hookId } = request.params as { sessionId: string; hookId: string };
+      const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
+        remove: hookId,
+      });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
   app.put(
     '/sessions/:sessionId/lore',
     { schema: { params: SessionParams, body: LoreBody } },

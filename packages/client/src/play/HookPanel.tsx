@@ -4,10 +4,11 @@
 import { useState, type JSX } from 'react';
 
 import type { HookRow } from '../api.js';
-import { useSession, useWriteChannel } from '../queries.js';
+import { useSession, useSessionHooks, useWriteChannel } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
+import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
 import { hookState, hookWords } from './hookWords.js';
 
@@ -44,17 +45,125 @@ export function HookPanel(props: { sessionId: string }): JSX.Element | null {
   const hooks = session.data?.hooks;
   const rows = hooks?.rows ?? [];
 
-  if (rows.length === 0) return null;
+  /**
+   * ***A disclosure rather than a panel, and always present rather than hidden
+   * when the pool is empty.***
+   *
+   * The neighbouring surfaces render nothing when they have nothing, and this
+   * one cannot: **the add form is inside it**, and [03 §4.1] calls adding a hook
+   * to a running session *the primary path*. A panel that appeared only once a
+   * session already had hooks would make the primary path reachable exclusively
+   * from the path it is primary over. *Closed, it is one line saying how many
+   * are waiting — which is the one fact worth having without opening, the same
+   * trade the lore panel makes beside it.*
+   */
+  if (session.data === undefined) return null;
 
   return (
-    <section className="flex flex-col gap-3" aria-label="Plot hooks">
-      <Pacing sessionId={props.sessionId} level={hooks?.pacing ?? 'normal'} />
-      <div className="flex flex-col gap-2">
-        {rows.map((row) => (
-          <Hook key={row.hookId} sessionId={props.sessionId} row={row} />
-        ))}
+    <details className="rounded-control border border-line bg-surface px-3 py-2">
+      <summary className="cursor-pointer text-sm text-ink-subtle">{waitingLine(rows)}</summary>
+
+      <div className="mt-3 flex flex-col gap-3">
+        {rows.length === 0 ? null : (
+          <Pacing sessionId={props.sessionId} level={hooks?.pacing ?? 'normal'} />
+        )}
+        <div className="flex flex-col gap-2">
+          {rows.map((row) => (
+            <Hook key={row.hookId} sessionId={props.sessionId} row={row} />
+          ))}
+        </div>
+        <AddHook sessionId={props.sessionId} />
       </div>
-    </section>
+    </details>
+  );
+}
+
+/**
+ * The summary line — *how many are waiting*, which is what a closed disclosure
+ * owes a reader.
+ *
+ * **Eligible rather than total**, because the total is a fact about the
+ * treatment and the eligible count is a fact about *now*: six hooks of which
+ * none can fire is the session state worth noticing from a closed panel, and a
+ * bare *six plot hooks* would hide it.
+ */
+function waitingLine(rows: readonly HookRow[]): string {
+  if (rows.length === 0) return 'Plot hooks — none yet';
+  const ready = rows.filter((row) => row.refusal === null && row.state === null).length;
+  const committed = rows.filter((row) => row.state === 'committed').length;
+  const said = `Plot hooks — ${String(ready)} of ${String(rows.length)} eligible`;
+  return committed === 0 ? said : `${said}, ${String(committed)} committed`;
+}
+
+/**
+ * ***Adding one while the game is running*** — [03 §4.1]'s *primary path*,
+ * [P7.5].
+ *
+ * **Two fields, and it is not an editor.** A `PlotHook` has eight of them and
+ * [P7 §1.5] records that *"a hook has nowhere to be authored"* — there is no
+ * treatment editor and no setup editor, and building one here would be a
+ * different surface smuggled into a panel. What this is instead is the sentence
+ * the feature exists for — *"I want this to happen"* — with the rest taking the
+ * defaults a hook typed here would want: `local` blast radius, ordinary weight,
+ * woven rather than expanded, once.
+ *
+ * *The id is the server's*, because a session's own hook is the one source with
+ * no upstream object to keep one from, and without an id it could never be
+ * committed, blocked, or recorded as fired.
+ */
+function AddHook(props: { sessionId: string }): JSX.Element {
+  const hooks = useSessionHooks(props.sessionId);
+  const [title, setTitle] = useState('');
+  const [premise, setPremise] = useState('');
+
+  function add(): void {
+    hooks.mutate(
+      {
+        add: {
+          title,
+          premise,
+          magnitude: 'local',
+          involves: [],
+          weight: 1,
+          delivery: 'guidance',
+          once: true,
+        },
+      },
+      {
+        onSuccess: () => {
+          setTitle('');
+          setPremise('');
+        },
+      },
+    );
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-2 border-t border-line pt-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        add();
+      }}
+    >
+      <Field label="Something you want to happen" value={title} onChange={setTitle} />
+      <Field
+        label="What happens"
+        value={premise}
+        onChange={setPremise}
+        multiline
+        rows={2}
+        hint="The selector decides when. It is never shown until it fires."
+      />
+      <div>
+        {/* Disabled on an empty premise rather than refused after the fact: the
+            premise **is** the hook, and one with nothing to weave would sit in
+            the pool being eligible forever. */}
+        <Button type="submit" disabled={premise.trim() === '' || hooks.isPending}>
+          Add
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -99,6 +208,7 @@ function Pacing(props: { sessionId: string; level: string }): JSX.Element {
 function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
   const { row } = props;
   const write = useWriteChannel(props.sessionId);
+  const hooks = useSessionHooks(props.sessionId);
   /**
    * **Committing past a refusal asks first** — [06 §6.1]'s first rule for
    * keeping Commit honest: *"skipping the filter must say what it skipped. The
@@ -177,13 +287,16 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
       ) : (
         <Controls
           row={row}
-          pending={write.isPending}
+          pending={write.isPending || hooks.isPending}
           onCommit={commit}
           onAsk={() => {
             setAsking(true);
           }}
           onRelease={() => {
             write.mutate({ key: `se.hook#${row.hookId}`, value: null });
+          }}
+          onRemove={() => {
+            hooks.mutate({ remove: row.hookId });
           }}
         />
       )}
@@ -192,12 +305,18 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
 }
 
 /**
- * The one control this surface offers, in its three states.
+ * What a row offers, which depends on what has happened to it.
  *
- * **Nothing at all for a hook that has gone.** Committing a fired hook is
+ * **Nothing but Remove for a hook that has gone.** Committing a fired hook is
  * *un-firing* it — the states are exclusive on one channel — which is a real
  * thing a person may want and is not something to offer by accident from a row
  * that says *Fired*.
+ *
+ * **Remove takes any hook, whichever source put it there**, which is
+ * [00 §3.1]'s prefill-not-binding: the pool was **copied** at creation, so a
+ * treatment-borne row is this session's copy and refusing to remove it would
+ * make the copy a binding. It does not reach the treatment — the same asymmetry
+ * running the other way.
  */
 function Controls(props: {
   row: HookRow;
@@ -205,28 +324,28 @@ function Controls(props: {
   onCommit: () => void;
   onAsk: () => void;
   onRelease: () => void;
-}): JSX.Element | null {
+  onRemove: () => void;
+}): JSX.Element {
   const { row } = props;
-  if (row.state === 'fired' || row.state === 'provisional') return null;
+  const gone = row.state === 'fired' || row.state === 'provisional';
 
-  if (row.state === 'committed') {
-    return (
-      <div>
+  return (
+    <div className="flex gap-2">
+      {gone ? null : row.state === 'committed' ? (
         <Button type="button" onClick={props.onRelease} disabled={props.pending}>
           Release
         </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <Button
-        type="button"
-        onClick={row.refusal === null ? props.onCommit : props.onAsk}
-        disabled={props.pending}
-      >
-        Commit
+      ) : (
+        <Button
+          type="button"
+          onClick={row.refusal === null ? props.onCommit : props.onAsk}
+          disabled={props.pending}
+        >
+          Commit
+        </Button>
+      )}
+      <Button type="button" onClick={props.onRemove} disabled={props.pending}>
+        Remove
       </Button>
     </div>
   );

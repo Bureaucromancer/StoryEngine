@@ -373,7 +373,9 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           the lore panel rather than beside the cast, which 10 §10.1 chose
           deliberately: the cast panel is *"two views of one observation about
           identity resolution"* and a hook shares neither the observation nor the
-          subject. Renders nothing for a session with no hook pool. */}
+          subject. A disclosure like its neighbour, and present even with an
+          empty pool because the control that adds one is inside it — [03 §4.1]
+          calls adding a hook to a running session *the primary path*. */}
       <HookPanel sessionId={sessionId} />
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">

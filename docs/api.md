@@ -1026,6 +1026,34 @@ mode seats fewer than the list names.
 improving a character card reaches an ongoing game — the asymmetry with the
 copied preset is deliberate ([03 §8](design/03-data-model.md)).
 
+### `POST /api/sessions/:sessionId/hooks` · `DELETE /api/sessions/:sessionId/hooks/:hookId`
+
+`{ hook }` → `{ session }`, and the delete answers the same. A hook added to a
+**running** session — [03 §4.1](design/03-data-model.md) calls that *the primary
+path*, and until this route creation was the only way in.
+
+**An authoring act, not a story event.** It lands on the session file rather than
+as a channel effect, which is that section's own line: *"adding a hook
+mid-session is an authoring act, not a story event, and must survive a rewind"*.
+So the pool is session-wide — a hook added at turn forty is in the pool at turn
+one — while everything about what has *happened to* a hook stays per-node in
+`se.hook`. The turn list is untouched: nothing happened in the story.
+
+The body is open beyond `{ hook }` itself, like the creation route's `hooks`
+array: a hook the schema would refuse is an authoring mistake to **show** rather
+than a request to reject, and the selector's filter is where a broken one stops
+being eligible with a class the panel turns into a sentence. **An `id` is minted
+when the hook arrives without one** — every other hook in a pool was copied from
+an object that had one and [15 §5](design/15-world.md) requires the copy to keep
+it, but a session's own hook has no upstream, and without an id it could never be
+committed, blocked, or recorded as fired.
+
+The delete takes **any** hook, whichever source put it there: the pool was copied
+at creation, so a treatment-borne entry is this session's copy and refusing to
+remove it would make the copy a binding ([00 §3.1](design/00-stance.md)). It does
+not reach the treatment. Removing one that is already gone succeeds — it is the
+state the caller asked for — while a missing **session** is still a `404`.
+
 ### `PUT /api/sessions/:sessionId/lore`
 
 `{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`

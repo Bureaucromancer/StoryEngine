@@ -15,12 +15,14 @@ import type { TagEntry } from '@storyengine/shared';
 
 import type { LiveTurn } from './play/reducer.js';
 import {
+  addSessionHook,
   adminApi,
   api,
   previewTurn,
   readSession,
   readTranscript,
   readTurn,
+  removeSessionHook,
   renameSession,
   setSessionLore,
   writeSessionChannel,
@@ -568,6 +570,36 @@ export function useWriteChannel(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * Adding a hook to a running session, or taking one out — [03 §4.1], [P7.5].
+ *
+ * **One mutation for both**, because they are the same act from the panel's side
+ * — the pool is what changes — and because a caller holding two hooks that
+ * invalidate the same key is the shape that drifts.
+ *
+ * *It invalidates the session rather than the transcript*: [03 §4.1] calls
+ * adding a hook *"an authoring act, not a story event"*, so there is no turn to
+ * refetch and the pool the panel reads lives on the session.
+ */
+export function useSessionHooks(
+  sessionId: string,
+): UseMutationResult<
+  { session: SessionSummary },
+  Error,
+  { add: Record<string, unknown> } | { remove: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (change: { add: Record<string, unknown> } | { remove: string }) =>
+      'add' in change
+        ? addSessionHook(sessionId, change.add)
+        : removeSessionHook(sessionId, change.remove),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
 }

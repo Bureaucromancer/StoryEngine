@@ -3,7 +3,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { type Preset, type Setup, uuidv7 } from '@storyengine/shared';
+import { type PlotHook, type Preset, type Setup, uuidv7 } from '@storyengine/shared';
 
 import {
   findTurnLocation,
@@ -1465,6 +1465,75 @@ export async function setSessionRoles(
  * Links rather than copies, exactly as the cast is ([03 §8]): fixing a typo in
  * a lorebook should reach the story being told in it.
  */
+/**
+ * Adds a hook to a **running** session's pool, or takes one out —
+ * [03 §4.1](../../../../docs/design/03-data-model.md),
+ * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md), built at
+ * [P7.5](../../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * ***The session file, and not a channel effect.*** 03 §4.1 draws that line and
+ * gives the reason in one sentence: *"adding a hook mid-session is an authoring
+ * act, not a story event, and must survive a rewind"* — while everything about
+ * *what has happened to* a hook is per-node and lives in `se.hook`. So the pool
+ * is session-wide, a hook added at turn forty is in the pool at turn one, and
+ * rewinding does not un-add it.
+ *
+ * **A route at all because creation was the only way in**, and 03 §4.1 calls
+ * adding one to a running session *the primary path*: a treatment is where hooks
+ * primarily live, but *"I want this to happen in this game"* is a thought people
+ * have while playing.
+ *
+ * *Removal takes any hook, whatever its source, and that is
+ * [00 §3.1](../../../../docs/design/00-stance.md)'s prefill-not-binding.* The
+ * pool was **copied** at creation; a treatment-borne entry in it is this
+ * session's copy, and declining to remove it would make the copy a binding. The
+ * `source` is left as it was, because it says where the hook **came from** and
+ * that does not change by being deleted.
+ */
+export async function setSessionHooks(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  change: { add?: PlotHook; remove?: string },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const pool = session.hooks ?? [];
+    const without =
+      change.remove === undefined ? pool : pool.filter((entry) => entry.hook.id !== change.remove);
+    /**
+     * **A structured clone, the way creation copies one**, so an author editing
+     * the object they submitted cannot reach into a running session — and
+     * `source: { kind: 'session' }` because that is what this *is*: [03 §4.1]'s
+     * fourth source, attributed to the session rather than to whatever the
+     * client thought it was doing.
+     */
+    const next =
+      change.add === undefined
+        ? without
+        : [
+            ...without.filter((entry) => entry.hook.id !== change.add?.id),
+            { hook: structuredClone(change.add), source: { kind: 'session' as const } },
+          ];
+
+    const file: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      // Absent rather than `[]` when the last one goes, which is the claim the
+      // creation path already makes: a session whose sources carried none is not
+      // a session somebody emptied.
+      ...(next.length === 0 ? {} : { hooks: next }),
+    };
+    if (next.length === 0) delete file.hooks;
+
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), file);
+    indexSession(context.index, scopeOf(context, handle), file);
+    return file;
+  });
+}
+
 export async function setLore(
   context: SessionContext,
   handle: string,

@@ -3443,11 +3443,56 @@ state. **A class this build does not know gets a sentence rather than a throw**:
 a client one deploy behind a server is ordinary, and an empty row would read as
 *eligible* about a hook the engine is refusing.
 
-**Next:** session-local hooks addable to a *running* session ([03 §4.1] calls it
-*the primary path* and creation is the only way in today); force-fire in the
-workbench beside the keyword test; and `introduces`' provisional firings
-confirmed by the extract stage, which is [P7.7]'s and is what closes this stage's
-fourth property row.
+**Done: stage six — the primary path, which creation was the only way onto**
+(2026-09-13).
+
+[03 §4.1] says a session *"may add its own while running"* and calls that **the
+primary path**: a treatment is where hooks primarily live, but *I want this to
+happen in this game* is a thought people have while playing rather than while
+configuring. `POST /sessions/:id/hooks` and its delete are that path.
+
+***Not a channel write, which is the same section's other sentence***: *"adding a
+hook mid-session is an authoring act, not a story event, and must survive a
+rewind."* So the pool is on the session file and only what has **happened to** a
+hook is per-node. A hook added at turn forty is in the pool at turn one, rewinding
+does not un-add it, and the turn list is untouched — which is asserted directly,
+because a channel write *does* append a turn and the difference between the two
+is the whole of that distinction.
+
+**An id is minted when one does not arrive, and this is the one source where that
+is right.** Every other hook in a pool was **copied** from an object that had
+one, and [15 §5]'s obligation is that copying keeps it — *a corpus whose hooks
+have unrelated ids cannot be retro-fitted into a continuity*. A session's own
+hook has no upstream to keep an id from, and without one it could never be
+committed, blocked, or recorded as fired: every one of those keys on `hook.id`.
+
+*Removal takes **any** hook, whichever source put it there*, which is
+[00 §3.1]'s prefill-not-binding read the only way it can be: the pool was copied,
+so a treatment-borne entry is this session's copy, and declining to remove it
+would make the copy a binding. It does not reach the treatment — the same
+asymmetry running the other way, and tested from both ends.
+
+***The panel became a disclosure, and it is the one surface here that does not
+render nothing when it has nothing.*** Its neighbours do; this one cannot,
+because **the add form is inside it** — a panel that appeared only once a session
+already had hooks would make the primary path reachable exclusively from the path
+it is primary over. Closed, it is one line, and the line counts the **eligible**
+rather than the total: six hooks of which none can fire is the session state
+worth noticing without opening, and a bare *six plot hooks* would hide it.
+
+**Two fields, and it is deliberately not an editor.** [P7 §1.5] records that *"a
+hook has nowhere to be authored"* — there is no treatment editor and no setup
+editor — and building one inside a play-surface panel would be a different
+surface smuggled in. What the form is instead is the sentence the feature exists
+for, with the rest taking the defaults a hook typed there would want: `local`
+blast radius, ordinary weight, woven rather than expanded, once. *The premise is
+required at the control rather than refused after it*: the premise **is** the
+hook, and one with nothing to weave would sit in the pool being eligible forever.
+
+**Next:** force-fire in the workbench beside the keyword test and the dry run —
+[10 §10.1] is explicit that it belongs there and not on the panel; and
+`introduces`' provisional firings confirmed by the extract stage, which is
+[P7.7]'s and is what closes this stage's fourth property row.
 
 ### P7.6 — Goals
 

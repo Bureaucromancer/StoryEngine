@@ -934,6 +934,38 @@ export function setSessionLore(
   return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/lore`, selection);
 }
 
+/**
+ * A hook added to a running session, or taken out of one — [03 §4.1], [P7.5].
+ *
+ * *The primary path*, in that section's words: creation copies hooks from a
+ * treatment, a setup and the lorebooks, and *"a session may add its own while
+ * running"*. **An authoring act, not a story event** — it lands on the session
+ * file rather than as a channel effect, so a hook added at turn forty is in the
+ * pool at turn one and a rewind does not un-add it.
+ *
+ * *The body is open on purpose*, matching the route: a hook the schema would
+ * refuse is an authoring mistake to show rather than a request to reject, and
+ * the selector's filter is where a broken one stops being eligible with a reason
+ * the panel can say.
+ */
+export function addSessionHook(
+  sessionId: string,
+  hook: Record<string, unknown>,
+): Promise<{ session: SessionSummary }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/hooks`, { hook });
+}
+
+/** And back out — any of them, whichever source put it there ([00 §3.1]). */
+export function removeSessionHook(
+  sessionId: string,
+  hookId: string,
+): Promise<{ session: SessionSummary }> {
+  return request(
+    'DELETE',
+    `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}`,
+  );
+}
+
 export function readSession(sessionId: string): Promise<{
   session: SessionSummary;
   activeJob: ActiveJob | null;
