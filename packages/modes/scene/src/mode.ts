@@ -13,6 +13,7 @@ import type {
 } from '@storyengine/sdk';
 
 import { SCENE_PRESET } from './preset.js';
+import { STAGE_STEP, stage } from './staging.js';
 
 /**
  * Scene — the P2 mode, and it is **allowed to be embarrassingly small**.
@@ -227,6 +228,125 @@ export const BACKDROP_CHANNEL: ChannelDefinition = {
    */
 };
 
+/**
+ * ***Whether this scene is staged at all*** — [06 §7.2], built at
+ * [P7.12](../../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * §7.2: *"Text-only must remain a fully supported first-class configuration, as
+ * it is in both sources."* This is the control that makes it a **configuration**
+ * rather than an absence — with it off, no step runs, no channel moves, and
+ * every region renders nothing.
+ *
+ * ***Off by default, and the argument is the third time this phase has made
+ * it.*** Staging costs a model call per turn, and on a self-hosted build that is
+ * the player's own machine roughly doubling the wait for a picture they may not
+ * want. [P7.9]'s suggestion toggle made the same call for the same reason; what
+ * makes a default of *off* honest rather than hiding the feature is that the
+ * control is **on the screen either way**, which is what [P7.11] built.
+ *
+ * *`user-only`, because the person whose GPU it is decides.* A model turning its
+ * own staging on would be the narrator deciding to spend somebody's machine.
+ */
+export const STAGING_CHANNEL: ChannelDefinition = {
+  id: 'se.staging',
+  owner: SCENE_ID,
+  version: 1,
+  scope: 'session',
+  update: 'user-only',
+  visibility: 'player',
+  schema: { type: 'boolean' },
+  init: { kind: 'literal', value: false },
+  budget: null,
+};
+
+/**
+ * ***Which face an actor is wearing*** — [06 §7.2]'s *expression selection*,
+ * [P7.12].
+ *
+ * **Actor-scoped, like the three channels beside it in `sessions/cast.ts`.** A
+ * scene has several people in it and each has their own face; a session-scoped
+ * channel would hold one expression for everybody, which is not a smaller
+ * feature but a wrong one.
+ *
+ * ***`model-proposed`, and that is what makes §7.2's "steps writing to channels"
+ * true without touching a policy.*** An expression is a judgement about the
+ * prose — *is she angry now* — so the actor that decides is a model, and
+ * `model-proposed` is the policy that says so. A step may write it: `refuse()`
+ * has no branch for this policy, so the staging step stamps
+ * `{ kind: 'model', callId }` itself and the record says a model judged it.
+ *
+ * *This is worth stating because the obvious reading is that §7.2 forces
+ * [25 C16].* `se.backdrop` is `engine-computed`, which refuses a step — so
+ * *"steps writing to channels"* looks like a contradiction. It is not: the three
+ * things §7.2 names have three different writers. A background's pointer is the
+ * engine's and [P9] writes it; an expression is a model's judgement and a step
+ * writes it; text-only is a person's setting. **C16 stays open and stays
+ * unforced**, which is the right outcome for a question that should be answered
+ * by a mode that cannot proceed without it.
+ *
+ * **No `render` and no `budget`**, for the reason `se.presence` gives: a face is
+ * *shown*, not described, and a line saying *Vera: smiling* beside prose that
+ * has her smiling is tokens spent to repeat the page. The surface is the
+ * surface.
+ */
+export const EXPRESSION_CHANNEL: ChannelDefinition = {
+  id: 'se.expression',
+  owner: SCENE_ID,
+  version: 1,
+  scope: 'actor',
+  update: 'model-proposed',
+  visibility: 'player',
+  schema: {
+    // `null` is *no face chosen*, which is where every actor starts and where
+    // one returns when nothing in the prose says otherwise.
+    oneOf: [...MEDIA_SELECTION_SCHEMA.oneOf, { type: 'null' }],
+  },
+  init: { kind: 'literal', value: null },
+  budget: null,
+};
+
+/**
+ * ***Where this scene is*** — [06 §10.1a], [P7.12].
+ *
+ * **Declared here because [P9] assumes it and [P7.9] did not collect it.**
+ * [P7 §0.1a] item 6 records the gap in as many words: *"P9's backdrop selector
+ * assumes a **location channel** this phase declares; §P7.9 declares a backdrop
+ * channel and no location one."* §10.1a's generator *"runs when the fragments
+ * that describe the place actually change"* — this is what it diffs.
+ *
+ * ***A place, not a moment, and the distinction is load-bearing.*** [06 §10.1a]
+ * says a background's prompt comes from *"channel state and the treatment's
+ * tone — and pointedly not from the turn's output text"*, and this value **is**
+ * distilled from the turn's output text, which looks like the line being
+ * crossed. It is not, and the difference is what the sentence is about: what
+ * §10.1a forbids is the backdrop carrying **the moment** — *"a backdrop that
+ * redraws itself around each turn's action is an illustration wearing the wrong
+ * clothes: it will put the fight in the wallpaper and then stay there for thirty
+ * turns."* A location is a place: *the harbourmaster's office*, not *the
+ * argument in it*. Said here because this is the most plausible place for that
+ * line to get crossed by accident.
+ *
+ * *It does enter the prompt*, unlike the two above — a narrator that has been
+ * told where the scene is writes a scene that stays there, which is the cheapest
+ * continuity this mode has. Hence a `render` and a small `budget`.
+ */
+export const LOCATION_CHANNEL: ChannelDefinition = {
+  id: 'se.location',
+  owner: SCENE_ID,
+  version: 1,
+  scope: 'session',
+  update: 'model-proposed',
+  visibility: 'player',
+  schema: { type: ['string', 'null'] },
+  init: { kind: 'literal', value: null },
+  render: 'Where this is happening: {{ value }}',
+  // Roughly three times what a short place name renders to. Slack against an
+  // author editing the template, not a target — the same posture the clock's
+  // budget takes.
+  budget: 32,
+  surface: { kind: 'text', label: 'Place' },
+};
+
 export const NARRATE: StepDefinition = {
   id: 'se.narrate',
   stage: 'generate',
@@ -275,7 +395,12 @@ export const SCENE: ModeDefinition = {
   presets: [],
   participants: { select: 'fixed', maxActors: 1 },
   assembly: { defaultPreset: SCENE_PRESET, historyWindow: 20 },
-  steps: [NARRATE],
+  /**
+   * **Two, and the second is [06 §7.2]'s** — [P7.12]. `NARRATE` first because
+   * `generate` precedes `post`; the runner runs a stage's steps in declaration
+   * order, and the stager reads what the narrator wrote.
+   */
+  steps: [NARRATE, STAGE_STEP],
   /**
    * ~~**A declaration the engine does not yet consult**~~ — **consulted since
    * [P7.0]**: `registerMode` installs a mode's declared channels, so this array
@@ -284,16 +409,59 @@ export const SCENE: ModeDefinition = {
    * thing the move fixed: a declaration nothing reads is decoration, and this
    * one was decoration for five stages.
    */
-  channels: [CLOCK_CHANNEL, BACKDROP_CHANNEL],
+  channels: [
+    CLOCK_CHANNEL,
+    BACKDROP_CHANNEL,
+    STAGING_CHANNEL,
+    EXPRESSION_CHANNEL,
+    LOCATION_CHANNEL,
+  ],
   /**
    * One kind, matching what the wire already defaults to — so nothing that
    * works today stops working. `say` / `think` / `story` arrive with the
    * input-kind selector, which is a surface this stage does not build.
    */
   inputs: ['do'],
-  /** [10 §8] has extensions declare widgets; that machinery is P7's. */
-  surfaces: [],
+  /**
+   * ***Where the scene shows up*** — [06 §9]'s fifth bullet, declared at
+   * [P7.12] against the machinery [P7.11] built.
+   *
+   * **Three regions and each is a different kind of thing**, which is the
+   * argument for the vocabulary having more than one: a backdrop is the picture
+   * *behind* the story, a face belongs *beside the line* that person speaks, and
+   * a switch belongs in the panel with the other switches. Collapsing any two of
+   * them into [10 §8]'s HUD strip would put a picture in a row of short labelled
+   * values.
+   *
+   * ***`se.location` is not here and its absence is the shorthand working***:
+   * it declares `surface` on the channel, which {@link SurfaceContribution}
+   * defines as exactly `{ region: 'hud', channelId: 'se.location', widget }`.
+   * Restating it here would contribute it twice.
+   *
+   * **With staging off all three render nothing**, which is [10 §2.3]'s
+   * requirement rather than tidiness: *"with the backdrop off Play is the
+   * surface it was before, not a surface with an empty frame in it."* The two
+   * image channels init to `null` and the renderer skips a surface with no
+   * value; the toggle is the one thing that shows, because a control you cannot
+   * find is a feature that does not exist.
+   */
+  surfaces: [
+    { region: 'stage', channelId: BACKDROP_CHANNEL.id, widget: { kind: 'image', label: 'Scene' } },
+    {
+      region: 'message',
+      channelId: EXPRESSION_CHANNEL.id,
+      widget: { kind: 'image', label: 'Expression' },
+    },
+    {
+      region: 'panel',
+      channelId: STAGING_CHANNEL.id,
+      widget: { kind: 'toggle', label: 'Show the scene' },
+    },
+  ],
   setup: { kind: 'none' },
 };
 
-export const SCENE_MODE: Mode = { definition: SCENE, run: { [NARRATE.id]: narrate } };
+export const SCENE_MODE: Mode = {
+  definition: SCENE,
+  run: { [NARRATE.id]: narrate, [STAGE_STEP.id]: stage },
+};

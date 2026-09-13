@@ -168,6 +168,22 @@ export interface EffectProposal {
  * payload that crosses a worker hop, and the host below is what gets proxied
  * rather than cloned.
  */
+/**
+ * One person in the scene, as a step sees them — [P7.12].
+ *
+ * *Deliberately not an `Actor`.* The full card is prose, sections, provenance
+ * and forty fields, and handing one to every step that wants a name would make
+ * the payload filter meaningless. This is what a step can act on: who they are,
+ * and what pictures travel with them.
+ */
+export interface CastEntry {
+  actorId: string;
+  name: string;
+  /** The object kind that carries the media, for addressing it. Actors today. */
+  kind: string;
+  media: readonly { id: string; role: string; label?: string }[];
+}
+
 export interface StepInput {
   turnId: string;
   sessionId: string;
@@ -195,6 +211,28 @@ export interface StepInput {
    * which is a turn whose mode declares `fixed` and makes no selection at all.
    */
   speakers?: readonly string[];
+  /**
+   * ***Who is in the scene, and what they look like*** — declared by
+   * `reads: ['cast']`, added at
+   * [P7.12](../../../docs/design/workplan/23-p7-implementation.md).
+   *
+   * **A gap a mode found by needing it.** [06 §7.2] asks for *expression
+   * selection* as a step writing a channel, and a step could not see an actor's
+   * expression set at all: `speakers` above carries ids and nothing else, and
+   * `StepHost` has no library reader until [22 §4]'s capability API. A mode that
+   * had to be handed its own cast by the engine would be the back door [06 §2]
+   * refuses — so the contract widens instead, which is what P7 is for.
+   *
+   * ***The manifest, never the bytes.*** [04 §3] makes `EmbeddedMedia` *"a
+   * reference to bytes carried by the container"*, and this carries the
+   * reference: an id, a role and a label. A step that wanted pixels would be a
+   * step doing I/O, and nothing here does I/O.
+   *
+   * *Filtered like a channel*, so a step that does not declare `cast` is not
+   * handed one — which is what `reads` is for, and what keeps a step's payload
+   * the thing it said it needed.
+   */
+  cast?: readonly CastEntry[];
   /**
    * **What the mode's wizard was answered with** — [06 §7.3], [P7.4].
    *

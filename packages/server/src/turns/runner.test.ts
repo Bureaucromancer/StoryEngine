@@ -257,13 +257,36 @@ async function runNextTurn(): Promise<Turn> {
   return turn;
 }
 
+/**
+ * ***What a Scene turn always runs*** — and the second one is [P7.12]'s cost,
+ * named here once so that eight assertions about other features do not each
+ * have to explain it.
+ *
+ * `se.scene.stage` is Scene's stager, and on every session in this file it does
+ * nothing: staging defaults off, so the step reads one boolean and returns. It
+ * is in the record anyway because **`planFor` zips every step a mode declares
+ * and a mode has no way to say *not this turn***. The runner keeps its *own*
+ * conditional steps out of the plan for exactly the reason this row is noise —
+ * see the suggester's note below — and a mode cannot do the same.
+ *
+ * `StepCondition` is where it would go and its three arms are closed by explicit
+ * design; two of them (`stage`, `armed`) have no producer at all, which is the
+ * shape of the gap rather than a thing to fix under a stage. Recorded at
+ * [25 C17].
+ */
+const SCENE_STEPS = ['se.narrate', 'se.scene.stage'];
+
 describe('a turn goes all the way through', () => {
   it('commits, with the record of what actually ran', async () => {
     const { turn } = await runTurn();
 
     expect(turn.status).toBe('complete');
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
-    expect(turn.steps).toMatchObject([{ stepId: 'se.narrate', state: 'ok' }]);
+    expect(turn.steps).toMatchObject([
+      { stepId: 'se.narrate', state: 'ok' },
+      // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
+      { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
+    ]);
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([03 §8]).
     // Bound once, and read from that binding below. Two spellings of the same
@@ -2696,7 +2719,7 @@ describe('a session with a hook pool', () => {
       considered: [{ hookId: 'hook-war', refusal: null }],
     });
     // And it is a step like any other, so the record says it ran.
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.hooks.select', 'se.narrate']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.hooks.select', ...SCENE_STEPS]);
   });
 
   /**
@@ -2750,7 +2773,7 @@ describe('a session with a hook pool', () => {
     const { turn } = await runTurn();
 
     expect(turn.hooks).toBeUndefined();
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
   });
 
   /**
@@ -2992,7 +3015,7 @@ describe('a session with a goal', () => {
 
     const { turn } = await runTurn();
 
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate', 'se.goals.judge']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual([...SCENE_STEPS, 'se.goals.judge']);
     // [06 §7.3.3]: *"the goal statement is therefore always injected"* — through
     // the preset's own `{ of: 'goal' }` slot, which returned nothing until now.
     const narration = turn.request?.calls[0];
@@ -3092,7 +3115,7 @@ describe('a session with a goal', () => {
 
     const { turn } = await runTurn();
 
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
     // The statement is still injected: it is what the story is about, whoever
     // rules on it.
     expect(turn.request?.calls[0]?.blocks?.some((block) => block.source.kind === 'goal')).toBe(
@@ -3112,7 +3135,7 @@ describe('a session with a goal', () => {
 
     const turn = await runNextTurn();
 
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
     // And the turn still happened, which is the readable-and-branchable half.
     expect(turn.status).toBe('complete');
   });
@@ -3120,7 +3143,7 @@ describe('a session with a goal', () => {
   it('leaves a session with no goals exactly as it was', async () => {
     const { turn } = await runTurn();
 
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
     expect(turn.request?.calls[0]?.blocks?.some((block) => block.source.kind === 'goal')).toBe(
       false,
     );
@@ -3187,7 +3210,7 @@ describe('what the engine understood about a turn', () => {
     const { turn } = await runTurn();
 
     expect(turn.spans).toBeUndefined();
-    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
   });
 });
 

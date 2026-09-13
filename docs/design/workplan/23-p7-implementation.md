@@ -936,15 +936,27 @@ engine and ships no UI."* It applies here more strongly, not less.
   it once, on an argument its own plan got wrong.
 
   ***What was built at P7.9 does not touch that artefact, and the holding was
-  honoured by building around it*** (2026-09-13). `SCENE_PRESET`'s thirteen
-  blocks are unchanged: Scene gained a **channel declaration** — `se.backdrop`,
-  with the media union [06 §10.1a] requires from the declaration onward — and no
-  preset edit. Its sprites and expression selection, which are the half that
+  honoured by building around it*** (2026-09-13). `SCENE_PRESET`'s ~~thirteen~~
+  **sixteen** blocks are unchanged — the count was written before `se.goal`,
+  `se.guidance` and `se.attempt` existed and is corrected here and at §P7.9:
+  Scene gained a **channel declaration** — `se.backdrop`, with the media union
+  [06 §10.1a] requires from the declaration onward — and no preset edit. Its
+  sprites and expression selection, which are the half that
   would reshape the pack, are **not built** and the stage's Done cell says so.
   *Declaring a channel is not growing the artefact.* So the exposure this bullet
   names is intact for whoever walks K, and the part of P7.9 that had to wait is
   identified rather than assumed: **Scene grown up waits on K; Freeform did
   not.**
+
+  ***And P7.12 finished Scene under the same holding*** (2026-09-13). The
+  expression selection §7.2 asks for is built — three more channels, a step in
+  the mode package that writes two of them, and three contributed surfaces — and
+  the sixteen blocks are still the sixteen blocks. The one thing that *would*
+  have grown the pack is `se.location`'s injection slot, and that is the one
+  thing held: the channel carries its own `render`, which puts the place in the
+  prompt through the channel mechanism rather than through a block. **So the
+  hold now costs a preset slot rather than a feature**, which is a smaller and
+  more honest debt than the one §P7.9 left.
 - **P7.7 waits on P7.1, not on PLAYABLE**, and inherits second-order risk through
   what an inclusion reason *says*.
 - **P7.2, P7.3, P7.4, P7.6 and P7.8 have no direct PLAYABLE contact.** No K item and
@@ -3909,8 +3921,10 @@ guidance block, and one entry would abort every guidance-carrying turn —
 `callKind: 'narrate'`, cadence 1, `failure: 'abort'`, `role: 'prose'`, whose
 implementation is two lines. Plus `maxActors: 1`, `inputs: ['do']`,
 `surfaces: []`, `presets: []`, `setup: { kind: 'none' }`, one declared channel the
-engine writes for it after the step loop, and a thirteen-block preset that is a
-code constant nobody can open.
+engine writes for it after the step loop, and a ~~thirteen~~ **sixteen**-block
+preset that is a code constant nobody can open. *(Thirteen was right when this
+was written and stopped being right three stages later, at `se.goal`,
+`se.guidance` and `se.attempt`; corrected 2026-09-13.)*
 
 *So this stage also owns three things the sentence above does not name:* **the
 input-kind selector** (`say` / `think` / `story` / `choice`, declared in
@@ -4068,14 +4082,192 @@ decision stay two gestures.
   and **`SCENE_PRESET` is deliberately not grown**: §0.2 holds P7.9 behind
   PLAYABLE precisely because that preset is *"the artefact K4 is built to
   interrogate"*, and sitting K has not been walked. Declaring a channel is not
-  growing the artefact; rewriting its thirteen blocks would be.
+  growing the artefact; rewriting its ~~thirteen~~ **sixteen** blocks would be.
+  ***Built at [§P7.12](#p712--scene-grown-up-the-rest-of-it), still without
+  touching the pack*** (2026-09-13).
 - ***The demo is a person's to walk.*** The *ends at* line is C2 on the gate's
   critical list and no assertion covers it, which the gate says in as many
   words.
-- ***`surfaces` is still empty on both modes.*** [06 §9]'s *"contribute UI
-  surfaces"* is the part of the contract P7 does not build, which is why the
-  backdrop channel ships state and no place to show it, and why the suggestion
-  toggle is a client component rather than a mode's declaration.
+- ~~***`surfaces` is still empty on both modes.***~~ ***Built at
+  [§P7.11](#p711--surfaces-the-contracts-fifth-bullet)*** (2026-09-13). [06 §9]'s
+  *"contribute UI surfaces"* was the part of the contract P7 did not build, which
+  is why the backdrop channel shipped state and no place to show it. Scene
+  declares three surfaces now and the backdrop is one of them. *The suggestion
+  toggle is still a client component* — Freeform's `surfaces` is still `[]` —
+  because `se.suggest` is an engine channel rather than a mode's, and a mode
+  contributing a surface over a channel it does not own is what `channelInPlay`
+  refuses.
+
+---
+
+### P7.10 — A picture can be fetched, and a character can arrive with one
+
+**Two prerequisites, neither of them Scene's and both blocking it.** §7.2's
+expression selection needs an actor to *have* expressions and needs a browser to
+be able to *show* one, and at the end of P7.9 neither was true: `import/sweep.ts`
+took `assets[0]` as the portrait and dropped the rest, and the only image route
+in the build was `GET /library/:kind/:id/avatar`, the card's own pixels.
+
+**A media byte route.** `GET /library/:kind/:id/media/:mediaId`, modelled on the
+avatar route line for line — same auth, same `respondToLibraryError`, same
+shape — reading the blob store by the manifest entry's `ref`, with `content-type`
+from its `mime` and `etag` from its `digest`. *Cache-busted by digest rather than
+by a content hash computed here*, because the manifest already carries one and a
+second would be a second answer to the same question.
+
+***[P9] is the second consumer and the docstring names it.*** A rendition's asset
+needs serving too, and `MediaSelection`'s two arms are already the one shape both
+go through — so the route that ships for sprites is the route that ships for
+generated images, which is most of why it is worth building before anything can
+generate.
+
+**Expression import.** `#createActor` now takes the remaining image assets as
+`EmbeddedMedia` with `role: 'expression'` and **the filename stem as `label`**
+(`neutral.png` → `neutral`). Marinara's reader already carried `sprites/` and
+CHARX already collected every non-`card.json` entry; what was missing was the
+conversion, not the bytes.
+
+*Label, not `tags`, and `common.ts` is explicit about why*: **role** is a closed
+union the engine reads and acts on, **tags** are open and *"nothing in the engine
+branches on them"*. Selection matches on `label`; `tags` stay untouched. The
+import review reports a count, because expressions arriving is a thing that
+happened rather than a silent side effect.
+
+***What is not done.*** **Authoring one is [P11]'s** — 10 §11.3's image slots,
+in the editors-are-not-dumb-forms sweep. P7 gets *imported* expressions, which is
+enough to select from and not enough to author. And **generating one is 3.0's**,
+by `17-character-studio.md`'s own placement.
+
+---
+
+### P7.11 — `surfaces`, the contract's fifth bullet
+
+**[06 §9] has five bullets and four of them worked.** A mode could declare
+channels, steps, a preset, a wizard — and *"contribute UI surfaces (a HUD region,
+a side panel, a message decoration)"* was a field both shipped modes left empty,
+read by one line of `presentMode` and by nothing else. `SurfaceContribution`
+named a region and carried **no payload at all**, which made it compile-time
+required, runtime-unchecked, sent on the wire, and read by nothing.
+
+**The widening was already designed.** [13 §6.1](../13-write-mode.md) proposes
+`{ region, widget }` at 2.0; this builds that shape now, because [06 §7.2] needs
+it at P7 and a backdrop with nowhere to go is what P7.9 shipped.
+
+***One vocabulary, and `ChannelDefinition.surface` is defined in terms of it.***
+A channel declaring `surface` means exactly
+`{ region: 'hud', channelId: <itself>, widget: <that spec> }` — the shorthand for
+the common case, not a rival mechanism. The server composes both into one list;
+nothing needs precedence rules because they are additive, and the existing `hud`
+wire key keeps its meaning and its tests. **Stating the seam this way is what
+stops this being two vocabularies for one job**, which is the failure
+[21 §1.1](../21-internal-contracts.md) exists to prevent.
+
+**A fourth region, and the argument for it is [10 §2.3].** §9's three were
+written before §10.1a existed, and a backdrop is none of them: 10 §2.3 calls it
+*chrome* — *"The prose wins, always… On a phone it is the first thing to go"* —
+which is not a strip row, not a side panel and not a message decoration. Adding
+an arm is what [10 §8.1]'s paired commitment requires: *"when an extension cannot
+express something, the first response is to ask what widget would let it… and add
+that."* The same sentence governs regions.
+
+**Two new widget arms, each with a shipped consumer**: `image`, where the server
+resolves a `MediaSelection` to `{ url, alt }`, and `toggle`, **the vocabulary's
+first writable arm** — the thing `turns/suggest.ts` says it is waiting for in as
+many words. A toggle's write goes through the existing
+`PUT /sessions/:id/channels/:key`, which already refuses a channel the session's
+mode does not own: **a mode gains a control and gains no new authority.**
+
+*Rendering is server-side down to the string*, which is the posture
+`sessions/channels.ts` already set for the HUD: *"what crosses is a label and a
+string."* For an image, what crosses is a URL and an alt text. **Never an
+`html: string` field** — [10 §8.1] names it as *"how this decision would be undone
+by accident rather than on purpose"*, and `contract.test.ts` asserts its absence
+rather than only warning about it.
+
+***The client component knows no channel and no mode***, and the two assertions
+that matter are absences: an unrecognised **widget kind** and an unrecognised
+**region** are both skipped rather than rendered or thrown. A session opened
+against a newer build renders what this build understands and omits the rest —
+the alternative, a thrown render, would make adding a widget a breaking change,
+which is precisely what 10 §8.1 trades the iframe escape hatch away to avoid.
+
+*One thing found while wiring it*: the region component takes its surfaces as a
+**prop** rather than reading them, because the `message` region renders once per
+turn and a hook per turn is a query observer per turn. `PlayPage.test.tsx`'s
+*does not keep refetching afterwards* caught it.
+
+---
+
+### P7.12 — Scene grown up, the rest of it
+
+**§7.2's sentence, finished.** *"Sprites, backgrounds and expression selection
+are steps writing to channels"*, with *"text-only must remain a fully supported
+first-class configuration"* — P7.9 built the background half, and this builds the
+rest: three channels, a step in the mode package, three surfaces, and a preset
+that is still sixteen blocks.
+
+***The apparent contradiction, and why it is not one.*** `se.backdrop` is
+`engine-computed`, which `effects.ts` refuses a step — so *"steps writing to
+channels"* reads like it forces [25 C16]. It does not, because **the three things
+§7.2 names have three different writers**:
+
+| §7.2 names | Channel | Update | Who writes it |
+|---|---|---|---|
+| backgrounds | `se.backdrop` | `engine-computed` | a person now, [P9]'s generator later, both through the engine |
+| expression selection | `se.expression` | `model-proposed` | a step, stamping the call the judgement was made in |
+| sprites | `se.expression` + [P7.10]'s route | — | the import that carried them |
+| text-only | `se.staging` | `user-only` | the person whose machine it is |
+
+So **C16 stays open and stays unforced**, which is the right outcome for a
+question that should be answered by the first mode that *cannot* proceed without
+it. This one could.
+
+**A gap found by needing it: `StepInput.cast`.** A step could not see an actor's
+expression set at all — `speakers` carries ids, and `StepHost` has no library
+reader until [22 §4]'s capability API. Being handed the cast by the engine
+without declaring it would have been the back door [06 §2] refuses, so the
+contract widened instead: `cast` is gated by `reads: ['cast']` like a channel,
+and carries **the manifest and never the bytes** (an id, a role, a label). *That
+is what P7 is for* — the same shape as P7.0's step-contract move and P7.3's
+`speakers`.
+
+**`se.location` collects §0.1a item 6's uncollected obligation.** [P9]'s backdrop
+selector *"assumes a location channel this phase declares"*, and P7.9 declared a
+backdrop channel and no location one. **A place, not a moment**, and the
+distinction is load-bearing: [06 §10.1a] warns that a backdrop drawn from the
+action *"will put the fight in the wallpaper and then stay there for thirty
+turns"*, so the step is instructed to answer *the harbourmaster's office* and
+never *the argument in it*. Said in the channel's own docstring, because that is
+the most plausible place for the line to get crossed by accident.
+
+**Off by default, for the third time this phase.** A stager is a second model
+call on every turn, and on a self-hosted build that is the player's own machine.
+[P7.9]'s suggestion toggle made the same call for the same reason; what makes a
+default of *off* honest rather than the feature hiding is that **the control is
+on the screen either way**, which is what P7.11 built.
+
+***And the one thing that did not work, stated plainly — [25 C17].*** The
+suggester keeps itself out of the plan when it is off, and `runner.ts` argues for
+that at length: an idle step is *"an `ok` row contributing nothing on every turn
+of every session in the build."* **A mode cannot do the same.** `planFor` zips
+every declared step, `StepCondition` is closed at three arms by explicit design,
+and two of those three arms have no producer at all. So the gate lives inside the
+step, every Scene turn now records a step that did nothing, and eight assertions
+in `runner.test.ts` carry its id while testing something else. *The cost is
+visible rather than hidden, and the fix is a question rather than a stage.*
+
+***What is not done.***
+
+- ***`se.location` has no preset slot***, and that is the hold rather than an
+  omission — §0.2 holds Scene's growth behind PLAYABLE because `SCENE_PRESET` is
+  the artefact sitting K interrogates. The channel's own `render` puts the place
+  in the prompt through the channel mechanism, so **the feature works and the
+  pack is untouched**. A block for it is the first thing to add after K.
+- ***Nothing generates a backdrop***, which is [P9]'s by name.
+- ***An expression cannot be authored, only imported*** — [P11]'s image slots.
+- ***Freeform contributes no surfaces***, and its `surfaces: []` is now a fact
+  about Freeform rather than about the contract: it declares one channel a person
+  writes (`se.suggest` is the engine's) and has nothing of its own to show.
 
 ---
 

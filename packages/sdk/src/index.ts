@@ -53,6 +53,7 @@ export type {
 export type { RandomApi, SiteRandom } from './random.js';
 export type {
   Candidate,
+  CastEntry,
   EffectProposal,
   StepCallRequest,
   StepCallResult,

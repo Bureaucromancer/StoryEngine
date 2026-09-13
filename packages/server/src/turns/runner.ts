@@ -50,7 +50,7 @@ import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
-import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
+import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
 import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
 
 /**
@@ -819,6 +819,12 @@ export class TurnRunner {
             // step reads them as `setup`, which is the mode's word for its own
             // declaration, and the record's word is `config`.
             ...(answers === undefined ? {} : { setup: answers }),
+            /**
+             * Who is in the scene and what pictures travel with them — [P7.12].
+             * `filterReads` drops it for a step that did not declare `cast`, so
+             * this is the whole cast and the filter is where it narrows.
+             */
+            cast: castEntries(cast),
             channels: running,
             history,
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),
@@ -1605,4 +1611,33 @@ function castTerms(
     });
   }
   return [...out.values()];
+}
+
+/**
+ * The cast as a step sees it — [P7.12], and the manifest rather than the bytes.
+ *
+ * *Deliberately not the `Actor`.* A card is prose, sections, provenance and
+ * forty fields; a step that wanted a name would be handed all of it, and the
+ * payload filter would stop meaning anything. What crosses is what a step can
+ * act on: who somebody is, and what pictures travel with them.
+ *
+ * **The persona is in it.** [P3.0]'s rule — *the persona is an actor too* — and
+ * a mode staging a scene has no reason to leave the player's own character out
+ * of it.
+ */
+function castEntries(cast: {
+  persona: CastMember | null;
+  actors: readonly CastMember[];
+}): CastEntry[] {
+  const everyone = cast.persona === null ? cast.actors : [cast.persona, ...cast.actors];
+  return everyone.map((member) => ({
+    actorId: member.actor.id,
+    name: member.actor.name,
+    kind: 'actors',
+    media: member.actor.media.map((one) => ({
+      id: one.id,
+      role: one.role,
+      ...(one.label === undefined ? {} : { label: one.label }),
+    })),
+  }));
 }

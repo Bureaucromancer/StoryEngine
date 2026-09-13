@@ -6,7 +6,18 @@ import { describe, expect, it } from 'vitest';
 import { validate } from '@storyengine/sdk';
 
 import { modes } from './index.js';
-import { BACKDROP_CHANNEL, CLOCK_CHANNEL, NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
+import {
+  BACKDROP_CHANNEL,
+  CLOCK_CHANNEL,
+  EXPRESSION_CHANNEL,
+  LOCATION_CHANNEL,
+  NARRATE,
+  SCENE,
+  SCENE_ID,
+  SCENE_MODE,
+  STAGING_CHANNEL,
+} from './mode.js';
+import { STAGE_STEP } from './staging.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -63,7 +74,7 @@ describe('the manifest is data', () => {
   it('keeps what it runs separate from what it declares', () => {
     // [22 §3]'s split: `definition` crosses any boundary unchanged, `run` is
     // what becomes a dispatch table.
-    expect(Object.keys(SCENE_MODE.run)).toEqual([NARRATE.id]);
+    expect(Object.keys(SCENE_MODE.run)).toEqual([NARRATE.id, STAGE_STEP.id]);
     expect(SCENE_MODE.definition).toBe(SCENE);
   });
 });
@@ -205,7 +216,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares se.clock and se.backdrop, and owns both', () => {
+  it('declares its five channels, and owns every one of them', () => {
     // **Was "registering the mode is what enables it", asserted through the
     // engine's channel lookup** — which this package can no longer reach, and
     // should not: that a registered mode's declared channels become resolvable
@@ -217,13 +228,68 @@ describe('what Scene declares, and what the engine does with it', () => {
     // are pinned to each other by `mode-loader.test.ts`, which loads the
     // built-ins and looks the engine's constant up. Neither side imports the
     // other, which is why that check can exist at all.
-    expect(SCENE.channels).toEqual([CLOCK_CHANNEL, BACKDROP_CHANNEL]);
+    expect(SCENE.channels).toEqual([
+      CLOCK_CHANNEL,
+      BACKDROP_CHANNEL,
+      STAGING_CHANNEL,
+      EXPRESSION_CHANNEL,
+      LOCATION_CHANNEL,
+    ]);
     expect(CLOCK_CHANNEL.id).toBe('se.clock');
     // [06 §7.2]'s background channel, declared at [P7.9]. The id is a literal
     // here for the reason `se.clock`'s is — nothing in the engine names it yet,
     // and [P9] will name it from the other side.
     expect(BACKDROP_CHANNEL.id).toBe('se.backdrop');
+    // The three [P7.12] added, which are the rest of §7.2's sentence.
+    expect(STAGING_CHANNEL.id).toBe('se.staging');
+    expect(EXPRESSION_CHANNEL.id).toBe('se.expression');
+    expect(LOCATION_CHANNEL.id).toBe('se.location');
     for (const channel of SCENE.channels) expect(channel.owner).toBe(SCENE_ID);
+  });
+
+  /**
+   * ***§7.2's three things have three different writers***, and asserting it is
+   * how the section stops reading like it forces [25 C16].
+   *
+   * A background's pointer is the engine's and [P9] writes it; an expression and
+   * a location are judgements about prose and a step writes them; text-only is a
+   * person's setting. **`model-proposed` on the two the stager writes is the
+   * whole of why no policy had to change** — `refuse()` has no branch for it, so
+   * a step may propose one and the effect carries the call it was judged in.
+   */
+  it('gives each of the three a writer the policy actually admits', () => {
+    // A person turns staging on; a model deciding to spend somebody's GPU would
+    // be the narrator deciding to spend somebody's GPU.
+    expect(STAGING_CHANNEL.update).toBe('user-only');
+    expect(STAGING_CHANNEL.init).toEqual({ kind: 'literal', value: false });
+    // Judgements about the prose, which is what a model is for — and what makes
+    // `se.scene.stage` a step that can write rather than one that is refused.
+    expect(EXPRESSION_CHANNEL.update).toBe('model-proposed');
+    expect(LOCATION_CHANNEL.update).toBe('model-proposed');
+  });
+
+  /**
+   * *A face is shown and a place is said*, which is the whole of why one of
+   * these two carries a `render` and the other does not — `se.presence`'s
+   * argument, applied to the channel that most looks like it wants a line of
+   * prose and least needs one.
+   */
+  it('injects the place and never the face', () => {
+    expect(EXPRESSION_CHANNEL.render).toBeUndefined();
+    expect(EXPRESSION_CHANNEL.budget).toBeNull();
+    expect(LOCATION_CHANNEL.render).toContain('{{ value }}');
+    expect(LOCATION_CHANNEL.budget).toBeGreaterThan(0);
+  });
+
+  /**
+   * **Actor-scoped, because a scene has several people in it.** A session-scoped
+   * expression channel would hold one face for everybody, which is not a smaller
+   * feature but a wrong one — and `scopeKey` is what the stager sets per actor.
+   */
+  it('scopes a face to the person wearing it', () => {
+    expect(EXPRESSION_CHANNEL.scope).toBe('actor');
+    expect(LOCATION_CHANNEL.scope).toBe('session');
+    expect(STAGING_CHANNEL.scope).toBe('session');
   });
 
   /**
@@ -263,14 +329,64 @@ describe('what Scene declares, and what the engine does with it', () => {
   });
 
   it('ships its empty fields empty, and its one-armed fields at one arm', () => {
-    // [P2 §5]'s erosion line, as an assertion: a second step or a participant
-    // policy belongs to P7, and this is what notices one arriving early.
+    // ~~[P2 §5]'s erosion line, as an assertion: a second step or a participant
+    // policy belongs to P7, and this is what notices one arriving early.~~
+    // **[P7] is where they arrive**, so two of these moved and the rest did not:
+    // the line was never *stay at one* but *do not grow before the contract is
+    // tested by two modes*. `presets`, `setup`, `participants` and `inputs` are
+    // still what §5 left them.
     expect(SCENE.presets).toEqual([]);
-    expect(SCENE.surfaces).toEqual([]);
     expect(SCENE.setup).toEqual({ kind: 'none' });
     expect(SCENE.participants).toEqual({ select: 'fixed', maxActors: 1 });
-    expect(SCENE.steps).toHaveLength(1);
     expect(SCENE.inputs).toEqual(['do']);
+  });
+
+  /**
+   * ***Where a scene shows up*** — [06 §9]'s fifth bullet, declared at [P7.12].
+   *
+   * **Three regions, one per kind of thing**, and the assertion worth having is
+   * that each contribution names a channel this mode actually declares. A
+   * surface pointing at somebody else's channel is what `channelInPlay` refuses
+   * on the server; catching it here is catching it at the declaration.
+   */
+  it('contributes three surfaces, each over a channel it owns', () => {
+    const owned = new Set(SCENE.channels.map((channel) => channel.id));
+    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel']);
+    for (const contribution of SCENE.surfaces) {
+      expect(owned.has(contribution.channelId)).toBe(true);
+      // Authored content travelling with the mode, like a preset's prose — so a
+      // blank one would be a picture nobody not looking at it can find.
+      expect(contribution.widget.label.length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * *The toggle is the one that shows with staging off*, which is what makes a
+   * default of **off** honest rather than the feature hiding: [10 §2.3] wants no
+   * empty frame, and a control you cannot find is a feature that does not exist.
+   */
+  it('puts the switch in the panel and the pictures elsewhere', () => {
+    const byChannel = new Map(SCENE.surfaces.map((one) => [one.channelId, one]));
+    expect(byChannel.get('se.staging')?.widget.kind).toBe('toggle');
+    expect(byChannel.get('se.backdrop')?.widget.kind).toBe('image');
+    expect(byChannel.get('se.expression')?.widget.kind).toBe('image');
+    // `se.location` declares `surface` on the channel, which is the shorthand
+    // for the HUD case — restating it here would contribute it twice.
+    expect(byChannel.has('se.location')).toBe(false);
+    expect(LOCATION_CHANNEL.surface).toEqual({ kind: 'text', label: 'Place' });
+  });
+
+  /**
+   * **Two steps, and every one of them implemented** — the property
+   * `assertModesRunnable` proves for the whole build at startup, asserted here
+   * for this mode because a step declared with no implementation is a mode that
+   * cannot take a turn.
+   */
+  it('implements every step it declares', () => {
+    expect(SCENE.steps.map((step) => step.id)).toEqual(['se.narrate', 'se.scene.stage']);
+    for (const step of SCENE.steps) expect(typeof SCENE_MODE.run[step.id]).toBe('function');
+    // `generate` before `post`: the stager reads what the narrator wrote.
+    expect(SCENE.steps.map((step) => step.stage)).toEqual(['generate', 'post']);
   });
 
   it('says narrator and merged, and the instruction block agrees', () => {

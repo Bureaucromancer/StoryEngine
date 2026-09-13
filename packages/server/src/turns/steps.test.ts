@@ -195,6 +195,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     input: true,
     speakers: true,
     setup: true,
+    cast: true,
     channels: true,
     history: true,
     output: true,
@@ -216,7 +217,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     // in the payload — a `Turn` is the deepest object that crosses this seam,
     // with an effect's `unknown` values and a tape inside it, and `unknown` is
     // where a non-clonable value would hide.
-    const input = filterReads(step({ reads: ['history', 'output', SE_CLOCK] }), {
+    const input = filterReads(step({ reads: ['history', 'output', 'cast', SE_CLOCK] }), {
       turnId: 't',
       sessionId: 's',
       parentTurnId: null,
@@ -227,6 +228,17 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
       // A frozen record, which is what a session's stored answers are by the
       // time they reach a step — and the shape a structured clone has to survive.
       setup: Object.freeze({ premise: 'A city that does not sleep.', dice: true }),
+      // Readonly twice over — the array and each entry's `media` — which is the
+      // shape the runner builds and the one a frozen payload crosses badly in
+      // ([P7.12]).
+      cast: [
+        {
+          actorId: 'actor-vera',
+          name: 'Vera',
+          kind: 'actors',
+          media: [{ id: 'm-1', role: 'expression', label: 'neutral' }],
+        },
+      ],
       channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
       history: [historyTurn()],
       output: { text: 'The rain did not let up.' },

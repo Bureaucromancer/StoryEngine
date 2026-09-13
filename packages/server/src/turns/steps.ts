@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type {
+  CastEntry,
   StepCondition,
   StepDefinition,
   StepImplementation,
@@ -33,6 +34,7 @@ import type { ChannelState, StepSkipReason, Turn } from '../sessions/types.js';
  */
 export type {
   Candidate,
+  CastEntry,
   EffectProposal,
   StepCallRequest,
   StepCallResult,
@@ -138,6 +140,7 @@ export function filterReads(
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
     output?: { text: string };
+    cast?: readonly CastEntry[];
   },
 ): StepInput {
   /**
@@ -171,6 +174,15 @@ export function filterReads(
     // Unfiltered for `speakers`' reason: the mode's own declaration, answered
     // for the mode's own session.
     ...(everything.setup === undefined ? {} : { setup: everything.setup }),
+    /**
+     * **Filtered like a channel, and by the same field** — [P7.12]. A step that
+     * does not declare `cast` is not handed one, which is what `reads` is for:
+     * a payload is the thing the step said it needed, and a scene's whole cast
+     * is not a small thing to hand somebody who did not ask.
+     */
+    ...(everything.cast === undefined || !definition.reads.includes('cast')
+      ? {}
+      : { cast: everything.cast }),
     channels,
     ...(definition.reads.includes('history') ? { history: everything.history } : {}),
     ...(definition.reads.includes('output') && everything.output !== undefined

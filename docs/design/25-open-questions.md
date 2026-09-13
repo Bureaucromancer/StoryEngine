@@ -850,6 +850,71 @@ in the way the rest of the contract is and is the only one of the three that
 scales past one field. **Decide with the first mode that cannot proceed without
 it**; Freeform proceeded. *[06 §4, 06 §4.1, 06 §9]*
 
+*Still open at [P7.12], and deliberately not forced by it.* §7.2's *"sprites,
+backgrounds and expression selection are steps writing to channels"* reads like
+it settles this — `se.backdrop` is `engine-computed` and a step cannot write it
+— and it does not, because the three things that sentence names have **three
+different writers**: a background's pointer is the engine's and P9 writes it
+through the route the hook firing and the goal achievement already take; an
+expression and a location are judgements about prose, so `model-proposed`, which
+admits a step; text-only is a person's setting, so `user-only`. Scene grew up
+without needing an answer here, which is the outcome this question wants.
+
+**C17. A mode cannot keep its own step out of a turn. — OPEN, found by giving a
+mode a step worth skipping** (2026-09-13,
+[P7.12](workplan/23-p7-implementation.md)). The engine keeps *its* conditional
+steps out of the plan by not appending them, and `turns/runner.ts` argues for it
+at length where the suggester is built: *"a suggestion step nobody asked for has
+nothing to report… an `ok` row contributing nothing on every turn of every
+session in the build, which is a step outcome that means this feature exists
+rather than anything about the turn."* **A mode has no equivalent.** `planFor`
+zips every step in `ModeDefinition.steps`, so a declared step runs or reports
+itself skipped, and there is no third state.
+
+*The concrete instance is Scene's stager.* `se.scene.stage` costs a model call
+per turn and is off by default, so on nearly every Scene session it reads one
+boolean and returns — and eight assertions in `runner.test.ts` now carry its id
+while testing something else, which is the cost made visible.
+
+**`StepCondition` is where the answer goes and it is closed at three arms on
+purpose** — its own docstring refuses a fourth for an `always` that would be
+less than this, and refuses an expression language in as many words. So the
+tempting fix is the one to resist. What is more interesting is that **two of the
+three arms have no producer at all**: `ConditionContext.stages` is *"stage flags
+the mode has raised"* and has been an empty set since P2.6 because a mode has no
+way to raise one, and `armed` is the same for the user's side. The arm this
+wants may already exist.
+
+Three candidate answers. *(a)* **Build the `stage` arm's producer** — give a mode
+a declarative way to raise a flag, which is the only one that adds no vocabulary.
+*(b)* **A fourth arm keyed on a channel** — `{ when: 'channel', channelId,
+equals }`, honest and small, and the first step onto the expression-language
+slope the type exists to refuse. *(c)* **Leave it**, and accept a dead `ok` row
+as what declaring a step costs — defensible while one mode has one such step and
+worse with every mode that gets another. **Decide with the second instance**, or
+when a phase is measuring turn cost, since (c)'s price is paid in the record
+rather than in tokens. *[06 §6, 22 §4.1]*
+
+**C18. Three `post` steps make three calls over the same prose. — OPEN, noted
+rather than solved** (2026-09-13, [P7.12](workplan/23-p7-implementation.md)). The
+goal judge asks *was the goal met*, the suggester asks *what could they do next*,
+and the stager asks *what face and what place* — three structured calls, same
+turn, same passage, three round trips on somebody's own GPU. One call with a
+three-part schema would answer all of it.
+
+*Not done here, and the reason is the record rather than the difficulty.* Each
+effect and each turn field currently names the call it came from, and one
+`callId` behind three unrelated judgements makes *why is this here* answerable
+only as *because of the combined call* — which is a real loss in a build whose
+whole posture is that a reader can ask that question. It also couples three
+independent gates: today any of the three can be off, and a merged call either
+asks all three or needs the schema assembled per turn from whichever are on,
+which is most of the saving gone.
+
+**The right time is when something is measuring turn cost**, and the right
+evidence is a measurement rather than an argument. Until then the three stay
+three. *[06 §6, 06 §7.3]*
+
 ---
 
 ## D. Deployment questions
