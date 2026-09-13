@@ -617,7 +617,33 @@ No `suggestions` here — the plan step is where advice can still be acted on.
 
 The stored bytes of an actor's `card.png`, as `image/png` with an `ETag` of the
 content hash. Actors only — no other kind has an image that *is* the object —
-so any other kind is `404`.
+so any other kind is `404`. **The object's own pixels, which is what makes it
+actors-only**; media the object merely *carries* is the route below.
+
+### `GET /api/library/:kind/:id/media/:mediaId`
+
+The bytes of one entry in an object's `media` manifest — [P7.10]. `content-type`
+from the entry's own `mime`, and an `ETag` of **the media's `digest`**, not the
+object's `contentHash`: the two differ, and the digest is the right one because
+a picture does not change when the prose beside it does.
+
+**Any kind, unlike `/avatar`.** [04 §3](design/04-schemas.md) puts `media` on
+treatments, lorebooks and packages as well as on actors, so the route is keyed
+the same way the rest of the library is.
+
+- `404` when the object has no entry with that id.
+- `404` when the manifest has the entry and the container has no blob behind its
+  `ref`. **This is a real state rather than a defensive branch** — a PNG whose
+  ancillary chunks were stripped in transit keeps its manifest and loses its
+  bytes ([03 §5.2.2](design/03-data-model.md)) — and it answers `404` rather than
+  `500` because the object is intact and one thing inside it is not.
+
+*What reads it today:* expression sprites, imported with the character
+([P7.10] again — an actor arriving with a `sprites/` directory keeps every image
+as `role: "expression"` with the filename stem as its label, where before only
+`assets[0]` survived as the portrait). [P9](design/workplan/25-p9-implementation.md)
+is the second consumer: a rendition's asset needs serving too, and
+`MediaSelection`'s two arms are already the one shape both go through.
 
 ---
 

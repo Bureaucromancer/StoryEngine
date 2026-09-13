@@ -3913,9 +3913,11 @@ a preview that lies**, and both are handed over in one line now.
 ### P7.9 — Freeform, and Scene grown up
 
 The second mode — **`packages/modes/freeform`, and it is the second package, not
-only the second mode**; [19 §10](../19-tech-stack.md)'s tree still draws
-`modes/adventure`, a mode [06 §1](../06-modes-and-turn-pipeline.md) dissolved —
-built entirely through the contract; Scene grown from P2's
+only the second mode**; ~~[19 §10](../19-tech-stack.md)'s tree still draws
+`modes/adventure`, a mode [06 §1](../06-modes-and-turn-pipeline.md) dissolved~~
+*— it did when this stage was written and did not by the time it landed: §0.1a's
+item 4 struck it at P7.0, and this sentence contradicted that four sections down
+for three days (corrected 2026-09-13)* — built entirely through the contract; Scene grown from P2's
 deliberately embarrassing minimum to its 1.0 shape — sprites, backgrounds and
 expression selection as steps writing channels, with **text-only remaining a
 first-class configuration**, as it is in both sources.

@@ -155,8 +155,15 @@ export interface EffectProposal {
  *
  * The omission is the design. [22 §3.1] gives the payload-filter rule this
  * implements — *a step that did not declare `history` does not receive it* — and
- * `reads` can name a channel, `history` or `output` and nothing else, so
- * guidance is not expressible there and could only arrive as an ungated extra.
+ * `reads` names a channel or one of [06 §6]'s pseudo-sources and **nothing that
+ * is not a source**, so guidance is not expressible there and could only arrive
+ * as an ungated extra.
+ *
+ * *Was "`history` or `output` and nothing else", which `cast` made wrong 78
+ * lines below at [P7.12] — the same sentence [06 §6] and [22 §3.1] carry, and
+ * all three needed the same correction (2026-09-13). What matters to the
+ * argument is unchanged, and is why the count was never load-bearing: every
+ * member of that union is a **source**, and guidance is not one.*
  * A step handed the guidance text could re-emit it as an ordinary candidate, and
  * the assembler would admit it: the refusal keys on `Candidate.advisory`, not on
  * where the words came from. Guidance therefore reaches the prompt only as a

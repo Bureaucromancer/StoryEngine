@@ -63,17 +63,22 @@ of registered steps, channels and surfaces.
 
 ```ts
 interface ModeDefinition {
-  id: ModeId                      // "storyengine.adventure"
+  /** ~~"storyengine.adventure"~~ — §1 dissolved Adventure, and this example
+   *  outlived it by every draft since. "storyengine.scene" (2026-09-13). */
+  id: ModeId                      // "storyengine.scene"
   version: SemVer
   displayName: string
   presets: ModePreset[]           // "freeform", "campaign"
+  /** Shipped and not sketched here: `voice` and `dispatch`, a pair rather than
+   *  two fields — a narrator that speaks as one actor is a mode misdescribing
+   *  itself. See `@storyengine/sdk`. */
 
   participants: ParticipantPolicy // §3 — who may speak and how turns are allocated
   assembly: AssemblyPlan          // §5 — which blocks, in what order, under what budgets
   steps: StepDefinition[]         // §6 — the pipeline
   channels: ChannelDefinition[]   // §4 — the state it owns
   inputs: InputKind[]             // free text / do / say / think / story / choice / …
-  surfaces: SurfaceContribution[] // §7 — UI it contributes
+  surfaces: SurfaceContribution[] // ~~§7~~ §9 — UI it contributes (2026-09-13)
   setup: SetupSchema              // the wizard, declared not coded
 }
 ```
@@ -185,12 +190,19 @@ interface ChannelDefinition {
   owner: ModeId | ExtensionId | PackageId   // package: §4.1
   version: number                 // paired with ChannelState.version — [21 §1.3]
   schema: JSONSchema              // the state shape
-  scope: "session" | "actor" | "entry"   // one value, or one per actor/lore entry
+  /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it:
+   *  a firing state is per hook and a goal's is per goal, and neither is a
+   *  session value or an actor's. Added 2026-09-13. */
+  scope: "session" | "actor" | "entry" | "hook" | "goal"
   init: InitPolicy                // literal default, from treatment, or generated at start
   update: "model-proposed" | "engine-computed" | "user-only"
   visibility: "player" | "hidden" // §7.3
   budget: number | null           // token cost when injected; null = never injected
+  render?: string                 // how the value reads in a prompt — P7.1
   surface?: WidgetSpec            // how it renders in the HUD, if at all
+  /** Terminal values a person confirms before they apply — P7.2, and what
+   *  [25 C12](25-open-questions.md)'s answer turns on. */
+  confirm?: readonly string[]
 }
 ```
 
@@ -209,13 +221,26 @@ own design note — and the first mode author to read this section would be read
 the wrong shape. So this section is corrected against what shipped rather than
 the other way round; where the two still differ is a *schedule*, stated next.
 
-**Four members are specified here and deliberately absent from the shipped
+~~**Four members are specified here and deliberately absent from the shipped
 type**: `schema`, `init: InitPolicy`, `migrate` (21 §1.3's, not shown above) and
 `surface?: WidgetSpec`. [21 §6](21-internal-contracts.md) defers `InitPolicy` and
 `WidgetSpec` because they *"want the mode contract built first"* — that contract
 is the SDK, and P7.1 is the stage that designs them against their first real
 consumer. They stay in this sketch because it is the design, and their absence
-from the package is recorded in the package.
+from the package is recorded in the package.~~
+
+***One member, not four*** (2026-09-13). The sentence above forecast its own
+expiry correctly and nobody came back: `schema`, `init` and `surface` all shipped
+at [P7.1](workplan/23-p7-implementation.md), the very next stage, and `init`
+shipped **required** rather than optional — a channel that cannot say where it
+starts has not really been declared. `render` and `confirm` joined them at P7.1
+and P7.2 and are in the sketch above now.
+
+**Only `migrate` is still absent**, and its argument stands on its own rather
+than on [21 §6](21-internal-contracts.md)'s deferral, which has itself been
+struck: a hook that sits inside the replay path should not have its contract
+guessed before a channel needs one, and after fifteen stages of channels none
+has.
 
 The properties that make this worth doing:
 
@@ -249,8 +274,14 @@ Added after surveying Infinite Worlds ([02](02-infinite-worlds.md)), which is
 the strongest evidence for this whole section — and which shows it is currently
 under-specified here.
 
-As written above, a `ChannelDefinition` has an `owner: ModeId | ExtensionId`, so
-new state requires code. Infinite Worlds lets *world authors* declare tracked
+~~As written above, a `ChannelDefinition` has an `owner: ModeId | ExtensionId`, so
+new state requires code.~~ **Not as written above, and not since P7.0** — §4's
+sketch accepts a `PackageId` because this section asked it to, and the point
+below survives the correction unchanged: a package can *carry* state, and nobody
+outside code can *declare* it. *The shipped type is already exercised on the
+third arm: the retriever's timing channel is owned by `storyengine.lore`, which
+is a package and not a mode.* (Corrected 2026-09-13 — §4 was reconciled at P7.0
+and this back-reference to it was not.) Infinite Worlds lets *world authors* declare tracked
 variables and write declarative rules over them, shipped as data inside the
 world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
@@ -548,11 +579,17 @@ where it may run:
 interface StepDefinition {
   id: StepId
   stage: "pre" | "assemble" | "generate" | "extract" | "post"
-  reads: (ChannelId | "history" | "output")[]
+  /** `cast` added at P7.12 — who is in the scene and what pictures travel with
+   *  them, the manifest and never the bytes. A mode's expression selection
+   *  could not see an actor's expression set at all, and being handed the cast
+   *  without declaring it would have been the back door §2 refuses. */
+  reads: (ChannelId | "history" | "output" | "cast")[]
   writes: ChannelId[]
   contributes?: "blocks" | "effects" | "messages"
+  callKind: string                // what a preset's `appliesTo` filters on — [04 §8.2]
   when: StepCondition             // cadence ("every 8 turns"), stage flags, user-armed
   failure: "abort" | "warn" | "ignore"
+  role: ModelRole | null          // the role its call asks for, or null — [19 §5.1]
 }
 ```
 
@@ -888,11 +925,39 @@ Design notes:
 - ST's activation strategies (`NATURAL`, `LIST`, `POOLED`, `MANUAL`) are a good
   taxonomy for `ParticipantPolicy` and should be taken as such — with the
   implementation being "the policy selects speakers", not card-swapping.
-- Sprites, backgrounds and expression selection are steps writing to channels.
+- ~~Sprites, backgrounds and expression selection are steps writing to
+  channels.~~ **Three things, three writers** — corrected 2026-09-13, at
+  [P7.12](workplan/23-p7-implementation.md), which built the sentence and found
+  it not quite true. *Read as written it forces
+  [25 C16](25-open-questions.md)*: `se.backdrop` is `engine-computed`, which
+  §8.1's refusal denies a step, so *steps writing to channels* looks like a
+  contradiction demanding a policy change. It is not, because the three things
+  named do not share a writer:
+  - **A background's pointer is the engine's.** A model choosing what the scene
+    looks like is a model deciding where you are, which is a fact about the
+    session rather than about the prose. A person may set it; [P9] writes it
+    through the engine, the route a hook firing and a goal achievement already
+    take.
+  - **An expression is a model's judgement** — *is she angry now* — so
+    `model-proposed`, which admits a step. That is what makes the sentence true
+    of the half it is actually about.
+  - **Text-only is a person's setting**, so `user-only`.
+
+  **C16 stays open and stays unforced**, which is the right outcome for a
+  question that should be answered by the first mode that cannot proceed without
+  it. This one could.
+
   Text-only must remain a fully supported first-class configuration, as it is in
-  both sources.
+  both sources — *and it is by construction rather than by care*: with staging
+  off no step runs, no channel moves and every contributed region renders
+  nothing.
 - **A background channel says which backdrop is showing; §10.1a says where the
-  image comes from.** The two halves were separated for years by the fact that
+  image comes from.** *Declared at [P7.9](workplan/23-p7-implementation.md) as
+  `se.backdrop`, with the media union this paragraph demands and the rendition
+  arm dead until [P9](workplan/25-p9-implementation.md) — which is the whole
+  content of the obligation. `se.expression` and `se.location` joined it at
+  P7.12; the latter collects what P9's backdrop selector assumes and P7.9 did not
+  declare.* The two halves were separated for years by the fact that
   SillyTavern answers the second one with a folder. The channel's value is a
   media reference that may name either an image somebody uploaded or a
   rendition's asset, and it has to be that from the declaration onward: narrowing
@@ -1363,7 +1428,14 @@ able to, without engine changes:
 - declare its own setup wizard and store config the host never interprets
 - contribute pipeline steps at any stage
 - define its own input kinds and its own participant policy
-- contribute UI surfaces (a HUD region, a side panel, a message decoration)
+- contribute UI surfaces (a HUD region, a side panel, a message decoration
+  ~~)~~ — **and a stage, behind the transcript**, added at
+  [P7.11](workplan/23-p7-implementation.md). *Four regions where this bullet
+  names three, and the fourth is not an embellishment: these three were written
+  before §10.1a existed, and a backdrop is none of them.*
+  [10 §8.1](10-ui-surfaces.md)'s paired commitment — *when an extension cannot
+  express something, ask what widget would let it and add that* — governs regions
+  as much as widgets, and this is the first time it was exercised)
 - ship with a package that declares a dependency on it
 - read library objects through a capability API that is *narrow and typed* —
   Marinara's `CapabilityRuntime` is the model, including its instinct to make
@@ -1376,6 +1448,17 @@ role and the host executes it), or write another mode's `modeData`.
 **Execution model: settled.** Extensions run behind a worker-thread boundary
 from 1.0, and built-in modes go through the same interface — specified in
 [22](22-extensions.md).
+
+***Five of the seven are built, and the list stopped being a test the day the
+second mode was written*** (2026-09-13). Channels with schemas at
+[P7.1](workplan/23-p7-implementation.md), the declared wizard at P7.4, steps at
+any stage from P7.0, input kinds and participant policy at P7.3 and P7.9, UI
+surfaces at P7.11. **What is still unbuilt is the capability API and the
+package-dependency bullet** — the two that cross a boundary, which is not a
+coincidence: [22 §4](22-extensions.md) owns both and neither has had a consumer
+yet. *The list keeps its future tense for the two, and for the reason the last
+paragraph of this section gives: a contract is real when somebody outside the
+project builds against it, and nobody has.*
 
 The list above is why it costs little. Five of the seven requirements are
 *declarative* and cross no boundary at all; the remaining two are a function over

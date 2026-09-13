@@ -85,7 +85,13 @@ it".
 
 ### 3.1 `reads` is already the payload filter
 
-`StepDefinition` already declares `reads: (ChannelId | "history" | "output")[]`.
+`StepDefinition` already declares
+~~`reads: (ChannelId | "history" | "output")[]`~~
+`reads: (ChannelId | "history" | "output" | "cast")[]` — the fourth added at
+[P7.12](workplan/23-p7-implementation.md), for a mode that had to see an actor's
+expression set and could not. *The widening is the rule working rather than an
+exception to it*: the alternative was the engine handing a mode its own cast
+unasked, which is the back door this section's filter exists to close.
 That field was added so the pipeline could reason about dependencies. It does
 double duty here:
 
@@ -138,6 +144,21 @@ Another mechanism that already existed.
 > split into input-and-host is the shape §4's own argument wants, and is the
 > reason the rest of this block reads as it does.
 >
+> ***And the list went stale the way a list of differences does*** (2026-09-13).
+> It was written at [P7.0](workplan/23-p7-implementation.md) and **`StepInput`
+> gained three fields over the stages after it**, none of which is in the list or
+> in the sketch below: `speakers` (P7.3, who the participant policy says talks
+> this turn), `setup` (P7.4, the wizard's answers), and `cast` (P7.12, the scene's
+> people and the pictures that travel with them). *A promise that the remaining
+> differences are deliberate rather than unnoticed has to be re-made each time
+> the contract moves, or it decays into the second kind.*
+>
+> **Two of the three are deliberately *not* filtered by `reads`**, and §3.1 is
+> the section they argue with: that rule is about **sources** a step might not be
+> entitled to, and `speakers` and `setup` are the mode's own declaration answered
+> for the mode's own session. `cast` **is** filtered, because a scene's whole
+> cast is not a small thing to hand somebody who did not ask for it.
+>
 > `StepInput` and `StepResult` are both `structuredClone`-able today, asserted
 > in `turns/steps.test.ts`, which is the half of [01 §2]'s day-one item that can
 > be held to account before the boundary exists.
@@ -151,6 +172,9 @@ interface StepContext {
   channels: Record<ChannelId, unknown>  // only those declared in `reads`
   history?: Message[]                   // only if declared
   output?: string                       // only at `extract` / `post`
+  speakers?: ActorId[]                  // P7.3 — unfiltered; the mode's own policy
+  setup?: Record<string, unknown>       // P7.4 — unfiltered, for the same reason
+  cast?: CastEntry[]                    // P7.12 — filtered; declared by `reads`
   config: unknown                       // the extension's own settings
   host: HostApi                         // async, narrow, typed
 }
@@ -301,7 +325,12 @@ before enabling anything.
   "modes": [ /* … */ ],
   "channels": [ /* … */ ],
   "steps": [ /* … */ ],
-  "widgets": [ /* … */ ],
+  // ~~"widgets"~~ — there is no such key and there should not be. A widget
+  // reaches the host two ways, both attached to the thing it renders:
+  // `ChannelDefinition.surface` and `ModeDefinition.surfaces` ([10 §8]).
+  // A manifest-level array would be a third, unattached to any value.
+  // Corrected 2026-09-13, at P7.11, which built the other two.
+  "surfaces": [ /* … */ ],
   "capabilities": ["model:fast", "storage"],   // requested, granted at install
   "storageQuotaMb": 5
 }

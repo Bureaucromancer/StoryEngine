@@ -895,8 +895,16 @@ why every tool in this space bolts sprites and galleries onto the side. Here the
 envelope (§5.2 above) carries a **media set** alongside the JSON:
 
 The envelope carries an `EmbeddedMedia[]` alongside the JSON, each entry a
-typed role plus bytes ([04 §3](04-schemas.md)). Roles: `portrait-source`,
-`reference`, `expression`, `pose`, `style`, `gallery`.
+typed role plus ~~bytes~~ **a reference to bytes the container resolves**
+([04 §3](04-schemas.md)) — corrected 2026-09-13, because `bytes: Uint8Array` is
+the draft 04 §3 explicitly rejected: it has no representation in JSON Schema and
+no meaning inside a `.sepack`, where there is no PNG chunk to point at. Roles:
+`portrait-source`, `reference`, `expression`, `pose`, `style`, `map`, `gallery`,
+`background`. *~~Six~~ eight — `map` arrived with lore media and `background` at
+[P7.9](workplan/23-p7-implementation.md), for a backdrop that had no role naming
+what it is. 04 §3's listing was corrected on the same day and this parallel one
+was missed, which is the argument for one of the two being a copy rather than a
+second statement.*
 
 **Roles are typed from the start, and that is the part worth insisting on now.**
 A flat list of images is cheap and forecloses everything downstream: an image
