@@ -1026,6 +1026,22 @@ mode seats fewer than the list names.
 improving a character card reaches an ongoing game — the asymmetry with the
 copied preset is deliberate ([03 §8](design/03-data-model.md)).
 
+### `POST /api/sessions/:sessionId/goals`
+
+`{ goal }` → `{ session }`. A goal written at a completion —
+[06 §7.3.4](design/06-modes-and-turn-pipeline.md)'s *"set the next goal, either
+the authored `next` or one written now"*, and the clause that makes the chain a
+session field rather than a link into the Setup.
+
+**It writes the chain and not the cursor**, which is two acts on purpose. Adding
+the goal is an authoring act and lands on the session file, appending no turn;
+*moving play onto it* is a move in the story and goes through the channel write
+below, where it becomes a turn a rewind can undo. That section is emphatic that
+`thenDefault` *"seeds the offer; it does not decide it"*, and a route doing both
+would have decided it. An `id` is minted when the goal arrives without one, for
+the reason the hook route mints one: `se.goal` is scoped by it and `Goal.next`
+names it.
+
 ### `POST /api/sessions/:sessionId/hooks` · `DELETE /api/sessions/:sessionId/hooks/:hookId`
 
 `{ hook }` → `{ session }`, and the delete answers the same. A hook added to a
@@ -1114,6 +1130,16 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
+**It is how the three offers at a goal completion are taken** —
+[06 §7.3.4](design/06-modes-and-turn-pipeline.md), and why none of them needed a
+route: *continue open* writes `se.goal.current` to `null` (the achievement is
+retained; nothing new is set), *advance* writes it to the next goal's id, and
+*end* writes `se.concluded` to `true`. **Concluded is a state, not a deletion** —
+the session stays readable and branchable, and rewinding past the ending un-ends
+it. Manual completion is `se.goal#<goalId>` set to `"achieved"`, which
+[06 §7.3.3] keeps *always available* because the narrative judge is biased toward
+*not met* on purpose.
+
 **It is also how a hook is committed or forced** — [06 §6.1]'s two hand
 controls, and the reason neither needed a route of its own. The channel is
 `engine-computed`, which refuses a model and a step and **admits a person**, so
@@ -1159,6 +1185,14 @@ only once the hook has fired and entrance **text** never appears at all*: an
 unfired hook's premise is hidden content ([08 §6]), and the workbench's block
 list already shows a fired hook's exact words. Empty `rows` for a session with no
 pool, which is every session that was not created with one.
+
+`goals` is `{ rows, concluded }` ([06 §7.3.3], [06 §7.3.4]): each row carries a
+goal's `statement`, `visibility`, `completion` kind, whether it is `current`,
+whether it is `achieved` and on which turn (`achievedOn`, derived from the path
+so a rewind changes it), its authored `next`, and the `thenDefault` that *seeds*
+the offer. **The three offers are not sent** — they are the same three every
+time, and what decides whether to raise them is `achieved` plus `next`. *The
+author's fuller `detail` does not travel*: [04 §7.1] reserves it for steps.
 
 `health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
 channels declaring a `surface`, already rendered through their own `render`

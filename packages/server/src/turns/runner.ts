@@ -37,8 +37,10 @@ import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
+import { goalJudge, type GoalJudgeReport } from './goal-judge.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { readPacing, SE_HOOK } from '../sessions/hooks.js';
+import { SE_GOAL } from '../sessions/goals.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
@@ -375,6 +377,13 @@ export class TurnRunner {
      */
     const hooks: { report: HookSelectorReport | null } = { report: null };
     /**
+     * What the goal judge answered — [06 §7.3.3], [P7.6]. A cell for the same
+     * reason the selector's is one: `se.goal` is `model-proposed` and what the
+     * *session* does about an achievement is the engine's to decide, so the step
+     * reports and the runner writes.
+     */
+    const goals: { report: GoalJudgeReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -566,6 +575,24 @@ export class TurnRunner {
      * judged against no history would fire its opening beat into a prompt that
      * has not happened yet.*
      */
+    /**
+     * **The goal judge, appended** — [06 §7.3.3], [P7.6], and the second
+     * engine-owned step. `post`, so it runs after the prose exists: the selector
+     * asks about the turn that is about to happen and this asks about the one
+     * that just did.
+     *
+     * **Only for a `narrative` goal.** [04 §7.1]'s other arm is `manual` — *the
+     * player says when* — and a call that judged a manual goal would be the
+     * engine asking a question the author reserved for a person. *And never on a
+     * concluded session*: [06 §7.3.4] keeps an ended story readable and
+     * branchable, not running.
+     */
+    const judging =
+      payload.setup !== true &&
+      !inputs.goals.concluded &&
+      inputs.goals.current !== null &&
+      inputs.goals.current.completion.kind === 'narrative';
+
     const selects = payload.setup !== true && inputs.hooks.pool.length > 0;
     const plan: TurnPlan = selects
       ? {
@@ -592,7 +619,22 @@ export class TurnRunner {
         }
       : declaredPlan;
 
-    for (const { definition, run } of plan.steps) {
+    const withJudge: TurnPlan =
+      judging && inputs.goals.current !== null
+        ? {
+            steps: [
+              ...plan.steps,
+              goalJudge({
+                goal: inputs.goals.current,
+                report: (report) => {
+                  goals.report = report;
+                },
+              }),
+            ],
+          }
+        : plan;
+
+    for (const { definition, run } of withJudge.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath: history.length,
         stages: new Set<string>(),
@@ -716,6 +758,16 @@ export class TurnRunner {
                     ...(hooks.report?.guidance === undefined
                       ? {}
                       : { hookGuidance: hooks.report.guidance }),
+                    // [06 §7.3.3]'s *always injected*, resolved by the gather so
+                    // a preview and a turn cannot disagree about which goal.
+                    ...(inputs.goals.current === null
+                      ? {}
+                      : {
+                          goal: {
+                            id: inputs.goals.current.id,
+                            statement: inputs.goals.current.statement,
+                          },
+                        }),
                     ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
                   });
 
@@ -1049,6 +1101,40 @@ export class TurnRunner {
         effects.push(effect);
         running = applyEffects(running, [effect]);
       }
+    }
+
+    /**
+     * **A goal met, after the loop** — [06 §7.3.3], [P7.6].
+     *
+     * ***Attributed to the **model**, which is the one thing that makes
+     * `model-proposed` mean anything here.*** `se.goal` is the build's first
+     * channel with that policy, and the policy exists because [06 §7.3.3] says
+     * *"the narrator's judgement is the only signal available"* — so the record
+     * has to say a model judged this, with the call it judged it in. A step
+     * attribution would have been true of the plumbing and false about the
+     * decision.
+     *
+     * *Written by the runner rather than proposed by the step* for the reason
+     * the firing is: what an achievement **means** for the session — which
+     * offers to raise, whether anything moves — is the engine's, and
+     * [06 §7.3.4] is explicit that none of it happens without asking.
+     */
+    if (!aborted && goals.report?.met === true) {
+      const judged = calls.at(-1);
+      const effect = acceptEffect(
+        job.turnId,
+        {
+          channelId: SE_GOAL,
+          scopeKey: goals.report.goalId,
+          op: { type: 'set', path: '/' },
+          after: 'achieved',
+          proposedBy:
+            judged === undefined ? { kind: 'engine' } : { kind: 'model', callId: judged.id },
+        },
+        running,
+      );
+      effects.push(effect);
+      running = applyEffects(running, [effect]);
     }
 
     /**

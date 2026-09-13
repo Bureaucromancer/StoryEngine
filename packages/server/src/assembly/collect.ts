@@ -54,6 +54,20 @@ export interface CollectContext {
    */
   hookGuidance?: string;
   /**
+   * The goal this session is on — [06 §7.3.3], [P7.6].
+   *
+   * **Resolved by the caller**, which is the rule this context follows for the
+   * cast and the lore and for the same reason: the cursor is channel state and
+   * the chain is a session field, and a collector that read either would be
+   * doing the gather's job somewhere a preview and a turn could disagree about
+   * it.
+   *
+   * *Absent is a session with no goal* — either one whose Setup carried none,
+   * which [04 §7.1] calls the deliberate opt-out, or one that answered
+   * *continue open* at a completion.
+   */
+  goal?: { id: string; statement: string };
+  /**
    * The attempt a guided redo is redoing — its output, and which turn it was
    * ([06 §5.1], [07 §7]).
    *
@@ -221,11 +235,23 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
       return context.lore === undefined ? 'no-producer' : 'empty-source';
 
     case 'treatment':
-    case 'goal':
     case 'channel':
       // The same list `fill()` returns nothing for, each for its stated
       // reason — no producer at this phase.
       return 'no-producer';
+
+    /**
+     * ***`goal` left that list at [P7.6]***, and the change of meaning is the
+     * same one [P5.9] made for lore and samples: the arm had no producer at all,
+     * and now it has one. An empty goal slot no longer says *waiting on the
+     * engine*; it says **this session has no goal**, which is either a Setup
+     * that carried none — [04 §7.1]'s *"the deliberate opt-out rather than the
+     * default"* — or a completion answered with *continue open*. Both are states
+     * an author acts on, and `no-producer` would have sent them looking for a
+     * missing phase.
+     */
+    case 'goal':
+      return 'empty-source';
 
     /**
      * ~~**The one source kind whose reason depends on which carrier it names**,
@@ -644,11 +670,32 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       );
 
     /**
-     * Nothing, each for its own stated reason. A P2.6 session carries no
-     * Treatment; goals are Setup-borne.
+     * ***The goal play is on, always injected*** — [06 §7.3.3], [04 §8.2],
+     * [P7.6]. That section is explicit: *"the goal statement is therefore always
+     * injected, and difficulty fragments are written to reference it."* This arm
+     * has returned `[]` since P2 and reported `no-producer` beside it; the
+     * producer is the session's own chain and the cursor over it.
+     *
+     * **The statement and never the `detail`.** [04 §7.1] draws that line on the
+     * schema — *"short, always injected"* against *"the author's fuller version,
+     * available to steps; not injected by default, so a long one costs nothing
+     * per turn"* — so a slot that sent both would spend a paragraph a turn on
+     * something the design put out of the prompt on purpose.
+     *
+     * *A `hidden` goal is injected too, and that is not an oversight.*
+     * [04 §7.1]'s `visibility` is about the **player**: hidden is *the GM's
+     * arc*, which the narrator is told and the reader is not. The channel
+     * `visibility` that governs prompts is a different field about a different
+     * audience.
      */
+    case 'goal': {
+      const goal = context.goal;
+      if (goal === undefined) return [];
+      return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined);
+    }
+
+    /** Nothing, for its own stated reason: a P2.6 session carries no Treatment. */
     case 'treatment':
-    case 'goal':
       return [];
 
     default:

@@ -4,6 +4,7 @@
 import type {
   BranchRef,
   ChannelState,
+  Goal,
   ModelRole,
   PlotHook,
   Preset,
@@ -137,6 +138,25 @@ export interface SessionFile {
    * carried no hooks — which is different from a pool somebody emptied.
    */
   hooks?: PooledHook[];
+  /**
+   * What this session is trying to do, in order — [04 §7.1], [06 §7.3.3],
+   * [P7.6].
+   *
+   * ***A copy, like the pool and the pack and for the same reason***: a Setup is
+   * authored content and editing one must not reach a game in progress
+   * ([00 §3.1]). The chain is ordered, `goals[0]` is where play begins, and
+   * **Advance may write a goal that was never in the Setup** — [06 §7.3.4]'s
+   * *"set the next goal, either the authored `next` or one written now"*, which
+   * is the clause that makes this a session field rather than a link.
+   *
+   * *What has **happened** to a goal is not here*: that is `se.goal`, per-goal
+   * channel state, because a completion has to branch and a field does not.
+   *
+   * Absent for every session written before P7.6, and for one created from a
+   * Setup with no goals — which [04 §7.1] calls *"the deliberate opt-out rather
+   * than the default"*.
+   */
+  goals?: Goal[];
   /**
    * The session's own copy of its prompt pack — [03 §8].
    *

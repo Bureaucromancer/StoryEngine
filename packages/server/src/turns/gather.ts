@@ -12,7 +12,9 @@ import { walkPath } from '../sessions/segments.js';
 import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/types.js';
+import type { Goal } from '@storyengine/shared';
 import { readRegistry } from '../tags/store.js';
+import { readConcluded, readCurrentGoal } from '../sessions/goals.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
@@ -90,6 +92,19 @@ export interface AssemblyInputs {
    * can answer.
    */
   hooks: { pool: readonly PooledHook[]; known: ReadonlySet<string> };
+  /**
+   * The session's goal chain and the one play is on — [06 §7.3.3], [P7.6].
+   *
+   * **Here for the reason `hooks` is here**: the cursor is channel state, the
+   * chain is a session field, and a collector or a step that read either would
+   * be doing this module's job somewhere a preview and a turn could disagree
+   * about it.
+   *
+   * *`current` is `null` for three different sessions and the panel tells them
+   * apart, not this*: one whose Setup carried no goals, one that answered
+   * *continue open*, and one that has ended.
+   */
+  goals: { chain: readonly Goal[]; current: Goal | null; concluded: boolean };
 }
 
 export interface GatherContext {
@@ -189,6 +204,7 @@ export async function gatherAssemblyInputs(
    */
   const lore = resolveLore(library, request.account, session);
   const pool = Array.isArray(session?.hooks) ? session.hooks : [];
+  const chain = Array.isArray(session?.goals) ? session.goals : [];
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
   return {
@@ -207,5 +223,10 @@ export async function gatherAssemblyInputs(
     cast,
     lore,
     hooks: { pool, known: resolvableActors(library, request.account, pool) },
+    goals: {
+      chain,
+      current: readCurrentGoal(channels, chain),
+      concluded: readConcluded(channels),
+    },
   };
 }

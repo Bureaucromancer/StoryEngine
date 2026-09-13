@@ -8,6 +8,7 @@ import {
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   uuidv7,
+  type Goal,
   type PlotHook,
   type Setup,
 } from '@storyengine/shared';
@@ -29,6 +30,7 @@ import {
   setCast,
   setLore,
   setSessionHooks,
+  addSessionGoal,
   setSessionRoles,
   readTurns,
   readTurnById,
@@ -40,6 +42,7 @@ import {
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
+import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { resolveLore } from '../turns/lore.js';
@@ -292,6 +295,20 @@ const SessionPatch = Type.Object(
  */
 const HookBody = Type.Object(
   { hook: Type.Object({}, { additionalProperties: true }) },
+  { additionalProperties: false },
+);
+
+/**
+ * One goal written at a completion — [06 §7.3.4]'s *"or one written now"*,
+ * [P7.6].
+ *
+ * *Open past the envelope*, like the hook body beside it and for the stated
+ * reason: a goal the schema would refuse is an authoring mistake to show rather
+ * than a request to reject. What is closed is the envelope — one goal, under one
+ * key.
+ */
+const GoalBody = Type.Object(
+  { goal: Type.Object({}, { additionalProperties: true }) },
   { additionalProperties: false },
 );
 
@@ -660,6 +677,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
          * sources' ids, which is [15 §5]'s obligation and what makes a
          * continuity possible later.*
          */
+        ...(from?.goals === undefined || from.goals.length === 0
+          ? {}
+          : {
+              /**
+               * The goal chain, copied from the Setup — [04 §7.1], [06 §7.3.3],
+               * [P7.6]. **A copy, for the reason the pool and the pack are**:
+               * editing a Setup must not reach a game in progress ([00 §3.1]),
+               * and *Advance* may write a goal that was never in the Setup at
+               * all.
+               */
+              goals: structuredClone(from.goals),
+            }),
         hooks: poolFor({
           lore: resolveLore(services.library, account.handle, { treatment, lore }),
           ...(from === undefined ? {} : { setup: from }),
@@ -838,6 +867,20 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             }),
     };
 
+    /**
+     * **The goal panel's rows** — [06 §7.3.4], [10 §12], [P7.6].
+     *
+     * Reconstructed at the head like `cast` and `hooks` beside it: which goal
+     * play is on, which are achieved and on which turn, and whether the story
+     * has been ended. *The three offers are derived on the screen rather than
+     * sent*, because they are the same three every time and what decides them is
+     * `achieved` plus `next`, both of which travel.
+     */
+    const goals = {
+      rows: goalRows(session.goals ?? [], session.channels, path),
+      concluded: readConcluded(session.channels),
+    };
+
     return reply.send({
       session,
       activeJob: job,
@@ -845,6 +888,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       hud: channelSurfaces(session.channels),
       cast: castRows(session.cast, session.channels, path),
       hooks,
+      goals,
     });
   });
 
@@ -968,6 +1012,50 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
         remove: hookId,
       });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * A goal written at a completion — [06 §7.3.4], [P7.6].
+   *
+   * ***Advance's second arm, and the reason the chain is a session field.***
+   * *"Set the next goal, either the authored `next` or one written now"* — the
+   * authored half is a cursor write and needs no route; this is the other half,
+   * and a goal written at a completion was never in the Setup.
+   *
+   * **It writes the chain and not the cursor**, which is two acts on purpose.
+   * Adding the goal is an authoring act and lands on the session file; *moving
+   * play onto it* is a move in the story and goes through the channel write,
+   * where it becomes a turn. [06 §7.3.4] is emphatic that `thenDefault`
+   * *"seeds the offer; it does not decide it"*, and a route that did both would
+   * have decided it.
+   */
+  app.post(
+    '/sessions/:sessionId/goals',
+    { schema: { params: SessionParams, body: GoalBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { goal } = request.body as { goal: Record<string, unknown> };
+      const { sessionId } = request.params as { sessionId: string };
+
+      /**
+       * An id is minted when there is none, for the reason the hook route mints
+       * one: a goal written here has no upstream object to keep an id from, and
+       * without one it could be neither completed nor pointed at — `se.goal` is
+       * scoped by it and `Goal.next` names it.
+       */
+      const id = typeof goal['id'] === 'string' && goal['id'] !== '' ? goal['id'] : uuidv7();
+      const updated = await addSessionGoal(services.sessions, account.handle, sessionId, {
+        ...goal,
+        id,
+      } as unknown as Goal);
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }

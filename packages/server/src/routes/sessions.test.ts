@@ -942,10 +942,11 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 15 since the second lore slot ([P6B.1], the phase every
+    // gains a block — 16 since the goal slot ([06 §7.3.3]'s *always injected*,
+    // [P7.6]), 15 from the second lore slot ([P6B.1], the phase every
     // `after_char` entry was being dropped for), 14 from the previous-attempt
     // slot ([06 §5.1]), 13 from the writing-samples slot ([04 §3.1]) before it.
-    expect(created.body.session.preset.blocks).toHaveLength(15);
+    expect(created.body.session.preset.blocks).toHaveLength(16);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 
@@ -2000,5 +2001,234 @@ describe('a session’s hook pool', () => {
       refusal: null,
       committed: { overrode: 'too-early' },
     });
+  });
+});
+
+/**
+ * **The goal chain, copied at creation and extended while running** —
+ * [04 §7.1], [06 §7.3.3], [06 §7.3.4], [P7.6].
+ *
+ * *"Ordered: `goals[0]` is where play begins. Empty = no win condition, which is
+ * the deliberate opt-out rather than the default."*
+ */
+describe('a session’s goals', () => {
+  function goal(id: string, over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id,
+      statement: `Do ${id}`,
+      detail: null,
+      visibility: 'player',
+      completion: { kind: 'narrative' },
+      thenDefault: 'advance',
+      next: null,
+      ...over,
+    };
+  }
+
+  async function aSetup(goals: Record<string, unknown>[]): Promise<string> {
+    const made = { ...newSetup('The Fixer’s Debt'), goals };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    return response.body.object.id as string;
+  }
+
+  it('copies a Setup’s chain, in order', async () => {
+    const setup = await aSetup([goal('g-one'), goal('g-two')]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+
+    expect((created.body.session.goals as { id: string }[]).map((one) => one.id)).toEqual([
+      'g-one',
+      'g-two',
+    ]);
+  });
+
+  it('writes no chain at all when the Setup carried none', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+
+    // [04 §7.1] calls empty *the deliberate opt-out*; absent is what a session
+    // with no Setup is, and the two should not be spelled the same.
+    expect('goals' in (created.body.session as object)).toBe(false);
+  });
+
+  /**
+   * [00 §3.1]'s prefill-not-binding, the same asymmetry the pool and the pack
+   * have: editing a Setup must not reach a game in progress.
+   */
+  it('does not follow the Setup after the session exists', async () => {
+    const setup = await aSetup([goal('g-one')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/library/setups/${setup}` });
+    await server.request({
+      method: 'PUT',
+      url: `/api/library/setups/${setup}`,
+      payload: { object: { ...read.body.object, goals: [goal('g-different')] } },
+      headers: { 'if-match': read.body.contentHash as string },
+    });
+
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.session.goals[0].id).toBe('g-one');
+  });
+
+  it('sends the panel its rows, with the first goal current', async () => {
+    const setup = await aSetup([goal('g-one', { next: 'g-two' }), goal('g-two')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.body.goals.concluded).toBe(false);
+    expect(read.body.goals.rows).toEqual([
+      {
+        goalId: 'g-one',
+        statement: 'Do g-one',
+        visibility: 'player',
+        completion: 'narrative',
+        current: true,
+        achieved: false,
+        next: 'g-two',
+        thenDefault: 'advance',
+      },
+      expect.objectContaining({ goalId: 'g-two', current: false }),
+    ]);
+  });
+
+  /**
+   * ***The three offers, through the routes they actually use.*** All three are
+   * channel writes — [06 §7.3.4]'s *continue open*, *advance* and *end* — which
+   * is why none of them needed a route of its own, and why each lands as a turn
+   * that a rewind can undo.
+   */
+  it('advances, carries on and ends through the channel write', async () => {
+    const setup = await aSetup([goal('g-one', { next: 'g-two' }), goal('g-two')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+    const sessionId = created.body.session.id as string;
+
+    // Manual completion, which [06 §7.3.3] keeps always available.
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent('se.goal#g-one')}`,
+      payload: { value: 'achieved' },
+    });
+    const done = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(done.body.goals.rows[0]).toMatchObject({ achieved: true, current: true });
+    // Retained with the turn that completed it, derived from the path.
+    expect(typeof done.body.goals.rows[0].achievedOn).toBe('string');
+
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.goal.current`,
+      payload: { value: 'g-two' },
+    });
+    const advanced = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(advanced.body.goals.rows[1]).toMatchObject({ goalId: 'g-two', current: true });
+
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.concluded`,
+      payload: { value: true },
+    });
+    const ended = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(ended.body.goals.concluded).toBe(true);
+    // *A state, not a deletion* — the chain is still there and still readable.
+    expect(ended.body.goals.rows).toHaveLength(2);
+  });
+
+  /**
+   * ***Advance's second arm*** — [06 §7.3.4]'s *"or one written now"*, which is
+   * the clause that makes the chain a session field rather than a link.
+   */
+  it('takes a goal written at a completion, minting an id for it', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const added = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/goals`,
+      payload: {
+        goal: {
+          statement: 'Find the fixer.',
+          detail: null,
+          visibility: 'player',
+          completion: { kind: 'narrative' },
+          thenDefault: 'continue-open',
+          next: null,
+        },
+      },
+    });
+
+    const minted = (added.body.session.goals as { id: string }[])[0]?.id ?? '';
+    expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Usable, which is the point of minting it: the cursor and the achievement
+    // channel are both scoped by the id.
+    const pointed = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.goal.current`,
+      payload: { value: minted },
+    });
+    expect(pointed.body.effect.applied).toBe(true);
+  });
+
+  /**
+   * **An authoring act, not a story event** — so it lands on the session file
+   * and appends no turn. *Pointing play at it* is the story event, and that is
+   * the channel write above.
+   */
+  it('writes the chain and not a turn', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+    const sessionId = created.body.session.id as string;
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/goals`,
+      payload: { goal: { statement: 'Find the fixer.', next: null } },
+    });
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns).toEqual([]);
+  });
+
+  it('is a 404 for a session that is not there', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${uuidv7()}/goals`,
+      payload: { goal: { statement: 'x' } },
+    });
+
+    expect(response.status).toBe(404);
   });
 });

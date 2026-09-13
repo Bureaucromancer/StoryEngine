@@ -5,6 +5,7 @@ import type { Mode } from '@storyengine/sdk';
 
 import { registerMode } from './mode-registry.js';
 import { PARTY_CHANNEL, PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
+import { CONCLUDED_CHANNEL, GOAL_CHANNEL, GOAL_CURSOR_CHANNEL } from './sessions/goals.js';
 import { HOOK_CHANNEL, HOOK_PACING_CHANNEL } from './sessions/hooks.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
@@ -117,6 +118,16 @@ export async function installBuiltIns(): Promise<void> {
    * the sessions whose mode happened to enable it.*
    */
   registerChannel(HOOK_PACING_CHANNEL);
+  /**
+   * What the session is trying to do, how far it has got, and whether it is over
+   * — [06 §7.3.3], [06 §7.3.4], [P7.6]. `storyengine.goals` is a package for the
+   * reason the three above it are: a goal comes from a **Setup**, which is
+   * authored content, so *"the condition belongs to whoever wrote the game
+   * rather than to the mode running it"*.
+   */
+  registerChannel(GOAL_CURSOR_CHANNEL);
+  registerChannel(GOAL_CHANNEL);
+  registerChannel(CONCLUDED_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {

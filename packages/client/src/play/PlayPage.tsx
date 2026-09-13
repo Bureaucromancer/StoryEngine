@@ -31,6 +31,7 @@ import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
+import { GoalPanel } from './GoalPanel.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
@@ -368,6 +369,14 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           closed by default: it is a fact about the session rather than about
           any turn, and the story column is the surface. */}
       <LorePanel sessionId={sessionId} />
+
+      {/* **What this story is trying to do** — [06 §7.3.3], [06 §7.3.4], [P7.6].
+          Above the hooks because a goal is what the session is *for* and a hook
+          is something that might happen along the way — and because the three
+          offers at a completion are the most consequential control on the page.
+          A disclosure like its neighbours, present even with no chain because
+          the control that sets one is inside it. */}
+      <GoalPanel sessionId={sessionId} />
 
       {/* **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
           the lore panel rather than beside the cast, which 10 §10.1 chose

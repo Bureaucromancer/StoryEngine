@@ -3,7 +3,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { type PlotHook, type Preset, type Setup, uuidv7 } from '@storyengine/shared';
+import { type Goal, type PlotHook, type Preset, type Setup, uuidv7 } from '@storyengine/shared';
 
 import {
   findTurnLocation,
@@ -177,6 +177,14 @@ export interface NewSession {
    * the ids a session's copies carry are the sources' by construction.
    */
   hooks?: PooledHook[];
+  /**
+   * The goal chain, copied from the Setup — [04 §7.1], [06 §7.3.3], [P7.6].
+   *
+   * Ordered, and `goals[0]` is where play begins. Copied at the route beside the
+   * hook pool, for the same reason: a Setup is a library object and the route is
+   * where the library is read.
+   */
+  goals?: Goal[];
 }
 
 export async function createSession(
@@ -201,6 +209,10 @@ export async function createSession(
     ...(spec.cast === undefined ? {} : { cast: spec.cast }),
     ...(spec.setup === undefined ? {} : { setup: spec.setup }),
     ...(spec.hooks === undefined || spec.hooks.length === 0 ? {} : { hooks: spec.hooks }),
+    // Absent rather than `[]` when the Setup carried none, which [04 §7.1] calls
+    // *the deliberate opt-out rather than the default* — and which every session
+    // written before P7.6 is.
+    ...(spec.goals === undefined || spec.goals.length === 0 ? {} : { goals: spec.goals }),
     ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
@@ -1527,6 +1539,50 @@ export async function setSessionHooks(
       ...(next.length === 0 ? {} : { hooks: next }),
     };
     if (next.length === 0) delete file.hooks;
+
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), file);
+    indexSession(context.index, scopeOf(context, handle), file);
+    return file;
+  });
+}
+
+/**
+ * Adds a goal to a **running** session's chain — [06 §7.3.4], [P7.6].
+ *
+ * ***Advance's second arm.*** That section offers *"set the next goal, either
+ * the authored `next` or one written now"*, and the second half is what makes
+ * the chain a session field rather than a link into the Setup: a goal written at
+ * a completion was never in the Setup and cannot be.
+ *
+ * **An authoring act rather than a story event**, which is the same line
+ * `setSessionHooks` above it draws, quoting [03 §4.1]: it lands on the session
+ * file and appends no turn. *Moving the cursor onto it is the story event*, and
+ * that goes through the channel write — two acts, two records, because
+ * [06 §7.3.4] is emphatic that the offer is asked rather than applied.
+ *
+ * *Appended rather than inserted*, because [04 §7.1] orders the chain and
+ * `goals[0]` is where play began: a goal written now is the newest link, and
+ * putting it anywhere else would rewrite where the game started.
+ */
+export async function addSessionGoal(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  goal: Goal,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const chain = session.goals ?? [];
+    const file: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      // Replaced rather than duplicated when the id is already there, which is
+      // what makes a re-submitted write idempotent instead of a second link
+      // with the same name.
+      goals: [...chain.filter((one) => one.id !== goal.id), structuredClone(goal)],
+    };
 
     await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), file);
     indexSession(context.index, scopeOf(context, handle), file);

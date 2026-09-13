@@ -3577,6 +3577,80 @@ channel-to-text renderer exists.**
 *Ends at:* a goal completing, the three offers appearing, *Advance* setting the
 next, and the session still readable and branchable after *End*.
 
+#### Done — 2026-09-13
+
+**The cell's own sizing was right: the whole gap was runtime.** `Goal` shipped
+with `next`, `thenDefault`, `completion` and `visibility`, and `Setup.goals` has
+been ordered with *"`goals[0]` is where play begins"* since [04 §7.1]. What did
+not exist was everything the design puts outside the schema, and all of it
+landed: a cursor, achieved state that branches, the link to the completing turn,
+a goal written *now* at Advance, and *concluded* as a session state.
+
+**Three channels, owned by `storyengine.goals` — a package, like the three
+before it.** [06 §7.3.3] settles the ownership in one sentence: *"a `Goal` sits
+on Setup, which is authored content, so the condition belongs to whoever wrote
+the game rather than to the mode running it."*
+
+- ***`se.goal` is the build's first `model-proposed` channel***, which is what
+  [06 §7.3.3] declares it as — *"the narrator's judgement is the only signal
+  available"* in Freeform, where there is nothing to compute from. **And the
+  effect is attributed to the model with the call it judged in**, not to the step
+  that plumbed it: that attribution is the entire content of the policy, and a
+  `step` stamp would have been true of the machinery and false about the
+  decision. *One value and not a percentage* — a progress number would be a field
+  with no reader, which is the placeholder shape this phase keeps refusing.
+- **`se.goal.current` is the cursor, and `engine-computed`**, which refuses a
+  model and a step and admits a person. Moving it is *Advance*, and [06 §7.3.4]
+  is explicit that the choice is the player's *at completion*.
+  ***Absent and `null` are different answers here***, which is the module's one
+  subtlety: a session that never wrote the cursor is on `goals[0]`, and one that
+  wrote `null` answered *continue open*. `init` carries one value and cannot say
+  both, so the distinction is a key that is not there versus a key holding null.
+- **`se.concluded` makes *End* a state rather than a deletion** — [06 §7.3.4]
+  says so and says why, and a channel makes both halves free: the session file is
+  untouched, the ending is an effect, and rewinding past it un-ends it.
+
+**The completing turn is derived, not stored.** [06 §7.3.4] wants completed goals
+*"retained with the turn that completed them"*, and the effect that wrote
+`achieved` lands on that turn — so it is a walk of the path, which is the version
+that survives a rewind where a stored turn id on a branch that no longer contains
+it does not. *That retention is [25 E1]'s spine for the reading view, free the
+moment the state is an effect.*
+
+***The judge is a `post` step, and the second engine-owned one.*** [06 §7.3.3]:
+*"an evaluation step at `post` judges whether the goal is met"* — the selector
+asks about the turn that is about to happen and this asks about the one that just
+did. **Bias toward under-firing is written into three places rather than hoped
+for**: the prompt says to answer no when unsure, an unparseable reply is *not
+met*, and a turn that narrated nothing is answered without a call at all. *It
+does not run on a `manual` goal* — that would be the engine asking a question the
+author reserved for a person — *and not on a concluded session*, which stays
+readable rather than running. **The `detail` is sent here and nowhere else**,
+which is exactly what [04 §7.1] reserves it for.
+
+***The `{ of: 'goal' }` slot got a producer, and the pack got the block.***
+[06 §7.3.3]'s *"the goal statement is therefore always injected"* has to mean a
+preset slot in a build where assembly is a pack's job — a statement the engine
+spliced in would be a block the block table could not explain and an author could
+not move. So the collector fills the arm that returned `[]` since P2, **and its
+`notFilled` reason changed from `no-producer` to `empty-source`**, which is the
+same change of meaning [P5.9] made for lore: an empty goal slot now says *this
+session has no goal* rather than *waiting on the engine*.
+
+**[25 C12] is left open, and the mechanics narrow it.** The question is whether
+narrative completion should require confirmation before it fires. What this stage
+can say is that **completion is not the destructive act**: it marks `achieved`
+and raises three offers, and the one that ends a story is a separate, explicit
+press. So the question reduces to whether a *false* completion is annoying rather
+than costly — which is tuning, and [25 C12] is right that it *"wants real
+sessions to judge"*. The bias and the always-available manual escape are settled
+and built; the gate is not needed to make a false completion recoverable.
+
+*One surface decision worth recording: the panel tells **never having a goal**
+from **playing on after one**.* Both have a null cursor, and [06 §7.3.4]'s
+*continue open* is a real state a player chose rather than an absence — a summary
+line that read *No objective* for both would have hidden the choice.
+
 ### P7.7 — Mention resolution
 
 An `extract` step producing §1.7's spans, sharing P5's keyword scanner so

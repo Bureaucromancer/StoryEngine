@@ -2949,3 +2949,150 @@ describe('a session with a hook pool', () => {
     expect(turn.request?.calls).toHaveLength(1);
   });
 });
+
+/**
+ * **Goals, through the pipeline** — [06 §7.3.3], [06 §7.3.4], [P7.6].
+ *
+ * *"An evaluation step at `post` judges whether the goal is met."* What these
+ * assert is the wiring and the bias: that the judge runs after the prose exists,
+ * that a met goal lands as a **model-proposed** effect on the goal's own key, and
+ * that everything ambiguous answers *not met* — because *"a missed completion is
+ * an annoyance the player can resolve manually, while a false completion ends the
+ * story on a turn that did not earn it."*
+ */
+describe('a session with a goal', () => {
+  async function seedGoals(goals: unknown[]): Promise<void> {
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, goals }));
+  }
+
+  function ledger(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: 'g-ledger',
+      statement: 'Get the ledger out of the Foundry.',
+      detail: null,
+      visibility: 'player',
+      completion: { kind: 'narrative' },
+      thenDefault: 'advance',
+      next: null,
+      ...over,
+    };
+  }
+
+  it('injects the goal it is on, and judges after the prose exists', async () => {
+    await seedGoals([ledger()]);
+    // Narration first, then the judge — the judge is a `post` step.
+    makeRunner({
+      script: [
+        { text: 'She walked out with the ledger under her coat.' },
+        { object: { met: true } },
+      ],
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate', 'se.goals.judge']);
+    // [06 §7.3.3]: *"the goal statement is therefore always injected"* — through
+    // the preset's own `{ of: 'goal' }` slot, which returned nothing until now.
+    const narration = turn.request?.calls[0];
+    const goalBlock = narration?.blocks?.find((block) => block.source.kind === 'goal');
+    expect(goalBlock?.text).toContain('Get the ledger out of the Foundry.');
+  });
+
+  /**
+   * ***Attributed to the model, which is the one thing that makes
+   * `model-proposed` mean anything here.*** `se.goal` is the build's first
+   * channel with that policy, and the policy exists because the narrator's
+   * judgement is the only signal available — so the record has to say a model
+   * judged it, with the call it judged it in.
+   */
+  it('records a met goal as a model proposal on the goal’s own key', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'She walked out with it.' }, { object: { met: true } }] });
+
+    const { turn } = await runTurn();
+    const achieved = turn.effects.find((effect) => effect.channelId === 'se.goal');
+
+    expect(achieved).toMatchObject({
+      scopeKey: 'g-ledger',
+      after: 'achieved',
+      applied: true,
+      proposedBy: { kind: 'model' },
+    });
+    // The call it judged in, so the workbench can show the reasoning.
+    expect(turn.request?.calls.map((call) => call.id)).toContain(
+      (achieved?.proposedBy as { callId?: string }).callId,
+    );
+  });
+
+  it('writes nothing when the judge says not yet', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'She got as far as the door.' }, { object: { met: false } }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.effects.find((effect) => effect.channelId === 'se.goal')).toBeUndefined();
+  });
+
+  /**
+   * **Bias toward under-firing, at the one place a model can be ambiguous.** An
+   * endpoint with no structured output answers in text ([P7.4] makes that the
+   * ordinary path for a self-hosted install), and prose the reader cannot parse
+   * is *not met* rather than a story ended on a turn that did not earn it.
+   */
+  it('treats an answer it cannot read as not met', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'Maybe. Hard to say!' }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.effects.find((effect) => effect.channelId === 'se.goal')).toBeUndefined();
+    expect(turn.steps?.at(-1)).toMatchObject({ stepId: 'se.goals.judge', state: 'ok' });
+  });
+
+  /**
+   * *"The player says when"* — [04 §7.1]'s other completion arm. A call that
+   * judged a manual goal would be the engine asking a question the author
+   * reserved for a person, so the step does not join the plan at all.
+   */
+  it('does not judge a goal whose completion the author reserved for a person', async () => {
+    await seedGoals([ledger({ completion: { kind: 'manual' } })]);
+    makeRunner({ script: [{ text: 'She got as far as the door.' }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    // The statement is still injected: it is what the story is about, whoever
+    // rules on it.
+    expect(turn.request?.calls[0]?.blocks?.some((block) => block.source.kind === 'goal')).toBe(
+      true,
+    );
+  });
+
+  /**
+   * [06 §7.3.4]: *"Concluded is a state, not a deletion: the session stays
+   * readable and branchable."* Readable and branchable is what the store already
+   * gives; what this pins is that an ended session stops being **judged**.
+   */
+  it('stops judging once the story has been ended', async () => {
+    await seedGoals([ledger()]);
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.concluded', true);
+    makeRunner({ script: [{ text: 'An epilogue.' }] });
+
+    const turn = await runNextTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    // And the turn still happened, which is the readable-and-branchable half.
+    expect(turn.status).toBe('complete');
+  });
+
+  it('leaves a session with no goals exactly as it was', async () => {
+    const { turn } = await runTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+    expect(turn.request?.calls[0]?.blocks?.some((block) => block.source.kind === 'goal')).toBe(
+      false,
+    );
+  });
+});

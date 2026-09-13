@@ -15,6 +15,7 @@ import type { TagEntry } from '@storyengine/shared';
 
 import type { LiveTurn } from './play/reducer.js';
 import {
+  addSessionGoal,
   addSessionHook,
   adminApi,
   api,
@@ -598,6 +599,25 @@ export function useSessionHooks(
       'add' in change
         ? addSessionHook(sessionId, change.add)
         : removeSessionHook(sessionId, change.remove),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+/**
+ * A goal written at a completion — [06 §7.3.4], [P7.6].
+ *
+ * *It invalidates the session rather than the transcript*, like the hook
+ * mutation beside it: adding a goal to the chain is an authoring act and there is
+ * no turn to refetch.
+ */
+export function useAddGoal(
+  sessionId: string,
+): UseMutationResult<{ session: SessionSummary }, Error, Record<string, unknown>> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (goal: Record<string, unknown>) => addSessionGoal(sessionId, goal),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
     },

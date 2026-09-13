@@ -730,6 +730,17 @@ export interface SessionSummary {
   treatment?: string | null;
   lore?: string[];
   mode?: string;
+  /**
+   * The goal chain, for the one caller that needs it back from a write —
+   * [06 §7.3.4], [P7.6].
+   *
+   * **Claimed for the same reason `lore` was and on the same terms**: setting a
+   * goal at a completion is two acts, and the second one needs the **id the
+   * server minted** for the first. Reading it off the response is what makes
+   * that a fact rather than a guess. *Only the fields a client has a use for*:
+   * the chain is `Goal` objects and this names the two the panel reads.
+   */
+  goals?: { id: string; statement: string }[];
 }
 
 /**
@@ -966,6 +977,49 @@ export function removeSessionHook(
   );
 }
 
+/**
+ * One row of the goal panel — [06 §7.3.4], [04 §7.1], [P7.6].
+ *
+ * **The statement travels and `detail` does not**, which is the trade [04 §7.1]
+ * makes on the schema: `statement` is *"short, always injected"* and `detail` is
+ * *"available to steps; not injected by default"*. A panel row is the sentence a
+ * person is playing toward.
+ *
+ * `visibility` is the **player's** view — [04 §7.1]'s *hidden is the GM's arc* —
+ * and is a different field from the channel visibility that governs prompts. A
+ * hidden goal is still narrated toward; it is the reader who is not told.
+ */
+export interface GoalRow {
+  goalId: string;
+  statement: string;
+  visibility: 'player' | 'hidden';
+  completion: 'narrative' | 'manual';
+  /** Whether play is on this one. Exactly one row, or none. */
+  current: boolean;
+  achieved: boolean;
+  /** The turn it was completed on. */
+  achievedOn?: string;
+  /** The authored successor, if the chain names one. */
+  next: string | null;
+  /** What *seeds the offer; it does not decide it* ([06 §7.3.4]). */
+  thenDefault: 'continue-open' | 'advance' | 'end';
+}
+
+/**
+ * A goal written at a completion — [06 §7.3.4]'s *"or one written now"*, [P7.6].
+ *
+ * *An authoring act rather than a story event*: it lands on the session's chain
+ * and appends no turn. **Moving play onto it is the channel write**, which is a
+ * turn — two acts, because that section is emphatic that `thenDefault` seeds the
+ * offer and does not decide it.
+ */
+export function addSessionGoal(
+  sessionId: string,
+  goal: Record<string, unknown>,
+): Promise<{ session: SessionSummary }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/goals`, { goal });
+}
+
 export function readSession(sessionId: string): Promise<{
   session: SessionSummary;
   activeJob: ActiveJob | null;
@@ -980,6 +1034,14 @@ export function readSession(sessionId: string): Promise<{
    * strip above the transcript is a different place making a different claim.
    */
   hooks: { pacing: 'sparse' | 'normal' | 'aggressive' | 'manual-only'; rows: HookRow[] };
+  /**
+   * What this session is trying to do — [06 §7.3.3], [06 §7.3.4], [P7.6].
+   *
+   * *The three offers are derived on the screen rather than sent*: they are the
+   * same three every time, and what decides whether to raise them is `achieved`
+   * plus `next`, both of which travel.
+   */
+  goals: { rows: GoalRow[]; concluded: boolean };
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
 }
