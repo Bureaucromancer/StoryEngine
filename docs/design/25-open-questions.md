@@ -709,6 +709,25 @@ since the randomizer is the first production step that draws; do *(b)* whenever
 provenance is next touched; decide *(c)* with the dice extension, which needs
 the same slot. *[23 §5]*
 
+***(a) has its first production caller, and (c) turned out to be two questions***
+(2026-09-13, [P7.5](workplan/23-p7-implementation.md) stage three). The plot-hook
+selector is a judgement call followed by a draw across `introduces.entrances`,
+which is (a)'s shape exactly — and it is built on `weightedPick` rather than
+`pick` for precisely the reason above: the hook the draw sits under may be a
+different hook on a rewrite, `pick` records the list's *length* and would hand
+back a position into different content, and `weightedPick` records the winner's
+**id** and refuses the replay when that winner is no longer a candidate. *So the
+mechanism the leaning asked for is in production; what stays open is the
+step-level **contract** — nothing obliges a step to use the id-keyed draw.*
+
+*(c) is unchanged as written and did not block the hook.* A step's block still
+cannot be positioned by a slot, and an outcome verdict still has nowhere of its
+own. But a fired hook is **guidance**, and [06 §5.1](06-modes-and-turn-pipeline.md)'s
+slot takes *several producers* — so the selector hands its words to the runner
+and the collector emits them at the slot the preset positioned, under the
+`producer: 'step'` arm the record already had. Nothing points a slot at a step.
+The dice extension's verdict block is the case that still needs (c) answered.
+
 **C14. Does guidance belong on the turn record? — OPEN.** [06 §5.1] said a
 rewrite replays the guidance of the turn it redoes, and the build does not:
 `Turn` ([03 §8]) has no field for it, the record keeps it only as an assembled
@@ -724,6 +743,35 @@ together with [10 §10]'s one-click refill, which is the same question from the
 composer's side: guidance outliving the turn it was typed for. The guided redo
 ([07 §7]) does not wait on this — its instruction is new, and its record says
 what was asked. *[06 §5.1, 10 §10, 07 §7]*
+
+**C15. Seven of the eight model roles cannot be reached. — OPEN, found by
+building something that asked for one** (2026-09-13,
+[P7.5](workplan/23-p7-implementation.md)). `MODEL_ROLES` has eight arms —
+`prose`, `fast`, `reasoning`, `vision`, `image`, `video`, `speech`, `embedding` —
+and [19 §5.1](19-tech-stack.md) orders five resolution layers over them. **Every
+one of those layers is a binding for the role asked for**: `resolveRole` has no
+cross-role fallback, so a role nothing bound resolves `unbound` and the step
+fails. And nothing in the build binds anything but `prose`: no install default,
+no wizard, no route that suggests one. So a step declaring any other role fails
+on a stock install, every turn, and the hook selector was the first thing to
+declare one and discover it.
+
+*The workaround is real and is what the selector does*: ask for `prose` and let
+an operator point the step at something smaller through `stepRoles`, which is
+[19 §5.1]'s fourth layer and exactly the *"a cheap model for one noisy step"*
+case. What that costs is that the roles vocabulary describes an intent nothing
+can act on, and the cost grows with every step that would honestly want a
+different role — a summariser, a mention-resolver, an image prompt.
+
+Three candidate answers, none obviously right. *(a)* `resolveRole` falls back to
+`prose` for any unbound role, which makes every role reachable at once and
+quietly means *role* is advisory. *(b)* Binding setup grows a per-role UI, which
+is honest and is a lot of surface for an install with one endpoint. *(c)* A role
+declares its own fallback chain (`fast → prose`, `reasoning → prose`,
+`vision → ∅`), which is more mechanism but is the only one of the three that can
+say *there is no sensible substitute for `vision`*. **Decide with the first step
+that genuinely cannot use `prose`**, which is an image or vision step rather than
+a cheaper text one. *[19 §5.1, 06 §6]*
 
 ---
 

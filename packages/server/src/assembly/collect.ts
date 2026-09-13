@@ -45,6 +45,15 @@ export interface CollectContext {
   input?: { text: string };
   guidance?: string;
   /**
+   * A fired plot hook's words, for the same slot — [06 §5.1]'s second producer,
+   * [06 §6.1], [P7.5].
+   *
+   * **Handed in by the runner for the reason `attempt` is**, spelled out at the
+   * `guidance` case below. Absent means the selector did not fire; it never
+   * means it fired with nothing to say.
+   */
+  hookGuidance?: string;
+  /**
    * The attempt a guided redo is redoing — its output, and which turn it was
    * ([06 §5.1], [07 §7]).
    *
@@ -435,7 +444,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       );
     }
 
-    case 'guidance':
+    case 'guidance': {
       /**
        * **Advisory is forced here, never read from the block.**
        *
@@ -444,7 +453,48 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * slot would walk guidance straight into an effects call. [06 §5.2] says
        * enforce it *structurally*; a flag an author can clear is not structural.
        */
-      return emit(block, context.guidance ?? '', { kind: 'guidance', producer: 'user' }, undefined);
+      const fromUser = emit(
+        block,
+        context.guidance ?? '',
+        { kind: 'guidance', producer: 'user' },
+        undefined,
+      );
+      /**
+       * **[06 §5.1]'s *one slot, several producers*, with the second one at
+       * last** — a fired plot hook, [06 §6.1], [P7.5].
+       *
+       * That section names the user's box, an authored rule's `giveGuidance`
+       * and a step such as a Narrative Director push; §6.1 adds the selector as
+       * *"simply a fourth producer of that block, so `delivery: 'guidance'` needs
+       * no new mechanism"*. `producer: 'step'` is the arm it lands under, which
+       * the record already had — the selector **is** a step, and which one is
+       * answerable from the turn's own `hooks` line rather than from a fifth
+       * value nothing else would ever carry.
+       *
+       * **Handed in by the runner, never by a step**, which is the rule `attempt`
+       * states beside it and the reason this is not a `Candidate` the selector
+       * returns: step candidates are appended after the preset's, so a hook
+       * returned that way would arrive at the end of the prompt instead of where
+       * the author positioned guidance ([25 C13(c)]).
+       *
+       * *Absent rather than empty when nothing fired*, so it never reaches
+       * `omitWhenEmpty`: a preset that emits its guidance slot over an empty box
+       * should emit it **once**, not once per producer that had nothing to say.
+       * The id is suffixed because two candidates at one slot cannot share one,
+       * and it is the new arm that takes the suffix — the user's block has
+       * carried the bare block id since P2 and it is in saved records.
+       */
+      if (context.hookGuidance === undefined) return fromUser;
+      return [
+        ...fromUser,
+        ...emit(
+          block,
+          context.hookGuidance,
+          { kind: 'guidance', producer: 'step' },
+          `${block.id}.hook`,
+        ),
+      ];
+    }
 
     case 'attempt':
       /**

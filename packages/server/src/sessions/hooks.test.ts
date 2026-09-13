@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { PlotHook } from '@storyengine/shared';
+import type { HookRefusal, PlotHook } from '@storyengine/shared';
 
 import { installBuiltIns } from '../mode-loader.js';
 import { SE_PARTY, SE_PRESENCE, SE_STATUS } from './cast.js';
@@ -16,7 +16,6 @@ import {
   SE_HOOK,
   SE_HOOK_PACING,
   type FilterContext,
-  type HookRefusal,
 } from './hooks.js';
 import type { PooledHook, Turn } from './types.js';
 

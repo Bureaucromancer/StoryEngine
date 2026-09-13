@@ -37,6 +37,8 @@ import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
+import { hookSelector, type HookSelectorReport } from './hook-selector.js';
+import { readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
@@ -359,6 +361,20 @@ export class TurnRunner {
     const calls: ModelCall[] = [];
     const effects: ChannelEffect[] = [];
     /**
+     * What the plot-hook selector decided, and the words a firing sends —
+     * [06 §6.1], [P7.5].
+     *
+     * **A cell the runner owns, filled by a callback, because neither value can
+     * travel through `StepResult`.** The record line is a turn field and
+     * widening the step contract with one would let any mode write it; the
+     * guidance text is the thing a step may specifically not hand back
+     * ([06 §5.2]), and it has to reach `collectCandidates` so the fired hook
+     * lands in the slot the preset positioned rather than after everything else
+     * ([25 C13(c)]). *The callback is engine code handed to engine code — the
+     * selector is the one step `planFor` does not build.*
+     */
+    const hooks: { report: HookSelectorReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -390,6 +406,10 @@ export class TurnRunner {
       }
       draft.steps = steps;
       draft.effects = effects;
+      // Absent means the selector did not run, which is every session with no
+      // hook pool — never *it ran and had nothing to say*, which is what the
+      // `nothing-eligible` verdict is for.
+      if (hooks.report !== null) draft.hooks = hooks.report.selection;
       // Only once something was assembled — [P3.0], and the record's own
       // docstring: *absent* means this never happened, and an empty `request`
       // on a turn that failed before assembly is a record claiming a prompt
@@ -518,8 +538,59 @@ export class TurnRunner {
      * *`this.#options.plan` still wins, because a test that supplied a plan
      * asked for that plan.*
      */
-    const plan =
+    const declaredPlan =
       this.#options.plan ?? (payload.setup === true ? setupPlanFor(mode) : planFor(mode));
+
+    /**
+     * **The plot-hook selector, prepended** — [06 §6.1], [P7.5].
+     *
+     * *The one step `planFor` cannot build*, because it reads the session's hook
+     * pool and a pool is assembled from a treatment, its lorebooks and the
+     * session's own hooks ([03 §4.1]) — none of which is a mode. The same
+     * argument that registers `se.hook` and `se.hook.pacing` in `mode-loader`
+     * rather than in Scene's declaration, one level up.
+     *
+     * **First, and that is what buys the guidance slot.** Step candidates are
+     * appended after the preset's, so a fired hook returned as a candidate would
+     * arrive at the end of the prompt instead of where the author positioned
+     * guidance — [25 C13(c)], and §1.5 raised it as the thing that had no
+     * answer. Running before every other step means the words are in hand by the
+     * time any of them assembles, and `collectCandidates` fills the slot
+     * properly.
+     *
+     * **An empty pool means no selector at all**, which is also why this applies
+     * to a supplied plan and does not contradict *a test that supplied a plan
+     * asked for that plan*: the selector is in no mode's plan either way, and a
+     * test that wants one seeds the session's hooks. *And never on a setup turn
+     * — [06 §7.3]'s parts run before the session has a first turn, and a pool
+     * judged against no history would fire its opening beat into a prompt that
+     * has not happened yet.*
+     */
+    const selects = payload.setup !== true && inputs.hooks.pool.length > 0;
+    const plan: TurnPlan = selects
+      ? {
+          steps: [
+            hookSelector({
+              pool: inputs.hooks.pool,
+              filter: {
+                known: inputs.hooks.known,
+                activeBooks: new Set(inputs.lore.books.map((book) => book.id)),
+                persona: cast.persona?.actor.id ?? null,
+              },
+              pacing: readPacing(running, {
+                ...(isRecord(inputs.session?.setup) ? { setup: inputs.session.setup } : {}),
+                ...(isRecord(inputs.lore.treatment?.treatment)
+                  ? { treatment: inputs.lore.treatment.treatment }
+                  : {}),
+              }),
+              report: (report) => {
+                hooks.report = report;
+              },
+            }),
+            ...declaredPlan.steps,
+          ],
+        }
+      : declaredPlan;
 
     for (const { definition, run } of plan.steps) {
       const decision = evaluateCondition(definition.when, {
@@ -594,33 +665,59 @@ export class TurnRunner {
                * The effects it proposes are collected into `loreEffects` and
                * committed with the step's own, because only a step may propose
                * one and this is inside a step's `call`.
+               *
+               * ***Not at all when the step brought its own candidates***, which
+               * is [P7.5] and is a correctness fix rather than a saving.
+               * `performCall` already knows what this case means — it zeroes
+               * `notFilled` and `refused` because *"a step supplied its own
+               * candidates: the preset was not consulted, so it honestly has
+               * nothing to say"* — but the retriever ran anyway, so a scan whose
+               * blocks were then discarded still **moved every matched entry's
+               * cooldown**. That is a lorebook entry recorded as having fired on
+               * a turn where its text reached no prompt, which is exactly the
+               * claim [P5.6]'s counters exist to make truthfully.
+               *
+               * *Nothing hit it before the plot-hook selector, which is the
+               * first step in the build to pass `candidates` — and it passes
+               * them for the reason [06 §6.1] gives: the judgement call is meant
+               * to be **cheap**, and the accumulated prompt is the whole scene.*
                */
-              const lore = retrieve({
-                lore: inputs.lore,
-                preset,
-                history,
-                channels: running,
-                persona: cast.persona,
-                actors: cast.actors,
-                callKind: definition.callKind,
-                rng,
-                ...(payload.input === undefined ? {} : { input: payload.input }),
-              });
-              loreEffects.push(...lore.effects);
+              const brought = request.candidates !== undefined;
+              const lore = brought
+                ? null
+                : retrieve({
+                    lore: inputs.lore,
+                    preset,
+                    history,
+                    channels: running,
+                    persona: cast.persona,
+                    actors: cast.actors,
+                    callKind: definition.callKind,
+                    rng,
+                    ...(payload.input === undefined ? {} : { input: payload.input }),
+                  });
+              if (lore !== null) loreEffects.push(...lore.effects);
 
-              const fromPreset = collectCandidates({
-                preset,
-                callKind: definition.callKind,
-                history: windowed,
-                persona: cast.persona,
-                actors: cast.actors,
-                channels: running,
-                lore: lore.blocks,
-                carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
-                ...(payload.input === undefined ? {} : { input: payload.input }),
-                ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
-                ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
-              });
+              const fromPreset = brought
+                ? { candidates: [], notFilled: [] }
+                : collectCandidates({
+                    preset,
+                    callKind: definition.callKind,
+                    history: windowed,
+                    persona: cast.persona,
+                    actors: cast.actors,
+                    channels: running,
+                    lore: lore?.blocks ?? [],
+                    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
+                    ...(payload.input === undefined ? {} : { input: payload.input }),
+                    ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
+                    // [06 §5.1]'s second producer, filled by the selector that ran
+                    // before this loop reached any step that assembles.
+                    ...(hooks.report?.guidance === undefined
+                      ? {}
+                      : { hookGuidance: hooks.report.guidance }),
+                    ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
+                  });
 
               const outcome = await performCall(
                 {
@@ -651,7 +748,7 @@ export class TurnRunner {
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
                   notFilled: fromPreset.notFilled,
-                  refused: lore.refused,
+                  ...(lore === null ? {} : { refused: lore.refused }),
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
@@ -883,6 +980,39 @@ export class TurnRunner {
     }
 
     /**
+     * **A fired hook, after the loop and not as a step** — [06 §6.1], [P7.5],
+     * and the same rule the clock states below.
+     *
+     * `se.hook` is `engine-computed` because *a firing is the selector's
+     * decision and a model proposing one would be a hook firing itself*; the
+     * refusal covers a `step` proposal too, so the selector reports the firing
+     * and the engine computes it. **Measured rather than reasoned to**: the step
+     * proposed it first and `acceptEffect` recorded `applied: false`,
+     * `rejectedReason: 'engine-computed'` — the policy working on the first
+     * thing that tried it.
+     *
+     * *Before the clock, because it is the story's and the clock is
+     * bookkeeping* — the same ordering the retriever's counters get for the
+     * mirror-image reason.
+     */
+    if (!aborted && hooks.report?.fired !== undefined) {
+      const { hookId, state } = hooks.report.fired;
+      const effect = acceptEffect(
+        job.turnId,
+        {
+          channelId: SE_HOOK,
+          scopeKey: hookId,
+          op: { type: 'set', path: '/' },
+          after: state,
+          proposedBy: { kind: 'engine' },
+        },
+        running,
+      );
+      effects.push(effect);
+      running = applyEffects(running, [effect]);
+    }
+
+    /**
      * The clock, after the loop and **not as a step**.
      *
      * A `failure: 'warn'` clock step would leave a turn with no time advance and
@@ -1025,4 +1155,16 @@ function failureShape(error: unknown): Record<string, unknown> {
     message: messageOf(error),
     ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
   };
+}
+
+/**
+ * A plain object, for the two authored values the pacing dial layers over.
+ *
+ * Both reach here as `unknown`: a Setup is stored on the session record and a
+ * treatment comes back from a resolver that never throws, so a hand-edited file
+ * puts a string or a number in either. `readPacing` validates the level itself;
+ * this is only what makes the property access legal.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

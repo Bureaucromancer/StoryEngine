@@ -22,7 +22,7 @@ import {
   writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
-import type { Turn } from '../sessions/types.js';
+import type { PooledHook, Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
 import { readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
@@ -2639,5 +2639,193 @@ describe('a call that asked for a shape', () => {
     // The fake declares `supportsStructuredOutput: true`, so this is the wire
     // path rather than the prompted one — `calls.test.ts` covers the other.
     expect(provider.requests[0]?.schema).toMatchObject({ required: ['name'] });
+  });
+});
+
+/**
+ * The plot-hook selector, through the pipeline — [06 §6.1], [P7.5].
+ *
+ * **Here rather than beside the selector's own unit tests** because what these
+ * assert is the *wiring*: that the engine's one non-mode step joins the plan,
+ * that its line lands on the turn, and that a fired hook's words reach the
+ * prompt **in the slot the preset positioned** rather than after everything else
+ * ([25 C13(c)], which [P7 §1.5] raised as the thing that had no answer).
+ */
+describe('a session with a hook pool', () => {
+  /** Puts a pool on the session, which is what makes the selector join the plan. */
+  async function seedPool(hooks: unknown[]): Promise<void> {
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, hooks }));
+  }
+
+  const WAR: PooledHook[] = [
+    {
+      hook: {
+        id: 'hook-war',
+        title: 'War',
+        premise: 'The Flower Kingdom will declare war.',
+        magnitude: 'sweeping',
+        involves: [],
+        weight: 1,
+        delivery: 'guidance',
+        once: true,
+      },
+      source: { kind: 'treatment', id: 't1' },
+    },
+  ];
+
+  it('runs the selector every turn and writes its line onto the record', async () => {
+    await seedPool(WAR);
+    // Two replies: the selector's judgement, then the narration. The selector is
+    // prepended, so it is the first call of the turn.
+    makeRunner({ script: [{ object: { hookId: null } }, { text: 'The door opened.' }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.hooks).toEqual({
+      verdict: 'judged-none',
+      pacing: 'normal',
+      considered: [{ hookId: 'hook-war', refusal: null }],
+    });
+    // And it is a step like any other, so the record says it ran.
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.hooks.select', 'se.narrate']);
+  });
+
+  /**
+   * **The slot, not the end of the prompt.** A step's candidates are appended
+   * after the preset's, so a hook returned as one would arrive last; the
+   * selector hands its words to the runner and the *collector* fills
+   * [06 §5.1]'s slot, which is the same route `attempt` takes.
+   */
+  it('sends a fired hook through the guidance slot', async () => {
+    await seedPool(WAR);
+    makeRunner({ script: [{ object: { hookId: 'hook-war' } }, { text: 'The door opened.' }] });
+
+    const { turn } = await runTurn();
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+
+    // The narrator's call is the second one; the first is the judgement.
+    const narration = turn.request?.calls.at(-1);
+    const hookBlock = narration?.blocks?.find(
+      (block) => block.source.kind === 'guidance' && block.source.producer === 'step',
+    );
+    expect(hookBlock?.text).toContain('The Flower Kingdom will declare war.');
+    // Advisory, forced by the collector rather than left to the author — a hook's
+    // guidance is guidance ([06 §5.2]).
+    expect(hookBlock?.advisory).toBe(true);
+    // And the judgement call did not see the scene: its own candidates, which is
+    // what makes it cheap.
+    expect(turn.request?.calls[0]?.messages.length).toBeLessThan(narration?.messages.length ?? 0);
+  });
+
+  it('records the firing as an effect on the hook’s own channel', async () => {
+    await seedPool(WAR);
+    makeRunner({ script: [{ object: { hookId: 'hook-war' } }, { text: 'The door opened.' }] });
+
+    const { turn } = await runTurn();
+    const firing = turn.effects.find((effect) => effect.channelId === 'se.hook');
+
+    expect(firing).toMatchObject({ scopeKey: 'hook-war', after: 'fired', applied: true });
+    // Which is what takes it out of the pool on the next turn, rather than a
+    // set on the session file that could not branch.
+    const next = await runNextTurn();
+    expect(next.hooks?.considered).toEqual([{ hookId: 'hook-war', refusal: 'fired' }]);
+    expect(next.hooks?.verdict).toBe('nothing-eligible');
+  });
+
+  /**
+   * **Absent means the selector did not run**, which is every session without a
+   * pool — never *it ran and had nothing to say*. The distinction is the one
+   * [03 §8] draws everywhere else in this record.
+   */
+  it('leaves the field off a turn with no pool at all', async () => {
+    const { turn } = await runTurn();
+
+    expect(turn.hooks).toBeUndefined();
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.narrate']);
+  });
+
+  /**
+   * ***A step that brings its own candidates does not move the retriever's
+   * counters*** — [P5.6], [P7.5], and a correctness fix rather than a saving.
+   *
+   * `performCall` already knows what an explicit `candidates` means: it zeroes
+   * `notFilled` and `refused` because *"the preset was not consulted, so it
+   * honestly has nothing to say"*. The retriever ran anyway, so a scan whose
+   * blocks were then discarded still spent every matched entry's cooldown — a
+   * lorebook entry recorded as having fired on a turn where its text reached no
+   * prompt. **Nothing hit it before the selector**, which is the first step in
+   * the build to pass its own candidates.
+   */
+  it('does not spend a lorebook entry on the judgement call', async () => {
+    const book = newLorebook('Rain City');
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing.',
+        cooldown: 3,
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withBoth = await createSession(sessions, ACCOUNT, {
+      name: 'Both',
+      preset: TEST_PRESET,
+      lore: [book.id],
+      hooks: WAR,
+    });
+    // The judgement answers *none*, so the only call that assembles a prompt is
+    // the narrator's — and the entry the input mentions belongs to that one.
+    makeRunner({ script: [{ object: { hookId: null } }, { text: 'The door opened.' }] });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withBoth.id,
+      idempotencyKey: 'both-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'The ferryman again.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withBoth.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const timing = turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING);
+
+    // One, not two: the entry fired for the narration and not for the judgement.
+    expect(timing).toHaveLength(1);
+    expect(timing[0]?.after).toEqual({ sticky: 0, cooldown: 3, fired: 1 });
+    // And the judgement call assembled nothing from the preset at all, which is
+    // what `cheap` means and what makes the claim above checkable.
+    expect(turn.request?.calls[0]?.notFilled ?? []).toHaveLength(0);
+  });
+
+  /**
+   * The dial is `user-only` and the route that turns it is the channel write —
+   * so this is the first end-to-end proof that a person's setting reaches a
+   * scheduling decision, and that the record says which setting it was.
+   */
+  it('holds when the dial has been turned down, and says so', async () => {
+    await seedPool(WAR);
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'manual-only');
+    makeRunner({ script: [{ text: 'The door opened.' }] });
+
+    const turn = await runNextTurn();
+
+    expect(turn.hooks).toEqual({
+      verdict: 'held',
+      pacing: 'manual-only',
+      // The filter still runs and still reports; only the judgement is off,
+      // which is what makes `manual-only` a coherent state rather than a dead
+      // step ([06 §6.1]).
+      considered: [{ hookId: 'hook-war', refusal: null }],
+    });
+    // One call, not two: nobody was asked.
+    expect(turn.request?.calls).toHaveLength(1);
   });
 });

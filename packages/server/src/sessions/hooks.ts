@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ChannelDefinition } from '@storyengine/sdk';
-import type { HookPacing, PlotHook, Ref } from '@storyengine/shared';
+import type { HookPacing, HookRefusal, PlotHook, Ref } from '@storyengine/shared';
 
 import { introducedOn, isTerminal, readParty, readStatus } from './cast.js';
 import { channelKey, initialValue } from './channels.js';
@@ -102,40 +102,14 @@ export function readHookState(
     : null;
 }
 
-/**
- * Why a hook is not eligible — a **class, not prose**.
- *
- * [06 §6.1] wants an author to see *"which are blocked **and by what**"*, and
- * this codebase's standing rule for a durable reason is the one progress events
- * are held to: the panel maps a class to a sentence, and nothing grows another
- * free-English field. Each arm is a different remedy, which is the test for
- * whether it earns its place:
- *
- * - `fired` / `pending` — this hook already went. Nothing to do.
- * - `book-inactive` — its lorebook is no longer in the session. Re-add the book.
- * - `blocked` — a `blockedBy` hook has fired. Nothing to do; it is by design.
- * - `too-early` — `notBefore`. Wait, or lower the bound.
- * - `cast-gone` — an `involves` member is unresolvable, dead, or never met.
- * - `subject-gone` — the subject of an introduction does not resolve. **The one
- *   arm that is an authoring error rather than a state**: [04 §6.1a] makes a
- *   dangling `introduces.actor` *"a broken hook, not a retired one… ineligible
- *   with a visible reason, and the author is told"*, where a dangling `involves`
- *   entry retires a hook quietly. Same field type, opposite treatment.
- * - `subject-met` — they are already introduced, which is the whole point of the
- *   hook being spent.
- * - `subject-unavailable` — dead, the persona, or already in the party.
- */
-export type HookRefusal =
-  | 'fired'
-  | 'pending'
-  | 'book-inactive'
-  | 'blocked'
-  | 'too-early'
-  | 'cast-gone'
-  | 'subject-gone'
-  | 'subject-met'
-  | 'subject-unavailable';
+// ***`HookRefusal` moved to `@storyengine/shared` at [P7.5] stage three***, where
+// the selector's record line carries it. It was written here beside the filter
+// that produces it, and the argument for the move is the one `StepSkipReason`
+// and `NotFilledReason` already answer to: **a class a client renders is a
+// record vocabulary**, and a second copy of a nine-arm union is the thing that
+// drifts. The nine arms and the remedy each one implies are documented there.
 
+/** One hook and what this session's filter made of it. */
 export interface HookVerdict {
   hook: PlotHook;
   /** `null` when it is eligible. */

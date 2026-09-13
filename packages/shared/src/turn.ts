@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { HookPacing } from './schema/common.js';
 import type { GenerationParams } from './schema/preset.js';
 
 /**
@@ -441,6 +442,105 @@ export type StepFailureReason =
 /** Why a step did not run. [06 §6]'s three condition arms, from the other side. */
 export type StepSkipReason = 'cadence' | 'stage' | 'not-armed';
 
+/**
+ * Why a hook is not eligible — a **class, not prose**.
+ *
+ * [06 §6.1](../../../docs/design/06-modes-and-turn-pipeline.md) wants an author
+ * to see *"which are blocked **and by what**"*, and this codebase's standing
+ * rule for a durable reason is the one progress events and `NotFilledReason` are
+ * held to: a reader maps a class to a sentence, and nothing grows another
+ * free-English field. Each arm is a different remedy, which is the test for
+ * whether it earns its place:
+ *
+ * - `fired` / `pending` — this hook already went. Nothing to do.
+ * - `book-inactive` — its lorebook is no longer in the session. Re-add the book.
+ * - `blocked` — a `blockedBy` hook has fired. Nothing to do; it is by design.
+ * - `too-early` — `notBefore`. Wait, or lower the bound.
+ * - `cast-gone` — an `involves` member is unresolvable, dead, or never met.
+ * - `subject-gone` — the subject of an introduction does not resolve. **The one
+ *   arm that is an authoring error rather than a state**:
+ *   [04 §6.1a](../../../docs/design/04-schemas.md) makes a dangling
+ *   `introduces.actor` *"a broken hook, not a retired one… ineligible with a
+ *   visible reason, and the author is told"*, where a dangling `involves` entry
+ *   retires a hook quietly. Same field type, opposite treatment.
+ * - `subject-met` — they are already introduced, which is the whole point of the
+ *   hook being spent.
+ * - `subject-unavailable` — dead, the persona, or already in the party.
+ *
+ * **Here rather than in the engine, because it is a record vocabulary** — [P7.5]
+ * stage three. It was written beside the filter that produces it and moved the
+ * moment the selector's line landed on a turn: a class the client renders is
+ * `shared`'s the same way `StepSkipReason` and `NotFilledReason` are, and a
+ * second copy of a nine-arm union is the thing that drifts.
+ */
+export type HookRefusal =
+  | 'fired'
+  | 'pending'
+  | 'book-inactive'
+  | 'blocked'
+  | 'too-early'
+  | 'cast-gone'
+  | 'subject-gone'
+  | 'subject-met'
+  | 'subject-unavailable';
+
+/**
+ * What the plot-hook selector did this turn — [06 §6.1], [P7 §1.5], [P7.5].
+ *
+ * ***A field of its own because a step's skip reason could not carry it, and
+ * that is the section's own argument rather than a shape convenience.***
+ * [06 §6.1]: *"A selector that returns early because of pacing is
+ * indistinguishable, from the outside, from one that ran and judged none — and
+ * a step's skip reason is derived from its condition, so it cannot carry this."*
+ * {@link StepSkipReason} is the closed set derived from `StepCondition`'s three
+ * arms — `cadence`, `stage`, `not-armed` — with no free-form member, and
+ * `contributed` counts blocks and effects without saying what they were. So this
+ * lands on the turn.
+ *
+ * **The standard is the one the assembler already meets** when it records why a
+ * slot was not filled ({@link NotFilledSlot}): every candidate accounted for,
+ * each with a class a reader can turn into a sentence. Without it *"which are
+ * blocked and by what"* is answerable in the abstract but never for the turn in
+ * front of you.
+ *
+ * *On the turn rather than in a channel, and the two are not competing.*
+ * `se.hook` is what **happened** to a hook and has to branch; this is what the
+ * selector **decided** on one turn, which is already a thing a turn record
+ * carries and which a channel would have to overwrite every turn to express.
+ */
+export interface HookSelection {
+  /**
+   * What the selector answered.
+   *
+   * `held` and `nothing-eligible` are separated because they are different
+   * remedies: *held* invites somebody to turn the dial up, and turning it up
+   * changes nothing when the pool is empty. `cooling` is separated from `held`
+   * for the same reason one rung down — waiting is the remedy, not the dial.
+   * `judged-none` means the call happened and answered *none*, which
+   * [06 §6.1] permits in as many words and which a correctly-quiet session must
+   * be distinguishable by.
+   */
+  verdict: 'held' | 'cooling' | 'nothing-eligible' | 'judged-none' | 'fired';
+  /**
+   * The dial as it stood at this node — [04 §6.1b]'s three rungs already
+   * resolved.
+   *
+   * Recorded rather than looked up later because the value branches: a reader
+   * asking *why was this turn quiet* a hundred turns on would otherwise get
+   * today's answer for a decision taken under a different one.
+   */
+  pacing: HookPacing;
+  /** The hook that fired. Present only on `fired`. */
+  hookId?: string;
+  /**
+   * **Every hook in the pool, refused or not** — *"nothing about a held hook may
+   * be invisible"*. Ids rather than hooks: the pool is on the session and a turn
+   * that copied premises into the record would be [08 §6]'s hidden content
+   * written into a file the workbench renders.
+   */
+  considered: readonly { hookId: string; refusal: HookRefusal | null }[];
+}
+
 export type StepStage = 'pre' | 'assemble' | 'generate' | 'extract' | 'post';
 
 /**
@@ -598,6 +698,13 @@ export interface Turn {
   request?: TurnRequest;
   cost?: TurnCost;
   steps?: StepOutcome[];
+  /**
+   * What the plot-hook selector decided — [06 §6.1], [P7.5]. **Absent means the
+   * selector did not run**, which is every turn of a session with no hook pool
+   * and every turn taken by a build before P7.5; it never means *it ran and had
+   * nothing to say*, which is what `nothing-eligible` is for.
+   */
+  hooks?: HookSelection;
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;

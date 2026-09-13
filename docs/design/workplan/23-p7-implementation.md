@@ -580,6 +580,18 @@ The stage reads as though it consumes existing shapes. It does not.
   *judged none* / *fired X and why* is an addition to `@storyengine/shared`'s
   record types, which the workbench and every reader consume. §1.5 calls it a
   correction; the code calls it a record-shape change.
+
+  ***Landed at P7.5 stage three*** (2026-09-13) as `Turn.hooks?: HookSelection`,
+  built to `NotFilledSlot`'s standard rather than to a skip reason's: every hook
+  in the pool accounted for, each with a class a reader turns into a sentence.
+  **Five verdicts, not four** — *held*, *cooling* and *nothing-eligible* are
+  three different remedies (turn the dial up; wait; there is nothing to fire),
+  and *judged-none* is the one that makes a correctly-quiet session
+  distinguishable from a broken one. `HookRefusal` moved to `shared` with it, for
+  the reason `StepSkipReason` and `NotFilledReason` live there: **a class a client
+  renders is a record vocabulary**, and a second copy of a nine-arm union is the
+  thing that drifts. *Absent means the selector did not run*, which is every
+  session with no pool.
 - **The guidance slot cannot position a step's block.** `collect.ts:445` fills
   `se.guidance` from `context.guidance ?? ''` — the user's box — and
   `assembly/types.ts:30-36` types `SlotSource` as
@@ -589,6 +601,21 @@ The stage reads as though it consumes existing shapes. It does not.
   (`runner.ts:622`). So a fired hook's text would arrive at the **end** of the
   prompt rather than where the preset put guidance. That is
   [25 C13(c)](../25-open-questions.md), which this document never cites.
+
+  ***Half true, and the false half is the one that mattered*** (2026-09-13,
+  P7.5 stage three). C13(c) is real and unchanged: a step's own candidate does
+  arrive last, which is why the selector does not return one. But **the slot was
+  never the obstacle** — what `collect.ts:445` shows is one slot with *one
+  producer*, and [06 §5.1](../06-modes-and-turn-pipeline.md) says *one slot,
+  several producers* in as many words, with `BlockSource`'s `guidance` arm
+  already carrying `producer: 'user' | 'rule' | 'step'`. So the selector runs
+  first, hands its words to the **runner**, and the collector emits a second
+  candidate at the same slot. *The route is `attempt`'s — "handed in by the
+  runner, never by a step" — and that is the same rule rather than a
+  coincidence: guidance is precisely what a step may not hand back
+  ([06 §5.2]), because the assembler's refusal keys on `Candidate.advisory` and
+  not on where the words came from.* `SlotSource` is untouched; nothing here
+  needed a slot to point at a step.
 - **A hook has nowhere to be authored.** There is no treatment editor and no setup
   editor: `client/src/library/fields.ts:142-167` types the editor kinds as
   `actors` and `lorebooks` only, and `fields.test.ts:150-155` asserts the negative
@@ -3190,14 +3217,98 @@ should **read** to a model belongs where an author can edit it, but the numbers'
 effect is that a step does not run, and letting a portable preset set internal
 scheduling inverts the dependency the step contract exists to keep one-way.
 
-**Next:** stage three — the judgement pass over the survivors, firing through the
-guidance slot as [06 §5.1]'s fourth producer, and the selector's own record line,
-which ships with it. Two things it has to answer on the way: the selector is
-server-side (`filterHooks` reads the session's pool) and every step today is a
-mode's, so the plan gains an engine-owned `{ definition, run }` pair or the
-boundary gets crossed; and §1.5's *"the guidance slot cannot position a step's
-block"* — [25 C13(c)](../25-open-questions.md) — means a fired hook's text lands
-at the end of the prompt rather than where the preset put guidance.
+**Done: stage three — the judgement pass, and the line it writes** (2026-09-13).
+
+**The selector is a step, and the first one `planFor` does not build.** Every
+other step is a mode's, zipped from `mode.run`; this one reads the session's hook
+pool, and a pool is assembled from a treatment, its lorebooks and the session's
+own hooks ([03 §4.1]) — none of which is a mode. So the runner prepends its own
+`{ definition, run }` pair, which is the same argument that registers `se.hook`
+and `se.hook.pacing` in `mode-loader` rather than in Scene's declaration, one
+level up. *Being a step rather than a phase beside the loop is what buys the
+record*: a `StepOutcome` says it ran, `step.started`/`step.finished` reach a
+watching client, `failure: 'warn'` keeps a broken pool from costing somebody
+their turn, and its call lands in `request.calls` with blocks and a budget
+verdict like any other. **An empty pool means no selector at all**, which is why
+this applies to a supplied plan too without contradicting *a test that supplied a
+plan asked for that plan*.
+
+**§1.5's *"the guidance slot cannot position a step's block"* was half true, and
+the half that was false is the one that mattered.** [25 C13(c)] is real —
+step candidates are appended after the preset's, so a hook returned as a
+`Candidate` would arrive at the end of the prompt — but the slot itself was never
+the obstacle. `collect.ts` filled `se.guidance` from **one** producer, the user's
+box, and [06 §5.1] says *one slot, several producers* in as many words. So the
+selector runs **first**, hands its words back to the runner, and the collector
+emits them as a second candidate at the same slot under `producer: 'step'`, which
+`BlockSource` already had. *The route is `attempt`'s exactly — "handed in by the
+runner, never by a step" — and it is the same rule rather than a coincidence:
+guidance is the one thing a step may not hand back ([06 §5.2]), because the
+assembler's refusal keys on `Candidate.advisory` and not on where the words came
+from.*
+
+***Two things were measured wrong on the way, and both are findings rather than
+slips.***
+
+- **A role nobody bound is a step that cannot run.** The selector asked for
+  `fast`, which is the role [06 §6.1]'s *cheap* names. `resolveRole`'s four
+  layers are all bindings *for the role asked for* — there is no cross-role
+  fallback — and **nothing in this build binds any role but `prose`**: no install
+  default, no wizard, no route that suggests one. So on a stock install every
+  turn of every session with a hook pool logged a failed step and no hook ever
+  fired. Changed to `prose`, with `stepRoles` ([19 §5.1]'s fourth layer) as the
+  way an install points it at something smaller. *The finding is bigger than this
+  step: seven of `MODEL_ROLES`' eight arms are unreachable the same way, so the
+  roles vocabulary is aspirational until bindings ship defaults for more of them
+  or `resolveRole` gains a fallback. Not this stage's to fix, and the wrong thing
+  to hide inside one step's declaration.*
+- **`engine-computed` refuses a step, which is the policy working.** The selector
+  proposed the firing itself and `acceptEffect` recorded `applied: false,
+  rejectedReason: 'engine-computed'` — correctly, and for the reason `se.hook` is
+  declared that way: *a firing is the selector's decision, and a model proposing
+  one would be a hook firing itself*. A step permitted to write it reopens that to
+  every step of every mode. So the selector **reports** the firing and the runner
+  applies it after the loop, which is what the clock's own comment already said to
+  do — *"not as a step… where it would be proposed rather than computed"*. The
+  cell the runner owns carries three things for three reasons: the record line
+  (a turn field is the engine's to write), the guidance (§5.2), and the firing
+  (this).
+
+**`HookSelection` is on the turn, and `HookRefusal` moved to `shared` with it.**
+§1.5 is right that `StepOutcome.skipReason` could not carry this — a closed set
+derived from `StepCondition`'s three arms — and the standard the field is built to
+is `NotFilledSlot`'s: every candidate accounted for, each with a class a reader
+turns into a sentence. Five verdicts, because *held*, *cooling* and
+*nothing-eligible* are three different remedies and *judged-none* is the one that
+makes a correctly-quiet session distinguishable from a broken one. **Absent means
+the selector did not run**, which is every session with no pool.
+
+*[25 C13] has its first production caller.* The entrance is drawn with
+`weightedPick` rather than `pick` for exactly the reason C13 gives: a judgement
+call is re-run on a rewrite, so the hook the draw sits under may be a different
+hook with a different entrance list — `pick` records the list's *length* and would
+hand back a position into different content, while `weightedPick` records the
+winner's **id** and refuses the replay when that winner is no longer a candidate.
+
+*Entrances reach the two calls differently, which [08 §6] and [10 §10.1] require:*
+the judgement pass reads **labels**, because an unfired entrance is hidden
+content; only the hook that actually fires sends the text anywhere. *And the
+judgement call carries its own candidates rather than the turn's — `cheap` is a
+property of the call, and stage one is what delivers it.*
+
+***`delivery: 'immediate'` is not built and reads as `seed`.*** [06 §6.1] makes it
+*"the only one that writes narrative directly, and it should be the rare choice"*,
+which is a different mechanism rather than a stronger instruction: it would have
+to produce the turn's output and then answer what the narrator step is for.
+Recorded rather than refused, because a hook that cannot fire at all is the worse
+answer — the beat still reaches the turn, and what an author loses is that it is
+woven rather than printed.
+
+**Next:** Commit, with its bounded three-turn patience counted on the path and the
+third `HOOK_STATES` arm that arrives with it; the hook panel ([10 §10.1]) and
+force-fire in the workbench; session-local hooks addable to a *running* session;
+and `introduces`' provisional firings being confirmed by the extract stage, which
+is [P7.7]'s and is what closes this stage's fourth property row.
 
 ### P7.6 — Goals
 

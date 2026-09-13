@@ -167,6 +167,89 @@ describe('the previous attempt is the second advisory slot', () => {
   });
 });
 
+/**
+ * ***One slot, several producers*** — [06 §5.1], with the second one at last
+ * ([06 §6.1], [P7.5]).
+ *
+ * That section names the user's box, an authored rule's `giveGuidance` and a
+ * step such as a Narrative Director push; the plot-hook selector is the fourth,
+ * and the first to arrive. **[P7 §1.5] read this as blocked** — *"the guidance
+ * slot cannot position a step's block"* — and the half that was true is that a
+ * step's own candidate arrives at the end of the prompt. The slot was never the
+ * obstacle: it had one producer, and it was always specified to take several.
+ */
+describe('the guidance slot takes more than one producer', () => {
+  it('emits a fired hook beside the user’s own words, in the slot’s place', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', id: 'se.guidance', source: { of: 'guidance' } })]),
+        guidance: 'keep this short',
+        hookGuidance: 'Weave this in: the Flower Kingdom declares war.',
+      }),
+    );
+
+    expect(candidates.map((candidate) => candidate.source)).toEqual([
+      { kind: 'guidance', producer: 'user' },
+      { kind: 'guidance', producer: 'step' },
+    ]);
+    // Distinct ids, because two candidates at one slot cannot share one — and it
+    // is the new arm that takes the suffix: the user's block has carried the
+    // bare block id since P2 and it is in records already written.
+    expect(candidates.map((candidate) => candidate.id)).toEqual([
+      'se.guidance',
+      'se.guidance.hook',
+    ]);
+    // Advisory is forced for both, and forcing keys on the *slot* rather than on
+    // the producer — which is what makes a hook's guidance guidance ([06 §5.2]).
+    expect(candidates.every((candidate) => candidate.advisory === true)).toBe(true);
+  });
+
+  it('wraps the hook’s words the way it wraps the box’s', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.guidance',
+            source: { of: 'guidance' },
+            wrapper: 'Note: {{content}}',
+          }),
+        ]),
+        hookGuidance: 'the Flower Kingdom declares war',
+      }),
+    );
+
+    // One, not two: the box was empty and `omitWhenEmpty` dropped it. The hook
+    // is a separate producer and had something to say.
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text).toBe('Note: the Flower Kingdom declares war');
+  });
+
+  /**
+   * *Absent rather than empty when nothing fired*, so the second producer never
+   * reaches `omitWhenEmpty`: a preset that emits its guidance slot over an empty
+   * box should emit it **once**, not once per producer that had nothing to say.
+   */
+  it('does not double an empty slot a preset asked to keep', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.guidance',
+            source: { of: 'guidance' },
+            wrapper: 'Note: {{content}}',
+            omitWhenEmpty: false,
+          }),
+        ]),
+      }),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text).toBe('Note: ');
+  });
+});
+
 describe('the advisory firewall is structural, not an author preference', () => {
   it('marks a guidance slot advisory even when the preset says not to', () => {
     // **The mechanism the whole rule rests on.** `assemble` keys its refusal on

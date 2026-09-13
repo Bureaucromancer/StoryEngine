@@ -1,8 +1,8 @@
 # The HTTP API
 
 **Status: as built, and kept so.** Written at P2.5 and revised with every phase
-since — last at [P7.3](design/workplan/23-p7-implementation.md), for the channel
-write, the two override layers and the personal role bindings. This describes what exists, not what
+since — last at [P7.5](design/workplan/23-p7-implementation.md), for the pacing
+dial and the plot-hook selector's line on the turn record. This describes what exists, not what
 is planned — where the two differ, this file is right and the design notes
 record intent ([docs/README.md](README.md)).
 
@@ -1233,6 +1233,16 @@ and walks the whole path, and the workbench wants one turn, including one the
 head has passed. The lookup is scoped to *this* session inside the store, so a
 bare turn id cannot confirm existence across the ownership boundary: a turn in
 somebody else's session is the same `404` as one that never existed.
+
+**`turn.hooks` says what the plot-hook selector did**, when a session has a pool
+([06 §6.1](design/06-modes-and-turn-pipeline.md)): a `verdict` — `held`,
+`cooling`, `nothing-eligible`, `judged-none` or `fired` — the `pacing` it was
+read at, the `hookId` on a firing, and `considered`, which accounts for **every**
+hook in the pool with a refusal class or `null`. *Held by pacing* and *judged
+none* are deliberately different answers: a record that merged them would make a
+correctly-quiet session indistinguishable from a broken one. **Absent means the
+selector did not run**, which is every session with no pool — never *it ran and
+had nothing to say*.
 
 ### `PUT /api/sessions/:sessionId/head`
 

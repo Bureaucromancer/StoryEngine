@@ -11,8 +11,12 @@ import { resolveConnections } from '../providers/connections.js';
 import { walkPath } from '../sessions/segments.js';
 import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
-import type { ChannelState, SessionFile, Turn } from '../sessions/types.js';
+import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/types.js';
 import { readRegistry } from '../tags/store.js';
+import { ACTOR_SCHEMA } from '@storyengine/shared';
+
+import { read } from '../library.js';
+import type { LibraryContext } from '../library.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -71,6 +75,24 @@ export interface AssemblyInputs {
    * raises nothing anywhere.
    */
   lore: ResolvedLore;
+  /**
+   * The session's hook pool, and which of the actors it names resolve —
+   * [06 §6.1], [P7.5].
+   *
+   * **Here for the reason `lore` is here**, which this file's own docstring
+   * gives: a preview and a real turn must not be able to disagree about what was
+   * in play, and a step that read the library on its own *"would compile, pass
+   * its own tests, and then drift on exactly the kind of value whose drift is
+   * invisible"*.
+   *
+   * **`known` is a library read, and it cannot come from the cast.** An
+   * introduction hook's subject is by definition *not* in the session cast —
+   * that is the whole point of it — so resolving `introduces.actor` against the
+   * cast would refuse every introduction as `subject-gone`. What the filter asks
+   * is whether the `Ref` resolves to an object at all, which only the library
+   * can answer.
+   */
+  hooks: { pool: readonly PooledHook[]; known: ReadonlySet<string> };
 }
 
 export interface GatherContext {
@@ -169,6 +191,7 @@ export async function gatherAssemblyInputs(
    * the treatment it names, selected it — see `LoreRoute`.
    */
   const lore = resolveLore(library, request.account, session);
+  const pool = Array.isArray(session?.hooks) ? session.hooks : [];
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
   return {
@@ -186,5 +209,45 @@ export async function gatherAssemblyInputs(
     preset,
     cast,
     lore,
+    hooks: { pool, known: resolvableActors(library, request.account, pool) },
   };
+}
+
+/**
+ * Which of a pool's actors resolve — the set `FilterContext.known` wants.
+ *
+ * **Ids, never cards.** The filter asks one question of each — *is there an
+ * object behind this `Ref`* — and reading the actor whole would put an unfired
+ * introduction's subject into memory on every turn for a hook that will fire on
+ * none of them. [04 §6.1a] makes the dangling case a *visible* refusal rather
+ * than a quiet retirement, which is the only thing this has to be able to say.
+ *
+ * *Reads each id once* even when six hooks name the same person, because a pool
+ * with thirty hooks is the case [06 §6.1] sizes the mechanical filter for.
+ */
+function resolvableActors(
+  library: LibraryContext,
+  handle: string,
+  pool: readonly PooledHook[],
+): ReadonlySet<string> {
+  const asked = new Set<string>();
+  for (const { hook } of pool) {
+    for (const who of hook.involves) asked.add(who.id);
+    if (hook.introduces !== undefined) asked.add(hook.introduces.actor.id);
+  }
+
+  const known = new Set<string>();
+  for (const id of asked) {
+    try {
+      read(library, handle, id, ACTOR_SCHEMA);
+      known.add(id);
+    } catch {
+      // **The throw is the answer**, which is what `read` gives back for an id
+      // that is not there, is not an actor, or is a file that no longer parses
+      // as one. All three are *gone* as far as a hook is concerned, and saying
+      // so beats failing the turn — the same never-throws posture `resolveCast`
+      // takes one function over.
+    }
+  }
+  return known;
 }
