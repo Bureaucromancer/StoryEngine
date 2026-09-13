@@ -464,8 +464,13 @@ describe('what the editor writes and what it only shows', () => {
     const placement = sectionFor('Placement');
     // Shown: the label *and* the value, because a label over nothing is the
     // hidden field this section forbids one step along.
-    expect(within(placement).getByText('Position')).toBeTruthy();
-    expect(within(placement).getByText('before_char')).toBeTruthy();
+    //
+    // ***`Depth`, where this used to name `Position`*** — [P7.14] gave `Position`
+    // a picker, so it is no longer an example of the thing being asserted. The
+    // claim is unchanged and needs an unowned field to make it over; `depth` is
+    // one, in the same group, so the section being tested is the same section.
+    expect(within(placement).getByText('Depth')).toBeTruthy();
+    expect(within(placement).getByText('0')).toBeTruthy();
     /*
      * **No control of any kind, asked as one question.** Naming the roles a
      * control might have — textbox, combobox — is a list somebody has to keep
@@ -475,7 +480,64 @@ describe('what the editor writes and what it only shows', () => {
      * control by its label whatever the control is, which is the question the
      * test was trying to ask.
      */
-    expect(within(placement).queryByLabelText('Position')).toBeNull();
+    expect(within(placement).queryByLabelText('Depth')).toBeNull();
+  });
+
+  /**
+   * ***And the two that stopped being read-only*** — [P7.14], discharging
+   * [P7 §0.1a] item 11's outlet instance. An entry could be made an outlet entry
+   * only by editing the file, which is [work plan §2.3]'s test failed outright.
+   */
+  it('lets an entry be made an outlet, and named only once it is one', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    const placement = sectionFor('Placement');
+    const position = within(placement).getByLabelText('Position');
+    // The four come from the schema's own union, so a fifth placement added
+    // there arrives here with no edit.
+    expect([...(position as HTMLSelectElement).options].map((one) => one.value)).toEqual([
+      'before_char',
+      'after_char',
+      'at_depth',
+      'outlet',
+    ]);
+
+    // Noise on a `before_char` entry, so it is not offered there.
+    expect(within(placement).queryByLabelText('Outlet name')).toBeNull();
+
+    await userEvent.selectOptions(position, 'outlet');
+
+    const name = await within(sectionFor('Placement')).findByLabelText('Outlet name');
+    await userEvent.type(name, 'harbour');
+    expect((name as HTMLInputElement).value).toBe('harbour');
+  });
+
+  /**
+   * ***The retrieval knobs, which had a consumer on every turn and no writer at
+   * all*** — [P7.14]. The book's own gate is labelled for its scope rather than
+   * by `labelFor`, because the page already has an *Enabled*.
+   */
+  it('writes the book’s retrieval settings, which nothing could set before', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    const depth = screen.getByLabelText('Scan depth');
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '7');
+    expect((depth as HTMLInputElement).value).toBe('7');
+
+    // The schema's own bounds, so the browser refuses before the save does.
+    const limit = screen.getByLabelText('Entry limit');
+    expect(limit.getAttribute('min')).toBe('1');
+    expect(limit.getAttribute('max')).toBe('1000');
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Recursive scanning' }));
+    // The generic rather than an assertion: `getByRole` narrows for the caller,
+    // and an `as` here is the one spelling eslint and tsc disagreed about.
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Recursive scanning' }).checked,
+    ).toBe(true);
   });
 
   /**

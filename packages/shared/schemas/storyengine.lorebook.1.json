@@ -144,7 +144,7 @@
       "type": "array",
       "items": {
         "title": "PlotHook",
-        "description": "Fully stable, because the rule-typed fields are gone. An earlier draft carried `requires?: Predicate[]` and `onFire?: Effect[]`; that vocabulary is 2.0, and rather than ship a /1 schema with two fields typed against something unwritten they are removed. They return additively, so the schema stays /1 when the vocabulary arrives.",
+        "description": "Fully stable, because the rule-typed fields are gone. An earlier draft carried `requires?: Predicate[]` and `onFire?: Effect[]`; that vocabulary is 2.0, and rather than ship a /1 schema with two fields typed against something unwritten they are removed. They return additively, so the schema stays /1 when the vocabulary arrives — which is the same door `introduces` came through at P7.5.",
         "type": "object",
         "required": [
           "id",
@@ -245,6 +245,75 @@
           },
           "once": {
             "type": "boolean"
+          },
+          "introduces": {
+            "title": "Introduction",
+            "type": "object",
+            "required": [
+              "actor",
+              "entrances",
+              "primaryEntranceId"
+            ],
+            "properties": {
+              "actor": {
+                "title": "Ref",
+                "description": "A link to another object. Resolution order is always: exact id, then case-insensitive name, then show as missing and continue. Never blocks.",
+                "type": "object",
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "properties": {
+                  "id": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "fingerprint": {
+                    "type": "string"
+                  }
+                }
+              },
+              "entrances": {
+                "type": "array",
+                "items": {
+                  "title": "Entrance",
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "label",
+                    "text"
+                  ],
+                  "properties": {
+                    "id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "primaryEntranceId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
           }
         }
       }
@@ -736,6 +805,10 @@
                     {
                       "const": "gallery",
                       "type": "string"
+                    },
+                    {
+                      "const": "background",
+                      "type": "string"
                     }
                   ]
                 },
@@ -961,6 +1034,10 @@
               {
                 "const": "gallery",
                 "type": "string"
+              },
+              {
+                "const": "background",
+                "type": "string"
               }
             ]
           },
@@ -1128,6 +1205,10 @@
               },
               {
                 "const": "gallery",
+                "type": "string"
+              },
+              {
+                "const": "background",
                 "type": "string"
               }
             ]

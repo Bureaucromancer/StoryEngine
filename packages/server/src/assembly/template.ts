@@ -112,3 +112,44 @@ export function renderTemplate(template: string, context: RenderContext): Render
     };
   }
 }
+
+/**
+ * Renders a channel's value as prompt text — [06 §4], [P7.1].
+ *
+ * **The same engine, a different namespace, and the difference is the point.**
+ * {@link renderTemplate}'s context is [06 §5]'s closed participant namespace —
+ * `char` and `user`, names and never bodies — because a block template that
+ * could reach content would be a second assembler. A channel template's context
+ * is **its own channel's value and nothing else**, which is narrower still: it
+ * cannot see another channel, cannot see the session, and cannot see the
+ * assembled prompt. So the fence that section draws is not widened by this; a
+ * second, smaller one is drawn beside it.
+ *
+ * **A non-object value is bound as `value`.** A channel whose state is a number
+ * or a string has no fields to interpolate, and `{{ value }}` is the obvious
+ * spelling — inventing a name per type would be a vocabulary nobody could guess.
+ * An object binds its own keys, which is what makes `{{ hour }}` work.
+ *
+ * *`null` renders as nothing rather than as "null"*: a channel with no value yet
+ * is a channel with nothing to say, and `omitWhenEmpty` on the slot is what
+ * decides whether the block disappears.
+ */
+export function renderChannelValue(template: string, value: unknown): RenderResult {
+  if (value === null || value === undefined) return { ok: true, text: '' };
+
+  const context =
+    typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : { value };
+
+  try {
+    const text: unknown = engine.parseAndRenderSync(template, { ...context });
+    return { ok: true, text: typeof text === 'string' ? text : String(text) };
+  } catch (error) {
+    return {
+      ok: false,
+      source: template,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

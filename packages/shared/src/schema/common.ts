@@ -312,13 +312,60 @@ export const MediaRole = Type.Union(
     Type.Literal('portrait-source'),
     /** Canonical likeness — of a person, or of a place. */
     Type.Literal('reference'),
+    /**
+     * ***One face out of a set, chosen per moment*** — [03 §5.2.2]'s *"a curated
+     * expression set"*, and the union's first arm with an actual reader
+     * ([P7.12](../../../../docs/design/workplan/23-p7-implementation.md)).
+     *
+     * **This is the arm `label` exists for.** Scene's stager offers a model that
+     * actor's own labels as an enum and matches the answer back to a media id,
+     * so *an expression with no label is an expression nothing can select* —
+     * which is why the importer names one from the filename stem rather than
+     * leaving it unset. `role` is what the engine branches on; `label` is what
+     * distinguishes members *within* the role, and here the two are a pair.
+     *
+     * *Distinct from `reference`, which is one canonical likeness.* An
+     * expression is a member of a set and is meaningless alone.
+     */
     Type.Literal('expression'),
+    /**
+     * **One body out of a set, the same way** — and still without a reader.
+     * [17 §3]'s Character Studio generates expression *and* pose sets, and Scene
+     * selects only on expression, so this arm ships ahead of anything that
+     * chooses between poses. Kept beside `expression` rather than folded into it
+     * because a scene may want both axes at once and a single role could not say
+     * which was which.
+     */
     Type.Literal('pose'),
     /** Style exemplar, not likeness. */
     Type.Literal('style'),
     /** A diagram rather than a likeness. Lore, mostly. */
     Type.Literal('map'),
     Type.Literal('gallery'),
+    /**
+     * ***The backdrop a scene is staged against*** — [06 §7.2], [06 §10.1a],
+     * added at [P7.9](../../../../docs/design/workplan/23-p7-implementation.md).
+     *
+     * **It was missing, and the gap was invisible because nothing pointed at
+     * one.** §7.2 has described Scene as *"staged scene, optional background and
+     * sprites"* since the first draft, and this union had no role that named
+     * what an uploaded backdrop *is*: the nearest is `reference`, which §10.1a
+     * reserves for a *"canonical likeness — of a person, or of a place"*, and a
+     * likeness of a place is what a backdrop is **conditioned on** rather than
+     * what it is. Filing one as `gallery` would have made it unfindable by
+     * anything that wanted the backdrops.
+     *
+     * *Additive, which is what [04 §2]'s door is for* — an older build reading a
+     * newer file gets a role it has not heard of and keeps the media, and
+     * [04 §8.2] already refuses to emit this union as a hard enum.
+     *
+     * **Distinct from `Rendition.purpose`, which is the other half of the same
+     * pair.** That field says a *generated* image is a backdrop ([06 §10.1a]:
+     * *"two fields because there are two questions"*); this says an *authored*
+     * one is. The channel that holds the selection can name either, which is
+     * exactly why both had to exist.
+     */
+    Type.Literal('background'),
   ],
   { title: 'MediaRole' },
 );
@@ -426,3 +473,27 @@ export const Compat = Type.Union([Type.Record(Type.String(), Type.Unknown()), Ty
 export const Metadata = Type.Record(Type.String(), Type.Unknown());
 
 export { Id, Timestamp };
+
+/**
+ * How much authored plot to push at a player — [04 §6.1b](../../../../docs/design/04-schemas.md),
+ * built at [P7.1](../../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * **Semantics belong to the selector** ([06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md)),
+ * which is P7.5's. What is settled here is only where the value may be written
+ * down, and 04 §6.1b's answer is the shape `openings` already uses: **a
+ * Treatment proposes, a Setup overrides, and the running session owns it.**
+ *
+ * **`manual-only` is a value rather than the absence of one**, which is why
+ * absent cannot mean it — and absent cannot mean `normal` either. 04 §6.1b is
+ * explicit: *"Absent means unspecified, which the session resolves to its own
+ * default; it does not mean `normal`."* The channel's `init` is what says what
+ * unspecified resolves to, which is the distinction `InitPolicy`'s `fallback`
+ * exists to carry.
+ */
+export const HookPacing = Type.Union([
+  Type.Literal('sparse'),
+  Type.Literal('normal'),
+  Type.Literal('aggressive'),
+  Type.Literal('manual-only'),
+]);
+export type HookPacing = Static<typeof HookPacing>;

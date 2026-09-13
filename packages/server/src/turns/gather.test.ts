@@ -10,10 +10,12 @@ import { uuidv7 } from '@storyengine/shared';
 
 import { Accounts } from '../auth/accounts.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
-import { SCENE_ID } from '../modes/scene/mode.js';
+
 import { appendTurnToSession, createSession, type SessionContext } from '../sessions/store.js';
 import type { ChannelEffect, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
+import { installBuiltIns } from '../mode-loader.js';
+import { DEFAULT_MODE_ID } from '../mode-registry.js';
 import { gatherAssemblyInputs } from './gather.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook } from '@storyengine/shared';
@@ -40,6 +42,12 @@ const CLOCK = 'se.clock';
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-gather-'));
+  // Registration is a call rather than an import since [P7.0], and this test
+  // reaches the pipeline without going through `buildServices` — so it asks for
+  // the built-ins the same way the composition root does. A test that needs a
+  // mode now says so, which is the visibility the split was for.
+  await installBuiltIns();
+
   index = await openIndex({ path: ':memory:' });
   sessions = {
     layout: new Layout(dataDir),
@@ -242,8 +250,13 @@ describe('what the gather resolves without a job', () => {
 
     // The property the preview rests on: everything above is keyed by
     // (account, sessionId, parentTurnId) alone.
-    expect(inputs.mode.definition.id).toBe(SCENE_ID);
-    expect(inputs.declaredMode).toBe(SCENE_ID);
+    // **The default mode, named through the registry rather than imported**
+    // — [P7.0]. What this asserts is that a session naming nothing resolves to
+    // the build's default, which is a fact about the registry; reaching for the
+    // mode's own constant asserted the same thing and coupled an engine test to
+    // a package the engine may not import.
+    expect(inputs.mode.definition.id).toBe(DEFAULT_MODE_ID);
+    expect(inputs.declaredMode).toBe(DEFAULT_MODE_ID);
     expect(inputs.preset.blocks.length).toBeGreaterThan(0);
     expect(inputs.cast.actors).toEqual([]);
   });

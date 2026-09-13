@@ -895,8 +895,16 @@ why every tool in this space bolts sprites and galleries onto the side. Here the
 envelope (§5.2 above) carries a **media set** alongside the JSON:
 
 The envelope carries an `EmbeddedMedia[]` alongside the JSON, each entry a
-typed role plus bytes ([04 §3](04-schemas.md)). Roles: `portrait-source`,
-`reference`, `expression`, `pose`, `style`, `gallery`.
+typed role plus ~~bytes~~ **a reference to bytes the container resolves**
+([04 §3](04-schemas.md)) — corrected 2026-09-13, because `bytes: Uint8Array` is
+the draft 04 §3 explicitly rejected: it has no representation in JSON Schema and
+no meaning inside a `.sepack`, where there is no PNG chunk to point at. Roles:
+`portrait-source`, `reference`, `expression`, `pose`, `style`, `map`, `gallery`,
+`background`. *~~Six~~ eight — `map` arrived with lore media and `background` at
+[P7.9](workplan/23-p7-implementation.md), for a backdrop that had no role naming
+what it is. 04 §3's listing was corrected on the same day and this parallel one
+was missed, which is the argument for one of the two being a copy rather than a
+second statement.*
 
 **Roles are typed from the start, and that is the part worth insisting on now.**
 A flat list of images is cheap and forecloses everything downstream: an image
@@ -1336,26 +1344,71 @@ interface Turn {
    *  happened. Added at P2.5, with the runner that produces them. */
   steps: StepOutcome[]
   effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [21 §1.2.1]
-  /** Resolved actor mentions in `input.text` and `output.text`, as an overlay.
-   *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1] */
-  mentions: MentionSpan[]
+  /** Resolved references into `input.text` and `output.text`, as an overlay.
+   *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1]
+   *  ~~`mentions: MentionSpan[]`~~ — renamed 2026-09-11, see below. */
+  spans: TextSpan[]
   cost: { promptTokens, completionTokens, wallMs, model }
 }
 
-interface MentionSpan {
-  /** Which text this indexes into — the two are stored separately. */
+interface TextSpan {
+  /** Which text this indexes into — the two are stored separately. A different
+   *  record supplies its own field names; this union is the turn's. */
   field: "input" | "output"
   /** Character offsets. Recomputed when a message is edited. */
   start: number
   end: number
-  ref: Ref<Actor>
-  /** How it was resolved. Rendered differently per method, because a tentative
-   *  match that looks certain is worse than no highlighting. [10 §13.1] */
+  /** **Tagged, from the first span ever written** — [13 §13]. */
+  target: SpanTarget
+  /** How the span came to be asserted. Rendered differently per method, because
+   *  a tentative match that looks certain is worse than no highlighting.
+   *  [10 §13.1] */
   method: "explicit" | "matched" | "proposed"
   /** Only meaningful for "proposed". */
   confidence: number | null
 }
 
+/** **One arm at 1.0, and the tag is the whole point.** [13 §13] needs three
+ *  consumers of one span shape — mentions, machine-written provenance and beat
+ *  positions — and the second two are Write's, at 2.0. Adding them is then an
+ *  arm rather than a migration. Shaped like `BlockSource` (§8) deliberately:
+ *  this codebase already has one tagged-reference vocabulary and does not need a
+ *  second. */
+type SpanTarget =
+  | { kind: "actor"; ref: Ref<Actor> }
+```
+
+***Renamed and re-shaped 2026-09-11, at [P7](workplan/23-p7-implementation.md)
+§1.7's request, and this document is the one that had to change because it is the
+one somebody reads while writing the record.***
+
+**`MentionSpan` was §1.7's failure case verbatim.** [13 §13](13-write-mode.md)
+calls the span overlay *"Real, and the largest"* obligation Write places on 1.0:
+Write needs three consumers of one span shape, so *generalises* has to mean **a
+tagged reference from the first span ever written**, and the type must not carry
+an actor reference in its name or its shape. The old type was named for mentions,
+carried `ref: Ref<Actor>` directly, and sat under a turn field called `mentions`
+— failing that on all three counts, in the document an implementer follows.
+
+**`Ref<T>`'s parameter is phantom, which is why a tag was needed rather than
+merely tidy.** [04 §3](04-schemas.md) defines a `Ref` as `{id, name,
+fingerprint?}`; the `<Actor>` is documentation and erases on the way to JSON. A
+stored span whose `ref` had no `kind` would be a span that cannot say what it
+points at — and a reader added later could not tell an actor span from a beat
+span without guessing from context.
+
+**Three documents gave three shapes and now give one.** [06 §8.2](06-modes-and-turn-pipeline.md)
+wrote `{ start, end, ref, method, confidence }` with no `field`, which is
+ambiguous over a record that stores two texts; this section had `field` and the
+actor baked in; §1.7 said only what the type must not be. `field` is kept — the
+turn does store two texts — and 06 §8.2 now points here rather than restating a
+shape.
+
+*Nothing implements this yet, which is what made the rename free:
+`packages/shared/src/turn.ts` records the field as the one part of this section
+still absent, fenced to P7's `extract` step. It is corrected there too.*
+
+```ts
 interface AssembledBlock {
   id: string
   /** The rendered text. Present because the workbench maps every sent byte back

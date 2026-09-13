@@ -3,6 +3,7 @@
 
 import type {
   Actor,
+  DifficultyLevel,
   Lorebook,
   Preset,
   PresetBlock,
@@ -10,8 +11,11 @@ import type {
   WritingSample,
 } from '@storyengine/shared';
 
+import { estimateTokens } from './assemble.js';
+import { channelDefinition, initialValue } from '../sessions/channels.js';
+import { levelFragments } from '../sessions/dials.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
-import { renderTemplate, type RenderContext } from './template.js';
+import { renderChannelValue, renderTemplate, type RenderContext } from './template.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
@@ -34,6 +38,32 @@ export interface CollectContext {
   preset: Preset;
   /** What kind of call this is; a block's `appliesTo` filters on it. */
   callKind: string;
+  /**
+   * What kind of thing the player did — `do`, `say`, `think`, `story` —
+   * [06 §1], [13 §8.3], [P7.9].
+   *
+   * ***A second thing `appliesTo` matches, and [13 §8.3] says this is the whole
+   * implementation.*** *"A mode declares its own input kinds, and a preset block
+   * filters on call kind — which [04 §8] deliberately left **open**… each is
+   * both an input kind and a call kind; and a preset carries a different
+   * instruction block per kind with no new machinery, which is the `appliesTo`
+   * filter doing the job it was built for."* That paragraph was written for
+   * Write at [P8] and predicted its own vindication; what it needed was for the
+   * turn's kind to reach this function, which it did not until here.
+   *
+   * **Matched alongside `callKind` rather than replacing it**, because they are
+   * genuinely two questions on one turn: *what is the engine asking the model to
+   * do* and *what did the player just do*. A block that applies to `narrate`
+   * applies to every narrating turn whatever the player typed, and one that
+   * applies to `say` applies when they spoke. A mode whose input kinds **are**
+   * its call kinds — Write's four — sees the two collapse, which is [13 §8.3]'s
+   * case and costs nothing here.
+   *
+   * *Absent for a call with no submission behind it* — a setup part, a judge, a
+   * selector — where a block filtered on an input kind should not apply, and
+   * does not.
+   */
+  inputKind?: string;
   /** Oldest first, already windowed by the mode's `historyWindow`. */
   history: readonly Turn[];
   /** With the hash of the bytes that were read, so the source can say which ([P3.0]). */
@@ -42,6 +72,44 @@ export interface CollectContext {
   channels: Readonly<Record<string, ChannelState>>;
   input?: { text: string };
   guidance?: string;
+  /**
+   * A fired plot hook's words, for the same slot — [06 §5.1]'s second producer,
+   * [06 §6.1], [P7.5].
+   *
+   * **Handed in by the runner for the reason `attempt` is**, spelled out at the
+   * `guidance` case below. Absent means the selector did not fire; it never
+   * means it fired with nothing to say.
+   */
+  hookGuidance?: string;
+  /**
+   * The goal this session is on — [06 §7.3.3], [P7.6].
+   *
+   * **Resolved by the caller**, which is the rule this context follows for the
+   * cast and the lore and for the same reason: the cursor is channel state and
+   * the chain is a session field, and a collector that read either would be
+   * doing the gather's job somewhere a preview and a turn could disagree about
+   * it.
+   *
+   * *Absent is a session with no goal* — either one whose Setup carried none,
+   * which [04 §7.1] calls the deliberate opt-out, or one that answered
+   * *continue open* at a completion.
+   */
+  goal?: { id: string; statement: string };
+  /**
+   * Which level each dial is on — [06 §7.3.1], [06 §7.3.2], [P7.8].
+   *
+   * **Resolved by the caller**, which is this context's standing rule and has a
+   * sharper reason here than for the cast: a dial's rungs run through
+   * `mode.config`, which [04 §7] keeps *"opaque to the host"* and which lives on
+   * the session record rather than in channel state. A collector that reached
+   * for it would be doing the gather's job in a place a preview and a turn could
+   * answer differently.
+   *
+   * *An axis is absent when the pack ships no levels for it or the mode declares
+   * no such dial* — the two cases [04 §7] says are the same case, and both
+   * report `empty-source`.
+   */
+  dials?: Partial<Record<'difficulty' | 'directedness', { level: DifficultyLevel }>>;
   /**
    * The attempt a guided redo is redoing — its output, and which turn it was
    * ([06 §5.1], [07 §7]).
@@ -120,7 +188,16 @@ export function collectCandidates(context: CollectContext): Collected {
     }
     // Empty means all — which is what dissolves the eight special-cased
     // template fields [04 §8.4.3] describes.
-    if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) {
+    /**
+     * **Either kind matches** — [13 §8.3], [P7.9]. See
+     * {@link CollectContext.inputKind}: an input kind is also a call kind, and a
+     * block naming one applies when the turn carries it.
+     */
+    const applicable =
+      block.appliesTo.length === 0 ||
+      block.appliesTo.includes(context.callKind) ||
+      (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind));
+    if (!applicable) {
       skipped(block, 'not-applicable');
       continue;
     }
@@ -210,11 +287,38 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
       return context.lore === undefined ? 'no-producer' : 'empty-source';
 
     case 'treatment':
-    case 'goal':
     case 'channel':
       // The same list `fill()` returns nothing for, each for its stated
       // reason — no producer at this phase.
       return 'no-producer';
+
+    /**
+     * ***`goal` left that list at [P7.6]***, and the change of meaning is the
+     * same one [P5.9] made for lore and samples: the arm had no producer at all,
+     * and now it has one. An empty goal slot no longer says *waiting on the
+     * engine*; it says **this session has no goal**, which is either a Setup
+     * that carried none — [04 §7.1]'s *"the deliberate opt-out rather than the
+     * default"* — or a completion answered with *continue open*. Both are states
+     * an author acts on, and `no-producer` would have sent them looking for a
+     * missing phase.
+     */
+    case 'goal':
+      return 'empty-source';
+
+    /**
+     * **`empty-source` from the first line, and never `no-producer`.** The
+     * producer arrives in the same stage the arm does, so the reason this slot
+     * is empty is never *waiting on the engine* — it is that **this pack ships
+     * no levels for this axis**, or the mode declares no such dial. [04 §7] calls
+     * the second of those the explicit case rather than a misconfiguration:
+     * *"Modelling it on Setup would imply Messages and Scene have a difficulty,
+     * which they do not."* An author who positioned the slot anyway is told the
+     * source is empty, which is the sentence with the repair in it — add levels
+     * to the pack, or take the slot out.
+     */
+    case 'difficulty':
+    case 'directedness':
+      return 'empty-source';
 
     /**
      * ~~**The one source kind whose reason depends on which carrier it names**,
@@ -433,7 +537,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       );
     }
 
-    case 'guidance':
+    case 'guidance': {
       /**
        * **Advisory is forced here, never read from the block.**
        *
@@ -442,7 +546,48 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * slot would walk guidance straight into an effects call. [06 §5.2] says
        * enforce it *structurally*; a flag an author can clear is not structural.
        */
-      return emit(block, context.guidance ?? '', { kind: 'guidance', producer: 'user' }, undefined);
+      const fromUser = emit(
+        block,
+        context.guidance ?? '',
+        { kind: 'guidance', producer: 'user' },
+        undefined,
+      );
+      /**
+       * **[06 §5.1]'s *one slot, several producers*, with the second one at
+       * last** — a fired plot hook, [06 §6.1], [P7.5].
+       *
+       * That section names the user's box, an authored rule's `giveGuidance`
+       * and a step such as a Narrative Director push; §6.1 adds the selector as
+       * *"simply a fourth producer of that block, so `delivery: 'guidance'` needs
+       * no new mechanism"*. `producer: 'step'` is the arm it lands under, which
+       * the record already had — the selector **is** a step, and which one is
+       * answerable from the turn's own `hooks` line rather than from a fifth
+       * value nothing else would ever carry.
+       *
+       * **Handed in by the runner, never by a step**, which is the rule `attempt`
+       * states beside it and the reason this is not a `Candidate` the selector
+       * returns: step candidates are appended after the preset's, so a hook
+       * returned that way would arrive at the end of the prompt instead of where
+       * the author positioned guidance ([25 C13(c)]).
+       *
+       * *Absent rather than empty when nothing fired*, so it never reaches
+       * `omitWhenEmpty`: a preset that emits its guidance slot over an empty box
+       * should emit it **once**, not once per producer that had nothing to say.
+       * The id is suffixed because two candidates at one slot cannot share one,
+       * and it is the new arm that takes the suffix — the user's block has
+       * carried the bare block id since P2 and it is in saved records.
+       */
+      if (context.hookGuidance === undefined) return fromUser;
+      return [
+        ...fromUser,
+        ...emit(
+          block,
+          context.hookGuidance,
+          { kind: 'guidance', producer: 'step' },
+          `${block.id}.hook`,
+        ),
+      ];
+    }
 
     case 'attempt':
       /**
@@ -570,14 +715,96 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     }
 
     /**
-     * Nothing, each for its own stated reason. A P2.6 session carries no
-     * Treatment; goals are Setup-borne; and a channel value is an object with
-     * no channel-to-text renderer specified — which is also why the clock's
-     * budget is null.
+     * **The injection half of the channel contract, built at [P7.1].**
+     *
+     * ~~A channel value is an object with no channel-to-text renderer
+     * specified — which is also why the clock's budget is null.~~ Both halves of
+     * that sentence expired together: `ChannelDefinition.render` is a Liquid
+     * template over the channel's own value, and `budget` is what caps the
+     * result. Until then `{ of: 'channel', channelId }` was a **legal preset
+     * slot that silently produced nothing** — an author could name a channel,
+     * get no text and no error, and have nothing to read about why.
      */
-    case 'treatment':
-    case 'goal':
     case 'channel':
+      return emit(
+        block,
+        channelText(source.channelId, context),
+        // The slot's vocabulary and the block's are one vocabulary read from
+        // both ends ([21 §1.1]) — `of` names the slot, `kind` names the source —
+        // so the id crosses and the discriminator is restated.
+        { kind: 'channel', channelId: source.channelId },
+        undefined,
+      );
+
+    /**
+     * ***The goal play is on, always injected*** — [06 §7.3.3], [04 §8.2],
+     * [P7.6]. That section is explicit: *"the goal statement is therefore always
+     * injected, and difficulty fragments are written to reference it."* This arm
+     * has returned `[]` since P2 and reported `no-producer` beside it; the
+     * producer is the session's own chain and the cursor over it.
+     *
+     * **The statement and never the `detail`.** [04 §7.1] draws that line on the
+     * schema — *"short, always injected"* against *"the author's fuller version,
+     * available to steps; not injected by default, so a long one costs nothing
+     * per turn"* — so a slot that sent both would spend a paragraph a turn on
+     * something the design put out of the prompt on purpose.
+     *
+     * *A `hidden` goal is injected too, and that is not an oversight.*
+     * [04 §7.1]'s `visibility` is about the **player**: hidden is *the GM's
+     * arc*, which the narrator is told and the reader is not. The channel
+     * `visibility` that governs prompts is a different field about a different
+     * audience.
+     */
+    case 'goal': {
+      const goal = context.goal;
+      if (goal === undefined) return [];
+      return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined);
+    }
+
+    /**
+     * ***The two dials' fragments*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
+     *
+     * **One candidate per fragment, and that is the arm's whole reason for
+     * existing.** [04 §8]'s `DifficultyLevel.fragments` are *ranked* precisely so
+     * [19 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
+     * mid-sentence"*, and a slot that joined them into one string would have
+     * discarded that at the point it was built. So the slot fans out, each
+     * candidate carrying the block's priority and its own identity.
+     *
+     * ***The ids are suffixed rather than shared***, which is the same
+     * arrangement [P7.5] made for the second guidance candidate: `assemble`
+     * keys on candidate id, so two candidates from one slot need two ids or the
+     * second silently replaces the first. `${block.id}.${index}` is the
+     * fragment's position in the level, so a workbench row is stable when the
+     * pack is edited between turns and the *order* changes but the entry does
+     * not.
+     *
+     * *Which level is the caller's, resolved in `gather`*, for the reason the
+     * goal and the cast are: the dial's rungs run through `mode.config`, which
+     * is a record field, and a collector that read it would be doing the
+     * gather's job somewhere a preview and a turn could disagree about it.
+     */
+    case 'difficulty':
+    case 'directedness': {
+      const dial = context.dials?.[source.of];
+      if (dial === undefined) return [];
+      return levelFragments(dial.level).flatMap((fragment) =>
+        emit(
+          block,
+          fragment.text,
+          {
+            kind: 'difficulty',
+            axis: source.of,
+            levelId: dial.level.id,
+            fragmentIndex: fragment.index,
+          },
+          `${block.id}.${String(fragment.index)}`,
+        ),
+      );
+    }
+
+    /** Nothing, for its own stated reason: a P2.6 session carries no Treatment. */
+    case 'treatment':
       return [];
 
     default:
@@ -652,6 +879,53 @@ function emit(
       ...(required ? { required: true } : {}),
     },
   ];
+}
+
+/**
+ * One channel's value as prompt text — [06 §4], [P7.1].
+ *
+ * **Four ways to produce nothing, and each is a different statement.** A channel
+ * nobody declared is an uninstalled mode's, and [00 §3.3] says show what you
+ * cannot resolve rather than fail; a channel with no `render` has nothing worth
+ * saying to a model, which lore timing is the shipped example of; a `budget` of
+ * null is 06 §4's own spelling of *never injected*; and a template that will not
+ * compile is the author's mistake, answered the way `renderTemplate`'s caller
+ * answers it — a refusal is a value, not a thrown turn.
+ *
+ * **The value falls back to the channel's declared `init`**, which is the same
+ * read-time default `readClock` uses: a session that has never touched its clock
+ * still has a time of day, and a slot that rendered nothing until the first
+ * effect would make the prompt disagree with the panel.
+ *
+ * **Truncated to the budget rather than dropped.** A channel over its allowance
+ * is more useful cut short than absent — the time of day wrong by truncation
+ * still says which day — and dropping would hand the budgeter a decision the
+ * declaration has already made. `estimateTokens` is the same estimator the
+ * assembler bills with, so the cap means the same thing here as it does there.
+ */
+function channelText(channelId: string, context: CollectContext): string {
+  const definition = channelDefinition(channelId);
+  if (definition?.render === undefined || definition.budget === null) return '';
+
+  const state = context.channels[channelId];
+  const rendered = renderChannelValue(
+    definition.render,
+    state === undefined ? initialValue(channelId) : state.value,
+  );
+  if (!rendered.ok) return '';
+
+  const text = rendered.text.trim();
+  if (estimateTokens(text) <= definition.budget) return text;
+
+  /**
+   * **Cut by characters against the estimator's own ratio**, because the
+   * estimator is a ratio: `estimateTokens` divides length by a constant, so the
+   * inverse is a multiplication and a second, cleverer truncation would just be
+   * a worse approximation of the same number. Trimmed after cutting so the text
+   * does not end mid-space.
+   */
+  const perToken = text.length / Math.max(estimateTokens(text), 1);
+  return text.slice(0, Math.floor(definition.budget * perToken)).trimEnd();
 }
 
 function personaText(persona: Actor | null): string {

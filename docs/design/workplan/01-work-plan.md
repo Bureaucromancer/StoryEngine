@@ -1158,8 +1158,10 @@ retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P8 — Memory
 
-**Skeleton: [P8](24-p8-implementation.md)**, which found the phase's one storage
-decision hiding outside both design documents: `memories/` sits beside `library/`
+~~**Skeleton: [P8](24-p8-implementation.md)**~~ **Planned:
+[P8](24-p8-implementation.md)**, revisited 2026-09-13 once P5, P6 and P7 had all
+landed — which is what its §0 said it was waiting for. It found the phase's one
+storage decision hiding outside both design documents: `memories/` sits beside `library/`
 and outside everything the index walks, while [08 §7](../08-cross-session-memory.md)
 asks for the ordinary lorebook editor, which needs a library address.
 
@@ -1177,6 +1179,21 @@ cheap branching — so it is a review item, not a detail.
 Summaries are derived and disposable, so a bad summariser is a regeneration
 rather than lost history. That is what makes shipping a simple version in P8
 safe. Chapterisation is roadmap ([24 §3](../24-roadmap.md)), not P8.
+
+***The revisit found three things that move the phase***, none of them where the
+plan above was looking. The spoiler defence
+[08 §6](../08-cross-session-memory.md) demands is **not buildable through `reads`
+as the step contract stands**, because a step is handed whole `Turn`s and a
+`Turn` carries every block's text — so *refuse at the source* is a contract
+change rather than a prompt discipline. **Nothing on the lore path can be marked
+advisory**, so the *memories never write state* rule has a firewall and no route
+into it. And memory extraction is the **first producer of an escaped effect** —
+P6 shipped a count for it and named this phase as the writer.
+
+**And the chain above is the flat form.** What P6 hands forward is two-level,
+with the summariser's identity in the key: [13](../13-write-mode.md)'s node
+summaries ride the same machinery, and the property test this phase owes CI is
+satisfiable by a bug without it.
 
 ### P9 — Renditions
 

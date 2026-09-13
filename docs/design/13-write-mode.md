@@ -453,12 +453,30 @@ share the surface once it exists.
 
 ### 6.1 The widening
 
-`SurfaceContribution` today names a region — a HUD slot, a side panel, a message
-decoration. It grows an arm rather than a field:
+~~`SurfaceContribution` today names a region — a HUD slot, a side panel, a message
+decoration.~~ ***It carries the payload this section proposed, since 2026-09-13,
+and it arrived two releases early.*** [P7.11](workplan/23-p7-implementation.md)
+built `{ region, channelId, widget }` **citing this section as the shape** —
+[06 §7.2](06-modes-and-turn-pipeline.md) needed a mode to be able to show a
+backdrop at 1.0, and the 2.0 widening proposed here was already the right answer,
+so it was built rather than reinvented. *Recorded here because a proposal that
+ships elsewhere and leaves no note behind reads, later, as a proposal nobody
+took.*
+
+**Two consequences for what follows.** The first arm below is **shipped**, not
+proposed — with a fourth region, `stage`, which [10 §8.0](10-ui-surfaces.md)
+argues for and which did not exist when this was written. And the widening this
+section is actually about is now **only** the `top-level` arm, which is
+unchanged: it is the half no channel value can express, because a nav entry is
+not a rendering of anything.
+
+It grows an arm rather than a field:
 
 ```ts
 type SurfaceContribution =
-  | { region: 'hud' | 'panel' | 'message'; widget: WidgetSpec }
+  // Shipped at P7.11, with a fourth region. `channelId` is what makes a
+  // contribution addressable — the value it renders is a channel's.
+  | { region: 'hud' | 'panel' | 'message' | 'stage'; channelId: string; widget: WidgetSpec }
   | {
       region: 'top-level'
       /** The nav slug. One segment, owned by the mode. */
@@ -965,7 +983,7 @@ between, so "before Write" and "at 1.0" are the same instruction.
 | **Summaries as content-addressed values, never a running total** | **Real, and Write is a second consumer rather than a new demand.** [07 §5.1](07-branching.md) and [25 E1](25-open-questions.md) already require it. Write's node-summary chain is impossible over a mutated blob, and §10.2's reorder analysis depends on the two-level keying. Strengthened, not added. |
 | **Session export must not freeze the turn record before §4 is settled** | **Real, the sharpest, and no longer hypothetical.** [25 B12](25-open-questions.md) and the record's own definition both say export ends the record's freedom to move. Write adds an anchor and narrows what the parent link means. Export now ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)), which removes the "schedule export later" branch entirely: **§4 has to be settled before P11 freezes the format.** This is the one row that makes this document near-term work rather than a design for later. |
 | **Version snapshot payloads stay opaque digest-addressed bytes** | **Small, and a check rather than a change.** A manuscript version is a manifest of file hashes (§5.4); if the payload is ever typed as *the object's JSON*, that is not expressible and Write grows a second history mechanism. Verify at P5, do not assume. |
-| **`surfaces` stays a declared value on the mode definition** | **None, but do not delete it.** Widening the union is internal work. What is worth writing down is that an empty `surfaces` on Scene means *this mode contributes none*, not *placeholder* — an empty array nothing reads is exactly what invites removal. |
+| **`surfaces` stays a declared value on the mode definition** | ~~**None, but do not delete it.** Widening the union is internal work. What is worth writing down is that an empty `surfaces` on Scene means *this mode contributes none*, not *placeholder* — an empty array nothing reads is exactly what invites removal.~~ ***Discharged 2026-09-13, and both halves of the risk are gone.*** `surfaces` is read — [P7.11](workplan/23-p7-implementation.md) gave it a renderer and a wire shape — and **Scene's is no longer empty**: it contributes three at [P7.12](workplan/23-p7-implementation.md). Freeform's *is* still empty, and now honestly so, which is the distinction this row was protecting: it declares one channel a person writes and has nothing of its own to show. *The obligation was right and expired by being met, which is the best way for one to go* |
 
 ---
 

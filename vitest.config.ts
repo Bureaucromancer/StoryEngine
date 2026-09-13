@@ -127,7 +127,26 @@ export default defineConfig({
           name: 'packages',
           ...TIMEOUTS,
           root: '.',
-          include: ['packages/*/src/**/*.test.ts'],
+          // **Two globs, because mode packages are nested one level deeper** —
+          // [P7.0]. The one-level pattern does not match
+          // `packages/modes/scene/src/mode.test.ts`, and the failure is the
+          // quiet kind: the file lints, typechecks and never runs, which is
+          // **F16 verbatim** — the same failure this config records two projects
+          // down, where `.test.tsx` was included by tsconfig and by eslint and
+          // by nothing here. Measured rather than reasoned: with the one-level
+          // glob, `vitest run --project packages <that file>` reports no tests
+          // and exits cleanly.
+          //
+          // A single recursive glob would cover both and is the wrong fix: it
+          // would also match a `src` inside `node_modules` or a `dist`, and the
+          // exclusion list would have to grow to compensate. Two explicit levels
+          // say what the repository's shape actually is.
+          //
+          // *Line comments rather than a docstring, and it is not a style
+          // choice: a glob containing a star-slash cannot appear inside a block
+          // comment, which is how this was first written and how it failed to
+          // parse.*
+          include: ['packages/*/src/**/*.test.ts', 'packages/modes/*/src/**/*.test.ts'],
           // The gate below is a project of its own so CI can name it. Excluded
           // here because an `include` elsewhere does not remove a file from
           // this one, and vitest runs a file once *per matching project* — the
@@ -189,7 +208,12 @@ export default defineConfig({
           testTimeout: 120_000,
           hookTimeout: 120_000,
           root: '.',
-          include: ['packages/*/src/**/*.live.test.ts'],
+          // Both levels, for the reason the `packages` project gives: a live
+          // test in a mode package that matched nothing here would be excluded
+          // from `packages` by its `**/*.live.test.ts` pattern and claimed by no
+          // project at all. No mode has one today; the glob is what keeps the
+          // first one from being silently inert.
+          include: ['packages/*/src/**/*.live.test.ts', 'packages/modes/*/src/**/*.live.test.ts'],
           environment: 'node',
         },
       },

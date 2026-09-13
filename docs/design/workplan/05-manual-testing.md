@@ -117,10 +117,21 @@ expensive instead.
    were never automated."* **If this file only grows, the model has failed**, and
    the honest response is to say so here rather than to keep adding sittings.
 
-**The intake is mechanical, not a matter of remembering.** Every exit gate in
-this project ships at least one step marked *"Only a person can walk"* — P3, P5,
-P7, P10 and P11 all carry the phrase, and it is always on the step that carries
-the phase's actual claim. That is what to grep for when a phase closes.
+**The intake is mechanical, not a matter of remembering.** ~~Every exit gate in
+this project ships at least one step marked *"Only a person can walk"*~~ — **five
+of nine do**, and the four that do not are P4, P6, P8 and P9 (counted
+2026-09-13, at P8's revisit). P3, P5, P7, P10 and P11 carry the phrase, always on
+the step that carries the phase's actual claim, and that is what to grep for when
+a phase closes.
+
+***A mechanical intake over a convention four documents do not follow is an
+intake that returns nothing and says nothing***, which is the same failure this
+section's own opening describes one level up. **The repair is not to add the
+phrase to four gates** — P4's and P6's are closed, and adding a marker to a
+walked gate is editing a gate after the fact. It is to say which gates the grep
+covers, which is now said. [P8 §3.1](24-p8-implementation.md) carries the phrase
+on its **critical list** instead of on a step, for that reason, and that is the
+pattern for any gate revised after its sketch.
 
 **The two valves, named once more because they are the model's only defence
 against itself.** §5 records what a test now covers, so nobody walks it again;
@@ -688,6 +699,14 @@ Listed so the count is honest. **Nobody walks these.**
 | **P6B 6** | **AUTO in part** | `retrieval/activate.test.ts` — *"feeds every entry that activated into the next pass, not the first `scanDepth` of them"*, the width-three chain [P6B.1](20-p6b-playable.md) added at the default depth. **Its carrier is the third entry in scan order**, so the step's second clause — raising an `order` does not remove text from the haystack — is covered in substance and by nothing that says so: no test raises an `order` and re-checks. K4's width-2 chain is the person-side residue; **do not open a sitting for it.** |
 | **P6B 7** | **AUTO** | `state/migrations.test.ts` — *"carries every import item across the step that rebuilds its table"*, written at the version the step leaves *from* and asserting every column rather than a count. The step asks for a **mutation** rather than a pass, and it was run at [P6B.1](20-p6b-playable.md) (`a6d3eb4`, `0e228ec`, `39f9ee1`): deleting the `insert into import_item_new … select` reddens it, where before P6B.1 it left the whole suite green. Re-running it is a minute at a terminal. |
 | **P2 / P2A / P2B** | **AUTO in part** | 8 of 20, 13 of 17+2, and 9 of 11 respectively. The residue is [manual gate §2](11-p2-manual-gate.md), which is sittings A–D above. |
+| **P7 1** | **AUTO** | `tools/repo-shape.test.ts` — `packages/server/src/modes/` absent, the server's manifest, tsconfig and imports naming no mode, and a live eslint probe written into **each** mode package's `src` so both boundary layers are asserted against the input each can see. *The P7 document's §3.1 says this test "does not exist"; it landed at P7.0 and §3.2 corrects the cell.* |
+| **P7 2b** | **AUTO** | `tools/repo-shape.test.ts`'s *the engine names no mode* — no `switch` keyed on a mode, and no mode id spelled in engine code outside a **two-entry allowlist with an argument on each**, which is §3.1's *"shape that matters"*. ~~**The lint-rule half is not built**~~ — **built at [P7.13]**: `eslint-rules.test.ts`'s *the engine names no mode*, four fixtures through `syntaxReportsMatching`, selectors for all three shapes §3.1 names, scoped to `packages/server/src/**`. **Two of the four are controls** — code that reads the declaration instead, and a mode package naming itself — because a rule that fires on everything is as useless as one that fires on nothing. A violation is now caught as it is typed *and* at the next `pnpm test`. |
+| **P7 3** | **AUTO** | Four clauses, four homes: `mode-registry.test.ts` (registry), `effects.test.ts` (`update` policy), `channels.test.ts` + `ChannelHud.test.tsx` (widget), `reconstruct-property.test.ts` (reconstruction — whose fixture drives `se.clock`, **declared by the Scene package**, so it is already a mode-declared channel). |
+| **P7 4** (record half) | **AUTO** | `hook-selector.test.ts`'s *the five answers are five answers* — five situations driven, five verdicts, and the set asserted to have five members. Four were asserted before, **one at a time across three files**, which is a weaker claim; `cooling` had never reached a record at all. *The reading half is Standing: [work plan P11](01-work-plan.md) owns selector legibility.* |
+| **P7 5** | **AUTO** | `hooks.test.ts`'s *a commitment rewound past* — committed on one line and absent on its sibling, plus the case that would survive a broken implementation: a rewind landing **between** a commitment and its lapse. Asserted for `fired` too, which is the half [03 §4.1] states first. |
+| **P7 6** (mechanics) | **AUTO** | `sessions.test.ts` *advances, carries on and ends through the channel write*; `goals.test.ts` for retention and the completing turn; `GoalPanel.test.tsx` for the three offers; `runner.test.ts` for a turn still running after *End*. Plus the confirmation gate ([25 C12], answered *ask* at P7.6), which the gate cell could not ask for because the question was open when it was written. |
+| **P7 8** (the half that compounds) | **AUTO** | `mentions.test.ts` for the highlight set; `extract.test.ts`'s *an unresolved name* for **never creates** — no span, no effect, no model call, no cast channel in `writes`. ***The gate says `offers` and the stage shipped `never creates`***: [P7.7]'s Done cell defers the `proposed` span with its reason, and §3.1 had already named the structural clause as the one that compounds. |
+| **P7 9b** | **AUTO** | `sessions.test.ts`'s *keeps what succeeded when a part fails*, against the scripted provider over `GENERATING_MODE`'s two setup parts — [00 §2.3]'s *8 of 10 valid sections applies 8 and re-asks for 2*. |
 | **P3 1–11** | *Assertable, coverage unaudited* | Marked "assertable" by [P3 §4](15-p3-implementation.md), but **which of them a test actually asserts has never been checked.** They are in sitting D as browser checks because confirming one takes a minute and auditing eleven takes an afternoon — and a step believed covered is exactly what [P6B.1](20-p6b-playable.md) found four of. |
 
 ---
@@ -714,7 +733,9 @@ a claim nobody made.*
 | **P6A** | 13 | 1, 2, 13 partly | **1 walked; closed 2026-09-09** | **I**, now ten rows rather than a paragraph: one `PASS`, three `PART` from the first install with all three findings fixed, six blank. It set the precedent §0 made a rule |
 | **P6B** | 10 | **6, 7** — §5 | **K, pending** | **The first gate to split under [§0](#the-two-tier-gate).** Steps 1–5, 9 and 10 are sitting **K**, the critical list, and the phase does not close until they have results. Step 8 is P5's eighteen wearing P6B's number — criterion (i) — and is **F** |
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
-| **P7 … P11** | 10 / 10 / 15 / 10 / 10 | — | not yet opened | **55 person-walked steps still to arrive.** P7, P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim |
+| **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **critical list pending** | **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing, and **three await a person**: C1 author a small mode against the SDK with no `server`; C2 Freeform played end to end; C3 a wizard for a mode the engine knows nothing about. Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
+| **P8** | 10 (14 rows) | **1a, 2, 3, 5, 7, 8a, 9, 10** — when they land | not yet opened | **Planned rather than sketched, 2026-09-13** ([P8 §3.1](24-p8-implementation.md)). Eight rows automatable, three Standing, and **three criticals — C1 cross-session recall named in the workbench, C2 a hand correction surviving the next extraction, C3 no spoiler bleed.** All three are *short-session* checks, which is unusually cheap for a critical list. **What the list cannot reach is the phase's own headline**: *the same session, four hundred turns long* is refused by clause (iii), because nothing here has ever played four hundred turns and a synthesised tree proves the chain rather than the summary. That walk is a sitting behind PLAYABLE, with **sitting G** |
+| **P9 … P11** | 15 / 10 / 10 | — | not yet opened | **35 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is, and as P8's C1 now is |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document
@@ -838,6 +859,25 @@ that only grows. Their state today:
   still call `mkdtemp` directly**; none of them compares a path across the
   server boundary today, and nothing stops the next one doing so.
 
+- **No test can see an empty frame** — added by [P7.12] (2026-09-13).
+  [10 §2.3] requires that with the backdrop off *"Play is the surface it was
+  before, not a surface with an empty frame in it"*, and `ModeRegion.test.tsx`
+  asserts the component renders nothing. **That is not the claim.** The claim is
+  about the *page*: a wrapper with padding around nothing, a grid row that still
+  reserves its height, a gap where the stage would be. Every one of those passes
+  a `textContent === ''` assertion and is visible to a person in a second. **This
+  is the by-hand item P7.12 owes**, and it is a should-be-a-test only in the weak
+  sense — a layout assertion at this tier would pin a stylesheet, which
+  `tailwind-utilities.test.ts` already declines to do.
+
+- **The stager's prompt has never met a model** — added by [P7.12]. Its schema
+  is enforced structurally, so a wrong *label* cannot reach a channel; what is
+  untested is whether a local model, asked for *a place and not an event*, gives
+  a place. That is [work plan P11]'s tuning class rather than a missing
+  assertion, and it is recorded here because the cassette tier is where it would
+  eventually be caught: nothing in `captures/live-tests/` exercises a `stage`
+  call, and nothing will until somebody plays a staged session.
+
 
 ---
 
@@ -853,7 +893,7 @@ Anything that loses its owner comes back to §0's rule.*
 | **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2.3](08-p2-implementation.md) | ~~P2.7~~ ~~nobody~~ **closed at P6B.1**, `0e228ec` | See §10.1 — and it was a live divergence, not the bookkeeping the sentence made it sound. |
 | P2 gate step 8 / F12 — an editor-page mount rather than a component mount | [P2.6](08-p2-implementation.md) | unassigned; "unblocked rather than done" | The harness exists now, so it is a test somebody has to write |
 | A killed *process* names no model call | [manual gate §3.6](11-p2-manual-gate.md) | the suite's one `it.todo`, `recovery.test.ts` | Needs a provisional call in the checkpoint |
-| The record cannot say a block is advisory | [manual gate §3.6](11-p2-manual-gate.md) | unassigned | `assemble()` drops `Candidate.advisory`; `ModelCall` records no purpose. **[P7](23-p7-implementation.md) makes this expressible or it stays unexpressible** |
+| ~~The record cannot say a block is advisory~~ **It can. Corrected 2026-09-10** | [manual gate §3.6](11-p2-manual-gate.md) | **a test somebody has to write** | ~~`assemble()` drops `Candidate.advisory`; `ModelCall` records no purpose. **[P7](23-p7-implementation.md) makes this expressible or it stays unexpressible**~~ **Both halves were repaired at P3.0** and the row was never updated: `assembly/assemble.ts:141` carries the flag onto the assembled block with a comment naming this finding, and `ModelCall.purpose` is `shared/src/turn.ts:364`, written at `turns/calls.ts:301-305`, whose docstring calls it *"the committed half of [testing §1]'s invariant, beside `advisory` on the block"*. The residue is one line rather than a phase: nothing asserts the invariant **over a committed record** — the checks live at `assemble()` and at the pipeline. Found by [P7 §0.1a](23-p7-implementation.md) |
 | Two clock-effect constructors disagree; `clockEffect` has no production caller | [manual gate §3.6](11-p2-manual-gate.md) | unassigned | Dead code with a disagreement in it |
 | A turn carries no money total | [manual gate §3.6](11-p2-manual-gate.md) | [work plan §2](01-work-plan.md)'s day-one list says record cost now, display later | `costOf()` never aggregates. The recording is done; the aggregate is not |
 | `requestId` unbound on job log lines | [manual gate §3.6](11-p2-manual-gate.md) | deferred **with a written reason** — the model | A turn outlives its request; carrying one means a column, a migration and a meaning |
@@ -863,7 +903,7 @@ Anything that loses its owner comes back to §0's rule.*
 | The twelve polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
 | **[F-03](21-playable-log.md)** — a turn in flight is invisible unless the workbench is open | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned, and named rather than assigned** | [10 §9](../10-ui-surfaces.md) specifies it nearly verbatim — *"a collapsed line while things go well"* — and P3.5 built it inside the panel only. **No phase owns `10 §9`.** Graded [R7](22-walkthrough-refinements.md), *small*. Giving it a false owner would stop anybody looking |
 | **[F-05](21-playable-log.md)** — the workbench cannot be pointed at a turn the head has passed | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned; a 1.0 commitment**, and [P11.0](27-p11-implementation.md)'s audit is what exists to find those | [10 §3](../10-ui-surfaces.md) says the panel shows any turn *current or historical*; it is wired to the head. `useTurn` exists with one caller, so the reader is built and the affordance is not. Graded [R1](22-walkthrough-refinements.md) |
-| **[P2C 6](14-p2c-log.md)** — `capabilities` is the only lever for the context window, and it has no surface | P2C.0, 2026-08-23; triaged 2026-09-09 | **[P7](23-p7-implementation.md)** | Sixteen days open because nobody had a reason to open the file. It is [work plan §2.3](01-work-plan.md)'s *no phase exits with configuration that has no surface*, unpaid for connections |
+| ~~**[P2C 6](14-p2c-log.md)** — `capabilities` is the only lever for the context window, and it has no surface~~ **Closed 2026-09-10: it had a surface** | P2C.0, 2026-08-23; triaged 2026-09-09; re-checked at [P7 §0.1a](23-p7-implementation.md) | **nobody — it is done** | ~~Sixteen days open because nobody had a reason to open the file.~~ **Seventeen days open because three documents grepped for `contextWindow`, an identifier that appears nowhere in this repository.** The field is `maxContextTokens`, and `client/src/settings/AdminConnections.tsx:225-236` has offered it — with `docs/api.md:1583-1592` saying so — for longer than the finding stood. [Work plan §2.3](01-work-plan.md)'s line is **paid** for connections. *The lesson is the row rather than the fix: a deferral is checked once, by whoever routes it, and then travels on its label* |
 | **[P2C 11](14-p2c-log.md)** — an in-flight turn is broadcast as `failed` | P2C.0, 2026-08-23; triaged 2026-09-09 | **[P7](23-p7-implementation.md)** | The disk half is the recovery contract and stays. The wire half is a contract question nobody has answered: a client reading `turn.status` on a running turn is told `failed` |
 | **[R4](22-walkthrough-refinements.md)** — where the reader's view sits while a turn streams | the walk's grading, 2026-09-08; **regraded 2026-09-09** | **unowned, and it needs a paragraph in [10](../10-ui-surfaces.md) before it can have one** | The refutation that downgraded it cited `[07 §]` — no section, and `07-branching.md` says nothing of the kind. **The largest genuine blank in the corpus**, restored to that status |
 | **What sitting K cannot reach** — hypothesis 3 under a real library's pressure, hypothesis 4 under a long session, and any defect of *accumulation* | [K](#k--p6bs-critical-list--two-sittings-and-an-hour-of-desk-work-the-one-that-closes-a-phase), on the day it was derived | **[G](#g--the-long-pass--hours-unscripted-playables-second-sitting) and J**, which is a named sitting rather than a person — and R1 and R9 are what they wait on | **This row exists because the two-tier gate owes it.** A critical list closes a phase on the part that compounds; the part it drops has to land somewhere with a name, or the model is just a smaller gate with the same silence. Every K item is one turn long and leaves nothing behind, so nothing in it can see a leak at turn forty |

@@ -170,6 +170,42 @@ export const SlotSource = Type.Union(
     }),
     Type.Object({ of: Type.Literal('goal') }),
     /**
+     * ***The two dials' prose*** — [06 §7.3.1], [06 §7.3.2], built at
+     * [P7.8](../../../../docs/design/workplan/23-p7-implementation.md).
+     *
+     * **A slot of its own rather than `{ of: 'channel' }`, and the reason is
+     * where the words are.** A channel slot renders the channel's *value*
+     * through {@link ChannelDefinition.render}, and the value of either dial is
+     * a **level id** — rendering it produces the word *harsh*, which is a label
+     * and not an instruction. The prose lives in {@link DifficultyLevel}
+     * fragments on this preset, keyed by that id, and no template over a channel
+     * value can reach a sibling field of the file the template is in. So the
+     * engine resolves *which level*, and this slot says *where its fragments
+     * go* — which is also the split [06 §7.3.1] draws in as many words: the
+     * levels are the pack's, the scheduling is engine code's.
+     *
+     * ***Two arms rather than one with a `part`, because the whole point is that
+     * they are separable.*** [06 §7.3.2]: *"A naive difficulty implementation
+     * raises both together… The result is railroading wearing difficulty's
+     * clothes, and players report it as* the AI ignoring me *rather than as*
+     * hard." A single slot taking a discriminator would put both sets of
+     * fragments at one position by default, which is the conflation expressed as
+     * a layout. An author who wants them adjacent writes two slots next to each
+     * other and has said so.
+     *
+     * **Several candidates per slot, one per fragment**, in `priority` order —
+     * which is what makes [19 §5.3]'s cap able to drop the lowest-ranked rather
+     * than cut a sentence in half. A slot that joined them into one string would
+     * have thrown that away at the point it was built.
+     *
+     * *Absent levels are not an error.* A preset with no `difficultyLevels`
+     * fills the slot with nothing and reports why, the same as a session with no
+     * goal: a mode that has no difficulty is [04 §7]'s explicit case, not a
+     * misconfiguration.
+     */
+    Type.Object({ of: Type.Literal('difficulty') }),
+    Type.Object({ of: Type.Literal('directedness') }),
+    /**
      * The guidance slot — [06 §5.1](../../../../docs/design/06-modes-and-turn-pipeline.md).
      *
      * That section says the guidance block is *positioned by the preset*, which
@@ -458,6 +494,30 @@ export const Preset = Type.Object(
 
     /** Omitted = the built-in pack. Supplied = this preset owns the meaning of "hard". */
     difficultyLevels: Type.Optional(Type.Array(DifficultyLevel)),
+
+    /**
+     * ***The second axis*** — [06 §7.3.2], added at [P7.8].
+     *
+     * **The same shape, because it is the same kind of thing**: a named level
+     * with ranked fragments, resolved against a dial, replaceable by whoever
+     * ships the pack. What differs is what the fragments say, and 7.3.2 is
+     * emphatic that the difference is the feature — *resistance* is how readily
+     * the world grants what you attempt, *directedness* is how hard the
+     * narration pulls toward its own idea of the story, and a pack that raises
+     * both together has built railroading and called it hard mode.
+     *
+     * *So this is a separate field and not a `kind` on the list above*, for the
+     * reason the slot is two arms: a single list discriminated by axis would let
+     * a pack ship four entries and never notice it had written the same prose
+     * twice.
+     *
+     * **Its default is low and that is the pack's to state**, not this schema's.
+     * 7.3.2 wants *some* — *"a narrator with none is a stenographer"* — which is
+     * a statement about what good fragments say rather than about which level is
+     * selected, and the level a session starts on is
+     * [04 §7](../../../../docs/design/04-schemas.md)'s question, answered at P7.8.
+     */
+    directednessLevels: Type.Optional(Type.Array(DifficultyLevel)),
 
     variables: Type.Array(PresetVariable),
 

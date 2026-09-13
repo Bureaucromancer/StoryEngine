@@ -2,8 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Accounts } from '../auth/accounts.js';
-import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
-import type { Mode } from '../modes/types.js';
+import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
+import type { Mode } from '@storyengine/sdk';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { RoleBindings } from '../providers/roles.js';
 import type { Connection } from '../providers/connections.js';
@@ -11,8 +11,12 @@ import { resolveConnections } from '../providers/connections.js';
 import { walkPath } from '../sessions/segments.js';
 import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
-import type { ChannelState, SessionFile, Turn } from '../sessions/types.js';
+import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/types.js';
+import type { DifficultyLevel, Goal, Preset } from '@storyengine/shared';
 import { readRegistry } from '../tags/store.js';
+import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
+import { readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { resolvableActors } from '../sessions/hook-pool.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -71,6 +75,91 @@ export interface AssemblyInputs {
    * raises nothing anywhere.
    */
   lore: ResolvedLore;
+  /**
+   * The session's hook pool, and which of the actors it names resolve —
+   * [06 §6.1], [P7.5].
+   *
+   * **Here for the reason `lore` is here**, which this file's own docstring
+   * gives: a preview and a real turn must not be able to disagree about what was
+   * in play, and a step that read the library on its own *"would compile, pass
+   * its own tests, and then drift on exactly the kind of value whose drift is
+   * invisible"*.
+   *
+   * **`known` is a library read, and it cannot come from the cast.** An
+   * introduction hook's subject is by definition *not* in the session cast —
+   * that is the whole point of it — so resolving `introduces.actor` against the
+   * cast would refuse every introduction as `subject-gone`. What the filter asks
+   * is whether the `Ref` resolves to an object at all, which only the library
+   * can answer.
+   */
+  hooks: {
+    pool: readonly PooledHook[];
+    known: ReadonlySet<string>;
+    /**
+     * What each of those actors answers to — [06 §6.1]'s *"adds their aliases to
+     * the shared keyword scan"*, [P7.7]. Keyed by actor id; the name first, then
+     * the card's own alias list.
+     */
+    terms: ReadonlyMap<string, string[]>;
+  };
+  /**
+   * The session's goal chain and the one play is on — [06 §7.3.3], [P7.6].
+   *
+   * **Here for the reason `hooks` is here**: the cursor is channel state, the
+   * chain is a session field, and a collector or a step that read either would
+   * be doing this module's job somewhere a preview and a turn could disagree
+   * about it.
+   *
+   * *`current` is `null` for three different sessions and the panel tells them
+   * apart, not this*: one whose Setup carried no goals, one that answered
+   * *continue open*, and one that has ended.
+   */
+  goals: { chain: readonly Goal[]; current: Goal | null; concluded: boolean };
+  /**
+   * Which level each dial is on — [06 §7.3.1], [06 §7.3.2], [P7.8].
+   *
+   * **Resolved here and not in the collector**, which is this module's standing
+   * rule and has a sharper reason for these two than for the cast: the authored
+   * rung is `mode.config`, which [04 §7] keeps opaque to the host and which is a
+   * *record* field rather than channel state, and the level it names is looked
+   * up in the **preset** — so the resolution needs the session, the channels and
+   * the pack at once, and this is the only place all three are in hand.
+   *
+   * *An axis is absent when the pack ships no levels for it*, which [04 §7] says
+   * is the same statement as *this mode has no difficulty*: Scene and Messages
+   * do not, and the honest expression of that is nothing rather than a level
+   * called none.
+   */
+  dials: Partial<Record<DialAxis, { levelId: string | null; level: DifficultyLevel }>>;
+}
+
+/**
+ * Both dials, over the pack in play.
+ *
+ * **A loop over the two axes rather than two near-identical blocks**, because
+ * [06 §7.3.2]'s whole subject is that the two are *the same kind of control with
+ * different content* — and a pair of hand-written blocks is how the axes start
+ * drifting into each other, which is the conflation the section exists to
+ * prevent expressed as code duplication rather than as prompt language.
+ *
+ * *An axis the pack has no levels for is left out rather than set to null*: the
+ * collector's arm reads presence, and a key holding `undefined` is a third state
+ * nothing needs.
+ */
+function resolveDials(
+  preset: Preset,
+  channels: Readonly<Record<string, ChannelState>>,
+  config: unknown,
+): Partial<Record<DialAxis, { levelId: string | null; level: DifficultyLevel }>> {
+  const dials: Partial<Record<DialAxis, { levelId: string | null; level: DifficultyLevel }>> = {};
+
+  for (const axis of ['difficulty', 'directedness'] as const) {
+    const levelId = readDial(axis, channels, config);
+    const level = resolveLevel(preset, axis, levelId);
+    if (level !== null) dials[axis] = { levelId, level };
+  }
+
+  return dials;
 }
 
 export interface GatherContext {
@@ -142,8 +231,7 @@ export async function gatherAssemblyInputs(
    * still open. `declaredMode` travels out so the caller can say so.
    */
   const declaredMode = session?.mode?.id ?? DEFAULT_MODE_ID;
-  const mode = modeById(declaredMode) ?? modeById(DEFAULT_MODE_ID);
-  if (mode === null) throw new Error('No default mode is registered.');
+  const mode = modeById(declaredMode) ?? defaultMode();
 
   const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
   // One library handle for both resolvers. They read the same store as the same
@@ -160,13 +248,18 @@ export async function gatherAssemblyInputs(
    * names its tags have *now* — [05 §3](../../../../docs/design/05-tagging.md).
    */
   const tags = await readRegistry(context.sessions.layout, request.account);
-  const cast = resolveCast(library, request.account, session?.cast, tags);
+  // `channels` and not `session.channels`: the cast is resolved at the node
+  // being assembled, so a character who has not arrived yet on this branch is
+  // not in the prompt on it ([P7.3]).
+  const cast = resolveCast(library, request.account, session?.cast, tags, channels);
   /**
    * The cast is deliberately *not* passed: nothing about who is in the scene
    * decides which books are in play. A book is here because this session, or
    * the treatment it names, selected it — see `LoreRoute`.
    */
   const lore = resolveLore(library, request.account, session);
+  const pool = Array.isArray(session?.hooks) ? session.hooks : [];
+  const chain = Array.isArray(session?.goals) ? session.goals : [];
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
   return {
@@ -184,5 +277,12 @@ export async function gatherAssemblyInputs(
     preset,
     cast,
     lore,
+    hooks: { pool, ...resolvableActors(library, request.account, pool) },
+    goals: {
+      chain,
+      current: readCurrentGoal(channels, chain),
+      concluded: readConcluded(channels),
+    },
+    dials: resolveDials(preset, channels, session?.mode?.config),
   };
 }

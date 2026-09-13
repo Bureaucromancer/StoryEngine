@@ -5,6 +5,8 @@ import { ACTOR_SCHEMA, type Actor, type TagList, validate } from '@storyengine/s
 
 import { resolveObjectTags } from '../tags/resolve.js';
 
+import { actorsWithState } from '../sessions/cast.js';
+
 import { read } from '../library.js';
 import type { LibraryContext } from '../library.js';
 
@@ -24,6 +26,13 @@ import type { LibraryContext } from '../library.js';
  *
  * It lives in `turns/` and not in `modes/`, because it touches the library and a
  * mode does no I/O.
+ *
+ * ***And it reads two sources now, not one — 2026-09-12, [P7.3].*** The
+ * session's `cast.actors` is the roster: which cards this session is configured
+ * to play with. Who is actually *in* the story at a node is channel state, and
+ * since [P7.2] the two can differ. This resolves the union, so the prompt and
+ * the cast panel answer the same question with the same set of people; the
+ * `channels` parameter carries the argument.
  */
 /**
  * An actor with the address of the bytes that were read — [P3.0]. The cast is
@@ -51,6 +60,25 @@ export function resolveCast(
    * name is a lore gate that silently stops firing.
    */
   registry: TagList,
+  /**
+   * **The channel map at the node being assembled**, because the roster is not
+   * the only thing that decides who is in this story — [P7 §1.6], [P7.3],
+   * 2026-09-12.
+   *
+   * `castRows` has unioned the cast field with the actors the channels name
+   * since [P7.2], on the argument that *"a character written into the story and
+   * given presence without being added to `cast.actors` is exactly the drift the
+   * panel exists to make visible"*. This function read the field alone, so the
+   * two disagreed in the one direction that matters: the panel showed the new
+   * arrival a row, and the assembler sent no character card. The prompt is where
+   * that is expensive — every turn after the arrival is assembled as though
+   * nobody had arrived.
+   *
+   * `se.presence` is `model-proposed` ([06 §8.1]'s table), so this is reachable
+   * without anyone hand-editing anything; the hand-edit door
+   * (`PUT /sessions/:id/channels/:key`) is merely the one that is open today.
+   */
+  channels: Readonly<Record<string, { value: unknown }>>,
 ): { persona: CastMember | null; actors: CastMember[] } {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
@@ -63,10 +91,37 @@ export function resolveCast(
   const actors = Array.isArray(cast.actors) ? cast.actors : [];
   const persona = typeof cast.persona === 'string' ? cast.persona : null;
 
+  const declared = actors.filter((id): id is string => typeof id === 'string');
+
+  /**
+   * **Declared first and in declared order, then the arrivals sorted.**
+   *
+   * Order is not cosmetic here: `assembly/collect.ts` resolves `{{char}}` to
+   * `actors[0]`, so an arrival that sorted ahead of the configured cast would
+   * quietly change who that macro means part-way through a story. Appending
+   * cannot do that, and the sort is only so two arrivals in one turn have a
+   * stable order rather than the channel map's iteration order.
+   *
+   * The persona is excluded, because it comes back on the other half of the
+   * return value and a player who has a presence effect is not also an NPC.
+   */
+  const named = new Set(declared);
+  const arrived = [...actorsWithState(channels)]
+    .filter((id) => !named.has(id) && id !== persona)
+    .sort();
+
   return {
     persona: persona === null ? null : oneActor(library, handle, persona, registry),
-    actors: actors
-      .filter((id): id is string => typeof id === 'string')
+    /**
+     * **`maxActors` is not re-checked here, and the omission is deliberate.**
+     * The create and cast routes cap what a *person* configures ([06 §7.2]);
+     * a story that walks a fourth character into a three-seat scene has already
+     * happened, and refusing to load their card would assemble the turn around
+     * someone the record says is there. The budgeter drops what does not fit,
+     * which is [06 §5]'s division of labour — an input bound is not a budget
+     * rule.
+     */
+    actors: [...declared, ...arrived]
       .map((id) => oneActor(library, handle, id, registry))
       .filter((member): member is CastMember => member !== null),
   };

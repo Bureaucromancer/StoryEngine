@@ -3,8 +3,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { SCENE_MODE } from '../modes/scene/mode.js';
-import type { Mode } from '../modes/types.js';
+import { TEST_MODE } from '../test-mode.js';
+import type { Mode } from '@storyengine/sdk';
 import type { StepDefinition } from './steps.js';
 import { previewStepFor } from './preview.js';
 
@@ -22,15 +22,15 @@ import { previewStepFor } from './preview.js';
  */
 
 function step(over: Partial<StepDefinition> & Pick<StepDefinition, 'id'>): StepDefinition {
-  const narrate = SCENE_MODE.definition.steps[0];
+  const narrate = TEST_MODE.definition.steps[0];
   if (narrate === undefined) throw new Error('Scene declares no steps.');
   return { ...narrate, ...over };
 }
 
 function modeOf(steps: StepDefinition[]): Mode {
   return {
-    ...SCENE_MODE,
-    definition: { ...SCENE_MODE.definition, steps },
+    ...TEST_MODE,
+    definition: { ...TEST_MODE.definition, steps },
   };
 }
 
@@ -65,6 +65,6 @@ describe('the step a preview is about', () => {
   });
 
   it('finds Scene’s narrate step, which is the one the meter measures today', () => {
-    expect(previewStepFor(SCENE_MODE)?.id).toBe('se.narrate');
+    expect(previewStepFor(TEST_MODE)?.id).toBe('se.narrate');
   });
 });

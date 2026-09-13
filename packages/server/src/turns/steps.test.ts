@@ -4,7 +4,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { channelKey, SE_LORE_TIMING, SE_CLOCK } from '../sessions/channels.js';
-import type { StepDefinition } from './steps.js';
+import type { StepDefinition, StepInput, StepResult } from '@storyengine/sdk';
+import type { Turn } from '@storyengine/shared';
+
 import { callPurposeFor, evaluateCondition, filterReads } from './steps.js';
 
 /**
@@ -167,30 +169,94 @@ describe('the purpose a call is given', () => {
 });
 
 describe('the step boundary is serialisable, which is what P7 moves', () => {
+  /**
+   * **Every member of the type, listed by the type** — [P7 §1.3], whose second
+   * correction is what these two objects answer.
+   *
+   * A `Record<keyof Required<T>, true>` literal must name every key of `T`:
+   * omitting one is a compile error and inventing one is a compile error. So
+   * these are not key lists somebody maintains — they are the type, in a form a
+   * runtime assertion can compare against, and **adding a member to `StepInput`
+   * or `StepResult` stops this file compiling until somebody decides whether it
+   * crosses a worker hop**.
+   *
+   * That is the property [P7 §1.3](../../../../docs/design/workplan/23-p7-implementation.md)
+   * leans on and did not have. It recorded the gap precisely: the `StepInput`
+   * case cloned a fixture with `history: []` and no `output`, so neither arm was
+   * exercised, and the `StepResult` case pinned a hand-written literal with no
+   * annotation, *"so a non-clonable member added to `StepResult` tomorrow leaves
+   * the test green"*. A day-one item ([01 §2]) held by a test that cannot notice
+   * the thing changing is held by nothing.
+   */
+  const EVERY_INPUT_MEMBER: Record<keyof Required<StepInput>, true> = {
+    turnId: true,
+    sessionId: true,
+    parentTurnId: true,
+    input: true,
+    speakers: true,
+    setup: true,
+    cast: true,
+    channels: true,
+    history: true,
+    output: true,
+  };
+
+  const EVERY_RESULT_MEMBER: Record<keyof Required<StepResult>, true> = {
+    candidates: true,
+    effects: true,
+    message: true,
+  };
+
   it('round-trips a StepInput through structuredClone with nothing lost', () => {
     // [01 §2] makes the step contract async and serialisable a **day-one** item,
     // precisely so the worker split at P7 is a move rather than a rewrite. The
     // claim was in a docstring and asserted nowhere.
-    const input = filterReads(step({ reads: ['history', SE_CLOCK] }), {
+    //
+    // **Every optional arm populated, and `history` carrying a real turn.** An
+    // empty array clones trivially and proves nothing about the thing actually
+    // in the payload — a `Turn` is the deepest object that crosses this seam,
+    // with an effect's `unknown` values and a tape inside it, and `unknown` is
+    // where a non-clonable value would hide.
+    const input = filterReads(step({ reads: ['history', 'output', 'cast', SE_CLOCK] }), {
       turnId: 't',
       sessionId: 's',
       parentTurnId: null,
       input: { actorId: null, kind: 'do', text: 'She waited.', raw: 'She waited.' },
+      // A readonly array, which is where a frozen input would cross badly — and
+      // the shape a mode with a widened `select` hands every step ([P7.3]).
+      speakers: ['actor-vera'],
+      // A frozen record, which is what a session's stored answers are by the
+      // time they reach a step — and the shape a structured clone has to survive.
+      setup: Object.freeze({ premise: 'A city that does not sleep.', dice: true }),
+      // Readonly twice over — the array and each entry's `media` — which is the
+      // shape the runner builds and the one a frozen payload crosses badly in
+      // ([P7.12]).
+      cast: [
+        {
+          actorId: 'actor-vera',
+          name: 'Vera',
+          kind: 'actors',
+          media: [{ id: 'm-1', role: 'expression', label: 'neutral' }],
+        },
+      ],
       channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
-      history: [],
+      history: [historyTurn()],
+      output: { text: 'The rain did not let up.' },
     });
 
+    // The seam's width, from the type rather than from a hand-kept list.
+    expect(Object.keys(input).sort()).toEqual(Object.keys(EVERY_INPUT_MEMBER).sort());
     expect(structuredClone(input)).toEqual(input);
   });
 
   it('round-trips a StepResult too', () => {
-    const result = {
+    const result: Required<StepResult> = {
       candidates: [
         {
           id: 'se.x',
-          source: { kind: 'step' as const, stepId: 'se.x' },
+          source: { kind: 'step', stepId: 'se.x' },
           reason: 'because',
-          role: 'system' as const,
+          role: 'system',
           text: 'hello',
           priority: 50,
         },
@@ -198,28 +264,103 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
       effects: [
         {
           channelId: SE_CLOCK,
-          op: { type: 'set' as const, path: '/' },
+          op: { type: 'set', path: '/' },
           after: { day: 1, hour: 9, minute: 0 },
-          proposedBy: { kind: 'step' as const, stepId: 'se.x' },
+          proposedBy: { kind: 'step', stepId: 'se.x' },
         },
       ],
-      message: { text: 'the answer' },
+      message: { text: 'the answer', reasoning: 'she had been waiting a while' },
     };
 
+    // `Required<StepResult>` rather than a bare literal: the annotation is what
+    // makes a wrong shape a compile error, and `Required` is what makes a
+    // *missing* member one. The `as const` casts the old literal needed were an
+    // artefact of having no annotation at all.
+    expect(Object.keys(result).sort()).toEqual(Object.keys(EVERY_RESULT_MEMBER).sort());
     expect(structuredClone(result)).toEqual(result);
   });
 
-  it('names the one thing on StepHost that cannot cross a worker hop', () => {
-    // **An honest limit rather than a claim.** `StepHost.rng` is a live class
-    // instance with synchronous methods, and [22 §4] specifies the host API as
-    // async and narrow with `random` supplied by the host. `call` and `signal`
-    // cross fine; `rng` does not, and converting it later means touching every
-    // step that draws. Recorded here so P7 finds it as a known cost rather than
-    // as a surprise.
-    //
-    // Nothing at P2 draws inside a step except the test that proves the tape
-    // works, so this is a debt with no current victim.
-    const host = { call: () => Promise.resolve(), rng: {}, signal: new AbortController().signal };
-    expect(Object.keys(host).sort()).toEqual(['call', 'rng', 'signal']);
+  /**
+   * **The debt this block used to record is paid, and what it said was wrong
+   * twice** — [P7.0].
+   *
+   * It read *"`StepHost.rng` is a live class instance… `call` and `signal` cross
+   * fine; `rng` does not"*, and asserted that by comparing `Object.keys` on a
+   * hand-built literal whose `rng` was `{}`. It never cloned anything. Checked
+   * rather than assumed, **none of the three crosses**: a function throws
+   * `DataCloneError`, and an `AbortSignal` does something worse than throw — it
+   * clones to a detached `{}` whose `aborted` is `undefined`, so a step would
+   * hold a signal that never fires.
+   *
+   * That is not a defect, because **the host is proxied and never cloned**. It
+   * is `StepInput` and `StepResult` that cross, which is what the two tests
+   * above pin. What singled `rng` out was never clonability: it was that `call`
+   * and `signal` have bridges invisible to their callers — `call` already
+   * returns a `Promise`, a signal bridges as an abort message — while an `Rng`
+   * would have turned eight synchronous methods async at every call site that
+   * had already been written against them. Converting it before anything drew
+   * is what this phase did instead.
+   */
+  it('hands a step three capabilities, and none of them is data', () => {
+    const host = {
+      call: () => Promise.resolve(),
+      random: { at: () => ({}) },
+      signal: new AbortController().signal,
+    };
+    // A canary on the *width* of the seam: every member added here is another
+    // thing a worker has to bridge, and the narrowness is the contract.
+    expect(Object.keys(host).sort()).toEqual(['call', 'random', 'signal']);
+
+    expect(() => structuredClone(host.call)).toThrow(/DataCloneError|could not be cloned/);
+    // The quiet one, which is why it is asserted rather than described.
+    expect((structuredClone(host.signal) as { aborted?: boolean }).aborted).toBeUndefined();
   });
 });
+
+/**
+ * A turn rich enough for the clone to be about something.
+ *
+ * `effects[].before` / `.after` and a `Draw`'s `value` are all `unknown` on the
+ * record types, which is exactly where a value that cannot cross would hide —
+ * so they hold structures rather than scalars, and the tape is non-empty.
+ */
+function historyTurn(): Turn {
+  return {
+    id: 't0',
+    sessionId: 's',
+    parentTurnId: null,
+    createdAt: '2026-09-11T00:00:00.000Z',
+    status: 'complete',
+    input: { actorId: null, kind: 'do', text: 'She waited.', raw: 'She waited.' },
+    output: { text: 'The rain kept on.' },
+    effects: [
+      {
+        id: 'e0',
+        turnId: 't0',
+        channelId: SE_CLOCK,
+        scopeKey: null,
+        op: { type: 'set', path: '/' },
+        before: { day: 1, hour: 8, minute: 0 },
+        after: { day: 1, hour: 8, minute: 5 },
+        proposedBy: { kind: 'engine' },
+        applied: true,
+        rejectedReason: null,
+        supersedes: null,
+        channelVersion: 1,
+        scope: 'session',
+      },
+    ],
+    tape: [
+      {
+        key: 'se.test:pick#0',
+        site: 'se.test',
+        purpose: 'pick',
+        index: 0,
+        kind: 'int',
+        detail: '0..5',
+        value: 3,
+        replayed: false,
+      },
+    ],
+  };
+}

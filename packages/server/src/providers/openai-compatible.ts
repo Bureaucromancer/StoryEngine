@@ -2,7 +2,14 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText, streamText } from 'ai';
+import {
+  generateText,
+  jsonSchema,
+  NoObjectGeneratedError,
+  Output,
+  streamText,
+  type JSONSchema7,
+} from 'ai';
 
 import { capabilitiesFor } from './capabilities.js';
 import type { Connection } from './connections.js';
@@ -71,6 +78,24 @@ export class OpenAICompatibleProvider implements Provider {
        * option ignores it, and `#usage` still refuses to invent a number.
        */
       includeUsage: true,
+      /**
+       * **What decides whether the schema reaches the wire at all** — [P7.4].
+       *
+       * Measured against the SDK rather than assumed: with this on, a request
+       * carrying a schema sends `response_format: {type: "json_schema",
+       * json_schema: {...}}`; with it off, the SDK drops the schema, warns
+       * *"JSON response format schema is only supported with structuredOutputs"*
+       * and sends bare `{type: "json_object"}` — the endpoint is asked for JSON
+       * and told nothing about its shape.
+       *
+       * So this is the capability, not a constant. `openai-compatible` declares
+       * `supportsStructuredOutput: false` by default
+       * ([`capabilities.ts`](./capabilities.ts)) because the endpoint behind it
+       * could be anything, and a connection is where an operator who knows their
+       * endpoint says otherwise. Both arms produce JSON; only one of them tells
+       * the model what shape.
+       */
+      supportsStructuredOutputs: this.capabilities.supportsStructuredOutput,
       // Absent for a local endpoint that needs none, which is the ordinary
       // case for the local-model story and not an error.
       ...(connection.apiKey === undefined ? {} : { apiKey: connection.apiKey }),
@@ -88,6 +113,7 @@ export class OpenAICompatibleProvider implements Provider {
         messages: prompt.messages,
         ...(prompt.instructions === undefined ? {} : { instructions: prompt.instructions }),
         ...toSdkParams(request),
+        ...outputFor(request),
       });
 
       return {
@@ -100,8 +126,28 @@ export class OpenAICompatibleProvider implements Provider {
         // `generateText` resolves its steps; `streamText` promises them.
         modelId: modelThatAnswered(result.finalStep.response, request.modelId),
         finishReason: finishReasonOf(result.finishReason),
+        ...(request.schema === undefined ? {} : { object: result.output }),
       };
     } catch (error) {
+      /**
+       * **A reply that would not parse is a result, not a transport failure** —
+       * [P7.4].
+       *
+       * The SDK throws `NoObjectGeneratedError` out of `generateText` when the
+       * text will not parse as JSON, which would otherwise discard the model's
+       * words, its usage and its finish reason on the way past. It does not:
+       * the error carries all three (measured — `text`, `usage`,
+       * `finishReason`, `response`), so this reassembles the ordinary result and
+       * lets the engine decide.
+       *
+       * That division is the one {@link GenerationRequest.schema} draws: the
+       * adapter says what the endpoint did, and whether a miss is worth asking
+       * again is a policy the caller holds. Recovered here rather than there
+       * because the error's fields are the SDK's vocabulary, which stops at this
+       * file.
+       */
+      const recovered = recoverFromParseFailure(error, request);
+      if (recovered !== null) return { ...recovered, usage: this.#usage(recovered.rawUsage) };
       throw asProviderError(error);
     }
   }
@@ -155,12 +201,27 @@ export class OpenAICompatibleProvider implements Provider {
      */
     if (failure !== undefined) throw asProviderError(failure);
 
+    /**
+     * **Awaited separately and allowed to fail**, which is the streaming half of
+     * the rule `generate` states above: the text has already been handed to the
+     * caller chunk by chunk, so a reply that will not parse cannot be allowed to
+     * take it back. `undefined` reaches the engine as *asked for a shape and did
+     * not get one*, with everything else about the call intact.
+     *
+     * *A caller asking for a schema **and** a stream gets JSON streamed a
+     * character at a time, which is nobody's idea of progress — but the adapter
+     * is not the place to refuse it. `invoke` decides whether to stream.*
+     */
+    const object =
+      request.schema === undefined ? undefined : await result.output.then(asIs, asNothing);
+
     return {
       text,
       usage: this.#usage(await result.usage),
       cost: null,
       modelId: modelThatAnswered((await result.finalStep).response, request.modelId),
       finishReason: finishReasonOf(await result.finishReason),
+      ...(request.schema === undefined ? {} : { object }),
     };
   }
 
@@ -240,6 +301,77 @@ function splitForSdk(
     content: `${instructions}\n\n${folded[firstUser]?.content ?? ''}`,
   };
   return { instructions: undefined, messages: folded };
+}
+
+/**
+ * The SDK's structured-output option, when the caller asked for one — [P7.4].
+ *
+ * **`Output.object` parses; it does not validate, and that is measured rather
+ * than assumed.** Handed a schema requiring `name` with
+ * `additionalProperties: false`, a reply of `{"nom":"Vera"}` comes back as a
+ * successful object. `jsonSchema()` is a *carrier* — it is what puts the schema
+ * on the wire so the model is told what to produce — and nothing on this side
+ * checks that it did. So `GenerationResult.object` means **the endpoint returned
+ * parseable JSON**, never *the JSON fits*, and the engine validates.
+ *
+ * Worth stating here in the adapter, because this is the file where somebody
+ * would reasonably assume the SDK had done it.
+ */
+function outputFor(request: GenerationRequest): Record<string, unknown> {
+  if (request.schema === undefined) return {};
+  // The cast is the seam: `GenerationRequest.schema` is a plain `object`
+  // because the engine's own vocabulary is JSON Schema documents, and
+  // `jsonSchema()` wants the SDK's `JSONSchema7`. Same bytes, two names.
+  return { output: Output.object({ schema: jsonSchema(request.schema as JSONSchema7) }) };
+}
+
+/** What `#usage` reads, named so the recovery path can carry one across. */
+type SdkUsage = { inputTokens?: number | undefined; outputTokens?: number | undefined } | undefined;
+
+/** Identity and its opposite, for `then(asIs, asNothing)`. */
+function asIs(value: unknown): unknown {
+  return value;
+}
+
+function asNothing(): undefined {
+  return undefined;
+}
+
+/**
+ * The ordinary result hiding inside a parse failure — [P7.4].
+ *
+ * `NoObjectGeneratedError` is the SDK saying *the text did not parse*, and it
+ * carries what the call produced anyway: the model's words, the usage the
+ * endpoint reported, and why it stopped. Everything except the object is a
+ * perfectly good record of a call that happened, so throwing would lose four
+ * true facts to report one absent one.
+ *
+ * Returns `null` for anything else, so a 429 and a refused connection still go
+ * to `asProviderError` and still classify.
+ *
+ * *`rawUsage` rather than `usage`: the caller applies `#usage`, which is the
+ * gate that refuses to report numbers a provider said it does not send. Doing
+ * it here would be a second copy of that rule.*
+ */
+function recoverFromParseFailure(
+  error: unknown,
+  request: GenerationRequest,
+): (Omit<GenerationResult, 'usage'> & { rawUsage: SdkUsage }) | null {
+  if (!NoObjectGeneratedError.isInstance(error)) return null;
+
+  return {
+    text: error.text ?? '',
+    rawUsage: error.usage,
+    cost: null,
+    // The error carries the response metadata, so the model that answered is
+    // still knowable — and a model substitution is exactly the kind of thing
+    // that might *explain* a reply that would not parse.
+    modelId: modelThatAnswered(error.response, request.modelId),
+    finishReason: finishReasonOf(error.finishReason),
+    // Deliberately present and undefined: the caller asked for a shape, so the
+    // field belongs in the answer, and its emptiness is the answer.
+    object: undefined,
+  };
 }
 
 function toSdkParams(request: GenerationRequest): Record<string, unknown> {

@@ -226,6 +226,47 @@ describe('reapplying my edits onto a newer book', () => {
     expect(entryOf(merged, edited.id)?.content).toBe('Cranes.');
   });
 
+  /**
+   * ***The book's own fields, which this merge dropped until [P7.14]*** — and
+   * the loss it dropped was already live: the book's **name** has been writable
+   * since this editor shipped, so *rename, lose the race, reload-and-reapply*
+   * quietly restored their name over mine. The retrieval fieldset made it six
+   * more fields and turned an invisible loss into an obvious one.
+   */
+  it('keeps a book-level field I changed and takes theirs where I did not', () => {
+    const pristine = book([entry('Harbour')]);
+    const mine = { ...pristine, name: 'Ardent Harbour', scanDepth: 7 };
+    const theirs = { ...pristine, tokenBudget: 4096, scanDepth: 3 };
+
+    const merged = reapplyBookEdits(pristine, mine, theirs);
+
+    // Mine, because I changed them from what I opened.
+    expect(merged['name']).toBe('Ardent Harbour');
+    expect(merged['scanDepth']).toBe(7);
+    // Theirs, because I never touched it — the same rule an entry's fields get.
+    expect(merged['tokenBudget']).toBe(4096);
+  });
+
+  /**
+   * *And the containers are still merged by the finer rules above*, which a
+   * blanket three-way over the whole object would have flattened: this asserts
+   * the book-level pass did not reach into them.
+   */
+  it('does not let the book-level merge touch the entries', () => {
+    const original = entry('Harbour');
+    const pristine = book([original]);
+    const mine = withEntry({ ...pristine, name: 'Ardent Harbour' }, original.id, {
+      content: 'Cranes.',
+    });
+    const theirs = withEntry(pristine, original.id, { description: 'Where ships come in.' });
+
+    const merged = reapplyBookEdits(pristine, mine, theirs);
+
+    expect(merged['name']).toBe('Ardent Harbour');
+    expect(entryOf(merged, original.id)?.content).toBe('Cranes.');
+    expect(entryOf(merged, original.id)?.description).toBe('Where ships come in.');
+  });
+
   it('keeps an entry I created', () => {
     const pristine = book([entry('Harbour')]);
     const { book: mine, id } = withNewEntry(pristine, 'Quay');

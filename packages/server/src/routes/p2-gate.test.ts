@@ -3,6 +3,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { eventually } from '../test-server.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
@@ -183,23 +184,6 @@ function turnsRoot(): string {
 }
 
 /**
- * Polls an HTTP-observable condition.
- *
- * Borrowed from `gate.test.ts` rather than reached for as a sleep: a turn ends
- * when the commit protocol says so, and the only honest way to wait for that
- * from outside the process is to keep asking the question a client would ask.
- * On failure it re-runs the check so the assertion message names the condition.
- */
-async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await check()) return;
-    await new Promise((tick) => setTimeout(tick, 20));
-  }
-  expect(await check(), 'condition never held before the timeout').toBe(true);
-}
-
-/**
  * **Gate step 9** — *"Send a message → streamed reply → close the tab
  * mid-generation → reopen → the finished turn is there. The job survived the
  * client."*
@@ -255,10 +239,20 @@ describe('step 9 — the job survives the client', () => {
     // What a returning browser asks. `activeJob` is the field a reloading client
     // uses to decide between opening a stream and offering a submit box, so it
     // is also the honest signal that the job reached its end without one.
-    await eventually(async () => {
-      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
-      return read.body.activeJob === null;
-    });
+    await eventually(
+      async () => {
+        const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+        return read.body.activeJob === null;
+      },
+      {
+        // A turn that never finishes and a turn that finished differently are
+        // the same timeout without this.
+        describe: async () => {
+          const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+          return `activeJob is ${JSON.stringify(read.body.activeJob)}`;
+        },
+      },
+    );
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
     expect(turns.body.turns).toHaveLength(1);

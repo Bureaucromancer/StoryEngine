@@ -1,8 +1,8 @@
 # The HTTP API
 
 **Status: as built, and kept so.** Written at P2.5 and revised with every phase
-since — last at [P6A](design/workplan/19-p6a-alpha-1.md), for the setup token,
-the build identity and the `/api` boundary. This describes what exists, not what
+since — last at [P7.5](design/workplan/23-p7-implementation.md), for the pacing
+dial and the plot-hook selector's line on the turn record. This describes what exists, not what
 is planned — where the two differ, this file is right and the design notes
 record intent ([docs/README.md](README.md)).
 
@@ -617,7 +617,33 @@ No `suggestions` here — the plan step is where advice can still be acted on.
 
 The stored bytes of an actor's `card.png`, as `image/png` with an `ETag` of the
 content hash. Actors only — no other kind has an image that *is* the object —
-so any other kind is `404`.
+so any other kind is `404`. **The object's own pixels, which is what makes it
+actors-only**; media the object merely *carries* is the route below.
+
+### `GET /api/library/:kind/:id/media/:mediaId`
+
+The bytes of one entry in an object's `media` manifest — [P7.10]. `content-type`
+from the entry's own `mime`, and an `ETag` of **the media's `digest`**, not the
+object's `contentHash`: the two differ, and the digest is the right one because
+a picture does not change when the prose beside it does.
+
+**Any kind, unlike `/avatar`.** [04 §3](design/04-schemas.md) puts `media` on
+treatments, lorebooks and packages as well as on actors, so the route is keyed
+the same way the rest of the library is.
+
+- `404` when the object has no entry with that id.
+- `404` when the manifest has the entry and the container has no blob behind its
+  `ref`. **This is a real state rather than a defensive branch** — a PNG whose
+  ancillary chunks were stripped in transit keeps its manifest and loses its
+  bytes ([03 §5.2.2](design/03-data-model.md)) — and it answers `404` rather than
+  `500` because the object is intact and one thing inside it is not.
+
+*What reads it today:* expression sprites, imported with the character
+([P7.10] again — an actor arriving with a `sprites/` directory keeps every image
+as `role: "expression"` with the filename stem as its label, where before only
+`assets[0]` survived as the portrait). [P9](design/workplan/25-p9-implementation.md)
+is the second consumer: a rendition's asset needs serving too, and
+`MediaSelection`'s two arms are already the one shape both go through.
 
 ---
 
@@ -844,11 +870,67 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
 
 ## Sessions
 
+### `GET /api/modes` · `GET /api/modes/:modeId`
+
+```json
+{
+  "modes": [
+    {
+      "id": "storyengine.scene",
+      "displayName": "Scene",
+      "voice": "narrator",
+      "dispatch": "merged",
+      "participants": { "select": "fixed", "maxActors": 1 },
+      "inputs": ["do"],
+      "presetIds": [],
+      "setup": { "kind": "none" },
+      "surfaces": []
+    }
+  ],
+  "defaultModeId": "storyengine.scene"
+}
+```
+
+**What this install can play.** Added at P7.4, and until then nothing could tell
+a client which modes exist — the session form offered *the mode's own preset* and
+had nothing to say about modes.
+
+`defaultModeId` is the mode a `POST /api/sessions` with no `mode` plays. It is
+sent rather than left to be assumed, because a client falling back to the first
+mode in the list would render one mode's wizard and create a session on another
+the moment registration order stopped matching it.
+
+`setup` is the mode's wizard, **declared rather than coded**
+([06 §7.3](design/06-modes-and-turn-pipeline.md)): either `{ kind: "none" }` or
+`{ kind: "declared", fields: [...] }`, where each field has an `id`, an optional
+`required`, and a `widget` from a closed vocabulary — `text` (with an optional
+`hint` and `lines`), `choice` (with `options` of `{ value, label }`), or
+`toggle`. A client renders the form from that and nothing else, which is what
+lets a mode the engine has no knowledge of have a wizard. There is deliberately
+no way for a mode to ship UI, and deliberately no `html` field anywhere in the
+vocabulary ([10 §8](design/10-ui-surfaces.md)).
+
+**A field carries no schema of its own.** What its answer is validated against is
+*derived* from the widget — a toggle is a boolean, a choice is one of its
+options' values, a text field is a string — so there is one description of a
+field rather than two that can disagree.
+
+What is deliberately **not** sent: the mode's `assembly` (a session copies its
+preset at creation, so the pack is not the client's to see or change), its
+`steps`, and its `channels` — a channel reaches a client as a rendered entry in
+`GET /api/sessions/:id`'s `hud`, never as a declaration.
+
+`GET /api/modes/:modeId` answers one, and `404 unknown-mode` for one this build
+does not have. The runner falls back to the default for a session *already
+playing* an unknown mode, because that is somebody's story and it should still
+open — but answering this question with a different mode's declaration would
+render a wizard for a mode nobody chose.
+
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, preset?, cast?, treatment?, lore? }` → `201 { session }`, and a
-list. **`archived` is the string `"true"`, not a boolean** — see the note under
-the turn routes.
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, hooks? }`
+→ `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
+not a boolean** — see the note under the turn routes.
 
 **`name` is optional, and an empty one means the same as none**: both store
 `""`, which clients render as *Untitled session*. A session is id-addressed —
@@ -875,6 +957,73 @@ asked for and say nothing, which is what an unknown `mode` is refused for below.
 Another account's preset is `422` too, by way of a `404` inside: the path is the
 owner, and confirming an id exists elsewhere leaks the fact that separation
 exists to keep.
+
+**`modeConfig` is the mode's wizard, answered** — a flat object keyed by the
+field ids the mode declares, added at P7.4. It is stored at `session.mode.config`,
+which is where *how it was configured* has lived since P2.3 and what the portable
+`Setup` calls the same value. It is checked against a schema **derived from
+that mode's declaration** rather than one written here, so a mode that adds a
+field is asked for it without a second edit to this route. A required field
+missing, a choice the mode does not offer, a field of the wrong type, or a key
+the mode never declared is `422 setup-invalid` carrying `issues` — the field
+names, because a refusal reading only *invalid* leaves somebody guessing which
+field on a form the engine generated for them.
+
+A mode declaring `{ kind: "none" }` accepts exactly `{}`, so sending answers to a
+mode with no wizard is refused rather than quietly ignored. Omit the field
+entirely and `session.mode.config` stays `null` — which is every session written
+before P7.4, and `{}` would be a claim that a wizard ran and collected nothing.
+
+**`setup` is a Setup from the library** — *how to start playing*, in one object
+([04 §7](design/04-schemas.md)): a mode and its config, a preset, a treatment, a
+cast to choose from, and lore. Added at P7.4, and the first consumer that kind
+has ever had.
+
+Everything it carries is a **default that a parameter sent beside it overrides**,
+which is [04 §6.1b](design/04-schemas.md)'s layering — *a Treatment proposes, a
+Setup overrides, and the running session owns it* — with the request's own
+parameters as the last word. Its `mode.config` is checked against the mode's
+declaration exactly as `modeConfig` is, so a Setup written against a different
+build is refused rather than written into a session the mode cannot read.
+
+The session keeps a **copy** at `session.setup`, so editing the Setup afterwards
+cannot reach a running game — the same asymmetry the preset has. `422
+unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
+is a session missing a book and is accepted, but a dangling Setup is a session
+that would be created as something other than what was asked for.
+
+**`hooks` are the session's own plot hooks**, added at P7.4's successor stage —
+[03 §4.1](design/03-data-model.md)'s fourth source, which that section calls the
+primary path for adding one to a game in progress.
+
+The session is created with a **pool** at `session.hooks`, copied from all four
+sources — the treatment, the Setup, every active lorebook, and these — and each
+entry carries `{ hook, source }` so the UI can say where a hook came from and
+navigate to whichever object owns it. A lorebook's `source` names the book,
+because a hook carried by one is only eligible while that book is active.
+
+**A copied hook keeps the source hook's id.** Within a continuity, a hook that
+fired in one session must not fire again in the next, and cross-session
+de-duplication is only possible if the copy preserved it
+([15 §5](design/15-world.md)). The pool is a copy rather than a live resolution:
+editing a treatment does not reach a session already running, which is
+[06 §6.1](design/06-modes-and-turn-pipeline.md)'s *pulled, never pushed*. Omitted
+when nothing carried a hook — absent is not an emptied pool.
+
+**`activeJob` is present when the mode generates its world**, added at P7.4. A
+mode may declare *parts* alongside its wizard's fields
+([06 §7.3](design/06-modes-and-turn-pipeline.md)) — world overview, cast, sheets,
+each a separate validated generation — and they run as the steps of the session's
+**first turn**, with the answers as its input. So the reply carries a job in the
+same shape `POST /sessions/:id/turns` does, and a client opens the stream it
+already opens for a turn: generation is watched rather than waited out, and each
+part reports through the ordinary `step.*` progress events.
+
+Each part is retried and validated by the machinery any step's call gets, and
+its effects apply as it succeeds — so a part that fails leaves what the others
+produced, and says which one failed. A mode that declares no parts reserves no
+turn and the reply has no `activeJob`: an empty plan would commit a turn that did
+nothing, which is a blank first entry in somebody's transcript.
 
 **`preset.modes` is not checked**, deliberately. It is advisory — a preset
 written for a mode you do not have still imports, still shows, and still plays
@@ -903,6 +1052,50 @@ mode seats fewer than the list names.
 improving a character card reaches an ongoing game — the asymmetry with the
 copied preset is deliberate ([03 §8](design/03-data-model.md)).
 
+### `POST /api/sessions/:sessionId/goals`
+
+`{ goal }` → `{ session }`. A goal written at a completion —
+[06 §7.3.4](design/06-modes-and-turn-pipeline.md)'s *"set the next goal, either
+the authored `next` or one written now"*, and the clause that makes the chain a
+session field rather than a link into the Setup.
+
+**It writes the chain and not the cursor**, which is two acts on purpose. Adding
+the goal is an authoring act and lands on the session file, appending no turn;
+*moving play onto it* is a move in the story and goes through the channel write
+below, where it becomes a turn a rewind can undo. That section is emphatic that
+`thenDefault` *"seeds the offer; it does not decide it"*, and a route doing both
+would have decided it. An `id` is minted when the goal arrives without one, for
+the reason the hook route mints one: `se.goal` is scoped by it and `Goal.next`
+names it.
+
+### `POST /api/sessions/:sessionId/hooks` · `DELETE /api/sessions/:sessionId/hooks/:hookId`
+
+`{ hook }` → `{ session }`, and the delete answers the same. A hook added to a
+**running** session — [03 §4.1](design/03-data-model.md) calls that *the primary
+path*, and until this route creation was the only way in.
+
+**An authoring act, not a story event.** It lands on the session file rather than
+as a channel effect, which is that section's own line: *"adding a hook
+mid-session is an authoring act, not a story event, and must survive a rewind"*.
+So the pool is session-wide — a hook added at turn forty is in the pool at turn
+one — while everything about what has *happened to* a hook stays per-node in
+`se.hook`. The turn list is untouched: nothing happened in the story.
+
+The body is open beyond `{ hook }` itself, like the creation route's `hooks`
+array: a hook the schema would refuse is an authoring mistake to **show** rather
+than a request to reject, and the selector's filter is where a broken one stops
+being eligible with a class the panel turns into a sentence. **An `id` is minted
+when the hook arrives without one** — every other hook in a pool was copied from
+an object that had one and [15 §5](design/15-world.md) requires the copy to keep
+it, but a session's own hook has no upstream, and without an id it could never be
+committed, blocked, or recorded as fired.
+
+The delete takes **any** hook, whichever source put it there: the pool was copied
+at creation, so a treatment-borne entry is this session's copy and refusing to
+remove it would make the copy a binding ([00 §3.1](design/00-stance.md)). It does
+not reach the treatment. Removing one that is already gone succeeds — it is the
+state the caller asked for — while a missing **session** is still a `404`.
+
 ### `PUT /api/sessions/:sessionId/lore`
 
 `{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`
@@ -921,11 +1114,167 @@ link is a session missing a book, not a rejected request, and the retriever
 reports what it could not read on every turn where somebody playing can see it
 ([00 §3.3](design/00-stance.md)).
 
+### `PUT /api/sessions/:sessionId/roles`
+
+`{ roles?, stepRoles? }` → `{ session }`. Each is a map from name to
+`{ connectionId, modelId }`; `roles` is keyed by model role (`prose`,
+`summarize`, …) and `stepRoles` by step id. Both are **replaced wholesale**, and
+an omitted key means the empty map — a partial update could not express *clear
+this override*, and clearing one is the commoner act.
+
+**Two of [19 §5.1](design/19-tech-stack.md)'s five layers, and the reason they
+live on the session rather than in a mode** is that section's opening sentence:
+*nothing in a mode, step or extension refers to a provider or a model id*. A
+binding names a `connectionId` that exists on exactly one install, so *a cheap
+model for one noisy step* is an operator's decision about their own providers,
+not an author's about their story.
+
+Validated for shape and not for existence. A binding naming a connection that is
+gone, or one this account may not use, is not refused: `resolveRole` drops
+through to the next layer that resolves, and reports `dangling` only when none
+did. Anything beyond the two ids is `400` — the route is outside `/api/admin`
+and carrying no credential is what lets it be.
+
+### `PUT /api/sessions/:sessionId/channels/:key`
+
+`{ value }` → `{ session, effect, health, hud }`. The key is a channel key —
+`se.clock`, or `se.presence#<actorId>` for a scoped channel — URL-encoded like
+every other id here.
+
+**One route for all three recoveries [06 §4.2](design/06-modes-and-turn-pipeline.md)
+offers**, which is why it takes a value rather than naming an action: *retry*
+sends the quarantined raw value back, *edit* sends what the person typed, and
+*accept* sends the value already standing, which clears the `degraded` marker
+because only an effect carrying a reason ever writes one.
+
+**A refusal is `200` carrying the effect, not a 4xx.** A retry that still does
+not fit is a recorded refusal — that is the point of writing it through the same
+path a model's proposal takes — and an error status would throw away the record.
+Read `effect.applied`.
+
+The write lands as a turn with no model call and no tape, the same shape an undo
+and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
+change of state is visible in the turn record.
+
+**It is how the three offers at a goal completion are taken** —
+[06 §7.3.4](design/06-modes-and-turn-pipeline.md), and why none of them needed a
+route: *continue open* writes `se.goal.current` to `null` (the achievement is
+retained; nothing new is set), *advance* writes it to the next goal's id, and
+*end* writes `se.concluded` to `true`. **Concluded is a state, not a deletion** —
+the session stays readable and branchable, and rewinding past the ending un-ends
+it. Manual completion is `se.goal#<goalId>` set to `"achieved"`, which
+[06 §7.3.3] keeps *always available* because the narrative judge is biased toward
+*not met* on purpose.
+
+**It is also how a hook is committed or forced** — [06 §6.1]'s two hand
+controls, and the reason neither needed a route of its own. The channel is
+`engine-computed`, which refuses a model and a step and **admits a person**, so
+this route is the one thing that may write either.
+
+`se.hook#<hookId>` set to `"committed"` marks a hook must-fire: it skips
+eligibility, is exempt from cooldown and cadence, and opens the pacing gate every
+turn until it lands. *What it does not do is choose the moment* — the selector
+still runs, with the question changed from *whether* to *where*, and after
+**three turns** an unplaced commitment lapses back into the pool, which the
+turn's `hooks.lapsed` records.
+
+`"forced"` is the other one and is what it sounds like: **delivered on the next
+turn with no judgement call at all**, no gate and no model call. A `fired`
+verdict whose `considered` entry carries `forced` is the record saying nobody was
+asked. Both say what they skipped, in `overrode`.
+
+**And it is the only way to turn a `user-only` channel**, of which the build has
+one: `se.hook.pacing`, the hook selector's dial —
+`sparse` | `normal` | `aggressive` | `manual-only`
+([06 §6.1](design/06-modes-and-turn-pipeline.md),
+[04 §6.1b](design/04-schemas.md)). A treatment may propose a level and a setup
+override it, but once a session has been through this route its own value
+outranks both, and rewinding past that turn hands the authored answer back. Every
+other proposer is refused and recorded — a model or a step, and **the engine
+too**, because how much authored plot a session pushes at a player is a person's
+decision and a selector able to widen its own gate is not a dial.
+
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null }`. The job travels with the session because a
-client reloading mid-turn needs to know there *is* one before it decides whether
-to open a stream or offer an input box.
+`{ session, activeJob | null, health, hud, surfaces, cast, hooks, goals, dials,
+inputs, suggesting }`. The job travels with the
+session because a client reloading mid-turn needs to know there *is* one before
+it decides whether to open a stream or offer an input box.
+
+`hooks` is the hook panel's surface ([10 §10.1]): `{ pacing, rows }`, where
+`pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
+a Setup's, a Treatment's — and each row carries a hook's `title`, `source`,
+`state`, the `refusal` class blocking it (`null` when it is eligible now), a
+`committed: { overrode }` when a person's Commit is carrying it (or
+`forced: { overrode }` when they force-fired it), the `firedOn` turn if it has
+gone, and its `entrances` **by label**. *The `premise` appears
+only once the hook has fired and entrance **text** never appears at all*: an
+unfired hook's premise is hidden content ([08 §6]), and the workbench's block
+list already shows a fired hook's exact words. Empty `rows` for a session with no
+pool, which is every session that was not created with one.
+
+`goals` is `{ rows, concluded }` ([06 §7.3.3], [06 §7.3.4]): each row carries a
+goal's `statement`, `visibility`, `completion` kind, whether it is `current`,
+whether it is `achieved` and on which turn (`achievedOn`, derived from the path
+so a rewind changes it), its authored `next`, and the `thenDefault` that *seeds*
+the offer. **The three offers are not sent** — they are the same three every
+time, and what decides whether to raise them is `achieved` plus `next`. *The
+author's fuller `detail` does not travel*: [04 §7.1] reserves it for steps.
+
+`goals` rows also carry `proposed` — the narrator judged the goal met and a
+person has not ruled ([25 C12], answered *ask* at P7.6). `se.goal` declares
+`confirm: ['achieved']`, so the judge's completion lands on the turn recorded and
+**unapplied**: the three offers stay down and the panel asks. `proposed` and
+`achieved` are never both true, because confirming *is* the applied effect that
+clears the first.
+
+`surfaces` is what this session's **mode** asked to have shown, and where
+([06 §9], [P7.11]): `{ region, key, channelId, scopeKey, kind, label }` plus one
+of `text`, `image: { url, alt }` or `on`, already resolved. Four regions — `hud`
+(the strip, which a contribution *appends* to), `panel` (the stack beside the
+story), `message` (a decoration on a turn) and `stage` (the picture behind it,
+[10 §2.3]'s chrome). **Separate from `hud` because they answer different
+questions**: `hud` is every channel that declared itself worth a strip row, and
+this is every placement a mode asked for. A `kind` or a `region` a client does
+not know is **skipped**, which is what keeps both vocabularies additive — and
+there is deliberately no `html` anywhere in either ([10 §8]).
+
+`inputs` is the kinds this session's mode accepts ([06 §1], [06 §9]) — Scene
+sends `['do']`, Freeform `['do','say','think','story']`. It is the same list
+`POST /turns` refuses against, so a client that renders a selector from it cannot
+offer a kind the server will reject. *One kind means no selector*, which the
+client decides.
+
+`suggesting` is whether this session asks for suggested actions ([R11]) — a
+channel, so it branches. **Off by default**, because a suggestion is a second
+model call on every turn and on a self-hosted build that is the player's own
+machine. The offers themselves travel on `turn.suggestions`, not here.
+
+`dials` is difficulty and directedness ([06 §7.3.1], [06 §7.3.2]), **present only
+for a mode that declares them**: `{ difficulty?, directedness? }`, each
+`{ levelId, levels: [{ id, label }] }` with the levels in `rank` order. `levelId`
+is already resolved over the channel and then `mode.config`, falling to the
+pack's lowest rank for a level the pack does not have — so a control renders it
+directly. *The levels travel because they are the prompt pack's rather than the
+engine's* ([06 §7.3.1]: *"'Hard' meaning something different in one prompt pack
+than another is a feature"*), and a client with its own list would produce a
+recorded refusal against a pack that ships a fourth. **The fragments do not
+travel**: they are what goes to the model, and the surface needs the label.
+*Absent for Scene and Messages*, which declare no difficulty — [04 §7]'s
+explicit case rather than an empty one.
+
+`health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
+channels declaring a `surface`, already rendered through their own `render`
+template; `cast` is one row per person this story is about — presence, status,
+an unanswered terminal proposal, whether they have been introduced, and who
+authors them if they are travelling with you
+([06 §8](design/06-modes-and-turn-pipeline.md) for the last,
+[06 §8.1](design/06-modes-and-turn-pipeline.md) and
+[10 §13.2](design/10-ui-surfaces.md) for the rest). The rows are the union of the
+session's roster and everyone the channels name, which is the same set the
+prompt is assembled around. All three are reconstructed at the
+session's head, so they are the state a panel should be showing rather than a
+summary of the file.
 
 A session that is not there and one that is not yours are the **same 404**. The
 path is the owner ([09 §4.3](design/09-server-multiuser-deployment.md)), and
@@ -1044,6 +1393,37 @@ and walks the whole path, and the workbench wants one turn, including one the
 head has passed. The lookup is scoped to *this* session inside the store, so a
 bare turn id cannot confirm existence across the ownership boundary: a turn in
 somebody else's session is the same `404` as one that never existed.
+
+**`turn.hooks` says what the plot-hook selector did**, when a session has a pool
+([06 §6.1](design/06-modes-and-turn-pipeline.md)): a `verdict` — `held`,
+`cooling`, `nothing-eligible`, `judged-none` or `fired` — the `pacing` it was
+read at, the `hookId` on a firing, and `considered`, which accounts for **every**
+hook in the pool with a refusal class or `null`. *Held by pacing* and *judged
+none* are deliberately different answers: a record that merged them would make a
+correctly-quiet session indistinguishable from a broken one. **Absent means the
+selector did not run**, which is every session with no pool — never *it ran and
+had nothing to say*.
+
+`turn.spans` is what the engine understood about the turn's text — [06 §8.2],
+[03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span
+carries the `field` it indexes into (`input` or `output`), half-open `start` and
+`end` offsets, a **tagged** `target` (one arm at 1.0: `{ kind: "actor", ref }`),
+the `method` that asserted it (`explicit`, `matched`, `proposed` — only `matched`
+is produced today), and a `confidence` that is meaningful only for `proposed`.
+
+**An overlay, never a rewrite**: the prose is exactly what the model wrote and
+the spans sit beside it, so a client that ignores the field renders the text
+unchanged. **Absent rather than empty** when the extract pass did not run — which
+is every turn of a session with nobody to find, and every turn taken before
+P7.7. *Nothing on this path creates an actor*: the scan resolves only people the
+session already has.
+
+A `considered` entry carries `committed: { overrode }` when a person's Commit is
+carrying that hook, where `overrode` is the eligibility clause it skipped or
+`null` if there was none — [06 §6.1]'s rule that *skipping the filter must say
+what it skipped*. `hooks.lapsed` lists the commitments that ran out of patience
+on this turn and went back into the pool; it is absent on an ordinary turn and
+never written empty.
 
 ### `PUT /api/sessions/:sessionId/head`
 
@@ -1177,7 +1557,8 @@ somebody pauses typing. `POST` rather than `GET` because the body carries up to
 100 000 characters of prose, which does not belong in a URL.
 
 `input` is optional: its absence is *nothing typed yet*, which is what the
-context meter shows at rest. There is no `headTurnId` — the preview assembles
+context meter shows at rest. It takes an optional `kind`, so a preview of a
+`say` turn shows the block a `say` turn sends ([13 §8.3]). There is no `headTurnId` — the preview assembles
 against the session's current head and echoes back which one that was.
 `pendingInput` says whether an action or guidance was supplied, which is how the
 workbench decides between showing the composed turn and the last committed one.
@@ -1190,8 +1571,11 @@ context*, not a refused request:
 { "preview": { "state": "unmeasurable", "reason": "role-unbound", "notFilled": [] } }
 ```
 
-`reason` is `role-unbound`, `role-dangling` (a binding whose connection is gone)
-or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
+`reason` is `role-unbound`, `role-dangling` (a binding whose connection is
+gone), `no-prose-step` (the mode narrates nothing) or `not-this-turn` (it
+narrates, and not on this turn — a cadence-gated prose step, [P7.9]). The last
+two are different sentences with different remedies and are deliberately not
+collapsed. `notFilled` rides on **both** arms: *why is there no lore in
 this prompt* is answerable without a model.
 
 `lore` rides on both arms for the same reason, and it is what the keyword tester
@@ -1350,6 +1734,51 @@ key must be namespaced (`library.density`, not `density`) and the document has a
 size cap. Those exist because an unvalidated store is otherwise an unbounded
 write surface for any signed-in account. A bad key is `400 invalid`; too large is
 `413 too-large`.
+
+### `GET /api/me/roles` · `PUT /api/me/bindings`
+
+```json
+{
+  "roles": [{ "role": "prose", "tier": "hi", "ok": true, "via": "binding", "…": "…" }],
+  "bindings": { "prose": { "connectionId": "0199…", "modelId": "gpt-lo" } },
+  "contentHash": "sha256:…",
+  "connections": [
+    { "id": "0199…", "label": "The house key", "provider": "openai-compatible",
+      "scope": "system", "models": ["gpt-hi", "gpt-lo"] }
+  ],
+  "disabled": []
+}
+```
+
+**What *your* turns will do, where `GET /api/admin/roles` says what the install
+has got.** Same row shape; different layers. This one resolves your own
+`users/<handle>/bindings.json` over the install defaults against the connections
+you may actually use, which is [19 §5.1](design/19-tech-stack.md)'s order — and
+`via` is the whole reason to ask a server rather than work it out in a browser.
+
+One request carries the whole pane: the resolved table, the raw document to edit,
+a hash to write against, and the connections a binding may pick from with their
+model lists. `disabled` is personal connections on disk that were ignored for
+want of `privateConnections`, returned rather than dropped so you are told rather
+than left wondering why a model call started failing
+([09 §4.5](design/09-server-multiuser-deployment.md)).
+
+`PUT /api/me/bindings` takes `{ bindings, contentHash }` and answers the same
+`{ bindings, contentHash }`. The document is **replaced wholesale** — it is
+exactly its known role keys, so there is nothing a merge would preserve — and the
+hash is the library's stale-check idiom: a mismatch is
+`412 stale` carrying `current`, so a client can offer *load what is on disk*
+rather than only being told no. That matters more here than for the system file,
+because [10 §4](design/10-ui-surfaces.md) says hand-editing this one works.
+
+**No administrator is involved, and no capability is checked.** [19 §5.1] is
+explicit that *anyone who wants their own key overrides a role without the
+admin's involvement*. A binding is two ids; what keeps that safe is that
+`resolveRole` looks the `connectionId` up in the capability-filtered list, so one
+naming a connection you may not use can never be access — it falls through to the
+layer below. A role this build does not know is dropped rather than refused, so
+a newer client is not an error; **anything else inside a binding is `400`**, which
+is what lets this route live outside `/api/admin`.
 
 ---
 
@@ -1813,6 +2242,8 @@ I restart it?"* is a worse answer than one that says.
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
+| 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
+| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

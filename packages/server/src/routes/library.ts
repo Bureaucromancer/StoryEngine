@@ -23,6 +23,7 @@ import {
   list,
   read,
   readCardPixels,
+  readMedia,
   remove,
   restoreVersion,
   update,
@@ -62,6 +63,11 @@ const DIRECTORY_TO_SCHEMA = new Map<string, PortableSchemaId>(
 
 const KindParams = Type.Object({ kind: Type.String() });
 const ObjectParams = Type.Object({ kind: Type.String(), id: Type.String() });
+const MediaParams = Type.Object({
+  kind: Type.String(),
+  id: Type.String(),
+  mediaId: Type.String(),
+});
 const VersionParams = Type.Object({
   kind: Type.String(),
   id: Type.String(),
@@ -523,6 +529,56 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         return await reply
           .header('content-type', 'image/png')
           .header('etag', contentHash)
+          .send(Buffer.from(bytes));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * One embedded media entry's bytes — [03 §5.2.2], [06 §7.2], built at
+   * [P7.10](../../../../docs/design/workplan/23-p7-implementation.md).
+   *
+   * **The route nothing could show a picture without.** `/avatar` above serves
+   * the card's own pixels and is the only image path this build has had; an
+   * actor's expression set, a treatment's cover and an authored backdrop are
+   * all `EmbeddedMedia`, and nothing served those. [06 §7.2]'s sprites and
+   * [06 §10.1a]'s authored backdrop both stopped here.
+   *
+   * ***Keyed on the media's own `digest`, not the object's `contentHash`.*** A
+   * card's hash changes when any field of the object changes; the bytes of one
+   * expression do not. An etag on the object would re-fetch every sprite the
+   * moment somebody edited a line of the character's description.
+   *
+   * *Any kind, unlike `/avatar`*: [04 §3] puts `media` on treatments, lorebooks
+   * and packages too, and a route that named actors would grow a second arm for
+   * the first one of those to carry a picture. **[P9] is the next consumer** —
+   * a rendition's asset needs serving the same way, and `MediaSelection`'s two
+   * arms are already the one shape both go through.
+   */
+  app.get(
+    '/library/:kind/:id/media/:mediaId',
+    { schema: { params: MediaParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const { id, mediaId } = request.params as { id: string; mediaId: string };
+      try {
+        const { bytes, mime, digest } = await readMedia(
+          services.library,
+          account.handle,
+          id,
+          mediaId,
+          schemaId,
+        );
+        return await reply
+          .header('content-type', mime)
+          .header('etag', digest)
           .send(Buffer.from(bytes));
       } catch (error) {
         respondToLibraryError(error, reply);

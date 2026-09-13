@@ -3,7 +3,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { type Preset, uuidv7 } from '@storyengine/shared';
+import { type Goal, type PlotHook, type Preset, type Setup, uuidv7 } from '@storyengine/shared';
 
 import {
   findTurnLocation,
@@ -17,7 +17,15 @@ import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '..
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
-import { channelKey, divergenceEffects, divergenceTurn } from './channels.js';
+import type { Binding, ModelRole } from '../providers/types.js';
+import { acceptEffect } from '../turns/effects.js';
+import {
+  channelKey,
+  divergenceEffects,
+  divergenceTurn,
+  quarantineEffects,
+  splitChannelKey,
+} from './channels.js';
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
@@ -27,7 +35,14 @@ import {
   type TurnLocation,
   walkPath,
 } from './segments.js';
-import type { BranchRef, ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
+import type {
+  BranchRef,
+  ChannelEffect,
+  ChannelState,
+  PooledHook,
+  SessionFile,
+  Turn,
+} from './types.js';
 
 /**
  * Session storage — [03 §5.5](../../../../docs/design/03-data-model.md),
@@ -132,6 +147,13 @@ export interface NewSession {
    * session.
    */
   name?: string;
+  /**
+   * Which mode, and what its wizard was answered with — [06 §1], [P7.4].
+   *
+   * `config` is the answers. It was written `null` by every caller from P2.3
+   * until P7.4 gave it its writer, which is what the field has meant all along:
+   * *how it was configured*.
+   */
   mode?: { id: string; config: unknown };
   /** Copied in whole. [03 §8]: the session owns its prompt pack from here on. */
   preset?: Preset;
@@ -139,6 +161,30 @@ export interface NewSession {
   /** Links, not copies — [P5.6], and see `SessionFile` for why. */
   treatment?: string | null;
   lore?: string[];
+  /**
+   * The **Setup** this session was created from, copied — [04 §7], [P7.4].
+   *
+   * Resolved at the route, because the route is where the library is read and
+   * where a missing one is refused. By copy, so editing the Setup afterwards
+   * cannot reach a running session — the asymmetry the preset already has.
+   */
+  setup?: Setup;
+  /**
+   * The hook pool, already built and attributed — [03 §4.1], [P7.5].
+   *
+   * Built at the route, because the sources are library objects and the route is
+   * where the library is read. `poolFor` is the one place that walks them, so
+   * the ids a session's copies carry are the sources' by construction.
+   */
+  hooks?: PooledHook[];
+  /**
+   * The goal chain, copied from the Setup — [04 §7.1], [06 §7.3.3], [P7.6].
+   *
+   * Ordered, and `goals[0]` is where play begins. Copied at the route beside the
+   * hook pool, for the same reason: a Setup is a library object and the route is
+   * where the library is read.
+   */
+  goals?: Goal[];
 }
 
 export async function createSession(
@@ -161,6 +207,12 @@ export async function createSession(
     ...(spec.mode === undefined ? {} : { mode: spec.mode }),
     ...(spec.preset === undefined ? {} : { preset: spec.preset }),
     ...(spec.cast === undefined ? {} : { cast: spec.cast }),
+    ...(spec.setup === undefined ? {} : { setup: spec.setup }),
+    ...(spec.hooks === undefined || spec.hooks.length === 0 ? {} : { hooks: spec.hooks }),
+    // Absent rather than `[]` when the Setup carried none, which [04 §7.1] calls
+    // *the deliberate opt-out rather than the default* — and which every session
+    // written before P7.6 is.
+    ...(spec.goals === undefined || spec.goals.length === 0 ? {} : { goals: spec.goals }),
     ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
@@ -884,6 +936,87 @@ export async function undoTurn(
 }
 
 /**
+ * What a person's write to a channel came to.
+ *
+ * A value rather than a throw, because the interesting outcome is the one where
+ * the engine says no: [06 §4.2]'s recovery is *offered*, and an offer that could
+ * fail silently would be worse than none.
+ */
+export type ChannelWriteOutcome =
+  { kind: 'no-session' } | { kind: 'written'; session: SessionFile; effect: ChannelEffect };
+
+/**
+ * A person writes a value to one channel — [06 §4.2]'s recovery, [P7.1].
+ *
+ * **One primitive for all three of the offered recoveries**, which is why it is
+ * a write rather than two verbs. 06 §4.2 offers *"retry the migration once the
+ * author ships a fix, edit the quarantined value by hand, or accept the
+ * reset"*: retry is this with the quarantined raw value, edit is this with
+ * whatever the person typed, and accept is this with the value already standing
+ * — which clears the `degraded` marker, because `applyEffects` writes one only
+ * for an effect that carries a reason.
+ *
+ * **Through `acceptEffect`, so a retry that still does not fit is refused and
+ * recorded** rather than silently reinstating the value that was quarantined in
+ * the first place. That is the whole reason recovery is safe to offer: the
+ * button cannot put the session back in the state it was rescued from.
+ *
+ * *A turn with no model call and no tape, the same shape `undoTurn` and
+ * `divergenceTurn` write, and for the same reason: [03 §8.1]'s promise is that a
+ * change of state is visible in the turn record, and a turn is what the
+ * workbench shows.*
+ */
+export async function writeChannel(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  key: string,
+  value: unknown,
+): Promise<ChannelWriteOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    const running = await reconstructAlong(
+      context,
+      handle,
+      sessionId,
+      walkPath(turns, session.headTurnId),
+    );
+
+    const id = uuidv7();
+    const { channelId, scopeKey } = splitChannelKey(key);
+    const effect = acceptEffect(
+      id,
+      {
+        channelId,
+        scopeKey,
+        op: { type: 'set', path: '/' },
+        after: value,
+        proposedBy: { kind: 'user' },
+      },
+      running,
+    );
+
+    const turn: Turn = {
+      id,
+      sessionId,
+      parentTurnId: session.headTurnId,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+      effects: [effect],
+      tape: [],
+    };
+
+    await appendTurnOnly(context, handle, sessionId, turn);
+    const next = await advanceHead(context, handle, sessionId, turn);
+    if (next === null) return { kind: 'no-session' };
+    return { kind: 'written', session: next, effect };
+  });
+}
+
+/**
  * One effect's inverse, attributed to the person who asked for it.
  *
  * **A `before` of null becomes a delete rather than a set to null**, and the
@@ -968,7 +1101,27 @@ export async function reconcileHandEdits(
       walkPath(turns, session.headTurnId),
     );
 
-    const effects = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
+    const diverged = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
+
+    /**
+     * **And the quarantine rung, in the same turn** — [06 §4.2], [P7.1].
+     *
+     * Over the state *after* the divergence rather than before it, which is the
+     * only order that is not wrong twice: quarantining first would re-check a
+     * value the user's edit is about to replace, and the edit itself is already
+     * schema-checked where it is built. So the sequence is *what the log says*,
+     * then *what the person wrote*, then *what still does not fit* — and the
+     * last of those is the case neither of the first two covers, a value that
+     * was legal when written and is not now.
+     *
+     * **One turn for both, because they are one event**: a session was opened
+     * and the engine reconciled it. Two turns would put a parent link between
+     * two halves of a reconciliation nobody performed in two steps.
+     */
+    const effects = [
+      ...diverged,
+      ...quarantineEffects(session.headTurnId ?? '', applyEffects(replayed, diverged)),
+    ];
     if (effects.length === 0) return [];
 
     const turn = divergenceTurn(sessionId, session.headTurnId, effects);
@@ -1021,6 +1174,21 @@ export function applyEffects(
     next[key] = {
       version: effect.channelVersion,
       value: effect.after,
+      /**
+       * **`degraded`'s first writer** — [06 §4.2], [P7.1]. `ChannelState` has
+       * carried this field since P3.0 with a docstring saying *"the writer
+       * arrives with the first `ChannelDefinition.schema`"*, and that schema
+       * arrived this stage.
+       *
+       * Composed from the effect rather than copied: the effect carries a
+       * reason, and `before` *is* the raw value it is a reason about. Spreading
+       * conditionally so an ordinary effect writes no key at all — a state
+       * carrying `degraded: undefined` and one carrying nothing serialise
+       * differently, and `divergenceEffects` compares serialised values.
+       */
+      ...(effect.degraded === undefined
+        ? {}
+        : { degraded: { reason: effect.degraded.reason, raw: effect.before } }),
     };
   }
 
@@ -1258,6 +1426,45 @@ export async function readTurnById(
 }
 
 /**
+ * Which model this session uses for a role, and for one step — [19 §5.1],
+ * [P7 §1.9], built at [P7.3].
+ *
+ * **A whole replacement rather than a merge**, which is the same choice
+ * {@link setLore} makes and for the same reason: a partial update cannot express
+ * *clear this override*, and clearing one is the commoner act of the two. A
+ * caller sends what it wants to hold.
+ *
+ * *Unvalidated against the account's connections, deliberately.* A binding
+ * naming a connection that has since been removed resolves as `dangling`, which
+ * `resolveRole` already distinguishes from `unbound` because *"the remedies
+ * differ — the first is setup, the second is an admin having removed a
+ * connection out from under a binding"*. Refusing the write here would trade a
+ * diagnosable state for a rejected request, and [00 §3.3] takes the other side
+ * of that everywhere else.
+ */
+export async function setSessionRoles(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  overrides: { roles: Partial<Record<ModelRole, Binding>>; stepRoles: Record<string, Binding> },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      roles: overrides.roles,
+      stepRoles: overrides.stepRoles,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}
+
+/**
  * Sets which treatment and which lorebooks a session plays with.
  *
  * **The sibling of {@link setCast}, and it exists for the reason that rule
@@ -1270,6 +1477,119 @@ export async function readTurnById(
  * Links rather than copies, exactly as the cast is ([03 §8]): fixing a typo in
  * a lorebook should reach the story being told in it.
  */
+/**
+ * Adds a hook to a **running** session's pool, or takes one out —
+ * [03 §4.1](../../../../docs/design/03-data-model.md),
+ * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md), built at
+ * [P7.5](../../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * ***The session file, and not a channel effect.*** 03 §4.1 draws that line and
+ * gives the reason in one sentence: *"adding a hook mid-session is an authoring
+ * act, not a story event, and must survive a rewind"* — while everything about
+ * *what has happened to* a hook is per-node and lives in `se.hook`. So the pool
+ * is session-wide, a hook added at turn forty is in the pool at turn one, and
+ * rewinding does not un-add it.
+ *
+ * **A route at all because creation was the only way in**, and 03 §4.1 calls
+ * adding one to a running session *the primary path*: a treatment is where hooks
+ * primarily live, but *"I want this to happen in this game"* is a thought people
+ * have while playing.
+ *
+ * *Removal takes any hook, whatever its source, and that is
+ * [00 §3.1](../../../../docs/design/00-stance.md)'s prefill-not-binding.* The
+ * pool was **copied** at creation; a treatment-borne entry in it is this
+ * session's copy, and declining to remove it would make the copy a binding. The
+ * `source` is left as it was, because it says where the hook **came from** and
+ * that does not change by being deleted.
+ */
+export async function setSessionHooks(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  change: { add?: PlotHook; remove?: string },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const pool = session.hooks ?? [];
+    const without =
+      change.remove === undefined ? pool : pool.filter((entry) => entry.hook.id !== change.remove);
+    /**
+     * **A structured clone, the way creation copies one**, so an author editing
+     * the object they submitted cannot reach into a running session — and
+     * `source: { kind: 'session' }` because that is what this *is*: [03 §4.1]'s
+     * fourth source, attributed to the session rather than to whatever the
+     * client thought it was doing.
+     */
+    const next =
+      change.add === undefined
+        ? without
+        : [
+            ...without.filter((entry) => entry.hook.id !== change.add?.id),
+            { hook: structuredClone(change.add), source: { kind: 'session' as const } },
+          ];
+
+    const file: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      // Absent rather than `[]` when the last one goes, which is the claim the
+      // creation path already makes: a session whose sources carried none is not
+      // a session somebody emptied.
+      ...(next.length === 0 ? {} : { hooks: next }),
+    };
+    if (next.length === 0) delete file.hooks;
+
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), file);
+    indexSession(context.index, scopeOf(context, handle), file);
+    return file;
+  });
+}
+
+/**
+ * Adds a goal to a **running** session's chain — [06 §7.3.4], [P7.6].
+ *
+ * ***Advance's second arm.*** That section offers *"set the next goal, either
+ * the authored `next` or one written now"*, and the second half is what makes
+ * the chain a session field rather than a link into the Setup: a goal written at
+ * a completion was never in the Setup and cannot be.
+ *
+ * **An authoring act rather than a story event**, which is the same line
+ * `setSessionHooks` above it draws, quoting [03 §4.1]: it lands on the session
+ * file and appends no turn. *Moving the cursor onto it is the story event*, and
+ * that goes through the channel write — two acts, two records, because
+ * [06 §7.3.4] is emphatic that the offer is asked rather than applied.
+ *
+ * *Appended rather than inserted*, because [04 §7.1] orders the chain and
+ * `goals[0]` is where play began: a goal written now is the newest link, and
+ * putting it anywhere else would rewrite where the game started.
+ */
+export async function addSessionGoal(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  goal: Goal,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const chain = session.goals ?? [];
+    const file: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      // Replaced rather than duplicated when the id is already there, which is
+      // what makes a re-submitted write idempotent instead of a second link
+      // with the same name.
+      goals: [...chain.filter((one) => one.id !== goal.id), structuredClone(goal)],
+    };
+
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), file);
+    indexSession(context.index, scopeOf(context, handle), file);
+    return file;
+  });
+}
+
 export async function setLore(
   context: SessionContext,
   handle: string,

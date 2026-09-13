@@ -181,11 +181,12 @@ interface VisualDescriptors {
 type MediaRole =
   | "portrait-source"   // the uncropped original behind the card's own pixels
   | "reference"         // canonical likeness — of a person, or of a place
-  | "expression"
-  | "pose"
+  | "expression"        // one face from a set the scene chooses between
+  | "pose"              // one body from a set, the same way
   | "style"             // style exemplar, not likeness
   | "map"               // a diagram rather than a likeness. Lore, mostly
   | "gallery"
+  | "background"        // the backdrop a scene is staged against [06 §10.1a]
 
 // One vocabulary, not one per kind. `reference` means the same thing on a
 // lorebook entry as on an actor — *this is what it looks like*, suitable for
@@ -194,6 +195,20 @@ type MediaRole =
 // ([24 §3](24-roadmap.md)). `map` is the only addition lore needed, because a
 // diagram is genuinely not a likeness. `illustration` was considered and
 // rejected as a synonym for `reference` that would leave authors guessing.
+//
+// `background` was added at P7.9 and this listing was not: the union had no
+// role naming what an uploaded backdrop *is*, because nothing pointed at one
+// until a channel did. The nearest was `reference`, which this section reserves
+// for a likeness of a place — and a likeness is what a backdrop is conditioned
+// on rather than what it is. Distinct from `Rendition.purpose`, which says the
+// same thing about a *generated* image ([06 §10.1a]: "two fields because there
+// are two questions"). Corrected 2026-09-13.
+//
+// `expression` and `pose` are the two arms a *set* is chosen from rather than
+// a single canonical image, which is why `label` matters on them and on almost
+// nothing else: Scene's stager matches a model's answer against those labels
+// ([06 §7.2], P7.12), and a set whose members are unlabelled is a set nothing
+// can select within.
 
 /** Media carried *inside* the card envelope. Bounded by policy — bulk galleries
  *  and video live in the folder as `assets`. */
@@ -1176,6 +1191,34 @@ not reach pacing at all.
 > question being answered, and it stays open for the first one that does not —
 > which will be a dial belonging to a single mode, since that is what puts a value
 > in `mode.config` and out of the host's reach.
+>
+> ***Answered 2026-09-13 at [P7.8](workplan/23-p7-implementation.md), by the dial
+> this paragraph predicted.*** Difficulty is exactly the case it named — a dial
+> belonging to a single mode — and the answer is **a channel the mode itself
+> declares**, which is not the evasion it looks like. This question was posed
+> when a channel could only be engine-owned, so it framed a choice between two
+> bad options: `mode.config`, opaque and unable to take an effect, or Setup,
+> which *"would imply Messages and Scene have a difficulty, which they do not"*.
+> [P7](workplan/23-p7-implementation.md) added a third that did not exist when
+> the paragraph was written. A mode declares its own channels, the registry
+> enforces them, and the engine special-cases nothing — so:
+>
+> - **`mode.config` keeps the wizard's answer**, which is what *"opaque to the
+>   host"* was protecting, and is read as a rung rather than written.
+> - **The channel carries the live value**, so [06 §7.3.1]'s *"changeable
+>   mid-session, recorded as an effect like anything else"* is satisfied by the
+>   ordinary effect path with no special case in it.
+> - **A mode with no difficulty declares neither channel**, which is precisely
+>   the discrimination Setup could not express. Scene and Messages have none
+>   because of what they declare, not because a field was left blank.
+>
+> The two ids and the declaration live in the SDK (`sdk/src/dials.ts`) rather
+> than in each mode: a **surface** for a channel two modes declare independently
+> requires them to declare it under one id, and three policy choices restated per
+> mode is where they stop agreeing. *So the prediction held a third time in
+> substance — the dial did not inherit the problem — but for a new reason, and
+> the reason is worth the paragraph: the question was about where a value lives,
+> and P7 changed who may own a place for it to live.*
 
 ---
 

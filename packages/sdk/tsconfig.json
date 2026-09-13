@@ -3,7 +3,12 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    // `StepHost.signal` is an `AbortSignal`, which `lib: ["ES2023"]` does not
+    // declare — it is a host global, and the host an extension runs in is a
+    // Node worker ([22 §4.1]). `shared` takes the same types for the same
+    // reason, so this adds no dependency the contract did not already have.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   // Tests, and the helpers that exist only for them, are typechecked by

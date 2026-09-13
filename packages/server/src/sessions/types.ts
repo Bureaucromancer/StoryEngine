@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { BranchRef, ChannelState, Preset } from '@storyengine/shared';
+import type {
+  BranchRef,
+  ChannelState,
+  Goal,
+  ModelRole,
+  PlotHook,
+  Preset,
+  Setup,
+} from '@storyengine/shared';
+
+import type { Binding } from '../providers/types.js';
 
 /**
  * Sessions and turns on disk — [03 §5.5](../../../../docs/design/03-data-model.md),
@@ -72,8 +82,81 @@ export interface SessionFile {
    * Optional because every session written by P2.3 to P2.5 predates it, and a
    * read that healed the file would need the session lock, which is not
    * reentrant. Absent reads as the default mode.
+   *
+   * ***`config` is the wizard's answers, and it acquired its writer at [P7.4]***
+   * — 2026-09-12. *"How it was configured"* has meant this since P2.3 and was
+   * written `null` by every creation; the portable `Setup` names the same value
+   * the same way — `mode.config`, *"whatever the mode's own setup collected,
+   * stored verbatim, never interpreted by the host"*. **A first draft of P7.4
+   * put the answers in a `setup` field beside this one**, which was a second
+   * home for a value that already had one, and a name collision with the Setup
+   * object below. Corrected before anything depended on it.
+   *
+   * *A step reads the same value as `StepInput.setup`, and the two names are
+   * both the corpus's: the record calls it config, and a mode answering its own
+   * `SetupSchema` calls it setup — which is the split `Setup.mode.config`
+   * already draws.*
    */
   mode?: { id: string; config: unknown };
+  /**
+   * The **Setup** this session was created from, copied — [04 §7], [P7.4].
+   *
+   * ***Not the mode's wizard; the library object one word away from it.*** A
+   * `Setup` is *how to start playing* — a mode, a preset, a treatment, a cast to
+   * choose from, lore, hooks and goals — and [04 §7] is explicit that sessions
+   * are created from one **by copy**, so *"editing a Setup afterwards cannot
+   * reach a running session"* ([00 §3.1]). The same asymmetry the preset has,
+   * for the same reason.
+   *
+   * **It is what makes [04 §6.1b]'s middle rung reachable.** That section
+   * settles where an authored default may be written down — *"a Treatment
+   * proposes, a Setup overrides, and the running session owns it"* — and until
+   * this there was no Setup rung at all, because a session did not record which
+   * one it came from. A recorded finding of this phase, discharged.
+   *
+   * Absent for a session started from parameters rather than from a Setup,
+   * which is every session written before P7.4 and every one a person starts by
+   * pressing Start.
+   */
+  setup?: Setup;
+  /**
+   * The hook pool, with each hook's source — [03 §4.1], [06 §6.1], [P7.5].
+   *
+   * **The pool's fourth source finally has a home.** 03 §4.1 calls a session's
+   * own hooks *the primary path* for adding one mid-game, and until [P7.5] there
+   * was no field for them and no way to pass one — which is what that stage's
+   * cell records.
+   *
+   * **Copied at creation, which is [06 §6.1]'s *pulled, never pushed*** over
+   * [00 §3.1]: editing a treatment must not reach a game already in progress.
+   * The preset's asymmetry, not the cast's. *The copies keep their source hooks'
+   * ids, which is [15 §5]'s obligation and is pinned by a test rather than left
+   * to a `structuredClone` — a corpus of sessions whose hooks have unrelated ids
+   * cannot be retro-fitted into a continuity.*
+   *
+   * Absent for every session written before P7.5, and for one whose sources
+   * carried no hooks — which is different from a pool somebody emptied.
+   */
+  hooks?: PooledHook[];
+  /**
+   * What this session is trying to do, in order — [04 §7.1], [06 §7.3.3],
+   * [P7.6].
+   *
+   * ***A copy, like the pool and the pack and for the same reason***: a Setup is
+   * authored content and editing one must not reach a game in progress
+   * ([00 §3.1]). The chain is ordered, `goals[0]` is where play begins, and
+   * **Advance may write a goal that was never in the Setup** — [06 §7.3.4]'s
+   * *"set the next goal, either the authored `next` or one written now"*, which
+   * is the clause that makes this a session field rather than a link.
+   *
+   * *What has **happened** to a goal is not here*: that is `se.goal`, per-goal
+   * channel state, because a completion has to branch and a field does not.
+   *
+   * Absent for every session written before P7.6, and for one created from a
+   * Setup with no goals — which [04 §7.1] calls *"the deliberate opt-out rather
+   * than the default"*.
+   */
+  goals?: Goal[];
   /**
    * The session's own copy of its prompt pack — [03 §8].
    *
@@ -106,6 +189,35 @@ export interface SessionFile {
   treatment?: string | null;
   /** Extras beyond whatever the treatment already links — [03 §7]. */
   lore?: string[];
+  /**
+   * Model overrides for this session — [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+   * third and fourth layers, [P7 §1.9], built at [P7.3].
+   *
+   * *"Overrides layer on top in a fixed order: install default → role binding →
+   * **session override** → **step override** → actor hint."* `resolveRole` has
+   * implemented all of that since P2B and **nothing outside a test has ever
+   * passed either of these two** — which is what 19 §5.1's own table means by
+   * *"plumbed into `resolveRole` and never passed"*.
+   *
+   * **Here rather than in a mode or a preset, and that is a correction.**
+   * [P7 §1.9] says the step override's *"surface is the mode or preset
+   * declaration, not a panel"* — but 19 §5.1 opens with **"Steps never name a
+   * model… Nothing in a mode, step or extension refers to a provider or a model
+   * id — which is what makes an install portable, an extension safe to share"**.
+   * A `Binding` names a `connectionId`, which exists only on one install, so a
+   * mode or a portable preset cannot carry one without breaking the property
+   * that whole section is for. *A cheap model for one noisy step is an
+   * operator's decision about their own providers, not an author's about their
+   * story* — so it lives on the session, keyed by step id, beside the session
+   * override it layers under.
+   *
+   * Optional for the reason every field here is: a session written before this
+   * has neither, and absent reads as *no override*, which is what those sessions
+   * had.
+   */
+  roles?: Partial<Record<ModelRole, Binding>>;
+  /** Per-step overrides, keyed by `StepDefinition.id`. See {@link SessionFile.roles}. */
+  stepRoles?: Record<string, Binding>;
   /**
    * Named bookmarks on nodes — [07 §3], added at [P6.1].
    *
@@ -150,4 +262,39 @@ export interface SessionFile {
    * make "restorable, never swept" a second code path instead of a flag.
    */
   archivedAt?: string;
+}
+
+/**
+ * Where a pooled hook came from — [03 §4.1], [P7.5].
+ *
+ * **The lorebook arm carries the book's id for a reason that is mechanical
+ * rather than navigational.** 03 §4.1: *"a hook carried by a lorebook is only
+ * eligible while that lorebook is active in the session. That is a sensible
+ * default and a mechanical justification for the association, rather than 'it
+ * seemed handy'."* The filter reads this; without the id there would be nothing
+ * to check the session's live book list against.
+ *
+ * *The session arm carries no id because there is no object to navigate to — a
+ * session-local hook is owned by the session, which is the thing you are already
+ * looking at.*
+ */
+export type HookSource =
+  | { kind: 'treatment'; id: string }
+  | { kind: 'setup'; id: string }
+  | { kind: 'lore'; id: string }
+  | { kind: 'session' };
+
+/**
+ * One hook in a session's pool, with its attribution.
+ *
+ * **Here rather than in `sessions/hooks.ts`, and the reason is a build error
+ * this file has hit before** ([P7.3] moved `Binding` for it). This module is the
+ * session record's *shapes* and imports nothing that touches storage; `hooks.ts`
+ * imports the lore resolver, so a type declared there and referenced from
+ * `SessionFile` drags the whole storage layer into this file's type graph — and
+ * `write-file-atomic`'s missing declarations surface as the error that says so.
+ */
+export interface PooledHook {
+  hook: PlotHook;
+  source: HookSource;
 }

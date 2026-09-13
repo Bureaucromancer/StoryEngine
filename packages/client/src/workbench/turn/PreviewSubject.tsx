@@ -40,6 +40,12 @@ const UNMEASURABLE: Record<UnmeasurableReason, string> = {
   'role-dangling':
     'The prose role points at a connection that is gone, so there is no context window to measure against.',
   'no-prose-step': 'This mode narrates nothing, so there is no prompt to assemble.',
+  /**
+   * *A narrator that is not narrating this turn* — distinct from the line above
+   * it, which is a mode with no narrator at all ([P7.9]). Different sentence,
+   * different remedy: this one resolves itself by taking a turn.
+   */
+  'not-this-turn': 'This turn will not narrate, so there is no prompt to assemble.',
 };
 
 export function PreviewSubject({

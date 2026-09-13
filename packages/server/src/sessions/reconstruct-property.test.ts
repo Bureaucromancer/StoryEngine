@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newLorebook, newLoreEntry, uuidv7, type LoreEntry } from '@storyengine/shared';
 
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { installBuiltIns } from '../mode-loader.js';
+import { TEST_PRESET } from '../test-mode.js';
 import { retrieve, type Retrieved } from '../retrieval/retrieve.js';
 import {
   advanceTiming,
@@ -98,6 +99,10 @@ let context: SessionContext;
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-reconstruct-'));
+  // Channels are registered rather than frozen into the engine since [P7.0], so
+  // a test that needs one asks for the built-ins the way `buildServices` does.
+  await installBuiltIns();
+
   index = await openIndex({ path: ':memory:' });
   context = {
     layout: new Layout(dataDir),
@@ -196,7 +201,7 @@ function playTurn(sessionId: string, parent: Played | null, text: string, at: nu
 
   const retrieved = retrieve({
     lore: { treatment: null, books: [BOOK], missing: [] },
-    preset: SCENE_PRESET,
+    preset: TEST_PRESET,
     history,
     input: { text },
     channels: running,

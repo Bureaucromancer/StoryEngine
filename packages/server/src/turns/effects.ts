@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { EffectProposal } from '@storyengine/sdk';
 import { uuidv7 } from '@storyengine/shared';
 
+import { schemaFailure } from '../sessions/channel-schema.js';
 import { channelDefinition, channelKey } from '../sessions/channels.js';
-import type { ChannelEffect, ChannelState, EffectOp } from '../sessions/types.js';
+import type { ChannelEffect, ChannelState } from '../sessions/types.js';
 
 /**
  * Turning a proposal into a recorded effect — [21 §1.2](../../../../docs/design/21-internal-contracts.md).
@@ -16,14 +18,12 @@ import type { ChannelEffect, ChannelState, EffectOp } from '../sessions/types.js
  * why nothing happened.
  */
 
-/** What a step hands back. It cannot stamp `before`, `applied` or an id. */
-export interface EffectProposal {
-  channelId: string;
-  scopeKey?: string | null;
-  op: EffectOp;
-  after: unknown;
-  proposedBy: ChannelEffect['proposedBy'];
-}
+/**
+ * What a step hands back. It cannot stamp `before`, `applied` or an id — moved
+ * to `@storyengine/sdk` at [P7.0] and re-exported here, because a step proposes
+ * and only the engine can record a decision.
+ */
+export type { EffectProposal } from '@storyengine/sdk';
 
 /**
  * Decides one proposal against the channel state as it stands *within this turn*.
@@ -40,15 +40,33 @@ export function acceptEffect(
   running: Record<string, ChannelState>,
   supersedes: string | null = null,
 ): ChannelEffect {
-  // **Only a whole-value set, at P2.5.** `applyEffects` (`sessions/store.ts`)
-  // reads `op.path` for nothing but `delete` and replaces the entire channel
-  // value with `after`, so an `increment` carrying a sub-value would silently
-  // clobber the channel rather than adding to it. Refusing here is a programmer
-  // error rather than a rejected effect: nothing in P2 produces one, and the day
-  // something does, `applyEffects` is what has to change first.
+  /**
+   * **Only a whole-value set.** `applyEffects` (`sessions/store.ts`) reads
+   * `op.path` for nothing but `delete` and replaces the entire channel value
+   * with `after`, so an `increment` carrying a sub-value would silently clobber
+   * the channel rather than adding to it. Refusing here is a programmer error
+   * rather than a rejected effect: nothing produces one, and the day something
+   * does, `applyEffects` is what has to change first.
+   *
+   * ~~*at P2.5*~~ — **a decision rather than a stage's leftover since
+   * [P7 §0.2](../../../../docs/design/workplan/23-p7-implementation.md) item 6,
+   * 2026-09-11.** The first candidate for a partial op was P7.2's party
+   * membership, *"a timeline that grows"*, and it turned out not to need one:
+   * `scopeKey` already partitions a channel's value, so an actor-scoped party
+   * carries one actor's records per effect rather than the party's history.
+   *
+   * **And the reason to keep it this way is correctness rather than economy.**
+   * Whole-value replacement is what makes replay-from-zero equal
+   * snapshot-plus-replay *by construction* — the P6 gate — and what makes an
+   * inverse a swap rather than a computation. Every partial op is a reducer: a
+   * second implementation of the value's semantics that the gate has to be
+   * re-proved against and that `before` has to be able to invert. So an arm is
+   * implemented when a channel genuinely needs it, and that channel first has to
+   * say why its value cannot be scoped instead.
+   */
   if (proposal.op.type !== 'set' || proposal.op.path !== '/') {
     throw new Error(
-      `Only a whole-value set is applicable at P2.5; got ${proposal.op.type} at ` +
+      `Only a whole-value set is applicable; got ${proposal.op.type} at ` +
         `${'path' in proposal.op ? proposal.op.path : '?'}. See sessions/store.ts applyEffects.`,
     );
   }
@@ -68,7 +86,27 @@ export function acceptEffect(
     scopeKey: proposal.scopeKey ?? null,
     op: proposal.op,
     before,
-    after: refusal === null ? proposal.after : before,
+    /**
+     * ***The value that was proposed, whether or not it was applied*** —
+     * corrected at [P7.2], 2026-09-11.
+     *
+     * This stamped `before` into `after` on a refusal, so a rejected effect
+     * recorded that *something* was refused and not *what*. That contradicts the
+     * sentence [21 §1.2](../../../../docs/design/21-internal-contracts.md) uses
+     * to justify recording refusals at all — *"the model tried to give itself
+     * forty gold and the engine said no, and a system that dropped the attempt
+     * would leave the workbench unable to explain why nothing happened"* — since
+     * the forty gold was exactly what got dropped. The workbench's effect list
+     * rendered `08:00 → 08:00` and said *Rejected* beside it.
+     *
+     * **`applied` is what says whether it happened**, and every reader already
+     * honours it: `applyEffects` and `undoTurn` both skip an unapplied effect
+     * before touching `after`. So the field can mean *proposed* without changing
+     * a single replay — checked rather than assumed, and it is what lets P7.2's
+     * cast panel say *the narrator says Vera died* rather than merely *something
+     * was refused*.
+     */
+    after: proposal.after,
     proposedBy: proposal.proposedBy,
     applied: refusal === null,
     rejectedReason: refusal,
@@ -110,5 +148,64 @@ function refuse(
   if (definition.update === 'user-only' && by !== 'user') {
     return 'user-only';
   }
+
+  /**
+   * **The cause [21 §1.2](../../../../docs/design/21-internal-contracts.md)
+   * lists first and nothing had ever produced** — `rejectedReason` is documented
+   * as *"validation failure, an engine-computed rule overriding a model
+   * proposal, or a policy refusal"*, and until [P7.1] gave `ChannelDefinition` a
+   * `schema` the first of those three was unreachable. Policy refusals were the
+   * whole vocabulary.
+   *
+   * **Checked last, after the policy rules, and the order is a decision.** A
+   * model proposing a malformed value to a channel it is not allowed to touch
+   * gets `engine-computed`, not `schema`: *who may write* is the more useful
+   * sentence for the person reading the workbench, because the remedy differs —
+   * a policy refusal means the proposal was never going to land however it was
+   * shaped, while a schema refusal means this one nearly did.
+   *
+   * ~~**And this is what stops a hand edit from poisoning the log.**~~
+   * ***Corrected the same day it was written: this function is not on that
+   * path.*** `reconcileHandEdits` builds its effects in
+   * `sessions/channels.ts`'s `divergenceEffects` and never calls
+   * `acceptEffect`, so nothing here has ever seen a hand edit — not the schema
+   * check and not the policy rules above it. The hand-edit path consults the
+   * schema *there*, in the same commit that corrected this paragraph, and
+   * `channel-schema.ts` takes a definition rather than an id precisely so that
+   * module can import it without a cycle.
+   *
+   * *The policy rules were never the gap they look like, which is worth saying
+   * so nobody "fixes" it: `engine-computed` refuses `model` and `step`, and
+   * `user-only` refuses everything but `user` — so a person editing their own
+   * file is permitted by both, deliberately. Only the schema check had anything
+   * to say about a hand edit, and only there.*
+   */
+  /**
+   * **The loaded values a model may not set on its own** — [06 §8.1], [25 C12],
+   * [P7.2].
+   *
+   * Checked before the schema, because a proposal that is both loaded *and*
+   * malformed is more usefully answered as the first: *this one needs a person*
+   * is a sentence with a next step, and `schema` on a value the model was never
+   * going to be allowed to set would send somebody looking for a typo.
+   *
+   * **Only `model` and `step`, which is the same line `engine-computed`
+   * draws.** A person setting a status to `dead` is the manual path 25 C12
+   * calls *always-available*, and the engine setting one is a computation that
+   * has already been decided. What is under-fired is the model's casual
+   * killing.
+   */
+  if (
+    (by === 'model' || by === 'step') &&
+    typeof proposal.after === 'string' &&
+    definition.confirm?.includes(proposal.after) === true
+  ) {
+    return 'needs-confirmation';
+  }
+
+  if (schemaFailure(definition, proposal.after) !== null) {
+    return 'schema';
+  }
+
   return null;
 }

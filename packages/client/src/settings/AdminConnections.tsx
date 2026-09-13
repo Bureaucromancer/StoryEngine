@@ -3,12 +3,8 @@
 
 import { useState, type JSX } from 'react';
 
-import {
-  ApiError,
-  type AdminConnection,
-  type ConnectionCapabilities,
-  type RoleRow,
-} from '../api.js';
+import { ApiError, type AdminConnection, type ConnectionCapabilities } from '../api.js';
+import { roleLabel, roleModel, roleSource } from './roleWords.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { SecretField } from '../ui/SecretField.js';
 import {
@@ -628,12 +624,20 @@ function RemoveConnectionDialog({
  * `prose` reporting `unbound` is an install nobody can play on. Shown alike,
  * they would send an admin hunting a fault that is not there.
  *
- * **And one column is deliberately absent.** [10 §15.1] wants a user to see
- * which of their bindings are personal and which fall through to the install —
- * that is the user half, and it waits for the phase that may write a personal
- * binding. This is the same component with that column not yet populated
- * ([P2B §2.7]), which is a minimal demonstration rather than a placeholder:
- * nothing here is discarded when the second column arrives.
+ * ~~**And one column is deliberately absent.**~~ **The user half arrived and it
+ * is a second table, not a second column** — [P7.3], 2026-09-12. [10 §15.1]
+ * wants a user to see which of their bindings are personal and which fall
+ * through to the install; `MyRoles` is that, keyed under `me` so it mounts for
+ * a non-admin, and this component stayed exactly as it was. *The old note said
+ * nothing here would be discarded when the second column arrived, and nothing
+ * was — what it got wrong is that the two questions are asked by different
+ * people: **what has this install got** is the admin's, and **what will my
+ * stories do** is everyone's. One table answering both would have had to be
+ * rendered for a non-admin and then hide half of itself.* The **vocabulary** is
+ * what the two share, and it moved to `roleWords.ts` so they cannot describe
+ * the same resolution differently — including the *"Your own setting"* branch
+ * this table could never reach, which was written for that phase and now has a
+ * caller.
  */
 function RoleTable(): JSX.Element {
   const roles = useRoles();
@@ -731,48 +735,6 @@ function bindingCount(count: number): string {
   return count === 1
     ? '1 role points at this connection. It will fall back to the install default, or stop working if there is none.'
     : `${String(count)} roles point at this connection. They will fall back to the install default, or stop working if there is none.`;
-}
-
-/**
- * The eight roles, in words somebody who did not write this can read.
- *
- * The vocabulary is [19 §5.1]'s and it stays the vocabulary — this only decides
- * what the *table* says, and every id it does not know falls through to itself
- * rather than to a blank cell.
- */
-const ROLE_LABELS: Record<string, string> = {
-  prose: 'Writing the story',
-  reasoning: 'Working things out',
-  fast: 'Quick background jobs',
-  vision: 'Reading images',
-  embedding: 'Searching your library',
-  image: 'Making images',
-  video: 'Making video',
-  speech: 'Speech',
-};
-
-function roleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role;
-}
-
-function roleModel(row: RoleRow): string {
-  if (row.ok && row.modelId !== undefined) return row.modelId;
-  return row.tier === 'unset' ? 'Nothing yet' : 'Nothing — this will fail';
-}
-
-function roleSource(row: RoleRow): string {
-  if (row.ok) {
-    const label = row.connectionLabel ?? row.connectionId ?? '';
-    return row.via === 'binding'
-      ? `Your own setting, on ${label}`
-      : `This install's default, on ${label}`;
-  }
-  if (row.reason === 'dangling') {
-    return 'The connection this was set to has been removed. Set it to another one.';
-  }
-  return row.tier === 'unset'
-    ? 'Nothing can do this yet, and nothing needs to.'
-    : 'Nothing is set for this, so anything that needs it will fail.';
 }
 
 /** The three states the usage override has, one of which is *do not override*. */

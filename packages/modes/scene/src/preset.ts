@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Preset } from '@storyengine/shared';
+import type { Preset } from '@storyengine/sdk';
 
 /**
  * Scene's default prompt pack — a real, valid portable `Preset`.
@@ -294,6 +294,49 @@ export const SCENE_PRESET: Preset = {
       kind: 'slot',
       source: {
         of: 'history',
+      },
+    },
+    /**
+     * ***What the story is trying to do*** — [06 §7.3.3], [04 §8.2], added at
+     * [P7.6](../../../../docs/design/workplan/23-p7-implementation.md).
+     *
+     * *"The goal statement is therefore always injected, and difficulty
+     * fragments are written to reference it."* The slot kind has been in the
+     * published preset schema since P2 with nothing filling it; the producer is
+     * the session's own goal chain and the cursor over it.
+     *
+     * **In the pack rather than in engine code**, which is what *always
+     * injected* has to mean in a build where assembly is a preset's job: a
+     * statement the engine spliced in would be a block the block table could not
+     * explain and an author could not move.
+     *
+     * *A high priority and above the guidance box*, because what the story is
+     * for outranks an instruction about this turn of it — and `omitWhenEmpty`,
+     * because a session with no goal is [04 §7.1]'s deliberate opt-out rather
+     * than a heading with nothing under it.
+     *
+     * ***Scene declares no goals of its own and this is still Scene's pack.***
+     * A `Goal` lives on a **Setup**, which is authored content ([06 §7.3.3]:
+     * *"the condition belongs to whoever wrote the game rather than to the mode
+     * running it"*), so any mode can be played toward one and the default pack
+     * is where every mode's default assembly is written down.
+     */
+    {
+      id: 'se.goal',
+      label: 'goal',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 75,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper: 'What you are working toward: {{content}}',
+      source: {
+        of: 'goal',
       },
     },
     {

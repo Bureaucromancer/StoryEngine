@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_CONFIG } from '../config.js';
-import { SCENE_MODE } from '../modes/scene/mode.js';
+import { TEST_MODE } from '../test-mode.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import type { Connection } from '../providers/connections.js';
 import type { Provider } from '../providers/types.js';
@@ -47,7 +47,7 @@ function providerFor(): Provider {
 }
 
 function context(over: Partial<PlanContext> = {}): PlanContext {
-  const narrate = SCENE_MODE.definition.steps[0];
+  const narrate = TEST_MODE.definition.steps[0];
   if (narrate === undefined) throw new Error('Scene declares no steps.');
   return {
     definition: narrate,
@@ -90,7 +90,7 @@ describe('planning a call', () => {
 
     expect(call).not.toHaveProperty('id');
     expect(call).not.toHaveProperty('startedAt');
-    expect(call.stepId).toBe(SCENE_MODE.definition.steps[0]?.id);
+    expect(call.stepId).toBe(TEST_MODE.definition.steps[0]?.id);
     expect(call.purpose).toBe('prose');
     expect(call.blocks.map((block) => block.id)).toEqual(['se.instruction', 'se.input']);
     expect(call.budget.limit.tokens).toBeGreaterThan(0);
@@ -180,5 +180,282 @@ describe('planning a call', () => {
     const generate = vi.fn();
     expect(() => planCall(context(), {}, CANDIDATES)).not.toThrow();
     expect(generate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * **[19 §5.1]'s override layers, passed at last** — [P7 §1.9], [P7.3].
+ *
+ * `resolveRole` has implemented five layers since P2B and three of the four
+ * built ones had **no production caller**: session, step and the actor hint.
+ * 19 §5.1's table exists precisely so *"the order above is not read as a
+ * description of what runs"* — and for two of those layers it described a
+ * function nobody called. These are the tests that make the description true.
+ *
+ * *A second connection is the whole fixture: an override that pointed at the
+ * same connection as the binding would pass whether or not it was consulted.*
+ */
+describe('a session overriding a model', () => {
+  const OTHER: Connection = {
+    ...CONNECTION,
+    id: '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99',
+    label: 'The cheap one',
+    models: ['fake-lo'],
+  };
+
+  it('uses the session override in place of the role binding', () => {
+    const plan = planCall(
+      context({
+        usable: [CONNECTION, OTHER],
+        sessionRoles: { prose: { connectionId: OTHER.id, modelId: 'fake-lo' } },
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-lo');
+    expect(plan.connection.id).toBe(OTHER.id);
+  });
+
+  it('lets a step override beat the session override, which is the documented order', () => {
+    // *"install default → role binding → session override → step override →
+    // actor hint."* A step override that lost to the session one would make the
+    // *cheap model for one noisy step* case unreachable.
+    const narrate = TEST_MODE.definition.steps[0];
+    if (narrate === undefined) throw new Error('the test mode declares no steps');
+
+    const plan = planCall(
+      context({
+        usable: [CONNECTION, OTHER],
+        sessionRoles: { prose: { connectionId: CONNECTION.id, modelId: 'fake-hi' } },
+        stepRoles: { [narrate.id]: { connectionId: OTHER.id, modelId: 'fake-lo' } },
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-lo');
+  });
+
+  it('ignores a step override meant for a different step', () => {
+    // Keyed by step id, so *one noisy step* means one — and an override keyed
+    // wrongly must not quietly apply to everything.
+    const plan = planCall(
+      context({
+        usable: [CONNECTION, OTHER],
+        stepRoles: { 'some.other.step': { connectionId: OTHER.id, modelId: 'fake-lo' } },
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('falls back to the binding when the session names no override for that role', () => {
+    const plan = planCall(context({ usable: [CONNECTION, OTHER], sessionRoles: {} }), {}, []);
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+});
+
+/**
+ * **[19 §5.1]'s last and weakest layer, reached at last** — [P7 §1.9], [P7.3].
+ *
+ * §1.9 found the actor hint in the same state as the session and step layers —
+ * *"never passed either"* — and named the reason: *"today one turn makes one
+ * merged call and an actor is not in the resolution at all."* The fix is putting
+ * the actor into it: a step says who it speaks for, and the engine finds the
+ * card.
+ *
+ * **The two properties that matter are what it may and may not do.** [04 §3]
+ * calls a `ModelHint` *"a preference, never a binding — an imported card may
+ * express what it wants; it can never repoint anyone's provider"*, and
+ * `resolveRole` enforces that by applying it last and weakest. Both halves are
+ * asserted, because a hint that could change the connection would make importing
+ * somebody else's card a way to redirect your own API calls.
+ */
+describe('an actor’s model hint', () => {
+  const TWO_MODELS: Connection = { ...CONNECTION, models: ['fake-hi', 'fake-alt'] };
+  const OTHER: Connection = {
+    ...CONNECTION,
+    id: '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99',
+    label: 'Somebody else’s',
+    models: ['fake-lo'],
+  };
+
+  function withHint(hint: unknown): NonNullable<PlanContext['cast']> {
+    return {
+      persona: null,
+      actors: [
+        {
+          actor: { id: 'actor-vera', modelHint: hint } as never,
+          contentHash: 'sha256:x',
+        },
+      ],
+    };
+  }
+
+  it('picks among the models the resolved connection already offers', () => {
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-alt'] }),
+      }),
+      { actorId: 'actor-vera' },
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-alt');
+  });
+
+  it('never changes the connection, which is what stops a card repointing a provider', () => {
+    // An imported card asking for a model on somebody else's connection gets
+    // the binding's connection and the binding's model. The preference is
+    // unmet, not obeyed.
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS, OTHER],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-lo'] }),
+      }),
+      { actorId: 'actor-vera' },
+      [],
+    );
+
+    expect(plan.connection.id).toBe(TWO_MODELS.id);
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('ignores a hint for a different role', () => {
+    // **The half easiest to drop.** `ModelHint` carries a `role`, so a card
+    // preferring a particular `reasoning` model is saying nothing about which
+    // model narrates — and applying it anyway would leak a preference into every
+    // call it was never about.
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'reasoning', preferredModelIds: ['fake-alt'] }),
+      }),
+      { actorId: 'actor-vera' },
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('applies nothing when the call names no actor, which is a merged call', () => {
+    // `dispatch: 'merged'` is one reply for the scene, spoken by nobody in
+    // particular — and every shipped step makes one.
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-alt'] }),
+      }),
+      {},
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+
+  it('applies nothing for an actor who is not in the cast', () => {
+    const plan = planCall(
+      context({
+        usable: [TWO_MODELS],
+        bindings: { prose: { connectionId: TWO_MODELS.id, modelId: 'fake-hi' } },
+        cast: withHint({ role: 'prose', preferredModelIds: ['fake-alt'] }),
+      }),
+      { actorId: 'actor-nobody' },
+      [],
+    );
+
+    expect(plan.call.resolved.modelId).toBe('fake-hi');
+  });
+});
+
+/**
+ * The degrade, decided in the plan — [P7.4].
+ *
+ * `GenerationRequest.schema` says the choice belongs to the caller *"with the
+ * capabilities in hand"* rather than inside the adapter, and this is that
+ * caller. For a self-hosted install it is the ordinary path rather than a
+ * fallback: `openai-compatible` declares `supportsStructuredOutput: false`
+ * because the endpoint behind it could be anything, so out of the box the SDK
+ * drops the schema and asks for bare JSON.
+ */
+describe('asking for a shape in words', () => {
+  const SCHEMA = {
+    type: 'object',
+    properties: { name: { type: 'string' } },
+    required: ['name'],
+    additionalProperties: false,
+  };
+
+  function planWith(supportsStructuredOutput: boolean) {
+    const provider = {
+      capabilities: capabilitiesFor('openai-compatible', { supportsStructuredOutput }),
+      generate: () => {
+        throw new Error('planCall must not dispatch.');
+      },
+    } as unknown as Provider;
+
+    return planCall(context({ providers: () => provider }), { schema: SCHEMA }, CANDIDATES);
+  }
+
+  it('adds the instruction when the endpoint cannot be handed a schema', () => {
+    const { call } = planWith(false);
+
+    expect(call.blocks.map((block) => block.id)).toEqual([
+      'se.instruction',
+      'se.input',
+      'se.schema',
+    ]);
+    // Last, because an instruction about the reply's form belongs after the
+    // material it is about — which is also where an endpoint's own JSON mode
+    // puts it.
+    expect(call.blocks.at(-1)?.source).toEqual({ kind: 'schema' });
+  });
+
+  it('leaves it out when the wire is going to carry the schema itself', () => {
+    const { call } = planWith(true);
+
+    expect(call.blocks.map((block) => block.id)).toEqual(['se.instruction', 'se.input']);
+  });
+
+  it('adds nothing at all to a call that asked for no shape', () => {
+    const { call } = planCall(context(), {}, CANDIDATES);
+
+    expect(call.blocks.map((block) => block.id)).toEqual(['se.instruction', 'se.input']);
+  });
+
+  /**
+   * **The reason it is a block and not a spliced-in message.**
+   * `RenderedMessage.fromBlocks` is non-empty always, so every message the
+   * record shows is accounted for by a block — and the workbench's account of a
+   * prompt would otherwise be quietly incomplete on precisely the calls whose
+   * output is hardest to debug.
+   */
+  it('is accounted for in the messages the record carries', () => {
+    const { call } = planWith(false);
+
+    const named = new Set(call.messages.flatMap((message) => message.fromBlocks));
+    expect(named.has('se.schema')).toBe(true);
+    for (const message of call.messages) {
+      expect(message.fromBlocks.length).toBeGreaterThan(0);
+    }
+    // And the text reached the prompt rather than only the block table.
+    expect(call.messages.map((message) => message.content).join('\n')).toContain(
+      JSON.stringify(SCHEMA),
+    );
+  });
+
+  it('survives the budgeter, because a call without it is meaningless', () => {
+    const { call } = planWith(false);
+
+    expect(call.blocks.find((block) => block.id === 'se.schema')?.included).toBe(true);
   });
 });

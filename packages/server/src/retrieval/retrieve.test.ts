@@ -14,7 +14,7 @@ import {
   type Preset,
 } from '@storyengine/shared';
 
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { TEST_PRESET } from '../test-mode.js';
 import { Rng } from '../rng/rng.js';
 import { seededSource } from '../rng/source.js';
 import { channelKey, SE_LORE_TIMING } from '../sessions/channels.js';
@@ -61,7 +61,7 @@ function run(
 ): ReturnType<typeof retrieve> {
   return retrieve({
     lore: { treatment: null, books, missing: [] },
-    preset: SCENE_PRESET,
+    preset: TEST_PRESET,
     history: [],
     channels: {},
     persona: null,
@@ -273,8 +273,8 @@ describe('retrieve', () => {
         outletName: 'rules',
       });
       const withOutlet: Preset = {
-        ...SCENE_PRESET,
-        blocks: SCENE_PRESET.blocks.map((block) =>
+        ...TEST_PRESET,
+        blocks: TEST_PRESET.blocks.map((block) =>
           block.kind === 'slot' && block.source.of === 'lore'
             ? { ...block, source: { ...block.source, outlet: 'rules' } }
             : block,

@@ -161,6 +161,25 @@ type EffectOp =
   | { type: "increment"; path: string; by: number }
 ```
 
+***Four of the five arms are unimplemented, by decision rather than by backlog —
+recorded 2026-09-11 at [P7 §0.2](workplan/23-p7-implementation.md).*** `acceptEffect`
+throws a *programmer error* on anything but `set` at `/`, because `applyEffects`
+replaces the whole value at a key. The first candidate for a partial op was P7.2's
+party membership — a timeline that grows ([06 §8](06-modes-and-turn-pipeline.md))
+— and it turned out not to need one: `scopeKey` already partitions a channel's
+value, so an actor-scoped party makes each effect carry one actor's records
+instead of the party's history.
+
+**The reason to keep them unimplemented is §1.2.1's, not economy.** Whole-value
+replacement is what makes replay-from-zero equal snapshot-plus-replay by
+construction, and what makes an inverse a *swap*. Every partial op is a reducer —
+a second implementation of the value's semantics that the replay assertion has to
+be re-proved against and that `before` must be able to invert. So an arm is
+implemented when a channel genuinely needs it, and that channel first has to say
+why its value cannot be scoped instead. *The arms stay in the type because they
+are the vocabulary a channel would declare against; a type is cheaper to keep
+than a migration is to run.*
+
 #### 1.2.1 Why `before` is stored rather than derived
 
 It looks redundant — the previous state is replayable — and storing it makes
@@ -237,8 +256,16 @@ interface ChannelState {
 }
 ```
 
-`ChannelDefinition` is [06 §4](06-modes-and-turn-pipeline.md)'s, with one field
-that section describes in prose and does not show:
+`ChannelDefinition` is [06 §4](06-modes-and-turn-pipeline.md)'s ~~, with one
+field that section describes in prose and does not show~~ — ***and it was four
+rather than one, corrected in 06 §4 on 2026-09-11.*** That sketch was missing
+`version` and `visibility` outright, wrote `owner` without the `PackageId` its
+own §4.1 requires from the first definition written, and named an `UpdatePolicy`
+alias that exists nowhere. **The occasion was P7.0 publishing this type through
+`@storyengine/sdk`**: a sketch that disagrees with a shipped contract is a design
+note the first mode author reads and is misled by, so the disagreement had to be
+spent at the moment of publication rather than discovered by whoever built
+against it.
 
 ```ts
 interface ChannelDefinition {
@@ -249,12 +276,25 @@ interface ChannelDefinition {
   owner: ModeId | ExtensionId | PackageId   // package: [06 §4.1], 6.0
   version: number                            // paired with ChannelState.version
   schema: JSONSchema
-  scope: "session" | "actor" | "entry"
+  /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it —
+   *  a hook's firing state is per hook and a goal's is per goal, and neither
+   *  is expressible as a session or an actor scope. */
+  scope: "session" | "actor" | "entry" | "hook" | "goal"
   init: InitPolicy
   update: "model-proposed" | "engine-computed" | "user-only"
   visibility: "player" | "hidden"            // [06 §7.3]
   budget: number | null
+  /** How the value reads *in a prompt*, as a template — the injection half of
+   *  the contract, shipped at P7.1 beside `budget`, which was `null` on every
+   *  channel until something could render one. [06 §4] */
+  render?: string
+  /** How the value reads *to a person*. A different sentence from `render`,
+   *  and both are declarations rather than code. [10 §8] */
   surface?: WidgetSpec
+  /** Terminal values a person has to confirm before they apply — P7.2, and the
+   *  field [25 C12](25-open-questions.md)'s resolution turns on: a model may
+   *  propose that a goal was achieved, and a person says whether it was. */
+  confirm?: readonly string[]
   /** Optional, and optional deliberately — most schema evolution never needs
    *  one. Must be pure and deterministic: it sits inside the replay path.
    *  [06 §4.2] */
@@ -262,11 +302,26 @@ interface ChannelDefinition {
 }
 ```
 
-**What P2 actually ships of this type**: `id`, `owner`, `version`, `scope`,
+~~**What P2 actually ships of this type**: `id`, `owner`, `version`, `scope`,
 `update`, `visibility` and `budget`. `schema`, `init` and `migrate` are absent —
 `InitPolicy` is itself deferred by §6, and a `migrate` hook sits inside the
 replay path, so guessing its contract before a channel needs one is the thing §6
-refuses to do for `WidgetSpec`.
+refuses to do for `WidgetSpec`.~~
+
+***Corrected 2026-09-13: one is absent, not three.*** `schema` and `init` both
+shipped at [P7.1](workplan/23-p7-implementation.md) — `init` **required**, which
+is the stronger form — and `render`, `surface` and `confirm` arrived at P7.1,
+P7.1 and P7.2. **Only `migrate` is still absent**, and its argument is unchanged
+and is its own rather than §6's: a hook inside the replay path should not have
+its contract guessed before a channel needs one, and none has.
+
+*The drift is worth naming because this block's preamble exists to prevent it.*
+That paragraph was added at P7.0, and it says a sketch disagreeing with a shipped
+contract *"is a design note the first mode author reads and is misled by"* — and
+then the sketch drifted one stage later, four fields deep, for fifteen stages.
+**A note saying keep this in step is not a mechanism**; what would be one is the
+`docs` project growing a check that the sketch's field set matches the SDK's, and
+that is worth more than another paragraph asking.
 
 **`InitPolicy` now has a named first consumer, which is how §6 wanted it to
 arrive.** The hook-pacing dial ([06 §6.1](06-modes-and-turn-pipeline.md),
@@ -712,10 +767,21 @@ Each `live` key is `applied` or `unread`, a test fails on a `live` key with no
 entry and on an entry for a key that is not `live`, and the table ships to the
 client so the settings form can put the `unread` ones in a group that says so.
 
-`limits.maxUploadMb` is the standing example. The key names uploads and will
+~~`limits.maxUploadMb` is the standing example. The key names uploads and will
 apply live when there is an upload route; there is not one, and Fastify fixes
-`bodyLimit` when the instance is constructed. Re-tiering it to `restart` to match
-today's implementation would lock the shortcut into the contract, which
+`bodyLimit` when the instance is constructed.~~ ***The example graduated, which
+is the outcome it was chosen to illustrate*** (corrected 2026-09-13). `POST
+/api/import/file` shipped at [P4.1](workplan/16-p4-implementation.md) and reads
+the key **per request** rather than at construction, so the applier moved from
+`unread` to `applied` and [`api.md`](../api.md) says so where the route's `413`
+is documented. **Three phases as a live key nobody read, then a reader** — which
+is precisely why re-tiering it to `restart` would have been the wrong repair.
+
+*The standing example is now `trash.retentionDays`*, and it is the same shape one
+subsystem along: deletion is a move to trash ([03 §10.2](03-data-model.md)) and
+the sweep that would honour a retention window is P11's, so the key names a
+behaviour nothing performs. Re-tiering it to match today's implementation would
+lock the shortcut into the contract, which
 [P2 §3](workplan/08-p2-implementation.md) declined for that reason and
 [P2A §2.5](workplan/09-p2a-configuration-surface.md) agreed with after its first
 draft got it wrong.
@@ -726,8 +792,13 @@ changes.**
 
 This exists because a settings surface that shows a control doing nothing is the
 placeholder [work plan §2.2](workplan/01-work-plan.md) forbids, and remembering
-which keys are which is not a mechanism. Of the eleven keys tiered `live` at
-P2A, five are applied and six are honestly declared unread.
+which keys are which is not a mechanism. ~~Of the eleven keys tiered `live` at
+P2A, five are applied and six are honestly declared unread.~~ **Thirteen are
+tiered `live` today; nine are applied and four are honestly declared unread**
+(counted 2026-09-13). *The direction of travel is the point rather than the
+figures* — the table was designed so that a key acquiring a reader is a one-word
+edit and a visible one, and two phases of ordinary work moved four keys across
+it without anybody re-tiering anything.
 
 **Two repairs P2A made so the table would not be mostly lies.**
 `applyLiveConfig` replaced the running config object rather than assigning into
@@ -808,7 +879,7 @@ per token would make this the wrong trade.
 | Structure | Why not here |
 |---|---|
 | Preset internals beyond [04 §8](04-schemas.md) | Portable; 13 owns it |
-| `InitPolicy`, `WidgetSpec` | Want the mode contract built first |
+| ~~`InitPolicy`, `WidgetSpec`~~ | ~~Want the mode contract built first~~ **Both arrived, 2026-09-13.** The contract is `packages/sdk`, shipped at [P7.0](workplan/23-p7-implementation.md); both types shipped at P7.1, one stage later. §1.3 carries `InitPolicy`; `WidgetSpec` has three consumers — `ChannelDefinition.surface`, `SurfaceContribution.widget` ([P7.11](workplan/23-p7-implementation.md)) and the session read's renderer — so the admission rule below is met twice over. **This row was quoted as live by [06 §4](06-modes-and-turn-pipeline.md) and by the SDK's own docstring**, which is why it is struck rather than deleted: the deferral was right, it expired, and the documents that leaned on it have to be able to see that |
 | Rule vocabulary (`Predicate`, `Effect`) | 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) |
 | The SSE wire format | [09 §3.3](09-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
 | Extension `HostApi` | [22 §4](22-extensions.md) owns it |
@@ -816,3 +887,10 @@ per token would make this the wrong trade.
 **The rule for adding to this document:** a type belongs here when something is
 *built against it* and it never leaves the install. A type that only one module
 uses belongs in that module.
+
+***And the rule is what retired the row above rather than a decision to retire
+it*** (2026-09-13). Both types acquired consumers at P7.1, which is the condition
+this paragraph states; the table row stayed for fifteen stages because nothing
+re-read it. **A deferral list is a claim about the present tense and goes stale
+like any other** — the same failure §1.3's own preamble was added to prevent one
+section down.

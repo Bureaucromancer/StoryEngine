@@ -16,6 +16,8 @@ import type { Config } from '../config.js';
 import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { resolveRole, type RoleBindings } from '../providers/roles.js';
+import type { Binding } from '../providers/types.js';
+import type { CastMember } from './cast.js';
 import {
   ProviderError,
   type FinishReason,
@@ -27,6 +29,7 @@ import {
 import type { ModelCall } from '../sessions/types.js';
 import { budgetPolicyFor, type PresetBudget } from './budget.js';
 import { callPurposeFor, type StepCallRequest, type StepDefinition } from './steps.js';
+import { missMessage, needsPrompting, schemaInstruction, schemaMiss } from './structured.js';
 
 /**
  * One model call, and the record of it — [21 §1.4].
@@ -108,6 +111,32 @@ export interface CallContext {
   /** The install defaults this account's bindings fall back to ([P2B §2.1]). */
   defaults?: RoleBindings;
   usable: Connection[];
+  /**
+   * The session's own model overrides — [19 §5.1]'s third and fourth layers,
+   * [P7 §1.9], threaded at [P7.3].
+   *
+   * **`resolveRole` has implemented these since P2B and nothing outside a test
+   * has ever passed them**, which is what 19 §5.1's table means by *"plumbed
+   * into `resolveRole` and never passed"*. The layering was a description of a
+   * function rather than of what runs; this is the line that makes the two the
+   * same.
+   *
+   * Optional, so every existing caller reads as *no override* — which is what a
+   * session written before [P7.3] has.
+   */
+  sessionRoles?: Partial<Record<ModelRole, Binding>>;
+  /** Per-step overrides, keyed by step id. See {@link CallContext.sessionRoles}. */
+  stepRoles?: Record<string, Binding>;
+  /**
+   * The cast, so a call naming an actor can be resolved with that actor's hint
+   * — [19 §5.1]'s last layer, [P7 §1.9], [P7.3].
+   *
+   * **The cards rather than the hints**, because [04 §3]'s `ModelHint` is *"a
+   * preference, never a binding"* and the card is the only thing entitled to
+   * express one. A step passes an id; this is what turns the id into the
+   * preference, and a step cannot pass a preference its actor does not hold.
+   */
+  cast?: { persona: CastMember | null; actors: readonly CastMember[] };
   providers: ProviderFactory;
   config: Config;
   /**
@@ -274,11 +303,44 @@ export function planCall(
   // from `dangling` because the remedies differ — the first is setup, the second
   // is an admin having removed a connection out from under a binding — and
   // flattening them loses the UI's ability to offer the right one.
+  /**
+   * **Both override layers, passed at last** — [19 §5.1], [P7 §1.9], [P7.3].
+   *
+   * The step override is keyed by `definition.id` and looked up here rather than
+   * declared on the step, which is a correction §1.9 needs: that section says the
+   * step layer's *"surface is the mode or preset declaration"*, and 19 §5.1 opens
+   * with **"Nothing in a mode, step or extension refers to a provider or a model
+   * id — which is what makes an install portable, an extension safe to share"*.
+   * A `Binding` names a `connectionId`, which exists on one install only. *A
+   * cheap model for one noisy step* is the operator's decision about their own
+   * providers, so it lives on the session beside the session override it layers
+   * under.
+   *
+   * Spread conditionally because `resolveRole` distinguishes an absent layer
+   * from a present one and `exactOptionalPropertyTypes` is on: passing
+   * `sessionOverride: undefined` is not the same as not passing it.
+   */
+  const sessionOverride = context.sessionRoles?.[definition.role];
+  const stepOverride = context.stepRoles?.[definition.id];
+  /**
+   * **The last and weakest layer, reached at last** — [19 §5.1], [P7 §1.9].
+   *
+   * A hint applies only when the step says who it is speaking for and that
+   * actor's card asks for this role. `resolveRole` does the rest, and what it
+   * does is the part worth not re-deriving here: *"a hint may choose among the
+   * models the resolved connection already offers, and it may never change the
+   * connection — which is what stops an imported actor card repointing
+   * somebody's provider."*
+   */
+  const hint = hintFor(context, request.actorId, definition.role);
   const resolution = resolveRole({
     role: definition.role,
     bindings: context.bindings,
     ...(context.defaults === undefined ? {} : { defaults: context.defaults }),
     usable: context.usable,
+    ...(sessionOverride === undefined ? {} : { sessionOverride }),
+    ...(stepOverride === undefined ? {} : { stepOverride }),
+    ...(hint === undefined ? {} : { hint }),
   });
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 
@@ -299,8 +361,26 @@ export function planCall(
   // once, because it is also stamped on every record this call can leave
   // ([P3.0] — the invariant's committed half).
   const purpose = callPurposeFor(definition);
+  /**
+   * **The degrade, decided here with the capabilities in hand** — [P7.4],
+   * and `GenerationRequest.schema` says this is where it belongs rather than
+   * inside the adapter.
+   *
+   * An endpoint that cannot be handed a schema is asked in words instead. For a
+   * self-hosted install that is the *ordinary* path: `openai-compatible`
+   * declares `supportsStructuredOutput: false` because the endpoint behind it
+   * could be anything, so out of the box the SDK drops the schema and asks for
+   * bare JSON.
+   *
+   * **Appended to the candidates rather than spliced into the messages**, so it
+   * is estimated, budgeted and recorded like everything else — and so
+   * `RenderedMessage.fromBlocks` stays non-empty, which it must.
+   */
+  const asked = request.candidates ?? candidates;
   const assembled = assemble({
-    candidates: request.candidates ?? candidates,
+    candidates: needsPrompting(request.schema, provider.capabilities.supportsStructuredOutput)
+      ? [...asked, schemaInstruction(request.schema)]
+      : asked,
     policy,
     purpose,
     // A step that supplied its own candidates never ran the preset's producers,
@@ -386,9 +466,46 @@ export async function performCall(
         },
       );
 
+      /**
+       * **The validation arm, which this ladder has never had** — [P7.4].
+       *
+       * P7.4 measured that the SDK does not check the object against the
+       * schema, so this is the only check there is. A miss is a *complete*
+       * answer of the wrong kind, which is why it is retried here and not
+       * thrown: the call happened, it cost tokens, and the record should say
+       * what came back.
+       *
+       * **No backoff.** `RETRY_BACKOFF_MS` paces a ladder for an endpoint that
+       * is busy or unreachable; nothing about this endpoint is busy. Sleeping a
+       * second before re-asking would be a second of a person's turn spent on a
+       * problem waiting is not going to solve.
+       *
+       * *Worth knowing what this can and cannot buy: the retry sends the **same
+       * messages**, so at temperature 0 against a deterministic endpoint it will
+       * produce the same miss. Telling the model what was wrong would be a real
+       * repair, and it needs a record that can express "attempt 2 sent different
+       * messages" — `ModelCall` carries one `messages` per call, checkpointed
+       * before anything is dispatched. That is a record-shape change rather than
+       * a wiring one, and it is written down rather than sneaked in.*
+       */
+      const miss = schemaMiss(request.schema, result.object);
+      if (miss !== null && RETRY_BACKOFF_MS[retries] !== undefined && !partial.streamed) {
+        retries += 1;
+        continue;
+      }
+
       return {
         text: result.text,
-        object: result.object,
+        /**
+         * **A value that failed the check does not reach the step** — [P7.4].
+         *
+         * The step asked for a shape; handing it one that is not that shape
+         * invites it to be used, and a step that forgot to look at `undefined`
+         * would write effects from garbage. The text survives on the record, so
+         * a person can still see what the model actually said, which is where
+         * that belongs.
+         */
+        object: miss === null ? result.object : undefined,
         usage: result.usage,
         call: {
           id,
@@ -411,8 +528,20 @@ export async function performCall(
            * `ok` is what made a truncated reply indistinguishable from a
            * finished one.
            */
-          outcome: outcomeOf(result.finishReason),
-          error: null,
+          /**
+           * **A miss outranks the finish reason**, because a model that stopped
+           * cleanly and answered in the wrong shape stopped cleanly: `stop`
+           * would record it as `ok`, and a step reading the record would have no
+           * way to tell an answer from an unusable one.
+           */
+          outcome: miss === null ? outcomeOf(result.finishReason) : 'error',
+          /**
+           * `retryable`, from the three the vocabulary has ([21 §1.4]) — and it
+           * is the honest one: the model said something, it was not the shape,
+           * and asking again may work. Not `terminal`, which would tell a UI to
+           * stop offering a retry for a case where retrying is the remedy.
+           */
+          error: miss === null ? null : { class: 'retryable' as const, message: missMessage(miss) },
           retries,
         },
       };
@@ -608,4 +737,34 @@ function outcomeOf(reason: FinishReason): ModelCall['outcome'] {
     case 'unknown':
       return 'incomplete';
   }
+}
+
+/**
+ * One actor's model preference for this role, if the step named an actor and
+ * that actor's card asks for this role.
+ *
+ * **The role has to match**, which is the half of [04 §3]'s `ModelHint` easiest
+ * to drop: the type carries a `role`, so a card preferring a particular
+ * `reasoning` model is saying nothing about which model narrates. Ignoring that
+ * field would let a card's preference leak into every call it was never about.
+ *
+ * *The persona counts as cast here.* A step speaking for the played character is
+ * the ordinary case in an embodied voice, and a persona whose card expressed a
+ * preference would otherwise be the one actor it could not apply to.
+ */
+function hintFor(
+  context: PlanContext,
+  actorId: string | undefined,
+  role: ModelRole,
+): { preferredModelIds?: string[] } | undefined {
+  if (actorId === undefined || context.cast === undefined) return undefined;
+
+  const member =
+    context.cast.persona?.actor.id === actorId
+      ? context.cast.persona
+      : context.cast.actors.find((each) => each.actor.id === actorId);
+  const hint = member?.actor.modelHint;
+  if (hint?.role !== role) return undefined;
+
+  return hint.preferredModelIds === undefined ? {} : { preferredModelIds: hint.preferredModelIds };
 }

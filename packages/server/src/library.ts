@@ -8,6 +8,7 @@ import encodeChunks from 'png-chunks-encode';
 
 import {
   ACTOR_SCHEMA,
+  type EmbeddedMedia,
   isKnownSchema,
   type PortableSchemaId,
   schemaIdOf,
@@ -34,6 +35,7 @@ import {
 } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
+import type { BlobStore } from './storage/card/envelope.js';
 import { moveTree, readFileBytes } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';
 import {
@@ -431,6 +433,12 @@ async function encodeObject(
    * a canvas the caller supplied rather than one that was read.
    */
   canvasBytes?: Uint8Array,
+  /**
+   * Blobs the caller brought, merged over the source card's own — [P7.10].
+   * Media that arrived beside a card rather than inside it: an imported
+   * expression set is the shipped case.
+   */
+  extraBlobs?: BlobStore,
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
   const path = layout.objectFile(owner, schemaId, slug);
 
@@ -448,7 +456,14 @@ async function encodeObject(
     const source = existing ?? canvasBytes ?? null;
     const canvas = source ?? blankCardPixels();
     const contents = source ? pngCardCodec.read(source) : null;
-    bytes = pngCardCodec.write(canvas, envelope(object), contents?.blobs);
+    // The card's own blobs first, then the caller's over them — so a re-import
+    // that brings the same expression twice writes it once, and a card that
+    // already embedded a set keeps everything the new one does not name.
+    const carried =
+      extraBlobs === undefined
+        ? contents?.blobs
+        : new Map([...(contents?.blobs ?? []), ...extraBlobs]);
+    bytes = pngCardCodec.write(canvas, envelope(object), carried);
   } else {
     bytes = new TextEncoder().encode(`${JSON.stringify(object, null, 2)}\n`);
   }
@@ -533,6 +548,18 @@ function assertValidObject(object: unknown): PortableSchemaId {
  */
 export interface CreateFrom {
   cardPixels: Uint8Array;
+  /**
+   * Extra media bytes to carry into the card, keyed by the `ref` an
+   * `EmbeddedMedia` entry on the object names — [03 §5.2.2], [P7.10].
+   *
+   * **The caller builds the manifest; this carries the bytes.** `EmbeddedMedia`
+   * is *"a reference to bytes carried by the container"*, so the two halves are
+   * written by different people: the importer decides what an expression is
+   * called and what role it has, and the container is what a `ref` resolves in.
+   * Merged over whatever `cardPixels` already carried, so re-importing a card
+   * that has its own embedded set adds to it rather than replacing it.
+   */
+  media?: BlobStore;
 }
 
 /**
@@ -619,6 +646,7 @@ export async function create(
       object,
       undefined,
       from?.cardPixels,
+      from?.media,
     );
     await (context.write ?? writeAtomic)(path, bytes);
     await ingestFile(context.db, context.layout, path);
@@ -958,6 +986,76 @@ export async function readCardPixels(
     throw new LibraryError('not-found', 'The card file is missing from disk.');
   }
   return { bytes, contentHash: current.contentHash };
+}
+
+/**
+ * One embedded media entry's bytes — [03 §5.2.2], built at
+ * [P7.10](../../../docs/design/workplan/23-p7-implementation.md).
+ *
+ * ***The route that had to exist before anything could show a picture.***
+ * {@link readCardPixels} above serves the card's *own* pixels, which is the one
+ * image path this build has had since P1 — and an actor's expression set, a
+ * treatment's cover and an authored backdrop are all `EmbeddedMedia`, which
+ * nothing could serve at all. [06 §7.2]'s sprites and [06 §10.1a]'s authored
+ * backdrop both stopped here.
+ *
+ * **A manifest entry plus a container lookup, which is what `EmbeddedMedia`
+ * says it is.** [04 §3] makes it *"a **reference** to bytes carried by the
+ * container, never the bytes themselves"*, so this reads the card, asks the
+ * codec for the blob store, and resolves the entry's `ref` in it. A `ref` with
+ * no blob is not-found rather than empty: the manifest and the container
+ * disagreeing is a broken file, and [03 §5.2.2] names the way that happens —
+ * *"ancillary chunks are droppable by spec-compliant tools that do not
+ * understand them"*.
+ *
+ * ***`digest` is the cache key and `contentHash` is not***, which is the one
+ * decision here that is not obvious. A card's content hash changes when any
+ * field of the object changes; the bytes of one expression do not. Keying the
+ * etag on the object would re-fetch every sprite whenever somebody edited a
+ * line of the character's description — which on a VN-shaped session is every
+ * turn's worth of pictures, thrown away for a text edit.
+ *
+ * *Any kind, unlike the avatar above.* An actor is the first carrier and not
+ * the only one: [04 §3] puts `media` on treatments, lorebooks and packages too,
+ * and a route that named actors would have to grow a second arm for the first
+ * one of those to get a picture. Which is [P9]'s, and is the same lookup.
+ */
+export async function readMedia(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  mediaId: string,
+  inKind?: PortableSchemaId,
+): Promise<{ bytes: Uint8Array; mime: string; digest: string }> {
+  const current = read(context, handle, id, inKind);
+
+  const media = (current.body as { media?: unknown } | null)?.media;
+  const entry = Array.isArray(media)
+    ? (media as EmbeddedMedia[]).find((one) => one.id === mediaId)
+    : undefined;
+  if (entry === undefined) {
+    throw new LibraryError('not-found', 'No such media on that object.');
+  }
+
+  await context.layout.assertReal(current.path);
+  const bytes = await readFileBytes(current.path);
+  if (bytes === null) {
+    throw new LibraryError('not-found', 'The card file is missing from disk.');
+  }
+
+  const codec = codecFor(bytes);
+  if (codec === null) {
+    throw new LibraryError('not-found', 'That object is not in a container that carries media.');
+  }
+
+  const blob = codec.read(bytes).blobs.get(entry.ref);
+  if (blob === undefined) {
+    // The manifest names a blob the container does not hold. A broken file
+    // rather than an empty one, and [03 §5.2.2] names how it gets that way.
+    throw new LibraryError('not-found', 'The media is named but its bytes are missing.');
+  }
+
+  return { bytes: blob, mime: entry.mime, digest: entry.digest };
 }
 
 /**

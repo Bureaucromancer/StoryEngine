@@ -7,6 +7,7 @@ import {
   TagIdList,
   EmbeddedMedia,
   GeneratedMap,
+  HookPacing,
   Id,
   LoreLink,
   Metadata,
@@ -113,6 +114,25 @@ export const Treatment = Type.Object(
     cast: Type.Array(CastEntry),
     openings: Openings,
     hooks: Type.Array(PlotHook),
+
+    /**
+     * **Advisory, optional, and authorial** — [04 §6.1b](../../../../docs/design/04-schemas.md),
+     * added at [P7.1](../../../../docs/design/workplan/23-p7-implementation.md).
+     *
+     * `hookPacing` says how much authored plot should be pushed at a player;
+     * `stagingNotes` asks the narrator for turns that stage well
+     * ([06 §10.6](../../../../docs/design/06-modes-and-turn-pipeline.md)). Both
+     * are intent about *the material* rather than settings for one playthrough,
+     * both hold no endpoint and no key, and neither becomes a production setting
+     * by being live ([00 §3.2](../../../../docs/design/00-stance.md)).
+     *
+     * **Optional on both Treatment and Setup, because a required field added to
+     * a published `/1` is a `/2` change** ([04 §2](../../../../docs/design/04-schemas.md)).
+     * Absent means *unspecified* — not `normal`, and not empty prose — which the
+     * session resolves through the channel's `init`.
+     */
+    hookPacing: Type.Optional(HookPacing),
+    stagingNotes: Type.Optional(Type.String()),
 
     /**
      * Advisory only. A treatment proposes a mode; it never configures production

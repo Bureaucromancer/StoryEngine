@@ -66,6 +66,9 @@ export const NOTE_LABELS: Record<string, string> = {
   'import.card.personalityAsProse': 'Personality read as prose, and kept in the summary.',
   'import.card.wantsPromptOverride': 'This card wants to override prompts ({fields}); review.',
   'import.card.portraitUnreadable': 'The portrait could not be read, so the card has none.',
+  // [P7.10]: a count rather than silence. An import that quietly grew a
+  // character eight pictures is a surprise; one that says it did is a feature.
+  'import.card.expressions': 'Brought {count} expressions in with {actor}.',
   'import.lore.positionCollapsed': '“{entry}” sat at {original}, which has no equivalent here.',
   'import.lore.entryLimitClamped': 'Entry limit reduced from {from} to {to}.',
   'import.lore.chatScopeDropped': '“{book}” was scoped to one chat; it is global here.',

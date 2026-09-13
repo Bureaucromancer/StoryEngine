@@ -15,21 +15,25 @@ import type { TagEntry } from '@storyengine/shared';
 
 import type { LiveTurn } from './play/reducer.js';
 import {
+  addSessionGoal,
+  addSessionHook,
   adminApi,
   api,
   previewTurn,
   readSession,
   readTranscript,
   readTurn,
+  removeSessionHook,
   renameSession,
   setSessionLore,
+  writeSessionChannel,
   type Account,
   type AccountPatch,
-  type ActiveJob,
   type AdminAccountList,
   type AdminConnection,
   type Binding,
   type BindingsState,
+  type MyRoles,
   type ConnectionInput,
   type RoleRow,
   type ConfigView,
@@ -506,7 +510,7 @@ export function usePatchPrefs(): UseMutationResult<
  */
 export function useSession(
   sessionId: string,
-): UseQueryResult<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+): UseQueryResult<Awaited<ReturnType<typeof readSession>>> {
   return useQuery({ queryKey: ['session', sessionId], queryFn: () => readSession(sessionId) });
 }
 
@@ -538,6 +542,84 @@ export function useSetSessionLore(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * Recovering one degraded channel — [06 §4.2], [P7.1].
+ *
+ * **Invalidates the session and resets the preview**, the same two keys
+ * `useSetSessionLore` touches and for the same reason: a channel write advances
+ * the head, so the session file changed and any assembled preview built over the
+ * old state is stale.
+ *
+ * *No `onError` special-casing, because a refusal is not an error*: the route
+ * answers 200 with an unapplied effect, and the caller decides what to say.
+ */
+export function useWriteChannel(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof writeSessionChannel>>,
+  Error,
+  { key: string; value: unknown }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (write: { key: string; value: unknown }) =>
+      writeSessionChannel(sessionId, write.key, write.value),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * Adding a hook to a running session, or taking one out — [03 §4.1], [P7.5].
+ *
+ * **One mutation for both**, because they are the same act from the panel's side
+ * — the pool is what changes — and because a caller holding two hooks that
+ * invalidate the same key is the shape that drifts.
+ *
+ * *It invalidates the session rather than the transcript*: [03 §4.1] calls
+ * adding a hook *"an authoring act, not a story event"*, so there is no turn to
+ * refetch and the pool the panel reads lives on the session.
+ */
+export function useSessionHooks(
+  sessionId: string,
+): UseMutationResult<
+  { session: SessionSummary },
+  Error,
+  { add: Record<string, unknown> } | { remove: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (change: { add: Record<string, unknown> } | { remove: string }) =>
+      'add' in change
+        ? addSessionHook(sessionId, change.add)
+        : removeSessionHook(sessionId, change.remove),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+/**
+ * A goal written at a completion — [06 §7.3.4], [P7.6].
+ *
+ * *It invalidates the session rather than the transcript*, like the hook
+ * mutation beside it: adding a goal to the chain is an authoring act and there is
+ * no turn to refetch.
+ */
+export function useAddGoal(
+  sessionId: string,
+): UseMutationResult<{ session: SessionSummary }, Error, Record<string, unknown>> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (goal: Record<string, unknown>) => addSessionGoal(sessionId, goal),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
 }
@@ -769,6 +851,55 @@ function invalidateProviderSurface(client: QueryClient): void {
   // The dead-end count asks whether `prose` resolves, so it moves when either
   // of the other two does — which is the whole of P2B.4's ending clause.
   void client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
+  /**
+   * **And the caller's own table, which is not an admin key** — [P7.3].
+   *
+   * A user's resolution layers over the install's, so removing a system
+   * connection or repointing a default changes what *their* pane should say.
+   * Leaving it out would be a stale answer on the one screen whose whole job is
+   * to be the current one — and an admin editing their own install is exactly
+   * the person who would have both open.
+   */
+  void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+}
+
+/**
+ * The caller's own role table, the document behind it, and what may be picked —
+ * [10 §15.1], [P7.3].
+ *
+ * **Keyed under `me` rather than `admin`, which is the point of the route.**
+ * `SettingsPage` renders the admin sections only for an admin, so an
+ * `admin`-keyed query would make this pane unmountable for the people
+ * [19 §5.1] wrote it for: *"anyone who wants their own key overrides a role
+ * without the admin's involvement"*.
+ */
+export function useMyRoles(): UseQueryResult<MyRoles> {
+  return useQuery({ queryKey: ['me', 'roles'], queryFn: api.readMyRoles });
+}
+
+/**
+ * Writing your own bindings.
+ *
+ * **Not optimistic, unlike `usePatchPrefs`.** A preference's whole feedback is
+ * the page changing, so a lag reads as a broken control; a binding's feedback is
+ * a *resolution* the server computes, and guessing at it here would mean
+ * reimplementing [19 §5.1]'s layering in the browser — the second copy
+ * `GET /api/me/roles` exists to avoid. So the answer is awaited and the table
+ * re-read.
+ */
+export function useWriteMyBindings(): UseMutationResult<
+  BindingsState,
+  Error,
+  { bindings: Record<string, Binding>; contentHash: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { bindings: Record<string, Binding>; contentHash: string }) =>
+      api.writeMyBindings(input.bindings, input.contentHash),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+    },
+  });
 }
 
 export function useSaveConnection(): UseMutationResult<

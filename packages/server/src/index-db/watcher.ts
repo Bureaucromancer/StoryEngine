@@ -106,6 +106,9 @@ export class LibraryWatcher {
    */
   #queue: Promise<void> = Promise.resolve();
 
+  /** Post-construction subscribers — see {@link LibraryWatcher.observe}. */
+  readonly #observers = new Set<(event: WatchEvent) => void>();
+
   constructor(options: WatcherOptions) {
     this.#db = options.db;
     this.#layout = options.layout;
@@ -121,6 +124,45 @@ export class LibraryWatcher {
    */
   setLogger(log: Logger): void {
     this.#log = log;
+  }
+
+  /**
+   * Subscribe to what the watcher did, after it did it.
+   *
+   * **The same seam as `setLogger`, and it exists for the same reason**: the
+   * watcher is constructed inside `buildServices`, so `onChange` — which has
+   * carried the comment *"Test seam, and a logging point later"* since it was
+   * written — is only reachable by whoever built it. Nothing a test holds can
+   * get at it, which is why every test waiting on a foreign write polls instead.
+   *
+   * **Polling is the thing this replaces, and the reason is not speed.** A poll
+   * asks "has it happened yet" on a timer and reports `false` when it runs out,
+   * so a watcher that never delivered and a watcher that was merely slow produce
+   * the same failure — an assertion that says a condition "never held" and
+   * nothing about which condition or what it saw instead. An observer says when,
+   * and says nothing when it did not happen, which is a hang with a name rather
+   * than a timeout with a shrug.
+   *
+   * Fires **after** the handler has finished — after the ingest and after any
+   * history snapshot — so an observer that has seen `indexed` for a path can
+   * read the consequences without a second wait.
+   *
+   * Returns its own unsubscribe. Observers are a set rather than a single slot
+   * because `onChange` already occupies the one the constructor owns, and a
+   * second subscriber must not displace the first.
+   */
+  observe(observer: (event: WatchEvent) => void): () => void {
+    this.#observers.add(observer);
+    return () => this.#observers.delete(observer);
+  }
+
+  /**
+   * One place the two notification paths meet, so neither can be updated
+   * without the other.
+   */
+  #emit(event: WatchEvent): void {
+    this.#onChange(event);
+    for (const observer of this.#observers) observer(event);
   }
 
   async start(): Promise<void> {
@@ -253,7 +295,7 @@ export class LibraryWatcher {
 
     const parsed = this.#layout.parseObjectPath(path);
     if (!parsed) {
-      this.#onChange({ type: 'ignored', path });
+      this.#emit({ type: 'ignored', path });
       return;
     }
 
@@ -283,12 +325,12 @@ export class LibraryWatcher {
         error,
         Date.now(),
       );
-      this.#onChange({ type: 'refused', path });
+      this.#emit({ type: 'refused', path });
       return;
     }
 
     if (await this.#isOwnWrite(path)) {
-      this.#onChange({ type: 'suppressed', path });
+      this.#emit({ type: 'suppressed', path });
       return;
     }
 
@@ -343,7 +385,7 @@ export class LibraryWatcher {
       );
     }
 
-    this.#onChange(
+    this.#emit(
       outcome.kind === 'indexed'
         ? { type: 'indexed', path, moved: outcome.moved }
         : { type: 'ignored', path },
@@ -353,14 +395,14 @@ export class LibraryWatcher {
   #onUnlink(path: string): void {
     if (this.#isProbe(path)) return;
     if (!this.#layout.parseObjectPath(path)) {
-      this.#onChange({ type: 'ignored', path });
+      this.#emit({ type: 'ignored', path });
       return;
     }
     // No self-write check: the unlink half of temp-then-rename is on the *temp*
     // file, which is not an object path and was ignored above. An unlink on the
     // object path is somebody deleting it.
     const removed = removeFile(this.#db, this.#layout, path);
-    this.#onChange({ type: removed ? 'removed' : 'ignored', path });
+    this.#emit({ type: removed ? 'removed' : 'ignored', path });
   }
 
   async #isOwnWrite(path: string): Promise<boolean> {

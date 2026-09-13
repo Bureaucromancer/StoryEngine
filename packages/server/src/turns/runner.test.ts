@@ -7,20 +7,23 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
+import type { PlotHook } from '@storyengine/shared';
 
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { readClock, SE_CLOCK } from '../sessions/channels.js';
+import { SE_PRESENCE } from '../sessions/cast.js';
 import { readAllTurns } from '../sessions/segments.js';
 import {
   appendTurnToSession,
   createSession,
   readSession,
+  writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
-import type { Turn } from '../sessions/types.js';
+import type { PooledHook, Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
 import { readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
@@ -30,8 +33,17 @@ import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
-import { NARRATE } from '../modes/scene/mode.js';
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { installBuiltIns } from '../mode-loader.js';
+import { registerMode } from '../mode-registry.js';
+
+import {
+  ENSEMBLE_MODE,
+  ENSEMBLE_MODE_ID,
+  SHAPED_MODE,
+  SHAPED_MODE_ID,
+  TEST_PRESET,
+  TEST_STEP,
+} from '../test-mode.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
@@ -162,6 +174,12 @@ function recorder(into: Record<string, unknown>[], bindings: Record<string, unkn
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-runner-'));
+  // Registration is a call rather than an import since [P7.0], and this test
+  // reaches the pipeline without going through `buildServices` — so it asks for
+  // the built-ins the same way the composition root does. A test that needs a
+  // mode now says so, which is the visibility the split was for.
+  await installBuiltIns();
+
   index = await openIndex({ path: ':memory:' });
   state = await openState({ path: ':memory:' });
   sessions = { layout: new Layout(dataDir), index: index.db };
@@ -239,13 +257,36 @@ async function runNextTurn(): Promise<Turn> {
   return turn;
 }
 
+/**
+ * ***What a Scene turn always runs*** — and the second one is [P7.12]'s cost,
+ * named here once so that eight assertions about other features do not each
+ * have to explain it.
+ *
+ * `se.scene.stage` is Scene's stager, and on every session in this file it does
+ * nothing: staging defaults off, so the step reads one boolean and returns. It
+ * is in the record anyway because **`planFor` zips every step a mode declares
+ * and a mode has no way to say *not this turn***. The runner keeps its *own*
+ * conditional steps out of the plan for exactly the reason this row is noise —
+ * see the suggester's note below — and a mode cannot do the same.
+ *
+ * `StepCondition` is where it would go and its three arms are closed by explicit
+ * design; two of them (`stage`, `armed`) have no producer at all, which is the
+ * shape of the gap rather than a thing to fix under a stage. Recorded at
+ * [25 C17].
+ */
+const SCENE_STEPS = ['se.narrate', 'se.scene.stage'];
+
 describe('a turn goes all the way through', () => {
   it('commits, with the record of what actually ran', async () => {
     const { turn } = await runTurn();
 
     expect(turn.status).toBe('complete');
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
-    expect(turn.steps).toMatchObject([{ stepId: 'se.narrate', state: 'ok' }]);
+    expect(turn.steps).toMatchObject([
+      { stepId: 'se.narrate', state: 'ok' },
+      // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
+      { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
+    ]);
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([03 §8]).
     // Bound once, and read from that binding below. Two spellings of the same
@@ -410,7 +451,7 @@ describe('guidance is advisory, structurally', () => {
 describe('the three failure modes are three', () => {
   /** A step that always throws. No role and no contribution: it makes no call. */
   function flaky(failure: StepDefinition['failure']): StepDefinition {
-    const { contributes, ...rest } = NARRATE;
+    const { contributes, ...rest } = TEST_STEP;
     void contributes;
     return { ...rest, id: 'se.flaky', failure, role: null };
   }
@@ -423,7 +464,7 @@ describe('the three failure modes are three', () => {
           run: () => Promise.reject(new Error('the step blew up')),
         },
         {
-          definition: NARRATE,
+          definition: TEST_STEP,
           run: async (_i, host) => ({ message: { text: (await host.call({})).text } }),
         },
       ],
@@ -647,7 +688,7 @@ describe('the three failure modes are three', () => {
       plan: {
         steps: [
           {
-            definition: { ...NARRATE, id: 'se.rare', when: { when: 'armed', flag: 'never' } },
+            definition: { ...TEST_STEP, id: 'se.rare', when: { when: 'armed', flag: 'never' } },
             run: () => Promise.resolve({}),
           },
         ],
@@ -890,13 +931,13 @@ describe('the record says why a slot is empty', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               const result = await host.call({
                 candidates: [
                   {
                     id: 'step.own',
-                    source: { kind: 'step', stepId: NARRATE.id },
+                    source: { kind: 'step', stepId: TEST_STEP.id },
                     reason: 'a step-authored block',
                     role: 'system',
                     text: 'Improvise.',
@@ -928,7 +969,7 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -938,7 +979,7 @@ describe('the engine says what it overrode', () => {
                     channelId: SE_CLOCK,
                     op: { type: 'set', path: '/' },
                     after: { day: 9, hour: 0, minute: 0 },
-                    proposedBy: { kind: 'step', stepId: NARRATE.id },
+                    proposedBy: { kind: 'step', stepId: TEST_STEP.id },
                   },
                 ],
               };
@@ -972,7 +1013,7 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -982,7 +1023,7 @@ describe('the engine says what it overrode', () => {
                     channelId: SE_CLOCK,
                     op: { type: 'set', path: '/' },
                     after: { day: 9, hour: 0, minute: 0 },
-                    proposedBy: { kind: 'step', stepId: NARRATE.id },
+                    proposedBy: { kind: 'step', stepId: TEST_STEP.id },
                   },
                 ],
               };
@@ -1231,7 +1272,7 @@ describe('a preset block can be scoped to a kind of call', () => {
     // `appliesTo` unable to filter anything — and the comment justifying
     // per-call collection false. Scene's own step declares `'narrate'`, so the
     // hardcode was invisible until a step declared something else.
-    expect(NARRATE.callKind).toBe('narrate');
+    expect(TEST_STEP.callKind).toBe('narrate');
   });
 
   /**
@@ -1277,7 +1318,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const session = await createSession(sessions, ACCOUNT, {
       name: 'Samples',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       treatment: noir.id,
       cast: { persona: null, actors: [vera.id] },
     });
@@ -1343,7 +1384,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const session = await createSession(sessions, ACCOUNT, {
       name: 'Book samples',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
     const outcome = await submitTurn(commit, {
@@ -1382,7 +1423,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const withLore = await createSession(sessions, ACCOUNT, {
       name: 'With a world',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
 
@@ -1449,7 +1490,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const withLore = await createSession(sessions, ACCOUNT, {
       name: 'Cooling',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
     const outcome = await submitTurn(commit, {
@@ -1501,7 +1542,7 @@ describe('a preset block can be scoped to a kind of call', () => {
 
     const withLore = await createSession(sessions, ACCOUNT, {
       name: 'A full book',
-      preset: SCENE_PRESET,
+      preset: TEST_PRESET,
       lore: [book.id],
     });
     const outcome = await submitTurn(commit, {
@@ -1540,15 +1581,15 @@ describe('a preset block can be scoped to a kind of call', () => {
     const scoped = await createSession(sessions, ACCOUNT, {
       name: 'Scoped',
       preset: {
-        ...SCENE_PRESET,
+        ...TEST_PRESET,
         blocks: [
           {
-            ...SCENE_PRESET.blocks[0]!,
+            ...TEST_PRESET.blocks[0]!,
             id: 'se.only-for-summaries',
             label: 'only for summaries',
             appliesTo: ['summarise'],
           },
-          SCENE_PRESET.blocks.find((block) => block.id === 'se.input')!,
+          TEST_PRESET.blocks.find((block) => block.id === 'se.input')!,
         ],
       },
     });
@@ -1590,8 +1631,8 @@ describe("the preset's own settings reach the call", () => {
     await runTurn();
 
     expect(provider.requests[0]?.params).toMatchObject({
-      temperature: SCENE_PRESET.params.temperature,
-      maxTokens: SCENE_PRESET.params.maxTokens,
+      temperature: TEST_PRESET.params.temperature,
+      maxTokens: TEST_PRESET.params.maxTokens,
     });
   });
 
@@ -1610,9 +1651,9 @@ describe("the preset's own settings reach the call", () => {
     // [P3.0]'s invariant is that a present `share` means
     // `tokens === floor(ceiling × share)`, so an `undefined` reported by `toBe`
     // is precisely the mutation this line exists to catch.
-    expect(limit.share).toBe(SCENE_PRESET.budget.contextShare);
+    expect(limit.share).toBe(TEST_PRESET.budget.contextShare);
     expect(limit.tokens).toBe(
-      Math.floor(DEFAULT_CONFIG.limits.contextTokens * SCENE_PRESET.budget.contextShare),
+      Math.floor(DEFAULT_CONFIG.limits.contextTokens * TEST_PRESET.budget.contextShare),
     );
   });
 
@@ -1740,7 +1781,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       plan: {
         steps: [
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => {
               await host.call({});
               await host.call({});
@@ -1767,11 +1808,14 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       plan: {
         steps: [
           {
-            definition: { ...NARRATE, id: 'se.dice', role: null },
+            definition: { ...TEST_STEP, id: 'se.dice', role: null },
             run: async (_input, host) => {
-              host.rng.at('se.dice', 'opening').int(1, 6);
-              host.rng.at('se.dice', 'opening').int(1, 6);
-              return Promise.resolve({});
+              // Through the host's `random` since [P7.0] — awaited, because the
+              // seam is async whether or not a worker is on the other side of
+              // it yet, and the tape is the same tape.
+              await host.random.at('se.dice', 'opening').int(1, 6);
+              await host.random.at('se.dice', 'opening').int(1, 6);
+              return {};
             },
           },
         ],
@@ -1905,18 +1949,18 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       plan: {
         steps: [
           {
-            // `NARRATE` minus its role: same stage, same `contributes:
+            // `TEST_STEP` minus its role: same stage, same `contributes:
             // 'messages'`, same empty `writes` — so `callPurposeFor` still
             // yields `prose` and the assembler behaves identically. The role is
             // the only difference, which is the difference under test.
-            definition: { ...NARRATE, id: 'se.preflight', role: 'fast' },
+            definition: { ...TEST_STEP, id: 'se.preflight', role: 'fast' },
             run: async (_input, host) => {
               await host.call({ stream: true });
               return {};
             },
           },
           {
-            definition: NARRATE,
+            definition: TEST_STEP,
             run: async (_input, host) => ({
               message: { text: (await host.call({ stream: true })).text },
             }),
@@ -2385,5 +2429,888 @@ describe('the history the runner hands the collector', () => {
     // Twenty turns of history, not twenty-five — and the newest ones.
     expect(turnIds.size).toBe(20);
     expect(turnIds.has(parent ?? '')).toBe(true);
+  });
+});
+
+/**
+ * **A mode whose `select` is not `fixed`, running** — [P7.3]'s own *Ends at*,
+ * and [06 §7.2]'s *"the policy selects speakers"*.
+ *
+ * The unit tests in `speakers.test.ts` say what each arm decides; what only a
+ * turn can say is that the decision is **made once, before the loop, and reaches
+ * a step**. `ENSEMBLE_MODE` declares `select: 'list'` and its step echoes what it
+ * was handed, which is the one way a selection is observable from outside —
+ * downstream, a merged call names nobody by design and `actorId` reaches
+ * `resolveRole` and stops.
+ */
+describe('a mode that selects speakers', () => {
+  beforeEach(() => {
+    /**
+     * Process-wide and not cleared afterwards, which is safe rather than
+     * sloppy: nothing else in the build names this id, and `installBuiltIns`
+     * re-registers the real modes on every `beforeEach` in this file. A
+     * fixture that needed *removing* would be a reason to give the registry a
+     * reset; this one does not.
+     */
+    registerMode(ENSEMBLE_MODE);
+  });
+
+  /** A session playing the ensemble fixture, with the named actors in the room. */
+  async function ensemble(actors: string[], present = actors): Promise<string> {
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Ensemble',
+      mode: { id: ENSEMBLE_MODE_ID, config: null },
+      preset: TEST_PRESET,
+      cast: { persona: null, actors },
+    });
+    // Present, because eligibility is presence and status — which is the half of
+    // the taxonomy that could not have been built before [P7.2]. Each write is a
+    // bookkeeping turn, which is also what makes the depth arithmetic below
+    // worth pinning.
+    for (const id of present) {
+      await writeChannel(sessions, ACCOUNT, session.id, `${SE_PRESENCE}#${id}`, true);
+    }
+    return session.id;
+  }
+
+  /** One turn, and who its step said it was speaking for. */
+  async function spoke(sessionId: string, key: string): Promise<{ turn: Turn; chosen: string }> {
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId,
+      idempotencyKey: key,
+      headTurnId: head,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, {
+      input: { actorId: null, kind: 'do', text: 'Well?', raw: 'Well?' },
+    });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const turn = onRecord(written.at(-1), 'the turn on disk').turn;
+    const text = turn.output?.text ?? '';
+    return { turn, chosen: text.slice(1, text.indexOf(']')) };
+  }
+
+  /**
+   * **Two turns, because one proves nothing about a rotation.** Over a cast of
+   * two, any assertion satisfiable by *either* actor is satisfied by a selector
+   * that ignores its policy — so what is pinned is that the second turn answers
+   * the *other* one, and which one each is.
+   *
+   * The arithmetic is worth spelling out because it is also the branching claim:
+   * `list` rotates on the path's **depth**, the two presence writes above are
+   * two turns on that path, so the first prose turn is depth 2 and takes
+   * `pool[0]`, and the second is depth 3 and takes `pool[1]`. Nothing counts
+   * prose turns, and nothing remembers who spoke — the node determines it, which
+   * is what makes two branches rotate independently for free ([07 §3]).
+   */
+  it('rotates through the cast, a turn each, and commits', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id]);
+
+    const first = await spoke(sessionId, 'ensemble-1');
+    expect(first.turn.status).toBe('complete');
+    expect(first.chosen).toBe(vera.id);
+
+    const second = await spoke(sessionId, 'ensemble-2');
+    expect(second.turn.status).toBe('complete');
+    expect(second.chosen).toBe(lund.id);
+  });
+
+  it('skips somebody who is not in the room, so the policy reads the channels', async () => {
+    // The same cast and the same depth, with Vera absent — so a selector that
+    // rotated over `cast.actors` rather than over who is eligible would still
+    // answer Vera and this is what would notice.
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], [lund.id]);
+
+    expect((await spoke(sessionId, 'absent-1')).chosen).toBe(lund.id);
+  });
+
+  it('selects nobody when the room is empty, and still runs the turn', async () => {
+    // The whole cast absent is the case a selector must not turn into a failure:
+    // [00 §3.3] is resolve what you can, and a scene with nobody in it is a
+    // scene the narrator answers.
+    makeRunner();
+    const vera = newActor('Vera');
+    await create(library, ACCOUNT, vera);
+
+    const sessionId = await ensemble([vera.id], []);
+    const only = await spoke(sessionId, 'ensemble-empty');
+
+    expect(only.turn.status).toBe('complete');
+    expect(only.turn.output?.text.startsWith('[] ')).toBe(true);
+  });
+});
+
+/**
+ * **The retry ladder's validation arm** — [P7.4].
+ *
+ * P7.4 measured that the SDK does not check an object against the schema it put
+ * on the wire, so the engine is the only validation there is — and a ladder that
+ * retried a 429 and not a reply of the wrong shape was retrying the failure that
+ * costs least. What a turn can say, and a unit test cannot, is that the retry
+ * actually re-asks and that the record it leaves is the one a person reads.
+ */
+describe('a call that asked for a shape', () => {
+  beforeEach(() => {
+    registerMode(SHAPED_MODE);
+  });
+
+  async function shaped(script: ScriptedReply[]): Promise<Turn> {
+    makeRunner({ script });
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Shaped',
+      mode: { id: SHAPED_MODE_ID, config: null },
+      preset: TEST_PRESET,
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: `shaped-${session.id}`,
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    return onRecord(written.at(-1), 'the turn on disk').turn;
+  }
+
+  it('takes an answer that fits, first time, and asks once', async () => {
+    const turn = await shaped([{ object: { name: 'Vera' } }]);
+
+    expect(callOnRecord(turn).outcome).toBe('ok');
+    expect(callOnRecord(turn).retries).toBe(0);
+    // The step got the object, which is what a step asking for a shape is for.
+    expect(turn.output?.text).toBe('{"name":"Vera"}');
+    expect(provider.requests).toHaveLength(1);
+  });
+
+  /**
+   * **`{"nom":"Vera"}` is the measured value** — the one the SDK accepted
+   * against a schema requiring `name` with `additionalProperties: false`. Here
+   * it is caught, re-asked, and the second answer stands.
+   */
+  it('asks again when the answer does not fit, and takes the next one', async () => {
+    const turn = await shaped([{ object: { nom: 'Vera' } }, { object: { name: 'Vera' } }]);
+
+    expect(callOnRecord(turn).outcome).toBe('ok');
+    expect(callOnRecord(turn).retries).toBe(1);
+    expect(provider.requests).toHaveLength(2);
+    expect(turn.output?.text).toBe('{"name":"Vera"}');
+  });
+
+  it('gives up after the ladder and says why, in the vocabulary the UI reads', async () => {
+    const wrong = { object: { nom: 'Vera' } };
+    const turn = await shaped([wrong, wrong, wrong, wrong]);
+
+    const call = callOnRecord(turn);
+    // `error`, not `ok`: the model stopped cleanly and answered in the wrong
+    // shape, and a finish reason of `stop` would have recorded it as an answer.
+    expect(call.outcome).toBe('error');
+    // `retryable`, because asking again is the remedy — a `terminal` here would
+    // tell a UI to stop offering the one thing that might work.
+    expect(call.error?.class).toBe('retryable');
+    expect(call.error?.message).toMatch(/did not match the shape/);
+    // The ladder's own length, not a second number to keep in step.
+    expect(call.retries).toBe(2);
+    expect(provider.requests).toHaveLength(3);
+  });
+
+  /**
+   * **A value that failed the check does not reach the step**, which is the half
+   * only a turn can show: `CallOutcome.object` is what a step is handed, and a
+   * step that forgot to look at `undefined` would otherwise write effects from
+   * garbage.
+   */
+  it('hands the step nothing when nothing fit', async () => {
+    const turn = await shaped([{ object: { nom: 'Vera' } }]);
+
+    expect(turn.output?.text).toBe('null');
+  });
+
+  it('reports a reply that was not JSON at all the same way', async () => {
+    // The adapter leaves `object` undefined when the reply would not parse, and
+    // the engine reads that as a miss rather than as *nobody asked*.
+    const turn = await shaped([{ text: 'I am afraid I cannot do that.' }]);
+
+    expect(callOnRecord(turn).outcome).toBe('error');
+    expect(callOnRecord(turn).error?.message).toMatch(/did not answer with JSON/);
+  });
+
+  it('sends the schema, so the endpoint was told what to write', async () => {
+    await shaped([{ object: { name: 'Vera' } }]);
+
+    // The fake declares `supportsStructuredOutput: true`, so this is the wire
+    // path rather than the prompted one — `calls.test.ts` covers the other.
+    expect(provider.requests[0]?.schema).toMatchObject({ required: ['name'] });
+  });
+});
+
+/**
+ * The plot-hook selector, through the pipeline — [06 §6.1], [P7.5].
+ *
+ * **Here rather than beside the selector's own unit tests** because what these
+ * assert is the *wiring*: that the engine's one non-mode step joins the plan,
+ * that its line lands on the turn, and that a fired hook's words reach the
+ * prompt **in the slot the preset positioned** rather than after everything else
+ * ([25 C13(c)], which [P7 §1.5] raised as the thing that had no answer).
+ */
+describe('a session with a hook pool', () => {
+  /** Puts a pool on the session, which is what makes the selector join the plan. */
+  async function seedPool(hooks: unknown[]): Promise<void> {
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, hooks }));
+  }
+
+  /** One hook in a pool, attributed to a treatment. */
+  function war(over: Partial<PlotHook> = {}): PooledHook[] {
+    return [
+      {
+        hook: {
+          id: 'hook-war',
+          title: 'War',
+          premise: 'The Flower Kingdom will declare war.',
+          magnitude: 'sweeping',
+          involves: [],
+          weight: 1,
+          delivery: 'guidance',
+          once: true,
+          ...over,
+        },
+        source: { kind: 'treatment', id: 't1' },
+      },
+    ];
+  }
+
+  const WAR = war();
+
+  it('runs the selector every turn and writes its line onto the record', async () => {
+    await seedPool(WAR);
+    // Two replies: the selector's judgement, then the narration. The selector is
+    // prepended, so it is the first call of the turn.
+    makeRunner({ script: [{ object: { hookId: null } }, { text: 'The door opened.' }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.hooks).toEqual({
+      verdict: 'judged-none',
+      pacing: 'normal',
+      considered: [{ hookId: 'hook-war', refusal: null }],
+    });
+    // And it is a step like any other, so the record says it ran.
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(['se.hooks.select', ...SCENE_STEPS]);
+  });
+
+  /**
+   * **The slot, not the end of the prompt.** A step's candidates are appended
+   * after the preset's, so a hook returned as one would arrive last; the
+   * selector hands its words to the runner and the *collector* fills
+   * [06 §5.1]'s slot, which is the same route `attempt` takes.
+   */
+  it('sends a fired hook through the guidance slot', async () => {
+    await seedPool(WAR);
+    makeRunner({ script: [{ object: { hookId: 'hook-war' } }, { text: 'The door opened.' }] });
+
+    const { turn } = await runTurn();
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+
+    // The narrator's call is the second one; the first is the judgement.
+    const narration = turn.request?.calls.at(-1);
+    const hookBlock = narration?.blocks?.find(
+      (block) => block.source.kind === 'guidance' && block.source.producer === 'step',
+    );
+    expect(hookBlock?.text).toContain('The Flower Kingdom will declare war.');
+    // Advisory, forced by the collector rather than left to the author — a hook's
+    // guidance is guidance ([06 §5.2]).
+    expect(hookBlock?.advisory).toBe(true);
+    // And the judgement call did not see the scene: its own candidates, which is
+    // what makes it cheap.
+    expect(turn.request?.calls[0]?.messages.length).toBeLessThan(narration?.messages.length ?? 0);
+  });
+
+  it('records the firing as an effect on the hook’s own channel', async () => {
+    await seedPool(WAR);
+    makeRunner({ script: [{ object: { hookId: 'hook-war' } }, { text: 'The door opened.' }] });
+
+    const { turn } = await runTurn();
+    const firing = turn.effects.find((effect) => effect.channelId === 'se.hook');
+
+    expect(firing).toMatchObject({ scopeKey: 'hook-war', after: 'fired', applied: true });
+    // Which is what takes it out of the pool on the next turn, rather than a
+    // set on the session file that could not branch.
+    const next = await runNextTurn();
+    expect(next.hooks?.considered).toEqual([{ hookId: 'hook-war', refusal: 'fired' }]);
+    expect(next.hooks?.verdict).toBe('nothing-eligible');
+  });
+
+  /**
+   * **Absent means the selector did not run**, which is every session without a
+   * pool — never *it ran and had nothing to say*. The distinction is the one
+   * [03 §8] draws everywhere else in this record.
+   */
+  it('leaves the field off a turn with no pool at all', async () => {
+    const { turn } = await runTurn();
+
+    expect(turn.hooks).toBeUndefined();
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
+  });
+
+  /**
+   * ***A step that brings its own candidates does not move the retriever's
+   * counters*** — [P5.6], [P7.5], and a correctness fix rather than a saving.
+   *
+   * `performCall` already knows what an explicit `candidates` means: it zeroes
+   * `notFilled` and `refused` because *"the preset was not consulted, so it
+   * honestly has nothing to say"*. The retriever ran anyway, so a scan whose
+   * blocks were then discarded still spent every matched entry's cooldown — a
+   * lorebook entry recorded as having fired on a turn where its text reached no
+   * prompt. **Nothing hit it before the selector**, which is the first step in
+   * the build to pass its own candidates.
+   */
+  it('does not spend a lorebook entry on the judgement call', async () => {
+    const book = newLorebook('Rain City');
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing.',
+        cooldown: 3,
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withBoth = await createSession(sessions, ACCOUNT, {
+      name: 'Both',
+      preset: TEST_PRESET,
+      lore: [book.id],
+      hooks: WAR,
+    });
+    // The judgement answers *none*, so the only call that assembles a prompt is
+    // the narrator's — and the entry the input mentions belongs to that one.
+    makeRunner({ script: [{ object: { hookId: null } }, { text: 'The door opened.' }] });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withBoth.id,
+      idempotencyKey: 'both-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'The ferryman again.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withBoth.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const timing = turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING);
+
+    // One, not two: the entry fired for the narration and not for the judgement.
+    expect(timing).toHaveLength(1);
+    expect(timing[0]?.after).toEqual({ sticky: 0, cooldown: 3, fired: 1 });
+    // And the judgement call assembled nothing from the preset at all, which is
+    // what `cheap` means and what makes the claim above checkable.
+    expect(turn.request?.calls[0]?.notFilled ?? []).toHaveLength(0);
+  });
+
+  /**
+   * **Commit, end to end, through the route that already existed** — [06 §6.1],
+   * [P7.5] stage four.
+   *
+   * *"I want this to happen — not necessarily on this turn."* It needed no new
+   * route and no policy change: `se.hook` is `engine-computed`, which refuses a
+   * `model` and a `step` and **admits a `user`**, and the channel write is
+   * attributed to a person. The only thing that had to change was the enum, so
+   * the channel's schema would accept the value.
+   */
+  it('lets a person commit a hook the filter had refused, and fires it', async () => {
+    // `notBefore: { turn: 40 }` — forty turns away, and committed anyway.
+    await seedPool(war({ notBefore: { turn: 40 } }));
+    const written = await writeChannel(
+      sessions,
+      ACCOUNT,
+      sessionId,
+      'se.hook#hook-war',
+      'committed',
+    );
+    expect(written.kind === 'written' && written.effect.applied).toBe(true);
+
+    makeRunner({ script: [{ object: { hookId: 'hook-war' } }, { text: 'The door opened.' }] });
+    const turn = await runNextTurn();
+
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+    // And the record says what the commitment carried it past, which is [06
+    // §6.1]'s first rule for keeping Commit honest.
+    expect(turn.hooks?.considered).toEqual([
+      { hookId: 'hook-war', refusal: null, committed: { overrode: 'too-early' } },
+    ]);
+    // The firing replaces the commitment on the same key — the states are
+    // exclusive, which is what makes *absent is in the pool* readable.
+    expect(turn.effects.find((effect) => effect.channelId === 'se.hook')).toMatchObject({
+      scopeKey: 'hook-war',
+      after: 'fired',
+      applied: true,
+    });
+  });
+
+  /**
+   * **Force-fire, end to end** — [06 §6.1], [10 §10.1], [P7.5]. *"The hook is
+   * delivered on the next turn with no judgement call at all."*
+   *
+   * Through the same channel route Commit uses, because the intent has to
+   * survive between the click and the turn and a channel is the only home that
+   * branches.
+   */
+  it('delivers a forced hook on the next turn without asking anybody', async () => {
+    await seedPool(war({ notBefore: { turn: 40 } }));
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook#hook-war', 'forced');
+    // One reply, and the narrator is the only caller: a second would mean a
+    // judgement call happened.
+    makeRunner({ script: [{ text: 'The door opened.' }] });
+
+    const turn = await runNextTurn();
+
+    expect(turn.request?.calls).toHaveLength(1);
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-war' });
+    // The record says nobody was asked, and says what the force skipped.
+    expect(turn.hooks?.considered).toEqual([
+      { hookId: 'hook-war', refusal: null, forced: { overrode: 'too-early' } },
+    ]);
+    // And the words reached the slot the preset positioned, like any firing.
+    const hookBlock = turn.request?.calls[0]?.blocks?.find(
+      (block) => block.source.kind === 'guidance' && block.source.producer === 'step',
+    );
+    expect(hookBlock?.text).toContain('The Flower Kingdom will declare war.');
+  });
+
+  /**
+   * **Patience runs out, and the deadline is a lapse rather than a firing** —
+   * [06 §6.1], [P7.5]. *"One that fires anyway at the deadline delivers the
+   * twist at the exact moment the selector has already rejected three times —
+   * the worst available moment."* So the hook goes back in the pool, and the
+   * turn record **says so**, because a silent lapse is worse than either
+   * outcome.
+   */
+  it('lapses a commitment nobody found a moment for, and says so', async () => {
+    await seedPool(WAR);
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook#hook-war', 'committed');
+    // One reply serves both calls of every turn: the judgement reads `object`
+    // and says *not yet*, the narrator reads `text`. The script clamps to its
+    // last entry, so this repeats for as many turns as the test runs.
+    makeRunner({ script: [{ object: { hookId: null }, text: 'The door opened.' }] });
+
+    // The commitment's own turn is the channel write; the three after it are the
+    // chances the selector gets.
+    for (let chance = 0; chance < 3; chance += 1) {
+      const waiting = await runNextTurn();
+      expect(waiting.hooks?.verdict, `chance ${String(chance + 1)}`).toBe('judged-none');
+      expect(waiting.hooks?.lapsed).toBeUndefined();
+    }
+
+    const expired = await runNextTurn();
+    expect(expired.hooks?.lapsed).toEqual(['hook-war']);
+    // Cleared to null, which on this channel *is* back in the pool:
+    // `se.hook`'s init is `{ kind: 'literal', value: null }`, so null is what an
+    // unfired hook already reads as. `before` carries the commitment away, which
+    // is what an undo of this turn would put back.
+    const cleared = expired.effects.find((effect) => effect.channelId === 'se.hook');
+    expect(cleared).toMatchObject({
+      scopeKey: 'hook-war',
+      before: 'committed',
+      after: null,
+      applied: true,
+    });
+
+    // And it really is back: the next turn considers it with no commitment on it.
+    const after = await runNextTurn();
+    expect(after.hooks?.considered).toEqual([{ hookId: 'hook-war', refusal: null }]);
+  });
+
+  /**
+   * The dial is `user-only` and the route that turns it is the channel write —
+   * so this is the first end-to-end proof that a person's setting reaches a
+   * scheduling decision, and that the record says which setting it was.
+   */
+  it('holds when the dial has been turned down, and says so', async () => {
+    await seedPool(WAR);
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'manual-only');
+    makeRunner({ script: [{ text: 'The door opened.' }] });
+
+    const turn = await runNextTurn();
+
+    expect(turn.hooks).toEqual({
+      verdict: 'held',
+      pacing: 'manual-only',
+      // The filter still runs and still reports; only the judgement is off,
+      // which is what makes `manual-only` a coherent state rather than a dead
+      // step ([06 §6.1]).
+      considered: [{ hookId: 'hook-war', refusal: null }],
+    });
+    // One call, not two: nobody was asked.
+    expect(turn.request?.calls).toHaveLength(1);
+  });
+});
+
+/**
+ * **Goals, through the pipeline** — [06 §7.3.3], [06 §7.3.4], [P7.6].
+ *
+ * *"An evaluation step at `post` judges whether the goal is met."* What these
+ * assert is the wiring and the bias: that the judge runs after the prose exists,
+ * that a met goal lands as a **model-proposed** effect on the goal's own key, and
+ * that everything ambiguous answers *not met* — because *"a missed completion is
+ * an annoyance the player can resolve manually, while a false completion ends the
+ * story on a turn that did not earn it."*
+ */
+describe('a session with a goal', () => {
+  async function seedGoals(goals: unknown[]): Promise<void> {
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, goals }));
+  }
+
+  function ledger(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: 'g-ledger',
+      statement: 'Get the ledger out of the Foundry.',
+      detail: null,
+      visibility: 'player',
+      completion: { kind: 'narrative' },
+      thenDefault: 'advance',
+      next: null,
+      ...over,
+    };
+  }
+
+  it('injects the goal it is on, and judges after the prose exists', async () => {
+    await seedGoals([ledger()]);
+    // Narration first, then the judge — the judge is a `post` step.
+    makeRunner({
+      script: [
+        { text: 'She walked out with the ledger under her coat.' },
+        { object: { met: true } },
+      ],
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual([...SCENE_STEPS, 'se.goals.judge']);
+    // [06 §7.3.3]: *"the goal statement is therefore always injected"* — through
+    // the preset's own `{ of: 'goal' }` slot, which returned nothing until now.
+    const narration = turn.request?.calls[0];
+    const goalBlock = narration?.blocks?.find((block) => block.source.kind === 'goal');
+    expect(goalBlock?.text).toContain('Get the ledger out of the Foundry.');
+  });
+
+  /**
+   * ***Attributed to the model, which is the one thing that makes
+   * `model-proposed` mean anything here.*** The policy exists because the
+   * narrator's judgement is the only signal available — so the record has to
+   * say a model judged it, with the call it judged it in. (`se.goal` is not the
+   * first channel carrying the policy — three cast channels have since [P3.0] —
+   * it is the first one a model's judgement is *written to*.)
+   *
+   * ***And it is refused, which is [25 C12]'s answer.*** `confirm: ['achieved']`
+   * makes the judgement a **recorded, unapplied** proposal: the record says what
+   * the narrator thought, the session has not moved, and the goal panel asks. A
+   * false completion ending a story that did not earn it is the error the
+   * asymmetry is about, and the refusal is where it is stopped.
+   */
+  it('records a met goal as a refused model proposal on the goal’s own key', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'She walked out with it.' }, { object: { met: true } }] });
+
+    const { turn } = await runTurn();
+    const achieved = turn.effects.find((effect) => effect.channelId === 'se.goal');
+
+    expect(achieved).toMatchObject({
+      scopeKey: 'g-ledger',
+      // `after` is the value the model *wanted* — the [P7.2] correction the
+      // panel depends on, since a refusal stamping `before` back would record
+      // that something was refused and not what.
+      after: 'achieved',
+      applied: false,
+      rejectedReason: 'needs-confirmation',
+      proposedBy: { kind: 'model' },
+    });
+    // The call it judged in, so the workbench can show the reasoning.
+    expect(turn.request?.calls.map((call) => call.id)).toContain(
+      (achieved?.proposedBy as { callId?: string }).callId,
+    );
+  });
+
+  /**
+   * *The state does not move on the proposal*, which is the half that matters
+   * more than the record: [06 §7.3.4]'s three offers are raised off `achieved`,
+   * so a story whose channel still reads `null` is a story that has not ended.
+   */
+  it('leaves the goal unachieved until a person rules on it', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'She walked out with it.' }, { object: { met: true } }] });
+
+    await runTurn();
+
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as {
+      channels?: Record<string, { value: unknown }>;
+    };
+
+    expect(session.channels?.['se.goal#g-ledger']?.value ?? null).toBeNull();
+  });
+
+  it('writes nothing when the judge says not yet', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'She got as far as the door.' }, { object: { met: false } }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.effects.find((effect) => effect.channelId === 'se.goal')).toBeUndefined();
+  });
+
+  /**
+   * **Bias toward under-firing, at the one place a model can be ambiguous.** An
+   * endpoint with no structured output answers in text ([P7.4] makes that the
+   * ordinary path for a self-hosted install), and prose the reader cannot parse
+   * is *not met* rather than a story ended on a turn that did not earn it.
+   */
+  it('treats an answer it cannot read as not met', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({ script: [{ text: 'Maybe. Hard to say!' }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.effects.find((effect) => effect.channelId === 'se.goal')).toBeUndefined();
+    expect(turn.steps?.at(-1)).toMatchObject({ stepId: 'se.goals.judge', state: 'ok' });
+  });
+
+  /**
+   * *"The player says when"* — [04 §7.1]'s other completion arm. A call that
+   * judged a manual goal would be the engine asking a question the author
+   * reserved for a person, so the step does not join the plan at all.
+   */
+  it('does not judge a goal whose completion the author reserved for a person', async () => {
+    await seedGoals([ledger({ completion: { kind: 'manual' } })]);
+    makeRunner({ script: [{ text: 'She got as far as the door.' }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
+    // The statement is still injected: it is what the story is about, whoever
+    // rules on it.
+    expect(turn.request?.calls[0]?.blocks?.some((block) => block.source.kind === 'goal')).toBe(
+      true,
+    );
+  });
+
+  /**
+   * [06 §7.3.4]: *"Concluded is a state, not a deletion: the session stays
+   * readable and branchable."* Readable and branchable is what the store already
+   * gives; what this pins is that an ended session stops being **judged**.
+   */
+  it('stops judging once the story has been ended', async () => {
+    await seedGoals([ledger()]);
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.concluded', true);
+    makeRunner({ script: [{ text: 'An epilogue.' }] });
+
+    const turn = await runNextTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
+    // And the turn still happened, which is the readable-and-branchable half.
+    expect(turn.status).toBe('complete');
+  });
+
+  it('leaves a session with no goals exactly as it was', async () => {
+    const { turn } = await runTurn();
+
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
+    expect(turn.request?.calls[0]?.blocks?.some((block) => block.source.kind === 'goal')).toBe(
+      false,
+    );
+  });
+});
+
+/**
+ * **Mention resolution, through the pipeline** — [06 §8.2], [03 §8], [P7.7].
+ *
+ * ***And the property [P7.5] left open.*** [06 §6.1] leaves an introduction hook
+ * *provisionally fired* until *"the extract stage confirms the subject present
+ * on that turn; unconfirmed, it returns to the pool with the attempt on the
+ * record."* This is the stage, and these are the two outcomes.
+ */
+describe('what the engine understood about a turn', () => {
+  async function seedCast(): Promise<string> {
+    const actor = { ...newActor('Vera Kohl'), aliases: ['Vera'] };
+    await create(library, ACCOUNT, actor);
+    return actor.id;
+  }
+
+  it('records who the prose named, as an overlay rather than a rewrite', async () => {
+    const actorId = await seedCast();
+    const withCast = await createSession(sessions, ACCOUNT, {
+      name: 'Rain',
+      preset: TEST_PRESET,
+      cast: { persona: null, actors: [actorId] },
+    });
+    makeRunner({ script: [{ text: 'Vera opened the door.' }] });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withCast.id,
+      idempotencyKey: 'spans-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withCast.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+
+    expect(turn.spans).toEqual([
+      {
+        field: 'output',
+        start: 0,
+        end: 4,
+        target: { kind: 'actor', ref: { id: actorId, name: 'Vera Kohl' } },
+        method: 'matched',
+        confidence: null,
+      },
+    ]);
+    // *Never a rewrite of the message text* — the prose is exactly what the
+    // model wrote, and the overlay sits beside it.
+    expect(turn.output?.text).toBe('Vera opened the door.');
+  });
+
+  it('leaves the field off a turn with nobody to find', async () => {
+    // **Absent rather than empty** — [03 §8]'s distinction: *empty* would claim a
+    // pass ran and found nobody, which is a different fact from *nobody looked*.
+    const { turn } = await runTurn();
+
+    expect(turn.spans).toBeUndefined();
+    expect(turn.steps?.map((step) => step.stepId)).toEqual(SCENE_STEPS);
+  });
+});
+
+/**
+ * ***An introduction hook's firing is provisional until somebody arrives*** —
+ * [06 §6.1], and [P7.5]'s fourth property row, which that stage could not close
+ * because the extract stage did not exist.
+ *
+ * *"Guidance is advisory; the narrator may decline it. For an event hook a
+ * decline is a miss and the pool is none the worse. For an introduction hook it
+ * is a silent permanent loss — marked fired, character never arrived, and
+ * once-only. So the hook is recorded provisionally fired and becomes fired only
+ * when the extract stage confirms the subject present on that turn;
+ * unconfirmed, it returns to the pool with the attempt on the record."*
+ */
+describe('an introduction the narrator was asked to make', () => {
+  async function aSessionIntroducing(): Promise<{ sessionId: string; actorId: string }> {
+    const actor = { ...newActor('Vera Kohl'), aliases: ['Vera'] };
+    await create(library, ACCOUNT, actor);
+    const made = await createSession(sessions, ACCOUNT, {
+      name: 'Rain',
+      preset: TEST_PRESET,
+      hooks: [
+        {
+          hook: {
+            id: 'hook-vera',
+            title: 'Vera arrives',
+            premise: '',
+            magnitude: 'personal',
+            involves: [],
+            weight: 1,
+            delivery: 'guidance',
+            once: true,
+            introduces: {
+              actor: { id: actor.id, name: 'Vera Kohl' },
+              entrances: [{ id: 'e-rain', label: 'In the rain', text: 'Soaked to the skin.' }],
+              primaryEntranceId: null,
+            },
+          },
+          source: { kind: 'session' as const },
+        },
+      ],
+    });
+    return { sessionId: made.id, actorId: actor.id };
+  }
+
+  async function takeTurn(sessionId: string, key: string): Promise<Turn> {
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId,
+      idempotencyKey: key,
+      headTurnId: (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const turn = written.at(-1)?.turn;
+    if (!turn) throw new Error('no turn was appended');
+    return turn;
+  }
+
+  it('becomes fired when the subject actually arrives', async () => {
+    const { sessionId, actorId } = await aSessionIntroducing();
+    makeRunner({
+      script: [{ object: { hookId: 'hook-vera' } }, { text: 'Vera came in, soaked to the skin.' }],
+    });
+
+    const turn = await takeTurn(sessionId, 'intro-1');
+
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-vera' });
+    const firing = turn.effects.find((effect) => effect.channelId === 'se.hook');
+    expect(firing).toMatchObject({ scopeKey: 'hook-vera', after: 'fired', applied: true });
+    // And the overlay is what confirmed it — the same finding, not a second scan.
+    expect(turn.spans?.some((span) => span.target.ref.id === actorId)).toBe(true);
+  });
+
+  /**
+   * ***The decline, which is the whole reason the state exists.*** The narrator
+   * was asked and wrote about something else; the hook goes back in the pool, and
+   * the attempt stays on the record in the turn's own `hooks` line.
+   */
+  it('returns to the pool when the narrator declined, with the attempt on the record', async () => {
+    const { sessionId } = await aSessionIntroducing();
+    makeRunner({
+      script: [{ object: { hookId: 'hook-vera' } }, { text: 'The rain kept on and nobody came.' }],
+    });
+
+    const turn = await takeTurn(sessionId, 'intro-2');
+
+    // The attempt: the record says it fired and names the hook.
+    expect(turn.hooks).toMatchObject({ verdict: 'fired', hookId: 'hook-vera' });
+    // And the pool: nothing was written, so it is eligible again.
+    expect(turn.effects.find((effect) => effect.channelId === 'se.hook')).toBeUndefined();
+
+    makeRunner({ script: [{ object: { hookId: null } }, { text: 'Still raining.' }] });
+    const next = await takeTurn(sessionId, 'intro-3');
+    expect(next.hooks?.considered).toEqual([{ hookId: 'hook-vera', refusal: null }]);
   });
 });
