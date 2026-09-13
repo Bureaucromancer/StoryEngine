@@ -117,10 +117,21 @@ expensive instead.
    were never automated."* **If this file only grows, the model has failed**, and
    the honest response is to say so here rather than to keep adding sittings.
 
-**The intake is mechanical, not a matter of remembering.** Every exit gate in
-this project ships at least one step marked *"Only a person can walk"* — P3, P5,
-P7, P10 and P11 all carry the phrase, and it is always on the step that carries
-the phase's actual claim. That is what to grep for when a phase closes.
+**The intake is mechanical, not a matter of remembering.** ~~Every exit gate in
+this project ships at least one step marked *"Only a person can walk"*~~ — **five
+of nine do**, and the four that do not are P4, P6, P8 and P9 (counted
+2026-09-13, at P8's revisit). P3, P5, P7, P10 and P11 carry the phrase, always on
+the step that carries the phase's actual claim, and that is what to grep for when
+a phase closes.
+
+***A mechanical intake over a convention four documents do not follow is an
+intake that returns nothing and says nothing***, which is the same failure this
+section's own opening describes one level up. **The repair is not to add the
+phrase to four gates** — P4's and P6's are closed, and adding a marker to a
+walked gate is editing a gate after the fact. It is to say which gates the grep
+covers, which is now said. [P8 §3.1](24-p8-implementation.md) carries the phrase
+on its **critical list** instead of on a step, for that reason, and that is the
+pattern for any gate revised after its sketch.
 
 **The two valves, named once more because they are the model's only defence
 against itself.** §5 records what a test now covers, so nobody walks it again;
@@ -723,7 +734,8 @@ a claim nobody made.*
 | **P6B** | 10 | **6, 7** — §5 | **K, pending** | **The first gate to split under [§0](#the-two-tier-gate).** Steps 1–5, 9 and 10 are sitting **K**, the critical list, and the phase does not close until they have results. Step 8 is P5's eighteen wearing P6B's number — criterion (i) — and is **F** |
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
 | **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **critical list pending** | **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing, and **three await a person**: C1 author a small mode against the SDK with no `server`; C2 Freeform played end to end; C3 a wizard for a mode the engine knows nothing about. Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
-| **P8 … P11** | 10 / 15 / 10 / 10 | — | not yet opened | **45 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is |
+| **P8** | 10 (14 rows) | **1a, 2, 3, 5, 7, 8a, 9, 10** — when they land | not yet opened | **Planned rather than sketched, 2026-09-13** ([P8 §3.1](24-p8-implementation.md)). Eight rows automatable, three Standing, and **three criticals — C1 cross-session recall named in the workbench, C2 a hand correction surviving the next extraction, C3 no spoiler bleed.** All three are *short-session* checks, which is unusually cheap for a critical list. **What the list cannot reach is the phase's own headline**: *the same session, four hundred turns long* is refused by clause (iii), because nothing here has ever played four hundred turns and a synthesised tree proves the chain rather than the summary. That walk is a sitting behind PLAYABLE, with **sitting G** |
+| **P9 … P11** | 15 / 10 / 10 | — | not yet opened | **35 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is, and as P8's C1 now is |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document
