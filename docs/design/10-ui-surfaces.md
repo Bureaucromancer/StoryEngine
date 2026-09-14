@@ -2072,7 +2072,19 @@ Worth separating before they get conflated:
 |---|---|---|
 | For | A person to read | Another install to load |
 | Fidelity | Lossy by design — the machinery is stripped | Lossless |
-| Ships | 1.0 | Eventually, not early |
+| Ships | 1.0 | ~~Eventually, not early~~ **1.0, at P11** |
+
+***The export cell was stale and is corrected 2026-09-14.***
+[work plan §0.5](workplan/01-work-plan.md) moved session export into 1.0 and gave
+it to [P11](workplan/27-p11-implementation.md); [25 B12](25-open-questions.md)
+records the same resolution, and [13 §13](13-write-mode.md) and
+[18 §3](18-session-import.md) both write against it. **Four documents had
+overtaken this cell and it still said otherwise**, which matters more here than
+in most places: this table exists to stop two things being conflated, and a
+table that is wrong about one of them conflates them by a different route.
+*Found by [P11 §0.1](workplan/27-p11-implementation.md)'s sweep, which also found
+that the phase the export was given to had argued it at length and never made it
+a stage.*
 
 The reading view being lossy is the point. An export that dropped the turn
 records would be broken; a reading view that included them would be unreadable.

@@ -49,6 +49,17 @@ P7's ratio the pile grows by a third of what this sentence feared. *That is the
 split working. It is not the pile draining, which is a different number and is in
 [§0's tally](#0-where-this-stands-2026-09-09).*
 
+***And there are six phases now, not five*** (2026-09-14).
+[P7B](28-p7b-surfaces.md) was created out of a documentation sweep — six client
+surfaces over server capabilities that already shipped — and it lands a gate like
+any other phase. **Its critical list is three**, derived in its own §3.1 by this
+section's criterion on the day the phase was written rather than on the day it
+closes. That is the first time the derivation has happened in advance, and it is
+worth noticing why it could: the phase's contents were found by an audit, so
+what each stage claims was written down before anybody built anything. **The
+denominator moved and the ratio did not**, which is the only honest way to
+report a new phase arriving on a pile this section is about.
+
 > **When a phase closes, its exit gate splits.**
 >
 > **The critical list is the gate.** A small set of checks — walkable in a
@@ -855,6 +866,7 @@ a claim nobody made.*
 | **P6B** | 10 | **6, 7** — §5 | **K, pending** | **The first gate to split under [§0](#the-two-tier-gate).** Steps 1–5, 9 and 10 are sitting **K**, the critical list, and the phase does not close until they have results. Step 8 is P5's eighteen wearing P6B's number — criterion (i) — and is **F** |
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
 | **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **L, pending** | **Sitting L**, three steps and the desk work that closes the phase. **Merged into `main` 2026-09-13 at `589900e`, and open** — the first phase where §7's rule and P6A's *the merge is the close* disagree, and the first with a derived non-empty critical list for the rule to hold. **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing (§10), and **three await a person** — **L1** author a small mode against the SDK with no `server`; **L2** Freeform played end to end; **L3** a wizard for a mode the engine knows nothing about. *P7 calls them C1–C3; they are relettered in sitting L because sitting C has a C1 already.* Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
+| **P7B** | 1 + 6 stage ends | the one check that is not a stage, if it can be written | not yet opened | **Created 2026-09-14 out of a documentation sweep** ([P7B §3](28-p7b-surfaces.md)), not out of a design — six client surfaces over server capabilities that already ship. **Three criticals — C1 a preset authored in the browser that positions an outlet, C2 archive and delete from the UI, C3 the workbench on a turn the head has passed.** Derived in the phase document on the day it was written, which no other phase has managed. **Its one gate item that is not a stage is a test, not a walk:** nothing in the suite asserts that a shipped route has a caller, and four of this phase's six stages are routes whose only callers are their own tests. *What the critical list cannot reach is the class the phase exists for* — it can say these six arrived, never whether a seventh is missing, which is what that test is for |
 | **P8** | 10 (14 rows) | **1a, 2, 3, 5, 7, 8a, 9, 10** — when they land | not yet opened | **Planned rather than sketched, 2026-09-13** ([P8 §3.1](24-p8-implementation.md)). Eight rows automatable, three Standing, and **three criticals — C1 cross-session recall named in the workbench, C2 a hand correction surviving the next extraction, C3 no spoiler bleed.** All three are *short-session* checks, which is unusually cheap for a critical list. **What the list cannot reach is the phase's own headline**: *the same session, four hundred turns long* is refused by clause (iii), because nothing here has ever played four hundred turns and a synthesised tree proves the chain rather than the summary. That walk is a sitting behind PLAYABLE, with **sitting G** |
 | **P9 … P11** | 15 / 10 / 10 | — | not yet opened | **35 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is, and as P8's C1 now is |
 
@@ -999,6 +1011,32 @@ that only grows. Their state today:
   eventually be caught: nothing in `captures/live-tests/` exercises a `stage`
   call, and nothing will until somebody plays a staged session.
 
+- **Nothing asserts that a shipped route has a caller** — added 2026-09-14 by
+  [P11 §0.1](27-p11-implementation.md)'s sweep, and it is the sharpest item this
+  section has held since 4.2. **Five routes have had no client caller for up to
+  six phases**: session delete, the archive field on a `PATCH` the client already
+  sends, `GET /api/search`, `GET /api/library/errors`, and the four library kinds
+  with no editor to reach their routes. Every one of them has tests. Every test
+  is green. **The suite cannot tell the difference between a route whose caller
+  is a client and a route whose only caller is its own test**, and that is not a
+  judgement call — it is a mechanical property of the two trees.
+
+  *Why it is a should-be-a-test rather than a finding.* Each of the five was
+  found by a person reading documentation, which is the most expensive
+  instrument available and the one that had not been pointed at this in six
+  phases. A walk of the server's route table against the client's request calls,
+  failing on a route with neither a caller nor a written exemption, costs a
+  morning and never gets tired. **The exemptions are the interesting half** —
+  a route that legitimately has no client caller should have to say so in one
+  line, and writing those lines is itself the audit.
+
+  *And the honest risk*, since this section's job is to say what a check cannot
+  do: the client's request layer may be too dynamic to walk statically, in which
+  case the fallback is a hand-maintained list — worse, but still a list somebody
+  has to look at, which is more than exists today. [P7B §3](28-p7b-surfaces.md)
+  carries it as the one gate item that is not a stage, and [P7B §5](28-p7b-surfaces.md)
+  carries the risk.
+
 
 ---
 
@@ -1022,13 +1060,16 @@ Anything that loses its owner comes back to §0's rule.*
 | Restore test, upgrade test | [work plan §8](01-work-plan.md), [25 E6](../25-open-questions.md) | [P11](27-p11-implementation.md) | "An untested restore is not a backup" — and it is 1.0 scope |
 | Release-line support window; release-branch cut point | [releases §8](04-repo-and-releases.md) | [P11](27-p11-implementation.md) | Cheap to declare now, awkward later; no release line exists yet |
 | The twelve polish items | [polish](06-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
-| **[F-03](21-playable-log.md)** — a turn in flight is invisible unless the workbench is open | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned, and named rather than assigned** | [10 §9](../10-ui-surfaces.md) specifies it nearly verbatim — *"a collapsed line while things go well"* — and P3.5 built it inside the panel only. **No phase owns `10 §9`.** Graded [R7](22-walkthrough-refinements.md), *small*. Giving it a false owner would stop anybody looking |
-| **[F-05](21-playable-log.md)** — the workbench cannot be pointed at a turn the head has passed | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned; a 1.0 commitment**, and [P11.0](27-p11-implementation.md)'s audit is what exists to find those | [10 §3](../10-ui-surfaces.md) says the panel shows any turn *current or historical*; it is wired to the head. `useTurn` exists with one caller, so the reader is built and the affordance is not. Graded [R1](22-walkthrough-refinements.md) |
+| **[F-03](21-playable-log.md)** — a turn in flight is invisible unless the workbench is open | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | **unowned, and named rather than assigned** | [10 §9](../10-ui-surfaces.md) specifies it nearly verbatim — *"a collapsed line while things go well"* — and P3.5 built it inside the panel only. ~~**No phase owns `10 §9`.**~~ ***Too broad, corrected 2026-09-14 by [P11 §0.1](27-p11-implementation.md)'s sweep: [P10.2](26-p10-implementation.md) owns §9's delivery half — sound, toast, unread badge, document title. What nobody owns is the first half, the collapsed in-flight line itself.*** Graded [R7](22-walkthrough-refinements.md), *small*. **Still unowned, and now a [P7B](28-p7b-surfaces.md) candidate held deliberately** — it is one story with [R4](22-walkthrough-refinements.md) below and [polish §11](06-polish.md), and building a third of it is how the other two thirds get built twice. Giving it a false owner would stop anybody looking |
+| **[F-05](21-playable-log.md)** — the workbench cannot be pointed at a turn the head has passed | the pre-P6 walk, 2026-09-08; triaged 2026-09-09 | ~~**unowned; a 1.0 commitment**, and [P11.0](27-p11-implementation.md)'s audit is what exists to find those~~ **[P7B.2](28-p7b-surfaces.md)** — *the audit ran early, 2026-09-14, and found this already found* | [10 §3](../10-ui-surfaces.md) says the panel shows any turn *current or historical*; it is wired to the head. `useTurn` exists with one caller, so the reader is built and the affordance is not. Graded [R1](22-walkthrough-refinements.md) |
 | ~~**[P2C 6](14-p2c-log.md)** — `capabilities` is the only lever for the context window, and it has no surface~~ **Closed 2026-09-10: it had a surface** | P2C.0, 2026-08-23; triaged 2026-09-09; re-checked at [P7 §0.1a](23-p7-implementation.md) | **nobody — it is done** | ~~Sixteen days open because nobody had a reason to open the file.~~ **Seventeen days open because three documents grepped for `contextWindow`, an identifier that appears nowhere in this repository.** The field is `maxContextTokens`, and `client/src/settings/AdminConnections.tsx:225-236` has offered it — with `docs/api.md:1583-1592` saying so — for longer than the finding stood. [Work plan §2.3](01-work-plan.md)'s line is **paid** for connections. *The lesson is the row rather than the fix: a deferral is checked once, by whoever routes it, and then travels on its label* |
 | **[P2C 11](14-p2c-log.md)** — an in-flight turn is broadcast as `failed` | P2C.0, 2026-08-23; triaged 2026-09-09 | **[P7](23-p7-implementation.md)** | The disk half is the recovery contract and stays. The wire half is a contract question nobody has answered: a client reading `turn.status` on a running turn is told `failed` |
 | **[R4](22-walkthrough-refinements.md)** — where the reader's view sits while a turn streams | the walk's grading, 2026-09-08; **regraded 2026-09-09** | **unowned, and it needs a paragraph in [10](../10-ui-surfaces.md) before it can have one** | The refutation that downgraded it cited `[07 §]` — no section, and `07-branching.md` says nothing of the kind. **The largest genuine blank in the corpus**, restored to that status |
 | **P7 4's reading half** — *does the selector's line explain anything to a person* | [P7 §3.1](23-p7-implementation.md), 2026-09-13 | **[work plan P11](01-work-plan.md)**, which owns selector legibility as tuning | The record half is `AUTO` and in §5 — four situations, four distinguishable lines. Whether any of them *reads* is a judgement about wording, and clause (ii) has nothing to say about it: it is as answerable in November. **Tuning is P11's for every other feature and is P11's here.** |
 | **P7 6's judgement half** — *is the goal judge accurate, at the moment that matters most* | [P7 §3.1](23-p7-implementation.md), 2026-09-13 | **[work plan P11](01-work-plan.md)**, same sweep | The mechanics are `AUTO` and in §5, confirmation gate included. Accuracy wants real sessions rather than a scripted provider, and **a judgement at the most dramatically loaded moment of a story is exactly what a walker cannot manufacture** — which makes it G's kind of evidence, arriving through play rather than through a check. |
+| **Session delete and archive have no surface** | [P11 §0.1](27-p11-implementation.md)'s sweep, 2026-09-14; recorded as an absence at [P6B](20-p6b-playable.md) and graded [R9](22-walkthrough-refinements.md) long before | **[P7B.1](28-p7b-surfaces.md)** | The routes shipped at P2.3 and R9's *"a small client stage"* was a description rather than an owner. **The archive half is one field on a `PATCH` the client already sends** — `renameSession` has been calling that route since P2, with `{ name }`, while the same route has accepted `{ archived }` the whole time |
+| **The import quarantine has no surface** | same sweep; [manual gate §3.5](11-p2-manual-gate.md) said *"No client code calls it"* at P2 | **[P7B.4](28-p7b-surfaces.md)** | `GET /api/library/errors` is the only way to see what an import quarantined. A quarantine nobody can look into is a deletion with extra steps, and it has been that way for six phases |
+| **Search has no surface** — [10 §14](../10-ui-surfaces.md), *"argued for 1.0"* | same sweep; [P5 §3](17-p5-implementation.md) called the absence *"settled rather than deferred"* | **[P7B.5](28-p7b-surfaces.md)**, with its scope still a fork | `GET /api/search` has no client caller while `README.md` promises a reader *"search the lines you abandoned."* **The settlement was honest and the register was not**: *settled* meant *not this stage's*, and no later stage ever took it. P5 also recorded an owner-filter defect here and declined to fix it as *"`search`'s, not this stage's"* — it travels with the surface |
 | **What sitting K cannot reach** — hypothesis 3 under a real library's pressure, hypothesis 4 under a long session, and any defect of *accumulation* | [K](#k--p6bs-critical-list--two-sittings-and-an-hour-of-desk-work-the-one-that-closes-a-phase), on the day it was derived | **[G](#g--the-long-pass--hours-unscripted-playables-second-sitting) and J**, which is a named sitting rather than a person — and R1 and R9 are what they wait on | **This row exists because the two-tier gate owes it.** A critical list closes a phase on the part that compounds; the part it drops has to land somewhere with a name, or the model is just a smaller gate with the same silence. Every K item is one turn long and leaves nothing behind, so nothing in it can see a leak at turn forty |
 
 ### 10.1 The dangling owner, which is the finding this sweep exists to have produced

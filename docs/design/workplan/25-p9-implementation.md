@@ -448,6 +448,19 @@ replacing — and §1.3's decision, disclosed.
 they gate, and building either here would be a control over a decision nothing
 makes yet.
 
+***And nothing owns the judgement they arrive with*** — found 2026-09-14 by
+[P11 §0.1](27-p11-implementation.md)'s sweep.
+[06 §10.4](../06-modes-and-turn-pipeline.md) says the count judgement *"lands in
+a later one"* and **P10 and P11 are the only later phases; neither mentions it**.
+So this deferral, and the two dials with it, currently point at nobody — which
+is [manual testing §10.1](05-manual-testing.md)'s exact shape, a deferral moved
+off one owner and onto a phase that never took it. *The narrowing that makes it
+smaller than it reads:* the **storyboard surface** downstream of the judgement is
+on the feature list ([24 §3.3](../24-roadmap.md)) rather than in 1.0, so what is
+actually unowned is the judgement and the two dials, not the surface they would
+feed. Recorded here rather than assigned, because inventing an owner is the
+thing that stops anybody looking.
+
 **The backdrop's own control, which is off or on and has no per-turn setting**
 ([06 §10.6](../06-modes-and-turn-pipeline.md)): *on* means when the place
 changes, and a per-turn backdrop is the failure mode rather than the thorough

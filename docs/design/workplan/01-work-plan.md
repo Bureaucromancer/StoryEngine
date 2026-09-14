@@ -1156,6 +1156,42 @@ contract ([06 §2](../06-modes-and-turn-pipeline.md)).
 Two modes rather than four is a smaller phase but a weaker test, since the two
 retained modes are the more similar pair. §0.3 records what that costs.
 
+### P7B — The surfaces the server already has
+
+**Plan: [P7B](28-p7b-surfaces.md)**, created 2026-09-14 out of a documentation
+sweep rather than a design — [P11](27-p11-implementation.md)'s §0.1, which is
+that phase's audit stage run four phases early. Its six items were *found*, and
+they share one shape: **a server capability that shipped, and a client file no
+later phase had a reason to open.**
+
+- **Editors for presets, treatments, setups and packages**, the four library
+  kinds that have none. This is why the phase exists:
+  [P7](23-p7-implementation.md) sized the gap and asked for it not to be
+  absorbed, and the stage it would otherwise have gone to
+  ([P11](27-p11-implementation.md)'s editor sweep) improves editors that exist
+  and creates none.
+- **Session delete and archive in the UI.** The routes shipped at P2.3; the
+  archive half is one field on a `PATCH` the client already sends.
+- **The workbench pointed at any turn**, which
+  [10 §3](../10-ui-surfaces.md) has always specified and which is wired to the
+  head. The reader exists with one caller.
+- **Home as a prototype** — `/` stops being a redirect, the wordmark points at
+  it, and it shows the changelog and nothing else. **The full
+  [10 §2.2](../10-ui-surfaces.md) home is deliberately not here**: it stays a
+  1.0 feature expected immediately before the cut-over to feature-complete beta,
+  and it may move further out ([polish §5](06-polish.md) carries the wording).
+- **The import quarantine's only surface**, `GET /api/library/errors`, which no
+  client code calls.
+- **Search** ([10 §14](../10-ui-surfaces.md)), the largest item here and the one
+  carrying a scope fork — the full two-scope surface, or within-session first.
+  `README.md` already promises it to a reader.
+
+**Not on [P8](24-p8-implementation.md)'s critical path**, and that is the
+phase's risk rather than its virtue: nothing downstream waits on it, which is
+how five of its six items survived six phases. It also adds one check the corpus
+lacks — **nothing asserts that a shipped route has a caller**, and four of these
+six were green in the suite the whole time.
+
 ### P8 — Memory
 
 ~~**Skeleton: [P8](24-p8-implementation.md)**~~ **Planned:

@@ -80,7 +80,121 @@ find, and one that cannot be quietly dropped for being unwritten.
 - **"Editors are not dumb forms, across every editor" is currently one editor.**
   `ActorEditorPage` is the only one in the tree. Whether that clause is large or
   trivial depends entirely on how many editors P5 through P9 add, which is
-  unknowable here and is precisely what P11.0's audit is for.
+  unknowable here and is precisely what P11.0's audit is for. ***Answered
+  2026-09-14, and not the way the bullet expected: P5 added one, P6 through P9
+  add none, and four of the six library kinds have no editor at all — so the
+  sweep the answer came out of (§0.1) is also the reason there is now a phase in
+  front of this one.***
+
+### 0.1 The audit, run early — 2026-09-14
+
+***§1.2 says the list does not exist anywhere. It does now, and this is it.***
+
+A sweep over the design corpus and the code, prompted by noticing that no phase
+schedules editors for four of the six library kinds and asking whether that was
+the only one of its shape. **It was not. There are seventeen.** The pass was run
+three ways and the three overlapped enough to correct each other twice — two
+items graded unowned on the first pass turned out to have owners, and both
+corrections are recorded in the negative half below, because a register that
+only ever grows is a register nobody trusts.
+
+**This is [P11.0](#p110--the-audit-that-makes-the-list) run four phases early,
+and it does not discharge that stage.** What it does is exactly what §0 says the
+useful work here is — *narrowing what the audit will have to discover* — and it
+narrows it a long way. What P11.0 still owes is the re-count, §1.3's violation
+re-measurement, and whatever P8 through P10 add to the pile between now and then.
+
+**Row format is §1.1's rule, applied as the list was built rather than after.**
+Every row names its artifact and its check, or says why it cannot — and the rows
+that cannot are the finding, not an omission.
+
+| # | The commitment, and where it is committed | What is built | The artifact, and the check | Routed to |
+|---|---|---|---|---|
+| 1 | **Editors for presets, treatments, setups and packages** — [10 §5](../10-ui-surfaces.md), [10 §11](../10-ui-surfaces.md) | Two of six. `EDITOR_ROUTES` and `NEW_ROUTES` carry `actors` and `lorebooks`; `fields.test.ts` asserts the four negatives deliberately | Four routes over the schema-derived field description. **Check:** every kind answers `kindHasEditor`, and a preset written in the browser positions an outlet | **[P7B.0](28-p7b-surfaces.md)** |
+| 2 | **Session delete in the UI** — [03 §10.2](../03-data-model.md), [R9](22-walkthrough-refinements.md) | `DELETE /api/sessions/:id` since P2.3. **No `deleteSession` in `packages/client` at all** | The control and its wrapper. **Check:** a session deleted from the browser is in trash, not erased | **[P7B.1](28-p7b-surfaces.md)** |
+| 3 | **Session archive in the UI** — [03 §10.3](../03-data-model.md), and [P2C brief](13-p2c-brief.md) already says it is not in the phase document's list | `archivedAt`, `setArchived`, `PATCH { archived }` and `?archived=true`. **And the client already sends that PATCH** — with `{ name }` | One field on a call the client makes, plus the list affordance. **Check:** archived sessions leave the default list and stay reachable | **[P7B.1](28-p7b-surfaces.md)** |
+| 4 | **The workbench on a turn the head has passed** — [10 §3](../10-ui-surfaces.md)'s *current or historical*; [F-05](21-playable-log.md), graded [R1](22-walkthrough-refinements.md) | `useTurn` exists with one component calling it twice. **The reader is built and the affordance is not** | The selection. **Check:** a past turn's blocks, calls and verdicts render, and the panel says which turn it is showing | **[P7B.2](28-p7b-surfaces.md)** |
+| 5 | **The import quarantine's listing** — the ladder's only surface; [P2 manual gate §3.5](11-p2-manual-gate.md): *"No client code calls it"* | `GET /api/library/errors`, zero client callers | The listing. **Check:** somebody who imported a folder can see what went to `compat` and why | **[P7B.4](28-p7b-surfaces.md)** |
+| 6 | **Full-text search across your own story** — [10 §14](../10-ui-surfaces.md), *"argued for 1.0"*; `README.md` already promises it to a reader | `GET /api/search` returns objects and turns; zero client callers. [P5 §3](17-p5-implementation.md) calls the absence *"settled rather than deferred"* | The surface — §14.5's index exists. **Check:** the sentence `README.md` prints is true from the browser. *Carries P5's unfixed owner-filter defect* | **[P7B.5](28-p7b-surfaces.md)**, scope fork open |
+| 7 | **Session export** — [work plan §0.5](01-work-plan.md), [25 B12](../25-open-questions.md), [13 §13](../13-write-mode.md), [18 §3](../18-session-import.md) | Nothing. §1.8 argues it here at length | The format and its writer, with §1.8's four consequences. **Check:** a session exported and loaded on another install | **P11.10 — a stage this document did not have** |
+| 8 | **Backup and restore** — [work plan §0.5](01-work-plan.md), [25 E6](../25-open-questions.md) | Nothing | Quiesce, archive excluding the index, restore and rebuild. **Check:** the CI restore test, which is [testing](03-testing.md)'s | **P11.11 — likewise** |
+| 9 | **Home, the arrival surface** — [10 §2.2](../10-ui-surfaces.md) | `/` is a redirect and the wordmark points at the library, both under comments describing a future | The page. **Check:** arrival is not the library's job | **Prototype at [P7B.3](28-p7b-surfaces.md)**; the full version deferred by direction — see below |
+| 10 | **A visible size indicator on embedded media** — `[OPEN]` at [03 §5.2.2](../03-data-model.md), carried into [04 §11](../04-schemas.md) | Nothing. PNG embedding ships at 1.0, so the failure is reachable | An indicator in the editor. **Check:** a card approaching an unshareable size says so before share time | **Deferred by direction, with its condition named** — see below |
+| 11 | **Extension installation, and therefore the panel** — [P10 §1.5](26-p10-implementation.md): *"no document owns acquiring and enabling an extension on an install"* | The boundary (P7) and the manifest and lifecycle ([22 §6–§7](../22-extensions.md)). No `packages/server/src/extensions/`. [P2A](09-p2a-configuration-surface.md): `enableExtensions` *"appear in no phase list at all"* | Acquire and enable. **Check:** an extension installed by somebody who is not the developer runs | **P10's own fork**, at its revisit — P10.3's cell is explicitly *the panel or its named deferral* |
+| 12 | **Openings, and seed → expand → edit → accept → promote** — [03 §6](../03-data-model.md); **PORT** in [triage](02-triage.md); [25 B9](../25-open-questions.md) resolved it and attached no phase | The schema field only. **`fromSeedId` has shipped since P1 with no writer anywhere** | The opening picker and the expand loop. **Check:** a session begins from a written opening and from an expanded seed, and the expansion promotes back with `fromSeedId` set | **[P7B](28-p7b-surfaces.md) candidate** (§1.5 there), held on the expand loop's cost |
+| 13 | **`.sepack` import and export** — [03 §7](../03-data-model.md): *"how objects travel"*; **PORT** in [triage](02-triage.md) | A folder-shape comment. [P4](16-p4-implementation.md)'s *"P11-ish"* is the corpus's only assignment, and this document contains `.sepack` zero times | The bundle format, writer and reader. **Check:** a package moves between installs | **Beside P11.10**, since both freeze a format — and it is P7B.0's fourth kind's missing half |
+| 14 | **The rendition count judgement, and both pacing dials** — [06 §10.4](../06-modes-and-turn-pipeline.md), [06 §10.6](../06-modes-and-turn-pipeline.md) | P9 builds one image per turn and says it *"does not build"* the judgement; *"neither pacing dial is P9's"*. P10 and P11 are the only later phases and both are silent | The judgement and two dials. **Check:** a turn with no moment worth an image gets none, and a session at a low cadence explains its own quiet | **No phase.** *Narrowed:* the storyboard surface is on the feature list ([24 §3.3](../24-roadmap.md)), so only these are unowned 1.0 items |
+| 15 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — specified nearly verbatim, *"a collapsed line while things go well"* | P3.5 built it inside the workbench panel only | The line outside the panel. **Check:** somebody who never opens the workbench can see a turn is running | **Unowned; a [P7B](28-p7b-surfaces.md) candidate**, held with 16 and [polish §11](06-polish.md) because the three are one story |
+| 16 | **[R4](22-walkthrough-refinements.md) — where the reader's view sits while a turn streams** — [manual testing §10](05-manual-testing.md)'s *"largest genuine blank in the corpus"* | Nothing | **A paragraph in [10](../10-ui-surfaces.md), first.** **Check:** none nameable until that paragraph exists | **Unowned, and the one row §1.1's rule cannot grade** — an item with no specification has no artifact to name |
+| 17 | **The first-party system library's content** — [25 A2e](../25-open-questions.md): *"a full system library ships alongside"* | The mechanism — `SYSTEM_OWNER`, `system/library/`, read-only, loaded for everyone | Content. **Check:** a fresh install has something in it | **Not a hardening item and not code.** Here as content, or explicitly nothing — but not silently nothing |
+
+**Seventeen, and the count is the point** — P11.0's *Ends at* asks for one so the
+phase's size is known before it starts. Six go to a new phase, two become stages
+here, two are deferred by direction, one is P10's fork to settle, and **six are
+still unowned** — of which one (16) cannot be owned until somebody writes a
+paragraph.
+
+#### What §1.1's rule did to the list
+
+**Five of the seventeen are ejected from this phase by its own rule.** Search,
+openings, `.sepack`, home and extension installation name an artifact easily
+enough, but they are features rather than hardening: each is a surface that does
+not exist, not a surface that is not finished. The rule says such an item *"goes
+to the roadmap or to a phase"* — and **P11 is the last phase**, so that clause
+had no destination. [P7B](28-p7b-surfaces.md) is the phase four of them now go
+to, created for the purpose; §1.8 called that outcome *"a finding rather than a
+failure"* before the audit ran, which is the sentence this section is the
+evidence for.
+
+*The editors (row 1) would have been a sixth*, and are the reason the sweep was
+run at all: [P7](23-p7-implementation.md) sized the gap, observed that the only
+place it had ever been routed was §2's editor sweep — **which improves editors
+that exist and creates none** — and asked for it to be *"sized rather than
+absorbed."*
+
+#### The two deferrals, recorded in the terms given
+
+**Neither is translated into a schedule, because the terms are the point.**
+
+- **Home's full version (row 9)** — *explicitly not core-alpha work; still
+  nominally a 1.0 feature, expected immediately before the cut-over to
+  feature-complete beta, and possible to be shoved out further.* Carried in
+  [polish §5](06-polish.md), where the item has always lived. **That placement
+  is itself a repair**: [manual testing §10](05-manual-testing.md) files the
+  whole polish file as *"unscheduled by design"*, so until now home had a home
+  that was not one.
+- **The media size indicator (row 10)** — *the requirement is an indicator, not
+  a cap*, which is a distinction the `[OPEN]` conflates and which both design
+  notes are corrected to draw. Deferred while the audience is the developer and
+  people treating this as a dev project — **a condition rather than a date, and
+  therefore checkable: it expires when the audience does.**
+
+#### The negative half, which is what makes the rest trustworthy
+
+Checked and found **owned or correctly out**, so that nobody re-finds them: the
+tag registry and its management surface (built); [06 §4.2](../06-modes-and-turn-pipeline.md)'s
+channel error surface (built); the per-book retrieval knobs (P7.14); trash
+retention (§2's P11.7); the update check (P11.6); the assistant (P11.3); the
+reading view (P11.1); impersonation (P11.4); the four remaining packaging
+artifacts (P11.9); [10 §15.3](../10-ui-surfaces.md)'s system-library bullet,
+which [P10 §1.8](26-p10-implementation.md) adopts into P10.3; and
+`ChannelDefinition.migrate`, deferred with an argument and with no consumer yet.
+Correctly post-1.0: Messages, the branch visualiser, the file browser, the
+Character Studio, World and Write.
+
+**Two of those the first pass had graded unowned and the second corrected** —
+the system-library bullet and impersonation. Recording that is not humility, it
+is the reason to believe the other fifteen: *a sweep that only ever adds rows is
+a sweep that is not checking itself.*
+
+#### And the check the sweep produced, which is bigger than any row
+
+**Nothing in the suite asserts that a shipped route has a caller.** Rows 2
+through 6 are five routes whose only callers are their own tests, green in CI
+the whole time, for up to six phases. That is not a judgement call — it is a
+mechanical property with a mechanical check, and it is filed at
+[manual testing §9](05-manual-testing.md) and again as
+[P7B](28-p7b-surfaces.md)'s one gate item that is not a stage.
 
 ---
 
@@ -101,15 +215,25 @@ finished.
 
 ### 1.2 The audit comes first, and it is not the same as the work
 
-**P11.0 is a pass over the design documents producing the list**, because the
-list does not exist anywhere today. It is scattered across every phase document
-as *home P11*, and one of those homings is already a warning:
+**P11.0 is a pass over the design documents producing the list**, ~~because the
+list does not exist anywhere today~~ ***and a partial one now exists: §0.1,
+2026-09-14.*** It is scattered across every phase document as *home P11*, and one
+of those homings is already a warning:
 [P2 §2.11](08-p2-implementation.md) says what P11 owns for accessibility is *the
 audit — a systematic pass over surfaces built to the habit, not a rescue of
 surfaces built without it*, and adds that **a phase that defers the habit has
 already made P11's pass a rewrite.** That sentence generalises to nearly
 everything in this phase, which is why the audit is a stage rather than a
 morning.
+
+***What §0.1 changes about this stage, and what it does not.*** It changes the
+stage's job from *produce a list from nothing* to *complete and verify one*,
+which is a different morning: seventeen items are already named, routed and
+sized, so what P11.0 owes is the re-count, §1.3's violation re-measurement, and
+whatever P8 through P10 add to the pile between now and then. **It does not
+discharge the stage**, and the reason is in the audit's own closing section:
+every one of its rows was found by reading, and the class it found — a route
+whose only caller is its own test — is exactly the class reading is worst at.
 
 ### 1.3 The i18n sweep is extraction, and only the discipline made it mechanical
 
@@ -309,6 +433,28 @@ everything else it finds, and if the answer is that P11 has to split, that is a
 finding rather than a failure. A phase that ends when someone gets tired is the
 failure mode this document exists to prevent.
 
+***The audit ran early, and this section was two-thirds right*** — 2026-09-14,
+§0.1. It was right that the growth should be sized rather than absorbed, and
+right that a split would be a finding. **What it got wrong is that it read as
+scheduling and was not.** Packaging went into §2 as P11.9. Session export and
+backup and restore did not: they were argued here at length, the stage list ran
+P11.0 to P11.9 without either, and §3's ten-row gate had no row for either. Every
+other document in the corpus points here — [work plan §0.5](01-work-plan.md),
+[25 B12](../25-open-questions.md), [25 E6](../25-open-questions.md),
+[P4](16-p4-implementation.md), [P9](25-p9-implementation.md) and
+[testing](03-testing.md) — so the obligation that was moved into this phase
+*because it had a requirement and no builder* landed one level short of a
+schedule and stayed there for a fortnight. **They are P11.10 and P11.11 now**,
+appended rather than inserted because stages are cited by number across the
+corpus.
+
+*And the split arrived from a direction this paragraph did not consider.* It
+anticipated P11 splitting under its own weight. What happened instead is that
+§1.1's rule ejected five items as features rather than hardening, and four of
+them went to a phase created in front of this one
+([P7B](28-p7b-surfaces.md)) — so the relief is real and it came from the rule
+rather than from the sizing.
+
 ---
 
 ## 2. Stages
@@ -317,6 +463,16 @@ The audit first, because §1.2 says the list does not exist; then the two large
 user-facing items; then the sweeps, which are cheapest once nothing new is
 landing; then release engineering, which gates the phase rather than being part
 of it.
+
+***Two stages were appended below release engineering rather than placed in that
+order*** — P11.10 and P11.11, added 2026-09-14 (§0.1, §1.8). **Appended, because
+stages are cited by number across the corpus and renumbering nine of them to put
+two in their right place would break live citations to buy tidiness.** By
+argument they belong with the large user-facing items: export is the largest
+single thing this phase builds and the only one with a design dependency outside
+the phase. Read §2 as P11.0, P11.10, P11.11, P11.1 … P11.9, and treat the
+numbers as filing order — the same convention the work-plan documents themselves
+run on.
 
 ### P11.0 — The audit that makes the list
 
@@ -349,6 +505,15 @@ provenance ([10 §11.2](../10-ui-surfaces.md)), image slots, and
 [10 §11.2c](../10-ui-surfaces.md)'s entry-level import and export. The polish
 half of this is [polish §1–§2](06-polish.md)'s and lands there or here but not
 twice.
+
+***Across every editor now means six rather than two*** — [P7B.0](28-p7b-surfaces.md)
+builds the four that do not exist, 2026-09-14. **That is not scope added to this
+stage; it is scope this stage never had.** §0 recorded on 2026-08-31 that the
+clause covered one editor and that its real size was unknowable; §0.1 answered
+it, and the answer was that four kinds had no editor for any phase to sweep.
+**The sequencing is the whole of the decision:** a sweep over six editors is the
+same work as a sweep over two, and running it before the four arrive would
+guarantee running it twice.
 
 ### P11.3 — The assistant
 
@@ -419,6 +584,50 @@ once somebody else's data is at stake.
 
 *Ends at:* the demo.
 
+### P11.10 — Session export, and the format it freezes
+
+***Added 2026-09-14 (§0.1, §1.8).*** §1.8 argued this stage at length and §2
+never contained it, which is the defect [manual testing §10.1](05-manual-testing.md)
+is a whole section about: an obligation that reads as scheduled and is not.
+
+§1.8 is the specification and none of it is restated here. What the stage owes
+beyond it: the four consequences of having import as a second reader, which are
+free while the format is being written and expensive afterwards, and the
+dependency — **[13 §4](../13-write-mode.md) settled before the format is fixed,
+not after.** If it is unsettled when the stage arrives, the stage blocks on it
+rather than guessing.
+
+**`.sepack` import and export belongs beside this stage** (§0.1 row 13) rather
+than inside it. Both freeze a format and both are *how things travel*, but they
+travel different things — a session with its branch structure and channel state,
+and an arbitrary bundle of library objects — and the [P4](16-p4-implementation.md)
+line that routed the package half here (*"P11-ish"*) is the only assignment the
+corpus has ever given it. Deciding at the revisit whether it is this stage, a
+twelfth, or [P7B](28-p7b-surfaces.md)'s package editor growing an export button
+is cheaper than deciding now.
+
+*Depends on:* [13 §4](../13-write-mode.md), and on nothing else here.
+*Ends at:* a session exported from one install loads on another, siblings
+included — **not the path**, which is the consequence most likely to be lost by
+a serialiser written against `walkPath(head)` — and the turn record is declared
+frozen.
+
+### P11.11 — Backup and restore
+
+***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:
+quiesce, archive the data directory excluding the index, restore and rebuild
+([25 E6](../25-open-questions.md)).
+
+**The part that matters is not in this stage.** The CI restore test belongs to
+[testing](03-testing.md), and [work plan §8](01-work-plan.md) lists *"backup and
+restore actually exercised"* among the release-engineering bullets rather than
+among the features — which is the right place for it and is also how this came
+to have no stage: everybody could see where the *test* went.
+
+*Depends on:* nothing. *Ends at:* a restored install serves the sessions the
+archive was taken from, with the index rebuilt rather than carried — and the
+test that says so runs without a person.
+
 ---
 
 ## 3. Verification — the P11 exit gate
@@ -447,11 +656,23 @@ structural difference from every other phase document here.
    merge.
 9. `git tag` produces the container and the tarball reproducibly, and the
    artifact reports the tag's commit.
-10. **Only a person can walk, and it is the whole gate:** read the 1.0 design
+10. **A session exported from this install loads on another one, siblings and
+    all** — not the path — and the turn record is declared frozen (P11.10).
+11. **A restore from a backup serves the sessions the archive was taken from**,
+    index rebuilt rather than carried, and CI says so without a person (P11.11).
+12. **Only a person can walk, and it is the whole gate:** read the 1.0 design
     documents and say, capability by capability, whether it exists and works.
     That is what [releases §0](04-repo-and-releases.md) means by feature
     complete, and it is deliberately checkable against documents rather than
     negotiable.
+
+***Rows 10 and 11 added 2026-09-14 with their stages*** (§0.1, §1.8). Their
+absence is worth a sentence rather than a silent fix: this gate had ten rows and
+neither of the two 1.0 commitments the phase had most recently acquired was
+among them, **which means row 12 was the only thing standing between a missing
+export and a green beta gate** — and row 12 is the row that depends entirely on
+a person reading carefully. A gate whose safety net is *somebody will notice* is
+the arrangement [manual testing §0](05-manual-testing.md) was adopted to end.
 
 **And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** By this phase the line is not a per-phase

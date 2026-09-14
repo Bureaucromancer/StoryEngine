@@ -930,9 +930,27 @@ strip the media. That risk already exists for the `chara` chunk the whole
 ecosystem depends on, so it is not new — but the export UI should warn, and
 `.seactor` remains the lossless transport.
 
-**[OPEN]** The cap. A few MB is shareable; tens are not. Needs a default and a
+**[OPEN]** ~~The cap. A few MB is shareable; tens are not. Needs a default and a
 visible indicator in the editor, since a card that silently grew to 80 MB is a
-bad surprise at share time.
+bad surprise at share time.~~
+
+***Separated 2026-09-14, because this sentence asked for two things and only one
+of them is wanted.*** **The requirement is the indicator.** A few MB is
+shareable and tens are not, and a card that silently grew to 80 MB is a bad
+surprise at share time — **so the editor has to show the number.** *The cap
+is a different question and a weaker one*: a hard limit turns a bad surprise at
+share time into a refusal at edit time, and refusing somebody's own file on
+their own install is the worse of the two failures. If a default lands at all it
+should be a warning threshold that the indicator crosses, not a write that
+fails.
+
+**Deferred, with the condition rather than a date.** Found unowned by
+[P11 §0.1](workplan/27-p11-implementation.md)'s sweep and deferred there on the
+stated ground that the audience is currently the developer and people treating
+this as a development project, for whom an 80 MB card is a curiosity rather than
+a broken share. **That is checkable and it expires**: the deferral ends when the
+audience does, which is the same moment [P10](workplan/26-p10-implementation.md)
+makes the install reachable by somebody who is not the developer.
 
 **[OPEN]** Compression of the embedded payload. Base64 in `tEXt` is ~33%
 overhead and text payloads are small, so probably not worth it — but `zTXt`

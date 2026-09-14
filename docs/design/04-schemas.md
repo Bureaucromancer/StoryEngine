@@ -1879,8 +1879,12 @@ the diff.
 
 ## 11. Open
 
-- **[OPEN]** Embedded-media size cap ([03 §5.2.2](03-data-model.md)). A
-  schema-level `maxBytes` hint versus a policy enforced at write time.
+- **[OPEN]** ~~Embedded-media size cap~~ **Embedded-media size *indicator***
+  ([03 §5.2.2](03-data-model.md)), *restated 2026-09-14 to match the split made
+  there*: the editor showing the number is the requirement, and a cap — schema
+  `maxBytes` hint or a policy at write time — is the separate and weaker
+  question. Neither is owned by a phase; the indicator is deferred with a stated
+  condition rather than a date ([P11 §0.1](workplan/27-p11-implementation.md)).
 - **[OPEN]** Whether `Openings.seeds` should record the expanded result when a
   user accepts one, or leave that entirely to the session
   ([25 B9](25-open-questions.md)).

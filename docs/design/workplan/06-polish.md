@@ -317,7 +317,41 @@ obviously right, and it slots in when there is something to resume.
 **Routing.** Home takes `/`, and the library moves to its own route with the
 kind filter still in its search params. Worth doing in the same change rather
 than leaving the library at `/` with a home bolted beside it — the route a user
-lands on is the one they will bookmark and share.
+lands on is the one they will bookmark and share. ***Already true, and it has
+been since P4:*** `/` is a redirect to `/library` rather than a second address
+for one page, under a docstring that says it is *"the address that will still be
+correct after home lands."* So the routing half of this item is paid.
+
+### 5a. Split in two, 2026-09-14 — a prototype now, the rest before beta
+
+**This item acquired a destination, which it did not have.**
+[P11 §0.1](27-p11-implementation.md)'s documentation sweep went looking for 1.0
+commitments no phase owns and found home among them — owned by this file, and
+[manual testing §10](05-manual-testing.md) files this file's contents as *"the
+twelve polish items | unscheduled by design."* **An item routed here was routed
+nowhere**, which is fine for eleven of the twelve and was not fine for a named
+surface in [10](../10-ui-surfaces.md).
+
+**The full version is deferred, deliberately and on the record.** It is not
+core-alpha work. It stays nominally a 1.0 feature, expected to land
+*immediately before the cut-over to feature-complete beta*, **and it may be
+pushed further out than that** — recorded as said rather than tidied into a
+phase number, because the condition is a judgement about readiness and not a
+date.
+
+**What lands first is the smallest thing that makes the address real**, at
+[P7B.3](28-p7b-surfaces.md): `/` stops being a redirect, the wordmark points at
+it, and the page shows the changelog. Nothing else — that fence is the stage,
+and it is this section's own scope-discipline rule applied to a version of the
+page that has not earned any panels yet.
+
+***What the prototype actually buys*** is not a changelog. It is that item 4's
+dependency comes undone: this item is urgent *because* item 4 takes away the
+mixed table that answers *what was I doing?* today. A page at `/` does not
+answer that question either — but item 4 no longer has to wait for the answer,
+and the arc the file's header names (*"4 takes a landing place away, so 5 has to
+provide one"*) is discharged by a page with one thing on it as well as by a page
+with four.
 
 ---
 

@@ -178,6 +178,20 @@ attached. Building the panel over a stub is the one option to refuse: a screen
 that lists nothing and installs nothing is exactly the false front
 [10 §15.5](../10-ui-surfaces.md) uses capability granting to illustrate.
 
+***Confirmed, not resolved, 2026-09-14.*** [P11 §0.1](27-p11-implementation.md)'s
+documentation sweep looked for 1.0 commitments no phase owns and found this one
+already named here, with one detail worth adding: **the account capability
+exists and has never gated anything.** `enableExtensions` has shipped on
+`Capabilities` since P2A, and `auth/accounts.ts` says so in its own docstring —
+*"`enableExtensions` still gates nothing, and the settings surface says so rather
+than rendering it as though it were live: extensions appear in no phase list at
+all."* That is the honest handling of a capability with no subject, and it is
+also **a dangling owner written into the code rather than into a document** — it
+has sat there for four phases saying *no phase list*, which is true and is
+nobody's to fix. The fork above is unchanged and stays this phase's to settle;
+what the sweep adds is that the field waiting on it is already in every
+account.
+
 *And note the standing `[OPEN]` it drags along*
 ([09 §6.4](../09-server-multiuser-deployment.md)): whether install and uninstall
 can avoid a full restart. In-process ESM makes true unloading hard, so

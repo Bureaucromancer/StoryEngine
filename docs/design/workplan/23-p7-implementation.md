@@ -4427,6 +4427,17 @@ that there is no Treatment or Setup editor either. *One surface, four waiting
 consumers, no owner*: that is the shape that should be sized rather than
 absorbed.
 
+***Sized, 2026-09-14, and the routing in this paragraph was wrong.***
+Authoring is **not P11's**: that phase's editor stage is a sweep applying
+[10 §11]'s contract — assist, provenance, history — **across editors that
+exist**, and it creates none, so four missing editors routed there had an owner
+on paper and none in fact. **They are [P7B.0](28-p7b-surfaces.md)'s**, in a
+phase created for the purpose. *This paragraph is why the phase exists*: a
+documentation sweep went looking for other items of the same shape, found
+seventeen, and is recorded at [P11 §0.1](27-p11-implementation.md) — six of
+which are now P7B's, including the outlet's authoring half this paragraph could
+not close.
+
 ---
 
 ## 3. Verification — the P7 exit gate

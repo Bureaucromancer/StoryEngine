@@ -5,8 +5,13 @@
   makes an actor or a lorebook from the library page; the API is still the only
   way to *create* the four kinds that have no editor. ~~and the only way to choose
   a session's lorebooks at all.~~ *A session's lorebooks are chosen in the
-  browser since P6B.0; what has no editor is a preset, a treatment or a setup,
-  which is [P11](design/workplan/27-p11-implementation.md)'s.*
+  browser since P6B.0;* ~~*what has no editor is a preset, a treatment or a
+  setup, which is [P11](design/workplan/27-p11-implementation.md)'s.*~~
+  ***Wrong twice, corrected 2026-09-14: it is four kinds, not three — preset,
+  treatment, setup and package — and [P11](design/workplan/27-p11-implementation.md)
+  never owned them. Its editor stage improves editors that exist and creates
+  none, which is the gap
+  [P7B](design/workplan/28-p7b-surfaces.md) was created to close.***
 - **[deploy.md](deploy.md)** — running a built one: the image, the compose file
   and the unraid template, since P6A.4. The package is private, and the page
   opens by saying so.
