@@ -1,34 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useRef, useState, type JSX } from 'react';
+import { getRouteApi, Link } from '@tanstack/react-router';
+import { useState, type JSX } from 'react';
 
 import { uuidv7 } from '@storyengine/shared';
 
 import { api, ApiError, type LibraryObject } from '../api.js';
-import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
+import { useEditorBase } from '../queries.js';
 import {
   actorFormShape,
   applyForm,
   formChanges,
   formFromActor,
   reapplyEdits,
-  stampUpdated,
   type ActorForm,
 } from './form.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { link, page } from '../ui/classes.js';
-import { Dialog } from '../ui/Dialog.js';
+import { page } from '../ui/classes.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
 import { TagInput } from '../tags/TagInput.js';
-import { AsStored } from '../library/AsStored.js';
-import { blankFor, isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
-import { DeleteObject } from '../library/DeleteObject.js';
-import { HistoryPanel } from './HistoryPanel.js';
-import { UnsavedChangesGuard } from './UnsavedChanges.js';
+import { blankFor, isRequiredField } from '../library/fields.js';
+import { EditorFrame } from './EditorFrame.js';
+import { useObjectEditor, type EditorKind } from './object-editor.js';
 
 /**
  * The prototype actor editor — [P1 §P1.7](../../../../docs/design/workplan/07-p1-implementation.md).
@@ -147,312 +143,159 @@ export function NewActorPage(): JSX.Element {
   return <Editor initial={draft} unsaved />;
 }
 
+/**
+ * What the shell needs to know about an actor — [P7B.1].
+ *
+ * Every member was already a function in [form.ts](./form.ts); none of them is
+ * new and none of them moved. That is the evidence for the contract being
+ * discovered rather than designed: the actor editor had all eight of these and
+ * so did the lorebook editor, spelled out inline in two places.
+ */
+const ACTORS: EditorKind<ActorForm> = {
+  kind: 'actors',
+  formOf: formFromActor,
+  apply: applyForm,
+  changed: formChanges,
+  shape: actorFormShape,
+  reapply: reapplyEdits,
+  requiredValues: (form) => ({ name: form.name }),
+  requiredLabels: { name: 'Name' },
+  nameOf: (form) => form.name,
+  untitled: { draft: 'New actor', saved: 'Untitled actor' },
+  editorRoute: '/library/actors/$id/edit',
+};
+
 function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Element {
-  const [base, setBase] = useState(props.initial);
-  const [form, setForm] = useState<ActorForm>(() => formFromActor(props.initial.object));
+  const editor = useObjectEditor(ACTORS, props.initial, {
+    ...(props.unsaved === undefined ? {} : { unsaved: props.unsaved }),
+  });
+  const { base, form, missing, unsaved } = editor;
+
   /**
-   * The form as it read when `base` was loaded — what "my edits" is measured
-   * against. Moves in step with `base`: after a save the two agree again, and
-   * after reload-and-reapply it re-reads from the newer object.
-   */
-  const [pristineForm, setPristineForm] = useState<ActorForm>(() =>
-    formFromActor(props.initial.object),
-  );
-  const [conflict, setConflict] = useState<LibraryObject | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  /**
-   * Why the last Save did not write — [10 §11.1a].
+   * The actor form's patch, over the shell's.
    *
-   * Separate from `notice`, which is `role="status"`: a refusal is not a
-   * progress report and has to interrupt. Cleared by the next edit, like the
-   * notice, because the thing it is complaining about is the thing being edited.
+   * The shell takes a whole form or an updater because it knows nothing about
+   * `F`; every field here wants to set one key. One line, and it keeps the
+   * hundred-odd call sites below reading exactly as they did.
    */
-  const [refusal, setRefusal] = useState<string | null>(null);
-  /**
-   * The form, so a refusal can put the cursor where the answer goes. Queried
-   * rather than held per field: `Field` owns its own control id, and the first
-   * `aria-invalid` inside the form is by construction the first field a reader
-   * would have reached anyway.
-   */
-  const formRef = useRef<HTMLFormElement | null>(null);
-
-  const auth = useAuthState();
-  const locale = auth.data?.account?.locale ?? undefined;
-  const save = useSaveObject();
-  const create = useCreateObject();
-  const navigate = useNavigate();
-
-  /** Never written, so there is nothing on disk for any of this to be about. */
-  const unsaved = props.unsaved === true;
-
-  const changed = formChanges(base.object, form);
-  /**
-   * Whether Save has anything to do — which is not the same question as
-   * *are there unsaved edits*, and the difference is this route.
-   *
-   * A draft nobody has typed into has no changes and still has a create to
-   * make, so Save stays live and refuses with the reason ([10 §11.1a]) rather
-   * than greying out and saying *No changes to save.* about an actor that does
-   * not exist. The guard below keeps asking the narrower question, because
-   * leaving an untouched blank form should cost nobody a dialog.
-   */
-  const savable = unsaved || changed;
-
-  /**
-   * The required fields this form is not currently answering — [10 §11.1a].
-   *
-   * Derived on every render rather than computed at submit, because the same
-   * answer drives the field's own error and the refusal in the strip, and two
-   * spellings of *is this empty* is how they end up disagreeing.
-   */
-  const missing = missingRequired('actors', { name: form.name });
-
   function patchForm(patch: Partial<ActorForm>): void {
-    setForm((previous) => ({ ...previous, ...patch }));
-    setNotice(null);
-    setRefusal(null);
+    editor.patch((previous) => ({ ...previous, ...patch }));
   }
-
-  function handleSave(): void {
-    if (!savable) return;
-    /**
-     * **Refused here rather than prevented by a disabled button** — [10 §11.1a]
-     * and [work plan §2.2]. The button that cannot be pressed is the one that
-     * teaches nothing about why, so Save stays live and this says what is
-     * wrong, beside the Save that caused it ([10 §11.6]), with the cursor moved
-     * to the field that has to answer.
-     */
-    if (missing.length > 0) {
-      setNotice(null);
-      setRefusal(refusalFor(missing, { name: 'Name' }));
-      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-      return;
-    }
-    setRefusal(null);
-    /**
-     * The first save of a draft is a **create**, and the only place the object
-     * gets a folder — named, by then, because the refusal above is what makes
-     * sure of it. `ignoreBlocker` for the same reason *save as a copy* needs
-     * it: the edits have just been written, and the guard is measuring them
-     * against a base this route never had.
-     */
-    if (unsaved) {
-      create.mutate(
-        { kind: 'actors', object: applyForm(base.object, form) },
-        {
-          onSuccess: (result) => {
-            void navigate({
-              to: '/library/actors/$id/edit',
-              params: { id: result.id },
-              ignoreBlocker: true,
-            });
-          },
-        },
-      );
-      return;
-    }
-    // `updatedAt` is stamped only on a real change — stamping a no-op save
-    // would itself be a change, and would defeat the server's no-op rule.
-    const object = stampUpdated(applyForm(base.object, form));
-    save.mutate(
-      { kind: 'actors', id: base.id, object, contentHash: base.contentHash },
-      {
-        onSuccess: (result) => {
-          setBase((previous) => ({
-            ...previous,
-            object: result.object,
-            contentHash: result.contentHash,
-          }));
-          setPristineForm(formFromActor(result.object));
-          setNotice('Saved.');
-        },
-        onError: (failure) => {
-          if (failure instanceof ApiError && failure.status === 412 && failure.current) {
-            // `ApiError.current` is `unknown`: three routes speak the 412
-            // idiom and they carry three different shapes, so the narrowing
-            // happens at the call site that knows which one it asked for.
-            setConflict(failure.current as LibraryObject);
-          }
-        },
-      },
-    );
-  }
-
-  /**
-   * The 412 dialog's first offer. The newer object becomes the base, and
-   * **only the fields actually edited** are reapplied over it — an untouched
-   * field takes the newer value, or the reload would eat the very change the
-   * 412 refused to overwrite.
-   */
-  function reloadAndReapply(): void {
-    if (conflict === null) return;
-    // The 412 body is parsed without validation, so guard before the cast —
-    // the same rule as the loader, for the same hand-edited input.
-    const problem = actorFormShape(conflict.object);
-    if (problem !== null) {
-      setConflict(null);
-      setNotice(
-        `The newer version could not be loaded into the form: ${problem}. Fix the file on disk, then reload this page.`,
-      );
-      return;
-    }
-    const fresh = formFromActor(conflict.object);
-    setForm(reapplyEdits(pristineForm, form, fresh));
-    setPristineForm(fresh);
-    setBase(conflict);
-    setConflict(null);
-    setNotice(
-      'The newer version was loaded and your edits were reapplied over it. Review, then save again.',
-    );
-  }
-
-  /** The second offer: my version becomes a new object; theirs keeps this one. */
-  function saveAsCopy(): void {
-    if (conflict === null) return;
-    const object = stampUpdated(applyForm(base.object, form));
-    object['id'] = uuidv7();
-    object['name'] = `${form.name} (copy)`;
-    create.mutate(
-      { kind: 'actors', object },
-      {
-        onSuccess: (result) => {
-          setConflict(null);
-          // `ignoreBlocker`: the edits were just saved, into a different
-          // actor — which is what a copy is. The draft still differs from this
-          // actor's base and always will, so the unsaved-changes guard would
-          // otherwise refuse the one navigation this button exists to make.
-          void navigate({
-            to: '/library/actors/$id/edit',
-            params: { id: result.id },
-            ignoreBlocker: true,
-          });
-        },
-      },
-    );
-  }
-
-  /**
-   * A name for the page before there is one for the actor.
-   *
-   * The entry list has said *Untitled entry* since P5.1 for the same reason: a
-   * heading that renders an empty string is a heading somebody reads as a
-   * broken page rather than as an unanswered field.
-   */
-  const heading = form.name.trim() === '' ? (unsaved ? 'New actor' : 'Untitled actor') : form.name;
 
   return (
-    <>
-      <header className="mb-6 flex items-center gap-4">
-        {/* Shown, never replaced here — the card's pixels are the portrait as
-            intended, and replacing them is not this stage's business. A draft
-            has no card to show, and asking for one by an id the server has
-            never heard of would be a 404 rendered as a broken image. */}
-        {unsaved ? (
-          <div className="h-20 w-20 rounded-md border border-line bg-surface-muted" />
-        ) : (
-          <img
-            src={api.avatarUrl(base.id, base.contentHash)}
-            alt=""
-            className="h-20 w-20 rounded-md border border-line bg-surface-muted object-cover"
-          />
-        )}
-        <div>
-          <h1 className="text-title text-ink">{heading}</h1>
-          <p className="text-sm text-ink-subtle">
-            The card image travels with the file; this editor shows it and does not replace it.
-          </p>
-        </div>
-      </header>
-
-      <form
-        ref={formRef}
-        className="flex flex-col gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          handleSave();
-        }}
-      >
-        <Field
-          label="Name"
-          value={form.name}
-          onChange={(name) => {
-            patchForm({ name });
-          }}
-          required={isRequiredField('actors', 'name')}
-          error={missing.includes('name') ? 'An actor needs a name.' : null}
-        />
-        <Field
-          label="Pronouns"
-          value={form.pronouns}
-          onChange={(pronouns) => {
-            patchForm({ pronouns });
-          }}
-          hint="Leave blank for unknown. Never inferred from the name."
-        />
-        <Field
-          label="Aliases"
-          value={form.aliasesText}
-          onChange={(aliasesText) => {
-            patchForm({ aliasesText });
-          }}
-          multiline
-          rows={3}
-          hint="One per line. Also the default keyword set for lore matching."
-        />
-        <TagInput
-          label="Tags"
-          values={form.tags}
-          onChange={(tags) => {
-            patchForm({ tags });
-          }}
-          hint="Type to search what the library already uses, or to make a new one. Never sent to the model."
-        />
-        <Field
-          label="Traits"
-          value={form.traitsText}
-          onChange={(traitsText) => {
-            patchForm({ traitsText });
-          }}
-          multiline
-          rows={3}
-          hint="One per line."
-        />
-
-        {form.sections.map((section, index) => (
-          <fieldset key={section.id} className="rounded-md border border-line p-4">
-            <legend className="px-1 text-sm font-medium text-ink-muted">
-              {section.title === '' ? 'Untitled section' : section.title}
-              <span className="ms-2 text-xs font-normal text-ink-faint">{section.disposition}</span>
-            </legend>
-            <div className="flex flex-col gap-3">
-              <Field
-                label="Title"
-                value={section.title}
-                onChange={(title) => {
-                  const sections = form.sections.map((candidate, position) =>
-                    position === index ? { ...candidate, title } : candidate,
-                  );
-                  patchForm({ sections });
-                }}
+    <EditorFrame
+      editor={editor}
+      descriptor={ACTORS}
+      conflictTitle="The actor changed while you were editing"
+      backLabel="Back to the actor"
+      unsavedHeading="This actor has unsaved changes"
+      listSearch={{ kind: 'actors' }}
+      header={
+        <>
+          <header className="mb-6 flex items-center gap-4">
+            {/* Shown, never replaced here — the card's pixels are the portrait as
+              intended, and replacing them is not this stage's business. A draft
+              has no card to show, and asking for one by an id the server has
+              never heard of would be a 404 rendered as a broken image. */}
+            {unsaved ? (
+              <div className="h-20 w-20 rounded-md border border-line bg-surface-muted" />
+            ) : (
+              <img
+                src={api.avatarUrl(base.id, base.contentHash)}
+                alt=""
+                className="h-20 w-20 rounded-md border border-line bg-surface-muted object-cover"
               />
-              <Field
-                label="Body"
-                value={section.body}
-                onChange={(body) => {
-                  const sections = form.sections.map((candidate, position) =>
-                    position === index ? { ...candidate, body } : candidate,
-                  );
-                  patchForm({ sections });
-                }}
-                multiline
-                rows={5}
-              />
+            )}
+            <div>
+              <h1 className="text-title text-ink">{editor.heading}</h1>
+              <p className="text-sm text-ink-subtle">
+                The card image travels with the file; this editor shows it and does not replace it.
+              </p>
             </div>
-          </fieldset>
-        ))}
+          </header>
+        </>
+      }
+    >
+      <Field
+        label="Name"
+        value={form.name}
+        onChange={(name) => {
+          patchForm({ name });
+        }}
+        required={isRequiredField('actors', 'name')}
+        error={missing.includes('name') ? 'An actor needs a name.' : null}
+      />
+      <Field
+        label="Pronouns"
+        value={form.pronouns}
+        onChange={(pronouns) => {
+          patchForm({ pronouns });
+        }}
+        hint="Leave blank for unknown. Never inferred from the name."
+      />
+      <Field
+        label="Aliases"
+        value={form.aliasesText}
+        onChange={(aliasesText) => {
+          patchForm({ aliasesText });
+        }}
+        multiline
+        rows={3}
+        hint="One per line. Also the default keyword set for lore matching."
+      />
+      <TagInput
+        label="Tags"
+        values={form.tags}
+        onChange={(tags) => {
+          patchForm({ tags });
+        }}
+        hint="Type to search what the library already uses, or to make a new one. Never sent to the model."
+      />
+      <Field
+        label="Traits"
+        value={form.traitsText}
+        onChange={(traitsText) => {
+          patchForm({ traitsText });
+        }}
+        multiline
+        rows={3}
+        hint="One per line."
+      />
 
-        {/*
+      {form.sections.map((section, index) => (
+        <fieldset key={section.id} className="rounded-md border border-line p-4">
+          <legend className="px-1 text-sm font-medium text-ink-muted">
+            {section.title === '' ? 'Untitled section' : section.title}
+            <span className="ms-2 text-xs font-normal text-ink-faint">{section.disposition}</span>
+          </legend>
+          <div className="flex flex-col gap-3">
+            <Field
+              label="Title"
+              value={section.title}
+              onChange={(title) => {
+                const sections = form.sections.map((candidate, position) =>
+                  position === index ? { ...candidate, title } : candidate,
+                );
+                patchForm({ sections });
+              }}
+            />
+            <Field
+              label="Body"
+              value={section.body}
+              onChange={(body) => {
+                const sections = form.sections.map((candidate, position) =>
+                  position === index ? { ...candidate, body } : candidate,
+                );
+                patchForm({ sections });
+              }}
+              multiline
+              rows={5}
+            />
+          </div>
+        </fieldset>
+      ))}
+
+      {/*
           Writing samples — [04 §3.1]. **The first list in this editor that can
           grow and shrink**; sections are a fixed set edited in place, which is
           why they need no add or remove control and this does.
@@ -461,294 +304,106 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           card and the longest: putting a page of pasted prose above the
           one-line identity fields would bury them.
         */}
-        <section className="flex flex-col gap-3">
-          <SubsectionTitle as="h2">Writing samples</SubsectionTitle>
-          <p className="text-xs text-ink-faint">
-            Prose in this character&rsquo;s voice, offered to the model as an example to write like
-            — not a description of how they sound. Each one is budgeted like any other block, and
-            the lowest priority is dropped first when a prompt runs long.
-          </p>
+      <section className="flex flex-col gap-3">
+        <SubsectionTitle as="h2">Writing samples</SubsectionTitle>
+        <p className="text-xs text-ink-faint">
+          Prose in this character&rsquo;s voice, offered to the model as an example to write like —
+          not a description of how they sound. Each one is budgeted like any other block, and the
+          lowest priority is dropped first when a prompt runs long.
+        </p>
 
-          {form.samples.length === 0 ? (
-            <p className="text-sm text-ink-muted">None yet.</p>
-          ) : (
-            form.samples.map((sample, index) => {
-              const patchSample = (over: Partial<(typeof form.samples)[number]>): void => {
-                patchForm({
-                  samples: form.samples.map((candidate, position) =>
-                    position === index ? { ...candidate, ...over } : candidate,
-                  ),
-                });
-              };
+        {form.samples.length === 0 ? (
+          <p className="text-sm text-ink-muted">None yet.</p>
+        ) : (
+          form.samples.map((sample, index) => {
+            const patchSample = (over: Partial<(typeof form.samples)[number]>): void => {
+              patchForm({
+                samples: form.samples.map((candidate, position) =>
+                  position === index ? { ...candidate, ...over } : candidate,
+                ),
+              });
+            };
 
-              return (
-                <fieldset key={sample.id} className="rounded-md border border-line p-4">
-                  <legend className="px-1 text-sm font-medium text-ink-muted">
-                    {sample.title === '' ? 'Untitled sample' : sample.title}
-                    {sample.enabled ? null : (
-                      <span className="ms-2 text-xs font-normal text-ink-faint">off</span>
-                    )}
-                  </legend>
-                  <div className="flex flex-col gap-3">
-                    <Field
-                      label="Title"
-                      value={sample.title}
-                      onChange={(title) => {
-                        patchSample({ title });
+            return (
+              <fieldset key={sample.id} className="rounded-md border border-line p-4">
+                <legend className="px-1 text-sm font-medium text-ink-muted">
+                  {sample.title === '' ? 'Untitled sample' : sample.title}
+                  {sample.enabled ? null : (
+                    <span className="ms-2 text-xs font-normal text-ink-faint">off</span>
+                  )}
+                </legend>
+                <div className="flex flex-col gap-3">
+                  <Field
+                    label="Title"
+                    value={sample.title}
+                    onChange={(title) => {
+                      patchSample({ title });
+                    }}
+                    hint="For you, in the editor and the block table. Never sent."
+                  />
+                  <Field
+                    label="Sample"
+                    value={sample.body}
+                    onChange={(body) => {
+                      patchSample({ body });
+                    }}
+                    multiline
+                    rows={10}
+                    hint="Paste a passage. This is the only part the model sees."
+                  />
+                  <Field
+                    label="Priority"
+                    value={sample.priorityText}
+                    onChange={(priorityText) => {
+                      patchSample({ priorityText });
+                    }}
+                    hint="Blank inherits the preset's. Higher survives longer under a full context."
+                  />
+                  <CheckboxField
+                    label="Send this sample"
+                    checked={sample.enabled}
+                    onChange={(enabled) => {
+                      patchSample({ enabled });
+                    }}
+                    hint="Off keeps it on the card without spending a turn on it."
+                  />
+                  <div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        patchForm({
+                          samples: form.samples.filter((_, position) => position !== index),
+                        });
                       }}
-                      hint="For you, in the editor and the block table. Never sent."
-                    />
-                    <Field
-                      label="Sample"
-                      value={sample.body}
-                      onChange={(body) => {
-                        patchSample({ body });
-                      }}
-                      multiline
-                      rows={10}
-                      hint="Paste a passage. This is the only part the model sees."
-                    />
-                    <Field
-                      label="Priority"
-                      value={sample.priorityText}
-                      onChange={(priorityText) => {
-                        patchSample({ priorityText });
-                      }}
-                      hint="Blank inherits the preset's. Higher survives longer under a full context."
-                    />
-                    <CheckboxField
-                      label="Send this sample"
-                      checked={sample.enabled}
-                      onChange={(enabled) => {
-                        patchSample({ enabled });
-                      }}
-                      hint="Off keeps it on the card without spending a turn on it."
-                    />
-                    <div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          patchForm({
-                            samples: form.samples.filter((_, position) => position !== index),
-                          });
-                        }}
-                      >
-                        Remove this sample
-                      </Button>
-                    </div>
+                    >
+                      Remove this sample
+                    </Button>
                   </div>
-                </fieldset>
-              );
-            })
-          )}
+                </div>
+              </fieldset>
+            );
+          })
+        )}
 
-          <div>
-            <Button
-              type="button"
-              onClick={() => {
-                patchForm({
-                  samples: [
-                    ...form.samples,
-                    // A fresh id rather than an index: `applyForm` matches on it
-                    // to carry unknown fields through, and a reorder must not
-                    // repoint one sample's data at another.
-                    { id: uuidv7(), title: '', body: '', enabled: true, priorityText: '' },
-                  ],
-                });
-              }}
-            >
-              Add a writing sample
-            </Button>
-          </div>
-        </section>
-
-        {/* The critical controls, held against the bottom of the scrollport —
-            [10 §11.6], and the recipe in `ui/classes.ts` carries the why. Last
-            inside the `<form>`, because that is the extent a sticky element is
-            held within and the form is everything Save is about. The way back
-            and Delete share the strip with Save: they are the controls that
-            matter, and where the page happens to be scrolled is not a reason
-            for any of them to be out of reach. Delete moves the actor as
-            saved, and says so while there are edits nothing has written. */}
-        <div className={page.actions}>
-          {unsaved ? (
-            <Link to="/library" search={{ kind: 'actors' }} className={link.back}>
-              Back to the library
-            </Link>
-          ) : (
-            <Link
-              to="/library/$kind/$id"
-              params={{ kind: 'actors', id: base.id }}
-              className={link.back}
-            >
-              Back to the actor
-            </Link>
-          )}
+        <div>
           <Button
-            type="submit"
-            disabled={!savable || save.isPending || create.isPending}
-            variant="primary"
-          >
-            Save
-          </Button>
-          {/*
-           * What the last control did, said where the control is. *Saved.*, a
-           * restored version, a reapplied draft and a refused write used to
-           * render above the form — which, with the strip pinned halfway down
-           * a long form, is as far out of sight as the foot of the page. The
-           * slot takes the remaining width, with a floor of ten rem: at the
-           * column's width a long sentence wraps in place rather than folding
-           * the strip onto a second line, and on a narrow column the buttons
-           * fold under it rather than squeezing it to a word a line. The
-           * notice stands in for *No changes to save.* while it shows: after
-           * a save both are true, and the second says nothing the first did
-           * not.
-           *
-           * Every 412 used to be filtered out of the error, on the assumption
-           * the dialog had it — but the dialog only opens when the body
-           * carried `current`, so a 412 without one vanished entirely. Only
-           * what the dialog owns is filtered.
-           */}
-          <span className="flex min-w-0 grow basis-40 flex-wrap items-center gap-3 text-sm">
-            {save.isError &&
-            !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
-              <span role="alert" className="text-danger-ink">
-                {save.error.message}
-              </span>
-            ) : null}
-            {refusal !== null ? (
-              <span role="alert" className="text-danger-ink">
-                {refusal}
-              </span>
-            ) : null}
-            {notice !== null ? (
-              <span role="status" className="text-ink-subtle">
-                {notice}
-              </span>
-            ) : changed ? null : (
-              <span className="text-ink-faint">No changes to save.</span>
-            )}
-          </span>
-          {/* Both of these ask about a file, and a draft has not made one:
-              there are no versions to list and nothing to delete. Absent
-              rather than disabled, which is the same call [10 §11.1a] makes
-              about Save — a control that cannot work explains nothing. */}
-          {unsaved ? null : (
-            <span className="ms-auto flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                aria-expanded={historyOpen}
-                onClick={() => {
-                  setHistoryOpen((open) => !open);
-                }}
-              >
-                History
-              </Button>
-              <DeleteObject
-                kind="actors"
-                id={base.id}
-                contentHash={base.contentHash}
-                unsaved={changed}
-              />
-            </span>
-          )}
-        </div>
-      </form>
-
-      {/* The saved state, not the form's — [polish §2]'s editor pane, and the
-          caption is its required honesty: showing unsaved form state as "as
-          stored" would be a lie in the one place a user came for the truth. */}
-      {unsaved ? null : (
-        <div className="mt-6">
-          <AsStored
-            value={base.object}
-            caption="The saved object, not the form's working state — what a reload would find."
-          />
-        </div>
-      )}
-
-      {historyOpen ? (
-        <div className="mt-6">
-          <HistoryPanel
-            kind="actors"
-            id={base.id}
-            currentObject={base.object}
-            contentHash={base.contentHash}
-            locale={locale}
-            onRestored={(result) => {
-              setBase((previous) => ({
-                ...previous,
-                object: result.object,
-                contentHash: result.contentHash,
-              }));
-              setForm(formFromActor(result.object));
-              setPristineForm(formFromActor(result.object));
-              setNotice('Version restored. The state you were on is the newest history entry.');
+            type="button"
+            onClick={() => {
+              patchForm({
+                samples: [
+                  ...form.samples,
+                  // A fresh id rather than an index: `applyForm` matches on it
+                  // to carry unknown fields through, and a reorder must not
+                  // repoint one sample's data at another.
+                  { id: uuidv7(), title: '', body: '', enabled: true, priorityText: '' },
+                ],
+              });
             }}
-          />
+          >
+            Add a writing sample
+          </Button>
         </div>
-      ) : null}
-
-      <UnsavedChangesGuard changed={changed} heading="This actor has unsaved changes" />
-
-      {conflict !== null ? (
-        <ConflictDialog
-          onReload={reloadAndReapply}
-          onSaveAsCopy={saveAsCopy}
-          onCancel={() => {
-            setConflict(null);
-          }}
-          copyPending={create.isPending}
-          copyError={create.isError ? create.error.message : null}
-        />
-      ) : null}
-    </>
-  );
-}
-
-/**
- * The stale-hash dialog — the only defence the hot-reload thesis has against
- * silently eating a hand edit, surfaced instead of swallowed
- * ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)).
- */
-export function ConflictDialog(props: {
-  onReload: () => void;
-  onSaveAsCopy: () => void;
-  onCancel: () => void;
-  copyPending: boolean;
-  /** Why the copy failed, if it did — the user's escape hatch must not fail silently. */
-  copyError: string | null;
-}): JSX.Element {
-  const { onCancel } = props;
-  // The trap lives in `useFocusTrap` since [P2A §3] — the settings surface has
-  // two dialogs of its own, and two spellings of a trap is how one of them ends
-  // up missing the Escape arm. `Dialog` now owns the call, for the same reason
-  // one step out: the markup the trap attaches to was also spelled three times.
-  return (
-    <Dialog role="alertdialog" labelledBy="conflict-title" onDismiss={onCancel}>
-      <SubsectionTitle id="conflict-title" as="h2" className="mb-2">
-        The actor changed while you were editing
-      </SubsectionTitle>
-      <p className="mb-4 text-sm text-ink-subtle">
-        Something else wrote to this object since it was loaded — another tab, or a text editor
-        working on the file. Saving now would overwrite that change, so it was refused.
-      </p>
-      {props.copyError !== null ? (
-        <Alert tone="error" role="alert" className="mb-3">
-          {props.copyError}
-        </Alert>
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <Button type="button" variant="primary" autoFocus onClick={props.onReload}>
-          Load the newer version and reapply my edits
-        </Button>
-        <Button type="button" onClick={props.onSaveAsCopy} disabled={props.copyPending}>
-          Save my version as a copy instead
-        </Button>
-        <Button type="button" variant="quiet" onClick={props.onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </Dialog>
+      </section>
+    </EditorFrame>
   );
 }

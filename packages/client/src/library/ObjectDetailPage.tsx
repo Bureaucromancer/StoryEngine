@@ -216,9 +216,7 @@ function ObjectView(props: {
          * offering to fork the losing half of a duplicated id would copy an
          * object other than the one on screen.
          */}
-        {object.source === 'system' ? (
-          <CopyToMyLibrary kind={kind} object={object.object} />
-        ) : null}
+        {object.source === 'system' ? <CopyToMyLibrary kind={kind} object={object.object} /> : null}
         {mutable(object) ? (
           <DeleteObject
             kind={kind}

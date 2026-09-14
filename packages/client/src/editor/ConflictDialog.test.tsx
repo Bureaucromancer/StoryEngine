@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ConflictDialog } from './ActorEditorPage.js';
+import { ConflictDialog } from './ConflictDialog.js';
 
 /**
  * The first component test — F16.
@@ -26,6 +26,7 @@ import { ConflictDialog } from './ActorEditorPage.js';
 
 function propsFor(overrides: Partial<Parameters<typeof ConflictDialog>[0]> = {}) {
   return {
+    title: 'The actor changed while you were editing',
     onReload: vi.fn(),
     onSaveAsCopy: vi.fn(),
     onCancel: vi.fn(),
@@ -147,5 +148,25 @@ describe('the focus trap', () => {
 
     expect(document.activeElement).toBe(opener);
     opener.remove();
+  });
+});
+
+/**
+ * ***A lorebook conflict used to say "The actor changed"*** — found and fixed
+ * when the dialog was lifted out of `ActorEditorPage` at [P7B.1].
+ *
+ * It is a one-word bug and it survived two phases, because the only tests over
+ * this component are these and the sentence is true for the page they were
+ * written from. The lorebook editor imported the component from the actor
+ * editor and inherited its vocabulary — which is the failure a shared frame
+ * exists to stop, so the assertion is here rather than in either page.
+ */
+describe('the sentence is the caller\u2019s', () => {
+  it('names whatever kind is being edited', () => {
+    renderDialog({ title: 'The lorebook changed while you were editing' });
+
+    expect(screen.getByRole('alertdialog').textContent).toContain(
+      'The lorebook changed while you were editing',
+    );
   });
 });

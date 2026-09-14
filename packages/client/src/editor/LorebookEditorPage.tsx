@@ -50,7 +50,7 @@ import {
   withoutEntry,
   type Draft,
 } from './book-form.js';
-import { ConflictDialog } from './ActorEditorPage.js';
+import { ConflictDialog } from './ConflictDialog.js';
 import { EntryFields } from './EntryFields.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { UnsavedChangesGuard } from './UnsavedChanges.js';
@@ -757,6 +757,7 @@ function Editor(props: EditorProps): JSX.Element {
 
       {conflict !== null ? (
         <ConflictDialog
+          title="The lorebook changed while you were editing"
           onReload={reloadAndReapply}
           onSaveAsCopy={saveAsCopy}
           onCancel={() => {

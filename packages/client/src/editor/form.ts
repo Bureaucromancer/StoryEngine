@@ -12,9 +12,11 @@ import type { Actor, Section, WritingSample } from '@storyengine/shared';
  *   owns, so anything this build has never heard of — including the
  *   `generated` provenance map nothing writes until P2 — rides through a save
  *   untouched.
- * - **A save that changes nothing is a no-op** ([03 §11.1]). `provenance.updatedAt`
+ * - **A save that changes nothing is a no-op** ([03 §11.1]). ~~`provenance.updatedAt`
  *   is bumped only when the built object actually differs, because stamping a
- *   new timestamp *is* a change and would defeat the server's no-op rule.
+ *   new timestamp *is* a change and would defeat the server's no-op rule.~~
+ *   ***The client does not bump it at all, from [P7B.1]*** — the server does,
+ *   and compares bytes before it does. See the note where `stampUpdated` was.
  */
 
 export interface SectionForm {
@@ -159,7 +161,8 @@ export function formFromActor(object: Record<string, unknown>): ActorForm {
 /**
  * The form applied onto the loaded object. A clone with the form's fields
  * assigned — everything else, known or unknown, is carried through unchanged.
- * `updatedAt` is not touched here; see `stampUpdated`.
+ * `updatedAt` is not touched here, or anywhere on the client — the server
+ * stamps it ([P7B.1]).
  */
 export function applyForm(base: Record<string, unknown>, form: ActorForm): Record<string, unknown> {
   const clone = structuredClone(base);
@@ -223,15 +226,23 @@ export function formChanges(base: Record<string, unknown>, form: ActorForm): boo
   return JSON.stringify(applyForm(base, form)) !== JSON.stringify(base);
 }
 
-/** A copy with `provenance.updatedAt` set to now — applied only to real changes. */
-export function stampUpdated(object: Record<string, unknown>): Record<string, unknown> {
-  const clone = structuredClone(object);
-  const provenance = clone['provenance'];
-  if (typeof provenance === 'object' && provenance !== null) {
-    (provenance as Record<string, unknown>)['updatedAt'] = new Date().toISOString();
-  }
-  return clone;
-}
+/**
+ * ~~A copy with `provenance.updatedAt` set to now — applied only to real
+ * changes.~~ ***Deleted at [P7B.1], with its test.***
+ *
+ * It existed to serve the no-op rule this file's header claims it serves, and
+ * the server enforces that rule better: `library.ts` stamps `updatedAt` itself
+ * on any real change, and compares bytes *as sent, before any stamping*. So a
+ * client stamp reached disk in no case at all, and its one real effect was to
+ * make every actor save differ from the file — which turned the server's byte
+ * comparison from a second opinion into a formality.
+ *
+ * The lorebook editor never called it and wrote out the argument; the actor
+ * editor called it; nothing reconciled them until one shell had to send one
+ * thing. Recorded here rather than removed silently, because this file's header
+ * still cites the no-op rule and a reader should know which half of that
+ * sentence the code was doing.
+ */
 
 /**
  * The reload-and-reapply merge, for the 412 dialog

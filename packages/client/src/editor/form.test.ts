@@ -13,7 +13,6 @@ import {
   formFromActor,
   reapplyEdits,
   splitLines,
-  stampUpdated,
 } from './form.js';
 
 /**
@@ -114,17 +113,6 @@ describe('the form round trip', () => {
     const form = formFromActor(base);
     form.pronouns = '   ';
     expect((applyForm(base, form) as { pronouns: string | null }).pronouns).toBeNull();
-  });
-
-  it('stamps updatedAt without touching anything else', () => {
-    const base = actorWithUnknowns();
-    // A fixed past value — a stamp taken in the same millisecond as newActor()
-    // would be equal, and prove nothing.
-    (base['provenance'] as Record<string, unknown>)['updatedAt'] = '2026-08-01T00:00:00.000Z';
-    const stamped = stampUpdated(base);
-    const changes = diffObjects(base, stamped);
-    expect(changes).toHaveLength(1);
-    expect(changes[0]!.path).toBe('provenance.updatedAt');
   });
 });
 
