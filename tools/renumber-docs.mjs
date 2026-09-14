@@ -390,14 +390,51 @@ if (process.argv.includes('--rewrite')) {
           if (!target) return whole;
           const next = OLD_TO_NEW.get(target);
           const frag = href.includes('#') ? `#${href.slice(href.indexOf('#') + 1)}` : '';
-          const rootRel = !href.startsWith('.');
-          const newHref = rootRel ? next + frag : posix.relative(posix.dirname(file), next) + frag;
+          /**
+           * **Rewrite the href in the form the author wrote it**, which is
+           * decided by re-running `oldTarget`'s first candidate rather than by
+           * looking for a leading dot.
+           *
+           * The dot test was wrong for the commonest link in the corpus: a
+           * sibling written bare, as every design note cites its neighbours.
+           * Such an href does not start with `.`, so it was treated as
+           * repo-root-relative and rewritten to a full `docs/design/…` path —
+           * which, resolved from inside that same directory, doubles the prefix
+           * and is a 404. One run turned 977 working links into broken ones. The
+           * link checker caught it, which is the arrangement working, but a
+           * script whose job is to keep citations correct should not need the
+           * checker to find that out.
+           *
+           * So: if the href resolved against the file's own directory, emit a
+           * directory-relative href; otherwise it was written from the repo root
+           * and stays that way. `posix.relative` produces the bare sibling form
+           * for the first case and the unchanged path for a file at the root, so
+           * both conventions survive a pass untouched.
+           */
+          const [hrefPath] = href.split('#');
+          const wasDirRelative =
+            posix.normalize(posix.join(posix.dirname(file), hrefPath ?? '')) === target;
+          const newHref = wasDirRelative
+            ? posix.relative(posix.dirname(file), next) + frag
+            : next + frag;
           let newLabel = label;
-          if (/^\d{2}(?=[\s\]\-—.]|$)/.test(label)) {
-            newLabel = `${labelFor(next)}${label.slice(2)}`;
-          } else if (/^\d{2}-[a-z0-9-]+(\.md)?$/.test(label)) {
+          /**
+           * **Filename-shaped labels are tested first, because the citation test
+           * matches them too and wins by being earlier.**
+           *
+           * A row of the work-plan index writes the filename as the label as
+           * well as the target. Such a label starts with two digits followed by
+           * `-`, which the citation pattern accepts, so it was relabelled by
+           * splicing: `labelFor(next)` + `label.slice(2)` turned the polish
+           * note's row into `polish-polish.md`. A
+           * label that is a filename wants the new *filename*, and only a label
+           * that is a citation wants the new *number or name*.
+           */
+          if (/^\d{2}-[a-z0-9-]+(\.md)?$/.test(label)) {
             const base = next.slice(next.lastIndexOf('/') + 1);
             newLabel = label.endsWith('.md') ? base : base.replace(/\.md$/, '');
+          } else if (/^\d{2}(?=[\s\]\-—.]|$)/.test(label)) {
+            newLabel = `${labelFor(next)}${label.slice(2)}`;
           }
           return `[${newLabel}](${newHref})`;
         }
