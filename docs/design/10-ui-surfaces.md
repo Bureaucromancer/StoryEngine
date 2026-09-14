@@ -278,6 +278,11 @@ story in flight, and eventually grouping sessions that share a continuity
 the object graph to do it, and someone who wants to *author* should never have to
 see through a friendly label to find out what they are editing.
 
+*The session list is narrowed by mode with the library's own kind bar
+(2026-09-14, §5), so the two surfaces share one filtering gesture. The bar's
+words — "Scenes", "Freeform" — are the client's, keyed by mode id, because
+`ModeDefinition.displayName` is never rendered ([01 §2](01-source-survey.md)).*
+
 **What this replaces.** An earlier draft answered "eight kinds is a lot to arrive
 at" with a translation layer over the model — a *Worlds* panel for the Treatment
 kind, a *Games* panel for Setup. That layer is what produced a long naming
@@ -824,6 +829,22 @@ Where it should differ:
   machinery-visible preference alongside the rest of them. None of this is a
   contract change: the API goes on accepting an absent kind
   ([api.md](../api.md)), because cross-kind queries are a real thing to want.
+- **The kind bar is one control across surfaces, and it can hold several —
+  2026-09-14.** The Library's kind filter became `ui/SelectorBar.tsx` when Play
+  needed the same row over sessions (*All sessions · Scenes · Freeform*), and
+  the two surfaces answer a click identically: **a plain click switches**,
+  **Ctrl/⌘-click adds or removes**, and a **Select several** toggle does the
+  same for touch and for anyone without the convention. Middle-click still
+  opens the single-option view in a tab; Ctrl-click no longer does, which is
+  the trade that was chosen. A selection is a comma list in the search param
+  (`?kind=actors,lorebooks`, `?mode=…`), and a single value is spelled as the
+  old filter spelled it. **This leans against the bullets above, and says so:**
+  multi-select is justified by sessions, not by the library, and was adopted
+  in the library for sameness across surfaces. One selected kind is still a
+  panel; several are the mixed table narrowed on the client, which is the
+  merged list this section keeps behind a preference, reached by an explicit
+  choice rather than by default. If per-kind panels arrive and the mixed table
+  goes, what several kinds show has to be re-answered here.
 - **Links are visible and bidirectional.** From a lorebook: which treatments,
   actors and packages reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).

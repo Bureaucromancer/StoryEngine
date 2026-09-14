@@ -7,7 +7,9 @@ import { useId, useMemo, useState, type JSX } from 'react';
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { useAuthState, useLibrary, usePatchPrefs, usePrefs, useTags } from '../queries.js';
 import { formatCount } from '../format.js';
+import { parseKinds } from '../search-lists.js';
 import { Button } from '../ui/Button.js';
+import { SelectorBar, selectionHref } from '../ui/SelectorBar.js';
 import { TagChip } from '../ui/TagChip.js';
 import { link, page, table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
@@ -53,7 +55,29 @@ const routeApi = getRouteApi('/library');
 
 export function LibraryPage(): JSX.Element {
   const search = routeApi.useSearch();
-  const library = useLibrary(search.kind);
+  const navigate = useNavigate();
+  /**
+   * The kinds on screen — `[]` for all of them, one for a panel, several for
+   * the mixed table narrowed.
+   *
+   * **One kind is a panel; anything else is the mixed table**, and that is where
+   * multi-select meets [10 §5](../../../../docs/design/10-ui-surfaces.md)'s *one
+   * panel per kind*. A panel is a kind's sorts, filters, columns and create
+   * control; there is no honest panel for *actors and lorebooks*, so several
+   * kinds get the table the all-kinds view already has, narrowed on the client.
+   * The server is asked for the whole library in that case rather than once per
+   * kind — `?kind=` takes one — and the rows are cut here by schema.
+   */
+  const kinds = parseKinds(search.kind);
+  const single = kinds.length === 1 ? kinds[0] : undefined;
+  const library = useLibrary(single);
+  const objects =
+    kinds.length <= 1
+      ? library.data?.objects
+      : library.data?.objects.filter((object) => {
+          const kind = kindOfSchema(object.schema);
+          return kind !== null && kinds.includes(kind);
+        });
 
   return (
     // The page's own column, now that the shell's `<main>` is a bare scroll
@@ -63,14 +87,21 @@ export function LibraryPage(): JSX.Element {
         <h1 className="text-title text-ink">Library</h1>
         <ImportButton />
       </div>
-      <nav aria-label="Filter by kind" className="mb-6 flex flex-wrap gap-2">
-        <FilterLink kind={undefined} current={search.kind} />
-        {LIBRARY_KINDS.map((kind) => (
-          <FilterLink key={kind} kind={kind} current={search.kind} />
-        ))}
-      </nav>
+      <SelectorBar
+        label="Filter by kind"
+        allLabel="All kinds"
+        options={LIBRARY_KINDS.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))}
+        selected={kinds}
+        hrefFor={(next) => selectionHref('/library', 'kind', next)}
+        onChange={(next) => {
+          void navigate({
+            to: '/library',
+            search: next.length === 0 ? {} : { kind: next.join(',') },
+          });
+        }}
+      />
 
-      <MakeSomething kind={search.kind} />
+      <MakeSomething kinds={kinds} />
 
       {library.isPending ? <p className="text-ink-subtle">Loading the library…</p> : null}
       {library.isError ? (
@@ -78,8 +109,13 @@ export function LibraryPage(): JSX.Element {
           {library.error.message}
         </p>
       ) : null}
-      {library.data !== undefined ? (
-        <ObjectTable key={search.kind ?? 'all'} objects={library.data.objects} kind={search.kind} />
+      {objects !== undefined ? (
+        <ObjectTable
+          key={kinds.length === 0 ? 'all' : kinds.join(',')}
+          objects={objects}
+          kind={single}
+          several={kinds.length > 1}
+        />
       ) : null}
     </div>
   );
@@ -107,18 +143,36 @@ export function LibraryPage(): JSX.Element {
  * second list of the table above — the one that was false the day this one grew
  * its second row.
  */
-function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
-  // The all-kinds view offers what it always did. Which kind an unfiltered
-  // *New* makes is [polish §4]'s question, and it disappears when the panels
-  // split: a panel is a kind, so its create control has no choice to make.
-  const kind = props.kind ?? 'actors';
-  const blank = newObjectFor(kind);
-  const route = newRouteFor(kind);
-  if (blank !== null && route !== null) return <NewObjectButton noun={blank.noun} route={route} />;
+function MakeSomething(props: { kinds: readonly LibraryKind[] }): JSX.Element {
+  /**
+   * **Every kind on screen that can be made, not one of them.** The all-kinds
+   * view used to fall back to `actors`, which answered [polish §4]'s question —
+   * *which kind does an unfiltered New make?* — by picking the one there are
+   * usually most of. Once the bar can show several kinds the fallback has
+   * nothing left to stand in for: the view shows a set, so it offers the set's
+   * editors, read from the same table as a single panel's one button, and a
+   * kind that gains an editor appears here in the same edit.
+   */
+  const kinds = props.kinds.length === 0 ? LIBRARY_KINDS : props.kinds;
+  const makeable = kinds.flatMap((kind) => {
+    const blank = newObjectFor(kind);
+    const route = newRouteFor(kind);
+    return blank !== null && route !== null ? [{ kind, noun: blank.noun, route }] : [];
+  });
+  if (makeable.length > 0) {
+    return (
+      <div className="mb-6 flex flex-wrap gap-2">
+        {makeable.map((entry) => (
+          <NewObjectButton key={entry.kind} noun={entry.noun} route={entry.route} />
+        ))}
+      </div>
+    );
+  }
   return (
     <p className="mb-6 text-sm text-ink-subtle">
-      This kind has no editor yet, so nothing here can make one: it would land on a page that cannot
-      fill it in. Import brings them in, and the API creates any of them.
+      {kinds.length === 1
+        ? 'This kind has no editor yet, so nothing here can make one: it would land on a page that cannot fill it in. Import brings them in, and the API creates any of them.'
+        : 'None of these kinds has an editor yet, so nothing here can make one: it would land on a page that cannot fill it in. Import brings them in, and the API creates any of them.'}
     </p>
   );
 }
@@ -149,17 +203,15 @@ function NewObjectButton(props: { noun: string; route: NewRoute }): JSX.Element 
   const navigate = useNavigate();
 
   return (
-    <div className="mb-6">
-      <Button
-        type="button"
-        variant="primary"
-        onClick={() => {
-          void navigate({ to: props.route });
-        }}
-      >
-        {`New ${props.noun}`}
-      </Button>
-    </div>
+    <Button
+      type="button"
+      variant="primary"
+      onClick={() => {
+        void navigate({ to: props.route });
+      }}
+    >
+      {`New ${props.noun}`}
+    </Button>
   );
 }
 
@@ -199,28 +251,6 @@ function ImportButton(): JSX.Element {
   );
 }
 
-function FilterLink(props: {
-  kind: LibraryKind | undefined;
-  current: LibraryKind | undefined;
-}): JSX.Element {
-  const active = props.kind === props.current;
-  return (
-    <Link
-      to="/library"
-      search={props.kind === undefined ? {} : { kind: props.kind }}
-      aria-current={active ? 'page' : undefined}
-      className={
-        active
-          ? 'rounded-md bg-accent px-3 py-1 text-sm font-medium text-on-accent'
-          : 'rounded-md bg-surface px-3 py-1 text-sm text-ink-muted ' +
-            'border border-line-strong hover:bg-surface-muted'
-      }
-    >
-      {props.kind === undefined ? 'All kinds' : KIND_LABELS[props.kind]}
-    </Link>
-  );
-}
-
 /**
  * The one list component, driven by whichever panel the kind supplies —
  * [polish §4](../../../../docs/design/workplan/06-polish.md)'s *shared
@@ -235,7 +265,10 @@ function FilterLink(props: {
  */
 function ObjectTable(props: {
   objects: LibraryObject[];
+  /** The panel's kind — one kind selected, or `undefined` for the mixed table. */
   kind: LibraryKind | undefined;
+  /** The mixed table narrowed to several kinds, which changes what *empty* means. */
+  several: boolean;
 }): JSX.Element {
   const panel = panelFor(props.kind);
   const auth = useAuthState();
@@ -302,7 +335,11 @@ function ObjectTable(props: {
          * panel's ([10 §5.3]), and that is why one shared sentence could not
          * have covered it.
          */}
-        {emptyMessage(props.kind)}
+        {props.several
+          ? // Not the empty-library sentence: the library may be full, just
+            // not of these.
+            'There is nothing of these kinds in the library yet. An import may bring some.'
+          : emptyMessage(props.kind)}
       </p>
     );
   }

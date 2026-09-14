@@ -3,7 +3,53 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { router, validateObjectSearch } from './router.js';
+import { LIBRARY_KINDS } from './api.js';
+import {
+  router,
+  validateLibrarySearch,
+  validateObjectSearch,
+  validateSessionsSearch,
+} from './router.js';
+
+/**
+ * The Library's `?kind=` and Play's `?mode=` — one kind, several, or all.
+ *
+ * **A single kind is spelled as it always was**, which is the claim that keeps
+ * every link saved before multi-select meaning what it did; the comma list is
+ * the new shape. Normalised on the way in, so what the page reads back is what
+ * the bar would have written.
+ */
+describe('narrowing a list by kind or by mode', () => {
+  it('keeps a single kind exactly as the old filter wrote it', () => {
+    expect(validateLibrarySearch({ kind: 'actors' })).toEqual({ kind: 'actors' });
+  });
+
+  it('keeps several, in the library order, without duplicates', () => {
+    expect(validateLibrarySearch({ kind: 'lorebooks,actors,lorebooks' })).toEqual({
+      kind: 'actors,lorebooks',
+    });
+  });
+
+  it('drops an unknown kind one entry at a time rather than the whole address', () => {
+    expect(validateLibrarySearch({ kind: 'actors,widgets' })).toEqual({ kind: 'actors' });
+    expect(validateLibrarySearch({ kind: 'widgets' })).toEqual({});
+    expect(validateLibrarySearch({ kind: 7 })).toEqual({});
+    expect(validateLibrarySearch({ kind: ',' })).toEqual({});
+  });
+
+  it('reads every kind named as the whole library', () => {
+    expect(validateLibrarySearch({ kind: [...LIBRARY_KINDS].reverse().join(',') })).toEqual({});
+  });
+
+  /** Modes are the install's, so the router can only check the spelling. */
+  it('carries mode ids it cannot check, de-duplicated', () => {
+    expect(validateSessionsSearch({ mode: 'storyengine.scene' })).toEqual({
+      mode: 'storyengine.scene',
+    });
+    expect(validateSessionsSearch({ mode: 'x.y,x.y,,z' })).toEqual({ mode: 'x.y,z' });
+    expect(validateSessionsSearch({})).toEqual({});
+  });
+});
 
 /**
  * The library moved from `/` to `/library` — [10 §2.2] makes `/` the address

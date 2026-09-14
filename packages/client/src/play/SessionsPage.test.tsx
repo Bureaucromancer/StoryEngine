@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -44,7 +44,13 @@ vi.mock('../api.js', async (importOriginal) => {
   };
 });
 
+const navigate = vi.fn();
+/** Mutable so a test can put the list under a mode filter. */
+let search: { mode?: string } = {};
+
 vi.mock('@tanstack/react-router', () => ({
+  getRouteApi: () => ({ useSearch: () => search }),
+  useNavigate: () => navigate,
   Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
 }));
 
@@ -122,6 +128,7 @@ const WIZARD = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  search = {};
   listModes.mockResolvedValue({ modes: [plainMode()], defaultModeId: 'storyengine.scene' });
   createObject.mockResolvedValue({
     id: 'setup-1',
@@ -310,6 +317,112 @@ describe('starting a session', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('No such preset.');
     });
+  });
+});
+
+/**
+ * Play's mode bar — the Library's kind bar over sessions, one `SelectorBar`
+ * for both surfaces.
+ */
+describe('narrowing the session list by mode', () => {
+  const FREEFORM = 'storyengine.freeform';
+
+  function ofMode(id: string, name: string, mode?: string) {
+    return { ...aSession(id, name), ...(mode === undefined ? {} : { mode: { id: mode } }) };
+  }
+
+  beforeEach(() => {
+    listModes.mockResolvedValue({
+      modes: [plainMode(), plainMode(FREEFORM, 'Freeform')],
+      defaultModeId: SCENE,
+    });
+    listSessions.mockResolvedValue({
+      sessions: [
+        ofMode('s-1', 'Harbour', SCENE),
+        ofMode('s-2', 'Dream journal', FREEFORM),
+        // Made before modes existed: the server runs it as the default.
+        ofMode('s-3', 'The old one'),
+      ],
+    });
+  });
+
+  function list(): HTMLElement {
+    return screen.getByRole('list', { name: 'Sessions' });
+  }
+
+  it('reads All sessions, Scenes and Freeform', async () => {
+    renderPage();
+    const bar = await screen.findByRole('navigation', { name: 'Filter by mode' });
+
+    expect([...bar.querySelectorAll('a')].map((a) => a.textContent)).toEqual([
+      'All sessions',
+      'Scenes',
+      'Freeform',
+    ]);
+  });
+
+  it('counts a session with no mode as the default’s', async () => {
+    search = { mode: SCENE };
+    renderPage();
+
+    await waitFor(() => {
+      expect(list().textContent).toContain('The old one');
+    });
+    expect(list().textContent).toContain('Harbour');
+    expect(list().textContent).not.toContain('Dream journal');
+  });
+
+  it('shows several modes at once', async () => {
+    search = { mode: `${FREEFORM},x.unknown` };
+    renderPage();
+
+    await waitFor(() => {
+      expect(list().textContent).toContain('Dream journal');
+    });
+    expect(list().textContent).not.toContain('Harbour');
+  });
+
+  /** A stale or mistyped id must not narrow the list to nothing. */
+  it('ignores a mode the server did not list', async () => {
+    search = { mode: 'x.uninstalled' };
+    renderPage();
+
+    await waitFor(() => {
+      expect(list().textContent).toContain('Dream journal');
+    });
+    expect(list().textContent).toContain('Harbour');
+  });
+
+  it('says the filter is why the list is empty, not that there are no sessions', async () => {
+    search = { mode: FREEFORM };
+    listSessions.mockResolvedValue({ sessions: [ofMode('s-1', 'Harbour', SCENE)] });
+    renderPage();
+
+    expect(await screen.findByText('No sessions of this kind.')).toBeTruthy();
+  });
+
+  it('navigates to the modes a chip click chose', async () => {
+    search = { mode: SCENE };
+    renderPage();
+
+    const freeform = await screen.findByRole('link', { name: 'Freeform' });
+    fireEvent.click(freeform, { ctrlKey: true });
+    // Both modes selected is every mode, which is All.
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/play', search: {} });
+
+    fireEvent.click(freeform);
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/play', search: { mode: FREEFORM } });
+  });
+
+  it('is not there while the install has one mode', async () => {
+    listModes.mockResolvedValue({ modes: [plainMode()], defaultModeId: SCENE });
+    renderPage();
+
+    await screen.findByRole('list', { name: 'Sessions' });
+    await waitFor(() => {
+      expect(listModes).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole('navigation', { name: 'Filter by mode' })).toBeNull();
   });
 });
 

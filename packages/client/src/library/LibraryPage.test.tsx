@@ -188,6 +188,68 @@ describe('the library list', () => {
   });
 });
 
+/**
+ * The kind bar, now the shared `SelectorBar` — and able to hold several kinds.
+ *
+ * **One kind is a panel and several are the mixed table narrowed**, so the
+ * claims are about which request goes out and which rows survive: the server's
+ * `?kind=` takes one, and a multi-selection is cut on the client by schema.
+ */
+describe('narrowing the library by kind', () => {
+  function objectOf(name: string, schema: string, id: string) {
+    return { ...object(name), schema, id, slug: id, contentHash: `sha256:${id}` };
+  }
+
+  it('asks the server for one kind when one is selected', async () => {
+    search = { kind: 'lorebooks' };
+    renderPage();
+    await settled();
+
+    expect(listLibrary).toHaveBeenCalledWith('lorebooks');
+  });
+
+  it('asks for the whole library for several, and shows only those kinds', async () => {
+    search = { kind: 'actors,lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        objectOf('Rain City', 'storyengine.lorebook/1', 'b-1'),
+        objectOf('Vera Kohl', 'storyengine.actor/1', 'a-1'),
+        objectOf('A wet week', 'storyengine.treatment/1', 't-1'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(listLibrary).toHaveBeenCalledWith(undefined);
+    expect(screen.getByText('Rain City')).toBeTruthy();
+    expect(screen.getByText('Vera Kohl')).toBeTruthy();
+    expect(screen.queryByText('A wet week')).toBeNull();
+  });
+
+  it('does not call a full library empty when it is only empty of these kinds', async () => {
+    search = { kind: 'actors,treatments' };
+    renderPage();
+    await settled();
+
+    expect(screen.getByText(/nothing of these kinds/)).toBeTruthy();
+  });
+
+  it('navigates to the kinds a chip click chose', async () => {
+    search = { kind: 'actors' };
+    renderPage();
+    await settled();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Lorebooks' }), { ctrlKey: true });
+    expect(navigate).toHaveBeenLastCalledWith({
+      to: '/library',
+      search: { kind: 'actors,lorebooks' },
+    });
+
+    fireEvent.click(screen.getByRole('link', { name: 'All kinds' }));
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/library', search: {} });
+  });
+});
+
 describe('making an actor', () => {
   /**
    * **Nothing is created here any anymore** — [polish §10].
@@ -231,12 +293,43 @@ describe('making an actor', () => {
     expect(screen.getByRole('button', { name: 'New actor' })).toHaveProperty('disabled', false);
   });
 
-  it('offers the form on the actors filter', async () => {
+  it('offers the form on the actors filter, and only that one', async () => {
     search = { kind: 'actors' };
     renderPage();
     await settled();
 
     expect(screen.getByRole('button', { name: 'New actor' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'New lorebook' })).toBeNull();
+  });
+
+  /**
+   * **The unfiltered view offers every makeable kind.** It used to offer actors
+   * alone, because the fallback was a literal `'actors'` — one kind standing in
+   * for a view that shows all of them. Each button still lands in its own
+   * kind's route: two buttons driven by one navigate is where a lorebook would
+   * get sent to the actor editor if the route were shared.
+   */
+  it('offers every makeable kind on the all-kinds view, each to its own route', async () => {
+    renderPage();
+    await settled();
+
+    expect(screen.getByRole('button', { name: 'New actor' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'New lorebook' })).toBeTruthy();
+    expect(screen.queryByText(/no editor yet/)).toBeNull();
+
+    await clickNew('lorebook');
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/library/lorebooks/new' });
+    await clickNew('actor');
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/library/actors/new' });
+  });
+
+  it('offers the makeable kinds of a multi-selection and no others', async () => {
+    search = { kind: 'lorebooks,treatments' };
+    renderPage();
+    await settled();
+
+    expect(screen.getByRole('button', { name: 'New lorebook' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'New actor' })).toBeNull();
   });
 
   /**

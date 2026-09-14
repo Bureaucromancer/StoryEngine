@@ -2,13 +2,15 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, createSession, listModes, listSessions, type PublicMode } from '../api.js';
 import { useCreateObject, useLibrary } from '../queries.js';
+import { parseList } from '../search-lists.js';
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { SelectorBar, selectionHref } from '../ui/SelectorBar.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link, page } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
@@ -74,6 +76,32 @@ import { sessionLabel } from './session-label.js';
  * what is not asked for or to clear on every change, and dropping is the one
  * that does not lose work.
  */
+const routeApi = getRouteApi('/play');
+
+/**
+ * What the mode bar calls the sessions of each mode.
+ *
+ * **The client's words, keyed by the mode's id** — `InputKind`'s arrangement,
+ * and for its reason: [01 §2] keeps English out of what the server sends, and
+ * `ModeDefinition.displayName` says in the SDK that it is *never rendered*. A
+ * plural on the mode contract would have been more English on the wire, so the
+ * bar's words live here instead.
+ *
+ * *A mode this build has no word for falls back to its `displayName`, then its
+ * id* — the fallback `InputKind` makes, because hiding a mode the install has
+ * registered would hide a capability. (The Mode select below still renders
+ * `displayName` directly, which is the same rule bent one step further; it
+ * predates this table.)
+ */
+const MODE_PLURALS: Record<string, string> = {
+  'storyengine.scene': 'Scenes',
+  'storyengine.freeform': 'Freeform',
+};
+
+export function modeLabel(mode: Pick<PublicMode, 'id' | 'displayName'>): string {
+  return MODE_PLURALS[mode.id] ?? (mode.displayName === '' ? mode.id : mode.displayName);
+}
+
 /** `{}` is *no wizard ran*, and a key that says so would be a claim. */
 function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<string, unknown> } {
   return Object.keys(answers).length === 0 ? {} : { modeConfig: answers };
@@ -143,6 +171,31 @@ export function SessionsPage(): React.JSX.Element {
     (modes.data?.modes ?? []).find(
       (one) => one.id === (mode === '' ? modes.data?.defaultModeId : mode),
     ) ?? null;
+
+  /**
+   * The modes the list is narrowed to, and the sessions that survive it.
+   *
+   * **Intersected with the modes the server listed**, because the router could
+   * only check that `?mode=` was a string: an id from an uninstalled mode, or a
+   * typo, drops out here rather than narrowing the list to nothing. Every mode
+   * named is the unfiltered list by another name, as `toggleSelection` has it.
+   *
+   * **A session with no mode is the default's**, which is how the server reads
+   * one ([mode-registry] `DEFAULT_MODE_ID`, `gather.ts`) — a filter that left
+   * every pre-P7 session out of *Scenes* would disagree with the engine that
+   * runs them as scenes.
+   */
+  const navigate = useNavigate();
+  const search = routeApi.useSearch();
+  const modeList = modes.data?.modes ?? [];
+  const requested = new Set(parseList(search.mode));
+  const narrowed = modeList.map((one) => one.id).filter((id) => requested.has(id));
+  const shownModes = narrowed.length === modeList.length ? [] : narrowed;
+  const listed = (sessions.data?.sessions ?? []).filter(
+    (session) =>
+      shownModes.length === 0 ||
+      shownModes.includes(session.mode?.id ?? modes.data?.defaultModeId ?? ''),
+  );
 
   /**
    * Every library name this form has offered, by id — for the `Ref`s a saved
@@ -366,8 +419,30 @@ export function SessionsPage(): React.JSX.Element {
         ) : null}
       </form>
 
+      {/*
+        **The Library's kind bar, over sessions** — one `SelectorBar` for both,
+        so a click means the same thing on either surface. Hidden while the
+        install has one mode, because then every session is the same sort.
+      */}
+      <SelectorBar
+        label="Filter by mode"
+        allLabel="All sessions"
+        options={modeList.map((one) => ({ value: one.id, label: modeLabel(one) }))}
+        selected={shownModes}
+        hrefFor={(next) => selectionHref('/play', 'mode', next)}
+        onChange={(next) => {
+          void navigate({ to: '/play', search: next.length === 0 ? {} : { mode: next.join(',') } });
+        }}
+      />
+
+      {sessions.data !== undefined && sessions.data.sessions.length > 0 && listed.length === 0 ? (
+        // Distinct from having no sessions, the Library's shelf-versus-filter
+        // rule: the answer here is widening the bar, not starting one.
+        <p className="text-ink-subtle">No sessions of this kind.</p>
+      ) : null}
+
       <ul className="flex flex-col gap-2" aria-label="Sessions">
-        {(sessions.data?.sessions ?? []).map((session) => (
+        {listed.map((session) => (
           <li key={session.id} className="flex items-center gap-2">
             {/*
               Through `sessionLabel`, which fixes a bug that predates unnamed

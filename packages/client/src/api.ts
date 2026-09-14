@@ -741,7 +741,15 @@ export interface SessionSummary {
    */
   treatment?: string | null;
   lore?: string[];
-  mode?: string;
+  /**
+   * **An object, and it was typed as a string until Play's mode bar read it.**
+   * The list route returns the whole `session.json`, where a mode is
+   * `{ id, config }`; nothing on the client had ever looked, so the wrong type
+   * cost nothing until something did. `config` is the mode's own and stays
+   * unclaimed here. Absent on a session made before modes existed, which the
+   * server reads as its default mode — and so must anything filtering by it.
+   */
+  mode?: { id: string };
   /**
    * The goal chain, for the one caller that needs it back from a write —
    * [06 §7.3.4], [P7.6].

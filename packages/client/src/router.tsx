@@ -4,7 +4,7 @@
 import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
-import { isLibraryKind, type LibraryKind } from './api.js';
+import { parseKinds, parseList } from './search-lists.js';
 import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
 import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
@@ -29,8 +29,47 @@ import { Alert } from './ui/Alert.js';
  * be more machinery than route.
  */
 
+/**
+ * Which kinds the library is narrowed to — one, several, or (absent) all.
+ *
+ * **A comma-joined string rather than a `LibraryKind`**, since the kind bar
+ * became the shared `SelectorBar` and can hold several. A single kind is
+ * spelled exactly as it always was, so `?kind=actors` saved before this still
+ * lands on the actors panel; `?kind=actors,lorebooks` is the new shape. Read
+ * through `parseKinds`, never split at a call site, so there is one place that
+ * decides what an unknown entry means.
+ */
 export interface LibrarySearch {
-  kind?: LibraryKind;
+  kind?: string;
+}
+
+/**
+ * Play's session list, narrowed by mode — the same bar, the same spelling.
+ *
+ * **Validated only as a non-empty string**, unlike `kind`: the kinds are a
+ * literal list the client ships, and the modes are whatever the install has
+ * registered, which the router cannot know before `/api/modes` answers. The page
+ * intersects this with the modes it was told about, so a stale id drops out
+ * there instead — dropped rather than rejected, the same posture as everywhere
+ * else in this file.
+ */
+export interface SessionsSearch {
+  mode?: string;
+}
+
+/**
+ * **Normalised on the way in**, so the address the page reads back is the one
+ * the bar would have written: an unknown kind or a duplicate never survives to
+ * be the key a table is remounted on.
+ */
+export function validateLibrarySearch(search: Record<string, unknown>): LibrarySearch {
+  const kinds = parseKinds(search['kind']);
+  return kinds.length === 0 ? {} : { kind: kinds.join(',') };
+}
+
+export function validateSessionsSearch(search: Record<string, unknown>): SessionsSearch {
+  const modes = parseList(search['mode']);
+  return modes.length === 0 ? {} : { mode: modes.join(',') };
 }
 
 /**
@@ -107,8 +146,7 @@ const libraryRoute = createRoute({
   path: '/library',
   // An unknown kind in the URL is dropped rather than rejected: the unfiltered
   // list is a sensible reading of every address.
-  validateSearch: (search: Record<string, unknown>): LibrarySearch =>
-    isLibraryKind(search['kind']) ? { kind: search['kind'] } : {},
+  validateSearch: validateLibrarySearch,
   component: LibraryPage,
 });
 
@@ -129,6 +167,7 @@ const indexRoute = createRoute({
 const sessionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/play',
+  validateSearch: validateSessionsSearch,
   component: SessionsPage,
 });
 
