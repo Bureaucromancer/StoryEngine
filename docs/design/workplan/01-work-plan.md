@@ -1156,41 +1156,58 @@ contract ([06 §2](../06-modes-and-turn-pipeline.md)).
 Two modes rather than four is a smaller phase but a weaker test, since the two
 retained modes are the more similar pair. §0.3 records what that costs.
 
-### P7B — The surfaces the server already has
+### P7B — Presets, prompt handling, and the surfaces the server already has
 
-**Plan: [P7B](28-p7b-surfaces.md)**, created 2026-09-14 out of a documentation
-sweep rather than a design — [P11](27-p11-implementation.md)'s §0.1, which is
-that phase's audit stage run four phases early. Its six items were *found*, and
-they share one shape: **a server capability that shipped, and a client file no
-later phase had a reason to open.**
+**Skeleton: [P7B](28-p7b-presets-and-prompts.md)**, written 2026-09-11 while P7
+runs on its branch, and filed out of order for that reason — its status line
+says why and what moves it. **Widened 2026-09-14** by a second sweep, and the
+two halves turned out to be one phase: see §0.1 there.
 
-- **Editors for presets, treatments, setups and packages**, the four library
-  kinds that have none. This is why the phase exists:
-  [P7](23-p7-implementation.md) sized the gap and asked for it not to be
-  absorbed, and the stage it would otherwise have gone to
-  ([P11](27-p11-implementation.md)'s editor sweep) improves editors that exist
-  and creates none.
-- **Session delete and archive in the UI.** The routes shipped at P2.3; the
-  archive half is one field on a `PATCH` the client already sends.
-- **The workbench pointed at any turn**, which
-  [10 §3](../10-ui-surfaces.md) has always specified and which is wired to the
-  head. The reader exists with one caller.
-- **Home as a prototype** — `/` stops being a redirect, the wordmark points at
-  it, and it shows the changelog and nothing else. **The full
-  [10 §2.2](../10-ui-surfaces.md) home is deliberately not here**: it stays a
-  1.0 feature expected immediately before the cut-over to feature-complete beta,
-  and it may move further out ([polish §5](06-polish.md) carries the wording).
-- **The import quarantine's only surface**, `GET /api/library/errors`, which no
-  client code calls.
-- **Search** ([10 §14](../10-ui-surfaces.md)), the largest item here and the one
-  carrying a scope fork — the full two-scope surface, or within-session first.
-  `README.md` already promises it to a reader.
+**The prompt pack a session runs on cannot be opened, copied or edited anywhere
+in the app**, and the sentence that makes Scene a narrator has been a code
+constant since P2. Four phase documents sent the editor to P7; P7's stage list
+does not carry it, and P11's *editors are not dumb forms, across every editor*
+assumes editors that do not exist. This phase is §2.3's standing line paid for
+presets, nine phases late: the built-in pack as a library object with *Copy to
+my library*, a preset editor, a treatment editor — the other half of every
+prompt — a session-settings panel that can switch a running session's pack and
+its parameters, and edit-a-block-and-re-run through the pack rather than
+through a field on the record.
 
-**Not on [P8](24-p8-implementation.md)'s critical path**, and that is the
-phase's risk rather than its virtue: nothing downstream waits on it, which is
-how five of its six items survived six phases. It also adds one check the corpus
-lacks — **nothing asserts that a shipped route has a caller**, and four of these
-six were green in the suite the whole time.
+**The second sweep found the same failure on five more surfaces**, and its
+shape is the same sentence from the other side: a server capability that
+shipped, and a client file no phase since had a reason to open. So the phase
+also takes **the setup and package editors**, which complete the six library
+kinds; **session delete and archive**, whose routes shipped at P2.3 and whose
+archive half is one field on a `PATCH` the client already sends; **the
+workbench pointed at a turn the head has passed**, which
+[10 §3](../10-ui-surfaces.md) has always specified and whose reader exists with
+one caller; **the import quarantine's listing**, which is the only way to see
+what an import rejected; and **home as a prototype** — `/` stops being a
+redirect and shows the changelog, with the full [10 §2.2](../10-ui-surfaces.md)
+home deliberately held (below).
+
+**Why after P7 and not inside it:** [P7 §5](23-p7-implementation.md) says a
+plan that cuts under pressure cuts a panel and never the boundary, and three
+editors are three panels. Why not P11: a hardening phase applies a contract
+across editors; it should not be discovering that half of them are missing.
+
+**What this phase deliberately does not take.** The full home stays a 1.0
+feature expected immediately before the cut-over to feature-complete beta, and
+may move further out ([polish §5](06-polish.md) carries the wording). **Search**
+stays [P11](27-p11-implementation.md)'s, beside the reading view, because the
+two are read-surfaces over the same data and share a print story. Both are
+choices rather than omissions and both are recorded where they were made.
+
+**Demonstrable:** copy the Scene pack from the library, change the narrator
+sentence, start a session on the copy, and read the changed sentence in the
+workbench — then switch packs mid-session and watch compare show the
+difference. No text editor anywhere in the walk.
+
+**And one check the phase owes that is not a stage:** *nothing in the suite
+asserts that a shipped route has a caller.* Five of this phase's items are
+routes whose only callers are their own tests, green in CI the whole time
+([manual testing §9](05-manual-testing.md)).
 
 ### P8 — Memory
 

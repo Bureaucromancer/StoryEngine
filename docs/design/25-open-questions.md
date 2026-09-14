@@ -1356,6 +1356,32 @@ dial that hands the design problem to the user. The test this entry sets was met
 in the order it asks for: the surfaces were made correct, and *then* one of them
 was made selectable.
 
+**A referral this entry had never been told about, accepted and answered
+2026-09-11.** [Refinements §4](workplan/22-walkthrough-refinements.md) and
+[polish §12](workplan/06-polish.md) both route R3's *roll the settings sections up*
+and *use the workbench as a table of contents* here, and neither told this entry,
+which has not been edited since it was written. **They are refused rather than
+deferred**, and the distinction matters: a deferral waits for this entry to
+resolve, and these do not.
+
+**R3 is not the forcing evidence this entry is waiting for.** The test above is
+*evidence that the dense default actually loses people at first run* — a
+stranger, at their first contact, from PLAYABLE. R3 is the author finding his own
+administration page long on the fourth sitting of a walk he was conducting. That
+is a real complaint and it got a real remedy — a search over the settings pages,
+[polish §12](workplan/06-polish.md), which hides nothing and so does not touch
+the density stance at all. It is not a person being lost.
+
+**What the roll-up would have cost, stated so the refusal is a judgement rather
+than a reflex:** [10 §11.2d](10-ui-surfaces.md)'s rule that *a closed section must
+name what is inside it that is not at its default* is what makes disclosure
+honest, and it makes a rolled-up settings page expensive rather than cheap — every
+closed section has to summarise its own non-default state. And the ToC half asks
+the workbench to be a place rather than a panel, which
+[D3](workplan/05-manual-testing.md) walked and passed the day before the request
+was written: nothing switches it on. **The density question this entry exists for
+stays open and stays unforced.**
+
 ### E11. The prose editor — open, leaning plain text with decorations
 
 Write ([13 §12](13-write-mode.md)) needs the first structured editor this

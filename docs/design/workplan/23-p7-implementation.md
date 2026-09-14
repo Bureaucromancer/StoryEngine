@@ -4431,12 +4431,15 @@ absorbed.
 Authoring is **not P11's**: that phase's editor stage is a sweep applying
 [10 §11]'s contract — assist, provenance, history — **across editors that
 exist**, and it creates none, so four missing editors routed there had an owner
-on paper and none in fact. **They are [P7B.0](28-p7b-surfaces.md)'s**, in a
-phase created for the purpose. *This paragraph is why the phase exists*: a
-documentation sweep went looking for other items of the same shape, found
-seventeen, and is recorded at [P11 §0.1](27-p11-implementation.md) — six of
-which are now P7B's, including the outlet's authoring half this paragraph could
-not close.
+on paper and none in fact. **They are [P7B.1, P7B.3 and P7B.6](28-p7b-presets-and-prompts.md)'s** — the
+preset editor, the treatment editor, and the two that complete the six kinds.
+**That phase was written three days before this correction and for the same
+reason from the other end**: its §0.1 traces six documents each sending the
+preset editor to the next phase until the chain ran out of phases, which is this
+paragraph's complaint with the names filled in. A second sweep then went looking
+for other items of the same shape, found seventeen, and is recorded at
+[P11 §0.1](27-p11-implementation.md); six are P7B's, **including the outlet's
+authoring half this paragraph could not close.**
 
 ---
 

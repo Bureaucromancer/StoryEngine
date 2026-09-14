@@ -2103,7 +2103,11 @@ The install defaults, layered under every account's own
 role: eight roles is not a chatty write path, and a wrong binding stops turns
 rather than collapsing a pane.
 
-`PUT` presents `contentHash` and answers `412 stale` with `current`. A hash the
+`PUT` presents `contentHash` and answers `412 stale` with `current` **and the
+`contentHash` of what is on disk now** — so *overwrite with mine* has something to
+present and a refused save is not a wedge. (Both binding writes withheld that hash
+until 2026-09-11; nothing wrote bindings from a form, so the gap was unreachable.)
+A hash the
 client presents rather than a comparison the server holds, because nothing here
 keeps a prior read — every request reads the file fresh. **An absent file hashes
 as the empty document**, so *there is no file* and *there is an empty file*

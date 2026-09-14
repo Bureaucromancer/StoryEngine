@@ -10,8 +10,9 @@
   ***Wrong twice, corrected 2026-09-14: it is four kinds, not three — preset,
   treatment, setup and package — and [P11](design/workplan/27-p11-implementation.md)
   never owned them. Its editor stage improves editors that exist and creates
-  none, which is the gap
-  [P7B](design/workplan/28-p7b-surfaces.md) was created to close.***
+  none. **All four are
+  [P7B](design/workplan/28-p7b-presets-and-prompts.md)'s**, which is the phase
+  that closes this sentence for good.***
 - **[deploy.md](deploy.md)** — running a built one: the image, the compose file
   and the unraid template, since P6A.4. The package is private, and the page
   opens by saying so.

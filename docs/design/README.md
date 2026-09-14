@@ -154,21 +154,15 @@ scheduled leaves it for a design note of its own.
 
 [`workplan/`](workplan/) has its own index. In reading order it is the work plan
 itself, the triage the plan is built on, the phase documents — one per phase from
-P1 to P11, plus P2A, P2B, P2C, P6A and P6B — the polish list, testing, the
-release model, and the supplements the two manual phases carry.
-
-~~The phase documents are numbered in the order they were written, so P2A, P2B
-and P2C are 13, 14 and 15 rather than sitting between P2 and P3, P7 through P11
-are 18 through 22, P6A is 23, and P6B is 24 with its findings log at 25. **26 is
-the manual ledger**~~ ***That paragraph described the filing this file's own
-renumber replaced, and outlived it by four days*** (corrected 2026-09-13). **The
-work plan is in execution order too**: P7 through P11 are 23 through 27, P6A and
-P6B are 19 and 20 with the PLAYABLE log at 21, and **05 is the manual ledger** —
-every gate's walk state and every deferral with an owner, which 11 does for the
-P2 phases and 05 does for the rest. *That this went stale at all is the argument
-for the rule two paragraphs up: nothing cites a work-plan number, so moving one
-costs nothing — and a sentence that **spells** the numbers out is the one place
-that freedom has a price.*
+P1 to P11, plus P2A, P2B, P2C, P6A, P6B and P7B — the polish list, testing, the
+release model, and the supplements the two manual phases carry. The phase
+documents have been numbered in execution order since 2026-09-09, so P2A, P2B
+and P2C sit between P2 and P3, and P6A and P6B between P6 and P7; only P7B is
+filed out of order, at the end, and its own status line says why and what moves
+it. **[Manual testing](workplan/05-manual-testing.md) is the ledger** — every
+gate's walk state and every deferral with an owner, which
+[the manual gate](workplan/11-p2-manual-gate.md) does for the P2 phases and the
+ledger does for the rest.
 
 **02 and 10 are a pair.** 02 carries the reasoning and the alternatives
 considered; 10 carries the definitions. Where they disagree, 10 is current.

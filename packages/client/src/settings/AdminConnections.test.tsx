@@ -31,6 +31,13 @@ const deleteConnection = vi.fn();
 const connectionBindings = vi.fn();
 const fetchModels = vi.fn();
 const writeDefaultBindings = vi.fn();
+/**
+ * **Named rather than anonymous, which is the change that made this file able to
+ * see the role editor at all.** It sat here as a bare `vi.fn()` for as long as
+ * the route had no caller — mocked so the module would load, asserted on by
+ * nothing, which is exactly what an unused surface looks like from a test file.
+ */
+const writeBindings = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -44,7 +51,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     connectionBindings: (...a: unknown[]) => connectionBindings(...a) as unknown,
     fetchModels: (...a: unknown[]) => fetchModels(...a) as unknown,
     writeDefaultBindings: (...a: unknown[]) => writeDefaultBindings(...a) as unknown,
-    writeBindings: vi.fn(),
+    writeBindings: (...a: unknown[]) => writeBindings(...a) as unknown,
   },
 }));
 
@@ -80,7 +87,23 @@ beforeEach(() => {
   deleteConnection.mockResolvedValue(undefined);
   fetchModels.mockResolvedValue({ models: ['gpt-hi'] });
   writeDefaultBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
+  writeBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
 });
+
+/**
+ * One row's picker, once it can actually be used.
+ *
+ * The control is disabled until the bindings document has been read, because a
+ * write has to present the hash it saw — so a test that selected the moment the
+ * table rendered would be racing the query rather than testing the editor.
+ */
+async function rolePicker(name: string): Promise<HTMLSelectElement> {
+  const picker: HTMLSelectElement = await screen.findByRole('combobox', { name });
+  await waitFor(() => {
+    expect(picker.disabled).toBe(false);
+  });
+  return picker;
+}
 
 function renderSurface(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -570,5 +593,276 @@ describe('what an endpoint can do', () => {
     // Removed rather than set to zero — which is what *leave blank to use the
     // default* has to mean, and zero would be a real (wrong) window.
     expect(cleared.capabilities).toEqual({});
+  });
+});
+
+/**
+ * **Binding a role to a second model** — [R2](../../../../docs/design/workplan/22-walkthrough-refinements.md)'s
+ * real blocker, and the thing this surface told an admin to do without offering
+ * a control that could.
+ *
+ * Every test here would have passed vacuously a day ago, because the only
+ * binding writer in the client was the first-run offer and it hides itself for
+ * good once anything is bound. The route and the hook both already existed.
+ */
+describe('the role editor', () => {
+  /**
+   * **One entry per endpoint-and-model pair.** The data model separates a
+   * connection from a model, and pushing that separation onto the person
+   * choosing *which model writes the story* makes them assemble the answer from
+   * two controls. The pair is what they are picking, so it is what is listed.
+   */
+  it('offers one entry for each endpoint and model, across connections', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection(),
+        connection({ id: 'local', label: 'The laptop', models: ['qwen'] }),
+      ],
+    });
+    readRoles.mockResolvedValue({ roles: [role({ role: 'prose' })] });
+    renderSurface();
+
+    await rolePicker('Model for Writing the story');
+
+    expect(screen.getByRole('option', { name: 'The house key · gpt-hi' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'The house key · gpt-lo' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'The laptop · qwen' })).toBeTruthy();
+  });
+
+  it('binds a role to a second model on the same endpoint', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    readBindings.mockResolvedValue({
+      bindings: { prose: { connectionId: 'house', modelId: 'gpt-hi' } },
+      contentHash: 'sha256:the-document',
+    });
+    readRoles.mockResolvedValue({ roles: [role({ role: 'prose' })] });
+    renderSurface();
+
+    const picker = await rolePicker('Model for Writing the story');
+    await userEvent.selectOptions(
+      picker,
+      screen.getByRole('option', { name: 'The house key · gpt-lo' }),
+    );
+
+    await waitFor(() => {
+      expect(writeBindings).toHaveBeenCalled();
+    });
+    expect(writeBindings.mock.calls[0]?.[0]).toEqual({
+      prose: { connectionId: 'house', modelId: 'gpt-lo' },
+    });
+    // The hash it read, which is the whole of the guard.
+    expect(writeBindings.mock.calls[0]?.[1]).toBe('sha256:the-document');
+  });
+
+  /**
+   * **The whole document, or the other seven roles are deleted.**
+   * `PUT /bindings` rewrites the file rather than patching it, so a write
+   * carrying only the role that changed would silently unbind everything else —
+   * and `image`, `video` and `speech` are the ones nobody would notice, because
+   * they are usually unbound by policy anyway.
+   */
+  it('sends every role, not only the one that changed', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    readBindings.mockResolvedValue({
+      bindings: {
+        prose: { connectionId: 'house', modelId: 'gpt-hi' },
+        image: { connectionId: 'house', modelId: 'painter' },
+      },
+      contentHash: 'sha256:the-document',
+    });
+    readRoles.mockResolvedValue({ roles: [role({ role: 'prose' })] });
+    renderSurface();
+
+    const picker = await rolePicker('Model for Writing the story');
+    await userEvent.selectOptions(
+      picker,
+      screen.getByRole('option', { name: 'The house key · gpt-lo' }),
+    );
+
+    await waitFor(() => {
+      expect(writeBindings).toHaveBeenCalled();
+    });
+    expect(writeBindings.mock.calls[0]?.[0]).toEqual({
+      prose: { connectionId: 'house', modelId: 'gpt-lo' },
+      image: { connectionId: 'house', modelId: 'painter' },
+    });
+  });
+
+  it('unbinds a role, by removing it rather than by writing an empty binding', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    readBindings.mockResolvedValue({
+      bindings: {
+        prose: { connectionId: 'house', modelId: 'gpt-hi' },
+        fast: { connectionId: 'house', modelId: 'gpt-lo' },
+      },
+      contentHash: 'sha256:the-document',
+    });
+    readRoles.mockResolvedValue({ roles: [role({ role: 'prose' })] });
+    renderSurface();
+
+    const picker = await rolePicker('Model for Writing the story');
+    await userEvent.selectOptions(picker, screen.getByRole('option', { name: 'Nothing' }));
+
+    await waitFor(() => {
+      expect(writeBindings).toHaveBeenCalled();
+    });
+    expect(writeBindings.mock.calls[0]?.[0]).toEqual({
+      fast: { connectionId: 'house', modelId: 'gpt-lo' },
+    });
+  });
+
+  /**
+   * **A binding can name a model nothing offers**, and the control has to be
+   * able to say so. With no option to match it, a `<select>` displays its first
+   * entry — so the picker would claim the role is bound to whatever sorts first,
+   * in the one row where being wrong matters most.
+   */
+  it('says when a binding names a model no connection offers any more', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    readBindings.mockResolvedValue({
+      bindings: { prose: { connectionId: 'house', modelId: 'retired' } },
+      contentHash: 'sha256:the-document',
+    });
+    readRoles.mockResolvedValue({ roles: [role({ role: 'prose', reason: 'dangling' })] });
+    renderSurface();
+
+    const picker = await rolePicker('Model for Writing the story');
+
+    expect(
+      screen.getByRole('option', { name: 'retired — no connection offers this any more' }),
+    ).toBeTruthy();
+    expect(picker.value).toBe('missing');
+  });
+});
+
+/**
+ * **The bindings 412** — and the reason this file can test it at all is that the
+ * refusal started carrying a hash on 2026-09-11. Without one, *apply mine* has
+ * nothing to present and can only re-send the hash it was just refused for,
+ * which is a wedge rather than a refusal.
+ */
+describe('a 412 on the bindings document', () => {
+  it('applies the one change onto what is on disk, rather than overwriting it', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    readBindings.mockResolvedValue({
+      bindings: { prose: { connectionId: 'house', modelId: 'gpt-hi' } },
+      contentHash: 'sha256:what-this-page-read',
+    });
+    readRoles.mockResolvedValue({ roles: [role({ role: 'prose' })] });
+    writeBindings.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'The bindings file has changed since this page read it.',
+        // Somebody else bound a role this admin never touched.
+        { fast: { connectionId: 'house', modelId: 'gpt-lo' } },
+        'sha256:what-is-there-now',
+      ),
+    );
+    renderSurface();
+
+    const picker = await rolePicker('Model for Writing the story');
+    await userEvent.selectOptions(
+      picker,
+      screen.getByRole('option', { name: 'The house key · gpt-lo' }),
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Apply my change to what is on disk' }),
+    );
+
+    await waitFor(() => {
+      expect(writeBindings.mock.calls.length).toBe(2);
+    });
+    /**
+     * **The retry keeps the other person's work.** The unit of edit here is one
+     * role, so re-sending this page's whole document would revert `fast` — a
+     * role this admin never opened. The connection form's *overwrite with mine*
+     * is right for a whole connection and wrong for this.
+     */
+    expect(writeBindings.mock.calls[1]?.[0]).toEqual({
+      fast: { connectionId: 'house', modelId: 'gpt-lo' },
+      prose: { connectionId: 'house', modelId: 'gpt-lo' },
+    });
+    expect(writeBindings.mock.calls[1]?.[1]).toBe('sha256:what-is-there-now');
+  });
+});
+
+/**
+ * **Provisioning what an endpoint offers** — the half of R2 that is about
+ * setting a provider up rather than about using it: *add a provider, ask it what
+ * it serves, take all of them or a subset*.
+ */
+describe('what the endpoint offers', () => {
+  it('provisions a subset of what the endpoint listed', async () => {
+    fetchModels.mockResolvedValue({ models: ['gpt-hi', 'gpt-lo', 'gpt-vision'] });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The house key');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+
+    expect(
+      await screen.findByText(
+        'This endpoint offers 3 models. Tick the ones this install should use.',
+      ),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'gpt-hi' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'gpt-vision' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalled();
+    });
+    expect(createConnection.mock.calls[0]?.[0]).toMatchObject({
+      models: ['gpt-hi', 'gpt-vision'],
+    });
+  });
+
+  it('takes all of them in one gesture', async () => {
+    fetchModels.mockResolvedValue({ models: ['gpt-hi', 'gpt-lo', 'gpt-vision'] });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The house key');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Use all of them' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalled();
+    });
+    expect(createConnection.mock.calls[0]?.[0]).toMatchObject({
+      models: ['gpt-hi', 'gpt-lo', 'gpt-vision'],
+    });
+  });
+
+  /**
+   * **Unticking removes it, including one the admin typed by hand.** The field
+   * stays the value ([P2B §2.6] keeps it free text), so the checkboxes have to
+   * read from it rather than keep a second list — or the two drift and the saved
+   * models are whichever one the save happened to consult.
+   */
+  it('reads its ticks from the field, so a typed model can be unticked', async () => {
+    fetchModels.mockResolvedValue({ models: ['gpt-hi'] });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The house key');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'gpt-hi');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+
+    const tick: HTMLInputElement = await screen.findByRole('checkbox', { name: 'gpt-hi' });
+    expect(tick.checked).toBe(true);
+
+    await userEvent.click(tick);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalled();
+    });
+    expect(createConnection.mock.calls[0]?.[0]).toMatchObject({ models: [] });
   });
 });

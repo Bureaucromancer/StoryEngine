@@ -294,6 +294,14 @@ it by using the same detail route; what would lose it is a panel building its
 own links from `{kind, id}`. The duplicate warning without the link is the bug
 F19 already fixed once.
 
+**Two of the five panels have a phase now, 2026-09-11.** Treatments and Presets
+arrive with their editors at [P7B](28-p7b-presets-and-prompts.md), because
+create arrives with the editor and the panel is what renders the button;
+~~Setups and Packages stay here until theirs do~~ ***and since 2026-09-14 theirs
+do too — [P7B.6](28-p7b-presets-and-prompts.md) — so all four panels travel with
+their editors and none of the five is left here waiting on one***. The shared
+machinery stays specified here either way.
+
 ## 5. A home, so arrival is not an arbitrary library view
 
 **What home is and what it holds is [10 §2.2](../10-ui-surfaces.md)** — resume,
@@ -324,13 +332,15 @@ correct after home lands."* So the routing half of this item is paid.
 
 ### 5a. Split in two, 2026-09-14 — a prototype now, the rest before beta
 
-**This item acquired a destination, which it did not have.**
-[P11 §0.1](27-p11-implementation.md)'s documentation sweep went looking for 1.0
-commitments no phase owns and found home among them — owned by this file, and
+**This item acquired a destination three days ago and it is being changed.**
+The 2026-09-11 sweep placed home at [P10.4](26-p10-implementation.md) beside the
+account gallery, on the good argument that arrival before sign-in and arrival
+after it should not disagree. **The diagnosis behind that placement stands and
+is the reason this section reads differently now:**
 [manual testing §10](05-manual-testing.md) files this file's contents as *"the
-twelve polish items | unscheduled by design."* **An item routed here was routed
-nowhere**, which is fine for eleven of the twelve and was not fine for a named
-surface in [10](../10-ui-surfaces.md).
+twelve polish items | unscheduled by design,"* so an item routed here was routed
+nowhere — fine for eleven of the twelve, and not fine for a named surface in
+[10](../10-ui-surfaces.md). What changed is the size, not the finding.
 
 **The full version is deferred, deliberately and on the record.** It is not
 core-alpha work. It stays nominally a 1.0 feature, expected to land
@@ -340,7 +350,7 @@ phase number, because the condition is a judgement about readiness and not a
 date.
 
 **What lands first is the smallest thing that makes the address real**, at
-[P7B.3](28-p7b-surfaces.md): `/` stops being a redirect, the wordmark points at
+[P7B.9](28-p7b-presets-and-prompts.md): `/` stops being a redirect, the wordmark points at
 it, and the page shows the changelog. Nothing else — that fence is the stage,
 and it is this section's own scope-discipline rule applied to a version of the
 page that has not earned any panels yet.
@@ -352,6 +362,11 @@ answer that question either — but item 4 no longer has to wait for the answer,
 and the arc the file's header names (*"4 takes a landing place away, so 5 has to
 provide one"*) is discharged by a page with one thing on it as well as by a page
 with four.
+
+**Scheduled 2026-09-11 at [P10.4](26-p10-implementation.md)**, beside the
+account gallery: both are arrival, one before sign-in and one after, and one
+stage owning both keeps them from disagreeing about what arrival is for. The
+scope rule above travels with it.
 
 ---
 

@@ -82,9 +82,11 @@ find, and one that cannot be quietly dropped for being unwritten.
   trivial depends entirely on how many editors P5 through P9 add, which is
   unknowable here and is precisely what P11.0's audit is for. ***Answered
   2026-09-14, and not the way the bullet expected: P5 added one, P6 through P9
-  add none, and four of the six library kinds have no editor at all — so the
-  sweep the answer came out of (§0.1) is also the reason there is now a phase in
-  front of this one.***
+  add none, and four of the six library kinds have no editor at all. **So the
+  clause is large, and it is large in the way that matters least to this stage**:
+  what was missing was editors to sweep, not sweeping. [P7B](28-p7b-presets-and-prompts.md)
+  builds all four — two from its own 2026-09-11 finding and two from §0.1's —
+  and this stage sweeps six.***
 
 ### 0.1 The audit, run early — 2026-09-14
 
@@ -98,11 +100,22 @@ items graded unowned on the first pass turned out to have owners, and both
 corrections are recorded in the negative half below, because a register that
 only ever grows is a register nobody trusts.
 
-**This is [P11.0](#p110--the-audit-that-makes-the-list) run four phases early,
-and it does not discharge that stage.** What it does is exactly what §0 says the
-useful work here is — *narrowing what the audit will have to discover* — and it
-narrows it a long way. What P11.0 still owes is the re-count, §1.3's violation
-re-measurement, and whatever P8 through P10 add to the pile between now and then.
+***This is the second early run, and the first one is why that matters.***
+[P11.0](#p110--the-audit-that-makes-the-list)'s paragraph below records a sweep
+of 2026-09-11 that read [10](../10-ui-surfaces.md) forward against every phase
+document and placed eleven surfaces. **This one read the code backward against
+the design notes**, and the two halves barely overlap: the first found surfaces
+the design specifies and nothing builds, the second found capabilities the
+server built and nothing reaches. Each found items the other passed over — and
+each corrected the other, which is recorded in the rows rather than smoothed
+away. *Two passes, three days apart, neither redundant* is the strongest thing
+this section has to say about whether P11.0 is worth being a stage.
+
+**Neither discharges that stage.** What they do is exactly what §0 says the
+useful work here is — *narrowing what the audit will have to discover* — and
+between them they narrow it a long way. What P11.0 still owes is the re-count,
+§1.3's violation re-measurement, a check that both sweeps' placements held, and
+whatever P8 through P10 add to the pile between now and then.
 
 **Row format is §1.1's rule, applied as the list was built rather than after.**
 Every row names its artifact and its check, or says why it cannot — and the rows
@@ -110,29 +123,40 @@ that cannot are the finding, not an omission.
 
 | # | The commitment, and where it is committed | What is built | The artifact, and the check | Routed to |
 |---|---|---|---|---|
-| 1 | **Editors for presets, treatments, setups and packages** — [10 §5](../10-ui-surfaces.md), [10 §11](../10-ui-surfaces.md) | Two of six. `EDITOR_ROUTES` and `NEW_ROUTES` carry `actors` and `lorebooks`; `fields.test.ts` asserts the four negatives deliberately | Four routes over the schema-derived field description. **Check:** every kind answers `kindHasEditor`, and a preset written in the browser positions an outlet | **[P7B.0](28-p7b-surfaces.md)** |
-| 2 | **Session delete in the UI** — [03 §10.2](../03-data-model.md), [R9](22-walkthrough-refinements.md) | `DELETE /api/sessions/:id` since P2.3. **No `deleteSession` in `packages/client` at all** | The control and its wrapper. **Check:** a session deleted from the browser is in trash, not erased | **[P7B.1](28-p7b-surfaces.md)** |
-| 3 | **Session archive in the UI** — [03 §10.3](../03-data-model.md), and [P2C brief](13-p2c-brief.md) already says it is not in the phase document's list | `archivedAt`, `setArchived`, `PATCH { archived }` and `?archived=true`. **And the client already sends that PATCH** — with `{ name }` | One field on a call the client makes, plus the list affordance. **Check:** archived sessions leave the default list and stay reachable | **[P7B.1](28-p7b-surfaces.md)** |
-| 4 | **The workbench on a turn the head has passed** — [10 §3](../10-ui-surfaces.md)'s *current or historical*; [F-05](21-playable-log.md), graded [R1](22-walkthrough-refinements.md) | `useTurn` exists with one component calling it twice. **The reader is built and the affordance is not** | The selection. **Check:** a past turn's blocks, calls and verdicts render, and the panel says which turn it is showing | **[P7B.2](28-p7b-surfaces.md)** |
-| 5 | **The import quarantine's listing** — the ladder's only surface; [P2 manual gate §3.5](11-p2-manual-gate.md): *"No client code calls it"* | `GET /api/library/errors`, zero client callers | The listing. **Check:** somebody who imported a folder can see what went to `compat` and why | **[P7B.4](28-p7b-surfaces.md)** |
-| 6 | **Full-text search across your own story** — [10 §14](../10-ui-surfaces.md), *"argued for 1.0"*; `README.md` already promises it to a reader | `GET /api/search` returns objects and turns; zero client callers. [P5 §3](17-p5-implementation.md) calls the absence *"settled rather than deferred"* | The surface — §14.5's index exists. **Check:** the sentence `README.md` prints is true from the browser. *Carries P5's unfixed owner-filter defect* | **[P7B.5](28-p7b-surfaces.md)**, scope fork open |
+| 1 | **Editors for presets, treatments, setups and packages** — [10 §5](../10-ui-surfaces.md), [10 §11](../10-ui-surfaces.md) | Two of six. `EDITOR_ROUTES` and `NEW_ROUTES` carry `actors` and `lorebooks`; `fields.test.ts` asserts the four negatives deliberately | Four routes over the schema-derived field description. **Check:** every kind answers `kindHasEditor`, and a preset written in the browser positions an outlet | **[P7B.1, P7B.3 and P7B.6](28-p7b-presets-and-prompts.md)** |
+| 2 | **Session delete in the UI** — [03 §10.2](../03-data-model.md), [R9](22-walkthrough-refinements.md) | `DELETE /api/sessions/:id` since P2.3. **No `deleteSession` in `packages/client` at all** | The control and its wrapper. **Check:** a session deleted from the browser is in trash, not erased | **[P7B.2](28-p7b-presets-and-prompts.md)** |
+| 3 | **Session archive in the UI** — [03 §10.3](../03-data-model.md), and [P2C brief](13-p2c-brief.md) already says it is not in the phase document's list | `archivedAt`, `setArchived`, `PATCH { archived }` and `?archived=true`. **And the client already sends that PATCH** — with `{ name }` | One field on a call the client makes, plus the list affordance. **Check:** archived sessions leave the default list and stay reachable | **[P7B.2](28-p7b-presets-and-prompts.md)** |
+| 4 | **The workbench on a turn the head has passed** — [10 §3](../10-ui-surfaces.md)'s *current or historical*; [F-05](21-playable-log.md), graded [R1](22-walkthrough-refinements.md) | `useTurn` exists with one component calling it twice. **The reader is built and the affordance is not** | The selection. **Check:** a past turn's blocks, calls and verdicts render, and the panel says which turn it is showing | **[P7B.7](28-p7b-presets-and-prompts.md)** |
+| 5 | **The import quarantine's listing** — the ladder's only surface; [P2 manual gate §3.5](11-p2-manual-gate.md): *"No client code calls it"* | `GET /api/library/errors`, zero client callers | The listing. **Check:** somebody who imported a folder can see what went to `compat` and why | **[P7B.8](28-p7b-presets-and-prompts.md)** |
+| 6 | **Full-text search across your own story** — [10 §14](../10-ui-surfaces.md), *"argued for 1.0"*; `README.md` already promises it to a reader | `GET /api/search` returns objects and turns; zero client callers. [P5 §3](17-p5-implementation.md) calls the absence *"settled rather than deferred"* | The surface — §14.5's index exists. **Check:** the sentence `README.md` prints is true from the browser. *Carries P5's unfixed owner-filter defect* | **P11.1**, decided 2026-09-14 — it and the reading view are read-surfaces over the same data and share a print story, which beats *shipped route with no caller* as a grouping. *P5's unfixed owner-filter defect travels with it* |
 | 7 | **Session export** — [work plan §0.5](01-work-plan.md), [25 B12](../25-open-questions.md), [13 §13](../13-write-mode.md), [18 §3](../18-session-import.md) | Nothing. §1.8 argues it here at length | The format and its writer, with §1.8's four consequences. **Check:** a session exported and loaded on another install | **P11.10 — a stage this document did not have** |
 | 8 | **Backup and restore** — [work plan §0.5](01-work-plan.md), [25 E6](../25-open-questions.md) | Nothing | Quiesce, archive excluding the index, restore and rebuild. **Check:** the CI restore test, which is [testing](03-testing.md)'s | **P11.11 — likewise** |
-| 9 | **Home, the arrival surface** — [10 §2.2](../10-ui-surfaces.md) | `/` is a redirect and the wordmark points at the library, both under comments describing a future | The page. **Check:** arrival is not the library's job | **Prototype at [P7B.3](28-p7b-surfaces.md)**; the full version deferred by direction — see below |
+| 9 | **Home, the arrival surface** — [10 §2.2](../10-ui-surfaces.md) | `/` is a redirect and the wordmark points at the library, both under comments describing a future | The page. **Check:** arrival is not the library's job | **Prototype at [P7B.9](28-p7b-presets-and-prompts.md)**; the full version deferred by direction — see below |
 | 10 | **A visible size indicator on embedded media** — `[OPEN]` at [03 §5.2.2](../03-data-model.md), carried into [04 §11](../04-schemas.md) | Nothing. PNG embedding ships at 1.0, so the failure is reachable | An indicator in the editor. **Check:** a card approaching an unshareable size says so before share time | **Deferred by direction, with its condition named** — see below |
 | 11 | **Extension installation, and therefore the panel** — [P10 §1.5](26-p10-implementation.md): *"no document owns acquiring and enabling an extension on an install"* | The boundary (P7) and the manifest and lifecycle ([22 §6–§7](../22-extensions.md)). No `packages/server/src/extensions/`. [P2A](09-p2a-configuration-surface.md): `enableExtensions` *"appear in no phase list at all"* | Acquire and enable. **Check:** an extension installed by somebody who is not the developer runs | **P10's own fork**, at its revisit — P10.3's cell is explicitly *the panel or its named deferral* |
-| 12 | **Openings, and seed → expand → edit → accept → promote** — [03 §6](../03-data-model.md); **PORT** in [triage](02-triage.md); [25 B9](../25-open-questions.md) resolved it and attached no phase | The schema field only. **`fromSeedId` has shipped since P1 with no writer anywhere** | The opening picker and the expand loop. **Check:** a session begins from a written opening and from an expanded seed, and the expansion promotes back with `fromSeedId` set | **[P7B](28-p7b-surfaces.md) candidate** (§1.5 there), held on the expand loop's cost |
+| 12 | **Openings, and seed → expand → edit → accept → promote** — [03 §6](../03-data-model.md); **PORT** in [triage](02-triage.md); [25 B9](../25-open-questions.md) resolved it and attached no phase | The schema field only. **`fromSeedId` has shipped since P1 with no writer anywhere** | The opening picker and the expand loop. **Check:** a session begins from a written opening and from an expanded seed, and the expansion promotes back with `fromSeedId` set | **[P7B](28-p7b-presets-and-prompts.md) candidate** (§1.5 there), held on the expand loop's cost |
 | 13 | **`.sepack` import and export** — [03 §7](../03-data-model.md): *"how objects travel"*; **PORT** in [triage](02-triage.md) | A folder-shape comment. [P4](16-p4-implementation.md)'s *"P11-ish"* is the corpus's only assignment, and this document contains `.sepack` zero times | The bundle format, writer and reader. **Check:** a package moves between installs | **Beside P11.10**, since both freeze a format — and it is P7B.0's fourth kind's missing half |
 | 14 | **The rendition count judgement, and both pacing dials** — [06 §10.4](../06-modes-and-turn-pipeline.md), [06 §10.6](../06-modes-and-turn-pipeline.md) | P9 builds one image per turn and says it *"does not build"* the judgement; *"neither pacing dial is P9's"*. P10 and P11 are the only later phases and both are silent | The judgement and two dials. **Check:** a turn with no moment worth an image gets none, and a session at a low cadence explains its own quiet | **No phase.** *Narrowed:* the storyboard surface is on the feature list ([24 §3.3](../24-roadmap.md)), so only these are unowned 1.0 items |
-| 15 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — specified nearly verbatim, *"a collapsed line while things go well"* | P3.5 built it inside the workbench panel only | The line outside the panel. **Check:** somebody who never opens the workbench can see a turn is running | **Unowned; a [P7B](28-p7b-surfaces.md) candidate**, held with 16 and [polish §11](06-polish.md) because the three are one story |
+| 15 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — specified nearly verbatim, *"a collapsed line while things go well"* | P3.5 built it inside the workbench panel only | The line outside the panel. **Check:** somebody who never opens the workbench can see a turn is running | **Unowned; a [P7B](28-p7b-presets-and-prompts.md) candidate**, held with 16 and [polish §11](06-polish.md) because the three are one story |
 | 16 | **[R4](22-walkthrough-refinements.md) — where the reader's view sits while a turn streams** — [manual testing §10](05-manual-testing.md)'s *"largest genuine blank in the corpus"* | Nothing | **A paragraph in [10](../10-ui-surfaces.md), first.** **Check:** none nameable until that paragraph exists | **Unowned, and the one row §1.1's rule cannot grade** — an item with no specification has no artifact to name |
 | 17 | **The first-party system library's content** — [25 A2e](../25-open-questions.md): *"a full system library ships alongside"* | The mechanism — `SYSTEM_OWNER`, `system/library/`, read-only, loaded for everyone | Content. **Check:** a fresh install has something in it | **Not a hardening item and not code.** Here as content, or explicitly nothing — but not silently nothing |
 
-**Seventeen, and the count is the point** — P11.0's *Ends at* asks for one so the
-phase's size is known before it starts. Six go to a new phase, two become stages
-here, two are deferred by direction, one is P10's fork to settle, and **six are
-still unowned** — of which one (16) cannot be owned until somebody writes a
+**Seventeen, and the count is the point** — P11.0's *Ends at* asks for one so
+the phase's size is known before it starts. **Six go to [P7B](28-p7b-presets-and-prompts.md)**
+(rows 1–5, and row 9's prototype); **three become work here** — P11.10, P11.11
+and search joining P11.1; **two are deferred by direction** (row 9's full
+version, row 10); **one is P10's fork** to settle; and **five are still
+unowned**, of which one (row 16) cannot be owned until somebody writes a
 paragraph.
+
+***And this is the second sweep, not the first.*** [P7B](28-p7b-presets-and-prompts.md)
+was created on 2026-09-11 out of a pass over [10](../10-ui-surfaces.md) against
+every phase document, which placed eleven surfaces and is recorded at
+[P11.0](#p110--the-audit-that-makes-the-list) below. **The two passes found
+partly different things and read each other's misses**, which is the strongest
+argument in this section for running the audit more than once: the first swept
+the design note forward into the phases, the second swept the *code* backward
+into the design notes, and neither would have found the other's half.
 
 #### What §1.1's rule did to the list
 
@@ -141,9 +165,12 @@ openings, `.sepack`, home and extension installation name an artifact easily
 enough, but they are features rather than hardening: each is a surface that does
 not exist, not a surface that is not finished. The rule says such an item *"goes
 to the roadmap or to a phase"* — and **P11 is the last phase**, so that clause
-had no destination. [P7B](28-p7b-surfaces.md) is the phase four of them now go
-to, created for the purpose; §1.8 called that outcome *"a finding rather than a
-failure"* before the audit ran, which is the sentence this section is the
+had no destination. [P7B](28-p7b-presets-and-prompts.md) is where two of them go —
+home's prototype and, with rows 1–5, the editors — while **search is the one
+this rule ejects and P11 keeps anyway**, because P11.1 is not a hardening stage
+either: the reading view is a feature too, and the two belong together. §1.8
+called this outcome *"a finding rather than a failure"* before the audit ran,
+which is the sentence this section is the
 evidence for.
 
 *The editors (row 1) would have been a sixth*, and are the reason the sweep was
@@ -194,7 +221,7 @@ through 6 are five routes whose only callers are their own tests, green in CI
 the whole time, for up to six phases. That is not a judgement call — it is a
 mechanical property with a mechanical check, and it is filed at
 [manual testing §9](05-manual-testing.md) and again as
-[P7B](28-p7b-surfaces.md)'s one gate item that is not a stage.
+[P7B](28-p7b-presets-and-prompts.md)'s one gate item that is not a stage.
 
 ---
 
@@ -452,7 +479,7 @@ corpus.
 anticipated P11 splitting under its own weight. What happened instead is that
 §1.1's rule ejected five items as features rather than hardening, and four of
 them went to a phase created in front of this one
-([P7B](28-p7b-surfaces.md)) — so the relief is real and it came from the rule
+([P7B](28-p7b-presets-and-prompts.md)) — so the relief is real and it came from the rule
 rather than from the sizing.
 
 ---
@@ -484,6 +511,26 @@ list is built, not after.
 *Ends at:* a list where every item names its artifact and its check — and a
 count, so the phase's size is known before it starts rather than discovered.
 
+**The audit does not start from nothing.** A surface sweep on 2026-09-11 ran
+this pass early over [10](../10-ui-surfaces.md) against every phase document,
+and placed what it found: [manual testing §10](05-manual-testing.md) carries the
+rows, [P7B](28-p7b-presets-and-prompts.md) took the prompt-handling surfaces,
+and [P10.3](26-p10-implementation.md), [P10.4](26-p10-implementation.md), P11.1,
+P11.2 and P11.7 below each gained the items placed with them, dated. What this
+stage owes is the re-run rather than the repeat: the items that arrived after
+that date, and a check that the placements held — a placement is a routing, and
+[manual testing §10.1](05-manual-testing.md) is what a routing nobody re-reads
+turns into.
+
+***And a second one ran on 2026-09-14 — §0.1, which is the register.*** It read
+the other way round: the code against the design notes, looking for capabilities
+the server has and no client reaches. **Seventeen items, and its overlap with
+2026-09-11's eleven is small**, which is the finding worth carrying into this
+stage rather than either list. *One sweep is a direction, not a pass.* This
+stage runs both directions and reconciles them, and the two existing registers
+say where they disagreed — twice, in both cases because a placement had been
+made and not re-read.
+
 **One additional review input:** [20 — client loading](../20-client-loading.md)
 records the early bundle-size baseline and expects growth through the intervening
 phases. Its §7 proposes this audit as the point to measure arrival and navigation
@@ -497,6 +544,18 @@ commitment; observed loading problems can bring it forward.
 than an export step, renditions inline where P9 produced them, HTML with a real
 print stylesheet plus Markdown and plain text. §1.4's fence enforced.
 
+**And two things placed here on 2026-09-11 because they share its formats.**
+The search surface, [10 §14](../10-ui-surfaces.md) — argued for 1.0 in the
+design, built server-side at P2 with the UI named as P3's, and never given a
+client: nothing in `packages/client` calls `GET /api/search`, and
+[P5.2](17-p5-implementation.md) said *"the surface for all three is §14.5's"*
+without saying whose §14.5 is. A hit lands on the reading view's addressable
+node, which is why they are one stage. And print and copy-as-Markdown for a
+lorebook, [10 §5.3](../10-ui-surfaces.md), which is the same print stylesheet
+and the same Markdown pass run over a different record. Both are the kind of
+cheap item §1.4 warns gets cut, so they are named here rather than left to
+P11.0 to rediscover.
+
 ### P11.2 — Editors are not dumb forms, across every editor
 
 [10 §11](../10-ui-surfaces.md) applied where P1's prototype editor, P2A's forms,
@@ -506,14 +565,45 @@ provenance ([10 §11.2](../10-ui-surfaces.md)), image slots, and
 half of this is [polish §1–§2](06-polish.md)'s and lands there or here but not
 twice.
 
-***Across every editor now means six rather than two*** — [P7B.0](28-p7b-surfaces.md)
-builds the four that do not exist, 2026-09-14. **That is not scope added to this
-stage; it is scope this stage never had.** §0 recorded on 2026-08-31 that the
-clause covered one editor and that its real size was unknowable; §0.1 answered
-it, and the answer was that four kinds had no editor for any phase to sweep.
-**The sequencing is the whole of the decision:** a sweep over six editors is the
-same work as a sweep over two, and running it before the four arrive would
-guarantee running it twice.
+**And the editors that have to exist before a contract can be applied across
+them.** [P7B](28-p7b-presets-and-prompts.md) brings presets and treatments, and
+**since 2026-09-14 the setup and package editors too** — so *across every
+editor* becomes six rather than two, and none of that is scope added to this
+stage. It is scope this stage never had: §0 recorded on 2026-08-31 that the
+clause covered one editor and that its real size was unknowable, and §0.1
+answered it.
+
+***Two corrections to what this paragraph said on 2026-09-11.*** It read that
+*"P7.4 writes setups through the wizard, which [10 §6](../10-ui-surfaces.md)
+makes the setup's editor by design"*, and that **the package editor is this
+stage's**. Neither holds.
+
+- **P7.4 built a way to make a Setup, not a way to edit one.**
+  `SessionsPage`'s *Save as a setup* writes a `setups/` object, and
+  `library/fields.ts` says in its own docstring why that is not the same thing:
+  *"`setups` stays out of these tables until it has an editor."* A saved Setup
+  is readable on the generic shelf and nowhere editable. **The refinement worth
+  keeping** is that a setup editor is a *smaller and differently shaped* item
+  than the other three, because the create path already exists and is not a
+  form — naming a configuration you already played rather than filling in a
+  blank one.
+- **The package editor is [P7B](28-p7b-presets-and-prompts.md)'s**, decided
+  2026-09-14. The argument this paragraph made for keeping it was
+  self-undercutting: *across every editor* cannot apply to an editor that does
+  not exist, which is a reason to build it **before** the sweep rather than
+  inside it. A bundle's editor is still a picker over the objects a user owns
+  ([04 §9](../04-schemas.md)), and that description travels with it.
+
+**What does stay here** is the lorebook entry's remainder: P5.1 left everything
+past the five core fields read-only on purpose, and P7's 2026-09-10 re-audit, on
+its branch, found that *the five per-book retrieval knobs and the book-level
+`enabled` gate have real consumers and no write surface* — **since closed at
+P7.14**, so what remains is the entry-level fields rather than the book-level
+ones.
+
+**The sequencing is the whole of the decision**, and it is the same sentence in
+both directions: a sweep over six editors is the same work as a sweep over two,
+and running it before the six exist would guarantee running it twice.
 
 ### P11.3 — The assistant
 
@@ -546,6 +636,16 @@ and the error-message improvement that is the feature's actual value.
 `users/<h>/trash/`, history and all, so what is missing is the retention sweep
 and the restore UI ([03 §10.2](../03-data-model.md)). And §1.2's accessibility
 pass, which is an audit over surfaces built to the habit or it is a rewrite.
+
+**And the link table.** The reference counts [03 §10.1](../03-data-model.md)
+wants on this confirmation — *referenced by 12 sessions, 3 treatments and 1
+package* — need an inbound-links query the index does not have, and
+[P4 §6.6](16-p4-implementation.md) recorded it as one debt with
+[10 §5.2](../10-ui-surfaces.md)'s *Used by* panel: *"whichever phase builds
+that panel pays both."* This stage is already opening delete, so it pays both —
+the table, the counts, the panel, and *played alongside*
+([10 §5.3](../10-ui-surfaces.md)), which is the same query read from a
+lorebook. Placed 2026-09-11; nothing had named a phase before.
 
 ### P11.8 — The localisation sweep
 
@@ -603,7 +703,7 @@ travel different things — a session with its branch structure and channel stat
 and an arbitrary bundle of library objects — and the [P4](16-p4-implementation.md)
 line that routed the package half here (*"P11-ish"*) is the only assignment the
 corpus has ever given it. Deciding at the revisit whether it is this stage, a
-twelfth, or [P7B](28-p7b-surfaces.md)'s package editor growing an export button
+twelfth, or [P7B](28-p7b-presets-and-prompts.md)'s package editor growing an export button
 is cheaper than deciding now.
 
 *Depends on:* [13 §4](../13-write-mode.md), and on nothing else here.
