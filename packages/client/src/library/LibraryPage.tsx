@@ -14,6 +14,7 @@ import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
+import { QuarantinePanel } from './QuarantinePanel.js';
 import {
   emptyMessage,
   panelFor,
@@ -69,6 +70,11 @@ export function LibraryPage(): JSX.Element {
           <FilterLink key={kind} kind={kind} current={search.kind} />
         ))}
       </nav>
+
+      {/* Above the list and below the filter: it is about objects that are
+          *missing* from the list, so a reader has to meet it before concluding
+          something was deleted ([P7B.8]). */}
+      <QuarantinePanel />
 
       <MakeSomething kind={search.kind} />
 

@@ -203,15 +203,21 @@ describe('the navigation', () => {
   });
 
   /**
-   * The wordmark is the arrival affordance and becomes home once home exists
-   * ([10 §2.2]). Until then it goes to the library — but it is deliberately
-   * *not* pointed at `/`, because `/` is the address home will take.
+   * ~~Until then it goes to the library — but it is deliberately *not* pointed
+   * at `/`, because `/` is the address home will take.~~ ***Home took it*** —
+   * [P7B.9].
+   *
+   * The claim is unchanged and is the one [10 §2.2] makes: **arrival is not the
+   * library's job.** What changed is which address satisfies it. Worth keeping
+   * as a test rather than deleting, because the regression it catches is the
+   * same one in both directions — somebody pointing the wordmark at the library
+   * again for convenience.
    */
-  it('points the wordmark at the library, not at the root', async () => {
+  it('points the wordmark at home, which is what arrival means', async () => {
     renderShell('user');
 
     const wordmark = await screen.findByRole('link', { name: 'StoryEngine' });
-    expect(wordmark.getAttribute('href')).toBe('/library');
+    expect(wordmark.getAttribute('href')).toBe('/');
   });
 
   it('shows no surfaces to somebody who is not signed in', async () => {

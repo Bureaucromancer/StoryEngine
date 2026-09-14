@@ -96,6 +96,19 @@ export interface AuthState {
 }
 
 /** The object envelope every library read returns (docs/api.md). */
+/** One file the library holds and cannot read — `library.ts`'s `LibraryFileError`. */
+export interface LibraryFileError {
+  /** Portable, never native: which folder, not where the server keeps its disk. */
+  path: string;
+  source: 'user' | 'system';
+  /** The `schema` the file claims, which may be why it was refused. */
+  kind: string;
+  slug: string;
+  reason: string;
+  detail: string | null;
+  seenAt: number;
+}
+
 export interface LibraryObject {
   id: string;
   schema: string;
@@ -481,6 +494,20 @@ export const api = {
 
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
+
+  /**
+   * What the library could not load — [P7B.8].
+   *
+   * ***The route has existed since P2 and nothing called it.***
+   * [manual gate §3.5](../../../docs/design/workplan/11-p2-manual-gate.md) has
+   * said *"No client code calls it"* for six phases, and its gate step has
+   * failed the whole time: *"Break an actor by hand and the app is silent:
+   * stale content presented as current, edited, then refused by a conflict
+   * dialog blaming a concurrent editor."* A quarantine nobody can look into is
+   * a deletion with extra steps.
+   */
+  libraryErrors: (): Promise<{ errors: LibraryFileError[] }> =>
+    request('GET', '/api/library/errors'),
 
   /**
    * `at` reads one *specific* copy of a duplicated id (docs/api.md, Library).

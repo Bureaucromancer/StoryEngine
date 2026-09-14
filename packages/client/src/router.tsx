@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
 import { isLibraryKind, type LibraryKind } from './api.js';
 import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
 import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
+import { HomePage } from './home/HomePage.js';
 import { NewPresetPage, PresetEditorPage } from './editor/PresetEditorPage.js';
 import {
   NewPackagePage,
@@ -122,17 +123,24 @@ const libraryRoute = createRoute({
 });
 
 /**
- * `/` redirects until home is built. Not a component rendering the library —
+ * ~~`/` redirects until home is built. Not a component rendering the library —
  * that would leave two addresses for one page and make *which* of them is
  * canonical a thing to remember. One redirect, and every link resolves to the
- * address that will still be correct after home lands.
+ * address that will still be correct after home lands.~~
+ *
+ * ***Home landed*** — [P7B.9]. The redirect's whole argument was about keeping
+ * this address free for the page that would eventually want it, and this is
+ * that page: a prototype, deliberately, with the full
+ * [10 §2.2](../../../docs/design/10-ui-surfaces.md) home deferred past core alpha
+ * ([polish §5](../../../docs/design/workplan/06-polish.md) carries the terms).
+ * **The link-resolution property the redirect was protecting is now paid
+ * rather than promised**: every `to="/"` in the app reaches a page, and the
+ * library keeps its own address instead of answering at two.
  */
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => {
-    throw redirect({ to: '/library', search: {} });
-  },
+  component: HomePage,
 });
 
 const sessionsRoute = createRoute({

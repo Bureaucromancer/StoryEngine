@@ -74,10 +74,14 @@ export function Shell(): JSX.Element {
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-4">
-            {/* Goes to the library for now. It becomes home once home exists
+            {/* ~~Goes to the library for now. It becomes home once home exists
                 ([10 §2.2]) — the wordmark is the arrival affordance, and
-                arrival is not the library's job. */}
-            <Link to="/library" search={{}} className="text-lg font-semibold">
+                arrival is not the library's job.~~ ***It does*** — [P7B.9].
+                The page behind it is a prototype and the sentence above is why
+                it is the wordmark's destination anyway: arrival being the
+                library's job was the thing to stop, and a home with one section
+                on it stops that as completely as a home with four. */}
+            <Link to="/" className="text-lg font-semibold">
               StoryEngine
             </Link>
             {account === null ? null : <SurfaceNav />}
