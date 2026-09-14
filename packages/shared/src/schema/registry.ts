@@ -18,17 +18,17 @@ export type { Ajv, ValidateFunction };
 
 import { Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, RESERVED_SECTION_PREFIX } from './actor.js';
 import { Lorebook, LOREBOOK_SCHEMA } from './lorebook.js';
-import { Package, PACKAGE_SCHEMA } from './package.js';
 import { Preset, PRESET_SCHEMA } from './preset.js';
 import { Treatment, TREATMENT_SCHEMA } from './treatment.js';
 import { Setup, SETUP_SCHEMA } from './setup.js';
+import { World, WORLD_SCHEMA } from './world.js';
 
 /**
  * The registry — docs/design/04-schemas.md §9.
  *
  * **Every portable object self-describes with a `schema` field, so containers
  * never enumerate kinds** ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). This maps that
- * string to a validator, which is the whole mechanism: a Package walks its
+ * string to a validator, which is the whole mechanism: a World walks its
  * contents, asks the registry about each entry's `schema`, validates what it
  * recognises and carries the rest through untouched.
  *
@@ -95,7 +95,7 @@ export const PORTABLE_SCHEMAS = {
   [TREATMENT_SCHEMA]: Treatment,
   [SETUP_SCHEMA]: Setup,
   [PRESET_SCHEMA]: Preset,
-  [PACKAGE_SCHEMA]: Package,
+  [WORLD_SCHEMA]: World,
 } as const satisfies Record<string, TSchema>;
 
 export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
@@ -104,10 +104,11 @@ export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
  * The folder each kind lives in, per [03 §5.1](../../../../docs/design/03-data-model.md).
  * Plural, matching the storage layout.
  *
- * Package is here too. It is a transport container rather than something you
- * play with, but §5.1 gives it a `packages/` folder in the library like any
- * other kind — a received bundle is a thing you keep, and the layout treats it
- * as one.
+ * World is here too, and no longer only because a received bundle is a thing
+ * you keep. Under [15](../../../../docs/design/15-world.md) it is a durable
+ * object with members, not a container that dissolves on import, so a
+ * `worlds/` folder beside the other kinds is what it plainly is rather than a
+ * concession the layout made to transport.
  */
 export const LIBRARY_DIRECTORIES = {
   [ACTOR_SCHEMA]: 'actors',
@@ -115,7 +116,7 @@ export const LIBRARY_DIRECTORIES = {
   [TREATMENT_SCHEMA]: 'treatments',
   [SETUP_SCHEMA]: 'setups',
   [PRESET_SCHEMA]: 'presets',
-  [PACKAGE_SCHEMA]: 'packages',
+  [WORLD_SCHEMA]: 'worlds',
 } as const;
 
 export interface ValidationIssue {
@@ -161,7 +162,7 @@ export function schemaIdOf(value: unknown): string | null {
 /**
  * Validates a self-describing object against whichever schema it names.
  *
- * **An unknown `schema` string is not a failure.** A package may legitimately
+ * **An unknown `schema` string is not a failure.** A world may legitimately
  * contain a kind this build has never heard of, and rejecting it is the
  * stranding [04 §2](../../../../docs/design/04-schemas.md) forbids. Callers that need to
  * distinguish "valid" from "not checked" ask `isKnownSchema` first.

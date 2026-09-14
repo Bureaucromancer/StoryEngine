@@ -266,10 +266,10 @@ describe('library kinds', () => {
     expect([...LIBRARY_KINDS].sort()).toEqual([
       'actors',
       'lorebooks',
-      'packages',
       'presets',
       'setups',
       'treatments',
+      'worlds',
     ]);
   });
 

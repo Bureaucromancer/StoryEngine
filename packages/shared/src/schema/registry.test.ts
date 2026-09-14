@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import {
   newActor,
   newLorebook,
-  newPackage,
   newPreset,
   newTreatment,
   newSetup,
+  newWorld,
 } from '../factories.js';
 import { ACTOR_SCHEMA } from './actor.js';
-import { PACKAGE_SCHEMA } from './package.js';
+import { WORLD_SCHEMA } from './world.js';
 import {
   createValidator,
   isKnownSchema,
@@ -26,10 +26,12 @@ import {
 /**
  * One minimal instance of every kind — **all six** (F18).
  *
- * Package was missing, which made "a minimal instance of every kind validates"
+ * The sixth was missing, which made "a minimal instance of every kind validates"
  * a claim about five of them. It is the kind least like the others and so the
- * most worth including: a container whose contents are open by design, and the
- * one whose round trip has never been exercised.
+ * most worth including: a World's contents are open by design, and it is the one
+ * whose round trip has never been exercised. *It was `newPackage` when this was
+ * written; the kind was renamed rather than added, which is why there are still
+ * six.*
  */
 const library = {
   actor: newActor('Vera Solano'),
@@ -37,7 +39,7 @@ const library = {
   treatment: newTreatment('Rain City, noir'),
   setup: newSetup('The Fixer’s Debt'),
   preset: newPreset('House style'),
-  package: newPackage('The Rain City bundle'),
+  world: newWorld('Rain City'),
 };
 
 describe('the registry', () => {
@@ -53,12 +55,12 @@ describe('the registry', () => {
     // The registry is the mechanism behind "every portable object
     // self-describes, so containers never enumerate kinds"
     // ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). If a kind is added to the design
-    // and not here, a Package would carry it as unrecognised.
+    // and not here, a World would carry it as unrecognised.
     expect(Object.keys(PORTABLE_SCHEMAS).sort()).toEqual(
       [
         'storyengine.actor/1',
         'storyengine.lorebook/1',
-        'storyengine.package/1',
+        'storyengine.world/1',
         'storyengine.preset/0',
         'storyengine.treatment/1',
         'storyengine.setup/1',
@@ -68,10 +70,10 @@ describe('the registry', () => {
 
   it('gives every portable kind a library directory', () => {
     // [03 §5.1](../../../../docs/design/03-data-model.md) lists all six under
-    // users/<handle>/library/, `packages/` included. A kind added to the
+    // users/<handle>/library/, `worlds/` included. A kind added to the
     // registry without a directory would have nowhere to be written.
     expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(Object.keys(PORTABLE_SCHEMAS).sort());
-    expect(LIBRARY_DIRECTORIES[PACKAGE_SCHEMA]).toBe('packages');
+    expect(LIBRARY_DIRECTORIES[WORLD_SCHEMA]).toBe('worlds');
   });
 
   it('reads the schema id off a self-describing object', () => {
@@ -97,8 +99,8 @@ describe('the registry', () => {
   });
 
   it('accepts a kind it has never heard of rather than rejecting it', () => {
-    // A Package may legitimately contain a kind this build does not know —
-    // Campaign, at 2.0. Rejecting it is the stranding §2 forbids: the object
+    // A World may legitimately contain a kind this build does not know —
+    // Campaign, later. Rejecting it is the stranding §2 forbids: the object
     // must survive a round trip through an older reader.
     expect(isKnownSchema('storyengine.campaign/1')).toBe(false);
     expect(validate({ schema: 'storyengine.campaign/1', id: 'x', anything: true })).toEqual({

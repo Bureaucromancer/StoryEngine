@@ -17,7 +17,7 @@ export const KIND_LABELS: Record<LibraryKind, string> = {
   treatments: 'Treatments',
   setups: 'Setups',
   presets: 'Presets',
-  packages: 'Packages',
+  worlds: 'Worlds',
 };
 
 /**

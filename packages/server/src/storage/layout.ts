@@ -7,7 +7,7 @@ import {
   ACTOR_SCHEMA,
   LIBRARY_DIRECTORIES,
   LOREBOOK_SCHEMA,
-  PACKAGE_SCHEMA,
+  WORLD_SCHEMA,
   type PortableSchemaId,
   PRESET_SCHEMA,
   TREATMENT_SCHEMA,
@@ -71,14 +71,15 @@ export const OBJECT_FILENAMES = {
   [TREATMENT_SCHEMA]: 'treatment.json',
   [SETUP_SCHEMA]: 'setup.json',
   [PRESET_SCHEMA]: 'preset.json',
-  // [03 §5.1](../../../../docs/design/03-data-model.md) gives packages a folder and defers
+  // [03 §5.1](../../../../docs/design/03-data-model.md) gives worlds a folder and defers
   // its contents to §7, which describes the *format* rather than the on-disk
-  // shape. A stored package also holds embedded copies of its contents, so this
-  // filename is the manifest rather than the whole object — and the arrangement
-  // is settled with `.sepack` import and export, which [P4 §4] puts out of
-  // scope and places around P11. This comment said "settled at P4" until P4.0
-  // read it: P4 imports other people's formats and deliberately not our own.
-  [PACKAGE_SCHEMA]: 'package.json',
+  // shape. So this filename is the object's own document, and whether a stored
+  // world also holds copies of its members or only names them is the question
+  // [15](../../../../docs/design/15-world.md) settles — the arrangement lands
+  // with `.seworld` import and export, which [P4 §4] puts out of scope and
+  // places around P11. This comment said "settled at P4" until P4.0 read it:
+  // P4 imports other people's formats and deliberately not our own.
+  [WORLD_SCHEMA]: 'world.json',
 } as const satisfies Record<PortableSchemaId, string>;
 
 /**

@@ -113,7 +113,7 @@ describe('the field list is the schema, read at runtime', () => {
   });
 
   /**
-   * An unknown kind is not an error ([04 §2]): a package may carry one a newer
+   * An unknown kind is not an error ([04 §2]): a world may carry one a newer
    * build wrote. With no schema to be the authority on what belongs, the
    * object's own keys are the only description there is — the record case, and
    * a strictly better page than the metadata block alone.
@@ -148,7 +148,7 @@ describe('which kinds have an editor, asked in one place', () => {
    * only the second `true`.
    */
   it('answers for the four that do not, address included', () => {
-    for (const kind of ['treatments', 'setups', 'presets', 'packages'] as const) {
+    for (const kind of ['treatments', 'setups', 'presets', 'worlds'] as const) {
       expect(kindHasEditor(kind)).toBe(false);
       expect(editorRouteFor(kind)).toBeNull();
     }

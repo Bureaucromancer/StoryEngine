@@ -14,7 +14,7 @@ import { PORTABLE_SCHEMAS } from '../dist/index.js';
  *
  * **JSON Schema is the artefact, TypeScript types are the derivative**
  * (docs/design/19-tech-stack.md §4). The direction matters: a third-party tool
- * validating a `.sepack` has to be able to fetch a schema file, not compile
+ * validating a `.seworld` has to be able to fetch a schema file, not compile
  * against our types. That is the whole reason the project authors in TypeBox
  * rather than Zod.
  *

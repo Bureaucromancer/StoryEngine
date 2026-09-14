@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, PACKAGE_SCHEMA, PRESET_SCHEMA } from '@storyengine/shared';
+import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, PRESET_SCHEMA, WORLD_SCHEMA } from '@storyengine/shared';
 
 import {
   isValidHandle,
@@ -76,7 +76,7 @@ describe('library owners', () => {
     // ([03 §5.2](../../../../docs/design/03-data-model.md)).
     expect(OBJECT_FILENAMES[ACTOR_SCHEMA]).toBe('card.png');
     expect(OBJECT_FILENAMES[PRESET_SCHEMA]).toBe('preset.json');
-    expect(OBJECT_FILENAMES[PACKAGE_SCHEMA]).toBe('package.json');
+    expect(OBJECT_FILENAMES[WORLD_SCHEMA]).toBe('world.json');
   });
 
   it('keeps assets inside the object folder', () => {

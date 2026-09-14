@@ -296,7 +296,7 @@ function asNode(value: unknown): SchemaNode | undefined {
  *
  * Through `isKnownSchema` rather than a hand-rolled key test, because that
  * predicate is the registry's own answer to *do we know this kind* and an
- * unknown one is not an error ([04 §2]) — a package may legitimately carry a
+ * unknown one is not an error ([04 §2]) — a world may legitimately carry a
  * kind a newer build wrote. Undefined here means the page falls back to no
  * field list rather than to a broken one.
  */

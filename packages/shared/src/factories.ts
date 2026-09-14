@@ -5,10 +5,10 @@ import { uuidv7 } from './ids.js';
 import { type Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from './schema/actor.js';
 import type { Openings, Provenance } from './schema/common.js';
 import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
-import { type Package, PACKAGE_SCHEMA } from './schema/package.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
 import { type Treatment, TREATMENT_SCHEMA } from './schema/treatment.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
+import { type World, WORLD_SCHEMA } from './schema/world.js';
 
 /**
  * Minimal valid instances of each library kind.
@@ -277,21 +277,28 @@ export function newPreset(name: string): Preset {
 }
 
 /**
- * An empty package — the sixth kind, which had no factory (F18).
+ * An empty world — the sixth kind, which had no factory (F18).
  *
- * Empty is the honest default and not a placeholder: a package with no contents
- * is a container that has not been filled, and filling it is the *export* half
- * of P4. What this proves in the round-trip fixtures is the envelope — that a
- * Package survives a write and a read like every other kind — which is the
- * thing all six are checked for. It says nothing about the container's job,
- * because that job does not exist yet.
+ * Empty is the honest default and not a placeholder: a world with no members is
+ * a canon nobody has put anything in yet, and that is a real state rather than a
+ * half-built object — a person names a world before they fill it. What this
+ * proves in the round-trip fixtures is the envelope: that a World survives a
+ * write and a read like every other kind, which is the thing all six are checked
+ * for.
  *
- * `version` is the package's own, not a schema version: two people can ship
- * `v2` of the same bundle ([04 §7](../../../docs/design/04-schemas.md)).
+ * ***Renamed from `newPackage`.*** The sentence this comment used to end on —
+ * *"it says nothing about the container's job, because that job does not exist
+ * yet"* — was true of a container and is the wrong frame for a world. The job
+ * now exists in the design ([15](../../../docs/design/15-world.md)); what does
+ * not exist yet is the closure walk that fills one, and that is the *Publish*
+ * half rather than this factory's business.
+ *
+ * `version` is the world's own, not a schema version: two people can ship
+ * `v2` of the same world ([04 §7](../../../docs/design/04-schemas.md)).
  */
-export function newPackage(name: string): Package {
+export function newWorld(name: string): World {
   return {
-    schema: PACKAGE_SCHEMA,
+    schema: WORLD_SCHEMA,
     id: uuidv7(),
     name,
     version: '1.0.0',
