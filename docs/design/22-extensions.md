@@ -85,7 +85,13 @@ it".
 
 ### 3.1 `reads` is already the payload filter
 
-`StepDefinition` already declares `reads: (ChannelId | "history" | "output")[]`.
+`StepDefinition` already declares
+~~`reads: (ChannelId | "history" | "output")[]`~~
+`reads: (ChannelId | "history" | "output" | "cast")[]` — the fourth added at
+[P7.12](workplan/23-p7-implementation.md), for a mode that had to see an actor's
+expression set and could not. *The widening is the rule working rather than an
+exception to it*: the alternative was the engine handing a mode its own cast
+unasked, which is the back door this section's filter exists to close.
 That field was added so the pipeline could reason about dependencies. It does
 double duty here:
 
@@ -100,20 +106,58 @@ Another mechanism that already existed.
 
 ## 4. What the boundary looks like
 
-> **What P2 actually built, and where it differs.** The shape below is the P7
-> target. P2's step contract lives in `packages/server/src/turns/steps.ts` and
-> diverges deliberately in three places, each recorded rather than reconciled
-> because reconciling them now would be guessing at P7's boundary:
+> **What P2 built, where it differed, and how the three differences were
+> settled.** ~~The shape below is the P7 target.~~ P2's step contract lived in
+> `packages/server/src/turns/steps.ts` and diverged deliberately in three places,
+> each recorded rather than reconciled because reconciling them then would have
+> been guessing at P7's boundary. ***All three were settled at
+> [P7.0](workplan/23-p7-implementation.md), 2026-09-11, when the contract moved
+> into `packages/sdk` — publishing a type is deciding it — and in two of the
+> three the engine was right, so this document is what changed.***
 >
-> - A step returns `candidates: Candidate[]` rather than `blocks:
->   AssembledBlock[]`. A block is what the *assembler* produces; a step
->   contributes to the input, not the output.
-> - Effects are `EffectProposal` — no `before`, no `applied`, no id. A step
->   proposes; the engine decides and stamps ([21 §1.2]).
-> - `StepHost.rng` is a live `Rng` with synchronous methods, which **cannot
->   cross a worker hop**. `HostApi` below specifies `random` supplied by the
->   host and async throughout, and that conversion is P7's — it touches every
->   step that draws. Nothing at P2 draws inside a step.
+> - ~~A step returns `candidates: Candidate[]` rather than `blocks:
+>   AssembledBlock[]`.~~ **`Candidate` won.** A block is what the *assembler*
+>   produces once the budgeter has ruled, and a step cannot produce one because
+>   it does not know what fits. The sketch below is corrected.
+> - ~~Effects are `EffectProposal` — no `before`, no `applied`, no id.~~
+>   **`EffectProposal` won**, for the reason that was already written here: a
+>   step proposes; the engine decides and stamps ([21 §1.2]). Only the engine can
+>   record a refusal. The sketch below is corrected.
+> - ~~`StepHost.rng` is a live `Rng` with synchronous methods, which **cannot
+>   cross a worker hop**… Nothing at P2 draws inside a step.~~ **Converted at
+>   P7.0.** `StepHost.random` is a `RandomApi` supplied by the host, and its
+>   `at(site, purpose)` is synchronous — it *names* a draw rather than making
+>   one, so across a hop it is a local constructor and only the draws are
+>   messages — with the eight methods behind it asynchronous. *The last sentence
+>   was retired before the conversion, not by it: since P5.6 the retriever draws
+>   inside a step's `call`, engine-side of the seam and never from a mode's own
+>   body. The narrowed claim is that no **mode** step draws.*
+>
+> **The sketch below is still a sketch of the worker boundary, not a copy of the
+> shipped contract, and the remaining differences are deliberate rather than
+> unnoticed** *(listed 2026-09-11, so the next reader does not have to
+> rediscover them)*. `StepContext` is two parameters in the built contract —
+> `StepImplementation = (input: StepInput, host: StepHost) => Promise<StepResult>`
+> — because a host that is a *field on the payload* is the thing that cannot be
+> serialised; `StepResult` carries one `message`, not `messages[]`; `config` has
+> no shipped home yet; and `suspend` ([25 C5]) and `diagnostics` are unbuilt. The
+> split into input-and-host is the shape §4's own argument wants, and is the
+> reason the rest of this block reads as it does.
+>
+> ***And the list went stale the way a list of differences does*** (2026-09-13).
+> It was written at [P7.0](workplan/23-p7-implementation.md) and **`StepInput`
+> gained three fields over the stages after it**, none of which is in the list or
+> in the sketch below: `speakers` (P7.3, who the participant policy says talks
+> this turn), `setup` (P7.4, the wizard's answers), and `cast` (P7.12, the scene's
+> people and the pictures that travel with them). *A promise that the remaining
+> differences are deliberate rather than unnoticed has to be re-made each time
+> the contract moves, or it decays into the second kind.*
+>
+> **Two of the three are deliberately *not* filtered by `reads`**, and §3.1 is
+> the section they argue with: that rule is about **sources** a step might not be
+> entitled to, and `speakers` and `setup` are the mode's own declaration answered
+> for the mode's own session. `cast` **is** filtered, because a scene's whole
+> cast is not a small thing to hand somebody who did not ask for it.
 >
 > `StepInput` and `StepResult` are both `structuredClone`-able today, asserted
 > in `turns/steps.test.ts`, which is the half of [01 §2]'s day-one item that can
@@ -128,13 +172,16 @@ interface StepContext {
   channels: Record<ChannelId, unknown>  // only those declared in `reads`
   history?: Message[]                   // only if declared
   output?: string                       // only at `extract` / `post`
+  speakers?: ActorId[]                  // P7.3 — unfiltered; the mode's own policy
+  setup?: Record<string, unknown>       // P7.4 — unfiltered, for the same reason
+  cast?: CastEntry[]                    // P7.12 — filtered; declared by `reads`
   config: unknown                       // the extension's own settings
   host: HostApi                         // async, narrow, typed
 }
 
 interface StepResult {
-  blocks?: AssembledBlock[]
-  effects?: ChannelEffect[]
+  candidates?: Candidate[]              // not blocks — the assembler makes those
+  effects?: EffectProposal[]            // no before, no applied, no id — [21 §1.2]
   messages?: Message[]
   suspend?: InputRequest                // [25 C5]
   diagnostics?: string[]                // surfaced in the workbench
@@ -153,7 +200,7 @@ interface HostApi {
   model: {
     call(role: ModelRole, req: ModelRequest): Promise<ModelResponse>
   }
-  random: RandomApi                        // the one RNG source — [19 §11]
+  random: RandomApi                        // the one RNG source — [19 §14]
   storage: ExtensionStorage                // §5
   log(level, message, meta?): void
 }
@@ -169,7 +216,9 @@ earlier draft of this list claimed more than §2 delivers:
   reviewable ([06 §7.4](06-modes-and-turn-pipeline.md)).
 - **Randomness is *provided* by the host**, which makes
   [19 §14.4](19-tech-stack.md)'s replay-determinism check pass for free when an
-  extension uses it.
+  extension uses it. *Provided, not enforced* — §4.0 below is the whole of why
+  that word is doing work, and [06 §9](06-modes-and-turn-pipeline.md) was
+  corrected on 2026-09-11 because it had claimed the stronger thing.
 
 ### 4.0 What a worker does not stop
 
@@ -276,7 +325,12 @@ before enabling anything.
   "modes": [ /* … */ ],
   "channels": [ /* … */ ],
   "steps": [ /* … */ ],
-  "widgets": [ /* … */ ],
+  // ~~"widgets"~~ — there is no such key and there should not be. A widget
+  // reaches the host two ways, both attached to the thing it renders:
+  // `ChannelDefinition.surface` and `ModeDefinition.surfaces` ([10 §8]).
+  // A manifest-level array would be a third, unattached to any value.
+  // Corrected 2026-09-13, at P7.11, which built the other two.
+  "surfaces": [ /* … */ ],
   "capabilities": ["model:fast", "storage"],   // requested, granted at install
   "storageQuotaMb": 5
 }

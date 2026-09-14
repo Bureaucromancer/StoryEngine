@@ -5,8 +5,12 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import type { AppServices } from '../app.js';
-import { contentHashOf } from '../index-db/ingest.js';
-import { readBindings, readSystemBindings } from '../providers/bindings.js';
+import {
+  pickBindings,
+  readBindings,
+  readSystemBindings,
+  systemBindingsState,
+} from '../providers/bindings.js';
 import {
   ConnectionError,
   deleteConnection,
@@ -16,10 +20,14 @@ import {
   readSystemConnections,
   writeConnection,
 } from '../providers/connections.js';
-import { MODEL_ROLES } from '../providers/types.js';
-import { type Binding, defaultBindings, type RoleBindings, roleTable } from '../providers/roles.js';
+import {
+  type Binding,
+  defaultBindings,
+  presentRoleRow,
+  type RoleBindings,
+  roleTable,
+} from '../providers/roles.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { readFileBytes } from '../storage/files.js';
 
 /**
  * System connections and the install default bindings —
@@ -133,18 +141,19 @@ const FetchModelsBody = Type.Object(
   { additionalProperties: false },
 );
 
-/** A stable hash of the bindings document, so a client can present what it read. */
+/**
+ * A stable hash of the bindings document, so a client can present what it read.
+ *
+ * *The rule moved to `providers/bindings.ts` at [P7.3]*, when the personal file
+ * grew a writer and wanted the same one — in particular the empty-file
+ * convention, which is the half worth having in one place. This stays as a
+ * one-line alias because every call here is about the *system* document and
+ * saying so at the call site is the point.
+ */
 async function bindingsState(
   services: AppServices,
 ): Promise<{ bindings: RoleBindings; contentHash: string }> {
-  const bytes = await readFileBytes(services.layout.systemBindingsFile);
-  return {
-    bindings: await readSystemBindings(services.layout),
-    // An absent file hashes as the empty document rather than as nothing, so
-    // *there is no file* and *there is an empty file* present the same guard —
-    // which is what a first write needs, since the client has neither.
-    contentHash: contentHashOf(bytes ?? new TextEncoder().encode('{}\n')),
-  };
+  return systemBindingsState(services.layout);
 }
 
 export function registerConnectionRoutes(app: FastifyInstance, services: AppServices): void {
@@ -370,30 +379,10 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
       usable: await readSystemConnections(services.layout),
     });
 
-    return reply.send({
-      roles: rows.map(({ role, tier, resolution }) => ({
-        role,
-        tier,
-        ...(resolution.ok
-          ? {
-              ok: true as const,
-              via: resolution.via,
-              connectionId: resolution.connection.id,
-              // The label, because a table of uuids answers nothing. Safe by
-              // the same rule `PublicConnection` follows: a label is the half
-              // of a connection that is not a credential.
-              connectionLabel: resolution.connection.label,
-              modelId: resolution.modelId,
-            }
-          : {
-              ok: false as const,
-              reason: resolution.reason,
-              ...(resolution.connectionId === undefined
-                ? {}
-                : { connectionId: resolution.connectionId }),
-            }),
-      })),
-    });
+    // `presentRoleRow` rather than a mapping written here — [P7.3]. The user
+    // half answers the same shape from different layers, and one function is
+    // what keeps that true.
+    return reply.send({ roles: rows.map(presentRoleRow) });
   });
 
   /**
@@ -475,29 +464,6 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
     await writeJsonAtomic(services.layout.systemBindingsFile, picked);
     return await reply.send(await bindingsState(services));
   });
-}
-
-/**
- * Only the roles this build knows, and only well-formed bindings.
- *
- * The same pick-what-you-know posture the config write takes: a role the caller
- * invents does not reach disk, not because it was rejected but because nothing
- * looked at it. Unlike config there is nothing on disk to preserve — a bindings
- * document is exactly its eight possible keys — so this is a whole rewrite
- * rather than a merge.
- */
-function pickBindings(body: Record<string, unknown>): RoleBindings {
-  const picked: RoleBindings = {};
-  for (const role of MODEL_ROLES) {
-    const value = body[role];
-    if (typeof value !== 'object' || value === null) continue;
-    const record = value as Record<string, unknown>;
-    if (typeof record['connectionId'] !== 'string' || typeof record['modelId'] !== 'string') {
-      continue;
-    }
-    picked[role] = { connectionId: record['connectionId'], modelId: record['modelId'] };
-  }
-  return picked;
 }
 
 /** Every account's bindings plus the install's, counted against one connection. */

@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { GenerationParams } from '@storyengine/shared';
+import type {
+  CastEntry,
+  StepCondition,
+  StepDefinition,
+  StepImplementation,
+  StepInput,
+} from '@storyengine/sdk';
 
 import type { CallPurpose } from '../assembly/types.js';
-import type { Candidate } from '../assembly/types.js';
-import type { ModelRole, TokenUsage } from '../providers/types.js';
-import type { Rng } from '../rng/rng.js';
 import { keyBelongsTo } from '../sessions/channels.js';
-
-import type { ChannelState, StepSkipReason, StepStage, Turn } from '../sessions/types.js';
-import type { EffectProposal } from './effects.js';
+import type { ChannelState, StepSkipReason, Turn } from '../sessions/types.js';
 
 /**
  * Steps, and the boundary they run behind —
@@ -23,56 +24,27 @@ import type { EffectProposal } from './effects.js';
  */
 
 /**
- * When a step runs — [06 §6]'s closed set, spelled out.
+ * **The step contract moved to `@storyengine/sdk` at [P7.0]**, and what stayed
+ * here is everything that *decides*: the condition evaluator, the purpose
+ * derivation, the payload filter, and the plan the runner walks.
  *
- * Three arms and no more: *a cadence, a stage flag, an explicit arm by the
- * user*. Deliberately **not an expression language**, and deliberately not the
- * authored-rule predicate vocabulary either — the tempting move once rules
- * arrive is to let steps take rule predicates, and that quietly makes an
- * internal shape depend on a portable one.
- *
- * A step that runs every turn is `{ when: 'cadence', everyNTurns: 1 }`. There is
- * no `always` arm, because adding one would be a fourth member of a set the
- * design calls closed, and the cadence already says it.
+ * That split is the boundary in miniature — a mode declares and the engine
+ * enforces ([06 §2]) — and it is why the move is a move rather than a rewrite.
+ * Re-exported so the pipeline's import paths stay put.
  */
-export type StepCondition =
-  | { when: 'cadence'; everyNTurns: number }
-  | { when: 'stage'; flag: string }
-  | { when: 'armed'; flag: string };
-
-export interface StepDefinition {
-  id: string;
-  stage: StepStage;
-  /**
-   * Channel ids, plus the two pseudo-sources [06 §6] names — `history` and
-   * `output`.
-   *
-   * Typed as bare `string` rather than `string | 'history' | 'output'`: a
-   * union with `string` in it collapses to `string` anyway, so the literals
-   * would be documentation pretending to be types. A channel id is an open
-   * vocabulary ([06 §4] lets a mode declare its own), so this cannot be closed.
-   */
-  reads: string[];
-  /** Channel ids this step may propose effects on. */
-  writes: string[];
-  contributes?: 'blocks' | 'effects' | 'messages';
-  /**
-   * What kind of call this step makes — [04 §8.2]'s portable, open string, which
-   * a preset block's `appliesTo` filters on.
-   *
-   * Distinct from the assembler's `CallPurpose`, which is *derived* from
-   * `contributes` and `writes` and decides whether guidance is admitted. This
-   * one is authored vocabulary: it is how a preset says *this block is for
-   * narration and not for the summariser*. It was hardcoded to `'narrate'` at
-   * the collect site, which made `appliesTo` unable to filter anything and the
-   * comment justifying per-call collection false.
-   */
-  callKind: string;
-  when: StepCondition;
-  failure: 'abort' | 'warn' | 'ignore';
-  /** The role its call asks for, or null when it makes none. */
-  role: ModelRole | null;
-}
+export type {
+  Candidate,
+  CastEntry,
+  EffectProposal,
+  StepCallRequest,
+  StepCallResult,
+  StepCondition,
+  StepDefinition,
+  StepHost,
+  StepImplementation,
+  StepInput,
+  StepResult,
+} from '@storyengine/sdk';
 
 /** What the runner knows about the turn when it evaluates a condition. */
 export interface ConditionContext {
@@ -123,83 +95,20 @@ export function evaluateCondition(
  * evaluate-before-narrate step contributes `blocks` and is refused, correctly.
  * Anything added later is refused until somebody argues otherwise here.
  *
- * **The honest limit:** §5.2's first exclusion is *the RNG service and anything
- * consuming it*, and this derivation does not cover that — a prose step is
- * handed both the guidance and an `Rng`. Nothing at P2.5 draws inside a prose
- * step, and the boundary that would enforce it is P7's worker split, where the
- * host supplies `random` rather than the step reaching for it ([22 §4]).
+ * **The limit this used to name is half closed, at [P7.0].** §5.2's first
+ * exclusion is *the RNG service and anything consuming it*, and this derivation
+ * still does not cover it — but the thing it could not cover has changed shape.
+ * A prose step is no longer handed an `Rng`: it is handed
+ * [`RandomApi`](../rng/random.ts), so the draw is the engine's and there is a
+ * seam to enforce the rule at. ~~Nothing at P2.5 draws inside a prose step~~ —
+ * and that sentence was retired before this one was written: the retriever
+ * draws inside a prose step's `call` at [P5.6], engine-side of the seam and
+ * never from a mode's own body, which is the precision the rule turns on.
+ * Enforcing it *structurally* still waits on the worker split ([22 §4]).
  */
 export function callPurposeFor(step: StepDefinition): CallPurpose {
   return step.contributes === 'messages' && step.writes.length === 0 ? 'prose' : 'effects';
 }
-
-/**
- * What a step is given — plain data, and **no guidance**.
- *
- * The omission is the design. [22 §3.1] gives the payload-filter rule this
- * implements — *a step that did not declare `history` does not receive it* — and
- * `reads` can name a channel, `history` or `output` and nothing else, so
- * guidance is not expressible there and could only arrive as an ungated extra.
- * A step handed the guidance text could re-emit it as an ordinary candidate, and
- * `assemble` would admit it: the refusal keys on `Candidate.advisory`, not on
- * where the words came from. Guidance therefore reaches the prompt only as a
- * candidate the *runner* collects, marked advisory, and never passes through a
- * step at all. The previous attempt a guided redo shows the model
- * ([06 §5.1]) is withheld for the same reason, and by the same route.
- *
- * Serialisable both ways, because [01 §2] makes the step contract async and
- * serialisable a day-one item — the boundary P7 moves to a worker is this one,
- * and converting it later means touching every step.
- */
-export interface StepInput {
-  turnId: string;
-  sessionId: string;
-  parentTurnId: string | null;
-  input?: { actorId: string | null; kind: string; text: string; raw: string };
-  /** Only the channels `reads` named. */
-  channels: Record<string, ChannelState>;
-  /** Present only when `reads` includes `history`. */
-  history?: readonly Turn[];
-  /** Present only when `reads` includes `output`. */
-  output?: { text: string };
-}
-
-export interface StepResult {
-  candidates?: Candidate[];
-  effects?: EffectProposal[];
-  message?: { text: string; reasoning?: string };
-}
-
-export interface StepCallRequest {
-  params?: GenerationParams;
-  /** Omitted means everything accumulated so far. */
-  candidates?: readonly Candidate[];
-  stream?: boolean;
-  schema?: object;
-}
-
-export interface StepCallResult {
-  callId: string;
-  text: string;
-  object?: unknown;
-  usage: TokenUsage | null;
-}
-
-/**
- * The capability set a step is handed. Never the services, never a logger,
- * never a reply.
- *
- * `call` takes no role and no purpose: the runner derives both from the
- * definition. That is what stops a step choosing its own way past §5.2, and it
- * is what keeps the boundary narrow enough to cross a worker hop later.
- */
-export interface StepHost {
-  call(request: StepCallRequest): Promise<StepCallResult>;
-  rng: Rng;
-  signal: AbortSignal;
-}
-
-export type StepImplementation = (input: StepInput, host: StepHost) => Promise<StepResult>;
 
 export interface TurnStep {
   definition: StepDefinition;
@@ -226,9 +135,12 @@ export function filterReads(
     sessionId: string;
     parentTurnId: string | null;
     input?: { actorId: string | null; kind: string; text: string; raw: string };
+    speakers?: readonly string[];
+    setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
     output?: { text: string };
+    cast?: readonly CastEntry[];
   },
 ): StepInput {
   /**
@@ -252,6 +164,25 @@ export function filterReads(
     sessionId: everything.sessionId,
     parentTurnId: everything.parentTurnId,
     ...(everything.input === undefined ? {} : { input: everything.input }),
+    /**
+     * **Unfiltered, like `input`** — [P7.3]. [22 §3.1]'s rule is about sources a
+     * step might not be entitled to; this is the mode's own policy applied to
+     * the mode's own turn, and `reads` has exactly two pseudo-sources ([06 §6])
+     * rather than a growing list of them.
+     */
+    ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
+    // Unfiltered for `speakers`' reason: the mode's own declaration, answered
+    // for the mode's own session.
+    ...(everything.setup === undefined ? {} : { setup: everything.setup }),
+    /**
+     * **Filtered like a channel, and by the same field** — [P7.12]. A step that
+     * does not declare `cast` is not handed one, which is what `reads` is for:
+     * a payload is the thing the step said it needed, and a scene's whole cast
+     * is not a small thing to hand somebody who did not ask.
+     */
+    ...(everything.cast === undefined || !definition.reads.includes('cast')
+      ? {}
+      : { cast: everything.cast }),
     channels,
     ...(definition.reads.includes('history') ? { history: everything.history } : {}),
     ...(definition.reads.includes('output') && everything.output !== undefined

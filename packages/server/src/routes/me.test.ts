@@ -275,3 +275,249 @@ describe('/api/me/prefs', () => {
     expect(theirs.body.prefs).toEqual({});
   });
 });
+
+/**
+ * The role-binding editor's API — [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
+ * *role bindings* bullet, [P7.3], and the writer
+ * [19 §5.1](../../../../docs/design/19-tech-stack.md) has been missing since P2.5.
+ *
+ * **What makes these two routes worth having is the layer, not the file.**
+ * `resolveRole` has layered a personal binding over the install default since
+ * P2B and `users/<handle>/bindings.json` had a reader and no writer, so the
+ * layer was reachable only by hand-editing JSON. The claim under test is
+ * [19 §5.1]'s: *"anyone who wants their own key overrides a role without the
+ * admin's involvement"* — which means an **ordinary account**, which is why the
+ * sharpest test here signs in as one.
+ */
+describe('the role bindings of the person asking', () => {
+  const SYSTEM = {
+    label: 'The house key',
+    provider: 'openai-compatible',
+    apiKey: 'sk-must-never-come-back',
+    baseUrl: 'https://api.internal.example/v1',
+    models: ['gpt-hi', 'gpt-lo'],
+  };
+
+  /** A system connection and an install default for `prose`, as P2B's surface writes them. */
+  async function installed(): Promise<string> {
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections',
+      payload: SYSTEM,
+    });
+    const id = made.body.connection.id as string;
+    const read = await server.request({ method: 'GET', url: '/api/admin/bindings' });
+    await server.request({
+      method: 'PUT',
+      url: '/api/admin/bindings',
+      payload: {
+        bindings: { prose: { connectionId: id, modelId: 'gpt-hi' } },
+        contentHash: read.body.contentHash,
+      },
+    });
+    return id;
+  }
+
+  /**
+   * A write that presents the hash the server just gave out, which is what a
+   * page does. The read is inside the helper on purpose: a test spelling it
+   * out would be a test about the guard, and there is one of those below.
+   */
+  async function write(bindings: unknown): ReturnType<TestServer['request']> {
+    const read = await server.request({ method: 'GET', url: '/api/me/roles' });
+    return server.request({
+      method: 'PUT',
+      url: '/api/me/bindings',
+      payload: { bindings, contentHash: read.body.contentHash as string },
+    });
+  }
+
+  function row(body: unknown, role: string): unknown {
+    const rows = (body as { roles: { role: string }[] }).roles;
+    return rows.find((one) => one.role === role);
+  }
+
+  it('answers the install default before anything personal is written', async () => {
+    const id = await installed();
+
+    const response = await server.request({ method: 'GET', url: '/api/me/roles' });
+
+    expect(response.body.bindings).toEqual({});
+    expect(row(response.body, 'prose')).toMatchObject({
+      ok: true,
+      // **The answer the editor exists to change.** `default` is the install's
+      // layer; `binding` below is this account's.
+      via: 'default',
+      connectionId: id,
+      modelId: 'gpt-hi',
+    });
+  });
+
+  it('lets a personal binding win, and says which layer did', async () => {
+    const id = await installed();
+
+    const written = await write({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+    expect(written.status).toBe(200);
+
+    const after = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(row(after.body, 'prose')).toMatchObject({ ok: true, via: 'binding', modelId: 'gpt-lo' });
+    // And the raw document came back, because the editor edits that rather than
+    // the resolved table.
+    expect(after.body.bindings).toEqual({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+  });
+
+  /**
+   * **[19 §5.1]'s sentence, as a test with no admin in it.** This is the claim
+   * the route's placement outside `/api/admin` rests on, and an admin doing it
+   * would prove nothing about it.
+   */
+  it('belongs to an ordinary account, with no admin involved', async () => {
+    const id = await installed();
+    await server.services.accounts.create({
+      handle: 'mara',
+      password: 'another long password',
+      role: 'user',
+    });
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'mara', password: 'another long password' },
+    });
+
+    const written = await write({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+
+    expect(written.status).toBe(200);
+    expect(written.body.bindings).toEqual({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+    // Theirs, not the admin's: ned's file is untouched by mara's write.
+    const admin = await server.request({ method: 'GET', url: '/api/admin/accounts' });
+    expect(admin.status).toBe(403);
+  });
+
+  /**
+   * **Why the route needs no capability check of its own**, and the answer is
+   * better than *inert* — measured 2026-09-12, against a first draft of this
+   * test that asserted `dangling` and was wrong.
+   *
+   * A binding is two ids. `resolveRole` looks the `connectionId` up in the
+   * capability-filtered `usable` list, so naming a connection this account may
+   * not use cannot be access. What it also is not is a broken role: [P2B §1.2]
+   * made the resolver take **the first layer that resolves, not the first that
+   * exists**, precisely so [09 §4.5]'s promise that a removed system connection
+   * *"falls back to system bindings"* describes something the code can do. So a
+   * write nobody could use is not even destructive — the install default
+   * answers and the turn keeps working.
+   */
+  it('drops a binding nobody can use through to the layer below', async () => {
+    const id = await installed();
+
+    const written = await write({ prose: { connectionId: 'not-a-connection', modelId: 'x' } });
+    expect(written.status).toBe(200);
+
+    const after = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(row(after.body, 'prose')).toMatchObject({
+      ok: true,
+      via: 'default',
+      connectionId: id,
+    });
+  });
+
+  /**
+   * **And `dangling` is the honest remainder**, when there is no layer to drop
+   * through to. It reports the strongest failing layer's connection id, because
+   * that is the binding whose owner has to fix it — which is the whole reason it
+   * stays distinct from `unbound`.
+   */
+  it('answers dangling when the personal layer is the only one that bound', async () => {
+    // No `installed()`: no system connection and no install default, so the
+    // personal binding is the only thing in the stack.
+    const written = await write({ prose: { connectionId: 'not-a-connection', modelId: 'x' } });
+    expect(written.status).toBe(200);
+
+    const after = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(row(after.body, 'prose')).toMatchObject({
+      ok: false,
+      reason: 'dangling',
+      connectionId: 'not-a-connection',
+    });
+  });
+
+  it('refuses a write against a hash that has moved, and hands back what is there', async () => {
+    const id = await installed();
+    await write({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+
+    // A second write presenting the *first* read's hash — which is the shape a
+    // hand edit between a page load and a save takes ([10 §4]).
+    const stale = await server.request({
+      method: 'PUT',
+      url: '/api/me/bindings',
+      payload: {
+        bindings: { prose: { connectionId: id, modelId: 'gpt-hi' } },
+        contentHash: 'sha256:whatever-this-page-read',
+      },
+    });
+
+    expect(stale.status).toBe(412);
+    expect(stale.body.error).toBe('stale');
+    // Carrying the current document, so the client can offer *load what is on
+    // disk* rather than only being told no.
+    expect(stale.body.current).toEqual({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+  });
+
+  /**
+   * **A first write has no file to hash**, so an absent document and an empty
+   * one have to present the same guard. `bindingsStateAt` is where that is
+   * decided, and this is the case it exists for.
+   */
+  it('writes the first time, when there is no file to have read', async () => {
+    const id = await installed();
+
+    const written = await write({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+
+    expect(written.status).toBe(200);
+  });
+
+  it('drops a role this build does not know rather than refusing the write', async () => {
+    const id = await installed();
+
+    const written = await write({
+      prose: { connectionId: id, modelId: 'gpt-lo' },
+      divination: { connectionId: id, modelId: 'gpt-hi' },
+    });
+
+    // Not a 400: running an older server than the client is not an error, and
+    // the narrowing is `pickBindings`' rather than the schema's.
+    expect(written.status).toBe(200);
+    expect(written.body.bindings).toEqual({ prose: { connectionId: id, modelId: 'gpt-lo' } });
+  });
+
+  it('refuses a binding carrying anything but two ids', async () => {
+    const id = await installed();
+
+    const refused = await write({
+      prose: { connectionId: id, modelId: 'gpt-lo', apiKey: 'sk-nope' },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(JSON.stringify(refused.body ?? null)).not.toContain('sk-nope');
+  });
+
+  it('offers the connections a binding may pick, and none of their secrets', async () => {
+    await installed();
+
+    const response = await server.request({ method: 'GET', url: '/api/me/roles' });
+
+    expect(response.body.connections).toHaveLength(1);
+    expect(response.body.connections[0]).toMatchObject({
+      label: 'The house key',
+      provider: 'openai-compatible',
+      scope: 'system',
+      // The model list, because that is what a binding picks from and a pane
+      // that could not offer one would be a text box.
+      models: ['gpt-hi', 'gpt-lo'],
+    });
+    const body = JSON.stringify(response.body);
+    expect(body).not.toContain('sk-must-never-come-back');
+    expect(body).not.toContain('api.internal.example');
+  });
+});

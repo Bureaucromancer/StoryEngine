@@ -150,6 +150,16 @@ export class ApiError extends Error {
    * form shipped with.
    */
   readonly contentHash?: string;
+  /**
+   * What was wrong, field by field, from a route that says — [P7.4].
+   *
+   * **Lifted here for the reason `current` and `contentHash` are**: a caller
+   * digging it out of an untyped body is a caller that can read the wrong key.
+   * `POST /api/sessions` is the first to send it, for a wizard the engine
+   * generated: a refusal reading only *that is not what this mode asked for*
+   * leaves somebody guessing which field on a form they did not design.
+   */
+  readonly issues?: string[];
 
   constructor(
     status: number,
@@ -157,6 +167,7 @@ export class ApiError extends Error {
     message: string,
     current?: unknown,
     contentHash?: string,
+    issues?: string[],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -164,6 +175,7 @@ export class ApiError extends Error {
     this.code = code;
     if (current !== undefined) this.current = current;
     if (contentHash !== undefined) this.contentHash = contentHash;
+    if (issues !== undefined) this.issues = issues;
   }
 }
 
@@ -225,7 +237,15 @@ async function request<T>(
         : undefined;
     const contentHash =
       typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
-    throw new ApiError(response.status, code, message, current, contentHash);
+    // Every element checked, not just the array: this reaches the screen, and a
+    // body carrying `issues: [{...}]` would render `[object Object]` at somebody
+    // who is already being told they got something wrong.
+    const issues =
+      Array.isArray(payload?.['issues']) &&
+      payload['issues'].every((one) => typeof one === 'string')
+        ? payload['issues']
+        : undefined;
+    throw new ApiError(response.status, code, message, current, contentHash, issues);
   }
 
   return payload as T;
@@ -435,6 +455,30 @@ export const api = {
   patchPrefs: (patch: Record<string, unknown>): Promise<{ prefs: Record<string, unknown> }> =>
     request('PATCH', '/api/me/prefs', patch),
 
+  /**
+   * **What *your* turns will do, and the document behind it** — [10 §15.1],
+   * [P7.3]. The sibling of `adminApi.readRoles`, which answers the same row
+   * shape for the install rather than for you.
+   *
+   * One call for the whole pane, because it is one pane: the resolved table is
+   * what happens now, `bindings` is what a control edits, `contentHash` is what
+   * makes the write safe, and `connections` is what a binding may be pointed at.
+   * Four requests would be four chances to render a pane assembled out of two
+   * different moments.
+   */
+  readMyRoles: (): Promise<MyRoles> => request('GET', '/api/me/roles'),
+
+  /**
+   * The whole document, under the hash it was read at — a `412` carries
+   * `current`, so a client can offer *load what is on disk* rather than only
+   * being told no. That matters here more than for the system file: hand-editing
+   * this one is a supported way to work ([10 §4]).
+   */
+  writeMyBindings: (
+    bindings: Record<string, Binding>,
+    contentHash: string,
+  ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
+
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 
@@ -629,6 +673,18 @@ export const api = {
 
   avatarUrl: (id: string, contentHash: string): string =>
     `/api/library/actors/${encodeURIComponent(id)}/avatar?v=${encodeURIComponent(contentHash)}`,
+
+  /**
+   * One embedded media entry's bytes — [P7.10].
+   *
+   * *Cache-busted by the media's own `digest` rather than by the object's
+   * content hash*, which is the same decision the route's etag makes: editing a
+   * line of a character's description must not re-fetch their whole expression
+   * set.
+   */
+  mediaUrl: (kind: string, id: string, mediaId: string, digest: string): string =>
+    `/api/library/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/media/` +
+    `${encodeURIComponent(mediaId)}?v=${encodeURIComponent(digest)}`,
 };
 
 /**
@@ -686,6 +742,17 @@ export interface SessionSummary {
   treatment?: string | null;
   lore?: string[];
   mode?: string;
+  /**
+   * The goal chain, for the one caller that needs it back from a write —
+   * [06 §7.3.4], [P7.6].
+   *
+   * **Claimed for the same reason `lore` was and on the same terms**: setting a
+   * goal at a completion is two acts, and the second one needs the **id the
+   * server minted** for the first. Reading it off the response is what makes
+   * that a fact rather than a guess. *Only the fields a client has a use for*:
+   * the chain is `Goal` objects and this names the two the panel reads.
+   */
+  goals?: { id: string; statement: string }[];
 }
 
 /**
@@ -709,6 +776,106 @@ export interface NewSession {
   treatment?: string;
   lore?: string[];
   preset?: string;
+  /**
+   * Who the player is — [P7 §0.2]'s cold list item 5, narrowed to the half that
+   * survives this phase.
+   *
+   * **The persona, and deliberately not `cast.actors`.** [06 §8](../../../docs/design/06-modes-and-turn-pipeline.md)
+   * says the persona *"is the one part that can stay a plain session field,
+   * because it is chosen at setup and changing it mid-session is an explicit
+   * act rather than an outcome of play"* — and
+   * [P7 §1.6](../../../docs/design/workplan/23-p7-implementation.md) confirms it
+   * against the phase that moves everything else: `cast.actors` becomes channel
+   * state, `cast.persona` does not. So a control for this one is permanent
+   * surface, and a control for the other would be built against a shape P7
+   * replaces. `SessionsPage` and `LorePanel` both say so.
+   */
+  persona?: string;
+  /**
+   * Which mode to play — [P7.4].
+   *
+   * **The form had no control for this until the wizard needed one**, and the
+   * absence was not a deferral so much as an impossibility: nothing told a
+   * client which modes exist. `GET /api/modes` does now, so choosing one is
+   * possible and choosing one is what decides which wizard renders.
+   */
+  mode?: string;
+  /**
+   * The mode's wizard, answered — [06 §7.3], [P7.4].
+   *
+   * Keyed by the field ids the mode declares. The server checks it against a
+   * schema derived from that declaration, so what a client must not do is
+   * invent a key: an unknown one is a `422`, not a silently dropped field.
+   *
+   * *`modeConfig` and not `setup`, because `setup` is the **Setup** object —
+   * two different things one word apart, and the session file has kept this
+   * value at `mode.config` since P2.3.*
+   */
+  modeConfig?: Record<string, unknown>;
+}
+
+/**
+ * A mode as `GET /api/modes` presents it — [10 §8], [P7.4].
+ *
+ * **What is not here is the point.** A session copies its preset at creation, so
+ * the prompt pack is not the client's to see or change; `steps` and `channels`
+ * are what the engine runs and registers, and a channel reaches a browser as a
+ * rendered entry in a session's `hud` rather than as a declaration.
+ */
+export interface PublicMode {
+  id: string;
+  displayName: string;
+  voice: 'narrator' | 'embodied';
+  dispatch: 'merged' | 'per-actor';
+  participants: { select: string; maxActors: number };
+  inputs: string[];
+  presetIds: string[];
+  setup: ModeSetup;
+  surfaces: { region: string }[];
+}
+
+/**
+ * What a mode asks for before the first turn — declared, never coded.
+ *
+ * **The client renders the form from this and from nothing else**, which is what
+ * lets a mode the engine has no knowledge of have a wizard ([06 §2] refuses the
+ * back door a mode-specific screen would be). There is deliberately no way for a
+ * mode to ship UI and deliberately no `html` field in the vocabulary
+ * ([10 §8](../../../docs/design/10-ui-surfaces.md) names that absence as the one
+ * that must hold).
+ *
+ * **Typed open at `kind`**, for the reason the workbench's `SOURCE_LABELS` is:
+ * a newer build can declare a widget this one has never heard of, and the honest
+ * answer is to say so rather than to crash or to render a blank.
+ */
+export type ModeSetup =
+  | { kind: 'none' }
+  | { kind: 'declared'; fields: SetupField[] }
+  // A `kind` from a newer build. Named so the union is exhaustive here rather
+  // than at every reader.
+  | { kind: string };
+
+export interface SetupField {
+  id: string;
+  required?: boolean;
+  widget: FieldWidget;
+}
+
+export type FieldWidget =
+  | { kind: 'text'; label: string; hint?: string; lines?: number }
+  | { kind: 'choice'; label: string; hint?: string; options: { value: string; label: string }[] }
+  | { kind: 'toggle'; label: string; hint?: string }
+  | { kind: string; label: string; hint?: string };
+
+/**
+ * `defaultModeId` is what `POST /api/sessions` plays when `mode` is absent.
+ *
+ * **Sent rather than assumed**: a form falling back to the first mode in the
+ * list would render one mode's wizard and create a session on another the moment
+ * registration order stopped matching.
+ */
+export function listModes(): Promise<{ modes: PublicMode[]; defaultModeId: string }> {
+  return request('GET', '/api/modes');
 }
 
 export interface ActiveJob {
@@ -734,6 +901,25 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
     ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
     ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
     ...(input.preset === undefined ? {} : { preset: input.preset }),
+    /**
+     * **`actors: []` because the route's `CastBody` requires both members**, not
+     * because an empty cast is being asserted — and the two are the same value
+     * here, since a session created in a browser has never had actors and the
+     * surface that gives it one is [P7.2]'s.
+     */
+    ...(input.persona === undefined || input.persona === ''
+      ? {}
+      : { cast: { persona: input.persona, actors: [] } }),
+    ...(input.mode === undefined || input.mode === '' ? {} : { mode: input.mode }),
+    /**
+     * **Omitted when empty**, like every other field here: a mode with no
+     * wizard accepts exactly `{}` and a session for one carries no `setup` key
+     * at all, so sending an empty object would be the client asserting that a
+     * wizard ran and collected nothing.
+     */
+    ...(input.modeConfig === undefined || Object.keys(input.modeConfig).length === 0
+      ? {}
+      : { modeConfig: input.modeConfig }),
   });
 }
 
@@ -771,10 +957,328 @@ export function setSessionLore(
   return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/lore`, selection);
 }
 
-export function readSession(
+/**
+ * A hook added to a running session, or taken out of one — [03 §4.1], [P7.5].
+ *
+ * *The primary path*, in that section's words: creation copies hooks from a
+ * treatment, a setup and the lorebooks, and *"a session may add its own while
+ * running"*. **An authoring act, not a story event** — it lands on the session
+ * file rather than as a channel effect, so a hook added at turn forty is in the
+ * pool at turn one and a rewind does not un-add it.
+ *
+ * *The body is open on purpose*, matching the route: a hook the schema would
+ * refuse is an authoring mistake to show rather than a request to reject, and
+ * the selector's filter is where a broken one stops being eligible with a reason
+ * the panel can say.
+ */
+export function addSessionHook(
   sessionId: string,
-): Promise<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+  hook: Record<string, unknown>,
+): Promise<{ session: SessionSummary }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/hooks`, { hook });
+}
+
+/** And back out — any of them, whichever source put it there ([00 §3.1]). */
+export function removeSessionHook(
+  sessionId: string,
+  hookId: string,
+): Promise<{ session: SessionSummary }> {
+  return request(
+    'DELETE',
+    `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}`,
+  );
+}
+
+/**
+ * One row of the goal panel — [06 §7.3.4], [04 §7.1], [P7.6].
+ *
+ * **The statement travels and `detail` does not**, which is the trade [04 §7.1]
+ * makes on the schema: `statement` is *"short, always injected"* and `detail` is
+ * *"available to steps; not injected by default"*. A panel row is the sentence a
+ * person is playing toward.
+ *
+ * `visibility` is the **player's** view — [04 §7.1]'s *hidden is the GM's arc* —
+ * and is a different field from the channel visibility that governs prompts. A
+ * hidden goal is still narrated toward; it is the reader who is not told.
+ */
+/**
+ * What a dial control needs: the level in play, and the vocabulary it may write.
+ *
+ * **The levels travel rather than being hard-coded** — [06 §7.3.1] makes them
+ * the prompt pack's, so a client with its own list would be a control that
+ * produces recorded refusals the day a pack ships a fourth.
+ */
+/**
+ * One thing a mode asked to have shown, already rendered — [06 §9], [P7.11].
+ *
+ * `kind` is the widget arm and `region` is where it goes. Both are open strings
+ * on this side for the reason `ChannelSurface.kind` is: a session opened
+ * against a newer build should render what it understands and skip the rest,
+ * not break.
+ */
+export interface ModeSurface {
+  region: string;
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  kind: string;
+  label: string;
+  text?: string;
+  image?: { url: string; alt: string };
+  on?: boolean;
+}
+
+export interface DialAxes {
+  difficulty?: { levelId: string | null; levels: { id: string; label: string }[] };
+  directedness?: { levelId: string | null; levels: { id: string; label: string }[] };
+}
+
+export interface GoalRow {
+  goalId: string;
+  statement: string;
+  visibility: 'player' | 'hidden';
+  completion: 'narrative' | 'manual';
+  /** Whether play is on this one. Exactly one row, or none. */
+  current: boolean;
+  achieved: boolean;
+  /**
+   * The narrator judged this met and it is waiting on a person ([25 C12]).
+   * Never true at the same time as `achieved`.
+   */
+  proposed: boolean;
+  /** The turn it was completed on. */
+  achievedOn?: string;
+  /** The authored successor, if the chain names one. */
+  next: string | null;
+  /** What *seeds the offer; it does not decide it* ([06 §7.3.4]). */
+  thenDefault: 'continue-open' | 'advance' | 'end';
+}
+
+/**
+ * A goal written at a completion — [06 §7.3.4]'s *"or one written now"*, [P7.6].
+ *
+ * *An authoring act rather than a story event*: it lands on the session's chain
+ * and appends no turn. **Moving play onto it is the channel write**, which is a
+ * turn — two acts, because that section is emphatic that `thenDefault` seeds the
+ * offer and does not decide it.
+ */
+export function addSessionGoal(
+  sessionId: string,
+  goal: Record<string, unknown>,
+): Promise<{ session: SessionSummary }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/goals`, { goal });
+}
+
+export function readSession(sessionId: string): Promise<{
+  session: SessionSummary;
+  activeJob: ActiveJob | null;
+  health: DegradedChannel[];
+  hud: ChannelSurface[];
+  cast: CastRow[];
+  /**
+   * The hook panel's rows and the dial above them — [10 §10.1].
+   *
+   * *The dial travels with the rows rather than in `hud`*, because 10 §10.1 puts
+   * it **in the panel**: it is the control that explains an empty one, and the
+   * strip above the transcript is a different place making a different claim.
+   */
+  hooks: { pacing: 'sparse' | 'normal' | 'aggressive' | 'manual-only'; rows: HookRow[] };
+  /**
+   * What this session is trying to do — [06 §7.3.3], [06 §7.3.4], [P7.6].
+   *
+   * *The three offers are derived on the screen rather than sent*: they are the
+   * same three every time, and what decides whether to raise them is `achieved`
+   * plus `next`, both of which travel.
+   */
+  goals: { rows: GoalRow[]; concluded: boolean };
+  /**
+   * The two dials, for a mode that declares them ([06 §7.3.1], [06 §7.3.2]).
+   *
+   * **Absent for a mode with no difficulty**, which is [04 §7]'s explicit case:
+   * Scene and Messages declare neither channel, so there is nothing to send and
+   * nothing to render. An axis is present only when the pack also ships levels
+   * for it.
+   */
+  dials?: DialAxes;
+  /**
+   * The input kinds this session's mode accepts ([06 §1], [P7.9]). One kind
+   * means the player has no choice to make and no selector is shown.
+   */
+  inputs?: string[];
+  /** Whether this session asks for suggested actions ([R11]). */
+  suggesting?: boolean;
+  /**
+   * What this session's mode put where — [06 §9], [P7.11].
+   *
+   * Rendered by the server down to the value, like `hud` beside it: what
+   * crosses is a region, a label and something to show. A `kind` this build
+   * does not know is skipped, which is what keeps the vocabulary additive.
+   */
+  surfaces?: ModeSurface[];
+}> {
   return request('GET', `/api/sessions/${sessionId}`);
+}
+
+/**
+ * One row of the hook panel — [10 §10.1], [06 §6.1], [P7.5].
+ *
+ * *"Which hooks have fired and when, which are eligible right now, and which are
+ * blocked **with the clause that blocked them**."*
+ *
+ * ***The content is not here, and that is the panel's defining constraint.***
+ * [08 §6] makes an unfired hook's premise hidden content and [10 §10.1] says it
+ * of entrances twice — *"a panel that spoils the arrival to the person about to
+ * read it defeats the feature"*. So a row is named by its `title`, which
+ * [04 §6.1] calls *"for the author's list. Never injected."*; `premise` arrives
+ * only once the hook has gone, and entrance **text** never arrives at all,
+ * because the workbench's block list already shows a fired hook's exact words.
+ */
+export interface HookRow {
+  hookId: string;
+  title: string;
+  /** Which object owns it, so editing can navigate there — [03 §4.1]. */
+  source: { kind: 'treatment' | 'setup' | 'lore' | 'session'; id?: string };
+  /** `null` is *in the pool*. */
+  state: 'fired' | 'provisional' | 'committed' | 'forced' | null;
+  /** `null` when it is eligible right now. */
+  refusal: HookRefusal | null;
+  /** Present when a person's Commit is carrying it, with the clause it skipped. */
+  committed?: { overrode: HookRefusal | null };
+  /**
+   * Present when a person has **force-fired** it — [06 §6.1]'s other hand
+   * control, and the workbench's rather than the panel's.
+   *
+   * *A field of its own rather than a `kind` on the one above*: a commitment
+   * says *make this happen, not necessarily now* and keeps asking where until
+   * its patience runs out; a force says *deliver it on the next turn with no
+   * judgement call at all*. They share a shape and nothing else.
+   */
+  forced?: { overrode: HookRefusal | null };
+  /** The turn it fired on. */
+  firedOn?: string;
+  /** Only once it has gone. */
+  premise?: string;
+  /** **Labels, never text.** Empty for a hook that is an event rather than an arrival. */
+  entrances: { id: string; label: string }[];
+}
+
+/**
+ * Why a hook is not eligible — a class, not prose, and the panel maps it to a
+ * sentence ([06 §6.1]: an author must see *which are blocked and by what*).
+ *
+ * **A string union rather than a copy of the engine's type**: this package does
+ * not import `@storyengine/shared`'s record types, and a wire shape is a wire
+ * shape. A value this build does not know reads as a class the panel has no
+ * sentence for, which `hookWords` answers rather than throwing.
+ */
+export type HookRefusal =
+  | 'fired'
+  | 'pending'
+  | 'book-inactive'
+  | 'blocked'
+  | 'too-early'
+  | 'cast-gone'
+  | 'subject-gone'
+  | 'subject-met'
+  | 'subject-unavailable';
+
+/**
+ * One row of the cast panel — [10 §13.2], [P7.2].
+ *
+ * **Both axes, and the badge is derived here rather than sent.** 10 §13.2:
+ * *"the UI still shows one badge, derived from both axes, because a two-axis
+ * matrix is the wrong thing to put in a sidebar. The split is in the data, not
+ * on the screen."* A pre-derived badge on the wire would also leave the panel
+ * unable to offer *correct presence and status directly*, which is what makes it
+ * a repair surface rather than a read-only complaint.
+ */
+export interface CastRow {
+  actorId: string;
+  presence: boolean;
+  status: string;
+  /** A terminal status the model proposed and the engine refused, unanswered. */
+  pending: string | null;
+  introduced: boolean;
+  /**
+   * Who authors them, when they are travelling with you — [06 §8], [P7.3].
+   * `null` is *in the story and not in the party*, which is most of the cast
+   * most of the time.
+   */
+  party: 'player' | 'companion' | 'auto' | null;
+}
+
+/**
+ * One channel as the HUD shows it — [10 §8], [P7.1].
+ *
+ * **Rendered by the server**, which is what 10 §8's decision costs and buys: an
+ * extension declares a widget from a versioned vocabulary and the host renders
+ * it, so what reaches the browser is a label and a string rather than anything
+ * an extension author wrote. A client composing this would need the registry,
+ * the declarations and a template engine.
+ *
+ * `kind` is the vocabulary's arm. One today — text — and a client meeting a
+ * `kind` it does not know should ignore that widget rather than break, which is
+ * what makes widening the vocabulary additive.
+ */
+export interface ChannelSurface {
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  kind: string;
+  label: string;
+  text: string;
+}
+
+/**
+ * One channel this session could not load — [06 §4.2]'s health record, [P7.1].
+ *
+ * **Composed by the server, not derived here**, which is the difference between
+ * one shape and two: a client walking `session.channels` itself would have to
+ * split composite keys (`se.lore.timing#<entryId>`) and know the registry, and a
+ * second copy of that logic in a React component is exactly the drift the
+ * server's own modules keep refusing.
+ */
+export interface DegradedChannel {
+  /** The map key, which is what a recovery write addresses. */
+  key: string;
+  channelId: string;
+  scopeKey: string | null;
+  version: number;
+  reason: string;
+  /** The value that stopped fitting. What *retry* sends back. */
+  raw: unknown;
+  /** What is standing in its place. What *accept the reset* sends back. */
+  value: unknown;
+}
+
+/**
+ * A person writes one value to one channel — [06 §4.2]'s recovery, [P7.1].
+ *
+ * **One call for all three offers.** That section offers *"retry the migration
+ * once the author ships a fix, edit the quarantined value by hand, or accept the
+ * reset"*: retry sends `raw` back, edit sends whatever was typed, and accept
+ * sends the value already standing — which clears the marker, because a degraded
+ * state is only ever written by an effect carrying a reason.
+ *
+ * **A refusal comes back as a 200 with `effect.applied === false`**, not as a
+ * thrown `ApiError`. A retry that still does not fit is a *recorded* refusal,
+ * which is the whole reason recovery is safe to offer, and a status code would
+ * throw away the record the workbench is meant to show. Callers read the effect.
+ */
+export function writeSessionChannel(
+  sessionId: string,
+  key: string,
+  value: unknown,
+): Promise<{
+  session: SessionSummary;
+  effect: { applied: boolean; rejectedReason: string | null };
+  health: DegradedChannel[];
+}> {
+  return request(
+    'PUT',
+    `/api/sessions/${encodeURIComponent(sessionId)}/channels/${encodeURIComponent(key)}`,
+    { value },
+  );
 }
 
 /**
@@ -831,6 +1335,11 @@ export interface SubmitTurn {
   idempotencyKey: string;
   headTurnId: string | null;
   text: string;
+  /**
+   * What kind of thing this is — one of the mode's declared `inputs`
+   * ([06 §1], [P7.9]). Absent lets the server apply the mode's default.
+   */
+  kind?: string;
   /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
   /**
@@ -860,7 +1369,18 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
   return request('POST', `/api/sessions/${submission.sessionId}/turns`, {
     idempotencyKey: submission.idempotencyKey,
     headTurnId: submission.headTurnId,
-    input: { text: submission.text },
+    /**
+     * `kind` only when the selector chose one — [06 §1], [13 §8.3], [P7.9].
+     *
+     * **Omitted rather than defaulted to `do`**, because the route defaults it
+     * and a mode that does not declare `do` would then be sent a kind it
+     * refuses. The wire says *the player did not pick*; the server says what
+     * that means for this mode.
+     */
+    input: {
+      text: submission.text,
+      ...(submission.kind === undefined ? {} : { kind: submission.kind }),
+    },
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
       : { guidance: submission.guidance }),
@@ -1049,6 +1569,32 @@ export interface Binding {
 export interface BindingsState {
   bindings: Record<string, Binding>;
   contentHash: string;
+}
+
+/**
+ * A connection as anyone may see it — a label, a kind, and the models a binding
+ * picks from. **No key and no base URL**, which is not a courtesy: it is the
+ * property that lets `GET /api/me/roles` live outside `/api/admin` at all, and
+ * `routes/connections.test.ts` holds the route to it.
+ */
+export interface UsableConnection {
+  id: string;
+  label: string;
+  provider: string;
+  scope: 'system' | 'user';
+  models: string[];
+}
+
+/** Everything the role-binding editor needs, from the one request that answers it. */
+export interface MyRoles extends BindingsState {
+  roles: RoleRow[];
+  connections: UsableConnection[];
+  /**
+   * Personal connections on disk that were ignored for want of
+   * `privateConnections` — [09 §4.5] wants the user *told* rather than left
+   * wondering why a model call started failing, and this is where that lands.
+   */
+  disabled: UsableConnection[];
 }
 
 export const adminApi = {

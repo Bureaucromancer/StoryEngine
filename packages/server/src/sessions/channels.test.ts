@@ -4,7 +4,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
 
@@ -12,14 +12,22 @@ import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import {
   advance,
+  channelDefinition,
   channelKey,
-  clockEffect,
+  channelSurfaces,
+  clockStart,
+  divergenceEffects,
+  initialValue,
   keyBelongsTo,
   readClock,
+  quarantineEffects,
+  registerChannel,
   scopeKeyOf,
   SE_CLOCK,
   SE_LORE_TIMING,
+  splitChannelKey,
 } from './channels.js';
+import { installBuiltIns } from '../mode-loader.js';
 import { walkPath } from './segments.js';
 import {
   appendTurnToSession,
@@ -31,7 +39,7 @@ import {
   replayChannels,
   type SessionContext,
 } from './store.js';
-import type { ChannelEffect, SessionFile, Turn } from './types.js';
+import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
 
 /**
  * `se.clock` and the hand-edit rule — [P2 §2.7], [03 §8.1].
@@ -52,6 +60,10 @@ const ACCOUNT = 'ned';
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-channels-'));
+  // Channels are registered rather than frozen into the engine since [P7.0], so
+  // a test that needs one asks for the built-ins the way `buildServices` does.
+  await installBuiltIns();
+
   index = await openIndex({ path: ':memory:' });
   context = { layout: new Layout(dataDir), index: index.db };
   session = await createSession(context, ACCOUNT, 'Rain City');
@@ -72,6 +84,33 @@ async function onDisk(): Promise<SessionFile> {
   return found;
 }
 
+/**
+ * The clock effect a turn carries, built here rather than imported.
+ *
+ * `channels.ts` exported a `clockEffect` helper with no production caller until
+ * [P7.0] — the runner builds its own inline, after the step loop and not as a
+ * step — while `navigation.test.ts` and `snapshots.test.ts` each defined a local
+ * one anyway. This follows them.
+ */
+function clockEffect(turnId: string, channels: Record<string, ChannelState>): ChannelEffect {
+  const before = readClock(channels);
+  return {
+    id: uuidv7(),
+    turnId,
+    channelId: SE_CLOCK,
+    scopeKey: null,
+    op: { type: 'set', path: '/' },
+    before,
+    after: advance(before, 5),
+    proposedBy: { kind: 'engine' },
+    applied: true,
+    rejectedReason: null,
+    supersedes: null,
+    channelVersion: 1,
+    scope: 'session',
+  };
+}
+
 /** One ordinary turn, with the clock effect the engine computes for it. */
 async function turn(parentTurnId: string | null): Promise<Turn> {
   const current = await onDisk();
@@ -88,6 +127,387 @@ async function turn(parentTurnId: string | null): Promise<Turn> {
   await appendTurnToSession(context, ACCOUNT, session.id, record);
   return record;
 }
+
+/**
+ * **Where a channel starts is part of declaring it** — [P7.1].
+ *
+ * `CLOCK_START` was a constant in this module, next to `readClock`, so the
+ * engine knew where a mode's channel began. That is the same gap
+ * `ModeDefinition.channels` had before [P7.0] — a declaration that documents
+ * without enabling — one level further down, and `InitPolicy` is what closes
+ * it.
+ *
+ * **Asserted by substitution rather than by equality**, because the two values
+ * agree today: `clockStart()` returning `08:00` proves nothing about *where it
+ * read that from*, and the engine's own no-mode fallback is also `08:00`. So a
+ * different clock declaration is registered and the answer has to follow it. A
+ * `clockStart` that still consulted a constant would pass every equality test
+ * in this file and fail this one.
+ */
+
+/**
+ * **A value that was legal when it was written and is not now** — [06 §4.2]'s
+ * quarantine rung, [P7.1].
+ *
+ * The pair with `divergenceEffects` above, and the difference is what each is
+ * *about*. A divergence is a value **arriving** — somebody edited the file — so
+ * one that does not fit is refused and the log's state stands. A quarantine is a
+ * value **already there** under a schema that has since changed, where refusing
+ * would be refusing the past. The two live in one turn and mean different
+ * things.
+ */
+describe('a channel whose stored value stopped fitting', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('resets to the declared init and says why, keeping the raw value', () => {
+    const effects = quarantineEffects('t-1', {
+      [SE_CLOCK]: { version: 1, value: { day: 3, hour: 25, minute: 0 } },
+    });
+
+    expect(effects).toHaveLength(1);
+    const [effect] = effects;
+    expect(effect?.channelId).toBe(SE_CLOCK);
+    // The engine noticed; nobody proposed.
+    expect(effect?.proposedBy).toEqual({ kind: 'engine' });
+    expect(effect?.applied).toBe(true);
+    // `before` *is* the raw value, which is why the effect carries only a
+    // reason — and why a quarantine is reversible like any other effect.
+    expect(effect?.before).toEqual({ day: 3, hour: 25, minute: 0 });
+    expect(effect?.after).toEqual({ day: 1, hour: 8, minute: 0 });
+    expect(effect?.degraded?.reason).toContain('/hour');
+  });
+
+  it('marks the state degraded when applied, which is `degraded`’s first writer', () => {
+    // `ChannelState.degraded` has carried a docstring since P3.0 saying *"the
+    // writer arrives with the first `ChannelDefinition.schema`"*. This is it.
+    const before = { [SE_CLOCK]: { version: 1, value: { day: 3, hour: 25, minute: 0 } } };
+    const after = applyEffects(before, quarantineEffects('t-1', before));
+
+    expect(after[SE_CLOCK]?.value).toEqual({ day: 1, hour: 8, minute: 0 });
+    expect(after[SE_CLOCK]?.degraded?.raw).toEqual({ day: 3, hour: 25, minute: 0 });
+    expect(after[SE_CLOCK]?.degraded?.reason).toContain('/hour');
+  });
+
+  it('is idempotent, so opening a session twice does not grow the log', () => {
+    // The reset value validates, so the second pass has nothing to say. A
+    // quarantine that fired every load would turn one bad value into an
+    // unbounded effect log.
+    const before = { [SE_CLOCK]: { version: 1, value: { day: 3, hour: 25, minute: 0 } } };
+    const once = applyEffects(before, quarantineEffects('t-1', before));
+
+    expect(quarantineEffects('t-2', once)).toEqual([]);
+  });
+
+  it('leaves a good value alone, so the check is not a rewrite', () => {
+    expect(
+      quarantineEffects('t-1', {
+        [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } },
+      }),
+    ).toEqual([]);
+  });
+
+  it('carries the scope key, so one bad entry does not reset its neighbours', () => {
+    // A scoped channel's map keys are composite, and an effect built from the
+    // key as though it were an id is the defect [P7 §0.1a] found in
+    // `divergenceEffects`. Same iteration, same hazard, so the same assertion.
+    const effects = quarantineEffects('t-1', {
+      [channelKey(SE_LORE_TIMING, 'entry-a')]: { version: 1, value: { sticky: -1 } },
+      [channelKey(SE_LORE_TIMING, 'entry-b')]: {
+        version: 1,
+        value: { sticky: 0, cooldown: 0, fired: 0 },
+      },
+    });
+
+    expect(effects).toHaveLength(1);
+    expect(effects[0]?.channelId).toBe(SE_LORE_TIMING);
+    expect(effects[0]?.scopeKey).toBe('entry-a');
+  });
+
+  it('says nothing about a channel nobody declared', () => {
+    // An uninstalled mode leaves its channels behind, and resetting them to a
+    // default nobody declares would be inventing state. [00 §3.3]: survivable,
+    // visible, non-blocking — and untouched is the survivable answer.
+    expect(quarantineEffects('t-1', { 'example.gone': { version: 1, value: 'anything' } })).toEqual(
+      [],
+    );
+  });
+
+  it('leaves a channel alone when its own default would not validate', () => {
+    // An author's mistake, and quarantining to it would write an effect on every
+    // load forever. Same reasoning as an uncompilable schema: the person playing
+    // cannot fix it and should not pay for it with a growing log.
+    registerChannel({
+      id: 'example.impossible',
+      owner: 'example.quiet',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: null,
+      schema: { type: 'integer', minimum: 10 },
+      init: { kind: 'literal', value: 0 },
+    });
+
+    expect(quarantineEffects('t-1', { 'example.impossible': { version: 1, value: 1 } })).toEqual(
+      [],
+    );
+  });
+});
+
+/**
+ * **The hand-edit path consults the schema too** — [P7.1], and it is a
+ * correction: a docstring in `turns/effects.ts` briefly claimed the check there
+ * covered this, and `reconcileHandEdits` never calls `acceptEffect`.
+ */
+describe('a hand edit that does not fit', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('is recorded as refused, attributed to the person, and does not move the state', () => {
+    const effects = divergenceEffects(
+      't-1',
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 25, minute: 0 } } },
+    );
+
+    expect(effects).toHaveLength(1);
+    expect(effects[0]?.proposedBy).toEqual({ kind: 'user' });
+    expect(effects[0]?.applied).toBe(false);
+    expect(effects[0]?.rejectedReason).toBe('schema');
+    // Refused means the state stays where the log says it is.
+    expect(effects[0]?.after).toEqual({ day: 1, hour: 8, minute: 0 });
+  });
+
+  it('still applies an edit that fits, which is what the mechanism is for', () => {
+    const effects = divergenceEffects(
+      't-1',
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      { [SE_CLOCK]: { version: 1, value: { day: 2, hour: 9, minute: 30 } } },
+    );
+
+    expect(effects[0]?.applied).toBe(true);
+    expect(effects[0]?.after).toEqual({ day: 2, hour: 9, minute: 30 });
+  });
+
+  it('applies a deletion without asking the schema about it', () => {
+    // A delete carries no value, so there is nothing to validate — and refusing
+    // one would make removing a channel from the file impossible, which is the
+    // divergence [03 §8.1] is most explicit about supporting.
+    const effects = divergenceEffects(
+      't-1',
+      { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      {},
+    );
+
+    expect(effects[0]?.op).toEqual({ type: 'delete', path: '/' });
+    expect(effects[0]?.applied).toBe(true);
+  });
+});
+
+/**
+ * **Gate step 3's last clause** — *"renders through the declared widget
+ * vocabulary"* — [10 §8], [P7.1].
+ *
+ * The other three clauses of that step were already held: a mode-declared
+ * channel appears in the registry (`mode-registry.test.ts`), is enforced against
+ * its `update` policy (`turns/effects.test.ts`), and reconstructs at an old node
+ * (the P6 property test). This is the one that had nothing.
+ */
+describe('the channels a person sees', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('renders a declared widget from the declaration, label and all', () => {
+    const [widget, ...rest] = channelSurfaces({
+      [SE_CLOCK]: { version: 1, value: { day: 3, hour: 9, minute: 5 } },
+    });
+
+    expect(widget).toEqual({
+      key: SE_CLOCK,
+      channelId: SE_CLOCK,
+      scopeKey: null,
+      kind: 'text',
+      label: 'Time',
+      text: 'Day 3, 09:05',
+    });
+    // Lore timing is registered and hidden, which is the next assertion's
+    // subject; nothing else ships a surface.
+    expect(rest).toEqual([]);
+  });
+
+  it('shows the declared init before anything has touched the channel', () => {
+    // A HUD that waited for the first effect would disagree with the prompt,
+    // which reads the same read-time default.
+    expect(channelSurfaces({})[0]?.text).toBe('Day 1, 08:00');
+  });
+
+  it('leaves a hidden channel out, which is what `visibility` has been waiting for', () => {
+    // The field has been on the type since P2.3 with no consumer. `'hidden'`
+    // means *not in the HUD* — [06 §7.3]'s distinction, not a new one — and lore
+    // timing is the shipped example: bookkeeping a player gets from the
+    // workbench rather than from a strip above the story.
+    const surfaces = channelSurfaces({
+      [channelKey(SE_LORE_TIMING, 'entry-a')]: {
+        version: 1,
+        value: { sticky: 1, cooldown: 0, fired: 2 },
+      },
+    });
+
+    expect(surfaces.map((each) => each.channelId)).not.toContain(SE_LORE_TIMING);
+  });
+
+  it('omits a channel with no surface rather than showing a blank one', () => {
+    registerChannel({
+      id: 'example.plain',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: 'something',
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: {} },
+    });
+
+    expect(channelSurfaces({}).map((each) => each.channelId)).not.toContain('example.plain');
+  });
+
+  it('shows one widget per scope key, so a scoped channel is not one line', () => {
+    // A per-actor channel has one value per actor, and a HUD showing only the
+    // unscoped key would show nobody.
+    registerChannel({
+      id: 'example.mood',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'actor',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: '{{ value }}',
+      schema: { type: 'string' },
+      init: { kind: 'literal', value: '' },
+      surface: { kind: 'text', label: 'Mood' },
+    });
+
+    const surfaces = channelSurfaces({
+      [channelKey('example.mood', 'vera')]: { version: 1, value: 'watchful' },
+      [channelKey('example.mood', 'ned')]: { version: 1, value: 'tired' },
+    });
+
+    expect(surfaces.filter((each) => each.channelId === 'example.mood')).toHaveLength(2);
+    expect(surfaces.find((each) => each.scopeKey === 'vera')?.text).toBe('watchful');
+  });
+
+  it('skips a widget whose template will not compile, rather than throwing', () => {
+    // The author's mistake, answered the way the collector answers it: a HUD
+    // that threw would take the session down over a label.
+    registerChannel({
+      id: 'example.bad-widget',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render: '{% if %}',
+      schema: { type: 'object' },
+      init: { kind: 'literal', value: {} },
+      surface: { kind: 'text', label: 'Broken' },
+    });
+
+    expect(channelSurfaces({}).map((each) => each.channelId)).not.toContain('example.bad-widget');
+  });
+});
+
+/**
+ * The module loaded with an empty registry, which is the only way to see a build
+ * that has no clock — every other test in this file has installed the built-ins
+ * by the time it runs, because the registry is a module global.
+ */
+async function freshChannels(): Promise<typeof import('./channels.js')> {
+  vi.resetModules();
+  const loaded = await import('./channels.js');
+  vi.resetModules();
+  return loaded;
+}
+
+describe('a channel says where it starts', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  it('reads the clock’s start from whoever declared the channel', () => {
+    const declared = channelDefinition(SE_CLOCK);
+    expect(declared?.init).toEqual({ kind: 'literal', value: { day: 1, hour: 8, minute: 0 } });
+    expect(clockStart()).toEqual({ day: 1, hour: 8, minute: 0 });
+
+    // The substitution: same id, same owner, a different morning.
+    //
+    // Restored in a `finally` because the registry is a module global and
+    // `registerChannel` is a write to it — a substitution left behind would
+    // reach every test that runs after this one in the same worker without
+    // installing the built-ins, which is a failure nobody would trace back here.
+    const original = declared!;
+    try {
+      registerChannel({
+        ...original,
+        init: { kind: 'literal', value: { day: 4, hour: 22, minute: 30 } },
+      });
+
+      expect(clockStart()).toEqual({ day: 4, hour: 22, minute: 30 });
+      // And through the reader a turn actually uses, over an untouched session.
+      expect(readClock({})).toEqual({ day: 4, hour: 22, minute: 30 });
+    } finally {
+      registerChannel(original);
+    }
+
+    expect(clockStart()).toEqual({ day: 1, hour: 8, minute: 0 });
+  });
+
+  it('falls back rather than throwing when no mode declared a clock', async () => {
+    // A build with no clock channel is what an uninstalled mode leaves behind,
+    // and [06 §4.2] is explicit that *a session must always open*. Throwing here
+    // would make a missing mode cost somebody their session, which is the one
+    // outcome that section rules out.
+    const channels = await freshChannels();
+
+    expect(channels.channelDefinition(channels.SE_CLOCK)).toBeNull();
+    expect(channels.clockStart()).toEqual({ day: 1, hour: 8, minute: 0 });
+  });
+
+  it('refuses to invent a value for a channel nobody declared', () => {
+    // `null` rather than `undefined` or a throw: an unknown channel is a
+    // recorded refusal everywhere else in this module (`refuse` returns
+    // `unknown-channel`), and a reader that got `undefined` could not tell
+    // "declared as null" from "not declared".
+    expect(initialValue('example.nobody')).toBeNull();
+  });
+
+  it('hands back the fallback for an authored init, which is what unauthored means', () => {
+    // The `authored` arm needs the session's treatment and setup, which this
+    // module has no business reading — so until the dial wires it, an authored
+    // init resolves to its own declared fallback. [04 §6.1b]: absent means
+    // *unspecified*, and the channel is what says what unspecified resolves to.
+    registerChannel({
+      id: 'example.pacing',
+      owner: 'example.quiet',
+      version: 1,
+      scope: 'session',
+      update: 'user-only',
+      visibility: 'player',
+      budget: null,
+      schema: { type: 'string' },
+      init: { kind: 'authored', field: 'hookPacing', fallback: 'normal' },
+    });
+
+    expect(initialValue('example.pacing')).toBe('normal');
+  });
+});
 
 describe('the clock', () => {
   it('carries minutes into hours and days', () => {
@@ -253,6 +673,108 @@ describe('a hand edit lands as a user-attributed effect', () => {
     expect((await onDisk()).channels[SE_CLOCK]).toBeUndefined();
   });
 
+  /**
+   * **A hand edit to a *scoped* channel names the channel and the key, not the
+   * composite** — the defect [P7 §0.1a] found, and the reason it survived.
+   *
+   * `divergenceEffects` iterated `Object.keys(channels)` and passed each one
+   * straight through as `channelId`, with `scopeKey` hardcoded null. For
+   * `se.clock` the map key *is* the channel id, so every test here passed. For
+   * an entry-scoped channel the key is `se.lore.timing#<entryId>`, and the
+   * recorded effect claimed a channel of that name at no scope.
+   *
+   * **It round-tripped, which is why nothing noticed**: `applyEffects` rebuilds
+   * the key with `channelKey(channelId, scopeKey)`, and
+   * `channelKey('se.lore.timing#e-1', null)` is the same string it started
+   * from. So the map came out correct and the *record* was wrong — the one
+   * outcome this whole mechanism exists to prevent, since a hand edit becomes
+   * an effect precisely so a person can read it.
+   */
+  async function editScopedTimingOnDisk(entryId: string, value: unknown): Promise<void> {
+    const file = JSON.parse(await readFile(sessionFile(), 'utf8')) as SessionFile;
+    file.channels[channelKey(SE_LORE_TIMING, entryId)] = { version: 1, value };
+    await writeFile(sessionFile(), JSON.stringify(file, null, 2));
+  }
+
+  it('names the channel and the scope key, not the composite key', async () => {
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 2, cooldown: 0, fired: 1 });
+
+    const effects = await reconcileHandEdits(context, ACCOUNT, session.id);
+    const timing = effects.find((candidate) => candidate.channelId === SE_LORE_TIMING);
+
+    expect(timing).toBeDefined();
+    expect(timing?.scopeKey).toBe('e-1');
+    // The consequence, stated as the thing a reader actually needs: the id on
+    // the effect resolves to a definition. `se.lore.timing#e-1` never did, so
+    // nothing could look up the policy that governs it or render its name.
+    expect(channelDefinition(timing?.channelId ?? '')).not.toBeNull();
+    // And the map is untouched by the correction, because it was already right.
+    expect((await onDisk()).channels[channelKey(SE_LORE_TIMING, 'e-1')]?.value).toEqual({
+      sticky: 2,
+      cooldown: 0,
+      fired: 1,
+    });
+  });
+
+  it('keeps two scoped edits apart, each naming its own key', async () => {
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 2, cooldown: 0, fired: 1 });
+    await editScopedTimingOnDisk('e-2', { sticky: 0, cooldown: 3, fired: 4 });
+
+    const effects = await reconcileHandEdits(context, ACCOUNT, session.id);
+    const scoped = effects.filter((candidate) => candidate.channelId === SE_LORE_TIMING);
+
+    expect(scoped.map((candidate) => candidate.scopeKey).sort()).toEqual(['e-1', 'e-2']);
+    // Two effects, not one clobbering the other — the same property [P5.5]
+    // established for the map, now held by the record as well.
+    expect(scoped.find((candidate) => candidate.scopeKey === 'e-2')?.after).toEqual({
+      sticky: 0,
+      cooldown: 3,
+      fired: 4,
+    });
+  });
+
+  it('records a scoped value deleted from the file against its own key', async () => {
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 2, cooldown: 0, fired: 1 });
+    await reconcileHandEdits(context, ACCOUNT, session.id);
+
+    const file = JSON.parse(await readFile(sessionFile(), 'utf8')) as SessionFile;
+    const { [channelKey(SE_LORE_TIMING, 'e-1')]: removed, ...rest } = file.channels;
+    void removed;
+    await writeFile(sessionFile(), JSON.stringify({ ...file, channels: rest }, null, 2));
+
+    const [effect] = await reconcileHandEdits(context, ACCOUNT, session.id);
+
+    expect(effect?.op).toEqual({ type: 'delete', path: '/' });
+    expect(effect?.channelId).toBe(SE_LORE_TIMING);
+    expect(effect?.scopeKey).toBe('e-1');
+    expect((await onDisk()).channels[channelKey(SE_LORE_TIMING, 'e-1')]).toBeUndefined();
+  });
+
+  it('is still reversible when the channel is scoped', async () => {
+    // The inversion carries `channelId` and `scopeKey` through unchanged, so a
+    // malformed effect made a malformed undo. This is that path, scoped.
+    await turn(null);
+    await editScopedTimingOnDisk('e-1', { sticky: 9, cooldown: 0, fired: 1 });
+    await reconcileHandEdits(context, ACCOUNT, session.id);
+
+    const turns = await readTurns(context, ACCOUNT, session.id);
+    const head = turns.get((await onDisk()).headTurnId ?? '');
+    const written = head?.effects.find((candidate) => candidate.channelId === SE_LORE_TIMING);
+
+    expect(written?.scopeKey).toBe('e-1');
+    // Replaying the log from zero puts the value back under the scoped key,
+    // which is the claim the record has to be right for.
+    const replayed = replayChannels(walkPath(turns, (await onDisk()).headTurnId));
+    expect(replayed[channelKey(SE_LORE_TIMING, 'e-1')]?.value).toEqual({
+      sticky: 9,
+      cooldown: 0,
+      fired: 1,
+    });
+  });
+
   it('heals a divergence nobody intended, visibly', async () => {
     // If the snapshot drifted because of a bug rather than a person, the same
     // mechanism turns it into an effect somebody can inspect — instead of
@@ -367,5 +889,31 @@ describe('a channel scoped to something', () => {
   it('gives the scope key back', () => {
     expect(scopeKeyOf(channelKey(SE_LORE_TIMING, 'e-1'), SE_LORE_TIMING)).toBe('e-1');
     expect(scopeKeyOf(SE_LORE_TIMING, SE_LORE_TIMING)).toBeNull();
+  });
+
+  /**
+   * The inverse, for the caller that has a key and no channel id — which is
+   * anything iterating the map, and is where the divergence defect lived.
+   */
+  it('splits a key back into the pair that built it', () => {
+    expect(splitChannelKey(channelKey(SE_LORE_TIMING, 'e-1'))).toEqual({
+      channelId: SE_LORE_TIMING,
+      scopeKey: 'e-1',
+    });
+    // Unscoped comes back as null rather than as an empty string: *absent* and
+    // *empty* are different claims here exactly as they are on the wire.
+    expect(splitChannelKey(SE_CLOCK)).toEqual({ channelId: SE_CLOCK, scopeKey: null });
+  });
+
+  it('round-trips every scope key through the composite form', () => {
+    // Including the ones a uuid or an import id can actually be — the dotted
+    // and hyphenated shapes are what made splitting at the *first* separator
+    // the contract rather than an implementation detail.
+    for (const scopeKey of ['e-1', uuidv7(), 'imported.entry-4', '0', 'a.b.c']) {
+      expect(splitChannelKey(channelKey(SE_LORE_TIMING, scopeKey))).toEqual({
+        channelId: SE_LORE_TIMING,
+        scopeKey,
+      });
+    }
   });
 });

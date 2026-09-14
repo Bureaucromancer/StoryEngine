@@ -30,9 +30,24 @@ import { Fine, Note } from '../ui/Text.js';
  * session look like a form. Closed, it still says how many books are attached,
  * which is the one fact worth having without opening.
  *
- * **Not the cast**, deliberately: [P7.2](../../../../docs/design/workplan/23-p7-implementation.md)
+ * ~~**Not the cast**, deliberately: [P7.2](../../../../docs/design/workplan/23-p7-implementation.md)
  * owns that surface and [P7 §1.6] turns `cast` from a field into a channel, so
- * a cast control built here would be built against a shape P7 replaces.
+ * a cast control built here would be built against a shape P7 replaces.~~
+ *
+ * ***Not the cast's **actors**, and the distinction is [P7 §1.6]'s correction
+ * of 2026-09-10:*** `cast` does not stop being a field. `cast.actors` becomes
+ * channel state; `cast.persona` stays, because
+ * [06 §8](../../../../docs/design/06-modes-and-turn-pipeline.md) makes it *"the
+ * one part that can stay a plain session field"*. So the deferral holds for the
+ * half it was written about and never held for the other half.
+ *
+ * **The persona is set at creation rather than here, which is 06 §8's own
+ * reasoning applied rather than a scope cut**: it is *"chosen at setup, and
+ * changing it mid-session is an explicit act rather than an outcome of play"*.
+ * Lore is the opposite — a book joins a world mid-story and starting again
+ * costs the thread — which is why this panel exists at all. `PUT /cast` accepts
+ * a later change; nothing in the product offers one yet, and that is a
+ * deliberate absence rather than an oversight.
  */
 export function LorePanel(props: { sessionId: string }): JSX.Element {
   const session = useSession(props.sessionId);

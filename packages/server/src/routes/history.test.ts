@@ -273,6 +273,70 @@ describe('the editor’s save path keeps its promises', () => {
     expect(avatar.headers['content-type']).toBe('image/png');
   });
 
+  /**
+   * ***The route nothing could show a picture without*** — [03 §5.2.2],
+   * [06 §7.2], [P7.10].
+   *
+   * `/avatar` above serves the card's *own* pixels and was the only image path
+   * this build had. An actor's expression set, a treatment's cover and an
+   * authored backdrop are all `EmbeddedMedia` — *"a reference to bytes carried
+   * by the container"* — and nothing served those, which is where [06 §7.2]'s
+   * sprites stopped.
+   */
+  it('serves an embedded media entry’s bytes, keyed on its own digest', async () => {
+    const created = await createActor();
+    const { object, contentHash } = await readEnvelope(created.id);
+
+    // A one-pixel GIF, which is a real image and not a card — exactly what an
+    // expression is: bytes a browser renders, not a container anything parses.
+    const bytes = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/library/actors/${created.id}`,
+      payload: {
+        object: {
+          ...object,
+          media: [
+            {
+              id: 'm-neutral',
+              role: 'expression',
+              mime: 'image/gif',
+              digest: 'sha256:deadbeef',
+              bytes: bytes.byteLength,
+              ref: 'blob-neutral',
+              label: 'neutral',
+              tags: [],
+            },
+          ],
+        },
+        contentHash,
+      },
+    });
+    expect(written.status).toBe(200);
+
+    /**
+     * **The manifest without its blob is not-found, not empty.** The two halves
+     * are written by different people and [03 §5.2.2] names the way they come
+     * apart — *"ancillary chunks are droppable by spec-compliant tools that do
+     * not understand them"*. A route that answered 200 with nothing would make
+     * a stripped card look like a card with a blank face.
+     */
+    const missing = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${created.id}/media/m-neutral`,
+    });
+    expect(missing.status).toBe(404);
+  });
+
+  it('does not serve media nobody named', async () => {
+    const created = await createActor();
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${created.id}/media/nothing-like-it`,
+    });
+    expect(response.status).toBe(404);
+  });
+
   it('does not serve an avatar for a kind with no pixels', async () => {
     const response = await server.request({
       method: 'POST',

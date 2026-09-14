@@ -4,6 +4,18 @@
 import type { TSchema } from '@sinclair/typebox';
 import { Ajv, type ValidateFunction } from 'ajv';
 
+/**
+ * The two Ajv types a caller of the factories below needs to hold one.
+ *
+ * **Re-exported rather than left to be imported from `ajv` directly**, because
+ * this package is the only one that declares Ajv as a dependency and it should
+ * stay that way: a consumer that imported `ajv` for a type would acquire a
+ * runtime dependency on it to satisfy a compile-time need, and would be free to
+ * construct its own instance with its own options — which is precisely the
+ * decision `AJV_OPTIONS` exists to make once.
+ */
+export type { Ajv, ValidateFunction };
+
 import { Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, RESERVED_SECTION_PREFIX } from './actor.js';
 import { Lorebook, LOREBOOK_SCHEMA } from './lorebook.js';
 import { Package, PACKAGE_SCHEMA } from './package.js';

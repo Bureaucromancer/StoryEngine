@@ -68,6 +68,16 @@ const SOURCE_LABELS: Record<string, string> = {
   input: 'Action',
   preset: 'Preset',
   step: 'Step',
+  /**
+   * The engine's own JSON instruction — [P7.4]. *Reply format* rather than
+   * *Schema*, because what a reader is looking at is a sentence telling the
+   * model how to answer, and the schema is the thing it quotes.
+   *
+   * The open map means an older build renders this as `schema` rather than
+   * crashing, which is the rule the `setting` entry above is an instance of —
+   * so this line buys the word rather than the survival.
+   */
+  schema: 'Reply format',
 };
 
 export function blockSourceAddress(source: BlockSource): SourceAddress {

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import {
   entriesGoverned,
   entryGate,
+  LOREBOOK_SCHEMA,
   resolvedFolderId,
   uuidv7,
   type GateReason,
@@ -18,7 +19,16 @@ import { ApiError, type LibraryObject } from '../api.js';
 import { formatCount } from '../format.js';
 import { AsStored } from '../library/AsStored.js';
 import { DeleteObject } from '../library/DeleteObject.js';
-import { blankFor, isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
+import {
+  blankFor,
+  boundsOf,
+  isRequiredField,
+  labelFor,
+  missingRequired,
+  refusalFor,
+  schemaFor,
+  type SchemaNode,
+} from '../library/fields.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
 import { landing, nudge } from '../ui/reorder.js';
@@ -26,7 +36,7 @@ import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { link, page, table } from '../ui/classes.js';
-import { Field } from '../ui/Field.js';
+import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import {
   bookChanges,
@@ -486,6 +496,13 @@ function Editor(props: EditorProps): JSX.Element {
           required={isRequiredField('lorebooks', 'name')}
           error={missing.includes('name') ? 'A lorebook needs a name.' : null}
           hint="What the library shelf calls it. Renaming does not move the file."
+        />
+
+        <BookRetrieval
+          book={book}
+          onSet={(patch) => {
+            edit({ ...draft, ...patch });
+          }}
         />
 
         <FolderGates
@@ -1176,6 +1193,186 @@ function nameOfEntry(entry: LoreEntry): string {
  * is filed has to be chosen at the moment it is created or there is nowhere to
  * choose it at all.
  */
+/**
+ * ***The six knobs that govern retrieval, with a control at last*** —
+ * [P7.14](../../../../docs/design/workplan/23-p7-implementation.md), discharging
+ * two of the four instances [P7 §0.1a] found of the standing line *no
+ * configuration without a surface*.
+ *
+ * **They all have live consumers and had no write path anywhere.** `scanDepth`,
+ * `tokenBudget`, `entryLimit`, `recursiveScanning` and `maxRecursionDepth` are
+ * read by `retrieval/` on every turn that touches a book, and the only way to
+ * set one was to edit the file by hand. [work plan §2.3]'s own test is *"whether
+ * the feature can be used at all without someone setting the value"*, and
+ * recursive scanning cannot: it is off by default and nothing could turn it on.
+ *
+ * *The book's `enabled` gate comes with them*, because it is the coarsest of the
+ * six and shares their surface: a book switched off retrieves nothing, which is
+ * how you compare with and without.
+ *
+ * ***Labels through `labelFor`, not written here.*** They come out identical to
+ * the read view's — *Scan depth*, *Token budget*, *Entry limit*, *Recursive
+ * scanning*, *Max recursion depth* — and that is the point rather than a
+ * coincidence: [polish §1]'s *one description, two renderings* means the two
+ * surfaces must not be able to drift, and two literal tables are exactly how
+ * they would.
+ *
+ * **Bounds from the schema, for [10 §15.3]'s reason**: `entryLimit` is 1–1000
+ * in `lorebook.ts`, so the browser refuses an out-of-range value before the save
+ * does. A hand-written `min` here would be the same second description one level
+ * down.
+ */
+function BookRetrieval(props: {
+  book: Lorebook;
+  onSet: (patch: Record<string, unknown>) => void;
+}): JSX.Element {
+  const { book, onSet } = props;
+  const declared = schemaFor(LOREBOOK_SCHEMA)?.properties;
+  const node = (key: string): SchemaNode | undefined => asSchemaNode(declared?.[key]);
+
+  return (
+    <section>
+      <SectionTitle as="h2" className="mb-2">
+        Retrieval
+      </SectionTitle>
+      <Fine>
+        What this book costs a turn, and how hard it looks. Every one of these is read on every turn
+        that reaches this book.
+      </Fine>
+
+      <div className="mt-3 flex flex-col gap-4">
+        {/*
+         * ***The one label here written by hand, and the exception is narrow.***
+         * `labelFor('enabled')` is *Enabled*, and this page already has an
+         * *Enabled* — the selected entry's own switch, two sections down. Two
+         * controls with one accessible name on one page is the ambiguity
+         * [10 §15.2] is about, and the section heading resolves it visually and
+         * not for anybody reading the controls in order.
+         *
+         * *The five below keep `labelFor`*, because they have a second rendering
+         * on the book page and drift between the two is exactly what that
+         * derivation prevents. This one has no second rendering at all, so there
+         * is nothing to drift from — the field name plus its scope is what
+         * distinguishes it, and that is what the label says.
+         */}
+        <CheckboxField
+          label="Book enabled"
+          checked={book.enabled}
+          onChange={(enabled) => {
+            onSet({ enabled });
+          }}
+          hint="Off retrieves nothing from this book, whatever its entries and folders say."
+        />
+
+        <NumberRow
+          label={labelFor('scanDepth')}
+          value={book.scanDepth}
+          schema={node('scanDepth')}
+          onChange={(scanDepth) => {
+            onSet({ scanDepth });
+          }}
+          hint="How many recent messages are searched for keys. 0 searches the whole session."
+        />
+
+        <NumberRow
+          label={labelFor('tokenBudget')}
+          value={book.tokenBudget}
+          schema={node('tokenBudget')}
+          onChange={(tokenBudget) => {
+            onSet({ tokenBudget });
+          }}
+          hint="The most this book may contribute to one prompt. 0 is unlimited."
+        />
+
+        <NumberRow
+          label={labelFor('entryLimit')}
+          value={book.entryLimit}
+          schema={node('entryLimit')}
+          onChange={(entryLimit) => {
+            onSet({ entryLimit });
+          }}
+          hint="The most entries that may fire at once, whatever the budget allows."
+        />
+
+        <CheckboxField
+          label={labelFor('recursiveScanning')}
+          checked={book.recursiveScanning}
+          onChange={(recursiveScanning) => {
+            onSet({ recursiveScanning });
+          }}
+          hint="On, an entry that fired is itself searched for keys, so one entry can pull in another."
+        />
+
+        <NumberRow
+          label={labelFor('maxRecursionDepth')}
+          value={book.maxRecursionDepth}
+          schema={node('maxRecursionDepth')}
+          onChange={(maxRecursionDepth) => {
+            onSet({ maxRecursionDepth });
+          }}
+          hint="How many times that can chain. Ignored with recursive scanning off."
+        />
+      </div>
+    </section>
+  );
+}
+
+/** A schema node, or nothing — the same narrowing `fields.ts` does internally. */
+function asSchemaNode(value: unknown): SchemaNode | undefined {
+  return typeof value === 'object' && value !== null ? value : undefined;
+}
+
+/**
+ * A number held as text while it is being typed.
+ *
+ * **`LinesField`'s pattern, for `NumberField`'s stated reason**: *"a partially
+ * typed number is not one — `''` and `'-'` are both states a person passes
+ * through, and a controlled numeric input that rejects them deletes the
+ * character they just typed."* So the text is state and the number is derived,
+ * and the draft keeps the last value that parsed.
+ *
+ * *Re-seeded on inequality rather than on identity*, which is where this differs
+ * from `LinesField` and why: a number is a primitive, so `!==` is the same test
+ * that component makes on a reference. Typing hands the parent exactly the
+ * number this produced and it comes back equal, leaving the buffer alone; a
+ * value arriving from a version restore or a 412 reload differs and re-seeds.
+ */
+function NumberRow(props: {
+  label: string;
+  value: number;
+  schema: SchemaNode | undefined;
+  onChange: (value: number) => void;
+  hint: string;
+}): JSX.Element {
+  const [held, setHeld] = useState<{ text: string; from: number }>(() => ({
+    text: String(props.value),
+    from: props.value,
+  }));
+
+  if (props.value !== held.from) {
+    setHeld({ text: String(props.value), from: props.value });
+  }
+
+  return (
+    <NumberField
+      label={props.label}
+      value={held.text}
+      {...boundsOf(props.schema)}
+      onChange={(text) => {
+        const parsed = Number(text);
+        // An unparseable box keeps the last number that did parse, so the draft
+        // is never briefly invalid — and `''` is deliberately in that set, even
+        // though `Number('')` is 0: an empty box is somebody mid-edit, and 0 is
+        // a *meaningful* value for two of these three fields.
+        const next = text.trim() === '' || Number.isNaN(parsed) ? held.from : parsed;
+        setHeld({ text, from: next });
+        props.onChange(next);
+      }}
+      hint={props.hint}
+    />
+  );
+}
+
 function FolderGates(props: {
   book: Lorebook;
   chosen: FolderChoice;

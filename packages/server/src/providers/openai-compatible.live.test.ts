@@ -49,7 +49,7 @@ const messages: RenderedMessage[] = [
 /** Small and cold: the point is the exchange, not the prose. */
 const params = { temperature: 0, maxTokens: 64 };
 
-function liveProvider(): OpenAICompatibleProvider {
+function liveProvider(capabilities?: Connection['capabilities']): OpenAICompatibleProvider {
   const connection: Connection = {
     id: 'live-env',
     label: 'Live endpoint (.env)',
@@ -58,6 +58,7 @@ function liveProvider(): OpenAICompatibleProvider {
     models: [modelId],
     baseUrl,
     ...(apiKey.length > 0 ? { apiKey } : {}),
+    ...(capabilities === undefined ? {} : { capabilities }),
   };
   const recorder = createCaptureRecorder({
     sink: createCaptureStore('captures/live-tests'),
@@ -95,5 +96,79 @@ describe.skipIf(!configured)('the adapter against a live endpoint', () => {
     expect(streamed.length).toBeGreaterThan(0);
     expect(result.text).toBe(streamed);
     expect(FINISH_REASONS).toContain(result.finishReason);
+  });
+});
+
+/**
+ * Structured output against a real endpoint — [P7.4].
+ *
+ * **The one thing a stub transport cannot answer**: whether the endpoint
+ * *honours* `response_format`. `openai-compatible.test.ts` proves the schema
+ * reaches the wire and that the SDK parses what comes back; only a real model
+ * can say whether it writes the shape it was shown. Every local runtime this
+ * project targets claims JSON mode, and they do not all mean the same thing by
+ * it.
+ *
+ * **Structural, like everything else here.** What is asserted is that an object
+ * came back and that the adapter's own division held — never the model's
+ * choice of value, which is not a contract. The one content assertion is the
+ * key's presence, because *asked for a shape and got one* is precisely the claim
+ * under test.
+ *
+ * *Both capability arms are run, because they send different bytes and a local
+ * runtime can honour one and not the other. A miss is reported rather than
+ * failed on the permissive arm: an endpoint asked for bare JSON and told nothing
+ * about the shape is entitled to write prose, and that is the gap the caller's
+ * degrade exists to fill rather than a broken adapter.*
+ */
+describe.skipIf(!configured)('structured output against a live endpoint', () => {
+  const SCHEMA = {
+    type: 'object',
+    properties: { colour: { type: 'string' } },
+    required: ['colour'],
+    additionalProperties: false,
+  };
+
+  const asking: RenderedMessage[] = [
+    {
+      role: 'user',
+      content: 'Name one colour. Reply with JSON: {"colour": "..."}',
+      fromBlocks: ['live-b3'],
+    },
+  ];
+
+  it('gets an object back when the endpoint is told the shape', async () => {
+    const result = await liveProvider({ supportsStructuredOutput: true }).generate({
+      modelId,
+      messages: asking,
+      params,
+      schema: SCHEMA,
+    });
+
+    // The text is always the model's words, object or no object — which is what
+    // makes a miss diagnosable rather than a blank.
+    expect(result.text.length).toBeGreaterThan(0);
+    expect(FINISH_REASONS).toContain(result.finishReason);
+    // `object` is present as a key whenever a schema was asked for, and holds
+    // `undefined` when the reply would not parse.
+    expect('object' in result).toBe(true);
+    expect(result.object).toMatchObject({ colour: expect.any(String) });
+  });
+
+  it('asks for bare JSON without the schema, and says what came back either way', async () => {
+    const result = await liveProvider().generate({
+      modelId,
+      messages: asking,
+      params,
+      schema: SCHEMA,
+    });
+
+    expect(result.text.length).toBeGreaterThan(0);
+    expect('object' in result).toBe(true);
+    // Not asserted as present: the endpoint was asked for JSON and told nothing
+    // about its shape, so an unparseable reply is the endpoint being honest
+    // about what it was asked. What is asserted is that the adapter reports the
+    // difference rather than inventing an object.
+    expect(result.object === undefined || typeof result.object === 'object').toBe(true);
   });
 });

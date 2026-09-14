@@ -52,6 +52,17 @@ import type { LibraryKind } from '../api.js';
 export interface SchemaNode {
   properties?: Record<string, unknown>;
   items?: unknown;
+  /**
+   * The numeric bounds, read by {@link boundsOf} — added at [P7.14], when the
+   * first editor over a bounded number needed them.
+   *
+   * Two more keywords the emitted artefact is *not obliged* to carry, which is
+   * why `boundsOf` returns what it finds rather than a pair: an unbounded field
+   * and a field whose bounds this build cannot see must render the same way, or
+   * the absence becomes a claim.
+   */
+  minimum?: number;
+  maximum?: number;
 }
 
 /** One field, as both renderings see it. */
@@ -143,6 +154,26 @@ const NEW_ROUTES = {
   actors: '/library/actors/new',
   lorebooks: '/library/lorebooks/new',
 } as const satisfies Record<EditorKind, string>;
+
+/**
+ * ***One kind is now created from outside these tables, and saying so here is
+ * the point*** — [P7.4], 2026-09-12.
+ *
+ * `SessionsPage`'s *Save as a setup* writes a `setups/` object, and `setups` is
+ * in neither table above. That is not the rule being broken: [10 §5]'s *create
+ * arrives with the kind's editor and never before it* is about **this** create
+ * control — the library's own New button, which opens a form over nothing and
+ * would strand somebody on a kind with no editor to land in.
+ *
+ * A Setup is *how to start playing*, and the session form collects exactly that
+ * control for control, so saving one is naming a configuration that already
+ * exists rather than opening an empty form. **`setups` stays out of these tables
+ * until it has an editor**, which is what the library's New button would need
+ * and what a hand-written Setup form is the wrong way to get ([P7.4]'s cell
+ * names *"every editor and settings pane is hand-written JSX"* as the
+ * complaint). Until then a saved Setup is readable on the generic shelf and in
+ * §5.3's read-only fold, which is what every kind without an editor gets.
+ */
 
 /**
  * The fields a person has to fill in before this kind can be saved —
@@ -281,11 +312,20 @@ export function schemaFor(schemaId: string): SchemaNode | undefined {
  * an acronym would come out wrong, and the answer to that is a `title` on the
  * field rather than a list of exceptions here, because a list of exceptions is
  * a second description again.
+ *
+ * **And on the underscore, added at [P7.14]** when the first caller passed an
+ * enum *value* rather than a key: `before_char` → *Before char*. No key in any
+ * of the 215 the portable schemas declare carries one — they are camelCase
+ * throughout — so this widens what the function accepts without changing what it
+ * answers for anything that already called it. *A value is a machine name like a
+ * key is*, which is the whole reason the same derivation serves both and a table
+ * of nicer prose does not get written.
  */
 export function labelFor(key: string): string {
   const words = key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Za-z])(\d)/g, '$1 $2')
+    .replace(/_+/g, ' ')
     .toLowerCase()
     .trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -384,6 +424,25 @@ export function groupsOf(rows: FieldRow[]): FieldGroup[] {
   }
 
   return groups;
+}
+
+/**
+ * What the schema says a number may be — [10 §15.3]'s precedent, at [P7.14]:
+ * *"its numeric inputs carry the server's own bounds, and it says so when a save
+ * is refused."*
+ *
+ * **Spread into the props rather than returned as a pair**, because
+ * `exactOptionalPropertyTypes` makes `min: undefined` and *no* `min` different
+ * things, and only the second renders an unbounded input.
+ */
+export function boundsOf(schema: SchemaNode | undefined): {
+  min?: number;
+  max?: number;
+} {
+  return {
+    ...(typeof schema?.minimum === 'number' ? { min: schema.minimum } : {}),
+    ...(typeof schema?.maximum === 'number' ? { max: schema.maximum } : {}),
+  };
 }
 
 /**

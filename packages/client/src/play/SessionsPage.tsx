@@ -5,14 +5,16 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createSession, listSessions } from '../api.js';
-import { useLibrary } from '../queries.js';
+import { ApiError, createSession, listModes, listSessions, type PublicMode } from '../api.js';
+import { useCreateObject, useLibrary } from '../queries.js';
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link, page } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
 import { RenameSession } from './RenameSession.js';
+import { SetupFields } from './SetupFields.js';
+import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
 
 /**
@@ -22,10 +24,29 @@ import { sessionLabel } from './session-label.js';
  * cast picker, no mode picker, no preset picker.~~ **Half of that survived
  * [P6B.0] and half of it was the reason PLAYABLE could not run.**
  *
- * The reasoning was right about the cast — that surface is
+ * The reasoning was ~~right about the cast~~ **right about half the cast** —
+ * that surface is
  * [P7.2](../../../../docs/design/workplan/23-p7-implementation.md)'s and P7
  * turns `cast` into a channel — and wrong about everything a session
- * *retrieves* from. `POST /api/sessions` has accepted `treatment`, `lore` and
+ * *retrieves* from.
+ *
+ * ***The half it was wrong about is the persona, 2026-09-11.***
+ * [P7 §1.6](../../../../docs/design/workplan/23-p7-implementation.md) corrects
+ * the sentence this deferral leaned on: **`cast` does not stop being a field.**
+ * What moves to channel state is `cast.actors`; `cast.persona` stays, because
+ * [06 §8](../../../../docs/design/06-modes-and-turn-pipeline.md) and
+ * [03 §5.5](../../../../docs/design/03-data-model.md) both make it *"the one
+ * part that can stay a plain session field… chosen at setup"*. So a persona
+ * control is permanent surface and an actors control is not, and the blanket
+ * deferral was costing the first to defer the second.
+ *
+ * **And the cost was the same class P6B.0 just paid for lore.** The shipped
+ * preset carries an `se.persona` slot with `omitWhenEmpty: true`, and
+ * `collect.ts` resolves `{{user}}` to `context.persona?.actor.name ?? 'the
+ * player'`. Every session started in a browser had `persona: null` — so the
+ * slot emitted nothing, the instruction addressed *the player*, and the one
+ * thing the model was told about who it is narrating for was absent. `pnpm
+ * seed` set one; a person could not. `POST /api/sessions` has accepted `treatment`, `lore` and
  * `preset` since P5.6; this form sent `name` alone, so no session made in the
  * browser ever resolved a lorebook, and the retrieval half of P5 was
  * unreachable from the product
@@ -43,17 +64,117 @@ import { sessionLabel } from './session-label.js';
  * line, and the summary says what the session will be given so the choice is
  * not silently skipped.
  */
+/**
+ * The answers this mode actually asked for.
+ *
+ * **A filter rather than a reset**, which is what lets the state survive a
+ * person switching modes to look and switching back. The route refuses a key the
+ * mode never declared — deliberately, because ignoring one would teach the next
+ * version of this client that it worked — so the two honest options are to drop
+ * what is not asked for or to clear on every change, and dropping is the one
+ * that does not lose work.
+ */
+/** `{}` is *no wizard ran*, and a key that says so would be a claim. */
+function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<string, unknown> } {
+  return Object.keys(answers).length === 0 ? {} : { modeConfig: answers };
+}
+
+/**
+ * What a refused Start says.
+ *
+ * **The field names travel**, which is the whole reason the route sends them: a
+ * wizard is a form the engine generated from a mode's declaration, so a refusal
+ * reading only *that is not what this mode asked for* leaves somebody looking at
+ * controls they did not design and guessing which one it meant.
+ *
+ * *Ajv's paths rather than the widget labels, deliberately — this page would
+ * have to map one to the other, and a mapping written here would be a third
+ * description of a field beside the declaration and the derived schema. A path
+ * is `/difficulty`, which names the control a person is looking at.*
+ */
+function refusal(error: Error): string {
+  const issues = error instanceof ApiError ? (error.issues ?? []) : [];
+  return issues.length === 0 ? error.message : `${error.message} ${issues.join('; ')}`;
+}
+
+function answersFor(
+  mode: PublicMode | null,
+  answers: Record<string, unknown>,
+): Record<string, unknown> {
+  if (mode?.setup.kind !== 'declared') return {};
+
+  const asked = new Set((mode.setup as { fields?: { id: string }[] }).fields?.map((f) => f.id));
+  return Object.fromEntries(Object.entries(answers).filter(([id]) => asked.has(id)));
+}
+
 export function SessionsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [treatment, setTreatment] = useState('');
   const [preset, setPreset] = useState('');
+  const [persona, setPersona] = useState('');
   const [lore, setLore] = useState<string[]>([]);
+  const [mode, setMode] = useState('');
+  /**
+   * **Keyed by field id and not cleared when the mode changes.** Switching modes
+   * to look at a wizard and switching back should not lose what was typed, and
+   * the answers a mode did not ask for are refused at the route rather than
+   * stored — so the only cost of keeping them is a key the next request does not
+   * send, which `answersFor` drops.
+   */
+  const [setup, setSetup] = useState<Record<string, unknown>>({});
 
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: listSessions });
+  const modes = useQuery({ queryKey: ['modes'], queryFn: listModes });
   const books = useLibrary('lorebooks');
   const treatments = useLibrary('treatments');
   const presets = useLibrary('presets');
+  const actors = useLibrary('actors');
+
+  /**
+   * The mode being configured, and the declaration its wizard renders from.
+   *
+   * Empty means *the install's default*, which is what every session before
+   * [P7.4] got and what the route still does with an absent `mode` — so the
+   * wizard shown is the default's, because that is the session the Start button
+   * would actually create.
+   */
+  const chosen =
+    (modes.data?.modes ?? []).find(
+      (one) => one.id === (mode === '' ? modes.data?.defaultModeId : mode),
+    ) ?? null;
+
+  /**
+   * Every library name this form has offered, by id — for the `Ref`s a saved
+   * Setup stores. [04 §3] resolves a ref by id *and* by name, so a Setup that
+   * kept bare ids would travel to another install and resolve to nothing.
+   */
+  const names: Record<string, string> = {};
+  for (const shelf of [treatments, presets, actors, books]) {
+    for (const one of shelf.data?.objects ?? []) names[one.id] = one.name;
+  }
+
+  const form = {
+    name,
+    mode: chosen?.id ?? '',
+    modeConfig: answersFor(chosen, setup),
+    treatment,
+    preset,
+    persona,
+    lore,
+    names,
+  };
+
+  /**
+   * **Saving the configuration as a Setup** — [04 §7], [P7.4], and the *making*
+   * surface that kind has never had.
+   *
+   * Not a third hand-written editor: a Setup **is** how to start playing, and
+   * this form collects exactly that control for control. What gets saved is what
+   * `POST /api/sessions` reads back out of one, which is the round trip
+   * `setup-from-form.ts` exists to keep honest.
+   */
+  const saveSetup = useCreateObject();
 
   const create = useMutation({
     mutationFn: () =>
@@ -61,13 +182,23 @@ export function SessionsPage(): React.JSX.Element {
         ...(name.trim() === '' ? {} : { name }),
         ...(treatment === '' ? {} : { treatment }),
         ...(preset === '' ? {} : { preset }),
+        ...(persona === '' ? {} : { persona }),
         ...(lore.length === 0 ? {} : { lore }),
+        // The effective id, not the state: a form that rendered the default's
+        // wizard and then sent no `mode` would be right only by coincidence.
+        ...(chosen === null ? {} : { mode: chosen.id }),
+        // Spread like every other field here rather than always passed: *not
+        // asked* and *asked and answered with nothing* are different, and only
+        // one of them belongs on the wire.
+        ...spreadSetup(answersFor(chosen, setup)),
       }),
     onSuccess: () => {
       setName('');
       setTreatment('');
       setPreset('');
+      setPersona('');
       setLore([]);
+      setSetup({});
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
@@ -118,10 +249,36 @@ export function SessionsPage(): React.JSX.Element {
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
           <summary className="cursor-pointer text-sm text-ink-subtle">
-            {setupLine(lore.length, treatment !== '', preset !== '')}
+            {setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
           </summary>
 
           <div className="mt-3 flex flex-col gap-3">
+            <SelectField
+              label="Mode"
+              // The effective id rather than the state, so the control shows the
+              // mode the Start button would actually create — which is the
+              // install's default until somebody picks otherwise.
+              value={chosen?.id ?? ''}
+              options={(modes.data?.modes ?? []).map(
+                (one) => [one.id, one.displayName] as [string, string],
+              )}
+              onChange={setMode}
+              hint="What kind of story this is. It decides what is asked below, and cannot be changed afterwards."
+            />
+
+            {/*
+              **The wizard, rendered from the mode's declaration and nothing
+              else** — [06 §7.3], [P7.4]. `SetupFields` has never heard of any
+              mode; it knows a widget vocabulary and a loop, which is what makes
+              the stage's exit line — *a wizard for a mode the engine has no
+              knowledge of* — true of this page rather than only of the route.
+            */}
+            <SetupFields
+              setup={chosen?.setup ?? { kind: 'none' }}
+              answers={setup}
+              onChange={setSetup}
+            />
+
             <SelectField
               label="Treatment"
               value={treatment}
@@ -148,6 +305,19 @@ export function SessionsPage(): React.JSX.Element {
               hint="Copied into the session at creation, and not changeable afterwards."
             />
 
+            <SelectField
+              label="Persona"
+              value={persona}
+              options={[
+                ['', 'Nobody in particular'],
+                ...(actors.data?.objects ?? []).map(
+                  (one) => [one.id, one.name] as [string, string],
+                ),
+              ]}
+              onChange={setPersona}
+              hint="Who you are playing. The narrator is told, and addresses you by name."
+            />
+
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-medium text-ink-muted">Lorebooks</legend>
               {(books.data?.objects ?? []).map((book) => (
@@ -163,10 +333,37 @@ export function SessionsPage(): React.JSX.Element {
             </fieldset>
 
             <Fine>These can be changed from the session itself, except the preset.</Fine>
+
+            {/*
+              **Save the configuration, not the session** — [04 §7], [P7.4].
+              A Setup is how to start playing, and everything above is that; so
+              the making surface for the `setups/` kind is this form with a
+              second verb rather than a third hand-written editor.
+            */}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                disabled={name.trim() === '' || saveSetup.isPending}
+                onClick={() => {
+                  saveSetup.mutate({ kind: 'setups', object: setupFromForm(form) });
+                }}
+              >
+                Save as a setup
+              </Button>
+              <Fine>
+                {name.trim() === ''
+                  ? 'Name it first — a setup is a library object, and library objects have names.'
+                  : 'Keeps this configuration to start from again.'}
+              </Fine>
+            </div>
           </div>
         </details>
 
-        {create.isError ? <AlertNote role="alert">{create.error.message}</AlertNote> : null}
+        {create.isError ? <AlertNote role="alert">{refusal(create.error)}</AlertNote> : null}
+        {saveSetup.isError ? <AlertNote role="alert">{refusal(saveSetup.error)}</AlertNote> : null}
+        {saveSetup.isSuccess ? (
+          <AlertNote role="status">{`Saved “${name.trim()}” to your setups.`}</AlertNote>
+        ) : null}
       </form>
 
       <ul className="flex flex-col gap-2" aria-label="Sessions">
@@ -197,8 +394,18 @@ export function SessionsPage(): React.JSX.Element {
  * the only thing standing between somebody and a session that retrieves
  * nothing, which is the state every session was in before [P6B.0].
  */
-export function setupLine(books: number, treatment: boolean, preset: boolean): string {
+export function setupLine(
+  books: number,
+  treatment: boolean,
+  preset: boolean,
+  persona: boolean,
+): string {
   const parts: string[] = [];
+  // **Persona first, because it is the one a reader is most likely to have
+  // meant to set.** The others change what a session retrieves; this changes
+  // who the story is about, and its absence is silent — the slot omits when
+  // empty and the instruction falls back to "the player".
+  if (persona) parts.push('a persona');
   if (treatment) parts.push('a treatment');
   if (books === 1) parts.push('one lorebook');
   if (books > 1) parts.push(`${String(books)} lorebooks`);

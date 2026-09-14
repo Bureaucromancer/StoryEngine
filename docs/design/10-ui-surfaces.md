@@ -1317,6 +1317,58 @@ This buys three things: extensions cannot break the app's rendering, the
 frontend framework stays a reversible decision, and an extension written today
 still works after a framework upgrade.
 
+### 8.0 What was built, and where the paragraph above was wrong
+
+*Added 2026-09-13, after [P7.11](workplan/23-p7-implementation.md) built this
+section and [P7.12](workplan/23-p7-implementation.md) gave it three consumers.
+The paragraph above is kept as written because it is the design; this records
+what happened to it, which is [21 §1.1](21-internal-contracts.md)'s rule about a
+sketch that has acquired a shipped counterpart.*
+
+**A mode declares `surfaces`, and the host renders them.** The contract is
+`SurfaceContribution { region, channelId, widget }` in `@storyengine/sdk`, read
+by the session route and rendered by one client component that knows no channel
+and no mode. Scene contributes three ([P7.12]): a backdrop, a speaker's
+expression, and the switch that turns staging on.
+
+***One vocabulary, two ways to place something, and the second is defined in
+terms of the first.*** A channel declaring `surface` means exactly
+`{ region: 'hud', channelId: <itself>, widget: <that spec> }` — the shorthand for
+the common case, not a rival mechanism. Stating the seam that way is what stops
+this being two vocabularies for one job, which is the failure
+[21 §1.1](21-internal-contracts.md) exists to prevent.
+
+**Four regions ship where the list above names three of its six slots as
+regions**, and the fourth is not an embellishment. `hud | panel | message |
+stage` — and a **backdrop is none of §8's three**, because §2.3 calls it *chrome*
+and *"the first thing to go"* on a phone, which is not a strip row, not a side
+panel and not a message decoration. Adding it is what §8.1's paired commitment
+below requires, applied to regions rather than to widgets.
+
+**Three widget arms ship, and none carries the metadata the paragraph above
+cites as evidence.** `{ kind: 'text' | 'image' | 'toggle'; label }`, and that is
+all — no colour, no icon, no pinned, no min or max. *That is a narrowing rather
+than a refutation*: the vocabulary took the shape of its first real consumers and
+declined to mint fields nothing asks for, which is the same discipline
+[21 §6](21-internal-contracts.md) applies to a type. **The evidence sentence
+above should be read as what the vocabulary must be able to grow to, not as a
+description of what it is.** `toggle` is its first *writable* arm, and a write
+goes through the ordinary channel route: a mode gains a control and gains no new
+authority.
+
+***Two of the six slots still have no consumer at all*** — **input-bar actions**
+and **library columns** — and naming them here is cheaper than discovering later
+that a list of six was read as a list of six shipped things. The remaining two
+are elsewhere by design: *setup form fields* are `FieldWidget`
+([P7.4](workplan/23-p7-implementation.md)), a separate union because a wizard
+field and a HUD widget answer different questions.
+
+**And the growth rule below has a live subject.** A `choice` arm is the obvious
+next one and it wants a vocabulary to choose from; a `meter` arrives with the
+first numeric channel, by §8's own logic. Neither is scheduled, which is correct
+— §8.1's commitment is to *respond* to a thing an extension cannot express, not
+to anticipate one.
+
 ### 8.1 Custom rendering: deferred as far as it will go
 
 An extension that genuinely needs to draw something — a map, a card table, a
@@ -1358,6 +1410,15 @@ would be coming from outside, which is the right kind of evidence to act on.
 What must **not** happen is the vocabulary quietly acquiring an `html: string`
 field. That is the escape hatch arriving without any of the safety, and it is
 how this decision would be undone by accident rather than on purpose.
+
+***The commitment held, and it is asserted rather than remembered***
+(2026-09-13). `packages/sdk/src/contract.test.ts` fails on an `html` field
+appearing anywhere in `WidgetSpec`, added when the vocabulary acquired its first
+payload at [P7.11](workplan/23-p7-implementation.md) — which is the right moment
+for it, because *"by accident rather than on purpose"* describes a change nobody
+would defend in review and therefore one a review is a poor guard against.
+[`api.md`](../api.md) restates the rule where the wire shape is documented, so a
+client author meets it too.
 
 ---
 
@@ -2345,6 +2406,20 @@ Available to every account, admin or not.
 - **Your connections** ([09 §4.5](09-server-multiuser-deployment.md)) and role
   bindings, if `privateConnections` is granted. The one place a user sees which
   of their bindings are personal and which fall back to system defaults.
+
+  ***The capability governs the first half only, and the bindings half shipped
+  without it — [P7.3](workplan/23-p7-implementation.md), 2026-09-12.*** A
+  personal *connection* is a credential and a private host, which is why §15.5
+  gates that surface on the `privateConnections` check being real. A *binding* is
+  two ids, and [19 §5.1](19-tech-stack.md) is explicit that **anyone who wants
+  their own key overrides a role without the admin's involvement** — so the
+  editor is offered to every account, and what keeps it safe is that
+  `resolveRole` looks a binding's connection up in the capability-filtered list:
+  one naming a connection you may not use can never be access, and falls through
+  to the layer below rather than breaking the role. It is useful without any
+  connection of your own — re-pointing one job at a cheaper model on the
+  install's connection is the commonest reason to open it. *The connections half
+  still waits.*
 - **Preferences** — the presentation choices the app accumulates. §1.1's
   density question will eventually land here, and two more are waiting: the
   *As stored* pane state ([polish §2](workplan/06-polish.md)) and the all-kinds

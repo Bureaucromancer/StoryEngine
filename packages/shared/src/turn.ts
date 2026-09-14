@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { HookPacing, Ref } from './schema/common.js';
+import type { Span } from './matching.js';
 import type { GenerationParams } from './schema/preset.js';
 
 /**
@@ -19,10 +21,18 @@ import type { GenerationParams } from './schema/preset.js';
  * this freedom**: the day a stored turn becomes a portable artefact, these
  * graduate to `schema/` and the registry, and not before.
  *
- * **`mentions` is the one field of [03 §8] still absent**, and deliberately:
- * it is an overlay of resolved actor spans over `input.text` and
- * `output.text` ([06 §8.2]), and resolving mentions is an `extract` step —
- * fenced to P7. Re-pointed here rather than left to be rediscovered.
+ * ~~**`spans` is the one field of [03 §8] still absent**~~ — **present since
+ * [P7.7]**, which built the `extract` step it was fenced to. It is an overlay of
+ * resolved references over `input.text` and `output.text` ([06 §8.2]), and the
+ * text itself is never rewritten with markup.
+ *
+ * *~~`mentions`~~, and the rename is the point rather than tidying.* 03 §8
+ * called the field `mentions` and its type `MentionSpan`, with `ref:
+ * Ref<Actor>` baked in; [13 §13] needs one span shape serving mentions,
+ * machine-written provenance and beat positions, so the type is `TextSpan` with
+ * a **tagged** target and one arm at 1.0. Corrected in 03 §8 on 2026-09-11,
+ * while nothing implements it and the rename is free — which is the whole
+ * argument for doing it before the first span is stored rather than after.
  *
  * Pure types plus one constant, per this package's header rule: no I/O and no
  * runtime behaviour. The machinery that *produces* these — the assembler, the
@@ -171,6 +181,28 @@ export type BlockSource =
   | { kind: 'treatment'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }
   /**
+   * One fragment of one dial's level — [06 §7.3.1], [06 §7.3.2], [P7.8].
+   *
+   * **`axis` and `levelId` rather than a rendered string**, because the whole
+   * claim [04 §8] makes for putting this in the pack is that *"someone who
+   * dislikes how 'hard' behaves can read the fragment that caused it and change
+   * it"* — which requires the block to say which level it came from and which
+   * dial that level was on. A block recording only the text would leave a reader
+   * with the sentence and no way back to the file it is in.
+   *
+   * `fragmentIndex` addresses it within the level, so the workbench can line two
+   * turns' blocks up when a pack is edited between them and the text has moved.
+   * *Index rather than an id, because {@link DifficultyLevel}'s fragments have
+   * none* — they are a ranked array, and giving them ids would be a portable
+   * schema change made for a debugging affordance.
+   */
+  | {
+      kind: 'difficulty';
+      axis: 'difficulty' | 'directedness';
+      levelId: string;
+      fragmentIndex: number;
+    }
+  /**
    * The guidance slot — [06 §5.1]. `producer` because one slot has several
    * producers — the user's box, a rule's `giveGuidance`, a Narrative Director
    * push — and the workbench should say which.
@@ -210,7 +242,27 @@ export type BlockSource =
    * a session without one.
    */
   | { kind: 'preset'; blockId: string; presetId?: string }
-  | { kind: 'step'; stepId: string };
+  | { kind: 'step'; stepId: string }
+  /**
+   * **The engine's own JSON instruction** — [P7.4], for an endpoint that cannot
+   * be handed a schema.
+   *
+   * The one arm that is not content. Everything else here came from an object
+   * somebody authored or from the story so far; this is protocol — the same
+   * class of thing as `systemMessage: 'fold-into-first-user'`, the caller
+   * rewriting a request to suit what an endpoint can take. Since
+   * `openai-compatible` declares `supportsStructuredOutput: false` by default,
+   * this is the *ordinary* path for a self-hosted install rather than a fallback.
+   *
+   * **It is a block rather than a message spliced in below the record**, because
+   * `RenderedMessage.fromBlocks` is non-empty always: a message the block table
+   * cannot explain would make the workbench's account of a prompt quietly
+   * incomplete, on precisely the calls whose output is hardest to debug. It
+   * carries no identifier, because there is nothing to click through to — the
+   * schema it was composed from is the step's declaration, not an object in
+   * anybody's library.
+   */
+  | { kind: 'schema' };
 
 /**
  * A call's declared appetite — [06 §6]. `effects` and `verdict` are the two
@@ -413,6 +465,212 @@ export type StepFailureReason =
 /** Why a step did not run. [06 §6]'s three condition arms, from the other side. */
 export type StepSkipReason = 'cadence' | 'stage' | 'not-armed';
 
+/**
+ * ***Where in a text, and what it points at*** — [03 §8], [06 §8.2],
+ * [10 §13.1](../../../docs/design/10-ui-surfaces.md), built at [P7.7].
+ *
+ * **An overlay, never a rewrite.** 06 §8.2 is explicit: *"spans on the turn
+ * record — never a rewrite of the message text."* The prose a model wrote is
+ * what it wrote; what the engine understood about it sits beside it, and a
+ * reader that wanted neither can ignore the field entirely.
+ *
+ * *Built on `Span` from `matching.ts` rather than beside it*, which is
+ * [P7 §1.7]'s pricing: the scanner's three functions already produced the
+ * geometry anonymously, so **this is that plus a target** rather than a second
+ * shape with the same two numbers.
+ */
+export interface TextSpan extends Span {
+  /**
+   * Which text this indexes into — the turn stores two, separately.
+   *
+   * *This union is the turn's*, and 03 §8 says so: a different record supplies
+   * its own field names. It is why 06 §8.2's original four-field shape was
+   * ambiguous and now points here.
+   */
+  field: 'input' | 'output';
+  target: SpanTarget;
+  /**
+   * How the span came to be asserted — [10 §13.1].
+   *
+   * *"Rendered differently per method, because a tentative match that looks
+   * certain is worse than no highlighting."* `explicit` is a person having said
+   * so; `matched` is the scanner having found an alias; `proposed` is a model
+   * suggesting somebody the session does not have, which is the arm that must
+   * **offer** rather than create.
+   */
+  method: 'explicit' | 'matched' | 'proposed';
+  /** Only meaningful for `proposed`. */
+  confidence: number | null;
+}
+
+/**
+ * What a span points into — ***tagged, from the first span ever written***.
+ *
+ * **One arm at 1.0, and the tag is the whole point** ([13 §13], [P7 §1.7]).
+ * Write needs three consumers of one span shape — mentions, machine-written
+ * provenance and beat positions — and the second two are 2.0's, so adding them
+ * has to be an **arm rather than a migration**.
+ *
+ * ***A tag was required rather than merely tidy, and the reason is phantom
+ * types.*** [04 §3] makes a `Ref` `{ id, name, fingerprint? }`, so the `<Actor>`
+ * in `Ref<Actor>` is documentation that **erases into JSON**. A stored span
+ * whose `ref` had no `kind` would be a span that cannot say what it points at,
+ * and a reader added later could not tell an actor span from a beat span without
+ * guessing from context.
+ *
+ * *Shaped like {@link BlockSource} deliberately*: this codebase already has one
+ * tagged-reference vocabulary and does not need a second.
+ *
+ * ***The arm is named and the union is one line, which is a concession to two
+ * tools disagreeing and turned out to be the better shape anyway.*** A one-arm
+ * union written inline is a type alias for an object literal, which
+ * `consistent-type-definitions` rejects; written with a leading pipe to say
+ * *union*, Prettier removes the pipe and eslint rejects it again. Naming
+ * {@link ActorSpanTarget} settles it — and unlike making `SpanTarget` itself an
+ * `interface`, it keeps the growth story the paragraph above insists on: the
+ * second arm is `| BeatSpanTarget` on the line below, not an unpicking of a
+ * declaration that said *this is one shape*.
+ */
+export interface ActorSpanTarget {
+  kind: 'actor';
+  /** Somebody in the session's cast. */
+  ref: Ref;
+}
+
+export type SpanTarget = ActorSpanTarget;
+
+/**
+ * Why a hook is not eligible — a **class, not prose**.
+ *
+ * [06 §6.1](../../../docs/design/06-modes-and-turn-pipeline.md) wants an author
+ * to see *"which are blocked **and by what**"*, and this codebase's standing
+ * rule for a durable reason is the one progress events and `NotFilledReason` are
+ * held to: a reader maps a class to a sentence, and nothing grows another
+ * free-English field. Each arm is a different remedy, which is the test for
+ * whether it earns its place:
+ *
+ * - `fired` / `pending` — this hook already went. Nothing to do.
+ * - `book-inactive` — its lorebook is no longer in the session. Re-add the book.
+ * - `blocked` — a `blockedBy` hook has fired. Nothing to do; it is by design.
+ * - `too-early` — `notBefore`. Wait, or lower the bound.
+ * - `cast-gone` — an `involves` member is unresolvable, dead, or never met.
+ * - `subject-gone` — the subject of an introduction does not resolve. **The one
+ *   arm that is an authoring error rather than a state**:
+ *   [04 §6.1a](../../../docs/design/04-schemas.md) makes a dangling
+ *   `introduces.actor` *"a broken hook, not a retired one… ineligible with a
+ *   visible reason, and the author is told"*, where a dangling `involves` entry
+ *   retires a hook quietly. Same field type, opposite treatment.
+ * - `subject-met` — they are already introduced, which is the whole point of the
+ *   hook being spent.
+ * - `subject-unavailable` — dead, the persona, or already in the party.
+ *
+ * **Here rather than in the engine, because it is a record vocabulary** — [P7.5]
+ * stage three. It was written beside the filter that produces it and moved the
+ * moment the selector's line landed on a turn: a class the client renders is
+ * `shared`'s the same way `StepSkipReason` and `NotFilledReason` are, and a
+ * second copy of a nine-arm union is the thing that drifts.
+ */
+export type HookRefusal =
+  | 'fired'
+  | 'pending'
+  | 'book-inactive'
+  | 'blocked'
+  | 'too-early'
+  | 'cast-gone'
+  | 'subject-gone'
+  | 'subject-met'
+  | 'subject-unavailable';
+
+/**
+ * What the plot-hook selector did this turn — [06 §6.1], [P7 §1.5], [P7.5].
+ *
+ * ***A field of its own because a step's skip reason could not carry it, and
+ * that is the section's own argument rather than a shape convenience.***
+ * [06 §6.1]: *"A selector that returns early because of pacing is
+ * indistinguishable, from the outside, from one that ran and judged none — and
+ * a step's skip reason is derived from its condition, so it cannot carry this."*
+ * {@link StepSkipReason} is the closed set derived from `StepCondition`'s three
+ * arms — `cadence`, `stage`, `not-armed` — with no free-form member, and
+ * `contributed` counts blocks and effects without saying what they were. So this
+ * lands on the turn.
+ *
+ * **The standard is the one the assembler already meets** when it records why a
+ * slot was not filled ({@link NotFilledSlot}): every candidate accounted for,
+ * each with a class a reader can turn into a sentence. Without it *"which are
+ * blocked and by what"* is answerable in the abstract but never for the turn in
+ * front of you.
+ *
+ * *On the turn rather than in a channel, and the two are not competing.*
+ * `se.hook` is what **happened** to a hook and has to branch; this is what the
+ * selector **decided** on one turn, which is already a thing a turn record
+ * carries and which a channel would have to overwrite every turn to express.
+ */
+export interface HookSelection {
+  /**
+   * What the selector answered.
+   *
+   * `held` and `nothing-eligible` are separated because they are different
+   * remedies: *held* invites somebody to turn the dial up, and turning it up
+   * changes nothing when the pool is empty. `cooling` is separated from `held`
+   * for the same reason one rung down — waiting is the remedy, not the dial.
+   * `judged-none` means the call happened and answered *none*, which
+   * [06 §6.1] permits in as many words and which a correctly-quiet session must
+   * be distinguishable by.
+   */
+  verdict: 'held' | 'cooling' | 'nothing-eligible' | 'judged-none' | 'fired';
+  /**
+   * The dial as it stood at this node — [04 §6.1b]'s three rungs already
+   * resolved.
+   *
+   * Recorded rather than looked up later because the value branches: a reader
+   * asking *why was this turn quiet* a hundred turns on would otherwise get
+   * today's answer for a decision taken under a different one.
+   */
+  pacing: HookPacing;
+  /** The hook that fired. Present only on `fired`. */
+  hookId?: string;
+  /**
+   * **Every hook in the pool, refused or not** — *"nothing about a held hook may
+   * be invisible"*. Ids rather than hooks: the pool is on the session and a turn
+   * that copied premises into the record would be [08 §6]'s hidden content
+   * written into a file the workbench renders.
+   *
+   * `committed` is present when a person's Commit is carrying the hook, and its
+   * `overrode` is the clause that carried it past — [06 §6.1]'s first rule for
+   * keeping Commit honest: *"skipping the filter must say what it skipped"*.
+   * `null` there means there was nothing to skip.
+   */
+  considered: readonly {
+    hookId: string;
+    refusal: HookRefusal | null;
+    committed?: { overrode: HookRefusal | null };
+    /**
+     * Present when a person **force-fired** it — [06 §6.1]'s other hand control,
+     * and the one that means *no judgement call at all*. A `fired` verdict with
+     * this on the hook it names is the record saying nobody was asked; the same
+     * verdict without it is the record of a call that chose.
+     */
+    forced?: { overrode: HookRefusal | null };
+  }[];
+  /**
+   * Commitments that ran out of patience on this turn — [06 §6.1], [P7.5].
+   *
+   * ***A field of its own rather than a sixth verdict, because a lapse is not
+   * what the selector decided.*** Three turns pass, the hook goes back in the
+   * pool, and the selector still goes on to judge whatever else is eligible —
+   * so a turn can lapse a commitment **and** fire something, or lapse one and be
+   * held. A verdict that had to be one or the other would lose whichever it did
+   * not name.
+   *
+   * *It is here at all because [06 §6.1] requires it*: the deadline *"returns it
+   * to the pool and **says so**, because a silent lapse is worse than either
+   * outcome"* — worse than firing late and worse than waiting forever, both of
+   * which at least leave the person able to tell what happened. Absent is the
+   * ordinary turn; it is never written empty.
+   */
+  lapsed?: readonly string[];
+}
+
 export type StepStage = 'pre' | 'assemble' | 'generate' | 'extract' | 'post';
 
 /**
@@ -500,6 +758,28 @@ export interface ChannelEffect {
    * migration.
    */
   scope: 'session' | 'escaped';
+  /**
+   * Present when this effect is a **quarantine** — [06 §4.2], [P7.1].
+   *
+   * The last rung of the validate-coerce-migrate-quarantine ladder is *"preserve
+   * the raw value verbatim, initialise the channel to its default, mark it
+   * degraded, and carry on"*, and all four of those are writes. So a quarantine
+   * is an ordinary effect: `before` is the value that stopped fitting, `after`
+   * is the channel's declared `init`, and this says why.
+   *
+   * **A reason and not a raw value, because `before` already is the raw value.**
+   * `ChannelState.degraded` carries `{ reason, raw }` and `applyEffects` composes
+   * it from the two — duplicating the value here would create a second place for
+   * it to be wrong, and `before` is load-bearing on this effect anyway: it is
+   * what an undo replays, so a quarantine is reversible like everything else.
+   *
+   * **Why a field rather than a derivation.** `applyEffects` cannot tell a
+   * quarantine from any other engine set to the same value, and the difference
+   * is the whole of what a person needs told. The alternative considered was
+   * overloading `rejectedReason` on an applied effect, which would mean a
+   * record where *rejected* and *applied* are both true.
+   */
+  degraded?: { reason: string };
 }
 
 export type EffectOp =
@@ -548,6 +828,48 @@ export interface Turn {
   request?: TurnRequest;
   cost?: TurnCost;
   steps?: StepOutcome[];
+  /**
+   * What the plot-hook selector decided — [06 §6.1], [P7.5]. **Absent means the
+   * selector did not run**, which is every turn of a session with no hook pool
+   * and every turn taken by a build before P7.5; it never means *it ran and had
+   * nothing to say*, which is what `nothing-eligible` is for.
+   */
+  hooks?: HookSelection;
+  /**
+   * What the player could do next — [06 §7.3]'s *suggested actions*,
+   * [R11](../../../docs/design/workplan/22-walkthrough-refinements.md), [P7.9].
+   *
+   * ***On the turn, which is a persisted-shape decision rather than a
+   * convenience*** — and [22 §4] says why it had to be made now rather than
+   * later: *"R11's 'save unselected suggestions' is a persisted-shape
+   * requirement, and that puts it on the critical path to P11's export freeze."*
+   * The fork it names is *"generate them inside the turn as a `post` step, or
+   * store them on the mutable half beside `lastSelectedChild`"*, and this is the
+   * first: a suggestion is a **reading of one turn's ending**, so it belongs to
+   * that turn the way `spans` and `hooks` do. A rewind takes it back, a branch
+   * inherits it, and *kept, unselected* needs no mechanism because an
+   * append-only record keeps what it recorded.
+   *
+   * **Absent means the step did not run** — the session has them off, or this
+   * build predates them. It never means *it ran and offered nothing*, which is
+   * the distinction every optional field on this record draws.
+   *
+   * *Strings and not ids.* A suggestion is text a player submits as their own
+   * input, so selecting one is typing it faster rather than referring to it —
+   * and an id would imply a thing to look up that the record does not have.
+   */
+  suggestions?: string[];
+  /**
+   * What the engine understood about the turn's text — [03 §8], [06 §8.2],
+   * [P7.7].
+   *
+   * **Absent rather than empty when the extract step did not run**, which is
+   * every turn taken before P7.7 and every turn of a session with no cast to
+   * resolve against. *Empty* would claim a pass ran and found nothing, which is
+   * a different fact and one a reader of [10 §13.1]'s overlay acts on
+   * differently.
+   */
+  spans?: TextSpan[];
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;

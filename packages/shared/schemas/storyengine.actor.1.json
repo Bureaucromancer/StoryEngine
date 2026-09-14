@@ -373,6 +373,10 @@
               {
                 "const": "gallery",
                 "type": "string"
+              },
+              {
+                "const": "background",
+                "type": "string"
               }
             ]
           },
@@ -530,6 +534,10 @@
               },
               {
                 "const": "gallery",
+                "type": "string"
+              },
+              {
+                "const": "background",
                 "type": "string"
               }
             ]

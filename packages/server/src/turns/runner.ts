@@ -6,6 +6,7 @@ import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
+import { randomOver } from '../rng/random.js';
 import { Rng, type Tape } from '../rng/rng.js';
 import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
@@ -13,11 +14,13 @@ import type {
   ChannelEffect,
   ChannelState,
   ModelCall,
+  PooledHook,
   StepFailureReason,
   StepOutcome,
   Turn,
   TurnCost,
 } from '../sessions/types.js';
+import type { CastMember } from './cast.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
   callFinished,
@@ -36,11 +39,19 @@ import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
+import { extractMentions, type ExtractReport } from './extract.js';
+import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
+import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
+import type { Mentionable } from './mentions.js';
+import { hookSelector, type HookSelectorReport } from './hook-selector.js';
+import { readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
+import { SE_GOAL } from '../sessions/goals.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
-import { planFor } from '../modes/registry.js';
-import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
+import { planFor, setupPlanFor } from '../mode-registry.js';
+import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
+import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
 
 /**
  * The step loop — [P2 §2.5], [P2 §2.10], [06 §6].
@@ -60,6 +71,21 @@ import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 export interface TurnPayload {
   input?: { actorId: string | null; kind: string; text: string; raw: string };
+  /**
+   * This is the session's **setup** turn — [06 §7.3], [P7.4].
+   *
+   * The mode's declared parts run instead of its steps. In memory rather than on
+   * the job, like `replay` and `attempt` beside it: the route knows because it
+   * is the route that just created the session, and a flag on the reservation
+   * would be a persisted field whose only reader is the next few milliseconds.
+   *
+   * *What that costs is stated rather than hidden: a job recovered after the
+   * process died between reservation and run loses this, and would run the
+   * ordinary plan. It is the same exposure `replay` already has, and the
+   * recovery path's answer to a turn it cannot reconstruct is the one place to
+   * fix it for all three.*
+   */
+  setup?: boolean;
   /** The guidance box. Its own field, never concatenated into the action ([06 §5.1]). */
   guidance?: string;
   /**
@@ -342,6 +368,49 @@ export class TurnRunner {
     const calls: ModelCall[] = [];
     const effects: ChannelEffect[] = [];
     /**
+     * What the plot-hook selector decided, and the words a firing sends —
+     * [06 §6.1], [P7.5].
+     *
+     * **A cell the runner owns, filled by a callback, because neither value can
+     * travel through `StepResult`.** The record line is a turn field and
+     * widening the step contract with one would let any mode write it; the
+     * guidance text is the thing a step may specifically not hand back
+     * ([06 §5.2]), and it has to reach `collectCandidates` so the fired hook
+     * lands in the slot the preset positioned rather than after everything else
+     * ([25 C13(c)]). *The callback is engine code handed to engine code — the
+     * selector is the one step `planFor` does not build.*
+     */
+    const hooks: { report: HookSelectorReport | null } = { report: null };
+    /**
+     * What the goal judge answered — [06 §7.3.3], [P7.6]. A cell for the same
+     * reason the selector's is one: `se.goal` is `model-proposed` and what the
+     * *session* does about an achievement is the engine's to decide, so the step
+     * reports and the runner writes.
+     */
+    const goals: { report: GoalJudgeReport | null } = { report: null };
+    /**
+     * What the extract pass understood about the turn's text — [06 §8.2],
+     * [P7.7]. The overlay lands on the turn record and the introduction verdict
+     * decides a hook's fate, so like the two cells above it this is the engine's
+     * to read rather than the step's to write.
+     */
+    const extracted: { report: ExtractReport | null } = { report: null };
+    /**
+     * What the suggestion step offered — [R11], [P7.9]. Same cell shape as the
+     * three above.
+     *
+     * ***Declared here rather than beside the step that fills it***, which is
+     * why all four are together: `write()` closes over every one of them to
+     * build the checkpoint draft, and it runs before the plan is assembled. A
+     * declaration further down is a **temporal dead zone** the compiler is happy
+     * with and the first turn is not — `Cannot access 'suggested' before
+     * initialization`, thrown out of the checkpoint, caught as *unstartable*,
+     * and recorded as a failed turn with no request on it. Found at [P7.9] by
+     * 141 route tests going red at once, and cheap to reintroduce, which is what
+     * this paragraph is for.
+     */
+    const suggested: { report: SuggestReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -373,6 +442,29 @@ export class TurnRunner {
       }
       draft.steps = steps;
       draft.effects = effects;
+      /**
+       * **Absent rather than empty when the pass did not run** — [03 §8]'s
+       * distinction, and the one [10 §13.1]'s overlay acts on: *empty* claims a
+       * pass ran and found nobody, which is a different fact from *nobody
+       * looked*.
+       */
+      if (extracted.report !== null && extracted.report.spans.length > 0) {
+        draft.spans = extracted.report.spans;
+      }
+      // Absent means the selector did not run, which is every session with no
+      // hook pool — never *it ran and had nothing to say*, which is what the
+      // `nothing-eligible` verdict is for.
+      if (hooks.report !== null) draft.hooks = hooks.report.selection;
+      /**
+       * **Absent rather than empty when nothing ran** — the distinction `spans`
+       * draws two lines up and for the same reason: *empty* claims the step ran
+       * and the model offered nothing, which is a different fact from *the
+       * session has suggestions turned off*. [R11] wants the unselected kept,
+       * and keeping an empty list is not keeping anything.
+       */
+      if (suggested.report !== null && suggested.report.actions.length > 0) {
+        draft.suggestions = [...suggested.report.actions];
+      }
       // Only once something was assembled — [P3.0], and the record's own
       // docstring: *absent* means this never happened, and an empty `request`
       // on a turn that failed before assembly is a record claiming a prompt
@@ -437,6 +529,46 @@ export class TurnRunner {
     }
 
     /**
+     * **Who talks this turn** — [06 §7.2]'s participant policy, [P7.3].
+     *
+     * **Once per turn and before the loop**, for two reasons that pull the same
+     * way. A selection is a fact about the turn rather than about a step, so two
+     * steps must not be able to disagree about who is speaking; and `pooled`
+     * draws, so computing it per step would put a different number of draws on
+     * the tape depending on how many steps the plan happened to run — which is
+     * a replay that diverges for a reason nobody could see.
+     *
+     * *The site is the selector's own, so a `pooled` mode's draw sits beside the
+     * retriever's and the dice on one tape, under a name a person reading a
+     * replay can recognise.*
+     */
+    const spoken = lastProse(history);
+    /**
+     * The wizard's answers, narrowed once — [P7.4]. `mode.config` is `unknown`
+     * because [06 §1] keeps it opaque to the host, and a hand-edited session can
+     * hold anything there; a step is handed a record or nothing.
+     */
+    const declared: unknown = inputs.session?.mode?.config;
+    const answers =
+      typeof declared === 'object' && declared !== null && !Array.isArray(declared)
+        ? (declared as Record<string, unknown>)
+        : undefined;
+    const speakers = selectsSpeakers(mode.definition.participants)
+      ? selectSpeakers({
+          policy: mode.definition.participants,
+          actors: cast.actors,
+          persona: cast.persona?.actor.id ?? null,
+          channels: running,
+          depth: history.length,
+          draw: rng.at('se.participants', 'speaker'),
+          ...(payload.input === undefined
+            ? {}
+            : { input: { actorId: payload.input.actorId, text: payload.input.text } }),
+          ...(spoken === undefined ? {} : { lastProse: spoken }),
+        })
+      : undefined;
+
+    /**
      * Candidates the *steps* contributed, kept outside the loop.
      *
      * The preset's own are re-collected per call, because a block's
@@ -448,9 +580,195 @@ export class TurnRunner {
     const contributed: Candidate[] = [];
 
     let aborted = false;
-    const plan = this.#options.plan ?? planFor(mode);
+    /**
+     * **The setup turn runs the mode's parts instead of its steps** — [06 §7.3],
+     * [P7.4].
+     *
+     * A session whose mode declares generated parts makes them on its first
+     * turn, which is what lets [06 §7.3]'s *"separate validated generations,
+     * each individually retryable, applied as they succeed"* be the step loop
+     * rather than a second pipeline beside it: every clause of that sentence is
+     * already a property of this loop.
+     *
+     * *`this.#options.plan` still wins, because a test that supplied a plan
+     * asked for that plan.*
+     */
+    const declaredPlan =
+      this.#options.plan ?? (payload.setup === true ? setupPlanFor(mode) : planFor(mode));
 
-    for (const { definition, run } of plan.steps) {
+    /**
+     * **The plot-hook selector, prepended** — [06 §6.1], [P7.5].
+     *
+     * *The one step `planFor` cannot build*, because it reads the session's hook
+     * pool and a pool is assembled from a treatment, its lorebooks and the
+     * session's own hooks ([03 §4.1]) — none of which is a mode. The same
+     * argument that registers `se.hook` and `se.hook.pacing` in `mode-loader`
+     * rather than in Scene's declaration, one level up.
+     *
+     * **First, and that is what buys the guidance slot.** Step candidates are
+     * appended after the preset's, so a fired hook returned as a candidate would
+     * arrive at the end of the prompt instead of where the author positioned
+     * guidance — [25 C13(c)], and §1.5 raised it as the thing that had no
+     * answer. Running before every other step means the words are in hand by the
+     * time any of them assembles, and `collectCandidates` fills the slot
+     * properly.
+     *
+     * **An empty pool means no selector at all**, which is also why this applies
+     * to a supplied plan and does not contradict *a test that supplied a plan
+     * asked for that plan*: the selector is in no mode's plan either way, and a
+     * test that wants one seeds the session's hooks. *And never on a setup turn
+     * — [06 §7.3]'s parts run before the session has a first turn, and a pool
+     * judged against no history would fire its opening beat into a prompt that
+     * has not happened yet.*
+     */
+    /**
+     * **The goal judge, appended** — [06 §7.3.3], [P7.6], and the second
+     * engine-owned step. `post`, so it runs after the prose exists: the selector
+     * asks about the turn that is about to happen and this asks about the one
+     * that just did.
+     *
+     * **Only for a `narrative` goal.** [04 §7.1]'s other arm is `manual` — *the
+     * player says when* — and a call that judged a manual goal would be the
+     * engine asking a question the author reserved for a person. *And never on a
+     * concluded session*: [06 §7.3.4] keeps an ended story readable and
+     * branchable, not running.
+     */
+    const judging =
+      payload.setup !== true &&
+      !inputs.goals.concluded &&
+      inputs.goals.current !== null &&
+      inputs.goals.current.completion.kind === 'narrative';
+
+    const selects = payload.setup !== true && inputs.hooks.pool.length > 0;
+    const plan: TurnPlan = selects
+      ? {
+          steps: [
+            hookSelector({
+              pool: inputs.hooks.pool,
+              filter: {
+                known: inputs.hooks.known,
+                activeBooks: new Set(inputs.lore.books.map((book) => book.id)),
+                persona: cast.persona?.actor.id ?? null,
+              },
+              pacing: readPacing(running, {
+                ...(isRecord(inputs.session?.setup) ? { setup: inputs.session.setup } : {}),
+                ...(isRecord(inputs.lore.treatment?.treatment)
+                  ? { treatment: inputs.lore.treatment.treatment }
+                  : {}),
+              }),
+              report: (report) => {
+                hooks.report = report;
+              },
+            }),
+            ...declaredPlan.steps,
+          ],
+        }
+      : declaredPlan;
+
+    /**
+     * **The mention pass, after the prose and before the judge** — [06 §8.2],
+     * [P7.7], and the third engine-owned step.
+     *
+     * *Every turn with somebody to find*, which is the cast plus any subject an
+     * introduction hook is trying to bring in — [06 §6.1] is explicit that a
+     * firing *"contributes the subject's card for that turn and adds their
+     * aliases to the shared keyword scan"*, and a subject who is not in the cast
+     * is exactly the one the scan must not miss on the one turn it matters.
+     */
+    const pendingHooks = provisionalHooks(inputs.hooks.pool, running);
+    /**
+     * *Whether there is anybody findable at all*, which is what decides whether
+     * the step joins the plan — as against **who**, which is settled inside it
+     * because the selector has not run yet.
+     */
+    const findable =
+      cast.persona !== null ||
+      cast.actors.length > 0 ||
+      inputs.hooks.pool.some((entry) => entry.hook.introduces !== undefined);
+
+    const withExtract: TurnPlan =
+      payload.setup !== true && findable
+        ? {
+            steps: [
+              ...plan.steps,
+              extractMentions({
+                subjects: () => {
+                  const introducing = pendingIntroduction(hooks, inputs.hooks.pool);
+                  return {
+                    cast: castTerms(
+                      cast,
+                      introducing,
+                      pendingHooks,
+                      inputs.hooks.pool,
+                      inputs.hooks.terms,
+                    ),
+                    introducing,
+                    pending: pendingHooks,
+                  };
+                },
+                report: (report) => {
+                  extracted.report = report;
+                },
+              }),
+            ],
+          }
+        : plan;
+
+    const withJudge: TurnPlan =
+      judging && inputs.goals.current !== null
+        ? {
+            steps: [
+              ...withExtract.steps,
+              goalJudge({
+                goal: inputs.goals.current,
+                report: (report) => {
+                  goals.report = report;
+                },
+              }),
+            ],
+          }
+        : withExtract;
+
+    /**
+     * ***What the player could do next*** — [06 §7.3]'s *suggested actions*,
+     * [R11], [P7.9]. See `turns/suggest.ts` for why they land on the turn.
+     *
+     * **Appended after the judge**, which is the ordering the two steps want
+     * rather than an accident: a turn that just completed a goal is a turn whose
+     * suggestions should be read against a story that has ended or moved on, and
+     * a `post` stage runs its steps in declaration order.
+     *
+     * ***The toggle keeps the step out of the plan rather than idling it***, and
+     * the first draft had it the other way — the step always present, returning
+     * early when the session had suggestions off, the way [P7.5]'s pacing gate
+     * sits inside the selector. That is right for pacing and wrong here, for a
+     * reason the two do not share: **a held selector is a thing that happened**
+     * and its skip is the record a player reads to understand a quiet session,
+     * where a suggestion step nobody asked for has nothing to report. Leaving it
+     * in would put an `ok` row contributing nothing on every turn of every
+     * session in the build, which is a step outcome that means *this feature
+     * exists* rather than anything about the turn.
+     *
+     * *The step still holds its own gate*, because `enabled` is read here and a
+     * plan assembled elsewhere could disagree with it — the belt the selector
+     * wears for the same reason.
+     */
+    const suggesting = payload.setup !== true && readSuggesting(running);
+    const withSuggest: TurnPlan = suggesting
+      ? {
+          steps: [
+            ...withJudge.steps,
+            suggest({
+              enabled: true,
+              report: (report) => {
+                suggested.report = report;
+              },
+            }),
+          ],
+        }
+      : withJudge;
+
+    for (const { definition, run } of withSuggest.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath: history.length,
         stages: new Set<string>(),
@@ -496,12 +814,25 @@ export class TurnRunner {
             sessionId: job.sessionId,
             parentTurnId: job.parentTurnId,
             ...(payload.input === undefined ? {} : { input: payload.input }),
+            ...(speakers === undefined ? {} : { speakers }),
+            // `mode.config` is where the wizard's answers live ([P7.4]) — a
+            // step reads them as `setup`, which is the mode's word for its own
+            // declaration, and the record's word is `config`.
+            ...(answers === undefined ? {} : { setup: answers }),
+            /**
+             * Who is in the scene and what pictures travel with them — [P7.12].
+             * `filterReads` drops it for a step that did not declare `cast`, so
+             * this is the whole cast and the filter is where it narrows.
+             */
+            cast: castEntries(cast),
             channels: running,
             history,
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),
           }),
           {
-            rng,
+            // The host's `random`, not the turn's `Rng` — the same tape and the
+            // same keys, behind the async seam a mode package can be given.
+            random: randomOver(rng),
             signal,
             call: async (request) => {
               /**
@@ -516,33 +847,78 @@ export class TurnRunner {
                * The effects it proposes are collected into `loreEffects` and
                * committed with the step's own, because only a step may propose
                * one and this is inside a step's `call`.
+               *
+               * ***Not at all when the step brought its own candidates***, which
+               * is [P7.5] and is a correctness fix rather than a saving.
+               * `performCall` already knows what this case means — it zeroes
+               * `notFilled` and `refused` because *"a step supplied its own
+               * candidates: the preset was not consulted, so it honestly has
+               * nothing to say"* — but the retriever ran anyway, so a scan whose
+               * blocks were then discarded still **moved every matched entry's
+               * cooldown**. That is a lorebook entry recorded as having fired on
+               * a turn where its text reached no prompt, which is exactly the
+               * claim [P5.6]'s counters exist to make truthfully.
+               *
+               * *Nothing hit it before the plot-hook selector, which is the
+               * first step in the build to pass `candidates` — and it passes
+               * them for the reason [06 §6.1] gives: the judgement call is meant
+               * to be **cheap**, and the accumulated prompt is the whole scene.*
                */
-              const lore = retrieve({
-                lore: inputs.lore,
-                preset,
-                history,
-                channels: running,
-                persona: cast.persona,
-                actors: cast.actors,
-                callKind: definition.callKind,
-                rng,
-                ...(payload.input === undefined ? {} : { input: payload.input }),
-              });
-              loreEffects.push(...lore.effects);
+              const brought = request.candidates !== undefined;
+              const lore = brought
+                ? null
+                : retrieve({
+                    lore: inputs.lore,
+                    preset,
+                    history,
+                    channels: running,
+                    persona: cast.persona,
+                    actors: cast.actors,
+                    callKind: definition.callKind,
+                    rng,
+                    ...(payload.input === undefined ? {} : { input: payload.input }),
+                  });
+              if (lore !== null) loreEffects.push(...lore.effects);
 
-              const fromPreset = collectCandidates({
-                preset,
-                callKind: definition.callKind,
-                history: windowed,
-                persona: cast.persona,
-                actors: cast.actors,
-                channels: running,
-                lore: lore.blocks,
-                carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
-                ...(payload.input === undefined ? {} : { input: payload.input }),
-                ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
-                ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
-              });
+              const fromPreset = brought
+                ? { candidates: [], notFilled: [] }
+                : collectCandidates({
+                    preset,
+                    callKind: definition.callKind,
+                    // What the player did, for a preset's per-kind block —
+                    // [13 §8.3], [P7.9]. Absent on a call with no submission
+                    // behind it, which is what keeps a `say` block off a judge.
+                    ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
+                    history: windowed,
+                    persona: cast.persona,
+                    actors: cast.actors,
+                    channels: running,
+                    lore: lore?.blocks ?? [],
+                    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
+                    ...(payload.input === undefined ? {} : { input: payload.input }),
+                    ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
+                    // [06 §5.1]'s second producer, filled by the selector that ran
+                    // before this loop reached any step that assembles.
+                    ...(hooks.report?.guidance === undefined
+                      ? {}
+                      : { hookGuidance: hooks.report.guidance }),
+                    // [06 §7.3.3]'s *always injected*, resolved by the gather so
+                    // a preview and a turn cannot disagree about which goal.
+                    ...(inputs.goals.current === null
+                      ? {}
+                      : {
+                          goal: {
+                            id: inputs.goals.current.id,
+                            statement: inputs.goals.current.statement,
+                          },
+                        }),
+                    // [06 §7.3.1]'s two dials, resolved by the gather for the
+                    // reason the goal is: the authored rung runs through
+                    // `mode.config` and the level is looked up in the pack, and
+                    // neither is in the collector's hand.
+                    dials: inputs.dials,
+                    ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
+                  });
 
               const outcome = await performCall(
                 {
@@ -550,12 +926,30 @@ export class TurnRunner {
                   bindings,
                   defaults,
                   usable,
+                  /**
+                   * **[19 §5.1]'s third and fourth layers, passed at last** —
+                   * [P7 §1.9], [P7.3]. `resolveRole` has implemented both since
+                   * P2B and nothing outside a test had ever handed them over, so
+                   * the documented layering described a function rather than
+                   * what runs. This is the line that makes the two the same.
+                   */
+                  ...(inputs.session?.roles === undefined
+                    ? {}
+                    : { sessionRoles: inputs.session.roles }),
+                  ...(inputs.session?.stepRoles === undefined
+                    ? {}
+                    : { stepRoles: inputs.session.stepRoles }),
+                  // So a call naming an actor can be resolved with that actor's
+                  // hint — [19 §5.1]'s last layer, [P7 §1.9]. The cards, not the
+                  // hints: a step passes an id and cannot pass a preference its
+                  // actor does not hold.
+                  cast,
                   providers: this.#options.providers,
                   config,
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
                   notFilled: fromPreset.notFilled,
-                  refused: lore.refused,
+                  ...(lore === null ? {} : { refused: lore.refused }),
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
@@ -759,6 +1153,7 @@ export class TurnRunner {
             stepId: definition.id,
             reason,
             message: messageOf(error),
+
             ...(error instanceof CallFailed
               ? {
                   class: error.class,
@@ -784,6 +1179,183 @@ export class TurnRunner {
           break;
         }
       }
+    }
+
+    /**
+     * **A fired hook and a lapsed commitment, after the loop and not as a
+     * step** — [06 §6.1], [P7.5], and the same rule the clock states below.
+     *
+     * `se.hook` is `engine-computed` because *a firing is the selector's
+     * decision and a model proposing one would be a hook firing itself*; the
+     * refusal covers a `step` proposal too, so the selector reports the firing
+     * and the engine computes it. **Measured rather than reasoned to**: the step
+     * proposed it first and `acceptEffect` recorded `applied: false`,
+     * `rejectedReason: 'engine-computed'` — the policy working on the first
+     * thing that tried it.
+     *
+     * *Before the clock, because it is the story's and the clock is
+     * bookkeeping* — the same ordering the retriever's counters get for the
+     * mirror-image reason.
+     */
+    if (!aborted && hooks.report !== null) {
+      /**
+       * **The lapses first, because one of them may be the hook that fired.**
+       * A commitment that ran out of patience goes back in the pool, and the
+       * selector re-filtered against that; applying the firing first and then
+       * deleting the key would clear the state it had just written. Ordering
+       * them is cheaper than special-casing the overlap.
+       *
+       * ***A set to null rather than a delete, and on this channel those are
+       * the same claim.*** `store.ts`'s `inverseOf` draws the distinction
+       * sharply — a key present holding null can mean *something happened and
+       * the record of it is broken* — but that argument is about a timing
+       * counter whose init is an object. `se.hook` declares
+       * `init: { kind: 'literal', value: null }`, so **null is what *in the pool*
+       * resolves to** and a reader cannot tell the two apart even in principle.
+       *
+       * *And `acceptEffect` admits only a whole-value set*, deliberately: every
+       * partial op is a reducer the P6 gate would have to be re-proved against,
+       * and [P7 §0.2] item 6 records the decision to add an arm only when a
+       * channel can say why its value cannot be scoped instead. This one cannot
+       * say that, because it does not need to.
+       */
+      for (const hookId of hooks.report.lapses ?? []) {
+        const effect = acceptEffect(
+          job.turnId,
+          {
+            channelId: SE_HOOK,
+            scopeKey: hookId,
+            op: { type: 'set', path: '/' },
+            after: null,
+            proposedBy: { kind: 'engine' },
+          },
+          running,
+        );
+        effects.push(effect);
+        running = applyEffects(running, [effect]);
+      }
+
+      if (hooks.report.fired !== undefined) {
+        const { hookId, state } = hooks.report.fired;
+        /**
+         * ***The extract pass decides what a provisional firing becomes*** —
+         * [06 §6.1], [P7.7], and this closes [P7.5]'s fourth property row.
+         *
+         * *"Recorded provisionally fired, and becomes fired only when the
+         * extract stage confirms the subject present on that turn;
+         * unconfirmed, it returns to the pool with the attempt on the
+         * record."* So: confirmed writes `fired`; **unconfirmed writes
+         * nothing**, which is what *returns to the pool* is — and the attempt
+         * is on the record either way, in the turn's own `hooks` line saying it
+         * fired and naming the hook.
+         *
+         * **`provisional` is what a turn that could not answer leaves behind**,
+         * which is the one path that still writes it: the extract step is
+         * `failure: 'warn'`, so a pass that threw leaves the firing unresolved
+         * rather than silently confirmed — the under-firing direction — and the
+         * next turn's pass resolves it through `ExtractReport.resolved`.
+         */
+        const verdict = state === 'provisional' ? (extracted.report?.introduced ?? null) : null;
+        const after =
+          state !== 'provisional'
+            ? state
+            : verdict === null
+              ? 'provisional'
+              : verdict.confirmed
+                ? 'fired'
+                : null;
+
+        if (after !== null) {
+          const effect = acceptEffect(
+            job.turnId,
+            {
+              channelId: SE_HOOK,
+              scopeKey: hookId,
+              op: { type: 'set', path: '/' },
+              after,
+              proposedBy: { kind: 'engine' },
+            },
+            running,
+          );
+          effects.push(effect);
+          running = applyEffects(running, [effect]);
+        }
+      }
+
+      /**
+       * Provisional firings from earlier turns, resolved — the recovery path.
+       * Confirmed if the subject turned up now; otherwise back in the pool,
+       * because a hook the filter refuses as `pending` forever is worse than
+       * one that lost its moment.
+       */
+      for (const one of extracted.report?.resolved ?? []) {
+        const effect = acceptEffect(
+          job.turnId,
+          {
+            channelId: SE_HOOK,
+            scopeKey: one.hookId,
+            op: { type: 'set', path: '/' },
+            after: one.confirmed ? 'fired' : null,
+            proposedBy: { kind: 'engine' },
+          },
+          running,
+        );
+        effects.push(effect);
+        running = applyEffects(running, [effect]);
+      }
+    }
+
+    /**
+     * **A goal met, after the loop** — [06 §7.3.3], [P7.6], [25 C12].
+     *
+     * ***Attributed to the **model**, which is the one thing that makes
+     * `model-proposed` mean anything here.*** The policy exists because
+     * [06 §7.3.3] says *"the narrator's judgement is the only signal
+     * available"* — so the record has to say a model judged this, with the call
+     * it judged it in. A step attribution would have been true of the plumbing
+     * and false about the decision. (`se.goal` is not the *first*
+     * `model-proposed` channel — three cast channels have carried the policy
+     * since [P3.0] — it is the first one a model's judgement is written to.)
+     *
+     * ***And it is expected to be refused.*** `se.goal` declares
+     * `confirm: ['achieved']`, so this proposal normally lands
+     * `applied: false, rejectedReason: 'needs-confirmation'`: recorded on the
+     * turn, changing nothing, surfaced by the goal panel for a person to rule
+     * on. `applyEffects` skips an unapplied effect, so the line below is a
+     * deliberate no-op on the ordinary path and is kept because the path where
+     * it is not — a mode that redeclares the channel without `confirm` — must
+     * not silently leave `running` stale for the clock write underneath it.
+     *
+     * *The fallback is `step` rather than `engine`, and that is the gate rather
+     * than tidiness.* `confirm` is checked for `model` and `step` only, so an
+     * `engine` stamp here would have been a **bypass**: a judged completion
+     * applying itself unasked on the one path where `calls` came back empty.
+     * `step` is also the truer claim — with no call to point at, what is known
+     * is that the judge step reported it.
+     *
+     * *Written by the runner rather than proposed by the step* for the reason
+     * the firing is: what an achievement **means** for the session — which
+     * offers to raise, whether anything moves — is the engine's, and
+     * [06 §7.3.4] is explicit that none of it happens without asking.
+     */
+    if (!aborted && goals.report?.met === true) {
+      const judged = calls.at(-1);
+      const effect = acceptEffect(
+        job.turnId,
+        {
+          channelId: SE_GOAL,
+          scopeKey: goals.report.goalId,
+          op: { type: 'set', path: '/' },
+          after: 'achieved',
+          proposedBy:
+            judged === undefined
+              ? { kind: 'step', stepId: GOAL_JUDGE_STEP.id }
+              : { kind: 'model', callId: judged.id },
+        },
+        running,
+      );
+      effects.push(effect);
+      running = applyEffects(running, [effect]);
     }
 
     /**
@@ -929,4 +1501,143 @@ function failureShape(error: unknown): Record<string, unknown> {
     message: messageOf(error),
     ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
   };
+}
+
+/**
+ * A plain object, for the two authored values the pacing dial layers over.
+ *
+ * Both reach here as `unknown`: a Setup is stored on the session record and a
+ * treatment comes back from a resolver that never throws, so a hand-edited file
+ * puts a string or a number in either. `readPacing` validates the level itself;
+ * this is only what makes the property access legal.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The introduction this turn fired, if it fired one — [06 §6.1], [P7.7].
+ *
+ * Read off the selector's report rather than off channel state, because the
+ * firing has not been applied yet: the runner writes it after the loop, and the
+ * extract step runs inside it.
+ */
+function pendingIntroduction(
+  hooks: { report: HookSelectorReport | null },
+  pool: readonly PooledHook[],
+): { hookId: string; actorId: string } | null {
+  const fired = hooks.report?.fired;
+  if (fired?.state !== 'provisional') return null;
+  const subject = pool.find((entry) => entry.hook.id === fired.hookId)?.hook.introduces?.actor.id;
+  return subject === undefined ? null : { hookId: fired.hookId, actorId: subject };
+}
+
+/**
+ * Provisional firings already on the record — the recovery path [P7.7]'s
+ * `ExtractReport.resolved` exists for.
+ *
+ * A firing is confirmed on its own turn; one whose turn could not answer would
+ * otherwise sit `pending` forever, because the filter refuses it and nothing
+ * else looks at it again.
+ */
+function provisionalHooks(
+  pool: readonly PooledHook[],
+  channels: Readonly<Record<string, ChannelState>>,
+): { hookId: string; actorId: string }[] {
+  const out: { hookId: string; actorId: string }[] = [];
+  for (const entry of pool) {
+    if (readHookState(channels, entry.hook.id) !== 'provisional') continue;
+    const subject = entry.hook.introduces?.actor.id;
+    if (subject !== undefined) out.push({ hookId: entry.hook.id, actorId: subject });
+  }
+  return out;
+}
+
+/**
+ * Everybody the scan should look for, and the surface forms that name them.
+ *
+ * ***The cast, plus the subject of any introduction in flight*** — [06 §6.1]:
+ * a firing *"contributes the subject's card for that turn and adds their aliases
+ * to the shared keyword scan… the scan is the third consumer of the one pass,
+ * which is the argument for having built it as a pass rather than a lorebook
+ * feature."* A subject who is not in the cast is precisely the one the scan must
+ * not miss **on the one turn it matters**.
+ *
+ * *The subject's own card is not loaded here*: `resolveCast` unions the roster
+ * with whoever the channels name, so an actor who has arrived is already in
+ * `cast`. What this adds is the name the hook itself carries, which is enough to
+ * find them in the prose and is all the confirmation needs.
+ */
+function castTerms(
+  cast: { persona: CastMember | null; actors: CastMember[] },
+  introducing: { hookId: string; actorId: string } | null,
+  pending: readonly { hookId: string; actorId: string }[],
+  pool: readonly PooledHook[],
+  terms: ReadonlyMap<string, string[]>,
+): Mentionable[] {
+  const out = new Map<string, Mentionable>();
+  for (const member of [...(cast.persona === null ? [] : [cast.persona]), ...cast.actors]) {
+    out.set(member.actor.id, {
+      actorId: member.actor.id,
+      name: member.actor.name,
+      terms: [member.actor.name, ...member.actor.aliases],
+    });
+  }
+
+  for (const entry of pool) {
+    const subject = entry.hook.introduces?.actor;
+    if (subject === undefined) continue;
+    // Only the ones in flight: a pool of thirty introductions would otherwise
+    // put thirty names into every turn's scan for arrivals that are not
+    // happening, which is a highlight claiming somebody is here who is not.
+    const inFlight =
+      introducing?.actorId === subject.id || readHookState({}, entry.hook.id) === 'provisional';
+    if (!inFlight || out.has(subject.id)) continue;
+    /**
+     * ***The card's aliases, not just the `Ref`'s name*** — [06 §6.1] requires
+     * exactly this, and the reason is the failure without it: a hook naming
+     * *Vera Kohl* over prose that says *Vera came in* finds nothing, and a
+     * provisional firing the narrator honoured is recorded as declined.
+     *
+     * *Measured rather than reasoned to.* The `Ref` carries a name and nothing
+     * else, and the gather already reads the card to answer whether the subject
+     * resolves — so the aliases were one field away on a read that was already
+     * happening.
+     */
+    out.set(subject.id, {
+      actorId: subject.id,
+      name: subject.name,
+      terms: terms.get(subject.id) ?? [subject.name],
+    });
+  }
+  return [...out.values()];
+}
+
+/**
+ * The cast as a step sees it — [P7.12], and the manifest rather than the bytes.
+ *
+ * *Deliberately not the `Actor`.* A card is prose, sections, provenance and
+ * forty fields; a step that wanted a name would be handed all of it, and the
+ * payload filter would stop meaning anything. What crosses is what a step can
+ * act on: who somebody is, and what pictures travel with them.
+ *
+ * **The persona is in it.** [P3.0]'s rule — *the persona is an actor too* — and
+ * a mode staging a scene has no reason to leave the player's own character out
+ * of it.
+ */
+function castEntries(cast: {
+  persona: CastMember | null;
+  actors: readonly CastMember[];
+}): CastEntry[] {
+  const everyone = cast.persona === null ? cast.actors : [cast.persona, ...cast.actors];
+  return everyone.map((member) => ({
+    actorId: member.actor.id,
+    name: member.actor.name,
+    kind: 'actors',
+    media: member.actor.media.map((one) => ({
+      id: one.id,
+      role: one.role,
+      ...(one.label === undefined ? {} : { label: one.label }),
+    })),
+  }));
 }

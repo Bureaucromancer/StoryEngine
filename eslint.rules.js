@@ -274,11 +274,40 @@ const INTL_MESSAGE =
   'a format assembled from parts bakes in one (docs/design/19-tech-stack.md ' +
   '§12.6).';
 
+/**
+ * The four ids a shipped or planned mode uses. Deliberately a fixed list rather
+ * than `storyengine\.\w+`, which would fire on `storyengine.cast` and every other
+ * namespaced string in the build — and deliberately *not* the whole of row 2b,
+ * because a selector cannot recognise the id of a mode nobody has written yet.
+ * The enumeration with its reasoned allowlist stays in `tools/repo-shape.test.ts`;
+ * this catches the **shapes**, at type time.
+ */
+const MODE_ID_PATTERN = String.raw`^storyengine\.(scene|freeform|campaign|messages)`;
+
+const MODE_SWITCH_MESSAGE =
+  'A `switch` on a mode. docs/design/06-modes-and-turn-pipeline.md §2: the host ' +
+  'never branches on which mode is running — it reads a declaration and ' +
+  'enforces it. If the engine needs behaviour that differs per mode, the mode ' +
+  'declares it and this file reads the declaration.';
+
+const MODE_BRANCH_MESSAGE =
+  'A comparison against a mode id. This is `switch (mode)` with the switch ' +
+  'spelled out, and docs/design/06-modes-and-turn-pipeline.md §2 refuses both. ' +
+  'A mode id in engine code is the engine knowing which modes exist, which is ' +
+  'the bet docs/design/19-tech-stack.md §10 calls the design’s central one.';
+
+const MODE_KEY_MESSAGE =
+  'A lookup keyed by mode id. A table of per-mode behaviour is the third shape ' +
+  'docs/design/06-modes-and-turn-pipeline.md §2 refuses, and the one that looks ' +
+  'most like data: it still means a third-party mode gets no row. The ' +
+  'declaration belongs on `ModeDefinition`, where every mode has one.';
+
 export function restrictedSyntax({
   allowRandomness = false,
   userFacing = false,
   classList = false,
   tokensOnly = false,
+  engineOnly = false,
 } = {}) {
   const entries = [
     // Not anchored on `className`. See the pattern's docstring: the anchor was
@@ -361,6 +390,45 @@ export function restrictedSyntax({
         'MemberExpression[object.name=/^(crypto|globalThis)$/][property.name=/^(getRandomValues|randomUUID)$/]',
       message: RANDOM_MESSAGE,
     });
+  }
+
+  if (engineOnly) {
+    /*
+     * ***The engine names no mode*** — docs/design/06-modes-and-turn-pipeline.md
+     * §2, and the exit gate's row 2b, which asks for *"a lint rule with
+     * fixtures, plus a tracked-file survey"* and got only the survey until P7.13.
+     *
+     * **Two layers on purpose, the way the boundary rules already are.** The
+     * survey in `tools/repo-shape.test.ts` enumerates every mode id in engine
+     * source against an allowlist with a reason on each entry — which is the
+     * only half that can notice an id nobody has coined yet. These selectors
+     * catch the three *shapes* §3.1 names, in the editor, as they are typed.
+     * Neither is redundant: a survey runs at `pnpm test` and a selector cannot
+     * recognise a new mode.
+     */
+    entries.push(
+      // `switch (mode)` and `switch (session.modeId)`, which is what somebody
+      // reaches for first when the pressure to special-case one mode arrives.
+      {
+        selector: 'SwitchStatement[discriminant.name=/[Mm]ode(Id)?$/]',
+        message: MODE_SWITCH_MESSAGE,
+      },
+      {
+        selector: 'SwitchStatement[discriminant.property.name=/[Mm]ode(Id)?$/]',
+        message: MODE_SWITCH_MESSAGE,
+      },
+      // `if (modeId === 'storyengine.scene')` — the same switch, spelled out.
+      {
+        selector: `BinaryExpression[operator=/^[=!]==?$/] > Literal[value=/${MODE_ID_PATTERN}/]`,
+        message: MODE_BRANCH_MESSAGE,
+      },
+      // `{ 'storyengine.scene': … }` — a table of per-mode behaviour, which is
+      // the shape that looks most like data and is not.
+      {
+        selector: `Property[key.value=/${MODE_ID_PATTERN}/]`,
+        message: MODE_KEY_MESSAGE,
+      },
+    );
   }
 
   return ['error', ...entries];

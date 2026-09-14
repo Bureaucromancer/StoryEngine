@@ -80,7 +80,14 @@ describe('activate', () => {
 
     expect(firedNames(result)).toEqual(['The Ferryman']);
     expect(result.activated[0]?.by).toBe('keyword');
-    expect(result.activated[0]?.hit).toEqual({ key: 'ferryman', source: 'message' });
+    // And **where** it hit, since [P7.7]: one scan serving the retriever's
+    // inclusion reason and the mention overlay's highlight, which is what makes
+    // [P7 §1.7]'s *they cannot disagree about who the fixer is* structural.
+    expect(result.activated[0]?.hit).toEqual({
+      key: 'ferryman',
+      source: 'message',
+      at: { start: 12, end: 20 },
+    });
     expect(result.activated[0]?.depth).toBe(0);
   });
 

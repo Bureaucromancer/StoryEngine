@@ -153,7 +153,25 @@ function nameBadges(object: LibraryObject): JSX.Element {
        * global is the default, almost every imported book is one, and a badge
        * that appears on everything is furniture.
        */}
-      {linked ? <Badge title="Active only for the actors it links.">Linked</Badge> : null}
+      {/*
+       * ***The title said "Active only for the actors it links", which stopped
+       * being true at [P6B.1] and stayed on the badge until [P8]'s readiness
+       * audit read it* (2026-09-13).** `LoreScope.linked` decided which sessions
+       * a book reached until P5.7's scope-based volunteering was reversed —
+       * `turns/lore.ts` records why at length, and the short version is that
+       * `global` is the factory default *and* the importer's fallback, so every
+       * book anybody owned was in every prompt.
+       *
+       * **So the field now records an authored intent and gates nothing**, and
+       * the badge has to say that rather than describe a mechanism: a reader who
+       * believes this title will conclude their book is in play when it is not,
+       * which is the worst direction for a retrieval claim to be wrong in.
+       */}
+      {linked ? (
+        <Badge title="Authored as belonging to particular actors. A book is in play only if the session or its treatment names it.">
+          Linked
+        </Badge>
+      ) : null}
     </>
   );
 }

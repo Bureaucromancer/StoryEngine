@@ -4,7 +4,14 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { PRESET_SCHEMA } from '@storyengine/shared';
+import {
+  PRESET_SCHEMA,
+  SETUP_SCHEMA,
+  uuidv7,
+  type Goal,
+  type PlotHook,
+  type Setup,
+} from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
@@ -22,18 +29,32 @@ import {
   renameBranchRef,
   setCast,
   setLore,
+  setSessionHooks,
+  addSessionGoal,
+  setSessionRoles,
   readTurns,
   readTurnById,
   setArchived,
   setName,
   undoTurn,
+  writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
-import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
+import { castRows } from '../sessions/cast.js';
+import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
+import { goalRows, readConcluded } from '../sessions/goals.js';
+import { hookRows, readPacing } from '../sessions/hooks.js';
+import { setupMisfit } from '../sessions/setup.js';
+import { resolveLore } from '../turns/lore.js';
+import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
+import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
+import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
+import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { previewAssembly } from '../turns/preview.js';
+import { readSuggesting } from '../turns/suggest.js';
 import { PathEscapeError } from '../storage/paths.js';
 import type { Tape } from '../rng/rng.js';
 
@@ -54,6 +75,56 @@ import type { Tape } from '../rng/rng.js';
  */
 
 const SessionParams = Type.Object({ sessionId: Type.String() });
+
+/**
+ * A channel write addresses the **map key**, not the channel id — [P7.1].
+ *
+ * A scoped channel has one value per key (`se.lore.timing#<entryId>`), so a
+ * route taking an id could only ever reach the unscoped value. `maxLength` is
+ * generous rather than meaningful: a key is an id plus a uuid.
+ */
+const ChannelParams = Type.Object({
+  sessionId: Type.String(),
+  key: Type.String({ minLength: 1, maxLength: 400 }),
+});
+
+/**
+ * `value` is unconstrained here and validated against the **channel's own
+ * schema** downstream, which is where the declaration lives. A body schema that
+ * guessed would be a second, weaker copy of it.
+ *
+ * *Wrapped in an object rather than sent bare so that `null` is expressible: a
+ * bare body of `null` and a missing body are the same thing to a JSON parser,
+ * and null is a value a channel may legitimately hold.*
+ */
+const ChannelBody = Type.Object({ value: Type.Unknown() }, { additionalProperties: false });
+
+/**
+ * A binding is a connection and one of its models — [19 §5.1].
+ *
+ * **Validated for shape and not for existence**, which is `setSessionRoles`'
+ * argument: a binding naming a removed connection resolves as `dangling`, and
+ * `resolveRole` keeps that distinct from `unbound` because the remedies differ.
+ * Refusing the write would trade a diagnosable state for a rejected request.
+ */
+const BindingBody = Type.Object(
+  { connectionId: Type.String({ maxLength: 200 }), modelId: Type.String({ maxLength: 400 }) },
+  { additionalProperties: false },
+);
+
+/**
+ * Both override layers in one body, and **both replaced wholesale**: a partial
+ * update cannot express *clear this override*, and clearing one is the commoner
+ * act. Omitting a key means an empty map, which is *no overrides* — the state a
+ * session written before [P7.3] is in.
+ */
+const RolesBody = Type.Object(
+  {
+    roles: Type.Optional(Type.Record(Type.String(), BindingBody)),
+    stepRoles: Type.Optional(Type.Record(Type.String(), BindingBody)),
+  },
+  { additionalProperties: false },
+);
 const JobParams = Type.Object({ sessionId: Type.String(), jobId: Type.String() });
 const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String() });
 
@@ -124,6 +195,58 @@ const CreateBody = Type.Object(
      */
     treatment: Type.Optional(Type.String({ maxLength: 200 })),
     lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
+    /**
+     * The wizard's answers — [06 §7.3], [P7.4].
+     *
+     * ***`modeConfig` rather than `setup`, corrected before anything depended on
+     * it.*** The first draft called this `setup`, which collides with the
+     * **Setup** object below — two different things one word apart, which is
+     * the collision [P7.4]'s own cell warns about — and stored it in a session
+     * field beside `mode`, where `mode.config` has meant *how it was
+     * configured* since P2.3 and been written `null` ever since. The portable
+     * `Setup` names the same value the same way.
+     *
+     * **Open at the schema and closed at the handler**, which is the split that
+     * matters: what may be in here is the mode's own declaration, and a schema
+     * written out in this file could only be a second copy of it. So the shape
+     * is checked below against `setupAnswerSchema(mode.definition.setup)` —
+     * derived from the declaration, so a mode that adds a field is asked for it
+     * without a second edit here.
+     *
+     * *The bound is on the document rather than on the fields, because a field
+     * count is the mode's business and an unbounded body is not.*
+     */
+    modeConfig: Type.Optional(Type.Object({}, { additionalProperties: true })),
+    /**
+     * A **Setup** from the library — [04 §7], [P7.4], and the consumer that kind
+     * has never had.
+     *
+     * *How to start playing*, in one object: a mode and its config, a preset, a
+     * treatment, a cast to choose from, lore, hooks and goals. Everything it
+     * carries is a **default** that a parameter sent beside it overrides, which
+     * is [04 §6.1b]'s layering — *a Treatment proposes, a Setup overrides, and
+     * the running session owns it* — with the session's own parameters as the
+     * last word.
+     *
+     * The session keeps a **copy**, so editing the Setup afterwards cannot reach
+     * a running game ([00 §3.1]) — the same asymmetry the preset has.
+     */
+    setup: Type.Optional(Type.String({ maxLength: 200 })),
+    /**
+     * The session's **own** hooks — [03 §4.1]'s fourth source, [P7.5].
+     *
+     * That section calls adding one to a running session *the primary path*, and
+     * until this there was no field for them anywhere. They join the pool beside
+     * the treatment's, the setup's and the lorebooks', attributed as the
+     * session's own — which is the one source with no object to navigate to,
+     * because the session is what you are already looking at.
+     *
+     * *Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
+     * a hook the schema would refuse is an authoring mistake to show rather than
+     * a request to reject, and the selector's filter is where a broken one stops
+     * being eligible.*
+     */
+    hooks: Type.Optional(Type.Array(Type.Object({}, { additionalProperties: true }))),
   },
   { additionalProperties: false },
 );
@@ -163,6 +286,41 @@ const SessionPatch = Type.Object(
 );
 
 /** What a session plays with — the same two links `CreateBody` takes. */
+/**
+ * One hook added to a running session — [03 §4.1], [P7.5].
+ *
+ * *Open, like the creation route's `hooks` array and for the same stated
+ * reason*: a hook the schema would refuse is an authoring mistake to **show**
+ * rather than a request to reject, and the filter is where a broken one stops
+ * being eligible with a class the panel can turn into a sentence. What is
+ * closed is the envelope — one hook, under one key, so a client cannot post an
+ * array and expect a pool.
+ */
+const HookBody = Type.Object(
+  { hook: Type.Object({}, { additionalProperties: true }) },
+  { additionalProperties: false },
+);
+
+/**
+ * One goal written at a completion — [06 §7.3.4]'s *"or one written now"*,
+ * [P7.6].
+ *
+ * *Open past the envelope*, like the hook body beside it and for the stated
+ * reason: a goal the schema would refuse is an authoring mistake to show rather
+ * than a request to reject. What is closed is the envelope — one goal, under one
+ * key.
+ */
+const GoalBody = Type.Object(
+  { goal: Type.Object({}, { additionalProperties: true }) },
+  { additionalProperties: false },
+);
+
+/** A hook id addresses one entry in the pool; it is URL-encoded like every id here. */
+const HookParams = Type.Object({
+  sessionId: Type.String(),
+  hookId: Type.String({ maxLength: 200 }),
+});
+
 const LoreBody = Type.Object(
   {
     treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
@@ -325,10 +483,39 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       name?: string;
       mode?: string;
       preset?: string;
+      modeConfig?: Record<string, unknown>;
+      setup?: string;
+      hooks?: PlotHook[];
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
     };
+
+    /**
+     * The Setup, read before anything else — [04 §7], [P7.4].
+     *
+     * **Everything it carries is a default a parameter overrides**, which is
+     * [04 §6.1b]'s layering with the session's own parameters as the last word:
+     * a person who picked a Setup and then changed the preset meant the preset
+     * they picked. So it is resolved first and consulted below wherever a
+     * parameter is absent.
+     *
+     * **Refused rather than ignored when it is not there.** A dangling
+     * *treatment* or *lorebook* is a session missing a book, which [00 §3.3]
+     * says to carry on with — a dangling Setup is a session that would be
+     * created as something other than what was asked for, because the Setup is
+     * *what to create*. Another account's is the same 422 by way of a 404
+     * inside: the path is the owner.
+     */
+    let from: Setup | undefined;
+    if (body.setup !== undefined) {
+      try {
+        const row = read(services.library, account.handle, body.setup, SETUP_SCHEMA);
+        from = row.body as Setup;
+      } catch {
+        return reply.code(422).send({ error: 'unknown-setup', message: 'No such setup.' });
+      }
+    }
 
     /**
      * An unknown mode is refused **here** rather than resolved to the default.
@@ -339,9 +526,73 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * different thing: nobody's story depends on it yet, and silently giving
      * them a different mode than they asked for is the surprise.
      */
-    const mode = modeById(body.mode ?? DEFAULT_MODE_ID);
+    /**
+     * **An empty mode id on a Setup means *unset*, not *a mode called ""***.
+     * `newSetup` writes `{ id: '', config: null }`, so a Setup that never named
+     * one would otherwise be refused as naming a mode this build does not have —
+     * which is the same reading the preset resolution below already takes of an
+     * empty id.
+     */
+    const named = body.mode ?? (from?.mode.id === '' ? undefined : from?.mode.id);
+    const mode = modeById(named ?? DEFAULT_MODE_ID);
     if (mode === null) {
       return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
+    }
+
+    /**
+     * **The declaration held to, which is what stops it being decoration** —
+     * [P7.4].
+     *
+     * A mode says what it needs before the first turn and creation refuses a
+     * session that does not supply it. That is the whole of what makes a
+     * declared wizard load-bearing rather than a description of a screen
+     * somebody might build: a field the mode marked `required` cannot be
+     * skipped, and a key the mode never asked for cannot be written into a
+     * session file.
+     *
+     * **422 rather than 400**, and the same 422 the unknown mode above gets: the
+     * body is well-formed JSON of the declared shape, and what is wrong is that
+     * it does not satisfy *this mode's* requirements. A 400 would say the
+     * request was malformed, which it is not.
+     *
+     * *The issues travel.* A wizard's refusal that said only *invalid* would
+     * leave a person clicking Create and guessing which field, on a form the
+     * engine generated and they did not design.
+     */
+    /**
+     * The parameter, then the Setup's, then nothing — the layering above, for
+     * the one value the Setup and the wizard both name. `Setup.mode.config` is
+     * *"whatever the mode's own setup collected"*, which is exactly this.
+     */
+    const answers = body.modeConfig ?? asAnswers(from) ?? {};
+
+    /**
+     * The rest of the Setup's defaults, each overridden by its own parameter.
+     *
+     * **`personaOptions[0]` and not the whole list**, because a session's `cast`
+     * holds one persona and a Setup holds the ones it *offers* — choosing is the
+     * wizard's job, and until there is a control for it the first is the honest
+     * default rather than a refusal to start.
+     *
+     * *`partyDefault` is not read here.* The party is `se.party` since [P7.3],
+     * and seeding it means writing effects, which needs a turn — so it belongs
+     * with the setup turn's parts rather than with the session file. Named
+     * rather than silently dropped.
+     */
+    const cast =
+      body.cast ??
+      (from === undefined
+        ? undefined
+        : { persona: from.cast.personaOptions[0]?.id ?? null, actors: [] });
+    const treatment = body.treatment ?? from?.treatment?.id;
+    const lore = body.lore ?? from?.lore.map((link) => link.ref.id);
+    const misfit = setupMisfit(mode.definition.setup, answers);
+    if (misfit !== null) {
+      return reply.code(422).send({
+        error: 'setup-invalid',
+        message: 'That is not what this mode asked for.',
+        issues: misfit,
+      });
     }
 
     // What the mode says it can seat ([06 §7.2]) — the first real consumer of
@@ -369,12 +620,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * the worst possible place to do that.
      */
     let preset;
-    if (body.preset === undefined) {
+    // The parameter, then the Setup's, then the mode's default — the layering
+    // this route now has three rungs of.
+    const presetId = body.preset ?? from?.preset?.id;
+    if (presetId === undefined || presetId === '') {
       preset = structuredClone(mode.definition.assembly.defaultPreset);
     } else {
       let row;
       try {
-        row = read(services.library, account.handle, body.preset, PRESET_SCHEMA);
+        row = read(services.library, account.handle, presetId, PRESET_SCHEMA);
       } catch (error) {
         if (error instanceof LibraryError && error.code === 'not-found') {
           return reply.code(422).send({ error: 'unknown-preset', message: 'No such preset.' });
@@ -394,14 +648,97 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // `session.json` is hand-editable by design ([03 §1]), so the client's
         // label helper trims too — but it is the one that stops the API being
         // the thing that made the mess.
-        name: (body.name ?? '').trim(),
-        mode: { id: mode.definition.id, config: null },
+        // The Setup's name when it was not given one, because a session made
+        // from *The Fixer's Debt* and left unnamed is that, not *Untitled*.
+        name: (body.name ?? from?.name ?? '').trim(),
+        /**
+         * **`config` is the wizard's answers**, which is what this field has
+         * meant since P2.3 and what every creation wrote `null` into until now
+         * ([P7.4]). `null` still, when there are none — *no wizard ran* and
+         * *a wizard ran and collected nothing* are different, and every session
+         * written before this is in the first state.
+         */
+        mode: {
+          id: mode.definition.id,
+          config: Object.keys(answers).length === 0 ? null : answers,
+        },
         preset,
-        ...(body.cast === undefined ? {} : { cast: body.cast }),
-        ...(body.treatment === undefined ? {} : { treatment: body.treatment }),
-        ...(body.lore === undefined ? {} : { lore: body.lore }),
+        ...(cast === undefined ? {} : { cast }),
+        ...(treatment === undefined ? {} : { treatment }),
+        ...(lore === undefined ? {} : { lore }),
+        // A copy, so editing the Setup afterwards cannot reach this game
+        // ([00 §3.1], [04 §7]) — the asymmetry the preset already has.
+        ...(from === undefined ? {} : { setup: structuredClone(from) }),
+        /**
+         * **The hook pool, copied from all four sources** — [03 §4.1], [P7.5].
+         *
+         * Built here because the sources are library objects and this is where
+         * the library is read: `resolveLore` already walks the treatment and the
+         * books for the turn pipeline, so the pool is the same walk one moment
+         * earlier. *Copied rather than resolved per turn, which is [06 §6.1]'s
+         * "pulled, never pushed" over [00 §3.1] — and the copies keep their
+         * sources' ids, which is [15 §5]'s obligation and what makes a
+         * continuity possible later.*
+         */
+        ...(from?.goals === undefined || from.goals.length === 0
+          ? {}
+          : {
+              /**
+               * The goal chain, copied from the Setup — [04 §7.1], [06 §7.3.3],
+               * [P7.6]. **A copy, for the reason the pool and the pack are**:
+               * editing a Setup must not reach a game in progress ([00 §3.1]),
+               * and *Advance* may write a goal that was never in the Setup at
+               * all.
+               */
+              goals: structuredClone(from.goals),
+            }),
+        hooks: poolFor({
+          lore: resolveLore(services.library, account.handle, { treatment, lore }),
+          ...(from === undefined ? {} : { setup: from }),
+          ...(body.hooks === undefined ? {} : { own: body.hooks }),
+        }),
       });
-      return await reply.code(201).send({ session });
+
+      /**
+       * **A mode that generates makes its world on the session's first turn** —
+       * [06 §7.3], [P7.4].
+       *
+       * [00 §2.3] calls incremental generation the single biggest reliability
+       * difference available versus the source, and 06 §7.3 spells the shape:
+       * *"separate validated generations, each individually retryable, applied
+       * as they succeed"*. Every clause of that is a property of the step loop,
+       * so setup is a turn and the parts are its steps — no second pipeline, and
+       * the record is the record a person already reads.
+       *
+       * **Reserved and started, then returned with the job**, which is exactly
+       * what `POST /sessions/:id/turns` does: the client already knows how to
+       * open a stream for a job and show per-step progress, and generation is a
+       * thing you watch rather than a thing you wait out behind a spinner.
+       *
+       * *A mode with no parts reserves nothing.* An empty plan would commit a
+       * turn that did nothing, which is a blank first entry in somebody's
+       * transcript — the cost [P7.3] refused to pay for the roster, refused here
+       * too and for the same reason.
+       */
+      const parts = setupPlanFor(mode).steps.length;
+      if (parts === 0) return await reply.code(201).send({ session });
+
+      const reserved = await submitTurn(services.jobs, {
+        account: account.handle,
+        sessionId: session.id,
+        // The session is new, so there is exactly one turn this key can name and
+        // a retried create cannot start a second generation.
+        idempotencyKey: `setup:${session.id}`,
+        headTurnId: null,
+      });
+      if (reserved.kind !== 'created') {
+        // Nothing else can have reserved a turn on a session created one line
+        // ago. Answering with the session rather than an error is the honest
+        // outcome if it somehow does: the session exists and is playable.
+        return await reply.code(201).send({ session });
+      }
+      services.runner.start(reserved.job, { setup: true });
+      return await reply.code(201).send({ session, activeJob: reserved.job });
     } catch (error) {
       if (error instanceof PathEscapeError) {
         return reply.code(422).send({ error: 'refused-path', message: error.message });
@@ -432,7 +769,224 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     // mid-turn needs to know there *is* one before it decides whether to open a
     // stream or offer a submit box.
     const job = activeJob(services.state.db, session.id);
-    return reply.send({ session, activeJob: job });
+    /**
+     * **The health record travels too** — [06 §4.2], [P7.1].
+     *
+     * *"The session carries a health record — which channels are degraded, which
+     * version they were written against, and why they failed."* Derived from the
+     * markers `applyEffects` replays, and composed **here rather than on the
+     * client**, which is the difference between one shape and two: a client
+     * reading `session.channels` itself would have to split composite keys and
+     * know the registry, and a second `splitChannelKey` in a React component is
+     * the drift the server's own docstrings keep refusing.
+     *
+     * On the read route rather than a route of its own, because the banner it
+     * feeds is on the session and a second request to learn whether to show it
+     * is a request nobody would make.
+     */
+    /**
+     * **`hud` travels with the session for the reason `health` does** — [10 §8],
+     * [P7.1]. Composing it on the client would mean shipping the registry, the
+     * declarations and a template engine to the browser to render a label and a
+     * string; what crosses instead is the label and the string.
+     */
+    /**
+     * **The cast panel's rows** — [10 §13.2], [P7.2].
+     *
+     * *Two axes out and one badge derived on the screen*, which is that
+     * section's own division: *"the split is in the data, not on the screen"*.
+     * Sending a pre-derived badge would put the derivation here and leave the
+     * panel unable to offer *correct presence and status directly*, which is
+     * what makes it worth building rather than a read-only complaint.
+     *
+     * **The path is read because two of the four fields are derived along it** —
+     * `introduced` is monotone over presence and party effects, and an
+     * unanswered death proposal is a refusal with no applied status effect
+     * after it. Neither is stored, deliberately ([06 §8.1]: *"derived rather
+     * than stored"*), and both cost the same walk the transcript route already
+     * makes.
+     */
+    const path = walkPath(
+      await readTurns(services.sessions, account.handle, session.id),
+      session.headTurnId,
+    );
+
+    /**
+     * **The hook panel's rows** — [10 §10.1], [06 §6.1], [P7.5].
+     *
+     * *"Which hooks have fired and when, which are eligible right now, and which
+     * are blocked **with the clause that blocked them**."* And [10 §10.1] is
+     * explicit that *eligibility is live rather than computed on demand, because
+     * the selector's mechanical filter already runs every turn* — so this is the
+     * same `filterHooks` the selector calls, over the same pool at the same node.
+     *
+     * **Two library reads, and both are the ones the turn makes.** The active
+     * books decide whether a lorebook-borne hook is eligible at all ([03 §4.1]),
+     * and `resolvableActors` answers whether an `introduces.actor` exists —
+     * shared with `gather.ts` rather than reimplemented, because *a panel that
+     * disagreed with the selector about why a hook is blocked would be worse than
+     * no panel*.
+     *
+     * *Skipped entirely for a session with no pool*, which is every session
+     * today: the reads are real, the route is on the path of every poll, and an
+     * empty array costs nothing to send.
+     */
+    const pool = session.hooks ?? [];
+    const library = {
+      db: services.sessions.index,
+      layout: services.sessions.layout,
+      keepHistoryPerObject: 0,
+    };
+    const lore = pool.length === 0 ? null : resolveLore(library, account.handle, session);
+
+    /**
+     * **The dial travels with the rows, and it is not in the `hud`.**
+     * [10 §10.1] puts it *in the panel*: *"the pacing dial sits here, because it
+     * is the control that explains an empty panel — a session at `sparse` with
+     * six eligible hooks and nothing firing is working correctly, and without the
+     * dial in view that is indistinguishable from broken."* A `surface` on the
+     * channel would put it in the strip above the transcript instead, which is a
+     * different place and a different claim.
+     *
+     * *Resolved here rather than read off the channel*, because the value is
+     * [04 §6.1b]'s three rungs — the session's own, a Setup's, a Treatment's —
+     * and a control showing only the first would read as `normal` for every
+     * session that authored one and never turned it.
+     */
+    const hooks = {
+      pacing: readPacing(session.channels, {
+        ...(isRecord(session.setup) ? { setup: session.setup } : {}),
+        ...(isRecord(lore?.treatment?.treatment) ? { treatment: lore.treatment.treatment } : {}),
+      }),
+      rows:
+        lore === null
+          ? []
+          : hookRows(pool, {
+              channels: session.channels,
+              path,
+              activeBooks: new Set(lore.books.map((book) => book.id)),
+              known: resolvableActors(library, account.handle, pool).known,
+              persona: session.cast?.persona ?? null,
+            }),
+    };
+
+    /**
+     * **The goal panel's rows** — [06 §7.3.4], [10 §12], [P7.6].
+     *
+     * Reconstructed at the head like `cast` and `hooks` beside it: which goal
+     * play is on, which are achieved and on which turn, and whether the story
+     * has been ended. *The three offers are derived on the screen rather than
+     * sent*, because they are the same three every time and what decides them is
+     * `achieved` plus `next`, both of which travel.
+     */
+    const goals = {
+      rows: goalRows(session.goals ?? [], session.channels, path),
+      concluded: readConcluded(session.channels),
+    };
+
+    // What this session is playing, which three of the blocks below need and
+    // none of them needed before a second mode declared anything.
+    const modeId = session.mode?.id ?? DEFAULT_MODE_ID;
+
+    /**
+     * ***The two dials*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
+     *
+     * **Sent only for a mode that declares them**, which is the whole shape of
+     * [04 §7]'s answer: Scene and Messages have no difficulty because they
+     * declare no such channel, and a payload that carried an empty dial for them
+     * would put the distinction back where Setup had it — a blank field rather
+     * than an absence.
+     *
+     * ***The levels travel with the value, and that is not padding.*** A control
+     * needs the vocabulary it may write, and unlike hook pacing this vocabulary
+     * is **the pack's** — [06 §7.3.1]: *"'Hard' meaning something different in
+     * one prompt pack than another is a feature."* A client with a hard-coded
+     * three-option list would be a control that produces recorded refusals the
+     * day somebody ships a pack with four.
+     *
+     * *Resolved through the same functions the turn uses*, for the reason the
+     * pacing dial is: a panel that disagreed with the assembler about which
+     * level is in play would be worse than no panel. The `label` and `rank` are
+     * what a control renders; the fragments are hidden content and stay off the
+     * wire.
+     */
+    /**
+     * *The same resolution `gather.ts` makes*, in the one line that is the whole
+     * of it: a session's own copied preset, or the mode's default. Copied at
+     * creation, so editing a preset does not change a game in progress ([03 §8]).
+     */
+    const preset =
+      session.preset ??
+      (modeById(modeId) ?? modeById(DEFAULT_MODE_ID))?.definition.assembly.defaultPreset;
+    const dials: Record<
+      string,
+      { levelId: string | null; levels: { id: string; label: string }[] }
+    > = {};
+    for (const axis of ['difficulty', 'directedness'] as const) {
+      // `channelInPlay` and not `channelDefinition`: Freeform declaring
+      // `se.difficulty` must not give a **Scene** session a difficulty dial.
+      if (preset === undefined || !channelInPlay(DIAL_CHANNELS[axis], modeId)) continue;
+      const levels = packLevels(preset, axis);
+      if (levels.length === 0) continue;
+      dials[axis] = {
+        levelId:
+          resolveLevel(preset, axis, readDial(axis, session.channels, session.mode?.config))?.id ??
+          null,
+        levels: [...levels]
+          .sort((left, right) => left.rank - right.rank)
+          .map((level) => ({ id: level.id, label: level.label })),
+      };
+    }
+
+    return reply.send({
+      session,
+      activeJob: job,
+      health: degradedChannels(session.channels),
+      // **Narrowed to this session's mode** — [06 §4.1], [P7.9]. The registry is
+      // process-wide; a session is not. Before a second mode declared channels
+      // this walked the union and was right by accident.
+      hud: sessionSurfaces(session.channels, modeId),
+      /**
+       * ***What this session's mode put where*** — [06 §9], [P7.11].
+       *
+       * Separate from `hud` rather than merged into it, because they answer
+       * different questions and a client renders them in different places: `hud`
+       * is every channel that declared itself worth a strip row, and this is
+       * every placement a **mode** asked for. A contribution naming `hud`
+       * appends to the strip; the other three regions have nowhere else to come
+       * from.
+       */
+      surfaces: modeSurfaces(session.channels, modeId),
+      cast: castRows(session.cast, session.channels, path),
+      hooks,
+      goals,
+      dials,
+      /**
+       * ***What the player may send*** — `ModeDefinition.inputs`, [06 §1],
+       * [06 §9], [P7.9].
+       *
+       * **Here rather than fetched from `GET /api/modes`**, which the play page
+       * does not call and should not have to: the kinds are a property of *this
+       * session's* mode, the page already polls this route, and a second request
+       * to learn one array would make the input box's affordances arrive after
+       * the box.
+       *
+       * *One kind means no selector*, which is what Scene sends and why nothing
+       * appeared before this phase. The client decides that; the server says
+       * what is accepted, which is the same list the submit route refuses
+       * against.
+       */
+      inputs: modeById(modeId)?.definition.inputs ?? [],
+      /**
+       * Whether this session wants suggested actions — [R11], [P7.9].
+       *
+       * **Sent even though it is off by default**, which is the whole of why the
+       * default could be off: [work plan §2.3] forbids configuration with no
+       * surface, and a toggle a client cannot read is a toggle nobody finds. The
+       * offers themselves travel on their turns, not here.
+       */
+      suggesting: readSuggesting(session.channels),
+    });
   });
 
   app.put(
@@ -476,6 +1030,136 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * session with a dangling link, not a rejected request. The retriever reports
    * what it could not read, every turn, where somebody playing can see it.
    */
+  /**
+   * A hook added to a **running** session, or taken out of one — [03 §4.1],
+   * [06 §6.1], [P7.5].
+   *
+   * ***The primary path, and creation was the only way in.*** 03 §4.1 says a
+   * session *"may add its own while running"* and calls it that; a treatment is
+   * where hooks primarily live, but *I want this to happen in this game* is a
+   * thought people have while playing rather than while configuring.
+   *
+   * **Not a channel write, which is the same section's other sentence**:
+   * *"adding a hook mid-session is an authoring act, not a story event, and must
+   * survive a rewind"*. So the pool is on the session file and only what has
+   * *happened to* a hook is per-node. A hook added at turn forty is in the pool
+   * at turn one, and rewinding does not un-add it.
+   *
+   * *Unvalidated beyond the shape the handler reads*, like `cast`, `lore` and
+   * the creation route's own `hooks`: a malformed hook is an authoring mistake
+   * to show rather than a request to reject, and the selector's filter is where
+   * a broken one stops being eligible with a reason the panel can say.
+   */
+  app.post(
+    '/sessions/:sessionId/hooks',
+    { schema: { params: SessionParams, body: HookBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { hook } = request.body as { hook: Record<string, unknown> };
+      const { sessionId } = request.params as { sessionId: string };
+
+      /**
+       * ***An id is minted when there is none, and this is the one source where
+       * that is right.*** Every other hook in the pool was **copied** from an
+       * object that had one, and [15 §5]'s obligation is that copying keeps it —
+       * a corpus whose hooks have unrelated ids cannot be retro-fitted into a
+       * continuity. A session's own hook has no upstream to keep an id from, and
+       * without one it cannot be committed, blocked, or recorded as fired: every
+       * one of those keys on `hook.id`.
+       */
+      const id = typeof hook['id'] === 'string' && hook['id'] !== '' ? hook['id'] : uuidv7();
+      const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
+        add: { ...hook, id } as unknown as PlotHook,
+      });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * Taking a hook back out — the other half, and it takes **any** of them.
+   *
+   * The pool was copied at creation, so a treatment-borne entry in it is this
+   * session's copy; declining to remove it would make the copy a binding, which
+   * is the thing [00 §3.1]'s prefill-not-binding rules out. *What it does not do
+   * is reach the treatment*: the same asymmetry running the other way.
+   *
+   * **The session comes back, like every other mutation here**, so a panel that
+   * just removed a row has the pool it is now looking at rather than a promise
+   * it has to go and check.
+   *
+   * *Removing a hook that is already gone succeeds.* It is the state the caller
+   * asked for, and a 404 would make a double-click an error — where a missing
+   * **session** stays a 404, because that is a different claim.
+   */
+  app.delete(
+    '/sessions/:sessionId/hooks/:hookId',
+    { schema: { params: HookParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, hookId } = request.params as { sessionId: string; hookId: string };
+      const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
+        remove: hookId,
+      });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * A goal written at a completion — [06 §7.3.4], [P7.6].
+   *
+   * ***Advance's second arm, and the reason the chain is a session field.***
+   * *"Set the next goal, either the authored `next` or one written now"* — the
+   * authored half is a cursor write and needs no route; this is the other half,
+   * and a goal written at a completion was never in the Setup.
+   *
+   * **It writes the chain and not the cursor**, which is two acts on purpose.
+   * Adding the goal is an authoring act and lands on the session file; *moving
+   * play onto it* is a move in the story and goes through the channel write,
+   * where it becomes a turn. [06 §7.3.4] is emphatic that `thenDefault`
+   * *"seeds the offer; it does not decide it"*, and a route that did both would
+   * have decided it.
+   */
+  app.post(
+    '/sessions/:sessionId/goals',
+    { schema: { params: SessionParams, body: GoalBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { goal } = request.body as { goal: Record<string, unknown> };
+      const { sessionId } = request.params as { sessionId: string };
+
+      /**
+       * An id is minted when there is none, for the reason the hook route mints
+       * one: a goal written here has no upstream object to keep an id from, and
+       * without one it could be neither completed nor pointed at — `se.goal` is
+       * scoped by it and `Goal.next` names it.
+       */
+      const id = typeof goal['id'] === 'string' && goal['id'] !== '' ? goal['id'] : uuidv7();
+      const updated = await addSessionGoal(services.sessions, account.handle, sessionId, {
+        ...goal,
+        id,
+      } as unknown as Goal);
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
   app.put(
     '/sessions/:sessionId/lore',
     { schema: { params: SessionParams, body: LoreBody } },
@@ -488,6 +1172,122 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { sessionId } = request.params as { sessionId: string };
       const updated = await setLore(services.sessions, account.handle, sessionId, body);
       return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * Which model this session uses for a role, and for one step — [19 §5.1],
+   * [P7 §1.9], [P7.3].
+   *
+   * **The surface §1.9 says P7 owes**, and it names the shape: *"a session-level
+   * model override belongs beside the lore panel's disclosure and needs a route
+   * that does not exist (`PATCH /sessions/:id` accepts only `name`)."* This is
+   * that route, in the pattern the cast and lore routes already use.
+   *
+   * **The step layer is here too, which §1.9 routes elsewhere and 19 §5.1
+   * forbids elsewhere.** That section opens with *"Nothing in a mode, step or
+   * extension refers to a provider or a model id — which is what makes an
+   * install portable, an extension safe to share"*, and a `Binding` names a
+   * `connectionId` that exists on one install. So *a cheap model for one noisy
+   * step* is an operator's decision about their own providers, and it lives
+   * beside the session override it layers under rather than in a declaration
+   * somebody might share.
+   */
+  app.put(
+    '/sessions/:sessionId/roles',
+    { schema: { params: SessionParams, body: RolesBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await mine(services, request, reply);
+      if (!session) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as {
+        roles?: Record<string, { connectionId: string; modelId: string }>;
+        stepRoles?: Record<string, { connectionId: string; modelId: string }>;
+      };
+      const updated = await setSessionRoles(services.sessions, account.handle, sessionId, {
+        roles: body.roles ?? {},
+        stepRoles: body.stepRoles ?? {},
+      });
+      if (updated === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * A person writes one channel — [06 §4.2]'s recovery, [P7.1].
+   *
+   * **One route for all three offered recoveries**, which is why it takes a
+   * value rather than naming an action. 06 §4.2 offers *"retry the migration
+   * once the author ships a fix, edit the quarantined value by hand, or accept
+   * the reset"*: retry sends the quarantined raw value back, edit sends whatever
+   * the person typed, and accept sends the value already standing — which clears
+   * the marker, because a `degraded` state is only ever written by an effect
+   * that carries a reason.
+   *
+   * **The key, not the channel id**, because a scoped channel has one value per
+   * key and a route addressing the id could only ever recover the unscoped one.
+   * It is URL-encoded like every other id in this file.
+   *
+   * **Refusals come back as 200 with the effect**, not as an error status. A
+   * retry that still does not fit is a *recorded refusal* — the whole point of
+   * routing this through `acceptEffect` — and a 4xx would throw away the record
+   * the workbench is supposed to show. The client reads `effect.applied`.
+   */
+  app.put(
+    '/sessions/:sessionId/channels/:key',
+    { schema: { params: ChannelParams, body: ChannelBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await mine(services, request, reply);
+      if (!session) return;
+
+      const { sessionId, key } = request.params as { sessionId: string; key: string };
+      const { value } = request.body as { value: unknown };
+
+      /**
+       * ***Not a channel another mode declared*** — [06 §4.1], [P7.9].
+       *
+       * The registry is process-wide, so once a second mode declares a channel
+       * this route would accept a write to it on **any** session — a Scene
+       * session acquiring a `se.difficulty` nothing reads, which then sits in
+       * `session.json` and in the effect log looking like state. `channelInPlay`
+       * is the `owner` rule: a channel owned by a *mode* belongs to a session
+       * playing it, and one owned by a *package* — cast, hooks, goals, lore —
+       * is available everywhere, which is why those were registered outside a
+       * mode to begin with.
+       *
+       * **A 404 rather than a 422**, and it is the same answer an unregistered
+       * id gets: from this session's point of view there is no such channel, and
+       * saying *that exists but not for you* would leak which modes the build
+       * ships from a session route.
+       */
+      const { channelId } = splitChannelKey(key);
+      if (!channelInPlay(channelId, session.mode?.id ?? DEFAULT_MODE_ID)) {
+        return reply
+          .code(404)
+          .send({ error: 'no-such-channel', message: 'This session has no such channel.' });
+      }
+
+      const outcome = await writeChannel(services.sessions, account.handle, sessionId, key, value);
+      if (outcome.kind === 'no-session') {
+        return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+      }
+
+      return reply.send({
+        session: outcome.session,
+        effect: outcome.effect,
+        health: degradedChannels(outcome.session.channels),
+        hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
+        surfaces: modeSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
+      });
     },
   );
 
@@ -936,6 +1736,42 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
       }
 
+      /**
+       * ***The input kind, checked against what the mode declares*** — [06 §1],
+       * [06 §9], [P7.9].
+       *
+       * `ModeDefinition.inputs` has documented five kinds since P2 and been read
+       * by one line of `presentMode`: **nothing validated a submission against
+       * it**, so a client could send `kind: 'sing'` and the record would carry
+       * it forever. [06 §9]'s list of what an extension mode must be able to do
+       * includes *"define its own input kinds"*, and a declaration nothing
+       * enforces is not a definition of anything.
+       *
+       * **A 422 rather than a silent coercion to `do`.** The kinds change what
+       * the prompt says ([13 §8.3]'s per-kind block), so quietly narrating a
+       * `think` as a `do` would put the player's private thought in the scene —
+       * which is the one failure the kind exists to prevent. [00 §3.3]'s
+       * visible-refusal posture, at the door where the request is still a
+       * request.
+       *
+       * *One session read on the submit path*, which the poll path already makes
+       * and `submitTurn` is about to make again under its lock. The alternative
+       * was a new outcome arm through the job layer for a check that is about
+       * the **request** rather than about scheduling.
+       */
+      const kind = body.input.kind;
+      if (kind !== undefined) {
+        const submitting = await readSession(services.sessions, account.handle, sessionId);
+        const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
+        if (submitting !== null && accepted !== undefined && !accepted.includes(kind)) {
+          return reply.code(422).send({
+            error: 'unknown-input-kind',
+            message: `This mode does not accept ${kind} input.`,
+            accepted,
+          });
+        }
+      }
+
       const outcome = await submitTurn(services.jobs, {
         account: account.handle,
         sessionId,
@@ -1247,4 +2083,32 @@ async function mine(
     return null;
   }
   return session;
+}
+
+/**
+ * The wizard's answers a Setup carries, if it carries any.
+ *
+ * `Setup.mode.config` is `unknown` because [04 §7] keeps it *"stored verbatim,
+ * never interpreted by the host"* — so a Setup written against a different
+ * build, or hand-edited, can hold anything. Narrowed here rather than trusted:
+ * what reaches the session is validated against the mode's declaration like any
+ * other answers, and a `config` that is not an object is not answers at all.
+ */
+function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefined {
+  const config = setup?.mode.config;
+  return typeof config === 'object' && config !== null && !Array.isArray(config)
+    ? (config as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * A plain object, for the two authored values the pacing dial layers over.
+ *
+ * Both reach here as `unknown`: a Setup is stored on the session record and a
+ * treatment comes back from a resolver that never throws, so a hand-edited file
+ * puts a string or a number in either. `readPacing` validates the level itself;
+ * this is only what makes the property access legal.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

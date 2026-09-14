@@ -40,13 +40,15 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
+import { registerModeRoutes } from './routes/modes.js';
 import { registerTagRoutes } from './routes/tags.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
-import { assertModesRunnable } from './modes/registry.js';
+import { installBuiltIns } from './mode-loader.js';
+import { assertModesRunnable } from './mode-registry.js';
 import {
   reconcile,
   reconcileSession,
@@ -267,7 +269,19 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * Before anything opens a file: a mode declaring a step it cannot run is a
    * turn that quietly narrates nothing, and `assertModesRunnable` said it ran
    * "at module load" while nothing invoked it.
+   *
+   * **Two calls since [P7.0], and the order is the point.** Registration is a
+   * call rather than an import, so the proof has something to be about only
+   * after it — and `assertModesRunnable` now refuses a build that registered
+   * nothing, which is the failure the split makes possible and therefore the
+   * one it has to catch.
+   *
+   * *Awaited, because the first call resolves mode packages by specifier.* The
+   * `await` is load-bearing in the way an easy one is not: dropped, the proof
+   * below runs against an empty registry and every start-up fails with "No
+   * modes are registered", which is at least the right kind of noisy.
    */
+  await installBuiltIns();
   assertModesRunnable();
 
   const layout = new Layout(options.config.dataDir);
@@ -740,6 +754,7 @@ export async function buildApp(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
+      registerModeRoutes(api);
       registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);
       registerImportRoutes(api, services);

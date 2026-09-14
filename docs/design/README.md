@@ -7,8 +7,8 @@ of the code. Where a document still says *proposal*, it is one; the decisions
 that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
 [25](25-open-questions.md), and the phase plans from
 [P1](workplan/07-p1-implementation.md) through
-[P6A](workplan/19-p6a-alpha-1.md) have been worked from rather than argued with,
-each carrying its own record of what shipped.
+[P7](workplan/23-p7-implementation.md) have been worked from rather than argued
+with, each carrying its own record of what shipped.
 
 **Phase: alpha, with Alpha 1 — the first tagged build, private and for the
 project's own use — cut 2026-09-06 as `v1.0.0-alpha.1`**

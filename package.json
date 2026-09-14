@@ -12,11 +12,11 @@
   "scripts": {
     "build": "tsc -b && pnpm --filter @storyengine/shared emit-schemas && pnpm --filter @storyengine/client build",
     "build:identify": "node tools/write-build-info.mjs",
-    "dev": "pnpm run dev:shared && pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
+    "dev": "pnpm run dev:deps && pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
     "dev:client": "pnpm --filter @storyengine/client run dev",
+    "dev:deps": "tsc -b packages/shared packages/sdk packages/modes/scene packages/modes/freeform",
     "dev:logged": "node tools/dev-server.mjs",
     "dev:server": "pnpm --filter @storyengine/server run dev",
-    "dev:shared": "tsc -b packages/shared",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm run lint:es && pnpm run lint:css",
@@ -30,6 +30,12 @@
     "test:fixture-pair": "vitest run --project fixture-pair",
     "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run --project live",
     "typecheck": "tsc -b --force && tsc -p tsconfig.tools.json"
+  },
+  "devScriptNote": "`dev:deps` builds the packages the watched ones import through `dist` — it was `dev:shared` and built only `shared`, which was already short of `sdk` and became visibly short at P7.0, when the mode stopped being a source import of the server and became a package `mode-loader.ts` resolves at run time. Without it a fresh checkout's `pnpm dev` fails with \"Mode package @storyengine/mode-scene could not be loaded\" — which is the loader saying exactly the right thing about the wrong situation. `tsc -b` on a project builds its references first, so naming the three is belt and braces rather than three builds.",
+  "dependenciesNote": "The distribution's mode packages, and the root is where they belong. `mode-loader.ts` resolves each by bare specifier at run time, which needs the package linked somewhere on the server's resolution path; declaring it in `packages/server/package.json` would put it there too and would also make the server's manifest say it depends on a mode, which is the edge docs/design/19-tech-stack.md §10 exists to forbid. The root is the distribution — it is what `pnpm build` builds and what the Dockerfile copies — so this is the honest place to say which modes ship. The image says it a second time, in its own deploy steps, because `pnpm deploy` walks one package's dependency closure and the server's does not include these.",
+  "dependencies": {
+    "@storyengine/mode-freeform": "workspace:*",
+    "@storyengine/mode-scene": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

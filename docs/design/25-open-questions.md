@@ -680,7 +680,41 @@ so branching from any of them is an operation on that node. The related
 ambiguity also resolves cleanly rather than needing a convention: *redo* adds a
 sibling, *continue differently* adds a child. Both are offered explicitly.
 
-**C12. Confirmation before a narrative goal completion fires.** Goals with
+**C12. Confirmation before a narrative goal completion fires. — RESOLVED:
+ask.** (2026-09-13, [P7.6](workplan/23-p7-implementation.md).) `se.goal`
+declares `confirm: ['achieved']`, so the judge's completion lands on the turn
+**recorded and unapplied**, the three offers do not raise, and the goal panel
+asks. The original text stands below and the leaning in it was right; what
+changed is that the leaning turned out to cost nothing to act on.
+
+***The deferral was costing more than the decision.*** The leaning said the gate
+*"wants real sessions to judge"* — true of the **prompt** the question imagined,
+and the question imagined one because it was written before
+`ChannelDefinition.confirm` existed. That field shipped at
+[P7.2](workplan/23-p7-implementation.md) for terminal statuses, with a docstring
+naming this as its second consumer and warning that *"building one status-shaped
+now is the reinvention this phase keeps catching itself about"*. So by P7.6 the
+mechanism was built, unused, and pointing here — and *ask* was three words in a
+channel declaration rather than a prompt at the most dramatically loaded moment
+in the session. **A confirmation is not a call.** That is the whole correction:
+the cost this question priced was a second model round trip, and the thing built
+is a refusal a person rules on at their own pace, on a surface already there.
+
+*What real sessions can still judge* is the judge's **accuracy**, and the
+asymmetry the question turns on does not depend on it: a false completion ends a
+story that did not earn it at any hit rate short of perfect. If sessions show
+the judge is right nearly always, the remedy is to drop `confirm` from the
+declaration — one line, and a mode may already declare its own goal channel
+without it. The decision is reversible in the direction the evidence could
+point, which is the shape a question *"wanting real sessions"* should be settled
+in rather than left open.
+
+*Also settled in passing: the runner's fallback attribution.* With no call to
+point at, a completion stamps `{ kind: 'step' }` rather than `{ kind: 'engine' }`
+— `confirm` is checked for `model` and `step` only, so the engine stamp would
+have been a bypass of this gate on the one path it applied to.
+
+**C12 as written (kept):** Goals with
 `completion: { kind: "narrative" }` are judged by an evaluation step
 ([06 §7.3.3](06-modes-and-turn-pipeline.md)), and the two error directions are
 not symmetric: a missed completion is an annoyance the player resolves manually,
@@ -709,6 +743,25 @@ since the randomizer is the first production step that draws; do *(b)* whenever
 provenance is next touched; decide *(c)* with the dice extension, which needs
 the same slot. *[23 §5]*
 
+***(a) has its first production caller, and (c) turned out to be two questions***
+(2026-09-13, [P7.5](workplan/23-p7-implementation.md) stage three). The plot-hook
+selector is a judgement call followed by a draw across `introduces.entrances`,
+which is (a)'s shape exactly — and it is built on `weightedPick` rather than
+`pick` for precisely the reason above: the hook the draw sits under may be a
+different hook on a rewrite, `pick` records the list's *length* and would hand
+back a position into different content, and `weightedPick` records the winner's
+**id** and refuses the replay when that winner is no longer a candidate. *So the
+mechanism the leaning asked for is in production; what stays open is the
+step-level **contract** — nothing obliges a step to use the id-keyed draw.*
+
+*(c) is unchanged as written and did not block the hook.* A step's block still
+cannot be positioned by a slot, and an outcome verdict still has nowhere of its
+own. But a fired hook is **guidance**, and [06 §5.1](06-modes-and-turn-pipeline.md)'s
+slot takes *several producers* — so the selector hands its words to the runner
+and the collector emits them at the slot the preset positioned, under the
+`producer: 'step'` arm the record already had. Nothing points a slot at a step.
+The dice extension's verdict block is the case that still needs (c) answered.
+
 **C14. Does guidance belong on the turn record? — OPEN.** [06 §5.1] said a
 rewrite replays the guidance of the turn it redoes, and the build does not:
 `Turn` ([03 §8]) has no field for it, the record keeps it only as an assembled
@@ -724,6 +777,143 @@ together with [10 §10]'s one-click refill, which is the same question from the
 composer's side: guidance outliving the turn it was typed for. The guided redo
 ([07 §7]) does not wait on this — its instruction is new, and its record says
 what was asked. *[06 §5.1, 10 §10, 07 §7]*
+
+**C15. Seven of the eight model roles cannot be reached. — OPEN, found by
+building something that asked for one** (2026-09-13,
+[P7.5](workplan/23-p7-implementation.md)). `MODEL_ROLES` has eight arms —
+`prose`, `fast`, `reasoning`, `vision`, `image`, `video`, `speech`, `embedding` —
+and [19 §5.1](19-tech-stack.md) orders five resolution layers over them. **Every
+one of those layers is a binding for the role asked for**: `resolveRole` has no
+cross-role fallback, so a role nothing bound resolves `unbound` and the step
+fails. And nothing in the build binds anything but `prose`: no install default,
+no wizard, no route that suggests one. So a step declaring any other role fails
+on a stock install, every turn, and the hook selector was the first thing to
+declare one and discover it.
+
+*The workaround is real and is what the selector does*: ask for `prose` and let
+an operator point the step at something smaller through `stepRoles`, which is
+[19 §5.1]'s fourth layer and exactly the *"a cheap model for one noisy step"*
+case. What that costs is that the roles vocabulary describes an intent nothing
+can act on, and the cost grows with every step that would honestly want a
+different role — a summariser, a mention-resolver, an image prompt.
+
+Three candidate answers, none obviously right. *(a)* `resolveRole` falls back to
+`prose` for any unbound role, which makes every role reachable at once and
+quietly means *role* is advisory. *(b)* Binding setup grows a per-role UI, which
+is honest and is a lot of surface for an install with one endpoint. *(c)* A role
+declares its own fallback chain (`fast → prose`, `reasoning → prose`,
+`vision → ∅`), which is more mechanism but is the only one of the three that can
+say *there is no sensible substitute for `vision`*. **Decide with the first step
+that genuinely cannot use `prose`**, which is an image or vision step rather than
+a cheaper text one. *[19 §5.1, 06 §6]*
+
+**C16. A mode cannot declare a channel the engine computes for it. — OPEN,
+found by writing the second mode** (2026-09-13,
+[P7.9](workplan/23-p7-implementation.md)). [06 §4] lets a mode declare a channel
+with any `update` policy, and one of the three is `engine-computed`. **Two of
+them a mode can actually use and the third it cannot**, which nothing noticed
+while one mode declared one channel:
+
+- `model-proposed` — a model proposes through a step's effects. Works.
+- `user-only` — a person writes through the channel route. Works; the two dials
+  are the shipped case.
+- `engine-computed` — *nothing writes it.* `acceptEffect` refuses such a channel
+  for a `step` proposal, deliberately and correctly ([06 §8.1]'s whole posture),
+  so the mode cannot write its own. And the engine writes exactly two channels
+  after the step loop, **naming both by id in `turns/runner.ts`**: the clock and
+  a judged goal. A mode-declared one would need the engine to know what that
+  mode's channel means, which is [06 §2]'s `switch (mode)` wearing different
+  clothes.
+
+*Scene's `se.clock` is `engine-computed` and is written*, which is what made the
+gap invisible: it is written by a line of engine code that names `SE_CLOCK`, and
+that line is older than the declaration. **A third-party mode gets no such
+line.** So the policy is reachable for a built-in whose channel the engine
+already knew about, and unreachable for exactly the author [06 §9] is the test
+for.
+
+The concrete instance: Freeform wanted a channel holding *what kind of thing the
+last turn was* — [06 §1]'s *world-state classification* in its smallest true form
+— computed from the submission's validated input kind, which is a fact the
+**engine** holds. It was declared, found unwritable, and withdrawn rather than
+shipped null; `mode.test.ts` asserts the mode declares no `engine-computed`
+channel so the placeholder cannot come back before a writer does.
+
+Three candidate answers. *(a)* **A step may write its own mode's
+`engine-computed` channels** — narrow, checkable against `owner`, and it weakens
+a rule whose whole value is that it is absolute. *(b)* **A fourth policy**,
+`step-computed`: honest about what is happening, and a fourth arm on a
+three-arm union that four stages have found sufficient. *(c)* **A declared
+*source*** — the mode names a turn fact (`input.kind`, `turn.status`) and the
+engine writes it after the loop with no mode-specific code, which is declarative
+in the way the rest of the contract is and is the only one of the three that
+scales past one field. **Decide with the first mode that cannot proceed without
+it**; Freeform proceeded. *[06 §4, 06 §4.1, 06 §9]*
+
+*Still open at [P7.12], and deliberately not forced by it.* §7.2's *"sprites,
+backgrounds and expression selection are steps writing to channels"* reads like
+it settles this — `se.backdrop` is `engine-computed` and a step cannot write it
+— and it does not, because the three things that sentence names have **three
+different writers**: a background's pointer is the engine's and P9 writes it
+through the route the hook firing and the goal achievement already take; an
+expression and a location are judgements about prose, so `model-proposed`, which
+admits a step; text-only is a person's setting, so `user-only`. Scene grew up
+without needing an answer here, which is the outcome this question wants.
+
+**C17. A mode cannot keep its own step out of a turn. — OPEN, found by giving a
+mode a step worth skipping** (2026-09-13,
+[P7.12](workplan/23-p7-implementation.md)). The engine keeps *its* conditional
+steps out of the plan by not appending them, and `turns/runner.ts` argues for it
+at length where the suggester is built: *"a suggestion step nobody asked for has
+nothing to report… an `ok` row contributing nothing on every turn of every
+session in the build, which is a step outcome that means this feature exists
+rather than anything about the turn."* **A mode has no equivalent.** `planFor`
+zips every step in `ModeDefinition.steps`, so a declared step runs or reports
+itself skipped, and there is no third state.
+
+*The concrete instance is Scene's stager.* `se.scene.stage` costs a model call
+per turn and is off by default, so on nearly every Scene session it reads one
+boolean and returns — and eight assertions in `runner.test.ts` now carry its id
+while testing something else, which is the cost made visible.
+
+**`StepCondition` is where the answer goes and it is closed at three arms on
+purpose** — its own docstring refuses a fourth for an `always` that would be
+less than this, and refuses an expression language in as many words. So the
+tempting fix is the one to resist. What is more interesting is that **two of the
+three arms have no producer at all**: `ConditionContext.stages` is *"stage flags
+the mode has raised"* and has been an empty set since P2.6 because a mode has no
+way to raise one, and `armed` is the same for the user's side. The arm this
+wants may already exist.
+
+Three candidate answers. *(a)* **Build the `stage` arm's producer** — give a mode
+a declarative way to raise a flag, which is the only one that adds no vocabulary.
+*(b)* **A fourth arm keyed on a channel** — `{ when: 'channel', channelId,
+equals }`, honest and small, and the first step onto the expression-language
+slope the type exists to refuse. *(c)* **Leave it**, and accept a dead `ok` row
+as what declaring a step costs — defensible while one mode has one such step and
+worse with every mode that gets another. **Decide with the second instance**, or
+when a phase is measuring turn cost, since (c)'s price is paid in the record
+rather than in tokens. *[06 §6, 22 §4.1]*
+
+**C18. Three `post` steps make three calls over the same prose. — OPEN, noted
+rather than solved** (2026-09-13, [P7.12](workplan/23-p7-implementation.md)). The
+goal judge asks *was the goal met*, the suggester asks *what could they do next*,
+and the stager asks *what face and what place* — three structured calls, same
+turn, same passage, three round trips on somebody's own GPU. One call with a
+three-part schema would answer all of it.
+
+*Not done here, and the reason is the record rather than the difficulty.* Each
+effect and each turn field currently names the call it came from, and one
+`callId` behind three unrelated judgements makes *why is this here* answerable
+only as *because of the combined call* — which is a real loss in a build whose
+whole posture is that a reader can ask that question. It also couples three
+independent gates: today any of the three can be off, and a merged call either
+asks all three or needs the schema assembled per turn from whichever are on,
+which is most of the saving gone.
+
+**The right time is when something is measuring turn cost**, and the right
+evidence is a measurement rather than an argument. Until then the three stay
+three. *[06 §6, 06 §7.3]*
 
 ---
 

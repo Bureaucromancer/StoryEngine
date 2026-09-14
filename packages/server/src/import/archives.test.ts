@@ -112,6 +112,73 @@ describe('a CHARX', () => {
     expect(JSON.stringify(actor.body)).toContain('portrait');
   });
 
+  /**
+   * ***A character arriving with a face*** — [03 §5.2.2], [06 §7.2], [P7.10].
+   *
+   * **`assets[0]` was the portrait and every other asset was dropped**, which
+   * is why no actor in any install could carry a sprite — and why [06 §7.2] has
+   * asked for expression selection since the first draft with nothing to select
+   * from. [P9 §4] declines them in as many words: *"a sprite is not a rendition
+   * at 1.0. The backdrop is here because it has no source anywhere else;
+   * sprites have one."* This is that source, and the archive that always
+   * carried them is the one [01 §1] calls *"the precedent for what happens when
+   * a character has sprites"*.
+   */
+  it('keeps the expressions that travelled with it, named by their filenames', async () => {
+    const charx = makeZip([
+      { name: 'card.json', body: JSON.stringify(V3_CARD) },
+      { name: 'assets/avatar.png', body: makePng() },
+      { name: 'assets/sprites/neutral.png', body: makePng() },
+      { name: 'assets/sprites/angry.png', body: makePng() },
+    ]);
+    await upload('Vera.charx', charx);
+
+    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
+    const id = (listed.body.objects as { id: string }[])[0]?.id ?? '';
+    const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const media = (actor.body.object as { media?: { role: string; label?: string }[] }).media ?? [];
+
+    const expressions = media.filter((one) => one.role === 'expression');
+    // The filename is the name, because that is where both source programs put
+    // it — [03 §5.2]'s own layout sketch is `sprites/{neutral,angry,…}.png`.
+    expect(expressions.map((one) => one.label).sort()).toEqual(['angry', 'neutral']);
+    // And the portrait is untouched: `assets[0]` still means what it meant.
+    expect(expressions).toHaveLength(media.length);
+  });
+
+  /**
+   * ***The round trip, which is the assertion that matters.*** A manifest entry
+   * nothing can fetch is a picture that does not exist — and until [P7.10] the
+   * only image route served the card's own pixels, so this is the first time
+   * anything embedded could be read back at all.
+   */
+  it('serves an imported expression back through the media route', async () => {
+    const charx = makeZip([
+      { name: 'card.json', body: JSON.stringify(V3_CARD) },
+      { name: 'assets/avatar.png', body: makePng() },
+      { name: 'assets/sprites/neutral.png', body: makePng() },
+    ]);
+    await upload('Vera.charx', charx);
+
+    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
+    const id = (listed.body.objects as { id: string }[])[0]?.id ?? '';
+    const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const media = (actor.body.object as { media?: { id: string; role: string; digest: string }[] })
+      .media;
+    const neutral = (media ?? []).find((one) => one.role === 'expression');
+
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${id}/media/${neutral?.id ?? ''}`,
+    });
+
+    expect(served.status).toBe(200);
+    expect(served.headers['content-type']).toBe('image/png');
+    // Keyed on the media's own digest rather than the object's content hash:
+    // editing a line of the character's description must not re-fetch a face.
+    expect(served.headers['etag']).toBe(neutral?.digest);
+  });
+
   it('imports a card with no assets at all, which the spec allows', async () => {
     // The probe requires `card.json` and deliberately not `assets/`: requiring
     // the directory would refuse the simplest valid archive.

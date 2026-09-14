@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, type TestServer } from './test-server.js';
+import { makeTestServer, setUpAdmin, watchedIndex, type TestServer } from './test-server.js';
 
 /**
  * The harness itself, because F11's gate tests are about to lean on it.
@@ -23,16 +23,6 @@ import { makeTestServer, setUpAdmin, type TestServer } from './test-server.js';
  */
 
 const NED = { kind: 'user', handle: 'ned' } as const;
-
-/** Filesystem events are not synchronous; poll rather than guess a delay. */
-async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await check()) return;
-    await new Promise((tick) => setTimeout(tick, 50));
-  }
-  expect(await check(), 'condition never held before the timeout').toBe(true);
-}
 
 describe('the watcher option', () => {
   let server: TestServer;
@@ -54,12 +44,18 @@ describe('the watcher option', () => {
     const book = newLorebook('Rain City');
     const path = server.services.layout.objectFile(NED, LOREBOOK_SCHEMA, 'rain-city');
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, JSON.stringify(book));
 
-    await eventually(async () => {
-      const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-      return (listed.body.objects as { id: string }[]).some((row) => row.id === book.id);
-    });
+    // Subscribed before the write, and waited on the watcher's own signal
+    // rather than polling the list — [P7.0]. The claim is that `watch: true`
+    // wires a watcher that delivers, so waiting on delivery is the claim, and a
+    // harness that quietly ignored the option now hangs with a message naming
+    // the path instead of expiring a timer.
+    const indexed = watchedIndex(server, path);
+    await writeFile(path, JSON.stringify(book));
+    await indexed;
+
+    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    expect((listed.body.objects as { id: string }[]).some((row) => row.id === book.id)).toBe(true);
   });
 });
 

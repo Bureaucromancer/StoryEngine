@@ -47,6 +47,7 @@ const UNMEASURABLE: Record<UnmeasurableReason, string> = {
   'role-unbound': 'nothing is bound to the prose role',
   'role-dangling': 'the prose role points at a connection that is gone',
   'no-prose-step': 'this mode narrates nothing',
+  'not-this-turn': 'this turn will not narrate',
 };
 
 /** The name the button carries, which is the whole of what it says. */

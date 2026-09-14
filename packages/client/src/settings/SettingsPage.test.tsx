@@ -35,6 +35,11 @@ const updateMe = vi.fn();
 const changePassword = vi.fn();
 const readPrefs = vi.fn();
 const patchPrefs = vi.fn();
+// The role-bindings pane ([P7.3]) renders for every account, so this page reads
+// it on every render — mocked here only so this file keeps testing what it is
+// about, the way the connections surface already is. `MyRoles.test.tsx` is the
+// file about that pane.
+const readMyRoles = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -45,6 +50,8 @@ vi.mock('../api.js', async (importOriginal) => ({
     changePassword: (...a: unknown[]) => changePassword(...a) as unknown,
     readPrefs: (...a: unknown[]) => readPrefs(...a) as unknown,
     patchPrefs: (...a: unknown[]) => patchPrefs(...a) as unknown,
+    readMyRoles: (...a: unknown[]) => readMyRoles(...a) as unknown,
+    writeMyBindings: vi.fn(),
   },
   adminApi: {
     listAccounts: (...a: unknown[]) => listAccounts(...a) as unknown,
@@ -119,6 +126,13 @@ beforeEach(() => {
   listConnections.mockResolvedValue({ connections: [] });
   readBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:empty' });
   readRoles.mockResolvedValue({ roles: [] });
+  readMyRoles.mockResolvedValue({
+    roles: [],
+    bindings: {},
+    contentHash: 'sha256:empty',
+    connections: [],
+    disabled: [],
+  });
 });
 
 const ALPHA = { version: '1.0.0-alpha.2', commit: '7573e8a0' };

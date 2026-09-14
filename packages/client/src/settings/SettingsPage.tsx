@@ -9,6 +9,7 @@ import { page } from '../ui/classes.js';
 import { AdminAccounts } from './AdminAccounts.js';
 import { AdminConnections } from './AdminConnections.js';
 import { AdminInstall } from './AdminInstall.js';
+import { MyRoles } from './MyRoles.js';
 import { Preferences } from './Preferences.js';
 import { UserSettings } from './UserSettings.js';
 
@@ -51,6 +52,15 @@ export function SettingsPage(): JSX.Element {
       <AboutBuild build={auth.data?.build} />
 
       <UserSettings />
+
+      {/*
+        Before Preferences and for every account — [10 §15.1] lists it in the
+        user half, and [19 §5.1] is explicit that *"anyone who wants their own
+        key overrides a role without the admin's involvement"*. So it is not
+        inside the admin conditional, and its query is keyed under `me` rather
+        than `admin` so it stays mountable for the people it was written for.
+      */}
+      <MyRoles />
 
       <Preferences />
 

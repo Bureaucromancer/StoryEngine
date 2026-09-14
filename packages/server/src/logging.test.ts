@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { Writable } from 'node:stream';
 
 import Fastify from 'fastify';
+import { eventually } from './test-server.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
@@ -66,16 +67,6 @@ async function create(
   const created = await createObject(target.library, 'ned', book, LOREBOOK_SCHEMA);
   const root = target.layout.objectRoot(userOwner('ned'), LOREBOOK_SCHEMA, created.slug);
   return { file: target.layout.objectFile(userOwner('ned'), LOREBOOK_SCHEMA, created.slug), root };
-}
-
-/** Filesystem events are not synchronous; poll rather than guess a delay. */
-async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await check()) return;
-    await new Promise((tick) => setTimeout(tick, 50));
-  }
-  expect(await check(), 'condition never held before the timeout').toBe(true);
 }
 
 /**
@@ -383,14 +374,25 @@ describe('the live tier, with its first real consumer', () => {
        * payload being the state the third edit replaced. With the cap ignored
        * there are three and the count never reaches one.
        */
-      await eventually(async () => {
-        const versions = await listVersions(created.root);
-        if (versions.length !== 1) return false;
-        const kept = (await readVersionPayload(created.root, versions[0]!.digest)) as {
-          name: string;
-        };
-        return kept.name === 'Rain City, after the rain';
-      });
+      await eventually(
+        async () => {
+          const versions = await listVersions(created.root);
+          if (versions.length !== 1) return false;
+          const kept = (await readVersionPayload(created.root, versions[0]!.digest)) as {
+            name: string;
+          };
+          return kept.name === 'Rain City, after the rain';
+        },
+        {
+          // The retention cap is asserted through a strict count, so an ignored
+          // cap and a slow snapshot expire the same timer. Saying which versions
+          // are actually there is the difference between the two.
+          describe: async () => {
+            const versions = await listVersions(created.root);
+            return `${String(versions.length)} version(s) on disk`;
+          },
+        },
+      );
     } finally {
       await app.close();
       await disposeServices(watched);

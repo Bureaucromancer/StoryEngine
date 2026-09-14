@@ -784,3 +784,168 @@ describe('which sampler settings reach the model', () => {
     );
   });
 });
+
+/**
+ * Structured output, end to end through the real SDK — [P7.4].
+ *
+ * **What is being tested is the SDK's behaviour as much as ours**, which is
+ * unusual here and deliberate. `GenerationRequest.schema` and
+ * `GenerationResult.object` have been in the contract since P2.5 and this
+ * adapter mentioned neither, so every question about how the pair behaves was
+ * open — and three of the answers were surprising enough that the code is
+ * written around them. They are pinned here rather than described in a comment,
+ * because a minor SDK bump that changed any of them would otherwise change what
+ * the engine believes about its own prompts.
+ *
+ * The three: the schema reaches the wire **only** when the capability says the
+ * endpoint can take one; a reply that will not parse **throws** rather than
+ * returning, and the error carries everything else about the call; and the SDK
+ * does **not** validate the object it parses.
+ */
+describe('asking for a shape', () => {
+  const SCHEMA = {
+    type: 'object',
+    properties: { name: { type: 'string' } },
+    required: ['name'],
+    additionalProperties: false,
+  };
+
+  /** Runs one call against a scripted reply and hands back the body and the result. */
+  async function asking(
+    reply: string,
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ body: Record<string, unknown>; result: GenerationResult }> {
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { ...capabilities } }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return completion(reply, { prompt: 7, completion: 3 });
+      },
+    });
+
+    const result = await provider.generate({
+      modelId: 'llama-local',
+      messages,
+      params: {},
+      schema: SCHEMA,
+    });
+    return { body: sent, result };
+  }
+
+  it('puts the schema on the wire when the endpoint is declared able to take one', async () => {
+    const { body } = await asking('{"name":"Vera"}', { supportsStructuredOutput: true });
+
+    // `json_schema`, carrying the document — the model is told the shape.
+    expect(body['response_format']).toMatchObject({
+      type: 'json_schema',
+      json_schema: { schema: SCHEMA },
+    });
+  });
+
+  /**
+   * **The default, and the one that matters for a self-hosted install.**
+   * `openai-compatible` declares `supportsStructuredOutput: false` because the
+   * endpoint behind it could be anything — so out of the box the model is asked
+   * for JSON and told nothing about its shape. That is the gap the caller's
+   * prompted-JSON degrade exists to fill, and this is the measurement that says
+   * it is a real gap rather than a precaution.
+   */
+  it('asks only for JSON when it is not, and drops the schema silently', async () => {
+    const { body } = await asking('{"name":"Vera"}');
+
+    expect(body['response_format']).toEqual({ type: 'json_object' });
+    expect(JSON.stringify(body)).not.toContain('additionalProperties');
+  });
+
+  it('hands back the parsed object and the text it came from', async () => {
+    const { result } = await asking('{"name":"Vera"}', { supportsStructuredOutput: true });
+
+    expect(result.object).toEqual({ name: 'Vera' });
+    // The model's own words, not a re-serialisation: the record shows what was
+    // said, and `{"name":"Vera"}` and `{ "name": "Vera" }` are different bytes.
+    expect(result.text).toBe('{"name":"Vera"}');
+  });
+
+  /**
+   * ***The SDK does not validate, measured*** — and this is the assertion the
+   * next stage rests on. `nom` is not `name`, the schema says `required:
+   * ["name"]` and `additionalProperties: false`, and it comes back as a
+   * successful object. `jsonSchema()` is a **carrier**: it puts the document on
+   * the wire so the model is told what to write. Nothing on this side checks
+   * that it did, so *the engine validates* is a requirement rather than a
+   * belt-and-braces choice.
+   */
+  it('does not check the object against the schema, whatever the wire said', async () => {
+    const { result } = await asking('{"nom":"Vera"}', { supportsStructuredOutput: true });
+
+    expect(result.object).toEqual({ nom: 'Vera' });
+  });
+
+  /**
+   * A local model wrapping its JSON in a code fence is the commonest structured
+   * output failure there is. The SDK throws `NoObjectGeneratedError` rather than
+   * returning — which would discard the model's words, its usage and its finish
+   * reason on the way past.
+   */
+  it('keeps everything a fenced reply still said, and reports no object', async () => {
+    const { result } = await asking('```json\n{"name":"Vera"}\n```', {
+      supportsStructuredOutput: true,
+    });
+
+    expect(result.object).toBeUndefined();
+    // All four facts survive, which is what makes this a result rather than a
+    // failure: the turn record can show what was said and what it cost.
+    expect(result.text).toBe('```json\n{"name":"Vera"}\n```');
+    expect(result.usage).toEqual({ promptTokens: 7, completionTokens: 3 });
+    expect(result.finishReason).toBe('stop');
+    expect(result.modelId).toBe('llama-local');
+  });
+
+  it('reports no object for a reply that is not JSON at all', async () => {
+    const { result } = await asking('I am afraid I cannot do that.', {
+      supportsStructuredOutput: true,
+    });
+
+    expect(result.object).toBeUndefined();
+    expect(result.text).toBe('I am afraid I cannot do that.');
+  });
+
+  /**
+   * **A transport failure still classifies**, which is what the recovery has to
+   * not break: the recognition is on the error's own type, so a 429 goes past it
+   * to `asProviderError` exactly as before.
+   */
+  it('still classifies a refusal rather than reading it as an empty object', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { supportsStructuredOutput: true } }),
+      fetch: async () => new Response('slow down', { status: 429 }),
+    });
+
+    await expect(
+      provider.generate({
+        modelId: 'llama-local',
+        messages,
+        params: {},
+        schema: SCHEMA,
+      }),
+    ).rejects.toMatchObject({ name: 'ProviderError', class: 'retryable' });
+  });
+
+  it('carries no object at all when nobody asked for one', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => completion('The rain had not stopped.'),
+    });
+
+    const result = await provider.generate({
+      modelId: 'llama-local',
+      messages,
+      params: {},
+    });
+
+    // Absent rather than undefined-valued: *nobody asked* and *asked and missed*
+    // are different facts, and the engine reads the difference.
+    expect('object' in result).toBe(false);
+  });
+});

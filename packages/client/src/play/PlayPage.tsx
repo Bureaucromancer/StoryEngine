@@ -13,6 +13,7 @@ import {
   moveHead,
   submitTurn,
   undoTurn,
+  type ModeSurface,
   type TurnRecord,
 } from '../api.js';
 import {
@@ -28,6 +29,16 @@ import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
+import { ChannelHealth } from './ChannelHealth.js';
+import { ChannelHud } from './ChannelHud.js';
+import { CastPanel } from './CastPanel.js';
+import { DialPanel } from './DialPanel.js';
+import { GoalPanel } from './GoalPanel.js';
+import { InputKind, promptFor } from './InputKind.js';
+import { ModeRegion } from './ModeRegion.js';
+import { Suggestions } from './Suggestions.js';
+import { MentionOverlay } from './MentionOverlay.js';
+import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
@@ -62,6 +73,15 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const queryClient = useQueryClient();
   const { state, dispatch } = useTurnStream(sessionId);
   const [draft, setDraft] = useState('');
+  /**
+   * ***Sticky across turns, deliberately*** — [P7.9]. A player having a
+   * conversation sends several `say` turns in a row, and a selector that reset
+   * to `do` after each one would make the common case the one that needs a click
+   * every time. It is cleared by nothing: changing what you are doing is the
+   * gesture, and it survives a reload the same way the draft does not, because
+   * it is a mode of composing rather than content.
+   */
+  const [kind, setKind] = useState<string | undefined>(undefined);
   const [guidance, setGuidance] = useState('');
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
@@ -86,6 +106,9 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
         text: draft,
+        // Absent unless the player chose, so the route applies the mode's
+        // default rather than the client guessing `do` for a mode without one.
+        ...(kind === undefined ? {} : { kind }),
         guidance,
       }),
     onSuccess: (accepted) => {
@@ -340,15 +363,83 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         )}
       </div>
 
+      {/* **Above the lore panel and above the transcript** — [06 §4.2], [P7.1].
+          A persistent banner on the session, not a modal and not a log line: it
+          is a fact about the whole session, it renders nothing when there is
+          nothing wrong, and it must not be somewhere a person has to open a
+          disclosure to find. */}
+      <ChannelHealth sessionId={sessionId} />
+
+      {/* **What the session's channels say, declared by whoever owns them** —
+          [10 §8], [P7.1]. Above the transcript because it is state rather than
+          narration, and below the health banner because a channel that could not
+          be loaded is the more urgent sentence. Renders nothing when no declared
+          channel has a surface. */}
+      <ChannelHud sessionId={sessionId} />
+
+      {/* **Who is in the story, and what the software thinks is true of them** —
+          [10 §13.2], [P7.2]. Below the HUD because a cast is a list and the HUD
+          is a line, and above the transcript for the reason both are: state
+          rather than narration. Renders nothing for a session with no cast. */}
+      <CastPanel sessionId={sessionId} />
+
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about
           any turn, and the story column is the surface. */}
       <LorePanel sessionId={sessionId} />
 
+      {/* **What this story is trying to do** — [06 §7.3.3], [06 §7.3.4], [P7.6].
+          Above the hooks because a goal is what the session is *for* and a hook
+          is something that might happen along the way — and because the three
+          offers at a completion are the most consequential control on the page.
+          A disclosure like its neighbours, present even with no chain because
+          the control that sets one is inside it. */}
+      <GoalPanel sessionId={sessionId} />
+
+      {/* **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
+          the lore panel rather than beside the cast, which 10 §10.1 chose
+          deliberately: the cast panel is *"two views of one observation about
+          identity resolution"* and a hook shares neither the observation nor the
+          subject. A disclosure like its neighbour, and present even with an
+          empty pool because the control that adds one is inside it — [03 §4.1]
+          calls adding a hook to a running session *the primary path*. */}
+      <HookPanel sessionId={sessionId} />
+
+      {/* **The two dials** — [06 §7.3.1], [06 §7.3.2], [P7.8]. Not a disclosure,
+          unlike its three neighbours, and the difference is deliberate: those
+          hold lists that grow, and this is two selects that are always exactly
+          two selects. *Below the hook panel* because the third dial is in it —
+          [06 §7.3.2] calls hook pacing the honest form of directedness, so the
+          reading order puts the two axes next to the control that is the third,
+          where somebody wondering why the story keeps pulling can see all three
+          at once. Renders nothing for a mode that declares no difficulty, which
+          is [04 §7]'s explicit case. */}
+      <DialPanel sessionId={sessionId} />
+
+      {/* **Whatever else this mode's declaration asked for** — [06 §9], [P7.11].
+          Last in the panel stack because the four above it are the engine's own
+          and a mode's additions belong after them, and because a mode that
+          declares none renders nothing here at all. */}
+      <ModeRegion sessionId={sessionId} surfaces={session.data?.surfaces} region="panel" />
+
+      {/* **The stage** — [06 §7.2], [10 §2.3], [P7.11]. The picture the story is
+          staged against, and it behaves like chrome: *"The prose wins,
+          always… On a phone it is the first thing to go."* Renders nothing at
+          all when the session has no backdrop, which 10 §2.3 requires in as
+          many words — there must be no placeholder where the picture would go. */}
+      <ModeRegion
+        sessionId={sessionId}
+        surfaces={session.data?.surfaces}
+        region="stage"
+        className="flex flex-col gap-2"
+      />
+
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
             key={turn.id}
+            sessionId={sessionId}
+            surfaces={session.data?.surfaces}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
             busy={
@@ -424,14 +515,25 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           busy={running || refresh.isPending}
           locale={locale}
         />
+        {/* **Above the box, and the order is the sentence.** A player picks
+            what kind of thing they are about to do and then writes it; a
+            selector to the right of the input would be a setting applied after
+            the fact. Renders nothing for a mode with one kind — [06 §1], and
+            Scene is that mode. */}
+        <InputKind
+          kinds={session.data?.inputs ?? []}
+          value={kind}
+          disabled={running}
+          onChange={setKind}
+        />
         <div className="flex gap-2">
           <label className="flex-1">
-            <span className="sr-only">What do you do?</span>
+            <span className="sr-only">{promptFor(kind)}</span>
             <input
               className={control}
               value={draft}
               disabled={running}
-              placeholder="What do you do?"
+              placeholder={promptFor(kind)}
               onChange={(event) => {
                 setDraft(event.target.value);
               }}
@@ -452,6 +554,17 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
             </Button>
           )}
         </div>
+        {/* **Below the composer and above the guidance box** — [R11], [P7.9].
+            The offers fill the box rather than taking a turn, so they belong
+            beside the thing they fill; the toggle rides with them because it is
+            the control that explains an empty row, which is the argument
+            [10 §10.1] makes for the pacing dial one panel over. */}
+        <Suggestions
+          sessionId={sessionId}
+          actions={transcript.data?.turns.at(-1)?.suggestions ?? []}
+          disabled={running}
+          onPick={setDraft}
+        />
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>
     </div>
@@ -504,9 +617,14 @@ function TurnView({
   onUndo,
   onGoToSibling,
   onName,
+  sessionId,
+  surfaces,
 }: {
   turn: TurnRecord;
   siblings: string[];
+  sessionId: string;
+  /** A mode's message decorations, read once by the page — see `ModeRegion`. */
+  surfaces: readonly ModeSurface[] | undefined;
   busy: boolean;
   onRedo: (turn: TurnRecord, rewrite: boolean, guidance?: string) => void;
   onContinueFrom: (turn: TurnRecord) => void;
@@ -542,9 +660,29 @@ function TurnView({
       {turn.input === undefined ? null : (
         <p className="text-story text-ink-subtle">{turn.input.text}</p>
       )}
+      {/* **What the engine understood, drawn over the prose** — [10 §13.1],
+          [P7.7]. An overlay and never a rewrite: with no spans this renders the
+          same characters the model wrote, which is what makes the marks
+          subtractable rather than baked in. */}
       {turn.output === undefined ? null : (
-        <p className="whitespace-pre-wrap text-story text-ink">{turn.output.text}</p>
+        <MentionOverlay
+          text={turn.output.text}
+          spans={(turn.spans ?? []).filter((span) => span.field === 'output')}
+          className="whitespace-pre-wrap text-story text-ink"
+        />
       )}
+      {/* **A mode's own decoration on the message** — [06 §9]'s third region,
+          [P7.11]. The engine already has one of these in the overlay above; this
+          is the same idea declared rather than written, and Scene's expression
+          sprite is what asked for it. *Below the prose rather than beside it*:
+          the message is the story and a picture is an accompaniment, which is
+          the same order [10 §2.3] puts the backdrop in. */}
+      <ModeRegion
+        sessionId={sessionId}
+        surfaces={surfaces}
+        region="message"
+        className="flex flex-wrap gap-2"
+      />
       {/* A failed turn is shown rather than hidden: it is on the record with
           what it managed, and hiding it would make a re-run unexplainable. */}
       {turn.status === 'failed' ? (

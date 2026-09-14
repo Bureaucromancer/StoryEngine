@@ -10,7 +10,7 @@ import { readAllTurns } from '../sessions/segments.js';
 import { SE_CLOCK } from '../sessions/channels.js';
 import { submitTurn } from '../state/jobs.js';
 import { Layout } from '../storage/layout.js';
-import { NARRATE } from '../modes/scene/mode.js';
+import { TEST_STEP } from '../test-mode.js';
 import { TurnRunner } from '../turns/runner.js';
 import type { StepDefinition, TurnPlan } from '../turns/steps.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -435,7 +435,7 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
   const BOTH_KINDS: TurnPlan = {
     steps: [
       {
-        definition: NARRATE,
+        definition: TEST_STEP,
         run: async (_input, host) => ({ message: { text: (await host.call({})).text } }),
       },
       {

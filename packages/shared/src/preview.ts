@@ -28,7 +28,33 @@ import type { AssembledBlock, BudgetVerdict, CallPurpose, NotFilledSlot } from '
  * true reply to *how full is the context*, which is why the route serves them
  * with a 200.
  */
-export type UnmeasurableReason = 'role-unbound' | 'role-dangling' | 'no-prose-step';
+export type UnmeasurableReason =
+  | 'role-unbound'
+  | 'role-dangling'
+  | 'no-prose-step'
+  /**
+   * ***The fifth state: this turn will not narrate*** — [P7.9], and it is the
+   * arm `turns/preview.ts` refused by name for six phases.
+   *
+   * That refusal was correct while it stood: *"it would be more honest for a
+   * cadence-gated step — this turn will not narrate — but Scene's cadence is
+   * every turn, so it would be a fifth state no shipped mode can reach. It
+   * arrives with the first mode that can exercise it."* **A state nothing can
+   * produce is a state nothing can test**, and inventing it early would have
+   * meant a client rendering a sentence for a case that could not occur.
+   *
+   * *What changed is a mode, not the preview.* A cadence over one is the only
+   * cadence either shipped mode's prose step has had; a prose step gated to run
+   * less often is what makes the meter's honest answer *nothing is being
+   * assembled this turn* rather than a context fill for a call that will not
+   * happen.
+   *
+   * **Distinct from `no-prose-step`, which is a mode with no narration at all.**
+   * This one has a narrator and it is not that narrator's turn — different
+   * sentence, different remedy, and collapsing them would tell somebody their
+   * mode cannot narrate when it is about to.
+   */
+  | 'not-this-turn';
 
 /**
  * What the retriever did, and — mostly — what it declined to do.

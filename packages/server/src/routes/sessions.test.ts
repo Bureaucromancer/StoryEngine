@@ -5,10 +5,19 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newPreset } from '@storyengine/shared';
+import {
+  newActor,
+  newPreset,
+  newSetup,
+  newTreatment,
+  uuidv7,
+  type PlotHook,
+} from '@storyengine/shared';
 
-import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { defaultMode, registerMode } from '../mode-registry.js';
+import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
+import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
@@ -561,6 +570,253 @@ describe('a hand-edited session file reaches the log', () => {
   });
 });
 
+/**
+ * **The error surface** — [06 §4.2], [P7.1].
+ *
+ * That section calls this *"the part worth building properly, and the part the
+ * sources have nothing like"*: a health record on the session, a banner saying
+ * the story is unaffected, and **recovery offered rather than applied**. The
+ * banner is the client's; the record and the recovery are these.
+ *
+ * ***Driven by changing a schema under a live session, which is the scenario
+ * 4.2 is actually about*** — *"a session that has been open for three months
+ * will meet a channel that has changed shape"*. The first draft of these tests
+ * drove it with a hand-edited `session.json` and found nothing, which was the
+ * mechanisms working: a bad value *arriving* is refused at the divergence step
+ * and never reaches state, so there is nothing to quarantine. The two paths are
+ * genuinely different and only one of them ends here.
+ *
+ * The substitution is a plausible evolution rather than a contrived one: a clock
+ * that moved to quarter-hour granularity. The stored `08:05` stops fitting; the
+ * declared init of `08:00` still does, which matters because a channel whose own
+ * default fails its new schema is deliberately left alone.
+ */
+describe('a channel whose schema changed under a live session', () => {
+  const QUARTER_HOURS = { enum: [0, 15, 30, 45] };
+
+  /** Runs a turn, then tightens the clock's schema the way a new build would. */
+  async function afterASchemaChange(): Promise<() => void> {
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const original = channelDefinition('se.clock');
+    if (original === null) throw new Error('se.clock is not registered');
+    registerChannel({
+      ...original,
+      schema: {
+        ...(original.schema as Record<string, unknown>),
+        properties: {
+          day: { type: 'integer', minimum: 1 },
+          hour: { type: 'integer', minimum: 0, maximum: 23 },
+          minute: { type: 'integer', ...QUARTER_HOURS },
+        },
+      },
+    });
+    // The registry is a module global the server shares, so a substitution left
+    // behind would reach every test after this one.
+    return () => {
+      registerChannel(original);
+    };
+  }
+
+  it('opens the session anyway, which is the rule the whole ladder serves', async () => {
+    // *"A session must always open. Load never fails on a channel problem."*
+    const restore = await afterASchemaChange();
+    try {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      expect(read.status).toBe(200);
+    } finally {
+      restore();
+    }
+  });
+
+  it('reports which channel, which version, why, and what the value was', async () => {
+    // All of 06 §4.2's first bullet — *"which channels are degraded, which
+    // version they were written against, and why they failed"* — plus the raw
+    // value, because recovery is a decision nobody can make unseen.
+    const restore = await afterASchemaChange();
+    try {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const health = read.body.health as {
+        channelId: string;
+        version: number;
+        reason: string;
+        raw: { minute: number };
+      }[];
+
+      expect(health).toHaveLength(1);
+      expect(health[0]?.channelId).toBe('se.clock');
+      expect(health[0]?.version).toBe(1);
+      expect(health[0]?.reason).toContain('/minute');
+      expect(health[0]?.raw.minute).toBe(5);
+    } finally {
+      restore();
+    }
+  });
+
+  it('resets the channel to what the mode declared, and records doing so', async () => {
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+      const turns = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+      const last = turns.body.turns.at(-1) as {
+        effects: { channelId: string; proposedBy: { kind: string }; after: unknown }[];
+      };
+      const quarantine = last.effects.find((each) => each.channelId === 'se.clock');
+
+      // The engine noticed; nobody proposed. And `after` is Scene's declared
+      // init, not a value the engine invented.
+      expect(quarantine?.proposedBy).toEqual({ kind: 'engine' });
+      expect(quarantine?.after).toEqual({ day: 1, hour: 8, minute: 0 });
+    } finally {
+      restore();
+    }
+  });
+
+  it('does not re-quarantine on the next read, so the log stays bounded', async () => {
+    // A rung that fired on every load would turn one stale value into an
+    // unbounded effect log. The marker stays, because clearing it is the
+    // person's decision rather than the second read's.
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const before = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+
+      const again = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const after = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+
+      expect((again.body.health as unknown[]).length).toBe(1);
+      expect(after.body.turns).toHaveLength(before.body.turns.length);
+    } finally {
+      restore();
+    }
+  });
+
+  it('accepts the reset when a person writes the value that is standing', async () => {
+    // One of 06 §4.2's three offers. Writing the current value clears the
+    // marker, because a `degraded` state is only ever written by an effect
+    // carrying a reason.
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+      const accepted = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/se.clock`,
+        payload: { value: { day: 1, hour: 8, minute: 0 } },
+      });
+
+      expect(accepted.status).toBe(200);
+      expect(accepted.body.effect.applied).toBe(true);
+      expect(accepted.body.health).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  it('refuses a retry that still does not fit, without losing the record', async () => {
+    // **The property that makes recovery safe to offer**: the button cannot put
+    // the session back in the state it was rescued from. Recorded as a refusal
+    // rather than answered with a 4xx, because a status code throws away the
+    // record the workbench is meant to show.
+    const restore = await afterASchemaChange();
+    try {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      const raw = (read.body.health as { raw: unknown }[])[0]?.raw;
+
+      const retried = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/se.clock`,
+        payload: { value: raw },
+      });
+
+      expect(retried.status).toBe(200);
+      expect(retried.body.effect.applied).toBe(false);
+      expect(retried.body.effect.rejectedReason).toBe('schema');
+      // Still reset, still degraded, still recoverable.
+      expect(retried.body.health).toHaveLength(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it('takes an edited value when it fits, which is the third offer', async () => {
+    const restore = await afterASchemaChange();
+    try {
+      await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+      const edited = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/se.clock`,
+        payload: { value: { day: 1, hour: 21, minute: 45 } },
+      });
+
+      expect(edited.body.effect.applied).toBe(true);
+      expect(edited.body.health).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  it('reports nothing for a session that is fine', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.body.health).toEqual([]);
+  });
+});
+
+/**
+ * **A bad value *arriving* never reaches the health record**, which is the
+ * interaction between the two mechanisms and the thing that surprised the first
+ * draft of the tests above.
+ */
+describe('a hand edit that does not fit its channel', () => {
+  it('is refused at the divergence step, so nothing is ever degraded', async () => {
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const onDisk = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...onDisk,
+        // Past the schema's `maximum: 23`, and reachable only this way —
+        // `advance` carries minutes into hours, so nothing in the engine
+        // produces a 25.
+        channels: { 'se.clock': { version: 1, value: { day: 1, hour: 25, minute: 0 } } },
+      }),
+    );
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const last = turns.body.turns.at(-1) as {
+      effects: { channelId: string; applied: boolean; rejectedReason: string | null }[];
+    };
+    const attempt = last.effects.find((each) => each.channelId === 'se.clock');
+
+    // Recorded and attributed, as [03 §8.1] requires — and not applied, so the
+    // quarantine below it has nothing to rescue.
+    expect(attempt?.applied).toBe(false);
+    expect(attempt?.rejectedReason).toBe('schema');
+    expect(read.body.health).toEqual([]);
+  });
+});
+
 describe('a session with a cast assembles the whole preset', () => {
   /** An actor with real prose in the sections the preset positions. */
   async function anActor(name: string): Promise<string> {
@@ -686,10 +942,11 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 15 since the second lore slot ([P6B.1], the phase every
+    // gains a block — 16 since the goal slot ([06 §7.3.3]'s *always injected*,
+    // [P7.6]), 15 from the second lore slot ([P6B.1], the phase every
     // `after_char` entry was being dropped for), 14 from the previous-attempt
     // slot ([06 §5.1]), 13 from the writing-samples slot ([04 §3.1]) before it.
-    expect(created.body.session.preset.blocks).toHaveLength(15);
+    expect(created.body.session.preset.blocks).toHaveLength(16);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 
@@ -940,7 +1197,7 @@ describe('creating a session with a chosen preset', () => {
     });
 
     expect(created.status).toBe(201);
-    expect(created.body.session.preset.id).toBe(SCENE_PRESET.id);
+    expect(created.body.session.preset.id).toBe(defaultMode().definition.assembly.defaultPreset.id);
   });
 
   it('refuses an unknown preset rather than falling back to the default', async () => {
@@ -972,5 +1229,1009 @@ describe('creating a session with a chosen preset', () => {
     });
 
     expect(created.status).toBe(422);
+  });
+});
+
+/**
+ * **The declaration held to** — [06 §7.3], [P7.4].
+ *
+ * A mode says what it needs before the first turn, and creation is where that
+ * either means something or does not. Without a check, a declared wizard
+ * describes a screen somebody might build and constrains nothing; with one, a
+ * `required` field cannot be skipped and a key the mode never asked for cannot
+ * reach a session file.
+ */
+describe('a session for a mode with a wizard', () => {
+  beforeEach(() => {
+    registerMode(SETUP_MODE);
+  });
+
+  async function create(setup?: unknown) {
+    return server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Wizard',
+        mode: SETUP_MODE_ID,
+        ...(setup === undefined ? {} : { modeConfig: setup }),
+      },
+    });
+  }
+
+  const ANSWERS = { premise: 'A city that does not sleep.', difficulty: 'harsh', dice: true };
+
+  it('keeps the answers it was given', async () => {
+    const response = await create(ANSWERS);
+
+    expect(response.status).toBe(201);
+    expect(response.body.session.mode.config).toEqual(ANSWERS);
+  });
+
+  it('takes a session without the optional field', async () => {
+    const response = await create({ premise: 'Rain.', difficulty: 'even' });
+
+    expect(response.status).toBe(201);
+    // Absent rather than defaulted: a toggle nobody touched is not `false`, it
+    // is a question the person did not answer, and the mode's steps can tell.
+    expect(response.body.session.mode.config).toEqual({ premise: 'Rain.', difficulty: 'even' });
+  });
+
+  it('refuses one that skips a required field, and says which', async () => {
+    const response = await create({ premise: 'Rain.' });
+
+    // 422, not 400: the body is well-formed JSON of the declared shape, and
+    // what is wrong is that it does not satisfy *this mode's* requirements.
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('setup-invalid');
+    // The issues travel, because a refusal reading only *invalid* leaves a
+    // person guessing which field on a form the engine generated.
+    expect(JSON.stringify(response.body.issues)).toContain('difficulty');
+  });
+
+  it('refuses a choice the mode does not offer', async () => {
+    const response = await create({ ...ANSWERS, difficulty: 'impossible' });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('setup-invalid');
+  });
+
+  it('refuses a field of the wrong type', async () => {
+    const response = await create({ ...ANSWERS, dice: 'yes' });
+
+    expect(response.status).toBe(422);
+  });
+
+  /**
+   * **A key the mode never asked for does not reach the file.** A wizard's
+   * answers are the one place a client could quietly persist arbitrary data into
+   * a session, and *ignoring* an unknown key would teach the next version of
+   * that client that it worked — the argument `ProfilePatch` makes in
+   * `routes/me.ts`.
+   */
+  it('refuses a field the mode never declared', async () => {
+    const response = await create({ ...ANSWERS, apiKey: 'sk-nope' });
+
+    expect(response.status).toBe(422);
+    expect(JSON.stringify(response.body)).not.toContain('sk-nope');
+  });
+
+  it('refuses it with nothing at all, because two fields are required', async () => {
+    expect((await create()).status).toBe(422);
+    expect((await create({})).status).toBe(422);
+  });
+
+  /**
+   * Every session written before [P7.4], and every Scene session after it. `{}`
+   * would be a claim that a wizard ran and collected nothing.
+   */
+  it('writes no setup key for a mode that has no wizard', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Plain' },
+    });
+
+    expect(response.status).toBe(201);
+    // `null`, not `{}`: *no wizard ran* and *a wizard ran and collected nothing*
+    // are different, and every session written before [P7.4] is in the first.
+    expect(response.body.session.mode.config).toBeNull();
+  });
+
+  it('refuses answers to a mode that asked for nothing', async () => {
+    // Told rather than quietly ignored: the derivation is
+    // `additionalProperties: false` over no properties, so a client sending a
+    // wizard's answers to Scene hears about it.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Plain', modeConfig: { premise: 'Rain.' } },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('setup-invalid');
+  });
+});
+
+/**
+ * **The world made on the session's first turn** — [06 §7.3], [P7.4], and
+ * [00 §2.3]'s *single biggest reliability difference available versus the
+ * source*.
+ *
+ * The design asks for *"separate validated generations, each individually
+ * retryable, applied as they succeed"*, and read back that sentence describes
+ * the step loop: an ordered list, a model call each, a schema each, a `failure`
+ * policy each, a record each, and effects applied as each returns. So setup is a
+ * turn and the parts are its steps — which is why these tests assert on a turn
+ * rather than on a generation pipeline, and why there is no second pipeline to
+ * assert on.
+ */
+describe('a mode that generates its world', () => {
+  beforeEach(() => {
+    registerMode(GENERATING_MODE);
+  });
+
+  const ANSWERS = { premise: 'A city that does not sleep.', difficulty: 'even' };
+
+  /** Creates a generating session and waits for its setup turn to finish. */
+  async function generate(script: ScriptedReply[]): Promise<string> {
+    await standUp(script);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Generated', mode: GENERATING_MODE_ID, modeConfig: ANSWERS },
+    });
+    const id = created.body.session.id as string;
+
+    // The same stream a client opens for any turn, which is the point: nothing
+    // about watching a generation is new.
+    const stream = await server.stream({ url: `/api/sessions/${id}/stream` });
+    await stream.until(finished, 6000);
+    await stream.abort();
+    return id;
+  }
+
+  it('reserves a turn and hands back the job to watch', async () => {
+    await standUp([{ object: { hour: 21 } }, { text: 'Rain.' }]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Generated', mode: GENERATING_MODE_ID, modeConfig: ANSWERS },
+    });
+
+    expect(created.status).toBe(201);
+    // The same shape `POST /sessions/:id/turns` answers with, so the client
+    // opens the stream it already knows how to open: generation is a thing you
+    // watch, not a thing you wait out behind a spinner.
+    expect(created.body.activeJob).toMatchObject({ sessionId: created.body.session.id as string });
+  });
+
+  it('applies each part as it succeeds', async () => {
+    const id = await generate([{ object: { hour: 21 } }, { text: 'It never stops.' }]);
+
+    const session = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+    // The first part's effect is on the session's channels, which is what
+    // *applied* means — and it went through `acceptEffect` like any other, so
+    // it is in the turn record and it branches.
+    expect(session.body.session.channels['se.test.opening'].value).toEqual({ hour: 21 });
+  });
+
+  it('hands a part the answers the wizard collected', async () => {
+    const id = await generate([{ object: { hour: 21 } }, { text: 'It never stops.' }]);
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+    // The part echoed `StepInput.setup`, which is the only way to see from
+    // outside that the answers reached it.
+    expect(turns.body.turns[0].output.text).toContain('A city that does not sleep.');
+  });
+
+  /**
+   * ***Individually retryable means individually **failable*** — the property
+   * the design is actually after, and the one a single part could not show.
+   * `failure: 'warn'` is the right policy for a part where `abort` is right for
+   * narration: a world half-made is worth more than no world, and the part that
+   * failed is named in the record for a person to run again.
+   */
+  it('keeps what succeeded when a part fails', async () => {
+    // The first part asks for `{hour}` and gets a shape that is not one, for as
+    // many attempts as the ladder has — so it fails, and the second still runs.
+    const wrong = { object: { our: 21 } };
+    const id = await generate([wrong, wrong, wrong, { text: 'It never stops.' }]);
+
+    const session = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+
+    // The channel was never written, because its part never produced a usable
+    // answer — where a turn that fell over would have written neither.
+    expect(session.body.session.channels['se.test.opening']).toBeUndefined();
+    // And the turn committed with the other part's output, rather than falling
+    // over and leaving a session with nothing.
+    expect(turns.body.turns[0].output.text).toContain('It never stops.');
+    expect(turns.body.turns[0].status).toBe('complete');
+  });
+
+  it('starts no turn at all for a mode that generates nothing', async () => {
+    // An empty plan would commit a turn that did nothing — a blank first entry
+    // in somebody's transcript, which is the cost [P7.3] refused for the roster.
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Wizard only', mode: SETUP_MODE_ID, modeConfig: ANSWERS },
+    });
+
+    expect(created.status).toBe(201);
+    expect('activeJob' in (created.body as object)).toBe(false);
+  });
+});
+
+/**
+ * **Starting from a Setup** — [04 §7], [P7.4], and the consumer that library
+ * kind has never had.
+ *
+ * `setups/` has had a folder, a canonical filename, an index walk, full CRUD, a
+ * shelf and a `newSetup` factory whose only caller was a test. What it had no
+ * consumer for was *anything*: session creation took mode, preset, treatment,
+ * cast and lore as five separate parameters and had no way to be handed the one
+ * object that holds all five.
+ *
+ * **And it is what makes [04 §6.1b]'s middle rung reachable.** That section
+ * settles where an authored default may be written down — *"a Treatment
+ * proposes, a Setup overrides, and the running session owns it"* — and there was
+ * no Setup rung, because a session did not record which one it came from.
+ */
+describe('a session started from a Setup', () => {
+  async function aSetup(over: Record<string, unknown> = {}): Promise<string> {
+    const made = { ...newSetup('The Fixer’s Debt'), ...over };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    if (response.status !== 201) throw new Error(`setup create failed: ${String(response.status)}`);
+    return response.body.object.id as string;
+  }
+
+  async function startFrom(setup: string, over: Record<string, unknown> = {}) {
+    return server.request({ method: 'POST', url: '/api/sessions', payload: { setup, ...over } });
+  }
+
+  it('keeps a copy, so editing the Setup cannot reach the game', async () => {
+    const id = await aSetup();
+
+    const created = await startFrom(id);
+
+    expect(created.status).toBe(201);
+    // The object itself, not a link — [00 §3.1], the asymmetry the preset has.
+    expect(created.body.session.setup).toMatchObject({ id, schema: 'storyengine.setup/1' });
+  });
+
+  it('takes its name when the session was not given one', async () => {
+    const id = await aSetup();
+
+    const created = await startFrom(id);
+
+    // A session made from *The Fixer's Debt* and left unnamed is that, not
+    // *Untitled*.
+    expect(created.body.session.name).toBe('The Fixer’s Debt');
+  });
+
+  it('takes the mode it names', async () => {
+    registerMode(SETUP_MODE);
+    const id = await aSetup({
+      mode: { id: SETUP_MODE_ID, config: { premise: 'Rain.', difficulty: 'harsh' } },
+    });
+
+    const created = await startFrom(id);
+
+    expect(created.body.session.mode.id).toBe(SETUP_MODE_ID);
+    // `Setup.mode.config` is *"whatever the mode's own setup collected"*, which
+    // is the same value the wizard collects — so it lands where the wizard's
+    // answers land, and is validated against the mode's declaration on the way.
+    expect(created.body.session.mode.config).toEqual({ premise: 'Rain.', difficulty: 'harsh' });
+  });
+
+  it('refuses a Setup whose config the mode would not accept', async () => {
+    registerMode(SETUP_MODE);
+    const id = await aSetup({
+      mode: { id: SETUP_MODE_ID, config: { premise: 'Rain.', difficulty: 'impossible' } },
+    });
+
+    // Held to the declaration exactly as a wizard's answers are: a Setup
+    // written against a different build is not a reason to write a config the
+    // mode cannot read.
+    expect((await startFrom(id)).status).toBe(422);
+  });
+
+  it('takes its treatment and its lore', async () => {
+    const id = await aSetup({
+      treatment: { id: 'treat-1', name: 'Rain City, noir' },
+      lore: [{ ref: { id: 'book-1', name: 'Rain City' }, required: false }],
+    });
+
+    const created = await startFrom(id);
+
+    expect(created.body.session.treatment).toBe('treat-1');
+    expect(created.body.session.lore).toEqual(['book-1']);
+  });
+
+  it('offers the first persona it names, because choosing is the wizard’s job', async () => {
+    const id = await aSetup({
+      cast: {
+        personaOptions: [{ id: 'actor-vera', name: 'Vera' }],
+        partyDefault: [],
+        narrator: null,
+      },
+    });
+
+    const created = await startFrom(id);
+
+    expect(created.body.session.cast).toEqual({ persona: 'actor-vera', actors: [] });
+  });
+
+  /**
+   * **Everything it carries is a default a parameter overrides** — [04 §6.1b]'s
+   * layering with the session's own parameters as the last word. Somebody who
+   * picked a Setup and then changed the treatment meant the treatment they
+   * changed it to.
+   */
+  it('gives way to a parameter sent beside it', async () => {
+    const id = await aSetup({ treatment: { id: 'treat-1', name: 'Rain City, noir' } });
+
+    const created = await startFrom(id, { name: 'My own', treatment: 'treat-2' });
+
+    expect(created.body.session.name).toBe('My own');
+    expect(created.body.session.treatment).toBe('treat-2');
+  });
+
+  /**
+   * A dangling *treatment* is a session missing a book, which [00 §3.3] says to
+   * carry on with. A dangling **Setup** is a session that would be created as
+   * something other than what was asked for, because the Setup is *what to
+   * create*.
+   */
+  it('is refused when there is no such Setup, rather than ignored', async () => {
+    const created = await startFrom('not-a-setup');
+
+    expect(created.status).toBe(422);
+    expect(created.body.error).toBe('unknown-setup');
+  });
+
+  it('leaves the field off a session that was not started from one', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'By hand' },
+    });
+
+    expect('setup' in (created.body.session as object)).toBe(false);
+  });
+});
+
+/**
+ * **The hook pool, copied at creation from all four sources** — [03 §4.1],
+ * [06 §6.1], [P7.5].
+ *
+ * The pool's fourth source had no home until this stage: `SessionFile` had no
+ * `hooks` field and `NewSession` no way to pass one, though 03 §4.1 calls adding
+ * one to a running session *the primary path*.
+ *
+ * **And [15 §5]'s first obligation is pinned end to end here**, not only over
+ * the builder: *a copied hook keeps the source hook's id*, because a corpus of
+ * sessions whose hooks have unrelated ids cannot be retro-fitted into a
+ * continuity. [P7.5] calls it free now and unrecoverable later.
+ */
+describe('a session’s hook pool', () => {
+  function hook(id: string): PlotHook {
+    return {
+      id,
+      title: id,
+      premise: 'The Flower Kingdom will declare war.',
+      magnitude: 'sweeping',
+      involves: [],
+      weight: 1,
+      delivery: 'guidance',
+      once: true,
+    };
+  }
+
+  async function aTreatment(hooks: PlotHook[]): Promise<string> {
+    const made = { ...newTreatment('Rain City, noir'), hooks };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: made,
+    });
+    return response.body.object.id as string;
+  }
+
+  it('copies a treatment’s hooks, keeping their ids', async () => {
+    const id = await aTreatment([hook('hook-war')]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+
+    expect(created.body.session.hooks).toEqual([
+      { hook: expect.objectContaining({ id: 'hook-war' }), source: { kind: 'treatment', id } },
+    ]);
+  });
+
+  it('takes the session’s own hooks, which had nowhere to be passed', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', hooks: [hook('hook-mine')] },
+    });
+
+    expect(created.body.session.hooks).toEqual([
+      { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
+    ]);
+  });
+
+  it('takes a Setup’s hooks too, attributed to it', async () => {
+    const made = { ...newSetup('The Fixer’s Debt'), hooks: [hook('hook-debt')] };
+    const setup = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    const setupId = setup.body.object.id as string;
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setupId },
+    });
+
+    expect(created.body.session.hooks).toEqual([
+      {
+        hook: expect.objectContaining({ id: 'hook-debt' }),
+        source: { kind: 'setup', id: setupId },
+      },
+    ]);
+  });
+
+  it('writes no pool at all when nothing carried a hook', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+
+    // Absent rather than `[]`: a session whose sources carried none is not a
+    // session somebody emptied, and every session before [P7.5] is the former.
+    expect('hooks' in (created.body.session as object)).toBe(false);
+  });
+
+  /**
+   * [06 §6.1]'s *pulled, never pushed* over [00 §3.1]: editing a treatment must
+   * not reach a game already in progress. The preset's asymmetry, not the cast's.
+   */
+  it('does not follow the treatment after the session exists', async () => {
+    const id = await aTreatment([hook('hook-war')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/library/treatments/${id}` });
+    await server.request({
+      method: 'PUT',
+      url: `/api/library/treatments/${id}`,
+      payload: { object: { ...read.body.object, hooks: [hook('hook-different')] } },
+      headers: { 'if-match': read.body.contentHash as string },
+    });
+
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.session.hooks[0].hook.id).toBe('hook-war');
+  });
+
+  /**
+   * ***The primary path, and creation was the only way in*** — [03 §4.1],
+   * [P7.5]. That section says a session *"may add its own while running"* and
+   * calls it that: a treatment is where hooks primarily live, but *I want this
+   * to happen in this game* is a thought people have while playing.
+   */
+  describe('adding one to a running session', () => {
+    async function aSession(): Promise<string> {
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { name: 'Rain' },
+      });
+      return created.body.session.id as string;
+    }
+
+    it('takes a hook mid-session, attributed to the session itself', async () => {
+      const sessionId = await aSession();
+
+      const added = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/hooks`,
+        payload: { hook: hook('hook-mine') },
+      });
+
+      expect(added.body.session.hooks).toEqual([
+        { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
+      ]);
+      // And it is in the panel the same turn, with its source named — the one
+      // source with no object to navigate to, because the session is what you
+      // are already looking at.
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      expect(read.body.hooks.rows[0]).toMatchObject({
+        hookId: 'hook-mine',
+        source: { kind: 'session' },
+        refusal: null,
+      });
+    });
+
+    /**
+     * ***An id is minted when there is none, and this is the one source where
+     * that is right.*** Every other hook in the pool was copied from an object
+     * that had one, and [15 §5]'s obligation is that copying keeps it. A
+     * session's own hook has no upstream to keep an id from — and without one it
+     * cannot be committed, blocked, or recorded as fired, because every one of
+     * those keys on `hook.id`.
+     */
+    it('mints an id for a hook that arrives without one', async () => {
+      const sessionId = await aSession();
+      const added = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/hooks`,
+        // Written out rather than derived from `hook()` with the id removed: a
+        // rest element would name a binding nothing reads, and this is the whole
+        // of what a client posts anyway.
+        payload: {
+          hook: {
+            title: 'Mine',
+            premise: 'The old bridge gives way in the storm.',
+            magnitude: 'local',
+            involves: [],
+            weight: 1,
+            delivery: 'guidance',
+            once: true,
+          },
+        },
+      });
+
+      const minted = added.body.session.hooks[0].hook.id as string;
+      expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+      // Usable, which is the whole point of minting it: a hook with no id cannot
+      // be committed, because Commit writes `se.hook#<id>`.
+      const written = await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${sessionId}/channels/${encodeURIComponent(`se.hook#${minted}`)}`,
+        payload: { value: 'committed' },
+      });
+      expect(written.body.effect.applied).toBe(true);
+    });
+
+    /**
+     * **An authoring act, not a story event** — [03 §4.1]: *"adding a hook
+     * mid-session is an authoring act, not a story event, and must survive a
+     * rewind"*. So it lands on the session file rather than as a channel effect,
+     * and the pool a turn is judged against is session-wide.
+     */
+    it('writes the pool and not an effect', async () => {
+      const sessionId = await aSession();
+      await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/hooks`,
+        payload: { hook: hook('hook-mine') },
+      });
+
+      const turns = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+      // A channel write appends a turn carrying the effect. This one appends
+      // nothing, because nothing happened in the story.
+      expect(turns.body.turns).toEqual([]);
+    });
+
+    /**
+     * *Removal takes **any** hook, whatever its source*, which is
+     * [00 §3.1]'s prefill-not-binding: the pool was copied at creation, so a
+     * treatment-borne entry in it is this session's copy, and declining to
+     * remove it would make the copy a binding.
+     */
+    it('removes a hook the treatment put there, without touching the treatment', async () => {
+      const id = await aTreatment([hook('hook-war')]);
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { name: 'Rain', treatment: id },
+      });
+      const sessionId = created.body.session.id as string;
+
+      const removed = await server.request({
+        method: 'DELETE',
+        url: `/api/sessions/${sessionId}/hooks/hook-war`,
+      });
+
+      // Absent rather than `[]` when the last one goes — the claim the creation
+      // path already makes.
+      expect('hooks' in (removed.body.session as object)).toBe(false);
+      const treatment = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${id}`,
+      });
+      expect(treatment.body.object.hooks).toHaveLength(1);
+    });
+
+    it('succeeds at removing a hook that is already gone', async () => {
+      const sessionId = await aSession();
+
+      const removed = await server.request({
+        method: 'DELETE',
+        url: `/api/sessions/${sessionId}/hooks/never-there`,
+      });
+
+      // The state the caller asked for. A 404 would make a double-click an
+      // error, where a missing *session* stays a 404 because it is a different
+      // claim.
+      expect(removed.status).toBe(200);
+    });
+
+    it('is a 404 for a session that is not there', async () => {
+      const response = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${uuidv7()}/hooks`,
+        payload: { hook: hook('hook-mine') },
+      });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  /**
+   * **What the hook panel is shown** — [10 §10.1], [P7.5].
+   *
+   * *"Which hooks have fired and when, which are eligible right now, and which
+   * are blocked **with the clause that blocked them**."* Eligibility is live
+   * because the mechanical filter already runs every turn, so the route runs the
+   * same filter the selector does rather than a second reading of the rules.
+   */
+  it('sends the panel its rows and the dial that explains an empty one', async () => {
+    const id = await aTreatment([
+      hook('hook-war'),
+      { ...hook('hook-late'), notBefore: { turn: 40 } },
+    ]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.body.hooks.pacing).toBe('normal');
+    expect(read.body.hooks.rows).toEqual([
+      {
+        hookId: 'hook-war',
+        title: 'hook-war',
+        source: { kind: 'treatment', id },
+        state: null,
+        refusal: null,
+        entrances: [],
+      },
+      {
+        hookId: 'hook-late',
+        title: 'hook-late',
+        source: { kind: 'treatment', id },
+        state: null,
+        // The clause, not a boolean — an author must see *which are blocked and
+        // by what*, and the remedy for this one is to wait or lower the bound.
+        refusal: 'too-early',
+        entrances: [],
+      },
+    ]);
+    // **The premise is not on the wire**, which is the panel's defining
+    // constraint rather than an omission: an unfired hook's premise is hidden
+    // content ([08 §6]), and the one thing worse than spoiling it in a panel is
+    // spoiling it in the prompt.
+    expect(JSON.stringify(read.body.hooks)).not.toContain('declare war');
+  });
+
+  /**
+   * The dial is [04 §6.1b]'s three rungs, and the panel shows the resolved
+   * value — a control reading the channel alone would say `normal` for every
+   * session whose treatment asked for something else and has not been turned.
+   */
+  it('resolves the dial through the treatment that proposed it', async () => {
+    const made = {
+      ...newTreatment('Rain City, noir'),
+      hooks: [hook('hook-war')],
+      hookPacing: 'sparse',
+    };
+    const treatment = await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: made,
+    });
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: treatment.body.object.id as string },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(before.body.hooks.pacing).toBe('sparse');
+
+    // And the running session owns it thereafter, which is the top rung.
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.hook.pacing`,
+      payload: { value: 'aggressive' },
+    });
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.hooks.pacing).toBe('aggressive');
+  });
+
+  /**
+   * **Commit goes through the channel write and needed no route of its own** —
+   * [06 §6.1], and the panel's one control. The first rule is that skipping the
+   * filter says what it skipped, so the row carries the clause it walked past.
+   */
+  it('commits a blocked hook and reports the clause it overrode', async () => {
+    const id = await aTreatment([{ ...hook('hook-late'), notBefore: { turn: 40 } }]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', treatment: id },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent('se.hook#hook-late')}`,
+      payload: { value: 'committed' },
+    });
+    expect(written.body.effect.applied).toBe(true);
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.body.hooks.rows[0]).toMatchObject({
+      state: 'committed',
+      refusal: null,
+      committed: { overrode: 'too-early' },
+    });
+  });
+});
+
+/**
+ * **The goal chain, copied at creation and extended while running** —
+ * [04 §7.1], [06 §7.3.3], [06 §7.3.4], [P7.6].
+ *
+ * *"Ordered: `goals[0]` is where play begins. Empty = no win condition, which is
+ * the deliberate opt-out rather than the default."*
+ */
+describe('a session’s goals', () => {
+  function goal(id: string, over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id,
+      statement: `Do ${id}`,
+      detail: null,
+      visibility: 'player',
+      completion: { kind: 'narrative' },
+      thenDefault: 'advance',
+      next: null,
+      ...over,
+    };
+  }
+
+  async function aSetup(goals: Record<string, unknown>[]): Promise<string> {
+    const made = { ...newSetup('The Fixer’s Debt'), goals };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    return response.body.object.id as string;
+  }
+
+  it('copies a Setup’s chain, in order', async () => {
+    const setup = await aSetup([goal('g-one'), goal('g-two')]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+
+    expect((created.body.session.goals as { id: string }[]).map((one) => one.id)).toEqual([
+      'g-one',
+      'g-two',
+    ]);
+  });
+
+  it('writes no chain at all when the Setup carried none', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+
+    // [04 §7.1] calls empty *the deliberate opt-out*; absent is what a session
+    // with no Setup is, and the two should not be spelled the same.
+    expect('goals' in (created.body.session as object)).toBe(false);
+  });
+
+  /**
+   * [00 §3.1]'s prefill-not-binding, the same asymmetry the pool and the pack
+   * have: editing a Setup must not reach a game in progress.
+   */
+  it('does not follow the Setup after the session exists', async () => {
+    const setup = await aSetup([goal('g-one')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/library/setups/${setup}` });
+    await server.request({
+      method: 'PUT',
+      url: `/api/library/setups/${setup}`,
+      payload: { object: { ...read.body.object, goals: [goal('g-different')] } },
+      headers: { 'if-match': read.body.contentHash as string },
+    });
+
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.session.goals[0].id).toBe('g-one');
+  });
+
+  it('sends the panel its rows, with the first goal current', async () => {
+    const setup = await aSetup([goal('g-one', { next: 'g-two' }), goal('g-two')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.body.goals.concluded).toBe(false);
+    expect(read.body.goals.rows).toEqual([
+      {
+        goalId: 'g-one',
+        statement: 'Do g-one',
+        visibility: 'player',
+        completion: 'narrative',
+        current: true,
+        achieved: false,
+        // [25 C12]'s gate, seen from the wire: a goal nobody has judged yet is
+        // neither done nor waiting on an answer.
+        proposed: false,
+        next: 'g-two',
+        thenDefault: 'advance',
+      },
+      expect.objectContaining({ goalId: 'g-two', current: false }),
+    ]);
+  });
+
+  /**
+   * ***The three offers, through the routes they actually use.*** All three are
+   * channel writes — [06 §7.3.4]'s *continue open*, *advance* and *end* — which
+   * is why none of them needed a route of its own, and why each lands as a turn
+   * that a rewind can undo.
+   */
+  it('advances, carries on and ends through the channel write', async () => {
+    const setup = await aSetup([goal('g-one', { next: 'g-two' }), goal('g-two')]);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup },
+    });
+    const sessionId = created.body.session.id as string;
+
+    // Manual completion, which [06 §7.3.3] keeps always available.
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent('se.goal#g-one')}`,
+      payload: { value: 'achieved' },
+    });
+    const done = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(done.body.goals.rows[0]).toMatchObject({ achieved: true, current: true });
+    // Retained with the turn that completed it, derived from the path.
+    expect(typeof done.body.goals.rows[0].achievedOn).toBe('string');
+
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.goal.current`,
+      payload: { value: 'g-two' },
+    });
+    const advanced = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(advanced.body.goals.rows[1]).toMatchObject({ goalId: 'g-two', current: true });
+
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.concluded`,
+      payload: { value: true },
+    });
+    const ended = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(ended.body.goals.concluded).toBe(true);
+    // *A state, not a deletion* — the chain is still there and still readable.
+    expect(ended.body.goals.rows).toHaveLength(2);
+  });
+
+  /**
+   * ***Advance's second arm*** — [06 §7.3.4]'s *"or one written now"*, which is
+   * the clause that makes the chain a session field rather than a link.
+   */
+  it('takes a goal written at a completion, minting an id for it', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const added = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/goals`,
+      payload: {
+        goal: {
+          statement: 'Find the fixer.',
+          detail: null,
+          visibility: 'player',
+          completion: { kind: 'narrative' },
+          thenDefault: 'continue-open',
+          next: null,
+        },
+      },
+    });
+
+    const minted = (added.body.session.goals as { id: string }[])[0]?.id ?? '';
+    expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Usable, which is the point of minting it: the cursor and the achievement
+    // channel are both scoped by the id.
+    const pointed = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.goal.current`,
+      payload: { value: minted },
+    });
+    expect(pointed.body.effect.applied).toBe(true);
+  });
+
+  /**
+   * **An authoring act, not a story event** — so it lands on the session file
+   * and appends no turn. *Pointing play at it* is the story event, and that is
+   * the channel write above.
+   */
+  it('writes the chain and not a turn', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain' },
+    });
+    const sessionId = created.body.session.id as string;
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/goals`,
+      payload: { goal: { statement: 'Find the fixer.', next: null } },
+    });
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns).toEqual([]);
+  });
+
+  it('is a 404 for a session that is not there', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${uuidv7()}/goals`,
+      payload: { goal: { statement: 'x' } },
+    });
+
+    expect(response.status).toBe(404);
   });
 });
