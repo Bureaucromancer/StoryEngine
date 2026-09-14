@@ -6,7 +6,10 @@ import {
   isKnownSchema,
   LOREBOOK_SCHEMA,
   newActor,
+  newPackage,
   newPreset,
+  newSetup,
+  newTreatment,
   newLorebook,
   PORTABLE_SCHEMAS,
 } from '@storyengine/shared';
@@ -117,6 +120,9 @@ const EDITOR_ROUTES = {
   actors: '/library/actors/$id/edit',
   lorebooks: '/library/lorebooks/$id/edit',
   presets: '/library/presets/$id/edit',
+  treatments: '/library/treatments/$id/edit',
+  setups: '/library/setups/$id/edit',
+  packages: '/library/packages/$id/edit',
 } as const satisfies Partial<Record<LibraryKind, string>>;
 
 /**
@@ -150,6 +156,9 @@ const NEW_OBJECTS: Record<
    * literal would be a second definition of *what a new preset is*.
    */
   presets: { noun: 'preset', make: (name) => newPreset(name) },
+  treatments: { noun: 'treatment', make: (name) => newTreatment(name) },
+  setups: { noun: 'setup', make: (name) => newSetup(name) },
+  packages: { noun: 'package', make: (name) => newPackage(name) },
 };
 
 /**
@@ -165,6 +174,9 @@ const NEW_ROUTES = {
   actors: '/library/actors/new',
   lorebooks: '/library/lorebooks/new',
   presets: '/library/presets/new',
+  treatments: '/library/treatments/new',
+  setups: '/library/setups/new',
+  packages: '/library/packages/new',
 } as const satisfies Record<EditorKind, string>;
 
 /**
@@ -209,11 +221,24 @@ const REQUIRED_FIELDS: Record<EditorKind, readonly string[]> = {
   actors: ['name'],
   lorebooks: ['name'],
   presets: ['name'],
+  treatments: ['name'],
+  setups: ['name'],
+  packages: ['name'],
 };
 
-/** Where a new one is written, or null when this kind has no editor yet. */
+/**
+ * Where a new one is written, or null when this kind has no editor yet.
+ *
+ * ***`EditorKind` and `LibraryKind` became the same set at [P7B.6]***, and the
+ * `as EditorKind` these four lookups carried is gone because the compiler can
+ * now see they were never narrowing anything. **The `Object.hasOwn` stays**, and
+ * the nullable return with it: [04 §2](../../../../docs/design/04-schemas.md)
+ * makes an unrecognised `schema` an ordinary thing to meet, so a kind reaching
+ * these tables from a file rather than from the union is a real case, and a
+ * total lookup would answer it with `undefined` dressed as a route.
+ */
 export function newRouteFor(kind: LibraryKind): NewRoute | null {
-  return Object.hasOwn(NEW_ROUTES, kind) ? NEW_ROUTES[kind as EditorKind] : null;
+  return Object.hasOwn(NEW_ROUTES, kind) ? NEW_ROUTES[kind] : null;
 }
 
 /**
@@ -235,14 +260,14 @@ export function blankFor(kind: EditorKind): Record<string, unknown> {
 
 /** Where this kind is edited, or null when it has no editor yet. */
 export function editorRouteFor(kind: LibraryKind): EditorRoute | null {
-  return Object.hasOwn(EDITOR_ROUTES, kind) ? EDITOR_ROUTES[kind as EditorKind] : null;
+  return Object.hasOwn(EDITOR_ROUTES, kind) ? EDITOR_ROUTES[kind] : null;
 }
 
 /** How to make a new one of this kind, or null when nothing here can. */
 export function newObjectFor(
   kind: LibraryKind,
 ): { noun: string; make: (name: string) => Record<string, unknown> } | null {
-  return Object.hasOwn(NEW_OBJECTS, kind) ? NEW_OBJECTS[kind as EditorKind] : null;
+  return Object.hasOwn(NEW_OBJECTS, kind) ? NEW_OBJECTS[kind] : null;
 }
 
 /**
@@ -251,7 +276,7 @@ export function newObjectFor(
  * answer rather than a throw: nothing can require a field nothing can edit.
  */
 export function requiredFieldsFor(kind: LibraryKind): readonly string[] {
-  return Object.hasOwn(REQUIRED_FIELDS, kind) ? REQUIRED_FIELDS[kind as EditorKind] : [];
+  return Object.hasOwn(REQUIRED_FIELDS, kind) ? REQUIRED_FIELDS[kind] : [];
 }
 
 /** Whether this one field is among them — what a field asks to mark itself. */

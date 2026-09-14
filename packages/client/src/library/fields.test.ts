@@ -143,24 +143,30 @@ describe('which kinds have an editor, asked in one place', () => {
   });
 
   /**
-   * The condition and the address are one lookup on purpose: they used to be
-   * two literals in one JSX branch, so widening the condition alone would have
-   * pointed a lorebook at the actor editor. P5.1 is the widening that would
-   * have done it, which is why the second address is asserted above rather than
-   * only the second `true`.
+   * ***The absence is gone, and so is the assertion about it*** — [P7B.6],
+   * which is what the row it replaced predicted would happen to it.
+   *
+   * It read *"answers for the four that do not, address included"*, then three
+   * at [P7B.1]. Counting down an absence is not maintenance, it is a test being
+   * kept alive past the thing it was about — so the claim now runs over the
+   * whole key set and says the positive: **every kind has an editor, and each
+   * one's address is its own.**
+   *
+   * The original reason it paired the condition with the address survives here,
+   * because it is the part that would still bite: they used to be two literals
+   * in one JSX branch, so widening the condition alone would have pointed a
+   * lorebook at the actor editor. Asserting six `true`s without six distinct
+   * addresses would let exactly that back in.
    */
-  /**
-   * ***Four became three at [P7B.1]***, and this assertion is on its way out
-   * rather than being maintained: it states an **absence**, and the phase it
-   * belongs to exists to remove the absence. When the last three kinds get
-   * editors at [P7B.6] the test goes with them — an assertion that every kind
-   * has one is the claim worth keeping, and it is the one above.
-   */
-  it('answers for the three that do not, address included', () => {
-    for (const kind of ['treatments', 'setups', 'packages'] as const) {
-      expect(kindHasEditor(kind)).toBe(false);
-      expect(editorRouteFor(kind)).toBeNull();
-    }
+  it('answers for every kind, address included, and no two share one', () => {
+    const addresses = LIBRARY_KINDS.map((kind) => {
+      expect(kindHasEditor(kind)).toBe(true);
+      const route = editorRouteFor(kind);
+      expect(route).toContain(kind);
+      return route;
+    });
+
+    expect(new Set(addresses).size).toBe(LIBRARY_KINDS.length);
   });
 
   /**

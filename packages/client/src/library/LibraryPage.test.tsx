@@ -240,22 +240,31 @@ describe('making an actor', () => {
   });
 
   /**
-   * **Not a disabled button — no button.** A kind with no editor has nowhere to
-   * land, so the page says so in a sentence instead of promising a control that
-   * would strand the user on a read-only page over an empty object.
+   * ~~**Not a disabled button — no button.** A kind with no editor has nowhere
+   * to land…~~ ***There is no such kind from [P7B.6].***
    *
-   * *Exemplar changed at P5.1*: this used to be `lorebooks`, which now has an
-   * editor. Kept as a case rather than deleted, because the sentence is the
-   * behaviour and four kinds still get it.
+   * The exemplar moved once already — it was `lorebooks` until P5.1 — and the
+   * note then said it was *"kept as a case rather than deleted, because the
+   * sentence is the behaviour and four kinds still get it."* Four became zero.
+   * The branch and its sentence stay in the page for a kind this build has
+   * never heard of ([04 §2] makes one an ordinary thing to meet), and what is
+   * asserted here is the claim that replaced it: **every kind offers its own
+   * New control.**
    */
-  it('offers nothing on a kind that has no editor to land in', async () => {
-    search = { kind: 'treatments' };
+  it.each([
+    ['actors', 'New actor'],
+    ['lorebooks', 'New lorebook'],
+    ['presets', 'New preset'],
+    ['treatments', 'New treatment'],
+    ['setups', 'New setup'],
+    ['packages', 'New package'],
+  ])('offers a New control on %s, naming the kind', async (kind, control) => {
+    search = { kind };
     renderPage();
     await settled();
 
-    expect(screen.queryByRole('button', { name: 'New actor' })).toBeNull();
-    expect(screen.queryByLabelText('Name for the new actor')).toBeNull();
-    expect(screen.getByText(/no editor yet/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: control })).toBeTruthy();
+    expect(screen.queryByText(/no editor yet/)).toBeNull();
   });
 
   /**

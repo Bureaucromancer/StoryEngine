@@ -301,14 +301,19 @@ describe('reading an object without opening the editor', () => {
     expect(await screen.findByRole('link', { name: 'Edit' })).toBeTruthy();
   });
 
-  /** Four kinds have no editor to land in, and the gate is one lookup now. */
-  it('does not offer Edit on a kind that has none', async () => {
+  /**
+   * ~~Four kinds have no editor to land in~~ ***none do, from [P7B.6]*** — so
+   * the case this asserted is gone and the claim is the other one: a kind that
+   * *does* have an editor offers Edit, and treatments were the exemplar of the
+   * absence precisely because they were the most obviously missing.
+   */
+  it('offers Edit on a treatment too, which had none until P7B', async () => {
     params = { kind: 'treatments', id: ACTOR_ID };
     readObject.mockResolvedValue(actor({ schema: 'storyengine.treatment/1' }));
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Edit' })).toBeTruthy();
   });
 });
 

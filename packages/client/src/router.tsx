@@ -9,6 +9,14 @@ import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
 import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
 import { NewPresetPage, PresetEditorPage } from './editor/PresetEditorPage.js';
+import {
+  NewPackagePage,
+  NewSetupPage,
+  NewTreatmentPage,
+  PackageEditorPage,
+  SetupEditorPage,
+  TreatmentEditorPage,
+} from './editor/kinds.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
@@ -283,6 +291,48 @@ const newPresetRoute = createRoute({
   component: NewPresetPage,
 });
 
+/**
+ * The last three — [P7B.3] and [P7B.6], and with them **every library kind has
+ * an editor**.
+ *
+ * Six addresses in one block because they are six of the same address: their
+ * pages are one component and three declarations
+ * ([kinds.tsx](./editor/kinds.tsx)), which is what it looks like when a form
+ * comes out of the schema rather than being written per kind. The static-beats-
+ * dynamic ranking `newActorRoute` documents applies to each `new` here for the
+ * same reason and is asserted the same way.
+ */
+const treatmentEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/treatments/$id/edit',
+  component: TreatmentEditorPage,
+});
+const newTreatmentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/treatments/new',
+  component: NewTreatmentPage,
+});
+const setupEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/setups/$id/edit',
+  component: SetupEditorPage,
+});
+const newSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/setups/new',
+  component: NewSetupPage,
+});
+const packageEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/packages/$id/edit',
+  component: PackageEditorPage,
+});
+const newPackageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/packages/new',
+  component: NewPackagePage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
@@ -293,6 +343,12 @@ const routeTree = rootRoute.addChildren([
   newLorebookRoute,
   presetEditorRoute,
   newPresetRoute,
+  treatmentEditorRoute,
+  newTreatmentRoute,
+  setupEditorRoute,
+  newSetupRoute,
+  packageEditorRoute,
+  newPackageRoute,
   sessionsRoute,
   playRoute,
   compareRoute,
