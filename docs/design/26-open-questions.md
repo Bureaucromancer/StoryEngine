@@ -34,7 +34,7 @@ copyleft from extension authors is smaller and more recoverable than the damage
 of a copyleft project being seen to close things down. Consequences: no
 exception means no decide-before-first-PR deadline; the SDK package must itself
 be AGPL for this to hold; extension manifests should carry a declared licence
-field for legibility. Content — including packages and their authored rules —
+field for legibility. Content — including Worlds and their authored rules —
 is explicitly *not* covered and stays the author's own. See
 [triage §1.1–1.2](workplan/02-triage.md).
 
@@ -48,14 +48,32 @@ story; quota declared in the manifest; removed on uninstall with an explicit
 keep-the-data prompt. Values are JSON — bulk bytes go through a separate asset
 call returning a handle. *[06 §9, 25 §4.6, 23 §5]*
 
-**A2. Can a package ship code? — SHARPENED by [02 §2.1](02-infinite-worlds.md):
-packages may ship *rules*, never *code*.** Declarative rules are terms in a
+**A2. Can a World ship code? — SHARPENED by [02 §2.1](02-infinite-worlds.md):
+a World may ship *rules*, never *code*.** Declarative rules are terms in a
 closed vocabulary our evaluator interprets, so importing one grants no capability
 the importer lacks — which is what makes shared content far more expressive
 without touching A1's execution question. Still open: bundling an actual mode or
 extension implementation remains a no for 1.0, and the rule vocabulary needs
-versioning so a package authored against v2 fails legibly on a v1 host.
+versioning so a World authored against v2 fails legibly on a v1 host.
 *[03 §7, 02 §2]*
+
+***Asked about a package, answered about a World*** (2026-09-14). This question
+was written when the content bundle was called Package, and the rename
+([15 §0](15-world.md), [04 §9](04-schemas.md)) carries it across without
+touching a word of the argument — which is as good a test as there is of whether
+a rename was a rename. What changed is the noun and the file it travels in:
+`.seworld` where it was `.sepack`. [15 §8](15-world.md) holds the sentence in
+its new form and adds the reason it is a boundary rather than a policy: the
+closed vocabulary is what lets the authoring tier hand authors real power
+without making an import a code-execution decision.
+
+**The versioning caveat is the live half, and it did not move.** The vocabulary
+it is about is 5.0 (C7), so there is nothing yet for a v1 host to reject
+legibly or otherwise. What the rename adds is somewhere for the check to attach:
+a World still arrives as a file, but it also *stays* as a library object
+([15 §4](15-world.md)), where a Package was specified to dissolve on import —
+which is the same defect that forced the rename in the first place
+([15 §0](15-world.md)).
 
 **A2b. Randomness. — RESOLVED 2026-08-09: one canonical server-local RNG
 service, no network dependency, every draw recorded in the turn's effects.**
@@ -192,8 +210,13 @@ an iframe. *[10 §8, 20 §6]*
 
 **A7. Schema direction of derivation. — CONFIRMED: TypeBox.** JSON Schema is the
 artefact; TypeScript types are derived from it. The deciding argument stands:
-package and extension manifests must be validatable by tools not compiled
-against our TypeScript ([20 §4](20-tech-stack.md)). *[20 §4]*
+World envelopes and extension manifests must be validatable by tools not
+compiled against our TypeScript — a third-party tool that validates a `.seworld`
+should be able to fetch a schema file ([20 §4](20-tech-stack.md)). *The
+extension was `.sepack` when this was decided, and the argument is indifferent
+to which: what it turns on is that somebody else's validator exists at all,
+which is the property [04 §9](04-schemas.md) preserves by validating the
+envelope and never the payload kind.* *[20 §4]*
 
 **A8. Runtime and index driver. — CONFIRMED: Node LTS, `node:sqlite` preferred
 with `better-sqlite3` as fallback.** Low-risk because the index is derived — a
@@ -335,11 +358,57 @@ Distinct from the **reading view** ([10 §12](10-ui-surfaces.md)), which *does*
 ship at 1.0 and is deliberately lossy — a person reading a story rather than an
 install loading one.
 
-**B10. Prologue packages — good concept, worth doing, unblocked once B12 lands.**
-A package shipping a partially-played session as a starting state. Conceptually
-welcome and no longer blocked on an undecided question, only on a sequenced one.
-The [04 §7](04-schemas.md) split makes it clean: a prologue is a *session*
-travelling in a package, not a variant of Setup. *[03 §7]*
+**The substance is unchanged and the door it comes through is new**
+(2026-09-14). Export was a verb in a list when this was resolved; it is now
+[16](16-publish.md) — one flow over every kind, with the session as one of its
+starting points and a row of its own in the closure table
+([16 §2](16-publish.md), [16 §4](16-publish.md)). The drag this entry priced is
+that row, item for item: the session, its `localActors`, its channel state, its
+branch structure and its renditions. Two consequences are worth carrying here
+rather than only there. **A session is a World member like anything else**
+([15 §4](15-world.md)), so *send this story* and *send the canon it is in* stop
+being two features and become one review with a checkbox, **defaulted off**
+([16 §5](16-publish.md)) — handing somebody your transcripts is a thing to
+choose rather than to discover you did. And **a session's closure reaches its
+Setup and stops**: the sibling sessions of the same World are never implied,
+because *this story* and *my six stories* must not silently become each other.
+
+**What moved in the schedule is smaller than it sounds.** The P11 date, the
+turn-record freeze and [13 §4.8](13-write-mode.md)'s shut window all stand;
+what changed is that the exchange work now builds on a portable kind that
+already exists by then — World lands at [P8A], between P8 and P9 — rather than
+inventing the container and the closure walker in the same phase.
+
+**B10. Prologue packages — RESOLVED 2026-09-14, by mechanism rather than by
+feature: a prologue is a session ticked in a World's publish review.** No kind
+gains a field, nothing has to be called a *prologue* anywhere, and the whole of
+it is [16 §5](16-publish.md)'s session checkbox aimed at one session rather than
+six. [15 §4](15-world.md) says it in a line — *"the same mechanism with one
+session ticked"* — and what it answers is an entry that had asked for a feature.
+
+**The old entry is kept, because the answer is its own argument followed one
+step further.** It read:
+
+> **Prologue packages — good concept, worth doing, unblocked once B12 lands.** A
+> package shipping a partially-played session as a starting state. Conceptually
+> welcome and no longer blocked on an undecided question, only on a sequenced
+> one. The [04 §7](04-schemas.md) split makes it clean: a prologue is a
+> *session* travelling in a package, not a variant of Setup.
+
+*A session travelling in a package* was the right sentence and was already the
+answer; what it was missing was a container that could hold a session and a flow
+that could put one in. Package could do neither — it held the five library kinds
+and dissolved on import ([15 §0](15-world.md)) — and both arrived together, so
+the thing this entry was waiting to schedule turned out to be a consequence of
+two things it was not waiting on.
+
+**What is left is a check rather than a feature.** A prologue is only as good as
+what a session carries across an install boundary, which is B12's list and P11's
+problem: branch structure, channel state, `localActors`, renditions. If that
+ships whole, a prologue is *open the session that arrived and keep playing*; if
+it ships lossy, this is the first place the loss is visible, because a recipient
+who never played those turns cannot tell a gap from a choice. *[03 §7, 15 §4,
+16 §5]*
 
 **B13. Where per-user UI preferences live. — RESOLVED on the third answer, at
 [P2A §2.2](workplan/09-p2a-configuration-surface.md).** A separate per-user
@@ -395,8 +464,9 @@ future proposal to move preferences onto `Account` has to answer the chatty
 write path beside a password hash, not merely prefer a different file.*
 
 **B14. May a lorebook's `scope` narrow a book the session already chose? —
-OPEN. Deliberately not decided at [P5.7], and it is the question that survives
-the reversal.**
+ANSWERED 2026-09-14: still no, and answered by the arrival of the very thing it
+was left open for.** Deliberately not decided at [P5.7], and it was the question
+that survived the reversal.
 
 Settled first, so the open part is small: **selection is the only way a lorebook
 reaches a session** ([03 §3.4](03-data-model.md)) — `session.lore`, or the
@@ -404,11 +474,13 @@ treatment the session names. P5.7 briefly let `scope` *admit* books and that was
 reversed, because `global` is the factory default *and* the SillyTavern
 importer's fallback, so a person's whole library landed in every prompt.
 
-What is open is the other direction. A book scoped `linked` to Vera, which a
+What was open is the other direction. A book scoped `linked` to Vera, which a
 session has **chosen**, could reasonably either:
 
 - **Contribute unconditionally** — what ships. The person who linked it said to,
-  and that is the end of it. `scope` is stored, exported, and read by nothing.
+  and that is the end of it. `scope` was stored, exported and read by nothing
+  when this was written; it is read now, by a mechanism that only ever adds
+  ([15 §5](15-world.md), [04 §5](04-schemas.md)).
 - **Narrow to sessions casting one of its actors** — so the chosen book goes
   quiet when Vera is not in the scene.
 
@@ -418,31 +490,84 @@ inactive, which is the same class of surprise the reversal removed, pointing the
 other way. A person who links a book and sees nothing from it would have to
 learn that a field on the *book* was overruling their choice.
 
-Two things would change the answer. If **inheritance** arrives — a Worlds
-concept ([15 §5](15-world.md)) where something above the session contributes
-books — then `scope` acquires a real consumer and narrowing may follow naturally
-from it. And if narrowing does ship, it needs a surface: the reason has to reach
-the retrieval report as a skip reason, or it reintroduces exactly the silence
-[P5.8]'s tester was built to end.
+**Two things were named as what would change the answer, and the first has
+happened.** It was written as a hypothetical — *if **inheritance** arrives, a
+Worlds concept ([15 §5](15-world.md)) where something above the session
+contributes books, then `scope` acquires a real consumer and narrowing may
+follow naturally from it.* It arrived. A World contributes books at session
+creation and the union gains `{ kind: 'world', worldIds }`
+([04 §5](04-schemas.md)), so the field has exactly the consumer this paragraph
+said it was waiting for.
 
-**B15. What should a new lorebook's `scope` be? — OPEN, and only *because* B14
-is.** `newLorebook` sets `{ kind: 'global' }`, and the SillyTavern importer
-falls back to it for a chat-scoped book. That is currently harmless — nothing
-reads the field — and it is exactly the default that made P5.7's behaviour so
-sharp. If `scope` ever regains a consumer, this default is the thing to decide
-first rather than to inherit: *global* is the most permissive value in the union,
-and a field nobody sets should not default to the widest answer. There is also
-no surface for changing it; a book's scope is visible only in *As stored*.
-*[04 §5](04-schemas.md), [03 §3.4](03-data-model.md)*
+**Narrowing did not follow, and the reason is the shape the consumer took.** A
+World **prefills**: it copies books into `session.lore` at creation and keeps no
+live pointer back ([00 §3.1](00-stance.md), [15 §5](15-world.md)). So the new
+arm only ever *adds* to a session's selection, at the one moment selections are
+made, in the open, editable afterwards — and [03 §3.4](03-data-model.md)'s rule
+that a lorebook reaches a session by being selected and by nothing else is
+untouched by it. Narrowing is the opposite operation: a field on the book
+subtracting from a choice a person already made. **Contribution is not
+inheritance**, and it turns out to be the half of the hypothetical worth having;
+the half this entry refused is refused on the same ground it always was.
+
+**The second stands as a condition rather than as something that happened**, and
+is now the whole of what is left here. If narrowing is ever proposed again it
+needs a surface: the reason has to reach the retrieval report as a skip reason,
+or it reintroduces exactly the silence [P5.8]'s tester was built to end. That is
+a bar for a future proposal, not a thing this entry is waiting on — which is the
+difference between an open question and a standing requirement, and this one has
+crossed it.
+
+**B15. What should a new lorebook's `scope` be? — RESOLVED 2026-09-14:
+`linked` with an empty actor list.** The narrowest honest statement the union
+can make — *this book has not said where it applies* — and exactly today's
+behaviour for a book nobody scopes, since an empty actor list links it to
+nobody and selection still does all the work
+([03 §3.4](03-data-model.md)). **`global` stays in the union**: the format
+carries it, the SillyTavern importer produces it, and an import must hand back
+what it was handed. **What moves is what we write into a new book, never what we
+accept in an old one** ([04 §5](04-schemas.md)).
+
+**It resolved by consequence rather than by argument, which is what the entry
+itself predicted.** It said the default was *"the thing to decide first rather
+than to inherit"* if `scope` ever regained a consumer, and that is precisely
+what happened: [15 §5](15-world.md) gave the field one, and *a field nobody sets
+should not default to the widest value in its own union* stopped being a
+principle nothing could act on. The question as it stood, kept because it is the
+reason the answer is this one:
+
+> `newLorebook` sets `{ kind: 'global' }`, and the SillyTavern importer falls
+> back to it for a chat-scoped book. That is currently harmless — nothing reads
+> the field — and it is exactly the default that made P5.7's behaviour so sharp.
+
+**One thing makes the new default cheaper than a default usually is**, and it is
+worth recording because it will look like a coincidence later: `linked` with an
+empty actor list is also what an older build must do with a scope it does not
+recognise ([04 §5](04-schemas.md)'s open-discriminant condition). The default
+and the forward-compatible degradation are the same behaviour, so a book
+authored here and read by a build that predates the `world` arm contributes
+nothing in both directions rather than differently in each.
+
+**Two things this does not answer.** The build still produces `global` — the
+factory, and the importer's fallback for a chat-scoped book — and changing the
+factory belongs with the arm that reads the field rather than ahead of it,
+because a default nothing reads is a default nothing can be wrong about. And
+there is still **no surface for the field**: a book's scope is visible only in
+*As stored*, which was the second half of this entry's complaint and survives
+answering the first. The World that now reads it is the most likely thing to
+want one. *[04 §5](04-schemas.md), [03 §3.4](03-data-model.md)*
 
 ---
 
 ## C. Mode and pipeline questions
 
 **C1. Names. — RESOLVED: Messages, Scene, Freeform, Campaign — four modes, no
-Adventure grouping.** Freeform ships at 1.0 and Campaign at 5.0
+Adventure grouping.** Freeform ships at 1.0 and Campaign at 4.0
 ([work plan §0](workplan/01-work-plan.md)); Messages is specified and unscheduled
-([25 §3.4](25-roadmap.md)).
+([25 §3.4](25-roadmap.md)). *Campaign read 5.0 here until 2026-09-14 and moved
+with the line rather than on its own: World into 1.0 shortened the series by one
+behind it (C7), because Campaign's stated gate was 4.0's continuity to run in
+and that continuity now exists at 1.0.*
 
 **Amended once, and the amendment is the interesting half.** The original
 resolution named a mode **Adventure** carrying two presets, *Adventure ·
@@ -450,7 +575,9 @@ Freeform* and *Adventure · Campaign*, on the reasoning that naming presets rath
 than modes kept them sharing one contract. The contract argument was right and
 is unaffected — every mode shares it — but the grouping was buying a name for a
 pair, and the release re-cut put three releases between the two halves of that
-pair. A name for a pair nobody chooses between is a name for nothing.
+pair — two, since the shortening above, which weakens nothing: the argument is
+that nobody chooses between them, not that they are far apart. A name for a pair
+nobody chooses between is a name for nothing.
 [06 §1](06-modes-and-turn-pipeline.md) carries the full reasoning.
 
 *Chronicle* was the earlier name for Freeform and was replaced: it read as
@@ -508,7 +635,7 @@ built: what rule conditions really need to express, and whether a template
 language stretches to them comfortably. Deferring the pick costs nothing as long
 as the single-language constraint holds. *[06 §5, 20]*
 
-**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 6.0, the authoring
+**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 5.0, the authoring
 tier** ([work plan §0.6](workplan/01-work-plan.md)).
 The direction is unchanged — take Infinite Worlds' conditions and effects close
 to wholesale ([02 §3](02-infinite-worlds.md)) — but the vocabulary, its evaluator
@@ -541,11 +668,44 @@ against imagination is one nobody can use. Two stable schemas were also carrying
 ⚠ warnings for fields typed against something unwritten; deferring removed both
 and left `PlotHook` and `Goal` honestly stable.
 
+***The number moved a fourth time and the tier did not*** (2026-09-14). This
+entry read 6.0 until World moved into 1.0 and the release line shortened by one
+behind it — Campaign at 4.0, the authoring tier at 5.0
+([work plan §0](workplan/01-work-plan.md)). **Nothing here is re-scoped by
+that.** What this entry argues for is a *position* — a release behind Campaign —
+which is a relation rather than a number, and the number is only what that
+relation spells today. It is recorded because the three re-scopings above were
+decisions and this one is not, and a reader counting the moves should not have to
+work out which kind the fourth was.
+[06 §4.1](06-modes-and-turn-pipeline.md) carries the same correction from the
+pipeline's side.
+
 **What 1.0 owes it** ([06 §4.1](06-modes-and-turn-pipeline.md)): `owner` accepts
-a package id from the first channel definition written, and every effect —
-model-proposed, engine-computed, later authored-rule — applies through one path
-into the turn record. Both free now, both migrations later. The fields removed
-from the two schemas return additively, so neither goes to `/2`.
+~~a package id~~ **a World id** from the first channel definition written, and
+every effect — model-proposed, engine-computed, later authored-rule — applies
+through one path into the turn record. Both free now, both migrations later. The
+fields removed from the two schemas return additively, so neither goes to `/2`.
+
+***And the id this tier is owed is not the id that shipped*** (2026-09-14). The
+struck words are not a rename applied late; they are two owners one word was
+covering, which [06 §4.1](06-modes-and-turn-pipeline.md) has since separated.
+One is a **first-party namespace** — `storyengine.lore`, `storyengine.hooks`,
+`storyengine.cast`, `storyengine.goals`, `storyengine.suggest` — code in this
+repository answering for the state it writes, which is what P7 shipped and is
+**not** what this tier is about. The other is **authored content**, which is,
+and which is now a **World** id ([15 §5](15-world.md)). This entry had been
+reading the first as evidence that the second was paid for.
+
+**The debt is the same size, and it was unpayable until now.** The shipped field
+is `owner: string`, so widening it cost nothing and still does. What could not
+have been built is the arm itself: a Package was specified to dissolve on import
+([15 §0](15-world.md), [04 §9](04-schemas.md)), so a channel owned by one
+pointed at a container that no longer existed, and *authored content that owns
+live session state* needed a durable in-install object before it needed a field.
+**One consequence is already named rather than left to be found**: `channelInPlay`
+asks only *is there a registered mode with this id*, so every non-mode owner
+resolves to *available everywhere* — right for a namespace, wrong for a World,
+whose channels belong to the sessions in it and to no others.
 
 **The fuzzy-condition position below stands** and moves with the vocabulary; it
 is recorded here so the reasoning is not re-derived in two years.
@@ -610,7 +770,7 @@ fire an arrival for someone the session recorded dead — the severe failure the
 check exists for, reintroduced by the feature meant to use it.
 
 Two consequences that had to be designed rather than discovered. **Firing writes
-no effect**, because `onFire` waits for the rule tier at 6.0 (C7) and
+no effect**, because `onFire` waits for the rule tier at 5.0 (C7) and
 `se.presence` is model-proposed, so the
 arrival is narrated and state follows the story — which means the narrator can
 decline, so the firing is **provisional until the arrival is confirmed** or the
@@ -1475,12 +1635,12 @@ since [10 §11.1](10-ui-surfaces.md) holds that nothing may require a model call
 to proceed. P8's `fast`-role summarisation is the natural thing to ride when it
 lands, and the corpus's standing position on deriving structure from content is
 propose, never impose. E1 makes chapterisation manual with agentic advice, and
-[15 §7](15-world.md) makes *not automatic* an explicit non-goal on the ground
+[15 §10](15-world.md) makes *not automatic* an explicit non-goal on the ground
 that a human knows where a continuity's edges are and a heuristic does not —
 which is the same sentence about a name as it is about a boundary.
 
 **The strongest argument is not that the material is thin — it is that deriving
-would destroy evidence.** [15 §8](15-world.md) makes session names the
+would destroy evidence.** [15](15-world.md)'s old §8 made session names the
 falsification test for World: *watch what people put in session names; if they
 are hand-encoding continuity — 'Rain City 3', 'Rain City 4' — that is the
 feature asking to exist, and it is also the cheapest possible evidence for it.*
@@ -1488,7 +1648,19 @@ A name the product wrote is not evidence of anything. Leaving the field optional
 and renamable **strengthens** that test, because what somebody types into an
 empty box is a signal and what they leave in a generated one is not.
 
+*That test did not survive [15](15-world.md)'s rewrite, and the position does
+not depend on it* (2026-09-14). A World is no longer a feature waiting to be
+justified by how people name things — it is a portable kind shipping at 1.0, and
+[15 §11](15-world.md)'s falsifiers are now about membership, `LoreScope` and
+whether the bible is ever opened. So this paragraph loses the argument it
+borrowed and keeps its own, which was always the load-bearing one: the cheap
+derivations are each worse than blank, and a generated name is still evidence of
+nothing. What changed is only that the thing it would have been evidence *for*
+has stopped being in doubt.
+
 Reopening conditions: a surface that lists many sessions at once, where a column
 of *Untitled session* stops being honest and starts being useless; and session
-export (B12), where a file leaving the install wants a name a human chose.
-*[03 §8, 10 §11.1a, 15 §8]*
+export (B12), where a file leaving the install wants a name a human chose — and
+now through a review that shows the name before the file exists
+([16 §5](16-publish.md)).
+*[03 §8, 10 §11.1a, 15 §10]*

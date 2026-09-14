@@ -202,10 +202,17 @@ document depending on whether you can see only those four.
 
 "Send them 1.2" is the obvious thing to want once versions carry numbers, and it
 is the one part of this item that is not polish — it sets a default on the
-export flow, which is P4's ([P4](16-p4-implementation.md)) and belongs in
-[03 §11.6](../03-data-model.md) once settled. The intended shape:
+export flow and belongs in [03 §11.6](../03-data-model.md) once settled.
+*~~which is P4's~~ — corrected 2026-09-14, twice over. It was never P4's:
+[P4 §4](16-p4-implementation.md) puts our own formats out of scope in as many
+words, and that attribution has been stale since it was written. The flow now
+has a document of its own ([16](../16-publish.md)) and a stage that builds it
+([P11.2](28-p11-implementation.md)), so this bullet has somewhere real to
+land — and the diff it asks for is [16 §5](../16-publish.md)'s review opening
+on what changed since the last file, which is the same question from the other
+side.* The intended shape:
 
-- **Native export (`.seactor`, `.sepack`) sends the active version**, with
+- **Native export (`.seactor`, `.seworld`) sends the active version**, with
   **full history as an opt-in** on the export. This is [03 §11.6](../03-data-model.md)
   unchanged, and its reasons hold: forty drafts make the file large for no
   benefit to most recipients, and a working record carries false starts nobody
@@ -247,11 +254,23 @@ panels are named for the kinds. What is left here is the client work.
 
 - **Six panels**, one per portable kind (`LIBRARY_KINDS` already enumerates
   them), **named for the kinds** — Actors, Lorebooks, Treatments, Setups,
-  Presets, Packages. *Correction:* this bullet read *"using the presented names —
-  Actors, Worlds and Games offered, Lorebooks, Presets and Packages reachable"*,
-  which is the renaming layer [10 §5.1](../10-ui-surfaces.md) withdrew — and
-  which the paragraph immediately above already cited as withdrawn. **The item
-  argued against itself**, and the bullet was the stale half.
+  Presets, ~~Packages~~ **Worlds**. *Correction:* this bullet read *"using the
+  presented names — Actors, Worlds and Games offered, Lorebooks, Presets and
+  Packages reachable"*, which is the renaming layer
+  [10 §5.1](../10-ui-surfaces.md) withdrew — and which the paragraph immediately
+  above already cited as withdrawn. **The item argued against itself**, and the
+  bullet was the stale half.
+
+  ***And the word came back on 2026-09-14, which is not the withdrawn layer
+  returning.*** This is the trap in this item, so it is spelled out rather than
+  left to be misread: the *Worlds* that was refused was a **friendlier alias for
+  Treatment**, a presented name sitting over a kind called something else — which
+  is exactly what [10 §5.1](../10-ui-surfaces.md) withdrew, and its objection
+  was that the label sat next to *Lorebooks* while the world lived in the
+  lorebook. The *Worlds* that is here now is the panel **named for the kind**,
+  because the kind is called World ([15](../15-world.md)), and a World holds
+  lorebooks — so the old objection does not merely get overruled, it dissolves.
+  The rule is unchanged and this obeys it: **panels are named for the kinds.**
 - **Shared machinery, per-kind surfaces.** One list component, one set of
   badges, filters, sorting and actions, one detail route. What each panel
   supplies is its columns, its sort and its empty state. Today's
@@ -297,8 +316,12 @@ F19 already fixed once.
 **Two of the five panels have a phase now, 2026-09-11.** Treatments and Presets
 arrive with their editors at [P7B](24-p7b-presets-and-prompts.md), because
 create arrives with the editor and the panel is what renders the button;
-Setups and Packages stay here until theirs do, and the shared machinery stays
-specified here either way.
+Setups stay here until theirs does, and the shared machinery stays specified
+here either way. **Worlds left on 2026-09-14** — its editor and panel are
+[P8A.1](29-p8a-world.md)'s, which is the same rule applied rather than an
+exception to it: create arrives with the editor, and that kind's editor now has
+a phase. *It was [P11.2](28-p11-implementation.md)'s when the kind was called
+Package.*
 
 ## 5. A home, so arrival is not an arbitrary library view
 

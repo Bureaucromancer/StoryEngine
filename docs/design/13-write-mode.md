@@ -401,17 +401,71 @@ simply *internal, done*.
 - **The right analogy is Session, not Actor.** A manuscript is one person's
   accumulating work, not a reusable authored artefact — which is
   [04 §1](04-schemas.md)'s *free to move* tier, where Session and the turn record
-  already live. [15 §3](15-world.md) declines to make World a portable kind on
-  a related instinct.
+  already live. ~~[15 §3](15-world.md) declines to make World a portable kind on
+  a related instinct.~~ ***It no longer does, as of 2026-09-14. The instinct is
+  worth following to where the two parted, which is why the sentence is struck
+  rather than deleted.***
+
+**Where Manuscript and World parted company.** [15 §3](15-world.md) now reverses
+its own central refusal — World is a portable kind, the count of them unchanged
+at six because the kind was renamed rather than added ([04 §1](04-schemas.md)) —
+so the citation above borrows an argument that has since turned round. It is
+kept struck rather than removed because the refusal was built out of two claims
+and only one of them moved. *Grouping your own sessions is a convenience over
+sessions* ([15 §0](15-world.md)) and *which sessions of mine belong together is
+not information anyone else can use* ([15 §3](15-world.md)) were both true of a
+container that could only accrue. [15 §2](15-world.md) now says five objects and
+a name is a World on day one, with nothing played in it at all, and the second
+claim goes with it — membership is precisely what a recipient needs before a set
+of objects means anything together. **There is no day-one manuscript.** An empty
+one is an empty document rather than a curated set, and it becomes worth
+something the only way the analogy above claims: by being written in.
+
+**The sharper statement, because it survives without the history: a World's
+structure is about its contents; a manuscript's structure is about its making.**
+A stored World is refs ([15 §4](15-world.md)) to objects that were already
+portable and already authored to be sent, so what portability buys there is the
+membership — the one thing that was missing. A manuscript's structure is binder
+order, beat offsets, retry chains and provenance spans: engine bookkeeping about
+how the work came to be rather than the work, and there is no second
+implementation to read it into. That is count two above arriving from the other
+direction — *portability would buy structure interchange, which has no consumer*
+— and it is the exact sentence that failed for a World, whose structure had a
+consumer all along and was waiting for somebody to notice. For a manuscript it
+holds, and count three holds with it.
 
 **So, concretely:** it lives in the library and uses the object-folder machinery
 — history, watcher, index, backlinks, the detail route. It carries a
 `storyengine.manuscript/0` schema string from its first write, so a later
 promotion is a version bump rather than an invention. It is **not** in the
-portable registry, **not** validated on import, and **not** package-exportable at
-2.0. Getting a manuscript out is three things that already exist: the reading
-view, the `text/` folder, and a zip that is transport rather than a format
-promise.
+portable registry, **not** validated on import, and **not** publishable at 2.0 —
+it is absent from [16 §2](16-publish.md)'s list of what a publish can start
+from, on this section's own reasoning quoted back at it. Getting a manuscript
+out is three things that already exist: the reading view, the `text/` folder,
+and a zip that is transport rather than a format promise.
+
+**But it may be a World member, and the two questions only look like one.**
+[16 §2](16-publish.md) settles it and this section is where the reason lives.
+Membership costs a ref ([15 §4](15-world.md)) and claims nothing: it is not an
+ownership claim, an object belongs to as many Worlds as its owner says
+([15 §10](15-world.md)), and *the novel written in this canon belongs to this
+canon* is an obviously true thing for somebody to want to record. Refusing it
+would be the software correcting a person about the contents of their own world
+in order to defend a tier decision they did not make. **What the tier decides is
+the wire, not the set.** The closure walk ([16 §4](16-publish.md)) reaches the
+member and stops there, because there is no portable form to emit — and it has
+to stop *visibly*: a publish of *Rain City* that quietly left the novel out
+would be [00 §3.3](00-stance.md)'s never-silently-drop-a-link failure one level
+up from where that rule normally applies. [16 §5](16-publish.md)'s *every level
+is shown* is the mechanism that keeps it honest.
+
+**And the promotion, when it comes, costs more than the version bump.** The
+schema string makes the format change cheap; what is not cheap is that a
+portable Manuscript would be a **seventh portable kind**, where the rename that
+produced World deliberately left the count at six ([15 §3](15-world.md)). That
+is the commitment being deferred, and it is worth keeping distinct from the
+seventh *panel* immediately below, which costs a shelf entry and no format
+promise at all.
 
 **And it is a seventh library panel, which is a cost this project has already
 priced.** [10 §5.1](10-ui-surfaces.md) settles on six panels named for the kinds

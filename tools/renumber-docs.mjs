@@ -105,6 +105,7 @@ const PLAN_ORDER = [
   // Filed at 28 until P7's branch merges; this entry is what moves it to 24.
   ['p7b-presets-and-prompts', 'P7B'],
   ['p8-implementation', 'P8'],
+  ['p8a-world', 'P8A'],
   ['p9-implementation', 'P9'],
   ['p10-implementation', 'P10'],
   ['p11-implementation', 'P11'],

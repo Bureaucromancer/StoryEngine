@@ -195,9 +195,18 @@ stored rectangle — are unchanged through both moves and now live at
 
 **Tier: High.** This section has been hollowed out by two promotions and is kept
 for the one entry left in it: **§2c.2, continuity checking**. §2c.1's story bible
-went to World at 4.0 and §2c.3's extraction went to the authoring tier at 6.0 —
-both because they turned out to be constitutive of a release rather than adjacent
-to one.
+went to World and §2c.3's extraction went to the authoring tier — both because
+they turned out to be constitutive of a release rather than adjacent to one.
+
+**The two no longer land anywhere near each other, and that is the 2026-09-14
+correction to this paragraph.** It read *"World at 4.0"* and *"the authoring tier
+at 6.0"* — both at the far end of the line, which made the pair look like one
+promotion into the same distant neighbourhood. World is now **1.0**
+([15](15-world.md)), the line shortened by one behind it, and the tier is
+therefore **5.0** ([17](17-authoring.md)). Neither entry moved on its own merits;
+the line under them did. What it leaves is a section whose two departures sit at
+opposite ends of the series — one inside the release being built, one four
+releases out — and a third entry still here with no release at all.
 
 What continuity checking retains from the original framing is the reason it is
 additive: it reads data 1.0 already records, and it is a direct application of
@@ -206,14 +215,27 @@ correctable*.
 
 ### 2c.1 The story bible — moved
 
-**The story bible is no longer here. It ships with World at 4.0
-([15 §4](15-world.md)).**
+**The story bible is no longer here. It ships with World — ~~at 4.0~~ at 1.0
+([15 §7](15-world.md)).**
 
 It was defined as *what a session has established*, and [15 §1](15-world.md)
-defines a World partly as that same view widened across sessions — which made it
-World's definition rather than its neighbour. A continuity container with no way
-to see what the continuity contains is half a feature, so the two went together
-into a committed release.
+defines a World partly as that same view widened across a canon — which made it
+World's definition rather than its neighbour. A canon with no way to see what is
+in it is half a feature, so the two went together into a committed release.
+
+**And then that release moved, 2026-09-14.** World left 4.0 for 1.0 because the
+portable bundle [04 §9](04-schemas.md) had been calling a Package turned out to
+be the object [15](15-world.md) was describing from the other end — so the kind
+was **renamed rather than added**, the portable kinds are still six, and the
+container the bible belongs to stopped being a fourth-release proposal and became
+part of the release being built ([15 §0](15-world.md)). The bible came with it
+for the same reason it went to World at all: it was never a separable thing to
+schedule. **An entry three releases out is now inside the first one**, and
+nothing about the bible caused that — it moved because the thing it belongs to
+was found to be something else.
+
+The citation moved with it: [15](15-world.md) was rewritten rather than revised,
+so the bible is its §7, and the §4 this stub used to point at is now membership.
 
 Continuity checking did **not** go with it, and §2c.2 says why: the bible is a
 cheap reader and checking is an expensive advisory pass with a false-positive
@@ -260,12 +282,29 @@ continuity checking is what makes the bible more than a curiosity. Neither is
 worth much alone, and together they are the strongest available answer to the
 genre's most common complaint.
 
+**Half of that pair now lands at 1.0** (§2c.1), which changes nothing about why
+this half is deferred and a good deal about when it could stop being. What holds
+checking back is the corpus rather than the reader, and from the first release
+there is something to read — so the earliest honest condition for pulling it
+forward is *1.0 has been played in long enough to measure a false-positive rate*,
+where it used to be *World exists*. [15 §7](15-world.md) refuses the
+down-payment reading of that and is right to: a shipped bible does not make a
+noisy checker acceptable. It only means the expensive half is the half left.
+
 ### 2c.3 Lorebook extraction — moved
 
-**Extraction ships with the authoring tier at 6.0
+**Extraction ships with the authoring tier at ~~6.0~~ 5.0
 ([17 §3](17-authoring.md)).** *Play a session, keep the world* turned out to be
 the clearest single statement of what that release is for, which made it the
 wrong thing to leave on a list with no release attached.
+
+**The number changed on 2026-09-14 and the position did not.** The tier still
+sits one release behind Campaign, because Campaign is what produces the corpus
+it is designed against ([17](17-authoring.md)); Campaign came forward to 4.0
+when World took 1.0, and the tier came with it. Worth recording for the entry's
+own sake: extraction was gated twice, on the story bible and on the corpus, and
+**the first gate is gone** — the bible it reads now ships at 1.0, so what is
+left holding this is the softer of the two reasons ([17 §3](17-authoring.md)).
 
 ---
 
@@ -275,6 +314,11 @@ Everything not given a section of its own above. Each entry was deferred in its
 own document and none is specified further than its original entry; what the
 note adds is *why it sits in this tier*, which is the only thing this document
 knows that the original does not.
+
+**A struck row is one that left**, and it stays for the reason the stubs above
+stay: an entry answered somewhere else is more use on the page than deleted from
+it, because the next person to have the idea will look here first and deserves
+to find where it went rather than nothing.
 
 ### 3.1 High
 
@@ -299,8 +343,8 @@ knows that the original does not.
 | Rendition asset eviction policy | [26 E3](26-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before. Backdrops are what make *heavily* arrive sooner: one image per place, kept for the life of the session ([06 §10.1a](06-modes-and-turn-pipeline.md)) |
 | Mention resolution beyond actors | [10 §13.1](10-ui-surfaces.md) | Locations, items, factions. Not in scope at 1.0. The span overlay carries a tagged reference from the first span written ([13 §13](13-write-mode.md)), so widening the target set is addition rather than migration |
 | The `proposed` mention tier | [10 §13.1](10-ui-surfaces.md) | `explicit` and `matched` ship at 1.0; the fuzzy model-proposed tier may follow. Wants real transcripts to judge the false-positive rate against |
-| Hook packs as a shareable kind | [03 §4.1](03-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already; a pack of their own is a convenience for a sharing pattern nobody has yet |
-| Prologue packages | [26 B12](26-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
+| Hook packs as a shareable kind | [03 §4.1](03-data-model.md) | Lean was "not at 1.0", and it still is. Hooks travel inside a **World** already — ~~a Package~~, the same kind under the name it carried until 2026-09-14 ([15 §0](15-world.md)) — so nothing about the rename makes this easier. It sharpens the cost instead: a pack of their own would be **a seventh portable kind**, which is the thing the release check made World prove it was not ([15 §3](15-world.md)), and a new format commitment is a higher bar than a convenience clears for a sharing pattern nobody has yet |
+| ~~Prologue packages~~ | [26 B10](26-open-questions.md) | **Left this list, 2026-09-14 — answered by a mechanism rather than scheduled as a feature.** A prologue is *a session ticked in a World's publish review* ([15 §4](15-world.md), [16 §5](16-publish.md)): the container that can carry a partly-played session and the review that decides whether sessions travel both ship at 1.0 for reasons that have nothing to do with prologues, so there is no feature here left to rank. The row is struck rather than deleted because what it said was wrong twice over — it cited B12, the session-export question it was *blocked on* rather than B10, the question it *is*; and "low only because nobody has asked for it" read the wait as demand when what it was actually waiting for was a shape. Nothing gets built for it and it arrives anyway, which is the best end an entry on this list can come to |
 
 ### 3.3 Eventually
 
@@ -309,7 +353,7 @@ knows that the original does not.
 | Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [09 §8](09-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
 | **In-UI file access, the whole feature** | [10 §4](10-ui-surfaces.md) | Deprioritised to experimental ([26 D3](26-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
 | Aggregate cost and usage view | [10 §3](10-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing |
-| Sharing content between users on one install | [26 A3](26-open-questions.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it |
+| Sharing content between users on one install | ~~[26 A3](26-open-questions.md)~~ [03 §5](03-data-model.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it. **The citation was stale and is corrected here, 2026-09-14**: A3 is *server-scoped connections* — resolved account-scoped, with a system scope — and has nothing to say about library content. It was a wrong pointer that then survived a renumber, which is how these last: renumbering rewrites a citation faithfully without ever asking what it meant. The deferral lives in [03 §5](03-data-model.md), which also records the shape it will most likely take — a third library location read the same way — and the question that holds it open is [26 A2e](26-open-questions.md). Its near neighbour is deliberately not its answer: [16 §7](16-publish.md) has two accounts on one server exchanging a file like anybody else, which is unglamorous and is not sharing |
 | Video renditions | [06 §10](06-modes-and-turn-pipeline.md) | The `kind` union and `scope.messageId` ship at P9; the implementation does not. An animated backdrop is `{ kind: "video", purpose: "background" }` — expressible from P9 and unbuilt, which is the whole reason `purpose` is not a fourth `kind` ([06 §10.1a](06-modes-and-turn-pipeline.md)) |
 | Speech and TTS renditions | [06 §10](06-modes-and-turn-pipeline.md) | As above — the shape ships, the feature does not. Voice as an *I/O surface* is a desired extension rather than this (§4.3) |
 | Rendition series and storyboarding | [06 §10.4](06-modes-and-turn-pipeline.md) | **The surface, not the mechanism.** The count judgement beneath it — which moments of a turn deserve a picture, and how many — is now specified and lands in a phase after P9. What stays here is presenting the result *as* a storyboard, with its own surface and pacing, which is also the line that keeps [triage §6.3](workplan/02-triage.md)'s discard verdict intact |
@@ -373,19 +417,32 @@ Before anything else, work out which tier the idea belongs to
 ([02 §2](02-infinite-worlds.md)):
 
 - **Authored rules** — declarative conditions and effects over channels, shipped
-  as data inside a package. No installation, no code review, no AGPL obligation
-  ([triage §1.2](workplan/02-triage.md)), works for anyone who imports the package.
-  **Arrives at 6.0, the authoring tier**
+  as data inside a World. No installation, no code review, no AGPL obligation
+  ([triage §1.2](workplan/02-triage.md)), works for anyone who imports the World.
+  **Arrives at ~~6.0~~ 5.0, the authoring tier**
   ([work plan §0.6](workplan/01-work-plan.md)). That is a considerably longer
   wait than the 2.0 this once promised, and the reason is the one that defers the
   tier at all: the vocabulary is to be designed against a corpus of real authored
-  worlds, and Campaign at 5.0 is what produces one. Until then everything below
-  that would have been rules is a code extension — which is worth knowing before
-  starting, and is also the best available evidence for what the vocabulary
+  worlds, and Campaign at ~~5.0~~ 4.0 is what produces one. Until then everything
+  below that would have been rules is a code extension — which is worth knowing
+  before starting, and is also the best available evidence for what the vocabulary
   should eventually contain. **If you are reading this because you want to write
   rules, that evidence is the most useful thing you can give us.**
 - **Code extension** — a real module with steps, channels and widgets. More
   power, more responsibility, must be AGPL, must be installed deliberately.
+
+**The bundle in that first bullet used to be called a Package**, and the rename
+belongs here rather than only in the note that made it, because this section is
+where an extension author meets the word first. `storyengine.package/1` became
+`storyengine.world/1` in the 2026-09-14 pass, when [15](15-world.md) found that
+the portable bundle and the continuity container were one object approached from
+opposite ends — **a rename, not a seventh kind** ([15 §0](15-world.md)). **What
+did not change is the other sense of the word.** The first-party namespaces that
+own channels and steps — `storyengine.lore`, `storyengine.cast`,
+`storyengine.goals`, `storyengine.suggest` — are a code namespace rather than a
+bundle, and they keep the old word ([06 §4.1](06-modes-and-turn-pipeline.md)).
+An extension author is the one reader who meets both senses in the same
+afternoon, which is why saying it twice is cheaper than letting it be guessed.
 
 The test: **does it need to compute something, or only to decide something?**
 

@@ -26,7 +26,7 @@ this section records what that settles and what it newly raises.
 - **Dependencies must be AGPL-compatible.** Permissive licences (MIT, Apache-2.0,
   BSD, ISC) are fine and cover everything on the BUY list in §7. Watch for
   SSPL, BUSL, "source-available", and non-commercial terms, which are not.
-- **User content is not affected.** Actors, treatments, lorebooks, packages and
+- **User content is not affected.** Actors, treatments, lorebooks, Worlds and
   sessions are data produced *by* the program, not derivative works *of* it.
   Nobody's characters become AGPL by being authored in StoryEngine. Worth saying
   plainly somewhere user-facing, because this is a common and reasonable worry.
@@ -71,17 +71,17 @@ produce exactly the perception the decision exists to avoid.
 |---|---|
 | Code extensions and modes (import the SDK, run in our process) | **AGPL-3.0, required** |
 | Actors, lorebooks, treatments, presets, sessions | **The author's own. Any licence, including none.** |
-| Packages — including their **authored rules** ([02 §2](../02-infinite-worlds.md)) | **The author's own.** |
+| ~~Packages~~ **Worlds** — including their **authored rules** ([02 §2](../02-infinite-worlds.md)) | **The author's own.** |
 
 Rules are the case worth being explicit about, because they *look* like code.
 They are not: a rule is a term in a closed vocabulary that our evaluator
 interprets, no different in kind from a lorebook entry's activation settings. A
-package full of rules is authored content and its author licenses it however
+World full of rules is authored content and its author licenses it however
 they like — or not at all.
 
 This has a pleasant consequence. The authored-rules tier is not merely an
 expressiveness feature, it is also **the escape hatch for anyone who wants to
-ship something they control**: build it as a package of rules and content rather
+ship something they control**: build it as a World of rules and content rather
 than as a code extension, and the copyleft question never arises. That makes
 [02](../02-infinite-worlds.md)'s third tier more valuable under this decision than
 it was before it, and it is worth saying so publicly rather than leaving people
@@ -89,6 +89,22 @@ to discover it.
 
 Both halves of the table belong somewhere user-facing — the About surface in
 [09 §7](../09-server-multiuser-deployment.md) is the natural home.
+
+***The word in that row changed on 2026-09-14 — there and in §1's user-content
+bullet — and the argument did not.*** The content bundle both name was
+`storyengine.package/1` until it was renamed World ([15 §0](../15-world.md)):
+renamed rather than added, so the portable kinds are still six and a `.seworld`
+carries what a `.sepack` carried. The substitution is free here precisely because
+this section's claim is about what a **rule** is rather than about what carries
+it — a term in a closed vocabulary our evaluator interprets is authored content
+in either container, and would be in a bare folder. [15 §8](../15-world.md) holds
+the same line from the security side, *a World may ship rules, never code*
+([26 A2](../26-open-questions.md)), and the two are worth reading together: the
+closed vocabulary is what makes importing a stranger's World safe *and* what
+keeps an author's rules content rather than a program. [16 §7](../16-publish.md)
+is where the consequence surfaces — Publish carries `Provenance.license` and has
+no opinion about it, which is the whole of the opinion a flow that emits a file
+should have.
 
 ---
 
@@ -425,7 +441,7 @@ suite absent across 518k lines does not appear.
 | Character card *format* | all three | **REBUILD** | [03 §2](../03-data-model.md). |
 | Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [03 §3](../03-data-model.md). Four scoped changes only. |
 | Scenario / treatment object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
-| Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
+| ~~Pack / preset bundle~~ **World** | Aventuras `services/packs/` — their `PresetPack` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism: the divergence between them is *"the only signal separating 'the app has a newer default' from 'the user changed this'"* ([01 §2](../01-source-survey.md)). [06 §5](../06-modes-and-turn-pipeline.md) takes it for shipped templates; its second consumer is a `.seworld` arriving as a later version of one already imported, where [P4 §1.3](16-p4-implementation.md)'s *replace or keep both* is offered blind — that rule sees that the stored and incoming objects differ, never which side moved. Deferred with a name at [P4 §1.6](16-p4-implementation.md). |
 | Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [10 §11.3](../10-ui-surfaces.md) |
 | Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [10 §11.2](../10-ui-surfaces.md) |
 | Structured `VisualDescriptors` | Aventuras `types/index.ts` | **PORT** | face/hair/eyes/build/clothing/accessories/distinguishing. Prose appearance is for the narrator; this is for image pipelines. [03 §2.1](../03-data-model.md) |
@@ -488,7 +504,7 @@ suite absent across 518k lines does not appear.
 | Extension capability API | Marinara `CapabilityRuntime` | **PORT the design** | Including its typed-union instinct. |
 | Baked-in assistant | Marinara Professor Mari | **PORT the shape, REBUILD on sessions** | Suggestion chips and change-review are worth taking directly. [06 §7.4](../06-modes-and-turn-pipeline.md) |
 | Assistant shell/filesystem tools (`bash`, `write`, shell sandbox) | Marinara | **DISCARD** | A coding-agent tool surface. On a multi-user LAN server it is privilege escalation wearing a friendly hat. Domain tools only. |
-| Folder-package export | Marinara `folder-packages/` | **PORT** | Good shape for our `.sepack`. |
+| Folder-package export | Marinara `folder-packages/` | **PORT** | Good shape for our ~~`.sepack`~~ **`.seworld`** — and a better fit than when this was written, now that [15 §4](../15-world.md) leans toward member *folders* inside the zip over [04 §9](../04-schemas.md)'s `contents` array, which is [03 §5.2.3](../03-data-model.md)'s folder-as-file one level up. |
 | Browser-side orchestration | ST | **DISCARD** | [00 §2.9](../00-stance.md). |
 | Desktop/mobile shells | Aventuras Tauri, Marinara `.exe`/Android | **DISCARD** | [10 §1](../10-ui-surfaces.md). |
 | In-editor field assist (generate / refine-with-guidance / revert) | Aventuras wizard | **PORT, widened** | Wizard-only upstream; becomes a primitive every editor is built from. [10 §11.1](../10-ui-surfaces.md) |

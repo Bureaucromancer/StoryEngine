@@ -260,20 +260,33 @@ interface ChannelState {
 field that section describes in prose and does not show~~ — ***and it was four
 rather than one, corrected in 06 §4 on 2026-09-11.*** That sketch was missing
 `version` and `visibility` outright, wrote `owner` without the `PackageId` its
-own §4.1 requires from the first definition written, and named an `UpdatePolicy`
-alias that exists nowhere. **The occasion was P7.0 publishing this type through
-`@storyengine/sdk`**: a sketch that disagrees with a shipped contract is a design
-note the first mode author reads and is misled by, so the disagreement had to be
-spent at the moment of publication rather than discovered by whoever built
-against it.
+own §4.1 requires from the first definition written — *that arm's name until
+2026-09-14; what it split into is in the field's docstring below* — and named an
+`UpdatePolicy` alias that exists nowhere. **The occasion was P7.0 publishing
+this type through `@storyengine/sdk`**: a sketch that disagrees with a shipped
+contract is a design note the first mode author reads and is misled by, so the
+disagreement had to be spent at the moment of publication rather than discovered
+by whoever built against it.
 
 ```ts
 interface ChannelDefinition {
   id: ChannelId
   /** **Shipped at P2.6**, with the first channel definition — [06 §4.1] names
-   *  accepting a package id as something 1.0 owes from that first definition,
-   *  because widening it afterwards is a migration over every stored channel. */
-  owner: ModeId | ExtensionId | PackageId   // package: [06 §4.1], 6.0
+   *  accepting a world id as one of two things 1.0 owes from that first
+   *  definition, because widening it afterwards is a migration over every
+   *  stored channel. *Met at [P7.0](workplan/23-p7-implementation.md), and
+   *  more cheaply than that bullet expected: what shipped is `owner: string`,
+   *  so the widening was free and the **convention** is the whole of what
+   *  anyone has to keep.*
+   *
+   *  ~~`PackageId`~~ — **one arm holding two unrelated things**, separated in
+   *  06 §4.1 on 2026-09-14. `NamespaceId` is a first-party namespace: an
+   *  engine subsystem that is not a mode, answering for state it writes
+   *  (`storyengine.lore`, `storyengine.hooks`). `WorldId` is the authored
+   *  content §4.1's tier has always been about, and nothing could own a
+   *  channel until [15](15-world.md) made that content durable. Only the
+   *  second is the rename. */
+  owner: ModeId | ExtensionId | NamespaceId | WorldId
   version: number                            // paired with ChannelState.version
   schema: JSONSchema
   /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it —
@@ -322,6 +335,42 @@ then the sketch drifted one stage later, four fields deep, for fifteen stages.
 **A note saying keep this in step is not a mechanism**; what would be one is the
 `docs` project growing a check that the sketch's field set matches the SDK's, and
 that is worth more than another paragraph asking.
+
+***`owner`'s second correction, 2026-09-14 — and it is the one that check would
+not have caught.*** The arm written here as `PackageId` was two unrelated things
+under one word. One is a **first-party namespace**: `storyengine.lore` and
+`storyengine.hooks` own channels because a subsystem that is not a mode still has
+to answer for the state it writes, and they are code in this repository. The
+other is an **authored content bundle**, which is what
+[06 §4.1](06-modes-and-turn-pipeline.md)'s tier has always been about and what
+[15](15-world.md) renamed to World. So the union has four arms and always had;
+the fourth is the one nobody could see. Only the content sense becomes a World —
+`storyengine.lore` is not one and must not become one
+([04 §9.2](04-schemas.md)) — and npm's `packages/server` is a third word again,
+unrelated to both.
+
+**A field-set check would have passed the whole time**, which is the sharper
+version of the paragraph above rather than an objection to it. What shipped is
+`owner: string`: one arm in the contract, four in the design, and
+`channelInPlay` — the field's only consumer, asking *is there a registered mode
+with this id* — answers *available everywhere* for all three non-mode arms
+alike. So there was nothing for a mechanical check to compare, and there is
+nothing that will catch this coming back. **Where a type cannot hold a
+distinction, the prose is the only place it lives**, and that is this document's
+half of the job rather than a gap in it.
+
+**And the release number the arm carried was stale twice over.** It read `6.0`,
+and both halves are wrong. The tier is **5.0**: it did not move, the line
+shortened behind it — [15](15-world.md) took World into 1.0, so Campaign is 4.0
+and the tier a release later is 5.0 ([work plan §0.6](workplan/01-work-plan.md)).
+And what the number was deferring is not what waits. Widening `owner` is the
+half that landed, at [P7.0](workplan/23-p7-implementation.md) and for free; what
+5.0 owes is the *surface* — a channel an author declares rather than a mode,
+over a predicate/effect vocabulary there is still no corpus of real authored
+worlds to design against ([26 C7](26-open-questions.md)). **The two halves were
+worth separating because they fail differently**: a field widened too late is a
+migration over every stored channel, and a language designed too early is one
+nobody can use.
 
 **`InitPolicy` now has a named first consumer, which is how §6 wanted it to
 arrive.** The hook-pacing dial ([06 §6.1](06-modes-and-turn-pipeline.md),
@@ -880,7 +929,7 @@ per token would make this the wrong trade.
 |---|---|
 | Preset internals beyond [04 §8](04-schemas.md) | Portable; 13 owns it |
 | ~~`InitPolicy`, `WidgetSpec`~~ | ~~Want the mode contract built first~~ **Both arrived, 2026-09-13.** The contract is `packages/sdk`, shipped at [P7.0](workplan/23-p7-implementation.md); both types shipped at P7.1, one stage later. §1.3 carries `InitPolicy`; `WidgetSpec` has three consumers — `ChannelDefinition.surface`, `SurfaceContribution.widget` ([P7.11](workplan/23-p7-implementation.md)) and the session read's renderer — so the admission rule below is met twice over. **This row was quoted as live by [06 §4](06-modes-and-turn-pipeline.md) and by the SDK's own docstring**, which is why it is struck rather than deleted: the deferral was right, it expired, and the documents that leaned on it have to be able to see that |
-| Rule vocabulary (`Predicate`, `Effect`) | 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) |
+| Rule vocabulary (`Predicate`, `Effect`) | ~~6.0~~ **5.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). *The tier did not move; the line shortened behind it* — [15](15-world.md) took World into 1.0, so Campaign is 4.0 and the tier a release later is 5.0. §1.3's `owner` carried the same number and is corrected with it |
 | The SSE wire format | [09 §3.3](09-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
 | Extension `HostApi` | [23 §4](23-extensions.md) owns it |
 

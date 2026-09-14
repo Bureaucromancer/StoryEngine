@@ -210,7 +210,7 @@ correct, and would turn this route into a way to read the install's rule.
 ## Library
 
 `:kind` is a **folder name**, not a schema id: `actors`, `lorebooks`, `treatments`,
-`setups`, `presets`, `packages`. An unknown kind is `404` and the message lists
+`setups`, `presets`, `worlds`. An unknown kind is `404` and the message lists
 the known ones.
 
 **And it is checked.** Posting an object to the wrong kind is `400`, naming both
@@ -628,7 +628,7 @@ object's `contentHash`: the two differ, and the digest is the right one because
 a picture does not change when the prose beside it does.
 
 **Any kind, unlike `/avatar`.** [04 §3](design/04-schemas.md) puts `media` on
-treatments, lorebooks and packages as well as on actors, so the route is keyed
+treatments, lorebooks and worlds as well as on actors, so the route is keyed
 the same way the rest of the library is.
 
 - `404` when the object has no entry with that id.
@@ -2247,7 +2247,7 @@ I restart it?"* is a worse answer than one that says.
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
 | 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
-| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
+| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *first-party package* — `storyengine.cast`, `storyengine.hooks`, `storyengine.goals`, `storyengine.lore`, `storyengine.suggest` — is available everywhere. **That word means a code namespace here, and nothing else.** The *content* sense of it was renamed to World on 2026-09-14 ([15 §9](design/15-world.md)); the two were one word until then, and this row is the place the ambiguity was most likely to be read the wrong way. **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

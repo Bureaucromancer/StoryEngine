@@ -413,7 +413,7 @@ instead — which is enough, because ST objects are identified by filename, not
 by id (V2 cards carry none; a world file's identity *is* its name).
 
 **Re-import identity — the rule gate step 6 needed and nothing had decided:**
-[03 §7.2]'s "link or duplicate" is *package* posture, keyed on shared
+[03 §7.2]'s "link or duplicate" is *World* posture, keyed on shared
 StoryEngine ids that ST files do not carry; the F19 shadowing machinery covers
 one id copied into two folders and is the wrong tool. The rule: **same owner +
 same kind + same `Provenance.originalFilename` is a re-import candidate.** If
@@ -445,7 +445,7 @@ directory sweep.
 *Corrected 2026-08-31, at §7.5's repair.* **`.seactor` never belonged in that
 list**, and it contradicted this document's own [§4](#4-out-of-scope-deliberately)
 two sections later: `.seactor` is *our* container, the actor-sized sibling of the
-`.sepack` that §4 puts out of scope in as many words — *"our own format, not a
+`.seworld` that §4 puts out of scope in as many words — *"our own format, not a
 port; P11-ish"* — and `layout.ts:74–79` records P4.0 reading it exactly that way,
 *"P4 imports other people's formats and deliberately not our own."* Nothing
 writes one, either: there is no export path in this build, so an importer for it
@@ -1519,9 +1519,13 @@ twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
   the condition checkable. Its §1 reaches this document's own `.seactor` rule
   for the reason: an importer for a format with no writer is what
   [work plan §2.2](01-work-plan.md) forbids.
-- **Package (`.sepack`) import/export** — our own format, not a port; P11-ish.
-  The stale comment at layout.ts:74–79 promising the package folder shape "is
-  settled at P4" is corrected at P4.0 rather than left dangling.
+- **~~Package (`.sepack`)~~ World (`.seworld`) import/export** — our own
+  format, not a port; P11-ish. The stale comment at layout.ts:74–79 promising the
+  folder shape "is settled at P4" is corrected at P4.0 rather than left dangling.
+  *The kind was renamed on 2026-09-14 ([15 §0](../15-world.md)); the row is
+  otherwise unchanged, and the format is still nobody's before
+  [P11.2](28-p11-implementation.md) — with the kind itself now landing one phase
+  earlier, at [P8A](29-p8a-world.md).*
 - **Embeddings and all derived data** (`vectors`, retrieval snapshots, retry
   state, derived counters — [00 §2.8]).
 - **Any conversion that needs channels, modes or the rule vocabulary** —
@@ -1648,8 +1652,8 @@ self-contradiction ("see [04] … 13 is current") fixed in passing. [04 §5]'s
 P4.2).~~ *All three paid at P4.2. The header contradiction had been read wrong
 at least once while writing the importer, which is what a self-contradicting
 pointer costs.* And the two stale code comments this audit caught: layout.ts:74–79
-(package shape "settled at P4") and lorebook.ts:231 ("Settings remain the
-primary home").
+(the container's folder shape "settled at P4" — that kind is called World now)
+and lorebook.ts:231 ("Settings remain the primary home").
 
 *The amendment paid four of its own write-backs on the day, because they are
 source facts rather than consequences of building something:*
@@ -1696,7 +1700,7 @@ answer: honestly empty.
 
 **6.6 The reference counts [03 §10.1](../03-data-model.md) specifies, and the
 delete that ships without them.** That section wants a confirmation reading
-*referenced by 12 sessions, 3 treatments and 1 package*; what P4.4 built asks
+*referenced by 12 sessions, 3 treatments and 1 world*; what P4.4 built asks
 *move to trash?* and counts nothing, because the counts need an inbound-links
 query the index does not expose. It is the same query
 [10 §5.2](../10-ui-surfaces.md)'s *Used by* panel needs, so this is one debt
@@ -2401,7 +2405,7 @@ source* literal — which closes P4.3's deferred **Marinara profile archive** an
 makes a zip of a loose cards folder work, both for free and both tested.
 
 `.seactor` was struck instead, because listing it was the error. It is *our*
-container, the actor-sized sibling of the `.sepack` that [§4] puts out of scope
+container, the actor-sized sibling of the `.seworld` that [§4] puts out of scope
 in as many words, `layout.ts:74–79` records P4.0 reading it exactly that way, and
 **nothing writes one** — there is no export path in this build, so an importer
 would have been a reader for a format with no writer. §1.3 and §1.10 are amended

@@ -34,7 +34,7 @@ Given a JS runtime in-process regardless, the second argument follows: a single
 `shared` package holding types and schemas used by server, client and extensions
 is worth a great deal on a design this schema-heavy. Every cross-boundary
 contract in these documents — the turn record, channel definitions, mode
-manifests, the package format — benefits from being one definition rather than
+manifests, the World envelope — benefits from being one definition rather than
 three.
 
 **Why not Python.** The LLM-ecosystem advantage is real and shrinking; the
@@ -108,9 +108,9 @@ becomes a goal, which §2 says it isn't.
 derived from it.**
 
 The direction of derivation is the actual decision, and it turns on constraint 5:
-**a package or extension manifest schema has to be publishable and consumable by
+**a World or extension manifest schema has to be publishable and consumable by
 people who are not compiling against our TypeScript.** A third-party tool that
-validates a `.sepack` should be able to fetch a schema file. That points to JSON
+validates a `.seworld` should be able to fetch a schema file. That points to JSON
 Schema as the artefact and TS types as the derivative — which is TypeBox's model
 (`Static<typeof T>`), not Zod's.
 
@@ -123,6 +123,36 @@ rendering declarative setup forms ([10 §6](10-ui-surfaces.md)) — that last on
 `z.toJSONSchema()` closes most of the gap. If the team's preference is strongly
 for Zod's DX, that is a defensible reversal — the cost is that JSON Schema
 becomes generated output, which is fine until a construct doesn't round-trip.
+
+***Two names in that argument changed, 2026-09-14, and the argument did not.***
+It was written as *a package … validates a `.sepack`*: the portable container
+was `storyengine.package/1` until it was renamed World
+([15 §0](15-world.md)), the file is a `.seworld`, and the count of portable
+kinds is unchanged at six, because the kind was renamed rather than added.
+[26 A7](26-open-questions.md) records that the confirmation above was taken
+under the old names and is indifferent to which, because what the decision turns
+on is that **somebody else's validator exists at all** — a property no rename
+can reach.
+
+Recorded rather than quietly substituted, because the sentence carries more now
+than it did when it was written, for a reason that is not the rename. It is no
+longer a claim about a format nobody has built: the artefacts are emitted and
+committed — `packages/shared/schemas/storyengine.world.1.json` beside the other
+five, each **standalone**, with [04 §3](04-schemas.md)'s shared substructures
+inlined rather than `$ref`-ed across files, so a stranger's validator needs no
+resolver and no second download. The duplication in the emitted bytes is what
+that costs, and it is paid deliberately.
+
+And the reason *one* fetched file is enough to be worth fetching is
+[15 §8](15-world.md)'s rule that **the container validates the envelope, never
+the payload kind**: a reader checks that each entry has a `schema` and an `id`,
+resolves the kinds it recognises through the registry, and carries the rest
+through untouched. That is a registry keyed by a published identifier, so the
+identifier has to resolve to a file that is actually there — which is why the
+emitted `$id` and the emitted filename are the same string. They disagreed once,
+and the symptom is the quietest possible version of this whole decision failing:
+a schema URL we publish, in a file we ship, that 404s for the only person it was
+ever for.
 
 ---
 
@@ -639,6 +669,31 @@ therefore has no compile-time knowledge of any mode, which is a stronger form of
 the claim above than "separate packages" on its own delivers, and a cost stated
 where it lands: a renamed entry export is a startup failure rather than a build
 failure, held by a test that loads the real package.
+
+***A note on the word itself, 2026-09-14, filed where it is densest.*** Every
+"package" in this section is the npm one — a directory in the tree above with a
+`package.json`. The word carried a second sense across this corpus until
+recently, the portable content bundle, and it does not any more: that kind is
+World and its file is a `.seworld` ([15 §0](15-world.md)). The distinction is
+worth stating here rather than leaving to be inferred, because the licence
+mechanism above is an `import` statement. An extension is a combined work
+because it imports `sdk`; a World imports nothing and ships rules rather than
+code ([15 §8](15-world.md)), so bringing one into a library is a content event
+and never a linking one. What leaves through [16](16-publish.md) is therefore
+the author's own content under the author's own licence, and the boundary this
+section exists to enforce does not reach it — which is
+[triage §1.2](workplan/02-triage.md)'s line arriving from the build side, and
+the reason a publish flow needs no licence opinion ([16 §7](16-publish.md)).
+
+A third sense survives the rename and is neither of these:
+`ChannelDefinition.owner` accepts a package id
+([06 §4.1](06-modes-and-turn-pipeline.md)), and what P7 shipped under that name
+is a first-party namespace owning a channel — `storyengine.lore`,
+`storyengine.cast`. That is a code namespace, not a directory in the tree above
+and not a bundle, and it stays as it is. [15 §9](15-world.md) records that the
+two were ever one word; what this paragraph guards against is the obvious
+hazard, which is reading the rename as a licence to replace the word wherever it
+appears.
 
 ---
 

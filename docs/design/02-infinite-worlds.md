@@ -81,27 +81,54 @@ author *declare a variable* but not *state a rule about it*. Declaring
 "Corruption: 0–100, purple, pinned" is a fraction of the way to "when corruption
 reaches 50, change the objective and swap in a different instruction block".
 
-**Scheduled for 6.0, the authoring tier** ([work plan §0.6](workplan/01-work-plan.md)) — and this document
-is the reason why, in both directions. It makes the case for the tier, and it
-also records that IW ran on triggers and tracked items for years before adding
-PawScript (§6), designing that language against a corpus of real authored worlds.
-Building the vocabulary first, with no corpus, would be taking IW's destination
-without its route. Campaign at 5.0 is what produces the corpus; this tier is a
-release behind it for exactly that reason, and not because Campaign needs it. What 1.0 keeps is the room: `owner` accepting a package id,
-and one application path for all effects
+**Scheduled for ~~6.0~~ 5.0, the authoring tier**
+([work plan §0.6](workplan/01-work-plan.md), [17](17-authoring.md)) — and this
+document is the reason why, in both directions. It makes the case for the tier,
+and it also records that IW ran on triggers and tracked items for years before
+adding PawScript (§6), designing that language against a corpus of real authored
+worlds. Building the vocabulary first, with no corpus, would be taking IW's
+destination without its route. Campaign at 4.0 is what produces the corpus; this
+tier is a release behind it for exactly that reason, and not because Campaign
+needs it. *Both numbers in this paragraph came down by one on 2026-09-14 and
+neither release moved: [15](15-world.md) took World into 1.0, the line shortened
+behind it ([06 §7](06-modes-and-turn-pipeline.md)), and a tier defined as one
+release behind Campaign follows Campaign wherever it lands.* What 1.0 keeps is
+the room: `owner` accepting a world id, and one application path for all effects
 ([06 §4.1](06-modes-and-turn-pipeline.md)).
 
 ### 2.1 Why this is safe, and how it resolves an open question
 
-[26 A2](26-open-questions.md) asks whether a package may ship code, and leans no,
-because importing a package would become a code-execution decision.
+[26 A2](26-open-questions.md) asks whether a World may ship code, and leans no,
+because importing one would become a code-execution decision.
 
 Authored rules dissolve that tension, because **rules are data, not code**. A
 rule is a term in a closed vocabulary that *our* evaluator interprets. Importing
 one grants no capability the importer doesn't already have. So A2's answer
 sharpens to:
 
-> **Packages may ship rules. Packages may never ship code.**
+> **A World may ship rules. A World may never ship code.**
+
+***The noun moved and the sentence did not*** (2026-09-14). This section was
+written when the portable kind was called Package, and it read ~~*"Packages may
+ship rules. Packages may never ship code."*~~ The kind is `storyengine.world/1`
+now ([15 §0](15-world.md), [04 §9](04-schemas.md)) — a rename rather than an
+addition, so the six portable kinds are still six — and the argument crosses
+without a word of it changing, which is as good a test as there is of whether a
+rename was a rename. [26 A2](26-open-questions.md) records the same crossing
+from the question's side, and [15 §8](15-world.md) holds the sentence in its new
+form, which is where a reader arriving from the transport side will meet it
+rather than here.
+
+**Only one of the word's senses moved, and the tier above keeps its own.** The
+content bundle became a World. The first-party namespace that owns a channel —
+`storyengine.lore` and its three siblings, which P7 shipped — is code, did not
+become anything, and is [06 §4.1](06-modes-and-turn-pipeline.md)'s to separate
+out. And the *installable package* of §2's second tier is the ordinary
+distribution sense, the one `packages/server` carries, which is a third thing
+again. That last one is worth naming here rather than anywhere else, because
+this section's sentence — *a World may never ship code* — sits below a tier
+whose entire content is shipped code, and a reader who takes the two words for
+one will find a contradiction in this document that is not in it.
 
 The security boundary is the closed vocabulary, which is exactly the property
 that makes a declarative rules engine worth having over "let authors write
@@ -112,15 +139,29 @@ without touching the extension-execution question in [26 A1](26-open-questions.m
 
 - **Channels become author-declarable**, not only mode-declared
   ([06 §4](06-modes-and-turn-pipeline.md)). An author defines a channel in a
-  package the same way a mode does; the mode-owned ones are just the built-in
+  World the same way a mode does; the mode-owned ones are just the built-in
   set.
-- **Packages and treatments carry a `rules` collection**
+- **A World and a Treatment carry a `rules` collection**
   ([03 §7](03-data-model.md)) — evaluated by us, versioned with the rule
   vocabulary, and inert if a referenced channel is missing.
 - **Rules are a pipeline step**, not a new subsystem. Evaluate at end of turn,
   collect effects, apply through the same channel-effect path that
   model-proposed updates use, and record them in the turn record like everything
   else ([03 §8](03-data-model.md)).
+
+**The first two bullets asked for an owner that could not have existed, and the
+rename is what supplied one.** A Package was specified as embedded copies
+resolved on import ([04 §9](04-schemas.md)): the container dissolved the moment
+it arrived. So a channel owned by one pointed at nothing the engine could
+resolve at turn time, and the `rules` collection was hung off the same vanishing
+object — two bullets written against a container that had been designed not to
+survive its own import. A World is the durable thing that was missing: it lives
+in the library, outlasts the file that carried it, and carries a stable id an
+owner can name, which is what makes both bullets implementable rather than
+merely stated. [15 §0](15-world.md) takes that pair as the proof that two
+documents were describing one object and renamed the kind on it;
+[06 §4.1](06-modes-and-turn-pipeline.md) is where the field is corrected, and
+the World arm is the only one of `owner`'s four this tier is about.
 
 ---
 
@@ -361,8 +402,8 @@ thing that comes from retrofitting.
 
 | Change | Where | Size |
 |---|---|---|
-| Add authored rules as a third extensibility tier — **6.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) | [06](06-modes-and-turn-pipeline.md), [03 §7](03-data-model.md) | Large — the main finding, and the reason it waits |
-| "Packages may ship rules, never code" resolves A2 | [26 A2](26-open-questions.md) | Clarification |
+| Add authored rules as a third extensibility tier — ~~6.0~~ **5.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md), [17](17-authoring.md)) | [06](06-modes-and-turn-pipeline.md), [03 §7](03-data-model.md) | Large — the main finding, and the reason it waits |
+| "A World may ship rules, never code" resolves A2 — the noun was ~~*Packages*~~ until the kind was renamed, and nothing else in the sentence moved (§2.1) | [26 A2](26-open-questions.md) | Clarification |
 | Channels declarable by authors, not only modes | [06 §4](06-modes-and-turn-pipeline.md) | Moderate |
 | Steps may suspend for player input | [06 §6](06-modes-and-turn-pipeline.md) | Moderate — new C5 |
 | Name the evaluate-before-narrate pattern | [06 §6](06-modes-and-turn-pipeline.md) | Small |

@@ -365,14 +365,54 @@ sees, so they have to be the kind of thing an image model can see.
 ### 4.4 Diversity is a property of the population
 
 **The stronger version does not draw uniformly; it draws away from what the
-library already has.** *All near identical* is a fact about a collection, and
-a randomizer that draws each character independently will still, over forty
-cards, produce the palette's mode forty times. The fix is to down-weight
-values already common among the user's actors — a library read, which the
-assist path has, over `visual` fields, which are structured precisely so this
-is a count and not a text comparison. Second tier, because it needs the first
-tier's palettes and structured output to exist; recorded because it is the
-version that actually answers the complaint.
+~~library~~ canon already has.** *All near identical* is a fact about a
+collection, and a randomizer that draws each character independently will still,
+over forty cards, produce the palette's mode forty times. The fix is to
+down-weight values already common among ~~the user's actors~~ the actors of that
+canon — a library read, which the assist path has, over `visual` fields, which
+are structured precisely so this is a count and not a text comparison. Second
+tier, because it needs the first tier's palettes and structured output to exist;
+recorded because it is the version that actually answers the complaint.
+
+**Which collection was §6's open question, and it could not be closed when it
+was asked.** [15](15-world.md) closes it: the population is a **World**. The
+complaint is *these characters look alike*, not *all my characters do* — a
+Regency drama and a cyberpunk setting already draw from different palettes
+(§4.3), and they should share no count either, because a face that recurs across
+two canons has not recurred anywhere a reader will ever see it. A World is the
+named set of objects that share a canon ([15 §1](15-world.md)), which makes it
+exactly the set over which resemblance is a defect rather than a coincidence.
+
+**The lean was right about the population; what was missing was an object able
+to hold one.** When this section was written a World grouped sessions and
+nothing else, so *the actors of one world* named a set reachable only by walking
+that world's sessions — and it was empty exactly when it was needed, because a
+library grown by generation is forty cards with no play behind them, which is
+the collapse §1 describes. What changed is [15 §2](15-world.md), in the sentence
+that does the work: *Five objects and a name is a World on day one*. Membership
+is authored rather than accrued, so a World's actors are named rather than
+inferred, and the population exists before the first session does.
+
+**Nothing hands the assist a World, and it does not need to be handed one.** The
+assist runs outside any session ([10 §11.4](10-ui-surfaces.md)), so there is no
+session to carry the key the way one carries it in play. Membership lives on the
+World ([15 §4](15-world.md)), which makes *which Worlds is this actor in* a
+reverse lookup over member lists — the lookup [15 §6](15-world.md) refuses for a
+session's World, on the grounds that a key resolved on every turn is a key in
+name only, and which is affordable here for precisely the opposite reason: it
+runs once, when somebody pressed a button, over a library the panel has already
+loaded. An actor in several Worlds counts against the union of them, which is
+conservative and harmless — a value down-weighted for being common in either
+canon is one this author does in fact reach for. An actor in none, which is most
+new actors because a character is made before it is put anywhere, falls back to
+the whole library: the question's other horn survives as the default rather than
+as the answer.
+
+*Amended 2026-09-14, when World became a portable kind with authored members
+([15 §0](15-world.md)). By strike rather than quietly, because the sentence
+naming the library was never wrong about the mechanism and only ever wrong about
+its scope, and a reader who arrives at the narrower claim should be able to see
+that the wider one was held first.*
 
 ### 4.5 `visual` is the source and the prose is derived
 
@@ -546,9 +586,15 @@ earlier.
   extract-stage confirmation** (§3.4). Build without it, measure, add it if
   sessions say so.
 - **The pre-pass for authored constraints** (§4.3) versus pinning alone.
-- **Population-aware weighting's scope** (§4.4) — the user's whole library, or
+- ~~**Population-aware weighting's scope** (§4.4) — the user's whole library, or
   the actors of one world ([15](15-world.md))? A world is probably the honest
   population, since the complaint is *these characters look alike*, not *all my
-  characters do*.
+  characters do*.~~ **Answered 2026-09-14: the World** (§4.4), by the kind
+  arriving rather than by anything here changing its mind — the lean named the
+  right population before there was an object able to hold one. Kept struck
+  rather than deleted, because the question is still the clearest statement of
+  *why* that is the right scope. What is left is narrower and is not a design
+  question: whether the library fallback for an actor in no World is inferred or
+  offered, which only a real library answers.
 - **Whether the dice-aware narrowing (§3.7) is worth a mode declaring.** Cheap
   to express, unknown whether wanted.

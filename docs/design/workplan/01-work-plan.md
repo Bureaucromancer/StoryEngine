@@ -13,15 +13,35 @@ guessing at it.
 
 ## 0. The committed versions
 
-**1.0 ships the Play surface with two modes: Scene and Freeform.**
+**1.0 ships the Play surface with two modes — Scene and Freeform — and World,
+the canon they are played in ([15](../15-world.md)), with Publish
+([16](../16-publish.md)) as the one flow by which any of it leaves.**
 **2.0 adds Write — a surface of its own, holding Outline and Prose
 ([13](../13-write-mode.md)).**
 **3.0 adds the Character Studio — the surface that turns a played actor into a
 reusable visual identity ([18](../18-character-studio.md)).**
-**4.0 adds World — the continuity container ([15](../15-world.md)).**
-**5.0 adds Campaign — the mode, and the RPG channel library under it.**
-**6.0 adds the authoring tier — authored rules, and the surfaces that make
+**4.0 adds Campaign — the mode, and the RPG channel library under it.**
+**5.0 adds the authoring tier — authored rules, and the surfaces that make
 authoring what you played a first-class activity.**
+
+**That block lost a line on 2026-09-14, and the three below it each came down by
+one.** It read:
+
+> ~~**4.0 adds World — the continuity container.**~~
+> ~~**5.0 adds Campaign — the mode, and the RPG channel library under it.**~~
+> ~~**6.0 adds the authoring tier.**~~
+
+**Nothing was re-prioritised. The kind turned out to already exist.**
+[04 §9](../04-schemas.md)'s portable container — the thing this corpus has
+called a Package since that section was written — and the continuity
+[15](../15-world.md) described from the play side were **one object approached
+from opposite ends**, each refusing the half the other had
+([15 §0](../15-world.md)). So Package was *renamed* to World rather than a
+seventh kind added, and a kind the 1.0 series already ships cannot be scheduled
+for a release three out. **Campaign moved with it rather than on its own
+merits**: its gate in the table below was *4.0's continuity to run in*, and that
+continuity is now 1.0's. The authoring tier is defined as one release behind
+Campaign, so it followed. **There is no 6.0.**
 
 **Surfaces own modes, and the two words are not interchangeable.** A surface is
 a top-level place in the application; a mode configures the pipeline inside one.
@@ -35,7 +55,7 @@ mode belongs to ([06 §7](../06-modes-and-turn-pipeline.md),
 **The ordering criterion is what must have *happened* first, rather than what
 must have been built.** Sequencing releases by subsystem dependency is the
 obvious approach and the weaker one, because it only says what code must exist.
-Five of these six tiers are gated on something having been *used*, which no
+Four of these five tiers are gated on something having been *used*, which no
 dependency graph shows:
 
 | Release | What must have happened |
@@ -43,11 +63,28 @@ dependency graph shows:
 | **1.0** | Nothing. This is the core loop, and where this project diverges most from what already exists. |
 | **2.0 — Write** | 1.0's substrate *built*. Write consumes lorebook activation, mention resolution, the mode contract as a real interface rather than a shape one built-in mode happens to fit, and the summary chain — P5 through P8 ([13](../13-write-mode.md)). |
 | **3.0 — the Character Studio** | 1.0's actors *played*. Every format prerequisite lands at 1.0 ([18 §5](../18-character-studio.md)), so no later release owns anything it consumes; what it waits for is a stock of actors worth making reusable, because a reusable visual identity is worth nothing until there is a character you want back. |
-| **4.0 — World** | 1.0's play *accumulated*. A World is worth nothing until the third session ([15](../15-world.md)), so designing a continuity container before continuities exist is designing against a guess. |
-| **5.0 — Campaign** | 4.0's *continuity to run in*. A campaign is a multi-session form by nature — [06 §7.3](../06-modes-and-turn-pipeline.md) wants sessions-within-a-campaign with structured recaps and a bridging message on resume, and calls that a shared capability rather than a Campaign-specific one. World is where it becomes shared. |
-| **6.0 — the authoring tier** | 5.0's play *authored*. The rule vocabulary was deferred for want of a corpus of real authored worlds to design against ([26 C7](../26-open-questions.md)), and a release of Campaign is what produces one. |
+| **4.0 — Campaign** | **1.0's** *continuity to run in* — ~~4.0's~~, while World was a release rather than a kind. A campaign is a multi-session form by nature — [06 §7.3](../06-modes-and-turn-pipeline.md) wants sessions-within-a-campaign with structured recaps and a bridging message on resume, and calls that a shared capability rather than a Campaign-specific one. World is where it becomes shared, and World is now 1.0's. |
+| **5.0 — the authoring tier** | **4.0's** play *authored* — ~~5.0's~~, before Campaign came forward a release. The rule vocabulary was deferred for want of a corpus of real authored worlds to design against ([26 C7](../26-open-questions.md)), and a release of Campaign is what produces one. |
 
-**The 6.0 row is literal rather than a play on the word.**
+**The row that is gone, and why its argument fell before its schedule did.** Its
+gate, under the heading **4.0 — World**, read:
+
+> ~~1.0's play *accumulated*. A World is worth nothing until the third session
+> ([15](../15-world.md)), so designing a continuity container before
+> continuities exist is designing against a guess.~~
+
+[15 §2](../15-world.md) has withdrawn that sentence on its own account. *Worth
+nothing until the third session* is true of a World that can only accrue and
+false of one that can also be authored: five objects and a name is a World on
+the first day, with no sessions in it at all, and refusing that was refusing the
+thing people most obviously want to do. So the gate this row named had stopped
+being a gate before the release number moved. **The schedule followed the
+argument rather than the other way round**, which is what makes this a
+correction rather than a re-prioritisation — and it is worth noticing that the
+row was the only one of the six whose gate was a claim about *value* rather than
+about a dependency. That is the kind of gate that can be wrong.
+
+**The 5.0 row is literal rather than a play on the word.**
 [26 C7](../26-open-questions.md)'s argument for deferring the rule vocabulary is
 that Infinite Worlds ran on triggers and tracked items for years before arriving
 at PawScript, and arrived at it *with a corpus of real authored worlds to design
@@ -64,12 +101,16 @@ Marinara already — what StoryEngine adds is multi-user and the channel model
 underneath, not a different opinion about what an RPG mode should be — so it
 goes last among the modes.
 
-*Where the two readings disagree is 5.0, and the happened-first one wins.*
+*Where the two readings disagree is 4.0, and the happened-first one wins.*
 Opinion alone would let Campaign go earlier, since being unopinionated is a
-reason to build against a proven substrate rather than a reason to wait four
+reason to build against a proven substrate rather than a reason to wait three
 releases. What actually holds it is the continuity dependency in the table
 above: a campaign without sessions that know about each other is a campaign with
-the recap written by hand.
+the recap written by hand. **The dependency is unchanged and the wait got
+shorter**, which is the whole of what World's move did to this paragraph — the
+continuity Campaign is gated on now arrives three releases before Campaign does
+rather than the release before it, so what was a hand-off becomes a substrate
+that has been played on.
 
 **Messages is not a committed version at all.** It was scheduled for 2.0 and now
 sits on the feature list as part of a Social cluster ([25](../25-roadmap.md)),
@@ -78,8 +119,10 @@ on the proposition that messaging, a feed and a board are three modes of a
 the one it had and it is not yet defined well enough to schedule. §0.3 records
 what deferring it costs, which is more than the mode.
 
-**The release line is therefore: alpha → beta → 1.0 → 2.0 → 3.0 → 4.0 → 5.0 →
-6.0.**
+**The release line is therefore: alpha → beta → 1.0 → 2.0 → 3.0 → 4.0 →
+5.0** ~~`→ 6.0`~~ — **one shorter than it was**, and shortened by a discovery
+rather than by a cut: nothing was dropped from the series, one member of it
+turned out to be inside 1.0 already.
 1.0 is a real release with a `release/1.0` branch that persists
 ([releases §2](04-repo-and-releases.md)); each series after it continues on `main`
 while the previous release branch takes fixes.
@@ -93,8 +136,14 @@ Deferring a mode removes more than the mode:
 | **Messages** | feature list | Presence (Active/Idle/DND/Invisible), per-actor schedules, autonomous messaging, Discord-style profiles, reactions, the command-family gating model |
 | **Messages** | feature list | **Background scheduling.** Autonomous messages were the forcing function for a server-side timer that starts turns with no client attached. Nothing else at 1.0 needs one — the plot-hook selector is a pipeline step, not a timer. Turns remain server-side *jobs* for reattach, which is a different thing. |
 | **Messages** | feature list | Web Push, ntfy and the delivery-channel spread, and the `message.received` event class |
-| **Campaign** | 5.0 | The RPG channel library: HP and pools, attributes, inventory, quests, map, clock/weather, NPC reputation, sessions-within-a-campaign, combat |
-| **Campaign** | 5.0 | Incremental world generation at setup, and the character-sheet machinery |
+| **Campaign** | ~~5.0~~ **4.0** | The RPG channel library: HP and pools, attributes, inventory, quests, map, clock/weather, NPC reputation, sessions-within-a-campaign, combat |
+| **Campaign** | ~~5.0~~ **4.0** | Incremental world generation at setup, and the character-sheet machinery |
+
+**Both Campaign rows came down a release on 2026-09-14** (§0), and nothing in
+either cell moved with them — what a deferral removes does not depend on how far
+it is deferred. **World never had a row here and now never will**, which is the
+small thing worth noticing: this table records what goes away with a release
+that waits, and World has stopped being a release that waits.
 
 **Notifications stay at 1.0 but shrink.** The Messages argument for them goes
 away; the other two do not — completion sounds, and awaiting-input when a turn
@@ -108,26 +157,76 @@ retrofit cost, and they are as cheap now with two event classes as with ten.
 ### 0.2 The checks this cut creates
 
 The scope cut is also a test, and it is worth stating as a commitment rather
-than a hope. It is five commitments rather than one, because the six tiers do
-not all make the same promise.
+than a hope. It is five commitments rather than one, because the five tiers do
+not all make the same promise — and **one of the five has now been answered**,
+which is the first time this section has had anything to report rather than
+anything to promise.
 
-> **Adding Campaign at 5.0 must require no changes to the 1.0 portable schemas**
+> **Adding Campaign at 4.0 must require no changes to the 1.0 portable schemas**
 > ([04](../04-schemas.md)).
 
 The design says it should not: Campaign's state lives in channels the mode
 declares, and nothing it needs touches Actor, Lorebook, Treatment, Setup or
-Package. If it turns out to need a schema change, the mode contract or the data
-model was wrong — and finding that out at 5.0 is exactly what the stability
+World. If it turns out to need a schema change, the mode contract or the data
+model was wrong — and finding that out at 4.0 is exactly what the stability
 tiers exist to prevent. The same held for Messages when it had a release, and
 holds again if it ever gets one.
 
-> **World at 4.0 must add no portable kind at all** ([15](../15-world.md)).
+> ~~**World at 4.0 must add no portable kind at all**~~ ([15](../15-world.md)).
+> **Answered 2026-09-14. It held.**
 
-A World is a play-side grouping of sessions rather than a seventh portable kind,
-and sessions are the free-to-move tier ([04 §1](../04-schemas.md)). This is the
-easiest of the five to pass and the easiest to fail by accident, because the
-pressure to make a World exportable will be real the first time somebody wants
-to share one.
+**The pressure this check named arrived exactly as described, and the check
+survived it.** The paragraph under it predicted that the pressure "will be real
+the first time somebody wants to share one", and it was. What arrived with it
+was the discovery that the thing somebody would want to share **was already a
+portable kind**: Package was *renamed* to World —
+`storyengine.package/1` became `storyengine.world/1` at `448c53e` — and the
+count did not move. Six portable kinds before, six after
+([15 §0](../15-world.md), [04 §9](../04-schemas.md)). **No portable kind was
+added, so this check passes on its own terms** rather than by being waived, and
+World is in 1.0 with the promise intact.
+
+**"It held" is not "nothing happened", and the difference is the whole value of
+this row.** The check was written to stop a play-side convenience growing into a
+format commitment nobody had designed — **and that is not what it caught.** What
+it caught, by being there when the pressure arrived, was the reverse case: a
+format commitment that had existed since [04 §9](../04-schemas.md) was written
+turning out to *be* the convenience. The check's job was to make somebody ask
+the question at the moment it mattered, and it did; the answer was not the one
+it anticipated. **A check that survives for a reason its author did not foresee
+has been tested rather than merely satisfied**, which is worth considerably more
+than a check that passed because nothing pushed on it — and it is the reason the
+old reasoning is struck rather than deleted:
+
+> ~~A World is a play-side grouping of sessions rather than a seventh portable
+> kind, and sessions are the free-to-move tier ([04 §1](../04-schemas.md)). This
+> is the easiest of the five to pass and the easiest to fail by accident,
+> because the pressure to make a World exportable will be real the first time
+> somebody wants to share one.~~
+
+**The replacement, and it is the one still worth running:**
+
+> **World must change no other portable schema** — not Actor, Lorebook,
+> Treatment, Setup or Preset ([15 §3](../15-world.md)).
+
+A renamed container that quietly needs a field on Actor would be the failure the
+original check was reaching for, arriving through the one door nobody was
+watching. **With one known exception, named here rather than discovered later,
+because a check with an unstated exception is a check that gets waived the first
+time it fires:** World adds a single union variant to `LoreScope` —
+`{ kind: 'world', worldIds: string[] }` ([15 §5](../15-world.md)) — which is a
+change to Lorebook, and is additive and therefore not a bump
+([04 §2](../04-schemas.md)). So the check is precisely *no bump, and no second
+exception*, in the shape the authoring tier's below already uses rather than the
+Character Studio's stricter *no change at all*.
+
+That one variant is also the only reach World has into the other five kinds,
+and it is worth noting what it buys: a field that has been stored, exported and
+read by nothing since P5.7's reversal finally acquires a consumer
+([15 §5](../15-world.md)). **If it grows a second reach, this check has failed**
+— and unlike the other four, it does not wait for a release to find out. World
+is 1.0's, it lands at [P8A](29-p8a-world.md), and the answer is due at that
+phase's exit.
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**
@@ -154,28 +253,47 @@ which image was the canonical likeness is not a migration. **This is the
 strictest check in the series and the first one to run**, which is the change
 the re-ordering makes to this section.
 
-> **The authoring tier at 6.0 must add only optional fields and new variants.
+> **The authoring tier at 5.0 must add only optional fields and new variants.
 > No portable schema may bump.**
 
 Everything the tier returns was *removed* rather than stubbed, which is what
 makes this checkable: `PlotHook.requires` and `onFire` come back as optional
 fields, `Goal.completion` gains a third variant, and `rules` is a new optional
-collection on Package and Treatment ([02 §2.2](../02-infinite-worlds.md)).
-Adding an optional field and adding a variant are both additive
-([04 §2](../04-schemas.md)). If the tier turns out to need a *breaking* change to
-Actor, Lorebook, Treatment, Setup or Package, then §0.4 performed a deletion
-rather than a deferral — and that is worth discovering as a failed check rather
-than as a surprise.
+collection on ~~Package~~ **World** and Treatment
+([02 §2.2](../02-infinite-worlds.md)). Adding an optional field and adding a
+variant are both additive ([04 §2](../04-schemas.md)). If the tier turns out to
+need a *breaking* change to Actor, Lorebook, Treatment, Setup or World, then
+§0.4 performed a deletion rather than a deferral — and that is worth discovering
+as a failed check rather than as a surprise.
+
+*The struck noun is the content-bundle sense of the word and nothing else*
+([15 §9](../15-world.md)): a `rules` collection rides on the thing a shipped file
+carries, and that is now a World. **The word's other senses are untouched on
+purpose.** The first-party namespace that owns a channel — `storyengine.lore` and
+its three siblings, which P7 shipped — is code, became nothing, and is
+[06 §4.1](../06-modes-and-turn-pipeline.md)'s `NamespaceId`. The npm workspace
+package is a third thing again, and §0.4 and §4 both use it of a built-in mode
+consuming the SDK — while §0.5 and §8's *packaging* is a fourth, and means a
+release artifact. **The word occurred fourteen times in this document and five
+of them were the bundle**, so a find-and-replace would have been wrong nine
+times. Worth recording once here rather than discovering later.
 
 **Worth naming: the checks no longer run in the worst possible order.** Write's
-looser rule still applies at the nearest release and Campaign's strict one is now
-four releases out rather than three, which on its own would be the reverse of
-where a check does the most good. What changes it is the Character Studio: its
-check is the strictest of the five and it runs at 3.0, so a format frozen at 1.0
-gets asked whether it was right two releases on rather than four.
+looser rule still applies at the nearest release, and what fixed the ordering is
+the Character Studio: its check is the strictest of the five and it runs at 3.0,
+so a format frozen at 1.0 gets asked whether it was right two releases on rather
+than four.
+
+**The World move improves it again, in two places.** Campaign's strict check is
+now three releases out rather than four, because the line shortened underneath
+it rather than because anything about Campaign changed. And World's own check
+stopped being a promise about a distant release and became a question with a
+phase attached. **One of the five is now answerable by running the suite**,
+which is not something the other four can say, and it is the closest this
+section gets to its own argument being demonstrated rather than asserted.
 
 **Campaign's remains the late one**, and the mitigation is unchanged: the strict
-rule is checkable *now* — nothing has to wait for 5.0 to ask whether Campaign's
+rule is checkable *now* — nothing has to wait for 4.0 to ask whether Campaign's
 channels touch a portable schema, and
 [22 §6](../22-internal-contracts.md) is where that question already lives.
 
@@ -187,7 +305,7 @@ way that has no end date.
 
 - **Heavy channels and engine-computed effects** were Campaign's to prove.
   Freeform uses channels lightly by design, so the model is under-exercised —
-  and Campaign is now four releases out rather than one. The mitigation is real
+  and Campaign is now three releases out rather than one. The mitigation is real
   but partial: the dice reference extension ([25 §4.4](../25-roadmap.md))
   exercises engine-computed channels and evaluate-before-narrate on a small
   surface, which is a reason to keep it at 1.0 even though Freeform defaults to
@@ -206,7 +324,7 @@ the specification until something does. This plan accepts it, and records the
 choice here so that it is a decision rather than an oversight.
 
 **And one cost that belongs to §0.6 rather than to a deferred mode: three
-predicate dialects run separately for five releases.**
+predicate dialects run separately for ~~five~~ four releases.**
 
 The authored-rule vocabulary is not a greenfield language design. It is
 substantially the job of *unifying* three mini-vocabularies that all ship inside
@@ -227,6 +345,17 @@ the Character Studio ahead of both adds one more release to that bill
 ([18 §1.3](../18-character-studio.md)), which is the sharpest thing that
 re-ordering cost.
 
+**World's move takes one release back off that bill** (§0), and it is the only
+credit this paragraph has ever recorded. The tier did not move; the line
+shortened under it, so the dialects run apart across four releases rather than
+five. **That is a smaller correction than it sounds** — four releases is still
+long enough for each of the three to acquire a convenience, and a bill that goes
+from unpayable to nearly unpayable has not been paid. It is worth recording all
+the same, because this section is a list of costs and the World move reduced two
+of them: this one, and the channel seam above, which now waits three releases
+for its prover instead of four. It made none of them larger, which is the part
+that could have gone the other way.
+
 **The mitigation is real but it is a person's job rather than a mechanism.** All
 three guards are written down in the documents that own them, and none of them is
 enforced by anything. The check worth running at each phase revisit is narrow:
@@ -239,8 +368,8 @@ reason to unify?*
 the mode cut and were removed anyway, on a review pass that asked the question
 §2.1 exists to ask — *what is additive, and can therefore wait?*
 
-**Authored rules: the vocabulary and evaluator go to 6.0, a release behind
-Campaign.**
+**Authored rules: the vocabulary and evaluator go to ~~6.0~~ 5.0, a release
+behind Campaign.**
 
 The third extensibility tier ([06 §4.1](../06-modes-and-turn-pipeline.md)) stays
 a committed direction. What moves is the part that is a language design project
@@ -261,7 +390,7 @@ Three reasons, and the third is the strongest:
 - **We have no such corpus.** Designing an expression language against
   imagination is how you get one nobody can use. Channels and engine-computed
   effects ship at 1.0 and are where the actual power lives; the rule layer gets
-  designed at 6.0, against a release of real Campaign play.
+  designed at ~~6.0~~ 5.0, against a release of real Campaign play.
 
 **It sits a release behind Campaign rather than beside it**, which is the change
 from when this was tied to Campaign directly, and the reason is that **Campaign
@@ -288,16 +417,32 @@ no predicate language to express.
   reason is instructive: `Goal` sits on **Setup**, which is portable *authored*
   content, so a quest's completion condition belongs to the author rather than
   to Campaign. Campaign's code cannot supply what is not Campaign's to say.
-- Author-declarable channels — the `owner`-accepts-a-package-id widening lands
-  at 1.0; only the authoring surface waits.
+- Author-declarable channels — the ~~`owner`-accepts-a-package-id~~
+  **`owner`-accepts-a-world-id** widening lands at 1.0; only the authoring
+  surface waits. *The field is now
+  `owner: ModeId | ExtensionId | NamespaceId | WorldId`
+  ([06 §4.1](../06-modes-and-turn-pipeline.md)), which splits the two senses this
+  bullet's old wording ran together: the arm an author declares a channel
+  through is the content bundle, and the content bundle is a World. The
+  first-party namespace P7 shipped is the other arm, and it did not move.*
 
 **So what a rules-less Campaign cannot do is let somebody else author one.**
-Every authored quest completes narratively or manually; a shipped Package can
-declare a Corruption channel but not state a rule about it — which is exactly the
-gap [02 §2](../02-infinite-worlds.md) names as the tier's reason to exist. That
-is a real hole, and it is a hole in the *authoring* story rather than in
-Campaign, which is why §0.6 is a release about authoring rather than a release
-about rules.
+Every authored quest completes narratively or manually; a shipped ~~Package~~
+**World** can declare a Corruption channel but not state a rule about it — which
+is exactly the gap [02 §2](../02-infinite-worlds.md) names as the tier's reason
+to exist. That is a real hole, and it is a hole in the *authoring* story rather
+than in Campaign, which is why §0.6 is a release about authoring rather than a
+release about rules.
+
+**The hole narrows without closing, and the rename is why.** The sentence above
+was written against a container specified to dissolve on import
+([04 §9](../04-schemas.md)), so the thing declaring the Corruption channel
+stopped existing the moment it arrived and a rule about it would have had
+nothing to hang from — the bullet described something that could not have been
+built. A World is durable in the library and carries a stable id, which is what
+makes both halves of [02 §2.2](../02-infinite-worlds.md) implementable rather
+than merely stated. **What still waits for 5.0 is the vocabulary and the
+surface — the *rule*, not the owner.**
 
 Plot hooks lose nothing that matters. `involves`, `notBefore` and `blockedBy` are
 mechanical filters that need no vocabulary, and they carry most authored hooks.
@@ -328,7 +473,9 @@ discipline and dropping the ceremony holds nearly all the value
 
 Four things moved *into* 1.0 on the same review pass, three of them because a
 release that cannot be installed, exported or restored is not a release anyone
-can rely on.
+can rely on. **A fifth arrived later, by a different route entirely**, and is
+recorded last rather than folded into the four, because the route is the part
+worth keeping.
 
 **Packaging is pre-1.0, and all six artifacts are in it.**
 
@@ -377,11 +524,49 @@ Optional fields are additive and free; *reinterpreting* the existing constant
 and enabled flags as the four-value axis would be a version bump
 ([04 §2](../04-schemas.md)). Free now, a bump later, so now.
 
+**World ships at 1.0, and [16](../16-publish.md) — Publish — with it**
+([15](../15-world.md)). *Added 2026-09-14, and the only entry in this section
+that arrived by discovery rather than by decision.*
+
+The four above were scheduled in because somebody asked what a release without
+them would be worth and did not like the answer. **World was not scheduled in.
+It was already here**, and what moved was the document describing it. The
+portable container [04 §9](../04-schemas.md) had specified as a Package and the
+continuity [15](../15-world.md) described from the play side turned out to be
+one object, so the kind was renamed rather than added — and a kind the 1.0
+series already ships stopped being a proposal for 4.0
+([15 §0](../15-world.md)). **The release line shortened behind it** (§0), which
+is a larger consequence than anything the other four entries here caused and was
+nobody's intention when the rename was made.
+
+**What 1.0 gains beyond the rename is the three jobs the container could not do
+while it dissolved on import** ([15 §1](../15-world.md)): membership — a stored
+World *names* its members and they stay editable in the library; contribution —
+books, a treatment baseline and a hook pool prefilled at session creation, which
+is what finally gives `LoreScope` a consumer; and accrual — world-scoped memory,
+a hook that will not fire twice across a canon, and the story bible. Publish is
+the flow that emits a file from any object, any set of them, a session or a
+World, and **publishing a set is also how a World gets authored** out of objects
+you already own ([16 §3](../16-publish.md)). It lives in the Library, as Import
+already does, and is not a fourth surface ([16 §6](../16-publish.md)).
+
+**None of that is free, and [P8A](29-p8a-world.md) is where it is sized.** The
+phase sits between P8 and P9, for the reason the other four entries here never
+had to argue: memory gains its fourth key at P8, so the key's scope and the
+object that supplies it want to land in that order.
+[P11](28-p11-implementation.md) keeps every piece of exchange work it already
+owned — `.seworld`, the closure walker, Publish's surface and session export —
+and the change is that it now builds them on a kind that exists rather than
+inventing the container and the walker in the same phase.
+
 ### 0.6 The authoring tier, and why it is not called "authored rules"
 
-**6.0 is the release where authoring what you have played becomes a
+**~~6.0~~ 5.0 is the release where authoring what you have played becomes a
 first-class activity.** Authored rules are its mechanism; they are not its
-product.
+product. *The number came down on 2026-09-14 and the tier did not move: it is
+defined as one release behind Campaign, the line shortened when World left 4.0
+for 1.0 (§0), and a definition stated relatively follows what it is relative to.
+Everything below is unchanged.*
 
 The distinction is not cosmetic. A release whose entire content is *a language
 for authors* has no forcing function of its own — it would be designed by us,
@@ -430,10 +615,11 @@ serve both template rendering and rule conditions — one thing for authors to
 learn, one evaluator to sandbox. Liquid is already chosen for block templating
 and P4 proceeds on it, deliberately leaving the other half of
 [26 C6](../26-open-questions.md) open ([P4 §6.1](16-p4-implementation.md)).
-Deferring rules to 6.0 does not defer that choice; it extends how long the
-project runs on a half-made one. **The revisit should ask whether Liquid still
-looks right for conditions after five releases of using it for templates**, and
-treat "no" as an answer worth having rather than an inconvenience.
+Deferring rules to ~~6.0~~ 5.0 does not defer that choice; it extends how long
+the project runs on a half-made one. **The revisit should ask whether Liquid
+still looks right for conditions after ~~five~~ four releases of using it for
+templates**, and treat "no" as an answer worth having rather than an
+inconvenience.
 
 ### 0.7 What is not a committed version
 
@@ -1113,7 +1299,7 @@ knows which.
 - The mode contract as a real interface; built-ins as separate packages
   consuming the published SDK ([20 §10](../20-tech-stack.md)).
 - Channels, effects, engine-computed updates. **Not the authored-rule vocabulary
-  or evaluator** — deferred to 6.0 (§0.4, §0.6), which is the single largest
+  or evaluator** — deferred to ~~6.0~~ 5.0 (§0.4, §0.6), which is the single largest
   thing this phase lost and the reason it is merely large rather than
   impossible.
 - Setup objects and the declarative setup wizard.
@@ -1222,6 +1408,64 @@ with the summariser's identity in the key: [13](../13-write-mode.md)'s node
 summaries ride the same machinery, and the property test this phase owes CI is
 satisfiable by a bug without it.
 
+### P8A — World
+
+**Planned: [P8A](29-p8a-world.md)**, filed 2026-09-14 with the rename that
+created it. **The seventh phase this plan has inserted between two existing
+ones, and none of the six before it was casual** — P2A, P2B and P2C ahead of P3,
+P6A and P6B ahead of P7, P7B ahead of P8, each with an entry saying why. This
+one's reason is the section above rather than a discovery of its own: World is a
+1.0 kind now (§0.5), so something has to build it.
+
+**Membership first, because everything below rests on it.** The kind as a
+durable library object — `library/worlds/<slug>/world.json`, a panel like the
+other five, members held as **refs** rather than copies so they stay editable
+where they live ([15 §4](../15-world.md)) — and the session's own World recorded
+**on the session**, because that is the memory key and a key found by reverse
+lookup on every turn would be a key in name only ([15 §6](../15-world.md)). Then
+the two jobs that become possible once the container stops dissolving on import,
+and the view that makes a canon legible:
+
+- **Contribution.** A session created in a World copies what it needs at
+  creation: books into `session.lore`, the treatment baseline, the hook pool.
+  Prefill, never binding ([00 §3.1](../00-stance.md)), and editable afterwards
+  like any other selection. With it, `LoreScope` gains one additive variant —
+  `{ kind: 'world', worldIds: string[] }` — which is the one exception §0.2's
+  replacement check names, and the field's first consumer since P5.7 reversed
+  the last attempt at one ([15 §5](../15-world.md)).
+- **Accrual.** World-scoped memory, which is the fourth key
+  [08 §8](../08-cross-session-memory.md) named and could not supply; and hook
+  suppression widened from session to World, so that a hook fired in session one
+  does not fire in session two. That second one works only on two things P7
+  already did right: a copied hook keeps the **source hook's id**, which shipped
+  at P7.5 and is pinned by a test, and `introduces` suppression keys on the
+  **subject** rather than the hook, which is right in the code as of P7.5. Only
+  the scope widens here ([15 §6](../15-world.md)).
+- **The story bible** ([15 §7](../15-world.md)), which is a *reader* in the sense
+  the workbench is: presence, channel state, lore activation history and the goal
+  chain are all already on the record, and none of it is new data.
+
+**Why between P8 and P9, and it is the memory key rather than the calendar.**
+[P8 §1.2](25-p8-implementation.md) was told to decide memory's book granularity
+*knowing a fourth key is coming*, and it can now decide it knowing what the key
+is — but only if the object supplying the key lands after the mechanism rather
+than inside it. Building World first would mean specifying a scope against a
+memory store that does not exist; building it later means widening a key over
+stored memories, which is a migration.
+
+**What this phase is not is the exchange work.** `.seworld`, the closure walker
+and Publish's surface stay where they already were, at
+[P11](28-p11-implementation.md) — the change is that P11 now fills a kind that
+exists rather than inventing the container and the walker in one phase (§0.5).
+The wire shape itself is still open: `contents` beside `members`, or member
+folders inside the zip, with [15 §4](../15-world.md) leaning to the second and
+this phase owing it no answer.
+
+**Demonstrable:** make a World, put a lorebook and three actors in it, start two
+sessions in it — and watch the second start with the books already selected, the
+hook that fired in the first not offered again, and the bible naming who exists
+without anyone having written that down.
+
 ### P9 — Renditions
 
 **Skeleton: [P9](26-p9-implementation.md)**, and its first stage is a contract
@@ -1289,6 +1533,16 @@ artifacts that previously had a requirement and no builder. This is a real
 increase in the last phase's load, and [P11](28-p11-implementation.md) is where
 it gets sized rather than here.
 
+**And the exchange half of §0.5's fifth entry is already here rather than added
+by it.** `.seworld`, the closure walker and [16](../16-publish.md)'s review
+surface were this phase's before World moved, and they stay this phase's; what
+changed is underneath them. A container that exists in the library by the time
+P11 opens is a container this phase *fills*, where before it would have had to
+invent the kind, the walk and the review together — and session export, which
+this phase already owed, turns out to be the same walk from a different starting
+point ([16 §4](../16-publish.md)). **[P8A](29-p8a-world.md) took the kind, not
+the file.** The load moved sideways, not down.
+
 **The plot-hook selector here is the *tuning*, not the build** — a correction,
 because this line and P7's have both read as owning it and two homes for one job
 is a scheduling argument waiting to be had. P7 ships the mechanism. What is left
@@ -1312,9 +1566,9 @@ both moved to the roadmap.
 
 ## 5. After 1.0: the committed series
 
-Five of them (§0), and none has a phase breakdown yet — that is post-1.0
-implementation planning, and writing it now would be guessing at a substrate
-that does not exist.
+~~Five~~ **Four** of them (§0), and none has a phase breakdown yet — that is
+post-1.0 implementation planning, and writing it now would be guessing at a
+substrate that does not exist.
 
 - **2.0 — Write.** A surface of its own, holding Outline and Prose
   ([13](../13-write-mode.md)). The one that must be *designed* early even though
@@ -1326,28 +1580,44 @@ that does not exist.
   work, which is why it can go this early — and the one that has to settle a
   navigation argument before its scope is even checkable
   ([18 §6](../18-character-studio.md), [10 §2](../10-ui-surfaces.md)).
-- **4.0 — World.** The continuity container ([15](../15-world.md)), with the
-  story bible that gives a continuity a way to say what it contains. Its three
-  cheap obligations on 1.0 are real requirements now rather than insurance, and
-  they land at P7 and P8.
-- **5.0 — Campaign.** The mode, the RPG channel library, incremental world
+- **4.0 — Campaign.** The mode, the RPG channel library, incremental world
   generation and the character-sheet machinery. Not the rule tier: §0.4 explains
   why Campaign does not need it, and why the two travelling together was the
   wrong reading of a real relationship.
-- **6.0 — the authoring tier.** Authored rules and the surfaces that turn played
+- **5.0 — the authoring tier.** Authored rules and the surfaces that turn played
   material into authored material (§0.6). The release whose scope is most likely
   to move, because it is the one furthest from anything anybody has used yet.
 
-All five are **committed**, not speculative, which distinguishes them from the
+**The list lost its World entry on 2026-09-14**, and this is where the shortened
+line is most visible, because a series list is nothing but its members. It read:
+
+> ~~**4.0 — World.** The continuity container ([15](../15-world.md)), with the
+> story bible that gives a continuity a way to say what it contains. Its three
+> cheap obligations on 1.0 are real requirements now rather than insurance, and
+> they land at P7 and P8.~~
+
+**The last sentence is the one that gave it away.** A release whose obligations
+have all become requirements of 1.0 is a release with very little left to be —
+and the P7 half of them did land, at P7.5, which is why
+[P8A](29-p8a-world.md) is a phase rather than a rebuild. What happened next is
+§0's: the container turned out to be the portable kind
+[04 §9](../04-schemas.md) had been carrying all along, so the entry did not move
+down this list, it moved *out* of it and into 1.0 (§0.5). The two entries below
+it each came up one, on the strength of Campaign's gate rather than on their
+own.
+
+All four are **committed**, not speculative, which distinguishes them from the
 feature list ([25](../25-roadmap.md)). Items there are unscheduled; these are
 scheduled.
 
 Each series is also when its §0.2 check gets answered — whether the release
 needed a portable schema change it promised not to need. Those answers are worth
 recording either way, and three matter more than the rest: **3.0's, because it is
-the strictest form of the check and the first to run**; **5.0's, because it is
-the strict form applied to a whole mode**; and **6.0's, because a failed check
-there means §0.4 deleted two fields rather than deferring them.**
+the strictest form of the check and the first to run**; **4.0's, because it is
+the strict form applied to a whole mode**; and **5.0's, because a failed check
+there means §0.4 deleted two fields rather than deferring them.** *World's is no
+longer among them and is not lost: it was answered in §0.2 before any of these
+run, which is the one advantage of a check whose release arrived early.*
 
 ---
 

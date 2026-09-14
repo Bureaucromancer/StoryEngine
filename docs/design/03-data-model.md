@@ -18,11 +18,11 @@ Eight persistent kinds. Everything else is a sub-structure of one of them.
 | Kind | Portable | What it is |
 |---|---|---|
 | **Actor** | yes | A person. Personas and NPCs are flags on this, not separate types. |
-| **Lorebook** | yes | World content. Entries with retrieval rules and optional tracked state. |
+| **Lorebook** | yes | The world's content. Entries with retrieval rules and optional tracked state. |
 | **Treatment** | yes | Tone, framing and *links*. Carries no world facts of its own. |
 | **Setup** | yes | How to start playing: mode, treatment, cast, preset, opening. The "full game" definition. |
 | **Preset** | yes | Prompt templates, budgets, generation params, authored variables. |
-| **Package** | yes | An arbitrary bundle of the above, for moving them between installs. |
+| **World** | yes | A named set of objects that share a canon, and what accrues from playing in it. Names its members in the store; carries them on the wire. |
 | **Session** | no | One running story. Lives under its owner. |
 | **Connection** | **never** | Provider endpoint + credentials. Local, private, never exported. |
 
@@ -30,11 +30,27 @@ The line between the portable kinds and `Connection` is the content/production
 seam from [00 §3.2](00-stance.md). It is enforced by the type system: portable
 kinds have no field that could hold a connection.
 
-**Setup and Package are deliberately separate**, and an earlier draft conflated
-them. A Setup is *what a game is*; a Package is *how objects travel*. Sharing a
-full game means putting a Setup in a Package — but the Setup is an ordinary
-library object, useful for your own reuse without any of the transport
-machinery. See §7.
+**Setup and World are deliberately separate**, and an earlier draft conflated
+them. A Setup is *what a game is*; a World is *the canon that game is in*.
+Sharing a full game means publishing a Setup out of the World it belongs to —
+but the Setup is an ordinary library object, useful for your own reuse without
+any of the transport machinery. See §7.
+
+***~~Package~~ World — renamed 2026-09-14 at `448c53e`, and the rename is the
+whole of it.*** `storyengine.package/1` became `storyengine.world/1`, and **no
+portable kind was added**: the count is still six, which is why
+[work plan §0.2](workplan/01-work-plan.md)'s release check — *World must add no
+portable kind at all* — is satisfied rather than overruled. [15 §0](15-world.md)
+carries the argument, and it is worth reading before the rest of this document,
+because it is not a naming preference: the container specified here and the
+continuity [15](15-world.md) described were **one object approached from
+opposite ends**, each refusing the half the other had. What the table row above
+gives up is the claim that travelling is *all* it does. Transport is one of four
+jobs — the others are membership, contribution and accrual
+([15 §1](15-world.md)) — and the other three reach back into this document in
+two places: §7, where the split between Setup and the bundle is restated and
+survives, and §3.4, where a lorebook field that has been read by nothing since
+P5.7 finally acquires a consumer.
 
 ---
 
@@ -372,7 +388,7 @@ duplication disappears for free once persona is a flag on an actor.
 > union stays, because it is what the format carries and what an import must
 > preserve, but nothing reads it. Giving it a consumer again means designing
 > **inheritance** — something above the session that contributes books, which is
-> a Worlds-shaped concept ([15 §5.3](15-world.md)) — rather than letting a field
+> a Worlds-shaped concept ([15 §5](15-world.md)) — rather than letting a field
 > on a library object opt itself into somebody's story.
 >
 > **Two questions were left open rather than settled by the reversal**, both
@@ -383,6 +399,45 @@ duplication disappears for free once persona is a flag on an actor.
 > [26 §B15](26-open-questions.md) — what a new book's `scope` should default to,
 > given that `global` is the widest value in the union and is what both the
 > factory and the importer currently produce.
+
+**The consumer arrived, 2026-09-14, and it is the shape the correction above
+named and declined to invent.** [15 §5](15-world.md) is that inheritance: a
+World contributes its books **at session creation**, by copying them into
+`session.lore`, which leaves the reversal's rule standing exactly as written —
+*no lorebook is active that has not been selected for the session* — and adds a
+World to the short list of things that can do the selecting. Not a live query
+re-decided every turn, and editable afterwards like any other selection. So the
+union gains one variant, `{ kind: 'world', worldIds: string[] }`, and a field
+that has been stored, exported and round-tripped while nothing read it is read.
+
+The P5.7 lesson survives the addition rather than being traded away for it. **A
+library is still not a world.** A World is a *subset* of a library that somebody
+named — which is precisely what `global` was reaching for and had no legitimate
+way to say.
+
+**The third arm that ships is not the third arm this section proposed**, and the
+difference between them is the whole argument for admitting one and not the
+other. The collapse above asked for *global, linked, or scoped to sessions*; P4
+refused the session arm ([P4 §0](workplan/16-p4-implementation.md)) and the
+schema states the reason in as many words — *"session ids are install-local, so
+a shared lorebook carrying them exports identifiers that are meaningless
+everywhere else"* ([04 §5](04-schemas.md)). A world id is not install-local. A
+World is portable and carries a stable id, so a book scoped to one means the
+same thing on the install it arrives at, and it travels *with* the World that
+gives it meaning.
+
+**[26 §B15](26-open-questions.md) is answered by consequence;
+[26 §B14](26-open-questions.md) keeps the answer it had.** A new book's scope
+becomes **`linked` with an empty actor list** — the narrowest honest statement,
+meaning *this book has not said where it applies*, and identical in effect to
+today for a book nobody scopes.
+The objection that *a field nobody sets should not default to the widest value
+in its own union* was always right and only now has teeth, because something
+reads the field. `global` stays in the union: the format carries it and an
+import must preserve it. B14 stays **no** — scope contributes, it does not
+narrow a book the session has already chosen, because a person who selected a
+book and then saw nothing from it would meet the same silent surprise the
+reversal removed, arriving from the other side.
 
 **`category` is removed**, not renamed — reversing an earlier decision here that
 kept Marinara's five-value book-level union as-is. The trigger was a collision
@@ -411,7 +466,7 @@ is the one with the ceiling. Take Marinara's shape — at both levels.
 | Entry state (`dynamicState`, quests, relationships, disposition) | **Move to channels.** Schema on the entry, values in the session. |
 | `activationConditions` + `schedule` | Unify as typed channel predicates. |
 | `embedding` | Move to the derived index. |
-| Book-level scoping (5 mechanisms) | **Collapse to one `LoreScope` union.** |
+| Book-level scoping (5 mechanisms) | **Collapse to one `LoreScope` union** — three arms, and a consumer at last: a World contributes at session creation (§3.4, [15 §5](15-world.md)). |
 | Entry `kind` / `tag` | Free string, per Marinara. Not Aventuras' closed union. |
 | Book-level `category` | **Removed.** Closed, mixed-axis, and duplicated by `tags` — §3.4. |
 | Images on the book and on entries | **New.** Not a port — see §3.6. |
@@ -508,7 +563,7 @@ Notes on why:
   "nothing dereferences yet" — a reasonable interim, but the reason it exists is
   that scenarios came before unified actors. With actors unified and
   session-local actors available (§2.3), inline snapshots are unnecessary:
-  the cast links to actors, and a Package embeds copies of them (§7).
+  the cast links to actors, and a published World embeds copies of them (§7).
 - **This dissolves the `keyLocations` problem.** Marinara's consumption design
   spends a full section on when to materialise a scenario's key locations into
   lorebook entries and how to avoid competing with a linked lorebook. If a
@@ -537,7 +592,7 @@ so the word means one thing across the portable schemas — mechanical eligibili
 
 **Treatments are the primary home.** A Setup may add its own on top, a session may
 add its own while running ([06 §6.1](06-modes-and-turn-pipeline.md)), and a
-package carries all of them by carrying the objects.
+World carries all of them by carrying the objects.
 
 **Lorebooks may also carry hooks, optionally** — and the reason is better than
 convenience. A hook is often *about* a specific piece of world content: "the
@@ -606,7 +661,7 @@ content-first, and the two compose — a hook's `onFire` effects are ordinary ru
 effects, and a rule can require that a hook has fired.
 
 **Chains produce the emergent ordering.** A hook that sets a channel flag on
-firing makes other hooks eligible. A package with thirty loosely-dependent hooks
+firing makes other hooks eligible. A World with thirty loosely-dependent hooks
 therefore yields a different but coherent sequence each playthrough, which is
 exactly the "unpredictable specific flow over handwritten situations" this is
 for. It costs nothing beyond `onFire` and `requires` already being there.
@@ -723,8 +778,8 @@ boundary; inside one file it survives only as editor discipline.
 What the fold is actually reaching for is two things, and both are answered
 elsewhere: *"here is Rain City and here are the three ways to play it"* is the
 library's backlink panel ([10 §5.2](10-ui-surfaces.md)), and *"send this world
-and its framing as one thing"* is one action on the package
-([04 §9.1](04-schemas.md)).
+and its framing as one thing"* is publishing the treatment, whose closure
+already collects the book ([16 §4](16-publish.md)).
 
 ---
 
@@ -745,7 +800,7 @@ disposable index**.
       treatments/
       presets/              #   default preset per mode
       setups/               #   onboarding sample
-      packages/
+      worlds/
     connections/            # admin-managed. Usable by all, readable by none.
   users/
     <handle>/
@@ -756,7 +811,7 @@ disposable index**.
         treatments/   <slug>/treatment.json    + cover.png
         presets/    <slug>/preset.json
         setups/     <slug>/setup.json
-        packages/   <slug>/...             (see §7)
+        worlds/     <slug>/world.json      (refs, not copies — §7.2)
       trash/                  # deleted objects awaiting the retention window §10.2
       memories/               # auto-maintained, see [08](08-cross-session-memory.md)
       connections/            # the user's own. Credentials never leave the server.
@@ -898,7 +953,7 @@ The envelope carries an `EmbeddedMedia[]` alongside the JSON, each entry a
 typed role plus ~~bytes~~ **a reference to bytes the container resolves**
 ([04 §3](04-schemas.md)) — corrected 2026-09-13, because `bytes: Uint8Array` is
 the draft 04 §3 explicitly rejected: it has no representation in JSON Schema and
-no meaning inside a `.sepack`, where there is no PNG chunk to point at. Roles:
+no meaning inside a `.seworld`, where there is no PNG chunk to point at. Roles:
 `portrait-source`, `reference`, `expression`, `pose`, `style`, `map`, `gallery`,
 `background`. *~~Six~~ eight — `map` arrived with lore media and `background` at
 [P7.9](workplan/23-p7-implementation.md), for a backdrop that had no role naming
@@ -989,15 +1044,29 @@ is why `.docx` compresses well and `.charx` does not, and it is worth deciding
 deliberately rather than accepting a library default.
 
 The same split applies to every multi-file kind: folders live, a
-custom-extension zip for exchange — `.sepack` for packages, and the same
-treatment for any lorebook or treatment that carries assets.
+custom-extension zip for exchange — ~~`.sepack` for packages~~ **`.seworld` for
+Worlds**, and the same treatment for any lorebook or treatment that carries
+assets.
+
+*The extension moved with the kind (§1), and it is more than a rename here.*
+[15 §4](15-world.md) leaves **[OPEN]** which of two shapes a `.seworld` carries
+its members in — [04 §9](04-schemas.md)'s `contents` array, or member object
+folders inside the zip — and leans at the second **on this section's argument,
+one level up**. A folder per member makes the archive a library in miniature,
+and unknown-kind preservation stops being a special case in the reader: *an
+unrecognised folder is carried through*, which is the same property the
+`contents` array buys with a rule. That question is 15's to close and not this
+one's; what this section owes it is the reasoning above, unchanged — the zip is
+a container with entries stored rather than deflated, and it is never a live
+form.
 
 ### 5.3 Asset manifest
 
 `assets` on the actor is a manifest of *relative paths within the actor folder*,
 never absolute paths and never paths outside the folder. This is what keeps the
 folder self-contained and drag-portable, and it is the check that prevents a
-malicious package from writing outside its own directory.
+malicious `.seworld` — or any other archive somebody hands you — from writing
+outside its own directory.
 
 ### 5.4 Everything else is JSON
 
@@ -1101,7 +1170,17 @@ acceptable, and the reason the layout above matters.
 ## 6. Openings
 
 Requested as two types, each with primary and secondary alternatives. Defined
-once and reused on Actor, Treatment and Package.
+once and reused on Actor, Treatment and ~~Package~~ **Setup**.
+
+*Corrected alongside the rename (§1) rather than by it, because this was already
+wrong.* The object that carried openings was the **old** Package's `entry` block
+— the game definition §7 split out — and that block became Setup, which is where
+`openings` actually sits ([04 §7](04-schemas.md)) beside Actor and Treatment. A
+World has no openings of its own ([04 §9](04-schemas.md)) and needs none: it
+carries the objects that have them. The line survived because "Package" was true
+of the draft it was written against, which is the ordinary way a sentence goes
+stale — it names a thing that moved, and nobody reads it again until the word it
+used has to change.
 
 > **Definition: [04 §3](04-schemas.md).**
 
@@ -1131,9 +1210,10 @@ Two lists — `written` and `seeds` — each with a designated primary.
 
 ---
 
-## 7. Setup and Package — two jobs, split
+## 7. Setup and World — two jobs, split
 
-> **Definitions: [04 §7](04-schemas.md) (Setup), [04 §9](04-schemas.md) (Package).**
+> **Definitions: [04 §7](04-schemas.md) (Setup), [04 §9](04-schemas.md)
+> (World), and [15](15-world.md) for what a World is *for*.**
 
 An earlier draft had a single `Package` doing both jobs: it carried an `entry`
 block defining the game *and* the bundling machinery for moving objects. Splitting
@@ -1142,10 +1222,40 @@ them makes both simpler, and the split is worth stating as a rule:
 | | |
 |---|---|
 | **Setup** | *What a game is.* Mode, treatment, cast, preset, opening. An ordinary library object. |
-| **Package** | *How objects travel.* An arbitrary bundle, for moving anything between installs. |
+| **World** | ~~*How objects travel.* An arbitrary bundle, for moving anything between installs.~~ *The canon a game is in.* The set of objects that share it, plus what accrues from playing in them. Travelling is one of four jobs ([15 §1](15-world.md)). |
 
-**Sharing a full game is putting a Setup in a Package.** The Setup is the game;
-the Package is the envelope.
+~~**Sharing a full game is putting a Setup in a Package.** The Setup is the
+game; the Package is the envelope.~~
+
+**Sharing a full game is publishing a Setup.** The closure walk collects the
+treatment, the cast and the books it depends on ([16 §4](16-publish.md)), and
+what comes out is a `.seworld`. The Setup is still the game and the file is
+still the envelope; what changed is that the envelope is now a kind with a life
+in the sender's library and in the recipient's, rather than a wrapper specified
+to stop existing on arrival.
+
+***The split survives the rename, and that is why this section keeps its
+shape.*** It was written against the failure of one object doing two jobs, and a
+World does not reintroduce that failure: it defines no game, has no `entry`
+block, names no mode and nominates no cast. What it gained at [15](15-world.md)
+is a third and fourth job — **membership** and **accrual** — and neither belongs
+to a configuration. They belong to the *set a configuration is drawn from*,
+which is the same one-to-many that already runs from Lorebook to Treatment to
+Setup, one rung further up ([15 §2](15-world.md)). A Setup is one configuration;
+a World is the set it draws from; and a Setup that has been used twice is
+unchanged while a World that has been played in twice is not.
+
+**One caution, because the word has a second sense in this corpus and only one
+of them moved.** P7 shipped `storyengine.lore`, `storyengine.cast`,
+`storyengine.goals` and `storyengine.suggest` as first-party **namespaces**, and
+the `PackageId` arm of [06 §4.1](06-modes-and-turn-pipeline.md)'s
+`ChannelDefinition.owner` means one of those — a code namespace that owns a
+channel — rather than a bundle of content. That arm is not a World and does not
+become one; separating the two senses is that section's job, and
+[15 §9](15-world.md) records only that they were ever one word. This document
+meant the bundle every time, which is why every occurrence here moved; the
+`packages/` that remain below are npm workspace paths and are a third thing
+again.
 
 ### 7.1 Why Setup is a plain object
 
@@ -1158,53 +1268,122 @@ the Package is the envelope.
   children" ([01 §1](01-source-survey.md)). We took the parent and never built
   the child. One Treatment, many Setups: *Rain City* is the world, *Rain City,
   noir* is a treatment of it, *The Fixer's Debt* is a game played under that.
+
+  *The ladder gained a rung above all three at [15 §2](15-world.md), and the
+  lowercase word in that sentence is exactly why it is worth saying here.*
+  **"Rain City is the world"** means the material — the lorebook — and stays
+  lowercase, which is the capitalisation rule [15 §9](15-world.md) settles.
+  **Rain City the World** is the set that holds the book, the three readings of
+  it, the cast and the games played under them. Same name, four rungs, and the
+  sentence above is one of the ones the rule was written to keep true.
 - **It gives the session-to-setup direction a shape.** Marinara's
   play-first-share-afterwards snapshot becomes "emit a Setup from this running
   session" — a real object rather than a text file.
 
-### 7.2 Why Package gets simpler, and stabler
+### 7.2 Why the container gets simpler, and stabler
 
-Reduced to a container, Package has almost no surface of its own:
+*~~Why Package gets simpler, and stabler~~ — the heading moved with the rename
+and the claim narrowed with it.* The **envelope** is what got simpler, and it is
+what every bullet below is about. The **kind** did not: a World gained
+membership, contribution and accrual at [15](15-world.md), none of which are
+surface on the wire. The two stay separable because the container validates the
+envelope and never the payload kind ([15 §8](15-world.md)) — which is the
+property that made this section's stability argument work in the first place,
+and is untouched.
+
+Reduced to a container, ~~Package~~ **the envelope** has almost no surface of
+its own:
 
 - **Contents are self-describing.** Each object carries its own `schema`, so the
-  package does not enumerate kinds — and therefore does not change when a new
+  container does not enumerate kinds — and therefore does not change when a new
   portable kind appears, as Setup just did. This is why
   [04 §1](04-schemas.md) can now treat it as stable rather than `/0`.
-- **No `entry` field.** A package holding one or more Setups is startable; that
-  *is* the mechanism. A package with no Setup is a content drop — *"here are five
+- **No `entry` field.** A World holding one or more Setups is startable; that
+  *is* the mechanism. A World with no Setup is a content drop — *"here are five
   characters and a lorebook"* — which is a perfectly reasonable thing to share
   and had nowhere to live before.
-- **Contents are embedded copies, resolved on import** into the recipient's
-  library (with a "these already exist, link or duplicate?" step). Links resolve
-  within the package first, then locally, then dangle visibly. The only reliable
-  way to ship something working to someone whose library you know nothing about.
+- **Stored it holds refs; on the wire it holds copies**, and this is the one
+  distinction everything else rests on ([15 §4](15-world.md)). A stored World
+  *names* its members: they live in the library, are edited there, and the World
+  sees the edit, because a World holding copies would be a second representation
+  of every object in it — [00 §2.8](00-stance.md)'s failure at scale. A
+  published one carries **embedded copies, resolved on import** into the
+  recipient's library (with a "these already exist, link or duplicate?" step).
+  Links resolve within the file first, then locally, then dangle visibly. The
+  only reliable way to ship something working to someone whose library you know
+  nothing about.
+
+  *This bullet is what the rename actually cost, and it used to be one sentence.*
+  Embedded copies were the whole story because a Package existed only in flight;
+  nothing survived arrival, so there was no store for the other half of the
+  distinction to be a fact about. **Embedding is a fact about the file; linking
+  is a fact about the store.** Reverse either and one of two failures follows —
+  a stored World of copies drifts from the library the moment anybody edits
+  anything, and a wire form of refs strands every recipient. Import is where the
+  two meet: the objects land as real library objects through the ordinary review
+  ([10 §5](10-ui-surfaces.md)), and the World that arrives with them names what
+  landed.
 - **`requires` is declared and checked at import**, producing "this wants
   Campaign ≥ 2 and an image connection; you have neither" rather than a
   broken session later. A warning with a degraded-start option where possible,
   not a hard block.
 - **No production settings, in either object.** No connection ids, no keys, no
   endpoint URLs, no per-install toggles — enforced by there being nowhere to put
-  them ([00 §3.2](00-stance.md)).
-- **Filling one is a single action.** Export-as-package walks outbound
-  references from whatever you exported and collects the closure — a treatment's
-  lorebooks, its cast, the actors' own lorebooks — then shows it for review
-  ([04 §9.1](04-schemas.md)). This is the piece that keeps the object split from
-  costing anything at exchange time: a Treatment stays independent of any one
-  lorebook (§4) and is still shareable as one self-contained artefact, because
-  the bundled form is produced on demand rather than being the storage shape.
-- On disk a package is a folder, zipped as `.sepack` for exchange
-  (§5.2.3).
+  them ([00 §3.2](00-stance.md)). ~~Package~~ **World** does not widen this and
+  must never be allowed to: importing a stranger's World cannot repoint your
+  provider or flip your content rating, and that is what makes accepting one a
+  content decision rather than a trust decision ([15 §8](15-world.md)).
+- **Filling one is a single action.** ~~Export-as-package~~ **Publish** walks
+  outbound references from whatever you started with and collects the closure —
+  a treatment's lorebooks, its cast, the actors' own lorebooks — then shows it
+  for review ([16](16-publish.md), whose §4 carries the table
+  [04 §9.1](04-schemas.md) made normative). This is the piece that keeps the
+  object split from costing anything at exchange time: a Treatment stays
+  independent of any one lorebook (§4) and is still shareable as one
+  self-contained artefact, because the bundled form is produced on demand rather
+  than being the storage shape.
 
-**[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
-a dependency on one? Shipping code makes packages far more powerful and makes
-importing one a code-execution decision. Strong lean: **declare only** at 1.0
-([26 A2](26-open-questions.md)).
+  *And it now runs the other way too, which the old sentence had no way to say:*
+  **publishing a set is how a World gets authored** ([16 §3](16-publish.md)).
+  Select five objects you already own, publish them, and you have described a
+  canon — the file is what you send and the World is what you keep, with no
+  second *save this* action to remember. That also closes
+  [04 §9.1](04-schemas.md)'s **[OPEN]** — re-resolve the closure on re-export,
+  or replay the exact contents it was built with — as **re-resolve**, and not by
+  preference: a stored World holds refs and its members are edited in place, so
+  there is nothing else it could do. The published file is the frozen image, and
+  re-publishing opens on what changed since the last one.
+- On disk a World is a folder — `library/worlds/<slug>/world.json` (§5.1) —
+  zipped as `.seworld` for exchange (§5.2.3).
 
-**[OPEN]** Should a package be able to ship a partially-played session as a
-starting state (a "pre-run prologue")? Attractive for authored content, and it
-crosses the content/session line the rest of the model keeps clean. Note the
-split makes this cleaner to reason about: it would be a *session* in a package,
-not a variant of Setup.
+**~~[OPEN]~~ Answered: declare only, and it is a rule now rather than a lean.**
+Can a World ship an extension/mode *implementation*, or only declare a
+dependency on one? Shipping code makes a World far more powerful and makes
+importing one a code-execution decision. [26 A2](26-open-questions.md) settles
+it in the form it always had, moved onto the new name: **a World may ship rules,
+never code.** The security boundary is the closed rule vocabulary, which is what
+lets the authoring tier ([17 §2](17-authoring.md)) hand authors real power
+without an import becoming a decision about whether to trust a stranger
+([15 §8](15-world.md)).
+
+**~~[OPEN]~~ Resolved by mechanism, and the feature it was asking for does not
+need to exist.** Should a World be able to ship a partially-played session as a
+starting state (a "pre-run prologue")? The note underneath was already most of
+the answer — *it would be a session in a package, not a variant of Setup* — and
+what it lacked was somewhere for a session to *be* a member of something.
+**Sessions are members like anything else** ([15 §4](15-world.md)), so a
+prologue is a World published with one session ticked in the review
+([16 §5](16-publish.md)) and needs no feature of its own
+([26 B10](26-open-questions.md)).
+
+*It does still cross the content/session line, and the line holds because the
+crossing is declared rather than disguised.* The session travels **as a
+session** — its `localActors`, its channel state, its branch structure — and is
+named as one in the review, where the checkbox defaults off, because sending
+somebody your transcripts is a thing to choose rather than to discover you did
+([16 §5](16-publish.md)). What the model keeps clean is content not being
+silently made of somebody's play; a prologue that says plainly *this is a
+session, and here it is* does not muddy that.
 
 ---
 
@@ -1486,9 +1665,10 @@ default, offer compaction, never compact the current branch's tail.
 
 Resolution order, everywhere, per [00 §3.3](00-stance.md): exact id →
 case-insensitive name → show as missing and continue. `fingerprint` lets the UI
-say "this lorebook has changed since this package was built" without blocking
-anything. Marinara's `resolveGameSetupImport` already does the first two steps
-and reports misses as warnings; the third is the addition.
+say "this lorebook has changed since this World was last published" without
+blocking anything — which is [16 §5](16-publish.md)'s re-publish diff, reached
+from the reference side. Marinara's `resolveGameSetupImport` already does the
+first two steps and reports misses as warnings; the third is the addition.
 
 ---
 
@@ -1517,7 +1697,7 @@ view ([10 §5](10-ui-surfaces.md)). Pointing the same query at the delete
 confirmation costs nothing:
 
 > Delete **Vera Kohl**?
-> Referenced by **12 sessions**, **3 treatments** and **1 package**.
+> Referenced by **12 sessions**, **3 treatments** and **1 World**.
 
 That is the whole feature. It converts a decision made blind into one made
 informed, and it uses a query that has to exist anyway.
@@ -1527,6 +1707,13 @@ with forty references may well be doing exactly what they intend, and a product
 that refuses would be substituting its judgement for theirs — which is also the
 [00 §3.3](00-stance.md) posture applied one step earlier: *visible, and
 non-blocking*.
+
+**The World in that count is no different from the treatments**, and it is worth
+saying because a container is the one kind a reader might expect to hold a veto.
+It holds none. Membership is not an ownership claim — an object may belong to
+several Worlds and to none — and a deleted member leaves a ref that dangles
+visibly, like every other dangling reference in this system
+([15 §4](15-world.md)).
 
 ### 10.2 Trash, with a retention window
 
@@ -1730,11 +1917,13 @@ seventeen local edits were one.
 
 ### 11.6 Not part of an export, by default
 
-A `.seactor` or `.sepack` carries the object, not its history. Two reasons, and
+A `.seactor` or `.seworld` carries the object, not its history. Two reasons, and
 they point the same way: forty drafts make the file large for no benefit to the
 recipient, and edit history is a working record — the false starts, the
 abandoned phrasings — that people do not necessarily intend to publish.
 
 **Opt-in on export** for the case where it is wanted: handing a character to a
 collaborator who will keep working on it. Same treatment as the trash
-(§10.2), and the export UI says which it is doing.
+(§10.2), and the ~~export UI~~ **publish review** says which it is doing — it is
+one of the toggles that review carries, and it carries this paragraph's sentence
+with it ([16 §5](16-publish.md)).

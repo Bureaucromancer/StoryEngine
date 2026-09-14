@@ -201,7 +201,7 @@ and no panel background, so tool chrome cannot land on one by accident.
 | Surface | What it is |
 |---|---|
 | **Play** | Scene, Freeform and later Campaign ([06 §7](06-modes-and-turn-pipeline.md)), plus the affordances that make starting and managing a story quick (§2.2) |
-| **Library** | Actors, lorebooks, treatments, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
+| **Library** | Actors, lorebooks, treatments, setups, presets, Worlds — one panel per kind (§5), browse, edit, organise, import, export |
 | **Workbench** | Not a surface. An inspector panel that expands over whichever surface you are in — §3 |
 
 Plus the **reading view** (§12) — the story as prose, with the machinery
@@ -232,8 +232,20 @@ undecided — three answers with three different navigation costs, laid out in
 [18 §6](18-character-studio.md). **This section is where that gets answered, and
 it has to be answered before 3.0's scope is checkable**: a panel and a
 top-level place of its own are not the same release. It is named here rather
-than left in 24 because it is a surface argument, and surface arguments are
+than left in 18 because it is a surface argument, and surface arguments are
 settled here.
+
+**Two things arrive at 1.0 and neither is a surface**, which is worth recording
+here because both are the kind of thing that grows one if nobody says so first.
+**World** is a portable library kind with a panel beside the other five
+([15 §3](15-world.md)) — a canon is a set of objects, and a set of objects is
+what the Library is already for. **Publish** is the flow that fills one and
+emits the file ([16 §6](16-publish.md)); it reads like a destination because the
+word implies an audience, and there is no audience, there is a file. Neither
+passes the test above, and neither fails it narrowly: a surface exists when a set
+of *modes* wants a layout the others cannot give them, and a sixth panel is not a
+mode while a review over a computed list is not a layout anything else was
+refusing.
 
 **The count is a fact about what ships, not a principle**, and it is worth saying
 so here rather than letting a number be cited later as a rule. Nothing about the
@@ -273,10 +285,22 @@ people who *"run a server on their own LAN, hand-edit an object folder in a text
 editor and enjoy it."* The library is the surface that audience is for.
 
 **Play carries the player-facing ergonomics** — quick setup, resuming, managing a
-story in flight, and eventually grouping sessions that share a continuity
-([15](15-world.md)). Someone who wants to *play* should never have to learn
-the object graph to do it, and someone who wants to *author* should never have to
-see through a friendly label to find out what they are editing.
+story in flight, and ~~eventually grouping sessions that share a continuity
+([15](15-world.md))~~ **starting a story inside a canon that already exists**.
+Someone who wants to *play* should never have to learn the object graph to do it,
+and someone who wants to *author* should never have to see through a friendly
+label to find out what they are editing.
+
+*Struck 2026-09-14 rather than reworded, because the clause was this section's
+share of a refusal that has since been withdrawn.* [15](15-world.md) used to
+define a World as a play-side grouping of *sessions* and refused it a library
+panel on exactly that basis; it is now a portable kind with a panel like the
+other five ([15 §3](15-world.md)), so the continuity is not a convenience Play
+grows — it is an object the library holds, curated where every other object is
+curated. What Play keeps is the half that was always Play's: **entering** one.
+Choosing a World at session creation is a Setup-shaped convenience, it emits
+nothing the library does not already hold, and the third boundary below governs
+it unchanged.
 
 **What this replaces.** An earlier draft answered "eight kinds is a lot to arrive
 at" with a translation layer over the model — a *Worlds* panel for the Treatment
@@ -284,7 +308,10 @@ kind, a *Games* panel for Setup. That layer is what produced a long naming
 argument whose only stake was being friendlier than the schema, and it put the
 teaching burden on the surface least suited to carry it. The kinds are now named
 what they are, and the teaching moved to Play, where the ladder is learned by
-using it rather than by reading a shelf.
+using it rather than by reading a shelf. (*Worlds* is a panel today, which reads
+like the refused label returning and is not: it names the kind of that name
+rather than aliasing a different one, and §5.1 is where the difference is
+argued.)
 
 **Three boundaries keep this honest:**
 
@@ -302,9 +329,35 @@ using it rather than by reading a shelf.
 - **Play's conveniences emit ordinary objects.** A quick setup that creates a
   Treatment creates a real one, in the library, in a folder, indistinguishable
   from a hand-written one. Never a parallel play-side store — the same
-  discipline [15 §4](15-world.md) puts on the story bible, and the same
+  discipline [15 §7](15-world.md) puts on the story bible, and the same
   instinct already behind *"emit a Setup from this running session"*
   ([03 §7.1](03-data-model.md)).
+
+**One library kind is live to Play after the session starts, and no other one
+is.** The split above is as clean as it is because of
+[00 §3.1](00-stance.md)'s prefill-not-binding: a Treatment, a cast and a set of
+books are **copied** into a session at creation — and the session's preset is
+*"a resolved copy, not a link"* in as many words, beside an `origin` the same
+section calls *"a dead link"* ([03 §8](03-data-model.md)). From that moment the
+session is self-contained and the library is somewhere the player never has to
+go. A World contributes the same way and is explicit about it —
+[15 §5](15-world.md) copies its books into `session.lore` at creation rather than
+re-querying per turn, which is what keeps *no lorebook is active that has not
+been selected* ([03 §3.4](03-data-model.md)) true. But the session keeps the
+**World's id**, and the engine reads it on every turn thereafter: it is the scope
+key for world-scoped memory, and it is what makes a hook fired in one session
+stay fired in the next ([15 §6](15-world.md)).
+
+**What crosses the line is a key, not a store**, and that is the narrowest
+version of the exception as well as the version to hold. Membership is curated in
+the Library like any other kind's fields, and a World is never the thing you edit
+an actor *through* ([15 §10](15-world.md)). **Starting a session in a World is
+not the exception it looks like**: the session carries the World on *itself*
+([15 §6](15-world.md)), so the member list growing by one is the World reading
+that field, not Play appending to the World. A World that Play could write to
+would be the parallel play-side store the third boundary refuses, arriving under
+a better name — which is why the direction is worth stating here rather than
+leaving it to be inferred from the fact that Play reads it.
 
 **What the two claims cost each other, since they pull in opposite directions.**
 A raw library and an inspector panel both supply fidelity, and it would be easy
@@ -793,10 +846,13 @@ Where it should differ:
   deliberately not a prompt configuration file ([00 §2.4](00-stance.md));
   personas and NPCs are flags on one kind rather than separate types
   ([03 §2.2](03-data-model.md)); Treatment and Setup are split because conflating
-  them is the mistake every source made ([04 §7](04-schemas.md)). A single
-  undifferentiated table puts that mush straight back, at the exact moment a
-  user is forming their model of what these things are — and it is also the one
-  view where no column but *Kind* can be load-bearing, because an actor, a
+  them is the mistake every source made ([04 §7](04-schemas.md)); and a World is
+  a named set of the others rather than a folder over them
+  ([15 §4](15-world.md)) — the kind a merged list would erase fastest, because a
+  row in a table of everything is exactly what a container of everything is not.
+  A single undifferentiated table puts that mush straight back, at the exact
+  moment a user is forming their model of what these things are — and it is also
+  the one view where no column but *Kind* can be load-bearing, because an actor, a
   lorebook and a preset share almost no attributes. Per-kind panels can carry
   the columns, sort and empty state that each kind actually wants.
 - **What is being rejected is separate implementations, not separate panels.**
@@ -825,10 +881,16 @@ Where it should differ:
   contract change: the API goes on accepting an absent kind
   ([api.md](../api.md)), because cross-kind queries are a real thing to want.
 - **Links are visible and bidirectional.** From a lorebook: which treatments,
-  actors and packages reference this. From an actor: which lorebooks it links.
+  actors and Worlds reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
   **Specified in §5.2** — the inbound direction carries a relationship the
   schemas deliberately leave unencoded, so it is not left to the page.
+  **A World's membership is a link like any other**, which is what its holding
+  refs rather than copies buys ([15 §4](15-world.md)): it renders in both
+  directions, it dangles visibly when a member is deleted, and it never blocks
+  the delete. An object may belong to several Worlds and to none — belonging to
+  a canon is not an ownership claim, and a container that could refuse to let go
+  of an object would make it one.
 - **The disk layout is legible.** Since the folder *is* the object, show the path
   and — for users with file access — link straight into the file browser at that
   location. This is a rare case where exposing the storage mechanism is the
@@ -836,6 +898,31 @@ Where it should differ:
 - **Export produces one file**, not a folder the user has to zip themselves
   ([03 §5.2.3](03-data-model.md)) — singly and in bulk. On disk everything stays
   a folder; the single-file form exists for exchange only.
+
+  **The flow that does it is Publish, and it now has a document of its own**
+  ([16](16-publish.md)). Start from an object, from a multi-selection, from a
+  session or from a World; the reference closure is walked, shown and adjusted;
+  a file comes out. One object of one kind leaves as its own form — `.seactor`
+  and its siblings, because *here is a character* is the commonest thing anybody
+  will ever send and wrapping one in a container would be ceremony — and
+  everything else leaves as a `.seworld` ([16 §2](16-publish.md)).
+
+  **It lives here, and it is not a fourth place.** Publish is reached from an
+  object's detail page, from a multi-selection in a panel, and from a World's own
+  page — three entry points into one flow, all of them in the Library, exactly as
+  Import already is. Home does not carry it: §2.2 reserves arrival for *resume*
+  and *start*, and publishing is neither. And the review renders in the panel, on
+  the same side of the fold and for the same reason import's does — the bullet
+  below, which now argues for two flows rather than one.
+
+  **Publishing a set is also how a World gets authored** ([16 §3](16-publish.md)),
+  which is the half of that note that is new rather than moved. Tick five things
+  you already own and you have described a canon: the file is what you send, the
+  World is what you keep, and keeping it is not a second action to remember. It
+  is also why [04 §9.1](04-schemas.md)'s *Save this package* affordance is gone
+  rather than renamed — it existed to stop exporting from filling the library
+  with near-identical bundles nobody chose to keep, which is a hazard a snapshot
+  carries and a named set does not.
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
   what went to `compat`, what resolved, what dangled, ~~and let the user fix it
   before committing~~ — ~~and it commits first, then reports~~ **and which of the
@@ -884,6 +971,25 @@ Where it should differ:
   one that does not fold. A stepper is refused on §1.1's grounds — and because
   the steps would be empty, the only decisions being *keep it or not* and, on a
   re-import, *replace or keep both*.
+
+  **A `.seworld` is this review over more objects, and nothing else.** Its
+  members land as ordinary library objects in their own panels, editable and
+  deletable like anything else, and the World that arrived with them names what
+  landed ([15 §4](15-world.md)). There is no imported-bundle state to browse: the
+  wire form embeds copies and the stored form holds refs, so arrival is where the
+  one becomes the other. **What is new is that something survives it.** The old
+  container dissolved on import and left nothing for a channel or a scope to
+  point at, which is the defect the rename repaired ([15 §0](15-world.md)); what
+  lands now is the objects *and* the set they were sent as.
+
+  **And the review now has a mirror.** *Import is a review step, not a modal that
+  dumps* was written while export was a verb in this list, and the asymmetry was
+  never intentional ([16 §1](16-publish.md)) — what you send somebody deserves
+  the same look before it commits as what they send you.
+  [16 §5](16-publish.md) adopts this bullet's posture by name: every level shown,
+  no staging area, nothing written until confirm. That makes the paragraphs above
+  load-bearing for two flows rather than one, and any future softening of them a
+  decision about both.
 - **Exchange below the object lives in the editors, not here.** A lorebook's
   entries import and export on their own (§11.2c), because the unit an author
   moves is often smaller than the unit the library browses. The library's job
@@ -905,10 +1011,14 @@ it and pretending otherwise is how it gets ignored.
 
 [03 §1](03-data-model.md) defines eight persistent kinds. Someone arriving from
 SillyTavern has priors for exactly two of them — a character card and world info
-— and no prior at all for Treatment, Setup, Preset or Package. Every one of those
-splits is *correct* and none should be undone; the Treatment/Setup split in
-particular is what Marinara's own scenario design identified and never built
-([04 §7](04-schemas.md)). But correct is not the same as learnable.
+— and no prior at all for Treatment, Setup or Preset. **World is worse than no
+prior**, because *World Info* is one of the two things they *do* know and it is
+this system's **lorebook** — a word they arrive holding, attached to the wrong
+kind.
+Every one of those splits is *correct* and none should be undone; the
+Treatment/Setup split in particular is what Marinara's own scenario design
+identified and never built ([04 §7](04-schemas.md)). But correct is not the same
+as learnable.
 
 **The earlier answer here was a translation layer, and it is withdrawn.** This
 section used to rename the panels — *Worlds* for Treatment, *Games* for Setup —
@@ -922,10 +1032,40 @@ while the world lived in the lorebook. And it cost the one property the library
 is actually for: saying plainly what the thing on disk is called.
 
 **So: the panels are named for the kinds.** Actors, Lorebooks, Treatments,
-Setups, Presets, Packages — six panels, no demotions, no presented subset, real
+Setups, Presets, Worlds — six panels, no demotions, no presented subset, real
 names. Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
 is the model, and a model with a friendlier alias for two of its six types is not
-a model.
+a model. **Six is still six.** The last name in that list changed on 2026-09-14
+and no kind was added: `storyengine.package/1` became `storyengine.world/1`, and
+Package *is* World ([15 §0](15-world.md)) — which is why
+[work plan §0.2](workplan/01-work-plan.md)'s release check, *World must add no
+portable kind at all*, is satisfied rather than overruled. A panel arrives on
+this shelf when a kind does, and none did.
+
+**And *Worlds* is one of those names now**, which reads as the refused label
+walking back in and is not. *The objection above is answered rather than
+overruled, because it was a good objection and striking it would lose the reason
+it was right.* What was wrong with the old label was never that the word is
+confusing; it was that the label was **false about which kind it named**. A
+Treatment is not a world, it is how one is handled
+([03 §4](03-data-model.md)) — so a panel called *Worlds* standing beside
+*Lorebooks* told a new arrival that the thing above the book was the book's rival
+for the same material. Under [15](15-world.md) a World **holds** lorebooks, along
+with the treatments, actors, setups, presets and sessions that share their canon.
+The panel beside Lorebooks is therefore the thing lorebooks belong to, which is
+what the old label reached for and could not deliver. The test is the one this
+section has applied throughout — *does the panel name the kind on disk* —
+and it is passed here for precisely the reason it was failed there:
+`library/worlds/<slug>/world.json` is a real object ([15 §4](15-world.md)), and
+`library/treatments/` never held a world.
+
+**The two senses of the word stay apart by case**, which is
+[15 §9](15-world.md)'s rule and is what keeps the answer above from being a
+quibble: lowercase *world* is the material, meaning the lorebook's content, and
+capital-W *World* is the kind. *"A lorebook is the world; a treatment is how it
+is handled here"* ([03 §4](03-data-model.md)) survives the panel's arrival
+untouched — it describes two rungs, and the World is the rung above both of
+them.
 
 **The teaching moves to Play**, which is where it belonged. The ladder —
 *Rain City* the lorebook, *Rain City, noir* the treatment, *The Fixer's Debt* the
@@ -933,6 +1073,22 @@ setup — is learned by starting a second game under a treatment you already hav
 which makes the one-to-many self-evident and needs no explanation at all. That
 was always the good half of the old argument; it just was not a library feature.
 Setup flows (§6) and Home's *Start* (§2.2) are the surfaces that carry it.
+
+**The ladder gained a rung and the teaching did not change shape.** A World is
+the set a Setup draws from ([15 §2](15-world.md)), one level above the
+one-to-many that already runs from book to treatment to setup — so it is learned
+the same way, by starting a second Setup inside a World you already have. That
+one move teaches two levels is the argument for leaving all of this in Play
+rather than annotating a shelf with it.
+
+*A note on the name, since [15 §2](15-world.md) writes that rung as* **Rain
+City** *the World — the same words this section gives the lorebook.* The
+repetition is how canons actually get named rather than a slip: a person names
+the setting once and then calls the book, the treatment and the set after it.
+Which is exactly the condition under which a wrong panel label does its damage
+and a right one does none — the names collide, so the **kind** is what has to
+tell them apart, and that is the property §2.1 buys by naming the panels for the
+kinds.
 
 **Six panels rather than a collapsed three** is deliberate and unchanged, and it
 follows from §1.1: density is the position, so the answer to "this is a lot to
@@ -947,6 +1103,12 @@ any reduction should be settled, not here.
 surface. Nothing about the storage, the schemas, the panels or the export
 boundaries moves. What changes is that the library stopped trying to be an
 onboarding surface, and Play picked it up.
+
+**And not a seventh panel for Publish.** Publishing is a flow reached *from*
+these panels — an object's page, a multi-selection, a World's page (§5) — and it
+is neither a kind nor a place ([16 §6](16-publish.md)). The shelf holds the
+kinds that exist on disk; a verb that produces a file is not one of them, and
+the moment it gets a panel it has become a destination with nothing in it.
 
 ### 5.2 The backlink panel, specified
 
@@ -967,7 +1129,7 @@ delivered as a view, where it costs no schema.
 **On a lorebook's page, a *Used by* section.** Grouped by kind, treatments first
 and rendered as cards with their `blurb` rather than as table rows, because
 "the three ways to play this world" is the thing a person came to see and a row
-in a list does not read as one. Actors, setups and packages follow as ordinary
+in a list does not read as one. Actors, setups and Worlds follow as ordinary
 rows.
 
 **With a *New treatment on this world* action in that section**, creating a
@@ -988,9 +1150,12 @@ up in.
 **It costs no new machinery.** The derived index answers "which treatments link
 this lorebook" already ([03 §5.1](03-data-model.md)); this is the third consumer
 of one query, alongside the delete confirmation's reference counts
-([03 §10.1](03-data-model.md)) and the package closure
-([04 §9.1](04-schemas.md)). Anything that makes the index cheaper or staler is
-therefore a decision about all three at once.
+([03 §10.1](03-data-model.md)) and the publish closure
+([16 §4](16-publish.md)). Anything that makes the index cheaper or staler is
+therefore a decision about all three at once. **Worlds add rows to that query
+rather than a fourth consumer of it**: a World's members are outbound refs like a
+Treatment's lore links ([15 §4](15-world.md)), so *which Worlds hold this book*
+is the same question with one more source kind answering it.
 
 ### 5.3 The Lorebooks panel, and the book as a document
 
@@ -1222,7 +1387,8 @@ table exists. It is schema work, a query and a surface, and it is not this
 section's to unblock.
 
 One addition that costs no field: **a *played alongside* line** — which other
-lorebooks appear beside this one in the same Treatment's or Package's links.
+lorebooks appear beside this one in the same Treatment's links or the same
+World's membership.
 Co-occurrence computed rather than compatibility declared, so it is always
 current and cannot decay, which is why [11 §4.2](11-lorebooks-as-a-format.md)
 refuses the field version. Free once the link table exists, and impossible
@@ -1256,7 +1422,7 @@ Both sources use wizards and both wizards are good. Worth taking:
   shared *after* playing rather than by remembering to record it beforehand. Here
   it is stronger, because the snapshot is a real **Setup** object
   ([04 §7](04-schemas.md)) rather than a text file — editable, re-runnable, and
-  shareable by dropping it in a package.
+  publishable on its own or as a member of a World ([16 §2](16-publish.md)).
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
 ([06 §2](06-modes-and-turn-pipeline.md)) is a schema the shell renders, so an
@@ -1900,7 +2066,7 @@ write path, no assist — is the model for the first pass.
 ### 11.3 Image slots
 
 Wherever an image can appear — actor avatar, sprites, gallery, treatment cover,
-lorebook entry art, package cover — the same four affordances: **upload,
+lorebook entry art, world cover — the same four affordances: **upload,
 generate, crop, replace.**
 
 **Cropping is non-destructive at the editing layer.** Marinara stores a

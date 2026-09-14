@@ -41,9 +41,33 @@ a reader who never runs a model at all.
 
 A lorebook is the only library kind whose object is a **collection**. An Actor is
 one document with fields. A Treatment is tone plus links. A Preset is machinery,
-a Setup is a starting configuration, a Package is a manifest. A Lorebook is a
+a Setup is a starting configuration, ~~a Package is a manifest~~ **a World is a
+named set of objects that already have addresses of their own**. A Lorebook is a
 record with a corpus inside it — and the library, which addresses objects, is
 therefore off by one level for exactly this kind and no other.
+
+> **Amended 2026-09-14: Package became World, and the rename sharpens this
+> paragraph rather than dulling it.** `storyengine.package/1` is
+> `storyengine.world/1` ([15 §0](15-world.md)) — a rename and not an addition,
+> so the list above is the length it always was and §5's *one kind among six*
+> stands. But a World is not a manifest. It is a **set with members**,
+> stored as refs, whose objects go on living in the library and being edited
+> there ([15 §4](15-world.md)). So the sentence now has a second collection
+> standing in it, and the word **only** has to be earned somewhere other than
+> *no other kind is a collection*.
+>
+> **It is earned on address, which is what this section was about before it had
+> a rival.** A World's members — actors, lorebooks, treatments, setups, presets
+> and sessions — are things this application already addresses one at a time:
+> each is reachable, editable and listed somewhere before any World names it,
+> and being named by one moves nothing. A lorebook's entries are addressed by
+> nothing, because `LoreEntry.id` *"is unique within one book and carries no
+> meaning beyond it"* ([04 §5.2](04-schemas.md)) — which §4.1 below records as
+> a known limit rather than a gap. **A World collects things that have
+> addresses; a Lorebook collects things that do not**, and only the second
+> leaves the library standing one level above the unit people actually write
+> in. The thesis is unchanged; it now rests on the property that carries it
+> rather than on the accident that no other kind was one.
 
 [10 §11.2c](10-ui-surfaces.md) already wrote half of this, in order to justify
 entry-level import and export:
@@ -143,10 +167,17 @@ is the same split one level up.
 An entry rendered as a titled article — index terms under the heading, a summary
 line set apart, the body in reading measure — is *exactly* the translation layer
 [10 §5.1](10-ui-surfaces.md) withdrew. That section killed *Worlds* and *Games*
-as panel names for being friendlier than the schema, and concluded that the
+as friendlier names for the Treatment and Setup panels, and concluded that the
 library's one job is *"saying plainly what the thing on disk is called."* A
 reading view is friendliness with a better haircut, and it deserves to be
 suspected on precisely those grounds.
+
+(*Worlds* is a panel name today — the sixth panel took it on 2026-09-14 — and
+that is the same objection answered rather than overruled, not the refused label
+walking back in. The old label's fault was naming the wrong kind, since a
+Treatment is not a world; `library/worlds/<slug>/world.json` is
+([15 §4](15-world.md), [10 §5.1](10-ui-surfaces.md)). The rule drawn from the
+refusal is untouched, and it is the rule this section has to survive.)
 
 **The licence, and it is one sentence inside the same section that raises the
 objection** — [10 §2.1](10-ui-surfaces.md):
@@ -318,10 +349,26 @@ books by design, and reopening that reopens the ownership question
 [26 B2](26-open-questions.md) closed. It also loses on its own terms: a declared
 list **decays silently** as both books change, where a derived one cannot. The
 honest version is co-occurrence — which other books appear beside this one in the
-same Treatment's or Package's links — which is a query rather than a field, and
-is specified in [10 §5.3](10-ui-surfaces.md). The escape hatch already exists
-besides: `tags`, `description` and `metadata` all travel, and *works with IDT
-Core* as a tag is exactly what tags are for.
+same Treatment's links or the same World's membership — which is a query rather
+than a field, and is specified in [10 §5.3](10-ui-surfaces.md). The escape hatch
+already exists besides: `tags`, `description` and `metadata` all travel, and
+*works with IDT Core* as a tag is exactly what tags are for.
+
+**The World half of that query is worth more than the Package half it
+replaces**, which is the rename strengthening an argument rather than merely
+surviving it. A Package's contents were embedded copies resolved on import — the
+container dissolved the moment it arrived ([15 §0](15-world.md)) — so on the
+install that received one there was nothing left to co-occur *in*, and back home
+there was a container at all only if the author had taken the optional step of
+keeping the bundle ([16 §3](16-publish.md)). A stored World holds refs and stays
+([15 §4](15-world.md)): a durable, human-made statement that these books belong
+together, which is the useful half of what `compatibleWith` was reaching for.
+And it does not decay, for a reason the field cannot borrow — **membership
+has consumers other than this claim.** It decides what a new session in that
+World starts from ([15 §5](15-world.md)) and what reaches the wire on publish
+([16 §4](16-publish.md)), so it is kept current by being used, where a
+compatibility list has no reader but the assertion it makes and is therefore
+maintained only by remembering to. The field is refused harder now, not less.
 
 ---
 

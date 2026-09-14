@@ -24,6 +24,13 @@ and restore with its CI restore test ([26 E6](../26-open-questions.md),
 "1.0 bar" nothing owned. §1.8 covers what that does to this phase's size, which
 is the honest question.
 
+**And one thing that arrived without moving.** [16](../16-publish.md) — Publish —
+gives a name and a surface to the exchange flow this phase already owed, and
+[P8A](29-p8a-world.md) has landed the kind it fills, so what P11.2 builds is a
+reader, a writer, a walker and a review over a container that exists. Nothing
+arrived in the list above and one editor left it; §1.8 is where that is argued
+rather than asserted.
+
 **The demo that defines done:** *a two-hundred-turn story read end to end as
 prose and exported as Markdown with no machinery visible — from a fresh
 container built reproducibly from a tag, running in French.* Two halves that
@@ -231,6 +238,28 @@ phase. None was a scope increase for the *product* — each was already wanted �
 but all three were previously outside any phase, which is a different thing from
 being cheap.
 
+*A fourth entry arrived in that section on 2026-09-14, and it is the first one
+that did not make this phase bigger.* It is **World** ([15](../15-world.md)),
+with **Publish** ([16](../16-publish.md)) beside it, and it reached 1.0 by
+discovery rather than by decision: the portable container
+[04 §9](../04-schemas.md) had specified as a Package and the continuity
+[15](../15-world.md) described from the play side were one object approached from
+opposite ends, so the kind was **renamed rather than added** —
+`storyengine.package/1` became `storyengine.world/1` — and the count of portable
+kinds did not move ([15 §0](../15-world.md)).
+
+**What that does to this phase wants stating precisely, because a release gaining
+a feature normally means this document gaining a stage, and here the only
+movement is outward.** Every piece of exchange work was already P11's — the
+`.seworld` reader and writer, the closure walker, the review surface and session
+export — and not one of them moved. What moved is the ground underneath
+them: [P8A](29-p8a-world.md) lands the kind between P8 and P9 as a library object
+with a panel, its members held as refs, and the editor §2's P11.2 used to own.
+**So one item leaves outright and nothing arrives**, and what is left stops
+having to invent the container, the walk and the review inside a single stage
+([work plan P8A](01-work-plan.md)). The three below are still three, which is why
+this section keeps its heading.
+
 **Packaging is now all six artifacts, not two.**
 [releases §0](04-repo-and-releases.md) still requires only the OCI image and the
 tarball *for beta to count*, and that is unchanged. What changed is that `.deb`,
@@ -265,6 +294,19 @@ and it is the sharpest scheduling consequence of the release re-cut. If §2's
 audit finds 17 unsettled when this stage arrives, the stage blocks on 17 rather
 than guessing.
 
+**And it is not a second serialiser, which is the one thing the World move
+changed about it.** [16 §4](../16-publish.md) gives the session a row in the same
+closure table every other kind uses: it reaches its `localActors`, the Setup it
+was started from and that Setup's closure, and **stops there** — the sibling
+sessions of the same World are never implied, because *this story* and *my six
+stories* are different things to send and one must not silently become the other.
+So session export is the walker aimed at a different starting point rather than a
+path beside it, and what this phase builds is one mechanism with four entry
+points: an object, a selection, a session, a World
+([16 §2](../16-publish.md)). None of that touches the dependency above — what a
+walk collects says nothing about what a turn record contains, and
+[13 §4](../13-write-mode.md) still has to be settled first.
+
 **And it has a second reader nobody in the room represents** — *added
 2026-09-01, from [19 §3](../19-session-import.md).* [26 E4](../26-open-questions.md)
 makes session *import* conditional on an interchange format and says the format
@@ -295,6 +337,27 @@ free while the format is being written:
    Session and it was never implemented; adding it before the freeze is an edit,
    after it a migration of the record this project has the most of.
 
+   **The same window holds a second field, and it is not provenance** — *added
+   2026-09-14*. A session carries its World, and it carries it **on the
+   session**, because that is the memory key and a key that had to be found by
+   reverse lookup on every turn would be a key in name only
+   ([15 §6](../15-world.md)). [P8A](29-p8a-world.md) is what puts it there,
+   which is *inside* this window rather than outside it: the window is
+   everything before the record freezes, and the freeze is here. So this stage
+   does not have to add the field — it has to **carry** it, which is the same
+   decision taken at the other end of one window, and getting it wrong costs the
+   same migration. Two things go with it, and both are free while the format is
+   being written. A session whose file names a World the recipient does not have
+   **dangles visibly and non-blockingly**, like every other reference in this
+   system ([00 §3.3](../00-stance.md)) — membership is not ownership in either
+   direction ([15 §4](../15-world.md)), so a session that arrives without its
+   canon is still a session rather than a broken file. And the field is safe to
+   write
+   into a file at all for exactly the reason [15 §5](../15-world.md) gives when
+   it admits a `world` arm to `LoreScope` and still refuses a `session` one:
+   **a world id means the same thing on the install it arrives at, and a session
+   id does not.**
+
 Only the fourth costs more by waiting, and it is the one that looks least like
 this stage's business.
 
@@ -309,14 +372,23 @@ everything else it finds, and if the answer is that P11 has to split, that is a
 finding rather than a failure. A phase that ends when someone gets tired is the
 failure mode this document exists to prevent.
 
+**The fourth entry barely moves that arithmetic, and it should not be read as
+relief.** One editor left; the four pieces of exchange work that stayed are the
+same four, and session export is still the largest single item in the phase. What
+changed is their *sizing risk* rather than their size — a stage that fills a
+container somebody already shipped can be estimated, where a stage that has to
+invent the container, the walk and the review together cannot be estimated until
+it is nearly done. That is the difference between an item this section can hand
+to the audit and one the audit can only discover.
+
 ---
 
 ## 2. Stages
 
 The audit first, because §1.2 says the list does not exist; then the two large
-user-facing items; then the sweeps, which are cheapest once nothing new is
-landing; then release engineering, which gates the phase rather than being part
-of it.
+user-facing items, the second of which is also where the exchange work sits; then
+the sweeps, which are cheapest once nothing new is landing; then release
+engineering, which gates the phase rather than being part of it.
 
 ### P11.0 — The audit that makes the list
 
@@ -364,7 +436,7 @@ and the same Markdown pass run over a different record. Both are the kind of
 cheap item §1.4 warns gets cut, so they are named here rather than left to
 P11.0 to rediscover.
 
-### P11.2 — Editors are not dumb forms, across every editor
+### P11.2 — Editors are not dumb forms, and the exchange work beside them
 
 [10 §11](../10-ui-surfaces.md) applied where P1's prototype editor, P2A's forms,
 P5's entry editor and P7's panels each stopped short: the field assist contract,
@@ -376,13 +448,39 @@ twice.
 **And the editors that have to exist before a contract can be applied across
 them.** [P7B](24-p7b-presets-and-prompts.md) brings presets and treatments;
 P7.4 writes setups through the wizard, which [10 §6](../10-ui-surfaces.md) makes
-the setup's editor by design; **packages have no editor and no other phase**,
+the setup's editor by design; ~~**packages have no editor and no other phase**,
 so the package editor is this stage's — a bundle's editor is a picker over the
 objects a user owns ([04 §9](../04-schemas.md)), and the exchange work already
-here is where it belongs. So is the lorebook entry's remainder: P5.1 left
+here is where it belongs.~~ **Struck 2026-09-14: that editor is the World's, and
+[P8A](29-p8a-world.md) builds it** (§1.8). The sentence was right about
+everything except the phase — a World's editor *is* a picker over the objects a
+user owns — and what it could not see is that the picker is **membership**, which
+is [15 §4](../15-world.md)'s first job and belongs to the kind rather than to the
+file. A container specified to dissolve on import had no membership to edit,
+which is why the only editor anyone could imagine for it was one that ran while a
+file was being written. **The lorebook entry's remainder does stay**: P5.1 left
 everything past the five core fields read-only on purpose, and P7's 2026-09-10
 re-audit, on its branch, found that *the five per-book retrieval knobs and the
 book-level `enabled` gate have real consumers and no write surface*.
+
+**What stays here is the exchange work, and the stage is better named for
+holding it.** [16](../16-publish.md) is the flow and this is where it is built:
+the `.seworld` reader and writer, the closure walker
+([16 §4](../16-publish.md)), the review panel that shows every level rather than
+only the first and defaults the session checkbox off
+([16 §5](../16-publish.md)), and **session export**, which §1.8 sizes as the
+largest of the three things 1.0 moved into this phase and which no stage until
+now had named. They are one stage because they are one mechanism with four
+starting points, and they are *this* stage because it already owns
+[10 §11.2c](../10-ui-surfaces.md)'s entry-level import and export — the same verb
+one level down, over a single entry rather than a closure. Two things this stage
+does not build, both [P8A](29-p8a-world.md)'s: the kind and its panel, and the
+`world` arm of `LoreScope` that gives contribution a consumer
+([15 §5](../15-world.md)). **And one it does not decide**: whether the wire form
+carries a `contents` array beside `members` or member folders inside the zip is
+[15 §4](../15-world.md)'s open question, leaning to folders, and it is answered by
+whoever writes the writer — so it is answered *here*, and the audit should expect
+to find it open rather than settled.
 
 ### P11.3 — The assistant
 
@@ -418,13 +516,23 @@ pass, which is an audit over surfaces built to the habit or it is a rewrite.
 
 **And the link table.** The reference counts [03 §10.1](../03-data-model.md)
 wants on this confirmation — *referenced by 12 sessions, 3 treatments and 1
-package* — need an inbound-links query the index does not have, and
+World*, which that document wrote as *1 package* until the rename — need an
+inbound-links query the index does not have, and
 [P4 §6.6](16-p4-implementation.md) recorded it as one debt with
 [10 §5.2](../10-ui-surfaces.md)'s *Used by* panel: *"whichever phase builds
 that panel pays both."* This stage is already opening delete, so it pays both —
 the table, the counts, the panel, and *played alongside*
 ([10 §5.3](../10-ui-surfaces.md)), which is the same query read from a
 lorebook. Placed 2026-09-11; nothing had named a phase before.
+
+**The World row in that count is the one a builder could get wrong**, and
+[03 §10.1](../03-data-model.md) says so: a container is the one kind a reader
+might expect to hold a veto, and it holds none. Membership is not ownership — an
+object may belong to several Worlds and to none — so a World in the count informs
+exactly as a treatment does, and a deleted member leaves a ref that dangles
+visibly rather than a delete that fails ([15 §4](../15-world.md)). The query this
+stage builds has to reach [P8A](29-p8a-world.md)'s members to produce the row at
+all, which is the only way this stage touches World.
 
 ### P11.8 — The localisation sweep
 
@@ -511,14 +619,42 @@ The branch tree visualiser ([25 §1](../25-roadmap.md)); the file browser
 ([26 D3](../26-open-questions.md)) and Tailscale
 ([26 D1](../26-open-questions.md)), all three on the feature list; the Character
 Studio ([18](../18-character-studio.md)), which is a committed release at 3.0
-rather than a feature-list entry; the prologue
-packages that unblock once export lands ([26 B10](../26-open-questions.md));
+rather than a feature-list entry; ~~the prologue
+packages that unblock once export lands ([26 B10](../26-open-questions.md));~~
 chapterisation and embeddings ([25 §3](../25-roadmap.md),
 [26 E2](../26-open-questions.md)); quality evals of any kind
 ([testing §4.3](03-testing.md)); and every committed release after 1.0 — the
-Write surface, World, Campaign and the authored-rule tier — which are scheduled
+Write surface, ~~World,~~ Campaign and the authoring tier — which are scheduled
 rather than deferred ([work plan §5](01-work-plan.md)) and whose arrival answers
 [work plan §0.2](01-work-plan.md)'s checks.
+
+**Two strikes, both 2026-09-14, and they are opposite kinds of change.**
+
+**Prologue packages stopped being deferred without becoming work.**
+[26 B10](../26-open-questions.md) resolved *by mechanism*: a prologue is a
+session ticked in a World's publish review — [15 §4](../15-world.md)'s *"the same
+mechanism with one session ticked"*, which is [16 §5](../16-publish.md)'s
+checkbox aimed at one session rather than six. No kind gains a field and nothing
+has to be called a prologue anywhere, so what this section deferred is now a
+*case* of P11.2's review rather than an item beside it, and it needs no line in
+the list P11.0 builds. **What is left of it is a check, and it is the sharpest
+one available for session export:** a recipient who never played those turns
+cannot tell a gap from a choice, so a prologue is where a lossy format shows
+first.
+
+**World left this list because it is no longer after 1.0.** The committed series
+is four releases rather than five — 2.0 Write, 3.0 the Character Studio, 4.0
+Campaign, 5.0 the authoring tier, and there is no 6.0
+([work plan §0](01-work-plan.md)). It shortened by a discovery rather than a cut:
+one member of the series turned out to be inside 1.0 already, and **Campaign came
+forward with it rather than on its own merits**, because Campaign's gate was
+*4.0's continuity to run in* and that continuity is 1.0's now. One consequence is
+this phase's to notice. [work plan §0.2](01-work-plan.md)'s five release checks
+are otherwise promises about releases nobody has started, and World's has stopped
+being one: it is now *World must change no other portable schema*, with a single
+declared exception, and it is answerable at [P8A](29-p8a-world.md)'s exit rather
+than at a release three out. That is the only one of the five this phase could
+have been asked about, and it is not this phase's to answer.
 
 **No longer out of scope, and moved into §1.8:** session export, backup and
 restore, and the four packaging artifacts. All three were listed here when they

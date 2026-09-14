@@ -162,17 +162,18 @@ with guidance — and that indirect path is the system working, not a leak.
 
 ## 6. Failure modes worth designing against
 
-**Spoiler bleed is the sharp one.** Replay a package or start a second story in
-the same treatment, and intake will happily import what happened last time —
-including twists, plot hooks that fired ([03 §4.1](03-data-model.md)), and
-things a fresh protagonist has no business knowing. This is the failure most
-likely to make someone turn the whole feature off.
+**Spoiler bleed is the sharp one.** Replay a ~~package~~ **World** or start a
+second story in the same treatment, and intake will happily import what happened
+last time — including twists, plot hooks that fired
+([03 §4.1](03-data-model.md)), and things a fresh protagonist has no business
+knowing. This is the failure most likely to make someone turn the whole feature
+off.
 
 Mitigations, in order of how much they cost:
 
-- **Warn at session creation** when a new session's treatment or package matches
-  an existing one, and offer to start isolated. Cheap and catches the common
-  case.
+- **Warn at session creation** when a new session's treatment or ~~package~~
+  **World** matches an existing one, and offer to start isolated. Cheap and
+  catches the common case.
 - **Never import memories derived from hidden content** — a hook's premise, an
   unfired hook's entrances ([04 §6.1a](04-schemas.md)), a hidden channel, GM-only
   state. Extraction should refuse those at the source rather than filtering them
@@ -181,9 +182,82 @@ Mitigations, in order of how much they cost:
   of one, so a bleed reproduces the exact words a second playthrough was supposed
   to reach freshly.* Which also raises what the first mitigation is worth — a
   replayed treatment does not merely repeat a beat, it repeats the sentence.
-- **[OPEN]** Whether sessions seeded from the same package should default to not
-  sharing with each other. Tempting, and probably too clever — a continuing
-  campaign in the same package is a normal thing to want.
+- ~~**[OPEN]** Whether sessions seeded from the same package should default to
+  not sharing with each other. Tempting, and probably too clever — a continuing
+  campaign in the same package is a normal thing to want.~~ **Answered below,
+  and the answer is both halves rather than one of them.**
+
+*Amended 2026-09-14, when ~~Package~~ World stopped being a bundle that
+dissolves on arrival and became a durable object a session belongs to
+([15 §0](15-world.md)). By strike rather than quietly, because the third bullet
+was load-bearing where it stood: [P8](workplan/25-p8-implementation.md) cites it
+to leave the behaviour deliberately unbuilt, and a reader arriving at that
+sentence should see what moved under it rather than a decision that appears to
+have always been there.*
+
+**The bullet was unanswerable because *the same package* was a fact about where
+sessions came from rather than about what they are.** Two sessions seeded from
+one file may be one story or two unrelated experiments, and nothing in the
+software knew which — a default keyed on a coincidence of origin is exactly what
+*too clever* meant. Membership of a World is not a coincidence. A World is
+something a person makes and puts things into, and sessions do not join one by
+resembling each other ([15 §10](15-world.md)), so membership is a statement
+about continuity, and a statement is a thing a default may honour.
+
+**So the question splits where the old word could not, and each half has an
+answer.**
+
+- **Inside a World: share — the old lean, now with a reason under it.** A
+  continuing campaign in one canon is the normal thing to want, and refusing to
+  carry memories between sessions somebody has just declared to be one
+  continuity would be the software overruling the only explicit statement it
+  has. It would also put this document at odds with [15 §6](15-world.md), which
+  keys three behaviours on precisely this boundary — most sharply, a hook that
+  fired in session one does not fire again in session two of the same World. A
+  World where the engine has recorded that a beat happened and the character it
+  happened to remembers nothing is not a conservative default; it is an
+  incoherent one.
+- **Across Worlds: auto-off, which is the thing the bullet was reaching for.**
+  The case that hurts was never the continuing campaign. It is the replay — the
+  same material played again by a fresh protagonist — and a replay is a second
+  World over the same objects. There the two mechanisms pull apart unless intake
+  draws its line where hooks draw theirs: the hook pool is copied fresh because
+  the canon is new, while the actor's book still holds how it went last time, so
+  the engine offers the twist and the actor pre-empts it. **An origin session in a
+  different World is therefore auto-off.** Nothing is hidden by that: §7's list
+  shows such a session as auto-off rather than omitting it, and `"always"` pulls
+  it in for the person who meant it.
+- **The filter acts on a statement, never on its absence.** A session in no
+  World intakes as it does today, and a session in a World still admits a
+  Worldless origin session, because *unfiled* is not *elsewhere* — somebody who
+  plays for six months and then names the canon they were in must not lose the
+  history that produced it. Two Worlds that differ are the only case that
+  excludes. Which is also why none of this costs anything before the key exists,
+  since every session is Worldless until somebody makes one — and why an unfiled
+  replay is still a replay, with the two mitigations above it and nothing else in
+  front of it.
+
+**What it costs structurally is one clause, and it is a default rather than a
+law.** Books stay scoped `(user, actor, persona)` — §3 is untouched, because
+what a World decides is which origin sessions §4's auto state admits, which is
+the judgement `associations` already makes per session, reached by a rule
+instead of by hand and needing no new control to express. And it widens like
+persona scope does, by the same argument one level up: there she is talking to a
+different person and should know a different history; here she is remembering a
+different canon. A setting that widens intake across Worlds is as legitimate as
+the one that widens it across personas, and on a single-World install the
+distinction is invisible anyway. *The fourth key §8 names is a different object
+from any of this* — a book belonging to a World rather than to an actor — and
+the two should not be mistaken for one because they turn on the same word.
+
+**The first mitigation's trigger sharpens rather than retires.** *Same
+treatment* was a proxy for *you are about to replay something*, and inside a
+World it over-fires: making a second session in a canon you are playing is the
+expected act, not a suspicious one. The precise trigger is **same material,
+different canon** — a treatment or setup that already has sessions behind it in
+another World, or in none. [P8](workplan/25-p8-implementation.md) builds the
+proxy and should, because it ships before Worlds do and a warning is worth
+having in the meantime; the World clause lands with the key at [P8A].
 
 **Contradiction and staleness.** A memory says she is friendly; she is hostile
 now. Memories carry timestamps and retrieval should prefer recent ones, but the
@@ -234,7 +308,37 @@ per block.
 - **[OPEN]** Cross-session memory for the *narrator* rather than a character —
   "the GM remembers your last campaign". Coherent, and a different scope key.
   **That scope key now has a name**: it is a World
-  ([15](15-world.md)), and this question is the one that found it. The
+  ([15](15-world.md)), and this question is the one that found it. ~~The
   bearing on 1.0 is narrow but real: decide the book-granularity question
   directly above knowing that a fourth key is coming, so nothing hard-codes the
-  three-tuple into how memory books are keyed and named on disk.
+  three-tuple into how memory books are keyed and named on disk.~~
+
+  *Amended 2026-09-14: the key is no longer coming — it is scheduled.* World
+  moved out of 4.0 and into 1.0 ([15](15-world.md),
+  [work plan §0](workplan/01-work-plan.md)), so the granularity question
+  directly above is decided against a key that exists rather than one to leave
+  room for, and *nothing hard-codes the three-tuple into how memory books are
+  keyed and named on disk* is a requirement of 1.0 rather than a caution about a
+  later release. [P8 §1.2](workplan/25-p8-implementation.md) took the constraint
+  while the key was still prospective and can now take it knowing what it is.
+
+  **The key has two consumers at 1.0 and they are not the same shape**, which is
+  the part worth having in hand before granularity is called. One is a book of
+  the World's own — what the narrator knows about this canon, keyed on the World
+  rather than on an `(actor × persona)` pair, and so a sibling of the books above
+  rather than a wider version of them. The other is §6's qualifier, where the
+  World a session belongs to decides which origin sessions its intake admits
+  without changing what any book is keyed on at all. **A scheme that can express
+  both is the thing to hold**: one of them is keyed on something that is not an
+  actor, and the other has to be able to ask a stored memory which session — and
+  therefore which World — it came from, which §2's origin ref already carries.
+
+  **What stays open is the shape of the first.** Whether the World's book is a
+  lorebook on §2's terms — probably, since §2's argument is indifferent to what
+  a book is keyed on — and what writes it, which is not §2.1's extractor with a
+  different subject plugged in. A World's book wants what is now true of the
+  canon, where an actor's wants what that actor learned about you, so whether one
+  step can write both is the question [P8 §1.3](workplan/25-p8-implementation.md)
+  answered *no* to for the summariser and extraction, arriving a second time one
+  level along. Its reason there was structural and may not transfer; the question
+  does.

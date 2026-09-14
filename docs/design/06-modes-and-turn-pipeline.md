@@ -18,7 +18,8 @@ piece is worth arguing about at length before writing code, it is §2 and §4.
 **Freeform** is the Aventuras shape — do/say/think/story input, chapters,
 world-state classification, branching, light or no mechanics. **Campaign** is
 the Marinara RPG shape — party, sheets, combat, dice, map, clock. Freeform ships
-at 1.0 and Campaign at 5.0 ([work plan §0](workplan/01-work-plan.md)).
+at 1.0 and Campaign at 4.0 ([work plan §0](workplan/01-work-plan.md), and §7
+records why that number moved).
 
 **Modes belong to surfaces, and the grouping that used to sit above these two is
 gone.** An earlier draft named a single mode **Adventure** carrying two presets,
@@ -187,7 +188,12 @@ aspirational.
 ```ts
 interface ChannelDefinition {
   id: ChannelId                   // "storyengine.clock", "storyengine.party.hp"
-  owner: ModeId | ExtensionId | PackageId   // package: §4.1
+  /** ~~`PackageId`~~ — **one arm holding two unrelated things**, separated
+   *  2026-09-14 and argued in §4.1. `NamespaceId` is the first-party namespace
+   *  P7 ships and exercises; `WorldId` is the authored content this section has
+   *  asked for since it was written, and could not have had until
+   *  [15](15-world.md) made that content durable enough to own state. */
+  owner: ModeId | ExtensionId | NamespaceId | WorldId
   version: number                 // paired with ChannelState.version — [22 §1.3]
   schema: JSONSchema              // the state shape
   /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it:
@@ -278,16 +284,88 @@ under-specified here.
 new state requires code.~~ **Not as written above, and not since P7.0** — §4's
 sketch accepts a `PackageId` because this section asked it to, and the point
 below survives the correction unchanged: a package can *carry* state, and nobody
-outside code can *declare* it. *The shipped type is already exercised on the
+outside code can *declare* it. ~~*The shipped type is already exercised on the
 third arm: the retriever's timing channel is owned by `storyengine.lore`, which
-is a package and not a mode.* (Corrected 2026-09-13 — §4 was reconciled at P7.0
+is a package and not a mode.*~~ (Corrected 2026-09-13 — §4 was reconciled at P7.0
 and this back-reference to it was not.) Infinite Worlds lets *world authors* declare tracked
 variables and write declarative rules over them, shipped as data inside the
 world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
 
-**Scope: the tier is committed; the vocabulary is 6.0, the authoring tier**
-([work plan §0.4](workplan/01-work-plan.md), [§0.6](workplan/01-work-plan.md)).
+***The word in that correction is doing two jobs, and 2026-09-14 separates
+them.*** The struck sentence is true and false at once, and which one it is
+depends on a reading it never states. `storyengine.lore` is the retriever: a
+**first-party namespace**, code in this repository, owning a channel because a
+subsystem that is not a mode still has to answer for the state it writes. What
+this section asked for is a **content bundle** — something a person authors,
+imports, and did not compile. Both were called a package, so a sentence about the
+one read as a sentence about the other, and a correction written by somebody
+holding both halves of this section slid between them without having to choose.
+
+**The corpus shows the split from the outside**, which is the cheapest evidence
+that this was never one reader's private confusion: [04 §9.2](04-schemas.md)
+reads that arm as the namespace and says it *"did not become World and must
+not"*, while this section's own tier — the bullets below — has always meant the
+bundle, and now says so. Two documents citing one identifier and meaning
+unrelated things.
+
+**So the union has four arms and always had; the fourth is the one that could not
+be seen.**
+
+| Arm | What owns the channel | Examples |
+|---|---|---|
+| `ModeId` | the mode that declared it | `storyengine.scene` |
+| `ExtensionId` | somebody else's mode or extension | the id in their manifest ([23](23-extensions.md)) |
+| `NamespaceId` | **a first-party namespace** — an engine subsystem that is not a mode, answering for state it writes | `storyengine.lore`, `storyengine.hooks`, `storyengine.cast`, `storyengine.goals`, `storyengine.suggest` |
+| `WorldId` | **authored content** — this section's arm, and what the tier below is about | a World's own id, which is portable and stable and therefore means the same thing on the install it arrives at ([15 §5](15-world.md)) |
+
+*Five namespaces rather than the four [04 §9.2](04-schemas.md) and
+[15 §9](15-world.md) list: `storyengine.hooks` owns the firing and pacing
+channels ([§6.1](#61-the-plot-hook-selector)) and belongs in the same set.*
+
+**Nothing in the engine can tell the four apart, which is why prose has to.** The
+shipped field is `owner: string`, and its one consumer — `channelInPlay`,
+deciding whether a channel belongs to the session in front of it — asks only
+*is there a registered mode with this id*, so **every owner that is not a mode is
+one answer: available everywhere.** That is the same conflation at runtime, and
+it is why nothing caught this and nothing will catch it coming back. The
+separation is therefore free in both directions: it costs no migration and no
+code, and it buys no check either.
+
+**And the content arm was unbuildable the whole time, which the type could not
+say either.** [15 §0](15-world.md) names the defect: [04 §9](04-schemas.md)
+specified a package's contents as embedded copies resolved on import, so the
+container *"dissolves the moment it arrives"*, and a channel owned by one points
+at something that no longer exists. Widening `owner` did not make an authored
+channel possible; it reserved a field for an owner that could not persist. What
+the arm needed was a durable, in-install, authored object with a stable id the
+engine can read at turn time — so the rename is not a find-and-replace over this
+section, it is the first moment the tier below can name an owner that survives
+its own import.
+
+**The registry's binary is then the first thing that arm will have to change.**
+*Available everywhere* is right for a first-party namespace: `storyengine.cast`
+is registered outside a mode precisely so that [§8](#8-party)'s sixth rule holds
+— party is *"session state available to every mode, not a Freeform or Campaign
+feature"* — and the other four are outside for the same reason. It is wrong for a
+World, whose channels belong to sessions in that World and to no others, and
+*is there a registered mode with this id* cannot tell the two apart. Nothing has
+to move until the tier below has a consumer; it is written down here because a
+rule that reads as an implementation detail is the kind that gets rediscovered as
+a bug.
+
+**The other two senses stay exactly where they are.** `storyengine.lore` does not
+become a World and must not: it answers *who owns this definition*, not *which
+file did this arrive in* ([04 §9.2](04-schemas.md)). And npm's `packages/server`
+is a third word again, unrelated to either and untouched by any of this.
+[15 §9](15-world.md) records the collision from the World's side and says the
+separating happens here; this is it.
+
+**Scope: the tier is committed; the vocabulary is 5.0, the authoring tier**
+([work plan §0.4](workplan/01-work-plan.md), [§0.6](workplan/01-work-plan.md))
+— *5.0 rather than 6.0 because [15](15-world.md) moved World into 1.0 and the
+release line shortened by one behind it; the tier's position, a release behind
+Campaign, is what the next paragraph rests on and is unchanged.*
 Channels and engine-computed effects ship at 1.0 and are where the power actually
 is. What waits is the predicate/effect vocabulary, its evaluator and its
 authoring surface — a language design project, and one Infinite Worlds only got
@@ -306,14 +384,19 @@ corpus for*, rather than one Campaign consumes.
 So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
 
-- `owner` may be a package, not just a mode or extension.
-- Packages and treatments carry a `rules` collection — declarative
+- `owner` may be a **World**, not just a mode, an extension or a first-party
+  namespace — the arm the paragraphs above separate out, and the only one of the
+  four this tier is about.
+- **A World and a Treatment carry a `rules` collection** — declarative
   condition/effect pairs over channels, evaluated as an end-of-turn step, with
   effects applied through the same path model-proposed updates use and recorded
   in the turn record like everything else.
 - Rules are **data, not code**: terms in a closed vocabulary our evaluator
   interprets. That is what makes them safe to import, and it sharpens
-  [26 A2](26-open-questions.md) to "packages may ship rules, never code."
+  [26 A2](26-open-questions.md) to **"a World may ship rules, never code"** —
+  unchanged in substance and moved with the name, which is how
+  [15 §8](15-world.md) states it and why an import is not a code-execution
+  decision.
 
 The rule vocabulary itself is [26 C7](26-open-questions.md);
 [02 §3](02-infinite-worlds.md) proposes a starting point for when it is designed.
@@ -321,9 +404,14 @@ The rule vocabulary itself is [26 C7](26-open-questions.md);
 **What 1.0 owes the deferral** — the two things that would make the tier
 impossible to add later rather than merely absent:
 
-- **`owner` accepts a package id**, not only a mode or extension id, from the
+- **`owner` accepts a world id**, not only a mode or extension id, from the
   first channel definition written. Widening that field later is a migration
-  over every stored channel.
+  over every stored channel. *Met at [P7.0](workplan/23-p7-implementation.md)
+  and more cheaply than this bullet expected, because what shipped is a string:
+  the widening was free and the **convention** was the part that had to be kept,
+  which is the part a string cannot keep and the reason the two senses ran
+  together above. What 1.0 still owes is the other half of the same obligation —
+  something durable for an owner to name, which is [15](15-world.md).*
 - **Effects apply through one path** — model-proposed, engine-computed and
   authored-rule effects all land as `ChannelEffect`s in the turn record. If rules
   ever need a private application path, the tier was bolted on rather than
@@ -645,8 +733,8 @@ and the consumer of [03 §4.1](03-data-model.md)'s hook pool.
    introduced), `requires`, `blockedBy`, `notBefore`, and already-fired. No model
    call. This is what stops a hook firing about someone who died four sessions
    ago, and it also cuts thirty hooks to a handful before anything expensive
-   happens — a package with a large pool must not mean thirty premises in a
-   prompt every turn.
+   happens — an imported World with a large pool must not mean thirty premises
+   in a prompt every turn.
 
    **An introduction hook ([04 §6.1a](04-schemas.md)) reverses one clause of
    this and keeps the rest**: its subject must *not* be introduced, must still
@@ -868,8 +956,16 @@ Consequences worth stating:
 
 **Modes belong to surfaces** (§1, [10 §2](10-ui-surfaces.md)). The Play surface
 holds three of them across two releases — **Scene and Freeform at 1.0**,
-**Campaign at 5.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
+**Campaign at 4.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
 assistant (§7.4), which is not a chat mode but is built out of the same parts.
+
+***Campaign moved from 5.0 to 4.0 — and the authoring tier (§4.1) from 6.0 to
+5.0 behind it*** (2026-09-14). Nothing about either changed: the release line
+shortened by one because [15](15-world.md) moved World into 1.0, and Campaign's
+stated gate was *4.0's continuity to run in* — a gate that is met at 1.0 has
+nothing left to wait behind. Recorded here, where the schedule is stated, because
+the number appears in several places in this document and a reader who finds one
+stale has no way to tell a re-cut from a mistake.
 
 **Messages is specified here and is not scheduled.** It was a 2.0 mode until the
 release re-cut moved it off the schedule entirely; it now sits on the feature
@@ -967,7 +1063,7 @@ Design notes:
   feature; branching is a session-level capability from
   [03 §8](03-data-model.md) available in every mode.
 
-### 7.3 Freeform **1.0**, Campaign **5.0**
+### 7.3 Freeform **1.0**, Campaign **4.0**
 
 Two Play modes over one contract, specified together because their design is one
 argument (§1).
@@ -1103,8 +1199,8 @@ Schema in [04 §7.1](04-schemas.md). The shape in brief: a short always-injected
 `statement`, an optional fuller `detail` for steps, a `visibility` that makes
 hidden goals the GM's arc through the same mechanism as hidden channels, and a
 `completion` that is narrative or manual. Mechanical completion — computed from
-channel state — needs the authored-rule vocabulary and arrives with it at 6.0
-([work plan §0.6](workplan/01-work-plan.md)). Campaign at 5.0 is where mechanical
+channel state — needs the authored-rule vocabulary and arrives with it at 5.0
+([work plan §0.6](workplan/01-work-plan.md)). Campaign at 4.0 is where mechanical
 completion *earns* its place, but it is not what supplies it: a `Goal` sits on
 Setup, which is authored content, so the condition belongs to whoever wrote the
 game rather than to the mode running it.
@@ -1436,7 +1532,8 @@ able to, without engine changes:
   [10 §8.1](10-ui-surfaces.md)'s paired commitment — *when an extension cannot
   express something, ask what widget would let it and add that* — governs regions
   as much as widgets, and this is the first time it was exercised)
-- ship with a package that declares a dependency on it
+- ship with a World that declares a dependency on it (`requires.extensions` in
+  [04 §9](04-schemas.md)'s envelope — the bundle sense of the word, §4.1)
 - read library objects through a capability API that is *narrow and typed* —
   Marinara's `CapabilityRuntime` is the model, including its instinct to make
   wrong values compile errors rather than runtime rejections
@@ -1454,7 +1551,7 @@ second mode was written*** (2026-09-13). Channels with schemas at
 [P7.1](workplan/23-p7-implementation.md), the declared wizard at P7.4, steps at
 any stage from P7.0, input kinds and participant policy at P7.3 and P7.9, UI
 surfaces at P7.11. **What is still unbuilt is the capability API and the
-package-dependency bullet** — the two that cross a boundary, which is not a
+World-dependency bullet** — the two that cross a boundary, which is not a
 coincidence: [23 §4](23-extensions.md) owns both and neither has had a consumer
 yet. *The list keeps its future tense for the two, and for the reason the last
 paragraph of this section gives: a contract is real when somebody outside the

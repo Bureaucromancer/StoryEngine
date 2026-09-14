@@ -257,6 +257,20 @@ whose answer wants volume. And [26 E2](../26-open-questions.md)'s embeddings,
 which this document is the first real customer for and which are not scheduled by
 saying so.
 
+***And one thing that looks like a blocker as of 2026-09-14 and is not:
+[P8A](29-p8a-world.md).*** World moved into 1.0 and was filed as a phase sitting
+*between P8 and P9* ([work plan P8A](01-work-plan.md)), so a reader arriving at
+§1.2 now finds the fourth key it was told to leave room for scheduled one phase
+out rather than four releases away. **The dependency runs the other way, and
+deliberately**: the work plan puts World after memory because specifying a scope
+against a store that does not exist is worse than widening a key over one that
+does. This phase therefore owes P8A a shape (§1.2) and waits on nothing of its.
+*The demo in the header is unaffected for a reason worth stating rather than
+assuming* — [08 §6](../08-cross-session-memory.md)'s new cross-World intake
+filter *"acts on a statement, never on its absence"*, and every session is
+Worldless until somebody makes one, so it admits everything at this phase and
+C1's two sessions are two sessions in no World at all.
+
 **One thing that would block and does not exist yet: a four-hundred-turn session
 anybody has played.** `tools/seed.mjs` writes a treatment, a lorebook and a
 session and **no turns at all**. A synthesised tree built through `appendTurn` is
@@ -340,6 +354,24 @@ assertion goes with it* — otherwise *"either the answer or is deleted"* is
 enforced by nobody, and [P7](23-p7-implementation.md)'s gate step 1 is the worked
 example of a deliverable nothing noticed.
 
+***A second beneficiary the decision was not made for, and it arrives one phase
+later*** (2026-09-14). Nothing in this section assumed anything about when World
+would be built — it never mentions it — but the deletion above is a commitment,
+and the obvious question a reader now asks is whether it was made a week before
+the phase that would have wanted the folder back. It was not, and the reason is
+the same query argument. [P8A](29-p8a-world.md) brings a memory book keyed on a
+**World** rather than on an actor (§1.2) — a lorebook on
+[08 §2](../08-cross-session-memory.md)'s terms if that document's *probably*
+holds — and under the option taken here that book is **a different predicate over
+the same table**: the `object` row carries the whole body, so *the memory book
+for `(handle, actorId, personaId)`* and *the memory book for this World* differ
+in a `where` clause and in nothing else. Under the second option the fourth key
+would have arrived as an ingest change against a second root. **So
+`memoriesRoot()`'s deletion is permanent rather than provisional** — the phase
+most likely to want a second store is the very next one, and it wants a query
+too. *A reason the section did not have when it decided, pointing the same way,
+which is the only kind of late arrival worth recording.*
+
 ### 1.2 Book granularity, decided knowing a fourth key is coming
 
 [08 §8](../08-cross-session-memory.md) leaves open whether memory is *per
@@ -347,13 +379,68 @@ example of a deliverable nothing noticed.
 persona tags and filtered retrieval* — fewer objects against more query
 complexity. The section also names the thing that should decide it: **a fourth
 scope key already has a name.** Narrator-level memory is a World
-([15](../15-world.md)), and the bearing on 1.0 is narrow but real —
+([15](../15-world.md)), ~~and the bearing on 1.0 is narrow but real~~ —
 **nothing may hard-code the three-tuple into how books are keyed and named on
 disk.**
 
 That constraint is cheap under either answer and is the part to hold; the
 granularity itself can be decided on volume once PLAYABLE and P5 have produced
 real sessions.
+
+#### The key is not coming — it is the next phase, 2026-09-14
+
+***This section's title reads as a caution about a distant release, and what it
+describes is now a dependency between two adjacent phases.*** World moved out of
+4.0 and into 1.0 on the discovery that it and [04 §9](../04-schemas.md)'s Package
+were one object approached from opposite ends ([15 §0](../15-world.md)), and the
+phase that builds it — [P8A](29-p8a-world.md) — sits **immediately after this
+one**, for a reason that is this section's rather than the calendar's:
+[work plan P8A](01-work-plan.md) puts it there because *"building World first
+would mean specifying a scope against a memory store that does not exist;
+building it later means widening a key over stored memories, which is a
+migration."* **So the constraint is not room left for a later release. It is the
+interface the next phase arrives on, and it is answerable at that phase's exit.**
+
+**The granularity question itself does not move, and nothing here decides it.**
+[08 §8](../08-cross-session-memory.md) wanted volume and PLAYABLE still owes it;
+P8.2 ships one book per `(actor, persona)` because that is the shape that cannot
+be wrong about retrieval, not because the question closed. What changes is that
+the constraint above can be stated as a shape rather than as a caution — and
+stated as a shape it is **sharper than *leave room for a fourth element*, which
+is what this section assumed and which is wrong.**
+
+[08 §8](../08-cross-session-memory.md)'s amendment names two consumers of the key
+at 1.0, and they are not the same shape:
+
+- **A book of the World's own** — what the narrator knows about this canon,
+  keyed on the World and **not on an actor at all**. That is a *sibling* of the
+  books this phase builds rather than a wider version of one, which 08 states in
+  as many words: *"the fourth key §8 names is a different object from any of
+  this."* A naming scheme extended to `(actor, persona, world)` would
+  accommodate it and would also be a lie about what it is.
+- **A qualifier on intake**, where the World a session belongs to decides which
+  origin sessions [08 §4](../08-cross-session-memory.md)'s auto state admits.
+  [08 §6](../08-cross-session-memory.md) prices this at *"one clause"* and says
+  why it costs the keying nothing: books stay scoped `(user, actor, persona)`,
+  and the filter reads the **origin ref** every entry already carries (§1.4) to
+  ask which World a memory came from.
+
+**So the constraint restated, and it is two clauses rather than one:** the
+resolver must be able to ask for a book whose key is not an actor tuple, and a
+stored entry must be able to say which session it came from. ***The second is
+already this phase's work*** — §1.4's origin ref exists for attribution and turns
+out to be the intake filter's input as well, which is the happiest kind of
+constraint to inherit. The first binds P8.2's naming and the resolver's
+predicate, and nothing else.
+
+***And what makes both cheap is §1.1's answer rather than this section's
+foresight***, which is worth recording because the two decisions were reached
+independently. A library lorebook's address is `owner/schemaId/slug` and carries
+no tuple at all: what carries the tuple is the book's *name* and whatever the
+resolver matches on. Under §1.1's first option the resolver is a query over a
+table that holds every lorebook's body, so a book keyed on a World is **a
+different `where` clause over the same table** — not a second store, not a second
+address shape, and not a migration of the first.
 
 ### 1.3 Extraction cadence, and whether it is one pass or two
 
@@ -427,8 +514,17 @@ sentence down.
 defence cannot be built before P7 and must not be deferred past this phase — an
 extractor that ships without it is an extractor that has to be re-run over its
 own output later. The cheaper mitigation, warning at session creation when a new
-session's treatment or package matches an existing one, is independent and lands
-here too.
+session's treatment ~~or package~~ matches an existing one, is independent and
+lands here too.
+
+*And it lands here as the **treatment** half alone, 2026-09-14.*
+[08 §6](../08-cross-session-memory.md)'s *package* was the content bundle, which
+is now a World, and 08 puts that clause at [P8A](29-p8a-world.md) with the key
+while saying this phase should build the proxy regardless — *"it ships before
+Worlds do and a warning is worth having in the meantime."* **The trigger sharpens
+later rather than retires**: *same treatment* was always a proxy for *you are
+about to replay something*, and the precise form is **same material, different
+canon**, which cannot be asked until there is a canon to differ from.
 
 *And the reason entrances are worse than premises, worth keeping in view while
 implementing:* an entrance is not a summary of an arrival, it is the finished
@@ -853,8 +949,14 @@ describes.
 *Deliberately not built.* **Granularity is not decided here** — §1.2 says the
 constraint is the part to hold and the answer wants volume, so: one book per
 `(actor, persona)`, because that is the shape that cannot be wrong about
-retrieval, with the **naming** carrying the tuple in a form a fourth key extends.
-No `LoreScope.linked` revival, for finding 8's reason.
+retrieval, with the **naming** carrying the tuple in a form ~~a fourth key
+extends~~ **that is not the only shape a memory book's name may take** — §1.2's
+constraint restated 2026-09-14, now that the fourth key is
+[P8A](29-p8a-world.md)'s and is a *sibling* book keyed on a World rather than a
+fourth element on this tuple. No `LoreScope.linked` revival, for finding 8's
+reason — and none for the `world` variant either, which is
+[15 §5](../15-world.md)'s and arrives with the object that gives a world id
+meaning.
 
 *Ends at:* an empty memory book created by the first write, opening in the
 ordinary lorebook editor at its library address, badged as derived on the shelf,
@@ -963,11 +1065,21 @@ is not a summary of an arrival, it is the finished prose of one* — and it want
 **refusal with a reason rather than a filter**: extraction declines a turn whose
 record shows an entrance block, and says so.
 
-*Deliberately not built.* [08 §6](../08-cross-session-memory.md)'s third bullet —
-whether sessions from the same package default to not sharing — stays `[OPEN]`,
-for that document's own reason (*probably too clever*). **And no retrospective
-sweep over already-extracted books**, because §1.5's whole argument is that this
-must not be deferred past the phase *precisely so* there is nothing to sweep.
+*Deliberately not built.* ~~[08 §6](../08-cross-session-memory.md)'s third
+bullet — whether sessions from the same package default to not sharing — stays
+`[OPEN]`, for that document's own reason (*probably too clever*).~~ **Answered,
+and struck rather than quietly corrected because 08 names this sentence as the
+reason it struck its own bullet instead of editing it** (2026-09-14). *The same
+package* was a fact about where sessions came from; membership of a World is a
+statement about continuity, and the question splits along that seam — inside a
+World, share; across Worlds, auto-off. **Nothing changes in this stage**, and now
+for a better reason than *too clever*: the filter acts on a statement and never
+on its absence, every session is Worldless until somebody makes one, and so it
+admits everything here. It lands with the key at [P8A](29-p8a-world.md).
+
+**And no retrospective sweep over already-extracted books**, because §1.5's whole
+argument is that this must not be deferred past the phase *precisely so* there is
+nothing to sweep.
 
 *Ends at:* the demo, and the negative half of it — a hook premise fired in
 session one does not appear as a memory in session two, and neither does an
@@ -1106,8 +1218,10 @@ customer if they are ever built, and saying so is not scheduling them);
 cross-actor memory, *Vera recalling that she and Tomas both know you*
 ([08 §3](../08-cross-session-memory.md), which multiplies the scope matrix and is
 explicitly not 1.0); narrator- or World-scoped memory
-([15](../15-world.md) — but §1.2's constraint is in scope); memories writing
-state (§1.6, and it is a rule rather than a deferral); session export
+([15](../15-world.md) — **[P8A](29-p8a-world.md)**'s as of 2026-09-14, the next
+phase rather than a later release, though §1.2's constraint is in scope and is
+now the interface that phase arrives on); memories writing state (§1.6, and it is
+a rule rather than a deferral); session export
 ([26 B12](../26-open-questions.md)), which is where the non-shareable marking will
 eventually have to be enforced rather than merely warned about.
 

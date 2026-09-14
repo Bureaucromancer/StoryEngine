@@ -512,7 +512,7 @@ So:
 ```
 /data/system/library/        shipped with the app. Read-only. Loads for everyone.
 /data/users/<handle>/
-  library/                   actors, lorebooks, treatments, packages, presets
+  library/                   actors, lorebooks, treatments, setups, presets, worlds
   sessions/
   connections/
   memories/
@@ -546,6 +546,22 @@ So:
   user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
   are precisely the thing that would make a future split or merge painful, so
   they must not exist.
+
+**`worlds/` was `packages/`, and the folder changed in more than its name.** A
+Package was specified to dissolve on import, so an entry there was whatever
+somebody had chosen to keep of a bundle that had already been taken apart. A
+World does not dissolve: it is durable, and what it holds is **refs** to
+members living in the folders beside it and edited there
+([04 §9](04-schemas.md), [15 §4](15-world.md)). That is what makes it a library
+kind like the other five rather than a landing place for arrivals — and it
+makes it the kind whose membership is nothing but those refs, which is where
+the bullet above will be leaned on first. It does not bend: **a World's members
+resolve inside its owner's library or dangle visibly**, because a World naming
+somebody else's objects could not be moved, copied or published without first
+deciding whose they are — this section's opening argument arriving in a
+container. A World from another install comes through the ordinary import
+review ([10 §5](10-ui-surfaces.md)) as objects of this user's own, and names
+those ([15 §4](15-world.md)).
 
 #### Keeping the merge path open
 
@@ -1257,11 +1273,21 @@ project asks copyleft of one category and nothing of the other
 
 - **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
   process.
-- **Content is the author's own** — actors, treatments, lorebooks, presets,
-  sessions, and packages including their authored rules. These are data the
-  program produces, not derivative works of it. Nobody's characters become AGPL
-  by being authored here, and a package of rules can be licensed however its
-  author likes, or not at all.
+- **Content is the author's own** — actors, treatments, lorebooks, setups,
+  presets, sessions, and Worlds including their authored rules. These are data
+  the program produces, not derivative works of it. Nobody's characters become
+  AGPL by being authored here, and a World, rules and all, can be licensed
+  however its author likes, or not at all.
+
+**The rules clause is the half that has to be said out loud**, because it is
+the one place where content gets close to looking like code. Authored rules —
+which a World or a treatment may carry
+([06 §4.1](06-modes-and-turn-pipeline.md)) — are terms in a closed vocabulary
+the engine interprets, never code it runs ([15 §8](15-world.md),
+[26 A2](26-open-questions.md)), which is what keeps them on this side of the
+boundary, and what makes accepting somebody's World a data decision rather than
+a code-execution one. Anything a World could *execute* would be a code
+extension wearing a content kind's name, and would belong in the bullet above.
 
 Saying both halves clearly and in the same place is the cheapest available
 defence against the misreading that copyleft is creeping into people's stories.

@@ -23,7 +23,7 @@ Internal structures can be migrated on upgrade because we own every copy.
 
 | Tier | Structures | Commitment |
 |---|---|---|
-| **Stable** | Actor, Lorebook, Treatment, Setup, Package, and the shared substructures in §3 | Define now, change only additively, version on breakage |
+| **Stable** | Actor, Lorebook, Treatment, Setup, World, and the shared substructures in §3 | Define now, change only additively, version on breakage |
 | **Provisional** | Preset (§8) | Portable, so it needs a schema — but at `/0`, which says the shape will move |
 | **Free to move** | Session, Turn record, Channel state, rule vocabulary | Internal. Migrate at will |
 
@@ -33,17 +33,37 @@ installs — it is the object this ecosystem trades most — so calling it inter
 was a contradiction with [03 §1](03-data-model.md), which lists it as portable.
 §8 works through the consequences.
 
-**Package used to be a prototype exception and no longer is.** It was marked
-unstable because it carried a game definition — an `entry` block naming a mode,
-a treatment and a cast — that nobody had tested against real authored content.
-Splitting that out into Setup (§7) leaves Package as a self-describing container
-(§8) with almost no surface of its own: it does not enumerate the kinds it
-holds, so a new portable kind does not change it. What was genuinely unstable was
-the game definition, and that is now a normal object versioned like the rest.
+**~~Package~~ World used to be a prototype exception and no longer is.** It was
+marked unstable because it carried a game definition — an `entry` block naming a
+mode, a treatment and a cast — that nobody had tested against real authored
+content. Splitting that out into Setup (§7) leaves the kind a self-describing
+container (§9) with almost no surface of its own: it does not enumerate the kinds
+it holds, so a new portable kind does not change it. What was genuinely unstable
+was the game definition, and that is now a normal object versioned like the rest.
 
-The asymmetry that justified the exception still holds and is worth keeping in
-mind: **breaking a container costs a re-export; breaking an Actor costs somebody's
-character.**
+> **The strike is the whole of what the rename cost this paragraph**
+> ([15 §0](15-world.md) records the rename itself): `storyengine.package/1`
+> became `storyengine.world/1`, and the argument above survives word for word,
+> because it is an argument about how little surface a self-describing container
+> has. That is unchanged by what the container is *for* — which is the part that
+> changed entirely, in [15](15-world.md) and §9.
+>
+> **The count of portable kinds did not move. Six before, six after.** The kind
+> was renamed, not added, which is why [work plan §0.2](workplan/01-work-plan.md)'s
+> release check — *World must add no portable kind at all* — is **satisfied**
+> rather than overruled. It was written to stop a play-side convenience growing
+> into a format commitment nobody had designed; what happened is that a format
+> commitment which already existed turned out to be the thing the convenience
+> was reaching for ([15 §3](15-world.md)).
+
+The asymmetry that justified the exception still holds, and the rename adds one
+clause to it rather than upsetting it: **breaking a container costs a re-export;
+breaking an Actor costs somebody's character.** A World is now durable in the
+library and not only on the wire (§9), so breaking the envelope costs a migration
+as well as a re-export — a real cost, and still not the same order of cost,
+because a stored World **names** its members rather than containing them
+([15 §4](15-world.md)). Migrating a set of refs loses nobody's work. The
+ordering the exception rested on is intact; the gap narrowed.
 
 **Turn records are internal despite being large and valuable.** They never leave
 the install, so they can churn freely — which matters, because the assembler
@@ -109,6 +129,15 @@ interface LoreLink {
 
 /** Where an object came from and who made it. */
 interface Provenance {
+  /** ⚠ `"package"` is the former name of the kind §9 now calls World, and it
+   *  stays spelled the old way **deliberately**. Nothing writes it — no
+   *  importer, no publish path, nothing — so the stale word costs a reader a
+   *  moment and costs the engine nothing. Renaming it does not: `Provenance` is
+   *  a shared substructure, so a member changed here is a member changed in
+   *  every published schema at once, and a rename is a semantic change by
+   *  [§2](#2-versioning-and-compatibility)'s own rule — six version bumps to
+   *  correct a string that never appears in a file. It waits for a decision of
+   *  its own, taken with the other union members rather than as a tidy-up. */
   source: "manual" | "import" | "generated" | "package" | "session"
   creator: string | null
   /** Author's own version string. Free text; not our schema version. */
@@ -214,7 +243,7 @@ type MediaRole =
  *  and video live in the folder as `assets`. */
 /** A *reference* to bytes carried by the container, never the bytes themselves.
  *  An earlier draft had `bytes: Uint8Array`, which has no representation in
- *  JSON Schema and no meaning at all inside a `.sepack`, where there is no PNG
+ *  JSON Schema and no meaning at all inside a `.seworld`, where there is no PNG
  *  chunk to point at. The manifest form works in every container: a PNG private
  *  chunk, a zip entry, or a folder. */
 interface EmbeddedMedia {
@@ -222,7 +251,7 @@ interface EmbeddedMedia {
   role: MediaRole
   mime: string
   /** Content hash of the bytes — `sha256:<hex>`. The identity of the blob, and
-   *  what makes duplicate media across a package store once. */
+   *  what makes duplicate media across a World store once. */
   digest: string
   bytes: number
   /** Where the container keeps it. A PNG chunk blob index, a zip entry path, or
@@ -477,11 +506,22 @@ interface Lorebook {
 /** One mechanism, three behaviours, mutual exclusion by construction. Replaces
  *  characterId + characterIds + personaId + personaIds + chatId + isGlobal +
  *  scope, and the save-time rule that kept them consistent. [03 §3.4] */
-/** Portable scopes only. `global` and `linked` travel — an actor id is portable
- *  and resolves or dangles like any other Ref ([00 §3.3](00-stance.md)). */
+/** Portable scopes only, and all three are. An actor id is portable and resolves
+ *  or dangles like any other Ref ([00 §3.3](00-stance.md)); a world id is
+ *  portable because the World that gives it meaning travels beside the book that
+ *  names it ([15 §5](15-world.md)). */
 type LoreScope =
   | { kind: "global" }
   | { kind: "linked"; actorIds: string[] }    // personas are actors
+  /** Contributes at session creation to sessions started in one of these
+   *  Worlds. [15 §5](15-world.md); the argument for why this arm is legitimate
+   *  where the refused one below is not is directly underneath. */
+  | { kind: "world"; worldIds: string[] }
+
+// "Three behaviours" has been describing two ever since session scoping was
+// cut, and is accurate again by accident. Noted rather than quietly corrected,
+// because the arm that restores the count is the one the next paragraphs exist
+// to justify, and a reader who stops on the number should find it accounted for.
 
 // Session scoping is NOT here. Session ids are install-local, so a shared
 // lorebook carrying them exports identifiers that are meaningless everywhere
@@ -491,6 +531,14 @@ type LoreScope =
 // ([03 §8](03-data-model.md)), pointing outward at the lorebook rather than the
 // lorebook pointing inward at the session.
 
+// And that test is exactly what admits `world`. The refusal above turns on one
+// property — an install-local identifier is meaningless to the recipient — and
+// a world id does not have it. A World is a portable kind carrying a stable id
+// (§9), so a book scoped to one means on arrival what it meant at home: the
+// World travels in the same file, and is the thing that gives the id meaning.
+// Two arms, one test, opposite answers. That is the difference between them and
+// it is the whole of it.
+
 // And as of [P5.7]'s reversal, that outward-pointing link is the ONLY way a
 // lorebook reaches a session: `session.lore`, or the treatment the session
 // names. NOTHING READS THIS FIELD. It is carried, exported and preserved on
@@ -499,11 +547,53 @@ type LoreScope =
 // person owned into every prompt — `global` being both this schema's factory
 // default and the SillyTavern importer's fallback ([03 §3.4]).
 //
-// Two questions left open rather than settled, in [26](26-open-questions.md):
-// §B14, may `scope` narrow a book the session already chose; and §B15, what a
-// new book's scope should default to. [15 §5.3](15-world.md) is where a
-// consumer would come from — inheritance, designed, not inferred from the
-// union's wording.
+// ── Amended with the `world` arm ──
+//
+// The sentence in capitals was true for two years and stops being true when
+// that arm ships. It is kept rather than struck, because it is the reason the
+// arm is shaped the way it is. What P5.7 reversed was a field admitting a book
+// to a session on the book's own say-so, at retrieval time, on every turn, with
+// the widest value in the union as the factory default. `world` does none of
+// those four things: it contributes *once*, at session creation, by copying into
+// `session.lore`, where a person sees the result and can unselect it — prefill,
+// never binding ([00 §3.1](00-stance.md), [15 §5](15-world.md)). The rule that
+// a lorebook reaches a session *by being selected, and by nothing else*
+// ([03 §3.4](03-data-model.md)) is intact; a World is one more thing that can
+// do the selecting, in the open, at the one moment selections are made. A
+// library is still not a world. A World is a *subset* of a library that somebody
+// named, which is what `global` was reaching for and had no honest way to say.
+//
+// **Additive, and this stays `storyengine.lorebook/1`** — on one condition,
+// which is [§8.2](#82-the-schema)'s rule and has to be met here rather than
+// assumed: *a portable enum is a `string` with known values documented, not an
+// `enum`, unless the engine truly cannot proceed without understanding it.* So
+// the discriminant has to be emitted **open**, and a build that predates this
+// arm must preserve an unrecognised scope verbatim and treat it as contributing
+// nothing. That degradation is exactly `linked` with an empty actor list, which
+// is the new default below — the old build's behaviour and the new default's
+// behaviour are the same behaviour, and nobody is stranded. Emit it closed and
+// the addition is a `/2` after all, discovered silently at somebody's first
+// import.
+//
+// **This arm answers one of the two questions [26](26-open-questions.md) left
+// open here, and confirms the other rather than reopening it:**
+//
+// - **§B14 — may `scope` *narrow* a book the session already chose? Still no.**
+//   A contributing arm is not a subtracting one, and giving the field a consumer
+//   does not give it that one. A person who selected a book and then saw nothing
+//   from it would be learning that a field on the *book* had overruled their
+//   choice, which is P5.7's surprise pointing the other way
+//   ([15 §5](15-world.md)).
+// - **§B15 — what should a new book's scope be? Answered: `linked` with an
+//   empty actor list.** The narrowest honest statement — *this book has not said
+//   where it applies* — and exactly today's behaviour for a book nobody scopes.
+//   The question could only be answered once something read the field, which is
+//   what changed; *"a field nobody sets should not default to the widest value
+//   in its own union"* becomes actionable rather than merely true. `global`
+//   stays in the union: the format carries it, the SillyTavern importer produces
+//   it, and an import must preserve what it was handed
+//   ([§2](#2-versioning-and-compatibility)). What moves is what we write into a
+//   new book, never what we accept in an old one.
 
 interface LoreFolder {
   id: string
@@ -634,6 +724,10 @@ removed rather than renamed, and the reasons compound:
 The trigger was the collision — `category: "world"` alongside a reserved World
 concept ([15](15-world.md)) — but the collision only made the field worth
 reopening. What was found on reopening is why it is gone rather than renamed.
+The reservation has since been spent, deliberately and on this kind (§6, §9),
+which is what clearing this collision early bought: the name was free when it
+was wanted, so no published schema had to be bumped to release it
+([15 §9](15-world.md)).
 
 ### 5.1 Images on lore
 
@@ -720,8 +814,28 @@ work: a Treatment of Rain City does not describe Rain City.
 > The second reason was mechanical: `Setting` was one case-fold from the
 > configuration surface, and the collision was already on disk — the kind's
 > library folder was `settings/` while the app's config screen was Settings.
-> **`World` is now reserved** for the 4.0 continuity container over sessions
-> ([15](15-world.md)) and is deliberately not spent on a library label.
+> ~~**`World` is now reserved** for the 4.0 continuity container over sessions
+> ([15](15-world.md)) and is deliberately not spent on a library label.~~
+>
+> **The reservation has been spent, and spending it was the point.** `World` is
+> now a library label: the name of the portable kind in §9, with a panel and a
+> folder of its own, and the subject of [15](15-world.md). The reservation was
+> never a promise never to use the word — it was a hold on the word until the
+> object that deserved it turned up, and it did its job in the interval. Two
+> stable schemas gave the word back while it was held — `PlotHook`'s
+> `scope: "world"`, renamed `magnitude` in §6.1, and `Lorebook.category: "world"`,
+> removed in §5 — so when the kind needed the name, nothing had to be bumped to
+> free it ([15 §9](15-world.md)). What it was being held *for* has also moved:
+> the 4.0 continuity container is at 1.0, and it turned out to be the thing this
+> document had been calling Package all along.
+>
+> **None of that reaches Treatment, and the rename above still stands.** The
+> objection that disqualified `World` as a name for *this* object is untouched —
+> *the world lives in the lorebook, so the pair reads backwards* — and it is the
+> same distinction [15 §9](15-world.md) now writes as a rule: lowercase "world"
+> in prose is the material, capital-W World is the kind that holds the lorebook,
+> the treatment and the rest. A Treatment is a *member* of a World and is not
+> one, and the invariant at the top of this section is the whole reason.
 
 ```ts
 interface Treatment {
@@ -1035,9 +1149,9 @@ the open, and is the correct place for such a choice to live.
 
 ## 7. Setup — how to start playing
 
-An earlier draft folded this into Package, which conflated two unrelated jobs:
-*what a game is* and *how to move objects between installs*. Split, both get
-simpler.
+An earlier draft folded this into the portable container — `Package` then, World
+now (§9) — which conflated two unrelated jobs: *what a game is* and *how to move
+objects between installs*. Split, both get simpler.
 
 A **Setup** is an ordinary library object like any other. It says which mode,
 which treatment, which cast, which preset, which opening — everything needed to
@@ -1737,15 +1851,56 @@ dislikes how "hard" behaves can read the fragment that caused it and change it.
 
 ---
 
-## 9. Package — a bundle, and nothing else
+## 9. World — a named set, and the envelope that carries it
 
-With Setup carrying the game definition, a Package is reduced to what it always
-should have been: **an arbitrary bundle of portable objects, for moving them
-between installs.**
+**Named `Package` until the rename** ([15 §0](15-world.md) records it and makes
+the argument): `storyengine.package/1` became `storyengine.world/1`, the object
+file became `world.json`, the library folder `library/worlds/`, and the exchange
+extension `.seworld` where it was `.sepack`. `.seactor` and the other
+single-object forms are untouched, because a single object of a single kind still
+leaves as itself ([16 §2](16-publish.md)).
+
+**This section is a rename plus an addition, not a rewrite**, and the division is
+worth stating before anything else. Every rule below about the *envelope* was
+written for Package, is unchanged for World, and is unchanged on purpose: the
+open payload union, the validate-the-envelope-never-the-payload rule, the absent
+`entry` field, the `requires` block. What is new is that the thing the envelope
+describes **also exists in the library when no file is being written**, and that
+is the half [15](15-world.md) owns.
+
+**Why it was renamed, in one paragraph.** Package was specified as a pure
+envelope whose contents are embedded copies resolved on import — the container
+dissolves the moment it arrives. But [06 §4.1](06-modes-and-turn-pipeline.md)
+lets a `ChannelDefinition` be *owned* by a package id and has a package carry a
+`rules` collection, which asks a dissolved container to own live session state
+and state rules about it. What that field needs is a durable, in-install,
+authored object the engine can read at turn time — which is precisely what
+[15](15-world.md) had been describing from the other end and declining to build.
+Two documents were each holding half of one object. **So the kind was renamed,
+not joined: six portable kinds are still six** (§1).
+
+**What a World *is*** belongs to [15](15-world.md) and is not restated here. It
+does four things, and the useful question for a schema note is what each of them
+costs this shape — which is startlingly little, and is the evidence that the two
+documents really were describing one object:
+
+| | Argued in | What it costs this schema |
+|---|---|---|
+| **Membership** | [15 §4](15-world.md) | The stored-versus-wire distinction below — the meaning of one field |
+| **Contribution** | [15 §5](15-world.md) | The `world` arm of `LoreScope` (§5), and nothing on this kind at all |
+| **Accrual** | [15 §6](15-world.md) | A stable, portable `id`, which it already had |
+| **Transport** | §9, below | The envelope, unchanged from Package |
+
+**A stored World names its members. A published World carries them.** Embedding
+is a fact about the file; linking is a fact about the store
+([15 §4](15-world.md)). Both failures are real and neither is recoverable: a
+stored World full of copies is a second representation of every object in it and
+drifts the moment anyone edits anything ([00 §2.8](00-stance.md)); a wire form
+full of refs strands every recipient.
 
 ```ts
-interface Package {
-  schema: "storyengine.package/1"
+interface World {
+  schema: "storyengine.world/1"
   id: string
   name: string
   version: string
@@ -1753,8 +1908,20 @@ interface Package {
   media: EmbeddedMedia[]
 
   /** Self-describing portable objects — each carries its own `schema`. The
-   *  package does not enumerate kinds, which is exactly why it stays stable
-   *  when a new kind appears (as Setup just did). */
+   *  World does not enumerate the kinds it holds, which is exactly why it stays
+   *  stable when a new kind appears (as Setup once did).
+   *
+   *  **This is the wire form**, and it is the one field the distinction above
+   *  touches. A stored World's members are real library objects named by
+   *  reference; only a published one embeds. Which of two shapes carries that
+   *  — a `members` ref list kept beside this field, or member object folders
+   *  inside the `.seworld` zip with this field retired
+   *  ([03 §5.2.3](03-data-model.md)'s folder-as-file) — is
+   *  [15 §4](15-world.md)'s **[OPEN]**, which leans to the second and is not
+   *  this section's to close. Until it closes, **nothing may grow a second
+   *  representation of a member object**: that is the one move either answer
+   *  would have to undo, and the only way to be wrong before the question is
+   *  even decided. */
   contents: PortableObject[]
 
   requires: {
@@ -1767,9 +1934,9 @@ interface Package {
   metadata: Record<string, unknown>
 }
 
-/** Open, not closed. The comment above says the package does not enumerate
+/** Open, not closed. The comment above says the World does not enumerate
  *  kinds; an earlier draft then enumerated them one line later, which meant an
- *  older reader would reject a package containing a kind it had never heard of
+ *  older reader would reject a file containing a kind it had never heard of
  *  — exactly the stranding [§2](#2-versioning-and-compatibility) forbids. */
 type PortableObject =
   | Actor | Lorebook | Treatment | Setup | Preset
@@ -1786,38 +1953,75 @@ interface UnknownPortableObject {
 }
 ```
 
+**A World is not listed in its own payload union**, which passed without comment
+while the container and the kinds had different names and does not deserve to
+now. The union is unchanged from Package's and the absence stands, because
+nothing produces a nested World: [16 §4](16-publish.md)'s walk follows a World to
+its *members* and stops, and membership is not ownership
+([15 §4](15-world.md) — an object may belong to several Worlds and to none), so
+there is no containment relation for a nested entry to represent. Listing the arm
+would promise a nesting semantics nobody has designed. It is a refusal by
+omission and not a rejection: by the envelope rule below, an entry this reader
+has no place for is carried through intact either way, so what is undefined here
+is what a nested World would *mean* — never whether one would survive the trip.
+
 **The container validates the envelope, never the payload kind.** A reader
 checks that each entry has a `schema` and an `id`, resolves what it recognises
-through the registry, and carries the rest through untouched. That is what makes
-Package stable when a new kind appears, and it is the same rule as
-[§2](#2-versioning-and-compatibility)'s unknown-field preservation applied one
-level up.
+through the registry, and carries the rest through untouched. That is what kept
+Package stable when a new kind appeared, it is what keeps World stable now, and
+it is the same rule as [§2](#2-versioning-and-compatibility)'s unknown-field
+preservation applied one level up. The rename does not touch it, and
+[15 §8](15-world.md) holds the same sentence for the same reason.
 
-**No `entry` field.** A package containing one or more Setups is startable, and
-that is the whole mechanism — "start this" is "start that Setup". A package with
-no Setup is a content drop, which is a perfectly good thing to share and had no
-home before. *"Here are five characters and a lorebook"* is now expressible.
+**No `entry` field.** A World containing one or more Setups is startable, and
+that is the whole mechanism — "start this" is "start that Setup". A World with no
+Setup is a content drop, which is a perfectly good thing to share and had no home
+before. *"Here are five characters and a lorebook"* is now expressible.
 
-**It is stable now, and can be `/1`.** §1 marked it `/0` because it was
-carrying a game definition nobody had tested. As a self-describing container it
-has almost no surface of its own: new kinds do not change it, and the payload is
-made of independently-versioned objects.
+**It is stable now, and can be `/1`.** §1 marked it a prototype exception
+because it was carrying a game definition nobody had tested. As a self-describing
+container it has almost no surface of its own: new kinds do not change it, and
+the payload is made of independently-versioned objects. The rename did not
+disturb that — a container's stability is a property of how little it says about
+its contents, and this one says exactly as little as it did.
 
-Contents are **embedded copies resolved on import**, not links: links inside the
-package resolve within it first, then locally, then dangle visibly
+**Nothing widens on import, and the rename must never be the thing that widens
+it.** Contents are embedded copies resolved on import: links inside the file
+resolve within it first, then locally, then dangle visibly
 ([00 §3.3](00-stance.md)). `requires` is checked at import and produces a clear
 warning with a degraded-start option rather than a hard block where possible.
+There is nowhere in any portable kind to put an endpoint, a key or a per-install
+toggle ([00 §3.2](00-stance.md)), so **importing a stranger's World cannot
+repoint your provider or flip your content rating** — a property enforced by the
+type system rather than by discipline, and the reason it is safe to accept one at
+all ([15 §8](15-world.md)). A World may ship rules; it may never ship code
+([26 A2](26-open-questions.md)).
 
-### 9.1 One action produces a package
+### 9.1 One action produces a file
+
+> **This section was *One action produces a package***, which is the heading
+> [16 §1](16-publish.md) quotes when it points here; the words moved with the
+> kind and the section did not move at all. **The closure table below is still
+> the normative one** — [16 §4](16-publish.md) says so and reproduces it rather
+> than superseding it — because what a reference *means* when something follows
+> it is a fact about these schemas and belongs beside them.
+>
+> **What did move to [16](16-publish.md) is the flow and the surface**: what a
+> person sees, what they may untick, where the affordance lives, and what becomes
+> of the result. That was never this section's to hold, and holding it inside the
+> definition of one kind made a flow over every kind look like the container's
+> feature ([16 §1](16-publish.md)). Two rules below are therefore left as
+> pointers rather than restated, one paragraph is struck outright, and the
+> trailing **[OPEN]** closes.
 
 A container is only as good as the thing that fills it, and filling one by hand
 — find the treatment, find its three lorebooks, remember the actor whose own
 lorebook the cast depends on, check nothing dangles — is exactly the work nobody
-does. So **export-as-package is a single action on any library object**, and the
-package is assembled by walking references.
+does. So **publishing is a single action on any library object**, and the file is
+assembled by walking references.
 
-**The closure is computed, then reviewed.** Starting from the exported object,
-follow outbound references transitively and collect what they reach:
+**The closure is computed, then reviewed.** Starting from the object being
+published, follow outbound references transitively and collect what they reach:
 
 | From | Follows | Default |
 |---|---|---|
@@ -1829,15 +2033,21 @@ follow outbound references transitively and collect what they reach:
 | Setup | its own `lore[]`, and `cast.personaOptions` / `partyDefault` / `narrator` | included |
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
 
-Every level is shown, not just the first: the actor two steps out whose lorebook
-came along is named in the review, because "why is this package 40 MB" should be
-answerable before the file exists rather than after.
+**[16 §4](16-publish.md) adds two rows, and they are its to add rather than this
+section's.** World — *every member, and each member's closure* — and Session,
+which reaches the Setup it was started from and stops there. Both are starting
+points a *flow* admits rather than reference kinds these schemas define, which is
+the whole of why they live there: the World row is the case every row above is a
+special case of, and the Session row carries an exclusion (a session never
+implies its sibling sessions) that is a decision about what a person meant to
+send rather than about what a field points at.
 
-**Review, for the same reason import is a review step** ([10 §5](10-ui-surfaces.md)).
-Unchecking a `required` link is permitted and warned about, since `required`
-describes the author's intent and never blocks ([00 §3.3](00-stance.md)) — but
-it is the one case where the export says plainly that the recipient will be
-missing the world, not a nice extra.
+**The review is [16 §5](16-publish.md)'s**, and the two rules this section used to
+carry are now pointers rather than restatements: every level is shown rather than
+only the first, and unchecking a `required` link is permitted and warned about
+because `required` states the author's intent and never blocks
+([00 §3.3](00-stance.md)). Both were written here when nothing else existed to
+hold them, and neither was ever a fact about a schema.
 
 **`requires` is derived where it can be.** A Setup names a concrete mode, so
 `requires.modes` is populated from it rather than typed by hand; extension and
@@ -1851,17 +2061,78 @@ demand* rather than being the storage shape. The recurring pull toward folding
 world content and framing into one file is, at bottom, a request for this
 button.
 
-**Exporting produces a file, not a library object.** A package is a snapshot of a
-closure at one moment, and auto-saving one on every export would fill the library
-with near-identical bundles nobody chose to keep. Keeping the package — as a
-re-exportable object that remembers its closure and picks up later edits — is a
-separate, explicit *Save this package* action.
+> ~~**Exporting produces a file, not a library object.** A package is a snapshot
+> of a closure at one moment, and auto-saving one on every export would fill the
+> library with near-identical bundles nobody chose to keep. Keeping the package —
+> as a re-exportable object that remembers its closure and picks up later edits —
+> is a separate, explicit *Save this package* action.~~
+>
+> **Reversed, and the reversal is the whole of what the rename bought.** The
+> durable object is the point and the file is its image ([15](15-world.md),
+> [16 §3](16-publish.md)). Publishing a set of objects *is* how a World gets
+> authored, so keeping one is not a second action to remember — it is what the
+> action means.
+>
+> **The premise was right and applied to the wrong thing.** *Near-identical
+> bundles nobody chose to keep* is true of a snapshot, which is what a Package
+> was, and false of a *set*, which is what a World is: publishing the same World
+> twice produces two files and one object, because the second publish resolves
+> the same membership again. The old paragraph read the cost of auto-saving
+> snapshots correctly and concluded that the library object was the problem, when
+> the snapshot was.
+>
+> **One case stays a snapshot and [16 §3](16-publish.md) keeps it**: an ad-hoc
+> selection somebody does not want to keep produces a file and no object. It is a
+> choice in the review rather than an inference, because a person who wanted no
+> library entry should not have to delete one.
 
-**[OPEN]** Whether a saved package re-resolves its closure on re-export or
-replays the exact contents it was built with. The first keeps a shared campaign
-current; the second is the only one that reproduces a byte-identical artefact,
-which matters if packages are ever addressed by hash. Lean: re-resolve, and show
-the diff.
+> ***[OPEN] closed: re-resolve.*** The question was whether a saved package
+> re-resolves its closure on re-export or replays the exact contents it was built
+> with, leaning re-resolve. **A World re-resolves, necessarily** — it holds refs
+> and its members are edited in place (§9, [15 §4](15-world.md)), so replay would
+> require the stored form to hold copies, which is the failure the
+> stored-names-members distinction exists to prevent. The lean was right; what
+> closed it was the shape of the kind rather than a preference between the two.
+>
+> **The half of the question that was about byte-identity survives, and is
+> answered rather than lost.** A published file *is* the frozen image and is
+> hashable the moment it exists, so addressing files by hash is unaffected. What
+> is genuinely given up is regenerating a byte-identical file from the World
+> later, and that is the right thing to give up: a set whose members have moved
+> on cannot honestly reproduce a file describing what they used to be. *Show the
+> diff* was the right instinct and is [16 §5](16-publish.md)'s — re-publishing
+> opens on what changed.
+
+### 9.2 Two senses of one word, and only one of them became World
+
+Recorded in the schema note because this is where somebody arrives holding the
+question, and because the corpus is large enough that the tempting fix is a
+find-and-replace — which would be wrong everywhere the second sense below is the
+one meant, and would look right while it was.
+
+- **The content bundle** — the portable kind defined above, the thing a
+  `.seworld` holds. **This is what became World.**
+- **A first-party namespace that owns a channel** — `storyengine.lore`,
+  `storyengine.cast`, `storyengine.goals`, `storyengine.suggest`, and the
+  `PackageId` arm of [06 §4.1](06-modes-and-turn-pipeline.md)'s
+  `ChannelDefinition.owner`. **This did not become World and must not.** It is a
+  code namespace P7 shipped, and it answers *who owns this channel definition*,
+  not *which file did this arrive in*.
+
+**[06 §4.1](06-modes-and-turn-pipeline.md) used both senses at once**, which is
+how the defect [15 §0](15-world.md) names — a channel owned by a container
+specified to dissolve on arrival — stayed invisible as long as it did. Two
+meanings in one word is what let a sentence be true under one reading and
+incoherent under the other without anybody having to notice which they were
+using. The rename separates them by taking the word away from the bundle
+entirely, which is a better outcome than qualifying both uses and hoping;
+[15 §9](15-world.md) records the same collision from the other side, and
+[06 §4.1](06-modes-and-turn-pipeline.md) is where the owner union itself gets
+disentangled.
+
+**The workspace sense is a third thing and is nobody's business here.**
+`packages/server`, `package.json`, `packageManager`: npm's word, unrelated to
+either, and untouched by any of this.
 
 ---
 

@@ -10,9 +10,11 @@ browser performance profile was taken for this note.
 **The planning assumption is continued growth.** The client has reached this
 size with much of the intended application still ahead of it. Modes, richer
 editors, memory inspection, renditions and localisation will add browser code;
-Write, World and authoring add whole surfaces later. The next few phases should
-be expected to increase the bundle. Neither ordinary cleanup nor the end of
-the current phase is a reason to expect that trend to reverse.
+~~Write, World and authoring add whole surfaces later~~ **Write and authoring
+add whole surfaces later, and World arrives inside this release without being
+one** (§3). The next few phases should be expected to increase the bundle.
+Neither ordinary cleanup nor the end of the current phase is a reason to expect
+that trend to reverse.
 
 This note gives that future work an address and compares the options. It
 changes no build setting, assigns no new implementation stage, and makes no
@@ -87,13 +89,49 @@ different kinds of pressure:
 - **P8 and P9:** memory/summary inspection and rendition presentation. Image
   bytes are a separate budget, but selectors, viewers and their controls still
   add JavaScript. Code splitting does not reduce the size of an illustration.
+- **P8A, which lands between those two:** the World panel, a membership view
+  that renders in both directions ([10 §5](10-ui-surfaces.md)), and the story
+  bible that [15 §7](15-world.md) ships beside the container rather than after
+  it. That note calls the bible cheap and is right about what it means — no new
+  data, a reader over records the pipeline already writes — but cheap in data is
+  not cheap in bytes. A reader is still a view with its own layout, filters and
+  empty states.
 - **P10 and P11:** more administration, notifications, richer editing,
-  assistance and localisation. Translation resources can have a language
-  boundary as well as a feature boundary.
-- **Later surfaces:** Write's binder and prose tooling, World, and authoring.
+  assistance, Publish's review over a computed closure
+  ([16 §5](16-publish.md)), and localisation. Translation resources can have a
+  language boundary as well as a feature boundary.
+- **Later surfaces:** Write's binder and prose tooling, and authoring.
   Their release order remains [work plan §0](workplan/01-work-plan.md)'s. They
   should not become part of resuming a Play session just because one client
   hosts all of them.
+
+**Amended 2026-09-14: World appeared here and in the opening as a later
+surface, and it is neither a surface nor later than this release.** It ships in
+the 1.0 series as a portable library kind with a panel beside the other five,
+and Publish is a flow in the Library rather than a fourth top-level place
+([15 §3](15-world.md), [16 §6](16-publish.md), [10 §2](10-ui-surfaces.md)).
+**Half of that was owed before this note was written.** *World is not a surface*
+is the one clause of [15](15-world.md)'s old refusal that its rewrite left
+standing, so the original sentence was right about the release order it had and
+wrong about the shape on the day it was typed. Moving the kind into 1.0 changes
+only the address: the cost lands at P8A and P11 rather than after them.
+
+**The correction is worth more than the tidy-up, because the mechanism above
+does not care which it was.** Cumulative reachability is indifferent to
+navigation. A sixth portable kind costs the browser nothing at all until
+something imports a view of it, and this one did not even widen the shared
+registry [§2](#2-where-the-current-application-makes-everything-an-arrival-cost)
+weighs: the kind was renamed rather than added, so six schemas are still six
+([15 §3](15-world.md)). `LIBRARY_KINDS` derives from that registry, so World
+reached the library filter without a line of client code written for it
+([`api.ts`](../../packages/client/src/api.ts)). What it costs is whatever its
+panel, its bible and its review pull in. A surface is a fact about
+navigation ([10 §2](10-ui-surfaces.md)); arrival cost is a fact about the import
+graph, and a panel reached from an eagerly imported Library page is as
+reachable as a page of its own. That is also why this is the expected growth
+this note accepts rather than a reason to interrupt feature work:
+[§7](#7-when-to-revisit-and-what-the-work-would-produce)'s trigger names a *new
+top-level surface*, and correctly does not fire here.
 
 This is a directional forecast. There is no defensible multiplier or future
 megabyte figure from one build, and no evidence yet that React, schemas or
@@ -138,9 +176,9 @@ the report shows that opening one subject still downloads too much unrelated
 tooling. Request the known subject alongside the frame where practical, rather
 than building a chain of sequential discoveries.
 
-Admin Settings, history/diff panels, import review, future rich editors and
-language resources are further candidates. A permission check still belongs on
-the server; deferred admin code is only a loading choice.
+Admin Settings, history/diff panels, import and publish review, future rich
+editors and language resources are further candidates. A permission check still
+belongs on the server; deferred admin code is only a loading choice.
 
 React's `lazy` and `Suspense` provide component loading and a local pending
 view. Lazy declarations belong at module scope. React caches the loading
