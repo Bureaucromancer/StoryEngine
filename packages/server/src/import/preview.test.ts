@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ImportPreview, ImportPreviewPreset } from '@storyengine/shared';
 
 import { FORWARDED_SAMPLER_PARAMS } from '../providers/forwarded-params.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 import { malformedInputs } from './parse.js';
 import { previewOne } from './preview.js';
@@ -99,8 +99,10 @@ function presetOf(answer: ImportPreview): ImportPreviewPreset {
 }
 
 async function presets(): Promise<unknown[]> {
-  const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
-  return listed.body.objects as unknown[];
+  // The account's own. [P7B.0] put the built-in prompt packs in the system
+  // scope and this route returns the merge of the two ([10 §5]); every claim
+  // in this file is about what a *preview* wrote, which is never the system's.
+  return (await ownObjects(server, 'presets')).objects;
 }
 
 async function jobs(): Promise<unknown[]> {

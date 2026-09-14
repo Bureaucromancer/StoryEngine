@@ -6,7 +6,13 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
-import { makeTestServer, setUpAdmin, tempRoot, type TestServer } from '../test-server.js';
+import {
+  makeTestServer,
+  ownObjects,
+  setUpAdmin,
+  tempRoot,
+  type TestServer,
+} from '../test-server.js';
 import { makeZip } from '../storage/test-zip.js';
 
 /**
@@ -631,8 +637,7 @@ describe('asking what a folder is, without importing from it', () => {
       });
       expect(looked.status).toBe(200);
 
-      const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
-      expect(listed.body.objects).toEqual([]);
+      expect((await ownObjects(server, 'presets')).objects).toEqual([]);
 
       // And the same folder, swept, does produce it — so the emptiness above is
       // the look declining to write rather than the fixture having nothing.
@@ -977,8 +982,9 @@ describe('looking at a file before importing it', () => {
   }
 
   async function libraryPresets() {
-    const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
-    return listed.body.objects as unknown[];
+    // The account's own — [P7B.0]'s system packs are in this route's merge and
+    // are never what an import wrote.
+    return (await ownObjects(server, 'presets')).objects;
   }
 
   it('answers 200 with what the import would produce, and writes nothing', async () => {
@@ -1137,8 +1143,8 @@ describe('what a re-upload of a changed file does', () => {
   }
 
   async function presetCount(): Promise<number> {
-    const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
-    return (listed.body.objects as unknown[]).length;
+    // The account's own — see `libraryPresets` above.
+    return (await ownObjects(server, 'presets')).objects.length;
   }
 
   const CHANGED = JSON.stringify({ ...PRESET, temperature: 0.4 });

@@ -27,10 +27,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const readObject = vi.fn();
 const deleteObject = vi.fn();
+const createObject = vi.fn();
 const authState = vi.fn();
 const navigate = vi.fn();
 
 const ACTOR_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
+/** What the stubbed create returns, so the navigation assertion has a target. */
+const COPY_ID = '01a008de-7e08-70d0-899c-f6869d6b9abc';
 
 let params: { kind: string; id: string } = { kind: 'actors', id: ACTOR_ID };
 let search: { slug?: string; source?: 'user' | 'system' } = {};
@@ -40,6 +43,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: {
     readObject: (...a: unknown[]) => readObject(...a) as unknown,
     deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
+    createObject: (...a: unknown[]) => createObject(...a) as unknown,
     authState: (...a: unknown[]) => authState(...a) as unknown,
   },
 }));
@@ -96,6 +100,7 @@ beforeEach(() => {
   search = {};
   readObject.mockResolvedValue(actor());
   deleteObject.mockResolvedValue(undefined);
+  createObject.mockResolvedValue({ id: COPY_ID, slug: 'vera-kohl-2', contentHash: 'sha256:def' });
   authState.mockResolvedValue({ account: { handle: 'ned', locale: null } });
 });
 
@@ -455,5 +460,88 @@ describe('a lorebook on the detail route', () => {
     await screen.findByRole('heading', { name: 'Ardent' });
     expect(screen.getByText('someone hand-edited this')).toBeTruthy();
     expect(screen.queryByRole('columnheader', { name: 'Gate' })).toBeNull();
+  });
+});
+
+/**
+ * ***Copy to my library*** — [10 §5], [09 §4.3], built at [P7B.0].
+ *
+ * **Specified at P1 and unbuildable until now**, because the system scope was
+ * shipped empty: there was nothing anywhere in the app that could be copied, so
+ * an action *in place of edit* had no object to be in place of. P7B.0 puts each
+ * mode's prompt pack there and the button acquires a subject.
+ *
+ * The case worth the most here is the third one. A fork that silently dropped a
+ * field this build does not recognise would be a lossy copy of the one thing a
+ * user reached for the action to keep exactly — and it would be invisible,
+ * because everything the *client* knows about would survive it.
+ */
+describe('copying a system object into your own library', () => {
+  it('offers Copy in place of Edit, on a system object', async () => {
+    readObject.mockResolvedValue(actor({ source: 'system' }));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Copy to my library' })).toBeTruthy();
+  });
+
+  it('does not offer it on something the user already owns', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Copy to my library' })).toBeNull();
+  });
+
+  it('copies every field verbatim, changing only the id', async () => {
+    readObject.mockResolvedValue(
+      actor({
+        source: 'system',
+        object: {
+          schema: 'storyengine.actor/1',
+          id: ACTOR_ID,
+          name: 'Vera Kohl',
+          // A field this build has never heard of. [04 §2]'s rule is that a
+          // reader preserves one, and a fork is a read followed by a write.
+          somethingLater: { kept: true },
+        },
+      }),
+    );
+    renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Copy to my library' }));
+
+    expect(createObject).toHaveBeenCalledTimes(1);
+    const [kind, written] = createObject.mock.calls[0] as [string, Record<string, unknown>];
+    expect(kind).toBe('actors');
+    expect(written['name']).toBe('Vera Kohl');
+    expect(written['somethingLater']).toEqual({ kept: true });
+    expect(written['id']).not.toBe(ACTOR_ID);
+    expect(typeof written['id']).toBe('string');
+  });
+
+  it('goes to the copy rather than leaving the reader on the original', async () => {
+    readObject.mockResolvedValue(actor({ source: 'system' }));
+    renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Copy to my library' }));
+
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/library/$kind/$id',
+      params: { kind: 'actors', id: COPY_ID },
+    });
+  });
+
+  it('says so when the write is refused, rather than looking like a dead button', async () => {
+    readObject.mockResolvedValue(actor({ source: 'system' }));
+    createObject.mockRejectedValue(
+      new ApiError(409, 'conflict', 'An object with that id already exists.'),
+    );
+    renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Copy to my library' }));
+
+    expect(await screen.findByText(/already exists/)).toBeTruthy();
   });
 });

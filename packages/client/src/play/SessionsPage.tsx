@@ -292,11 +292,25 @@ export function SessionsPage(): React.JSX.Element {
               hint="A treatment brings its own lorebooks and its own framing."
             />
 
+            {/*
+             * ***The blank option acquired a visible twin at [P7B.0]***, and
+             * keeping both is the decision.
+             *
+             * This list is the library's, so it now carries the shipped packs
+             * as ordinary rows — the mode's own default appears here by its
+             * name for the first time. That does **not** make the blank option
+             * redundant, and the difference is worth the longer label: naming
+             * *Scene* pins this session to that pack, while leaving it blank
+             * says *whatever this mode ships*, which is a different answer the
+             * next time the mode's default changes. Dropping it would take a
+             * choice away and quietly convert every future session into a
+             * pinned one.
+             */}
             <SelectField
               label="Preset"
               value={preset}
               options={[
-                ['', "The mode's own"],
+                ['', "The mode's own, whichever it ships"],
                 ...(presets.data?.objects ?? []).map(
                   (one) => [one.id, one.name] as [string, string],
                 ),

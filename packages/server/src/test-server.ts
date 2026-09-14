@@ -454,6 +454,48 @@ export interface RouteEntry {
   url: string;
 }
 
+/** One row of a library listing, as far as anything here needs to know. */
+export interface ListedObject {
+  id: string;
+  source?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The objects an account **owns**, with the system's filtered out — [P7B.0].
+ *
+ * ***Why this exists, and it is worth reading once rather than discovering
+ * twenty-three times.*** `GET /api/library` and `GET /api/library/:kind` return
+ * the user's scope merged with the system's, and that is the design
+ * ([10 §5](../../../docs/design/10-ui-surfaces.md): *"The user's library and the
+ * system library render as one list, with a source badge and a filter, not as
+ * two panels"*). Until P7B.0 the system scope was **empty on every install**, so
+ * a test that meant *did the user gain an object* could count the whole list and
+ * be right by accident.
+ *
+ * P7B.0 puts each loaded mode's prompt pack there, and the accident ended: a
+ * fresh account now lists two presets it did not create. Every assertion that
+ * broke was measuring the user's library as *everything*, and every one of them
+ * still means what it meant — so what changed is the measurement and not the
+ * claim, and this is the measurement written once.
+ *
+ * **Filtered here rather than by asking the route for a filter**, because the
+ * route's merge is the thing under test in more than one of those files: a
+ * helper that quietly asked the server a narrower question would take the merge
+ * out of the very assertions that are supposed to cross it.
+ */
+export async function ownObjects(
+  server: TestServer,
+  kind?: string,
+): Promise<{ status: number; objects: ListedObject[] }> {
+  const listed = await server.request({
+    method: 'GET',
+    url: kind === undefined ? '/api/library' : `/api/library/${kind}`,
+  });
+  const rows = (listed.body as { objects?: ListedObject[] }).objects ?? [];
+  return { status: listed.status, objects: rows.filter((row) => row.source !== 'system') };
+}
+
 /**
  * Waits for the watcher to finish handling a foreign write to `path` — [P7.0].
  *

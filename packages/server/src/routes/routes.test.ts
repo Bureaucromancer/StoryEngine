@@ -9,7 +9,7 @@ import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { ingestFile } from '../index-db/ingest.js';
 import { userOwner } from '../storage/layout.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * The HTTP surface — docs/design/workplan/07-p1-implementation.md §P1.5.
@@ -302,11 +302,11 @@ describe('library CRUD', () => {
       payload: newLorebook('Rain City'),
     });
 
-    const all = await server.request({ method: 'GET', url: '/api/library' });
-    expect(all.body.objects).toHaveLength(2);
-
-    const books = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(books.body.objects).toHaveLength(1);
+    // The account's own — the merge with the system scope is the subject of
+    // its own test below, and counting it here would make this one about two
+    // things ([P7B.0]).
+    expect((await ownObjects(server)).objects).toHaveLength(2);
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(1);
   });
 
   it('reports an unknown kind rather than guessing', async () => {
@@ -455,8 +455,10 @@ describe('the path is the owner', () => {
       payload: { handle: 'sister', password: 'correct horse battery' },
     });
 
-    const theirList = await server.request({ method: 'GET', url: '/api/library' });
-    expect(theirList.body.objects).toHaveLength(0);
+    // Nothing of the first account's. The shipped system objects are in this
+    // list too and are *supposed* to be — [P7B.0] — which is why the claim is
+    // about what the other user owns rather than about the list being bare.
+    expect((await ownObjects(server)).objects).toHaveLength(0);
 
     // Not-found rather than forbidden: confirming the id exists would leak the
     // one fact this separation exists to keep.
@@ -535,14 +537,32 @@ describe('a file that cannot be read is reported to the client', () => {
 });
 
 describe('the system library merges into the list', () => {
+  /**
+   * ***This is the first version of this test that can fail*** — [P7B.0].
+   *
+   * It used to say *"Shipped empty at [P1 §1.3], so what is tested is the
+   * merge"*, and then assert that the one object in the list was the user's.
+   * With nothing ever written to the system scope, that assertion held for a
+   * build with no merge at all: it could not tell a query that unions two
+   * scopes from one that reads a single directory. P7B.0 puts the built-in
+   * prompt packs there, so both sides of the union exist and the claim becomes
+   * checkable — which is worth more than the number that changed.
+   */
   it('is a query rather than a special case', async () => {
-    // Shipped empty at P1 ([P1 §1.3]), so what is tested is the merge — the
-    // source badge needs a second channel beyond colour ([10 §5]).
     await setUpAdmin(server);
     await server.request({ method: 'POST', url: '/api/library/actors', payload: newActor('Vera') });
 
     const listed = await server.request({ method: 'GET', url: '/api/library' });
-    expect(listed.body.objects[0].source).toBe('user');
+    const sources = new Set((listed.body.objects as { source: string }[]).map((row) => row.source));
+
+    // Both scopes, through one route, in one list.
+    expect(sources).toEqual(new Set(['user', 'system']));
+
+    // And the badge has something to say about every row — [10 §5] wants a
+    // second channel beyond colour, which needs the value to be there at all.
+    for (const row of listed.body.objects as { source?: string }[]) {
+      expect(row.source).toBeTypeOf('string');
+    }
   });
 });
 

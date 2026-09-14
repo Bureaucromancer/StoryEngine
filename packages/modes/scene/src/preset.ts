@@ -18,9 +18,19 @@ import type { Preset } from '@storyengine/sdk';
  * **A code constant rather than a file seeded into `system/library/presets/`.**
  * [P2 §2.4] says the mode relocates behind the SDK unchanged, and a mode that
  * depended on a boot-time seeder would not; nothing writes to `system/library/`
- * today, and a session gets its own copy either way. The cost, stated: the
+ * today, and a session gets its own copy either way. ~~The cost, stated: the
  * default preset is readable in the turn record and not editable in the app
- * until P7.
+ * until P7.~~
+ *
+ * ***The value stayed a constant and the cost was paid another way*** — [P7B.0],
+ * and the distinction is the point. The engine still writes this object into
+ * `system/library/presets/` at boot, so it has a library address, a detail page
+ * and a *Copy to my library* action — but **the mode does not know that**. It
+ * declares a value; the host decides to materialise it. Had the dependency run
+ * the other way, a mode would need a seeder to be a mode, and [P2 §2.4]'s claim
+ * that it relocates unchanged would have stopped being true. Editing it is
+ * still refused, because a shipped object is read-only everywhere ([09 §4.3]):
+ * what changed is that there is now something to copy.
  *
  * It goes through `validate()` in a test — the same validator a user's write
  * goes through — which is the assertion that caught `SlotSource` missing the

@@ -236,10 +236,16 @@ export type BlockSource =
    * out of. That is what the phase's demo turns on: reading a converted preset's
    * block list in the workbench and clicking through to the preset itself.
    *
-   * Absent on every record written before then, and on any session whose pack
-   * came from a mode default rather than the library — so the client links when
-   * it is there and labels when it is not, exactly as `persona` already does for
-   * a session without one.
+   * Absent on every record written before then — so the client links when it is
+   * there and labels when it is not, exactly as `persona` already does for a
+   * session without one.
+   *
+   * ~~And on any session whose pack came from a mode default rather than the
+   * library.~~ ***No longer true from [P7B.0]***: the field was always written
+   * for a mode default as well, and what was missing was the object at the other
+   * end. Materialising each mode's pack into the system library gives every one
+   * of those links a destination, including on records written before that
+   * phase — because the id in them never changed.
    */
   | { kind: 'preset'; blockId: string; presetId?: string }
   | { kind: 'step'; stepId: string }

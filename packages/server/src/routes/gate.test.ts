@@ -8,7 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor, newLorebook } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, watchedIndex, type TestServer } from '../test-server.js';
+import {
+  makeTestServer,
+  ownObjects,
+  setUpAdmin,
+  watchedIndex,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * The exit-gate steps that were never automated — F11.
@@ -139,10 +145,11 @@ describe('step 11 — deleting the index is a non-event, including for login', (
       expect(login.body.account.handle).toBe('ned');
 
       // And everything is still listed, rebuilt from what is on disk.
-      const listed = await second.request({ method: 'GET', url: '/api/library' });
-      expect((listed.body.objects as { id: string }[]).map((row) => row.id).sort()).toEqual(
-        [actor.id, book.id].sort(),
-      );
+      // The account's own — the merged list also carries [P7B.0]'s shipped
+      // prompt packs, which are not what a rebuild of *this* account's data
+      // proves anything about.
+      const listed = await ownObjects(second);
+      expect(listed.objects.map((row) => row.id).sort()).toEqual([actor.id, book.id].sort());
     } finally {
       await second.dispose();
       await rm(dataDir, { recursive: true, force: true });

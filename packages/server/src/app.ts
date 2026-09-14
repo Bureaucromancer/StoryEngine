@@ -33,6 +33,7 @@ import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
 import { rebuild } from './index-db/rebuild.js';
+import { materialiseModePresets } from './system-library.js';
 import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
 import { registerAdminRoutes } from './routes/admin.js';
@@ -354,6 +355,26 @@ async function assembleWithState(
   if (index.migration.rebuildRequired || options.config.index.rebuildOnStart) {
     await rebuild(index.db, layout);
   }
+
+  /**
+   * **The system library gets its contents** — [P7B.0].
+   *
+   * Each loaded mode's default prompt pack, written into `system/library/` so
+   * that it has an address, an index row and a *Copy to my library* action
+   * ([system-library.ts](./system-library.ts) carries the argument).
+   *
+   * ***Between the rebuild and the watcher, and both edges matter.*** A rebuild
+   * walks the system root, so writing before one would index the previous
+   * start's bytes and leave the fresh ones unseen on exactly the start where
+   * the index was thrown away. And the watcher must not be running yet, or its
+   * first event is this process's own boot write arriving as an *external*
+   * change — which is a history version, attributed to a person, for a file
+   * nobody touched.
+   *
+   * The no-op rule does the rest: an unchanged pack is not rewritten, so the
+   * ordinary restart is silent here.
+   */
+  await materialiseModePresets(index.db, layout);
 
   // **The same object, not the same number.** The watcher used to copy
   // `keepPerObject` out of the config at construction, so the two write paths
