@@ -47,11 +47,14 @@ export function CallView({
   ordinal,
   count,
   locale,
+  sessionId,
 }: {
   call: ModelCall;
   ordinal: number;
   count: number;
   locale: string | undefined;
+  /** Whose pack these blocks came from, for the block table's edit link — [P7B.4]. */
+  sessionId?: string;
 }): JSX.Element {
   /**
    * **A call recorded before [P3.0] carries none of this**, and the panel
@@ -95,7 +98,12 @@ export function CallView({
         </Note>
       ) : (
         <>
-          <BlockTable blocks={assembly.blocks} rules={rulesOf(assembly.budget)} locale={locale} />
+          <BlockTable
+            blocks={assembly.blocks}
+            rules={rulesOf(assembly.budget)}
+            locale={locale}
+            {...(sessionId === undefined ? {} : { sessionId })}
+          />
           <BudgetVerdictView verdict={assembly.budget} locale={locale} />
           <NotFilledList notFilled={call.notFilled ?? []} />
         </>

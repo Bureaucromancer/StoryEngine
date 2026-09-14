@@ -171,10 +171,22 @@ const sessionsRoute = createRoute({
  */
 export interface PlaySearch {
   turn?: string;
+  /**
+   * A block of the session's own pack to open for editing — [P7B.4].
+   *
+   * The workbench's block table links here; the session panel opens on it. In
+   * the address for the same reason `turn` is: the panel is reached *from*
+   * somewhere, and a control that opened a panel by poking its state would
+   * leave the address unable to say what the page is showing.
+   */
+  block?: string;
 }
 
 export function validatePlaySearch(search: Record<string, unknown>): PlaySearch {
-  return { ...(typeof search['turn'] === 'string' ? { turn: search['turn'] } : {}) };
+  return {
+    ...(typeof search['turn'] === 'string' ? { turn: search['turn'] } : {}),
+    ...(typeof search['block'] === 'string' ? { block: search['block'] } : {}),
+  };
 }
 
 const playRoute = createRoute({
@@ -183,7 +195,12 @@ const playRoute = createRoute({
   validateSearch: validatePlaySearch,
   component: function Play() {
     const { sessionId } = playRoute.useParams();
-    return <PlayPage sessionId={sessionId} />;
+    // The block to open on travels as a prop rather than being read inside the
+    // page, for the reason `sessionId` already does: the page is mounted in
+    // tests without a router, and a component reaching for a route API would
+    // throw the moment it rendered anywhere but here.
+    const { block } = playRoute.useSearch();
+    return <PlayPage sessionId={sessionId} {...(block === undefined ? {} : { block })} />;
   },
 });
 

@@ -70,7 +70,14 @@ const PREVIEW_DEBOUNCE_MS = 400;
  * The record itself is the workbench's to show since [P3.2] — the raw
  * disclosure this page carried through P2 is gone with it.
  */
-export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Element {
+export function PlayPage({
+  sessionId,
+  block,
+}: {
+  sessionId: string;
+  /** A block of this session's pack to open the settings panel on — [P7B.4]. */
+  block?: string;
+}): React.JSX.Element {
   const queryClient = useQueryClient();
   const { state, dispatch } = useTurnStream(sessionId);
   const [draft, setDraft] = useState('');
@@ -395,7 +402,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           retrieves from is the thing people reach for more often than which
           pack it runs. *The seventh disclosure in this column*, which
           `SessionPanel` says is a debt rather than a design. */}
-      <SessionPanel sessionId={sessionId} />
+      <SessionPanel sessionId={sessionId} {...(block === undefined ? {} : { block })} />
 
       {/* **What this story is trying to do** — [06 §7.3.3], [06 §7.3.4], [P7.6].
           Above the hooks because a goal is what the session is *for* and a hook

@@ -447,7 +447,7 @@ function TurnOrPreview({
           </Link>
         </p>
       )}
-      <TurnSubject turn={subject} locale={locale} />
+      <TurnSubject turn={subject} locale={locale} sessionId={sessionId} />
     </>
   );
 }

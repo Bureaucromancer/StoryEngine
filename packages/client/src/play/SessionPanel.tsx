@@ -14,6 +14,7 @@ import {
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { NumberField, SelectField } from '../ui/Field.js';
+import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
 
 /**
@@ -47,7 +48,14 @@ import { Fine, Note } from '../ui/Text.js';
  * commit message**: the column needs a pass, and it needs one more than it did
  * before this.
  */
-export function SessionPanel(props: { sessionId: string }): JSX.Element | null {
+export function SessionPanel(props: {
+  sessionId: string;
+  /**
+   * A block to open on — the address the workbench's *Edit in the pack* link
+   * carries ([P7B.4]).
+   */
+  block?: string;
+}): JSX.Element | null {
   const session = useSession(props.sessionId);
   // The same key the library page holds, so opening this issues no request.
   const presets = useLibrary('presets');
@@ -56,7 +64,16 @@ export function SessionPanel(props: { sessionId: string }): JSX.Element | null {
   const remove = useDeleteSession(props.sessionId);
   const navigate = useNavigate();
 
-  const [open, setOpen] = useState(false);
+  /**
+   * Open because somebody arrived asking for a block, or because they opened it.
+   *
+   * **Derived rather than synced**, which is what keeps the address the thing
+   * that says what the page is showing: an effect writing `open` from the
+   * search param would let the two disagree the moment either changed, and the
+   * panel would need a rule about which wins.
+   */
+  const [openedByHand, setOpenedByHand] = useState(false);
+  const open = openedByHand || props.block !== undefined;
   const [confirming, setConfirming] = useState(false);
 
   const current = session.data?.session;
@@ -88,7 +105,7 @@ export function SessionPanel(props: { sessionId: string }): JSX.Element | null {
     <details
       open={open}
       onToggle={(event) => {
-        setOpen(event.currentTarget.open);
+        setOpenedByHand(event.currentTarget.open);
       }}
       className="rounded-control border border-line bg-surface px-3 py-2"
     >
@@ -104,6 +121,16 @@ export function SessionPanel(props: { sessionId: string }): JSX.Element | null {
             This session has no pack of its own and is assembled from whatever its mode ships.
           </Note>
         ) : null}
+
+        {props.block === undefined || pack === undefined ? null : (
+          <BlockEditor
+            pack={pack}
+            blockId={props.block}
+            onSave={(next) => {
+              setPreset.mutate({ preset: next });
+            }}
+          />
+        )}
 
         <SelectField
           label="Prompt pack"
@@ -207,5 +234,73 @@ export function SessionPanel(props: { sessionId: string }): JSX.Element | null {
         {remove.isError ? <Alert tone="error">{remove.error.message}</Alert> : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * One block of the session's own pack — [P7B.4].
+ *
+ * **The session's copy, not the library's.** Editing here changes what the
+ * *next* turn assembles from and touches no library object; the turns already
+ * taken keep the blocks the record holds, which is what makes a reroll the
+ * comparison [10 §3] wants ([P7B §1.1]).
+ *
+ * **Text blocks only.** A slot positions what the engine supplies and has no
+ * prose of its own to edit — the workbench's link is already withheld for one,
+ * and this says so for anybody who reaches the address another way.
+ */
+function BlockEditor(props: {
+  pack: Record<string, unknown>;
+  blockId: string;
+  onSave: (next: Record<string, unknown>) => void;
+}): JSX.Element {
+  const blocks = Array.isArray(props.pack['blocks'])
+    ? (props.pack['blocks'] as Record<string, unknown>[])
+    : [];
+  const block = blocks.find((one) => one['id'] === props.blockId);
+  const template = typeof block?.['template'] === 'string' ? block['template'] : null;
+  const [draft, setDraft] = useState<string | null>(null);
+
+  if (block === undefined) {
+    return <Note>{`This pack has no block called ${props.blockId}.`}</Note>;
+  }
+  if (template === null) {
+    return (
+      <Note>
+        That block positions something the engine supplies. There is no text in the pack to edit.
+      </Note>
+    );
+  }
+
+  const value = draft ?? template;
+  return (
+    <div className="rounded-control border border-line p-3">
+      <Field
+        label={`Block: ${props.blockId}`}
+        value={value}
+        onChange={setDraft}
+        multiline
+        rows={5}
+        hint="Changes the next turn, not the ones already taken. Reroll to see the difference."
+      />
+      <div className="mt-2 flex gap-2">
+        <Button
+          type="button"
+          variant="primary"
+          disabled={value === template}
+          onClick={() => {
+            props.onSave({
+              ...props.pack,
+              blocks: blocks.map((one) =>
+                one['id'] === props.blockId ? { ...one, template: value } : one,
+              ),
+            });
+            setDraft(null);
+          }}
+        >
+          Save this block
+        </Button>
+      </div>
+    </div>
   );
 }

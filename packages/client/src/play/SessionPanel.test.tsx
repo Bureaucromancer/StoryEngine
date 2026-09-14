@@ -45,11 +45,11 @@ vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
 
 const { SessionPanel } = await import('./SessionPanel.js');
 
-function renderPanel(): void {
+function renderPanel(block?: string): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <SessionPanel sessionId={SESSION_ID} />
+      <SessionPanel sessionId={SESSION_ID} {...(block === undefined ? {} : { block })} />
     </QueryClientProvider>,
   );
 }
@@ -68,7 +68,15 @@ beforeEach(() => {
   session = {
     id: SESSION_ID,
     name: 'The Ashfall Road',
-    preset: { id: 'p1', name: 'Scene', params: { temperature: 0.8 } },
+    preset: {
+      id: 'p1',
+      name: 'Scene',
+      params: { temperature: 0.8 },
+      blocks: [
+        { id: 'se.instruction', template: 'You are the narrator of a scene.' },
+        { id: 'se.lore', source: { kind: 'lore' } },
+      ],
+    },
   };
 });
 
@@ -134,5 +142,57 @@ describe('what a session is prompted with', () => {
 
     await user.click(screen.getByRole('button', { name: 'Move it to trash' }));
     expect(deleteSession).toHaveBeenCalledWith(SESSION_ID);
+  });
+});
+
+/**
+ * ***Edit a block and re-run*** — [10 §3]'s sentence, answered at [P7B.4].
+ *
+ * [P3 §1.8] found three mechanical reasons it could not be built and handed it
+ * to P6; [P6 §1.8] answered a different question and left the override with
+ * nobody. [P7B §1.6] takes the second of its two shapes: **an edit to the
+ * session's own copy, then an ordinary reroll** — no new field on the record,
+ * which [P7B §0.4] refuses this phase.
+ *
+ * The address is what opens the panel, which is why these render with `block`
+ * rather than clicking anything: the workbench's link carries it, and a panel
+ * opened by poking its own state would leave the address unable to say what the
+ * page is showing.
+ */
+describe('editing one block of the pack', () => {
+  it('opens on the block the address names, without being clicked', async () => {
+    renderPanel('se.instruction');
+
+    expect(await screen.findByLabelText('Block: se.instruction')).toBeTruthy();
+  });
+
+  it('saves the whole pack with that block changed, and nothing else touched', async () => {
+    renderPanel('se.instruction');
+    const user = userEvent.setup();
+
+    const field = await screen.findByLabelText('Block: se.instruction');
+    await user.clear(field);
+    await user.type(field, 'You are a weary harbourmaster.');
+    await user.click(screen.getByRole('button', { name: 'Save this block' }));
+
+    const [, body] = setSessionPreset.mock.calls.at(-1) as [
+      string,
+      { preset: Record<string, unknown> },
+    ];
+    const blocks = body.preset['blocks'] as { id: string; template?: string }[];
+    expect(blocks.find((b) => b.id === 'se.instruction')?.template).toBe(
+      'You are a weary harbourmaster.',
+    );
+    // The slot rides through untouched — the route takes the whole pack, so a
+    // panel that rebuilt it from the one field it edits would drop the rest.
+    expect(blocks.find((b) => b.id === 'se.lore')).toBeDefined();
+    expect((body.preset['params'] as Record<string, unknown>)['temperature']).toBe(0.8);
+  });
+
+  it('says so for a slot, which has no text in the pack to edit', async () => {
+    renderPanel('se.lore');
+
+    expect(await screen.findByText(/positions something the engine supplies/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save this block' })).toBeNull();
   });
 });

@@ -27,9 +27,12 @@ import { StepList } from './StepList.js';
 export function TurnSubject({
   turn,
   locale,
+  sessionId,
 }: {
   turn: TurnRecord;
   locale: string | undefined;
+  /** Whose pack these blocks came from — [P7B.4]. Absent where there is no session. */
+  sessionId?: string;
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-4">
@@ -52,6 +55,7 @@ export function TurnSubject({
             ordinal={at + 1}
             count={turn.request?.calls.length ?? 1}
             locale={locale}
+            {...(sessionId === undefined ? {} : { sessionId })}
           />
         ))
       )}

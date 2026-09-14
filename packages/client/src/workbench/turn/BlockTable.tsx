@@ -30,11 +30,21 @@ export function BlockTable({
   blocks,
   rules,
   locale,
+  sessionId,
 }: {
   blocks: AssembledBlock[];
   /** blockId → the verdict's rule, from `budget.decisions`. */
   rules: ReadonlyMap<string, string>;
   locale: string | undefined;
+  /**
+   * Whose pack these blocks came from, when there is one — [P7B.4].
+   *
+   * Absent over a preview subject and over the import and library subjects,
+   * which have blocks and no session. The column below is absent with it: a
+   * control that cannot work is worse than no control ([10 §11.1a] makes the
+   * same call about Save).
+   */
+  sessionId?: string;
 }): JSX.Element {
   return (
     <div className="overflow-x-auto">
@@ -56,6 +66,11 @@ export function BlockTable({
             <th scope="col" className={table.thCompact}>
               Ruling
             </th>
+            {sessionId === undefined ? null : (
+              <th scope="col" className={table.thCompact}>
+                <span className="sr-only">Edit</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -65,6 +80,7 @@ export function BlockTable({
               block={block}
               rule={rules.get(block.id) ?? block.droppedBy}
               locale={locale}
+              {...(sessionId === undefined ? {} : { sessionId })}
             />
           ))}
         </tbody>
@@ -77,10 +93,12 @@ function BlockRow({
   block,
   rule,
   locale,
+  sessionId,
 }: {
   block: AssembledBlock;
   rule: string | undefined;
   locale: string | undefined;
+  sessionId?: string;
 }): JSX.Element {
   const address = blockSourceAddress(block.source);
   return (
@@ -110,6 +128,42 @@ function BlockRow({
       <td className={table.cellCompact}>{block.reason}</td>
       <td className={table.cellNumeric}>{formatCount(block.tokens, locale)}</td>
       <td className={table.cellCompact}>{rule}</td>
+      {sessionId === undefined ? null : (
+        <td className={table.cellCompact}>
+          {/*
+           * ***Edit a block and re-run*** — [10 §3]'s sentence, answered at
+           * [P7B.4] after [P3 §1.8] sent it to P6 and
+           * [P6 §1.8](../../../../../docs/design/workplan/18-p6-implementation.md)
+           * answered a different question.
+           *
+           * **Through the pack, not through the record** ([P7B §1.6]). The two
+           * shapes were a one-off override recorded on the turn — honest, and a
+           * record change [P7B §0.4] refuses this phase — or an edit to the
+           * session's own copy followed by an ordinary reroll. The second wins
+           * because it is what somebody reaching for the workbench to fix a
+           * prompt actually wants: the sentence that was wrong stays wrong on
+           * the next turn otherwise.
+           *
+           * *What it gives up, stated:* the edit is durable rather than
+           * one-off, so *just this once* means editing back. The first shape is
+           * refused until a finding asks for it by name.
+           *
+           * **Only a preset's own blocks**, because only those have anything to
+           * edit — a slot positions what the engine supplies and its text is
+           * not in the pack at all.
+           */}
+          {block.source.kind === 'preset' ? (
+            <Link
+              to="/play/$sessionId"
+              params={{ sessionId }}
+              search={{ block: block.id }}
+              className={link.inline}
+            >
+              Edit in the pack
+            </Link>
+          ) : null}
+        </td>
+      )}
     </tr>
   );
 }
