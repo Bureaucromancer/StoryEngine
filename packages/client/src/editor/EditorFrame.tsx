@@ -52,6 +52,14 @@ export function EditorFrame<F>(props: {
   unsavedHeading: string;
   /** The 412 dialog's whole sentence — see `ConflictDialog` for why not a noun. */
   conflictTitle: string;
+  /**
+   * How far apart the fields sit. Every kind has an answer and they differ: an
+   * actor's fields are a column of inputs, a lorebook's are sections with a
+   * rail between them.
+   */
+  formClassName?: string;
+  /** The saved-state fold's caption — *The saved book*, *The saved object*. */
+  storedCaption?: string;
 }): JSX.Element {
   const { editor, descriptor } = props;
   const auth = useAuthState();
@@ -63,7 +71,7 @@ export function EditorFrame<F>(props: {
 
       <form
         ref={editor.formRef}
-        className="flex flex-col gap-4"
+        className={props.formClassName ?? 'flex flex-col gap-4'}
         onSubmit={(event) => {
           event.preventDefault();
           editor.save();
@@ -169,7 +177,10 @@ export function EditorFrame<F>(props: {
         <div className="mt-6">
           <AsStored
             value={editor.base.object}
-            caption="The saved object, not the form's working state — what a reload would find."
+            caption={
+              props.storedCaption ??
+              "The saved object, not the form's working state — what a reload would find."
+            }
           />
         </div>
       )}

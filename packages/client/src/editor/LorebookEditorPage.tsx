@@ -9,7 +9,6 @@ import {
   entryGate,
   LOREBOOK_SCHEMA,
   resolvedFolderId,
-  uuidv7,
   type GateReason,
   type Lorebook,
   type LoreEntry,
@@ -17,25 +16,21 @@ import {
 
 import { ApiError, type LibraryObject } from '../api.js';
 import { formatCount } from '../format.js';
-import { AsStored } from '../library/AsStored.js';
-import { DeleteObject } from '../library/DeleteObject.js';
 import {
   blankFor,
   boundsOf,
   isRequiredField,
   labelFor,
-  missingRequired,
-  refusalFor,
   schemaFor,
   type SchemaNode,
 } from '../library/fields.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
 import { landing, nudge } from '../ui/reorder.js';
-import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
+import { useAuthState, useEditorBase } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { link, page, table } from '../ui/classes.js';
+import { page, table } from '../ui/classes.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import {
@@ -50,10 +45,9 @@ import {
   withoutEntry,
   type Draft,
 } from './book-form.js';
-import { ConflictDialog } from './ConflictDialog.js';
+import { EditorFrame } from './EditorFrame.js';
+import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
-import { HistoryPanel } from './HistoryPanel.js';
-import { UnsavedChangesGuard } from './UnsavedChanges.js';
 
 /**
  * The entry editor's minimum —
@@ -274,61 +268,49 @@ interface EditorProps {
   onSelectEntry: (id: string | undefined) => void;
 }
 
+/**
+ * What the shell needs to know about a lorebook — [P7B.1].
+ *
+ * **Thinner than the actor's, because the draft *is* the object.** This editor
+ * has always held a `Draft` — a structural clone of the file — rather than a
+ * projection of it into named form fields, which is what an entry list of forty
+ * fields apiece makes sensible. So `formOf` is a clone and `apply` returns the
+ * draft unchanged, and [04 §2]'s unknown-field rule, which the actor's
+ * `applyForm` works to keep, holds here by never having taken the object apart.
+ */
+const LOREBOOKS: EditorKind<Draft> = {
+  kind: 'lorebooks',
+  formOf: (object) => structuredClone(object),
+  apply: (_base, draft) => draft,
+  changed: bookChanges,
+  shape: editableBookShape,
+  reapply: reapplyBookEdits,
+  requiredValues: (draft) => ({ name: nameOf(draft) }),
+  requiredLabels: { name: 'Book name' },
+  nameOf,
+  untitled: { draft: 'New lorebook', saved: 'Untitled lorebook' },
+  editorRoute: '/library/lorebooks/$id/edit',
+};
+
 function Editor(props: EditorProps): JSX.Element {
-  const [base, setBase] = useState(props.initial);
-  const [draft, setDraft] = useState<Draft>(() => structuredClone(props.initial.object));
-  /**
-   * The draft as it read when `base` was loaded — what *my edits* is measured
-   * against, both for the entry list's unsaved marks and for the 412 merge.
-   * Moves in step with `base`.
-   */
-  const [pristine, setPristine] = useState<Draft>(() => structuredClone(props.initial.object));
-  const [conflict, setConflict] = useState<LibraryObject | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const editor = useObjectEditor(LOREBOOKS, props.initial, {
+    ...(props.unsaved === undefined ? {} : { unsaved: props.unsaved }),
+  });
+  const { base, form: draft, missing } = editor;
+
+  /** Entry-list state, which is this page's and not the shell's. */
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [folder, setFolder] = useState<FolderChoice>(null);
-  /**
-   * Why the last Save did not write — [10 §11.1a]. `role="alert"` where
-   * `notice` is `role="status"`, because a refusal interrupts and a progress
-   * report does not.
-   */
-  const [refusal, setRefusal] = useState<string | null>(null);
-  /** The form, so a refusal can put the cursor where the answer goes. */
-  const formRef = useRef<HTMLFormElement | null>(null);
 
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
-  const save = useSaveObject();
-  const create = useCreateObject();
-
-  /** Never written, so there is nothing on disk for any of this to be about. */
-  const unsaved = props.unsaved === true;
-  const navigate = useNavigate();
   const search = { entry: props.selectedEntry };
 
   const book = draft as unknown as Lorebook;
-  const changed = bookChanges(base.object, draft);
-  /**
-   * Whether Save has anything to do — see `NewActorPage`'s twin of this. A
-   * draft nobody has typed into has no changes and still has a create to make.
-   */
-  const savable = unsaved || changed;
-  /**
-   * The required fields this book is not answering — [10 §11.1a].
-   *
-   * This editor had no such check at all: the book's name could be emptied and
-   * saved, and the shelf would then carry a row with nothing in its link. The
-   * actor editor beside it has refused an empty name since P1.5, which is the
-   * asymmetry §11.1a exists to end.
-   */
-  const missing = missingRequired('lorebooks', { name: nameOf(draft) });
   const selected = search.entry === undefined ? undefined : entryOf(draft, search.entry);
 
   function edit(next: Draft): void {
-    setDraft(next);
-    setNotice(null);
-    setRefusal(null);
+    editor.patch(next);
   }
 
   /**
@@ -340,434 +322,167 @@ function Editor(props: EditorProps): JSX.Element {
     props.onSelectEntry(id);
   }
 
-  function handleSave(): void {
-    if (!savable) return;
-    /**
-     * **Refused rather than prevented** — [10 §11.1a]. Save stays live and this
-     * says what is wrong, beside the Save that caused it ([10 §11.6]).
-     */
-    if (missing.length > 0) {
-      setNotice(null);
-      setRefusal(refusalFor(missing, { name: 'Book name' }));
-      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-      return;
-    }
-    setRefusal(null);
-    /** The first save of a draft is a create — the only place a book is filed. */
-    if (unsaved) {
-      create.mutate(
-        { kind: 'lorebooks', object: draft },
-        {
-          onSuccess: (result) => {
-            void navigate({
-              to: '/library/lorebooks/$id/edit',
-              params: { id: result.id },
-              search: {},
-              ignoreBlocker: true,
-            });
-          },
-        },
-      );
-      return;
-    }
-    /**
-     * **Sent unstamped**, unlike the actor editor beside this one. The server
-     * stamps `provenance.updatedAt` itself on any real change, and it decides
-     * the no-op rule on the object *as sent, before any stamping* — so a client
-     * stamp reaches disk in no case at all and only ever makes the sent bytes
-     * differ from the file. Since this editor's own change test is the same
-     * byte comparison the server makes, sending unstamped keeps the server's
-     * test as a live second opinion rather than one this client has disabled.
-     */
-    save.mutate(
-      { kind: 'lorebooks', id: base.id, object: draft, contentHash: base.contentHash },
-      {
-        onSuccess: (result) => {
-          setBase((previous) => ({
-            ...previous,
-            object: result.object,
-            contentHash: result.contentHash,
-          }));
-          setDraft(structuredClone(result.object));
-          setPristine(structuredClone(result.object));
-          setNotice('Saved.');
-        },
-        onError: (failure) => {
-          // A 412 the dialog can act on carries the current object. A 409 from
-          // a diverged file does not, and reload-and-reapply has nothing to
-          // reapply onto — so it stays an error rather than becoming a dialog
-          // with a button that cannot work.
-          if (failure instanceof ApiError && failure.status === 412 && failure.current) {
-            setConflict(failure.current as LibraryObject);
-          }
-        },
-      },
-    );
-  }
-
-  function reloadAndReapply(): void {
-    if (conflict === null) return;
-    const problem = editableBookShape(conflict.object);
-    if (problem !== null) {
-      setConflict(null);
-      setNotice(
-        `The newer version could not be loaded: ${problem}. Fix the file on disk, then reload this page.`,
-      );
-      return;
-    }
-    const merged = reapplyBookEdits(pristine, draft, conflict.object);
-    setDraft(merged);
-    setPristine(structuredClone(conflict.object));
-    setBase(conflict);
-    setConflict(null);
-    setNotice(
-      'The newer version was loaded and your edits were reapplied onto it, entry by entry. Review, then save again.',
-    );
-  }
-
-  /** The second offer: my version becomes a new book; theirs keeps this one. */
-  function saveAsCopy(): void {
-    if (conflict === null) return;
-    const copy = structuredClone(draft);
-    copy['id'] = uuidv7();
-    copy['name'] = `${nameOf(draft)} (copy)`;
-    create.mutate(
-      { kind: 'lorebooks', object: copy },
-      {
-        onSuccess: (result) => {
-          setConflict(null);
-          /**
-           * **`ignoreBlocker`, because the changes were just saved** — into a
-           * different book, which is what a copy is. The draft still differs
-           * from *this* book's base and always will, so the unsaved-changes
-           * guard would otherwise stop the one navigation that is the whole
-           * point of the button the user just pressed.
-           */
-          void navigate({
-            to: '/library/lorebooks/$id/edit',
-            params: { id: result.id },
-            search: {},
-            ignoreBlocker: true,
-          });
-        },
-      },
-    );
-  }
-
   const entries = entryList(draft);
   const visible =
     folder === null
       ? entries
       : entries.filter((entry) => resolvedFolderId(book, entry) === folder.id);
 
-  /** A name for the page before there is one for the book — see the actor's. */
-  const heading =
-    nameOf(draft).trim() === '' ? (unsaved ? 'New lorebook' : 'Untitled lorebook') : nameOf(draft);
-
   return (
-    <>
-      <header className="mb-6">
-        <h1 className="text-title text-ink">{heading}</h1>
-        <p className="text-sm text-ink-subtle">
-          {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
-        </p>
-      </header>
-
-      <form
-        ref={formRef}
-        className="flex flex-col gap-8"
-        onSubmit={(event) => {
-          event.preventDefault();
-          handleSave();
+    <EditorFrame
+      editor={editor}
+      descriptor={LOREBOOKS}
+      conflictTitle="The lorebook changed while you were editing"
+      backLabel="Back to the lorebook"
+      unsavedHeading="This lorebook has unsaved changes"
+      listSearch={{ kind: 'lorebooks' }}
+      formClassName="flex flex-col gap-8"
+      storedCaption="The saved book, not the form's working state — what a reload would find."
+      header={
+        <header className="mb-6">
+          <h1 className="text-title text-ink">{editor.heading}</h1>
+          <p className="text-sm text-ink-subtle">
+            {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
+          </p>
+        </header>
+      }
+    >
+      {/*
+       * The book's own name, which is the one book-level field this stage
+       * writes and is owed by the create control rather than by §11.2d: the
+       * library's *New lorebook* names a book on the way in and this is the
+       * only surface that could ever rename it before P11.
+       */}
+      <Field
+        label="Book name"
+        value={nameOf(draft)}
+        onChange={(name) => {
+          edit({ ...draft, name });
         }}
-      >
-        {/*
-         * The book's own name, which is the one book-level field this stage
-         * writes and is owed by the create control rather than by §11.2d: the
-         * library's *New lorebook* names a book on the way in and this is the
-         * only surface that could ever rename it before P11.
-         */}
-        <Field
-          label="Book name"
-          value={nameOf(draft)}
-          onChange={(name) => {
-            edit({ ...draft, name });
-          }}
-          required={isRequiredField('lorebooks', 'name')}
-          error={missing.includes('name') ? 'A lorebook needs a name.' : null}
-          hint="What the library shelf calls it. Renaming does not move the file."
-        />
+        required={isRequiredField('lorebooks', 'name')}
+        error={missing.includes('name') ? 'A lorebook needs a name.' : null}
+        hint="What the library shelf calls it. Renaming does not move the file."
+      />
 
-        <BookRetrieval
+      <BookRetrieval
+        book={book}
+        onSet={(patch) => {
+          edit({ ...draft, ...patch });
+        }}
+      />
+
+      <FolderGates
+        book={book}
+        chosen={folder}
+        locale={locale}
+        onChoose={setFolder}
+        onGate={(id, enabled) => {
+          edit(withFolderGate(draft, id, enabled));
+        }}
+      />
+
+      <section>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <SectionTitle as="h2">Entries</SectionTitle>
+          <Button
+            type="button"
+            onClick={() => {
+              const made = withNewEntry(draft, '');
+              // Filed where the list is standing, which is the only way an
+              // entry created here ever reaches a folder: `folderId` is not
+              // a field this stage writes, so create is where the choice
+              // has to be made or there is none.
+              const filed =
+                folder?.id == null
+                  ? made.book
+                  : withEntry(made.book, made.id, { folderId: folder.id });
+              edit(filed);
+              select(made.id);
+            }}
+          >
+            New entry
+          </Button>
+        </div>
+
+        <EntryList
           book={book}
-          onSet={(patch) => {
-            edit({ ...draft, ...patch });
+          entries={visible}
+          base={base.object}
+          selectedId={search.entry}
+          onSelect={select}
+          onMove={(id, beforeId) => {
+            edit(moveEntryBefore(draft, id, beforeId));
           }}
         />
+      </section>
 
-        <FolderGates
-          book={book}
-          chosen={folder}
-          locale={locale}
-          onChoose={setFolder}
-          onGate={(id, enabled) => {
-            edit(withFolderGate(draft, id, enabled));
-          }}
-        />
-
-        <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <SectionTitle as="h2">Entries</SectionTitle>
-            <Button
-              type="button"
-              onClick={() => {
-                const made = withNewEntry(draft, '');
-                // Filed where the list is standing, which is the only way an
-                // entry created here ever reaches a folder: `folderId` is not
-                // a field this stage writes, so create is where the choice
-                // has to be made or there is none.
-                const filed =
-                  folder?.id == null
-                    ? made.book
-                    : withEntry(made.book, made.id, { folderId: folder.id });
-                edit(filed);
-                select(made.id);
-              }}
-            >
-              New entry
-            </Button>
+      {selected === undefined ? (
+        <Note>
+          {search.entry === undefined
+            ? 'Choose an entry to edit it, or make a new one.'
+            : 'That entry is not in this book. Choose one from the list.'}
+        </Note>
+      ) : (
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <SubsectionTitle as="h3">
+              {selected.name === '' ? 'Untitled entry' : selected.name}
+            </SubsectionTitle>
+            <GateNote book={book} entry={selected} />
           </div>
 
-          <EntryList
-            book={book}
-            entries={visible}
-            base={base.object}
-            selectedId={search.entry}
-            onSelect={select}
-            onMove={(id, beforeId) => {
-              edit(moveEntryBefore(draft, id, beforeId));
+          <EntryFields
+            entry={selected}
+            onPatch={(patch) => {
+              edit(withEntry(draft, selected.id, patch));
             }}
           />
-        </section>
 
-        {selected === undefined ? (
-          <Note>
-            {search.entry === undefined
-              ? 'Choose an entry to edit it, or make a new one.'
-              : 'That entry is not in this book. Choose one from the list.'}
-          </Note>
-        ) : (
-          <section className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <SubsectionTitle as="h3">
-                {selected.name === '' ? 'Untitled entry' : selected.name}
-              </SubsectionTitle>
-              <GateNote book={book} entry={selected} />
-            </div>
-
-            <EntryFields
-              entry={selected}
-              onPatch={(patch) => {
-                edit(withEntry(draft, selected.id, patch));
-              }}
-            />
-
-            <div className="flex items-center gap-3 text-sm">
-              {confirmingDelete ? (
-                <>
-                  <span className="text-ink-subtle">Remove this entry from the book?</span>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      edit(withoutEntry(draft, selected.id));
-                      setConfirmingDelete(false);
-                      select(undefined);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="quiet"
-                    onClick={() => {
-                      setConfirmingDelete(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
+          <div className="flex items-center gap-3 text-sm">
+            {confirmingDelete ? (
+              <>
+                <span className="text-ink-subtle">Remove this entry from the book?</span>
                 <Button
                   type="button"
                   onClick={() => {
-                    setConfirmingDelete(true);
+                    edit(withoutEntry(draft, selected.id));
+                    setConfirmingDelete(false);
+                    select(undefined);
                   }}
                 >
-                  Remove this entry
+                  Remove
                 </Button>
-              )}
-              {/*
-               * Said where the control is, because it is the thing that makes
-               * the confirmation mild: nothing has left the file until Save,
-               * and after Save the book's own history holds the version that
-               * still had it ([10 §11.2a]).
-               */}
-              <Fine>Nothing is written until you save, and history keeps the version before.</Fine>
-            </div>
-          </section>
-        )}
-
-        {/*
-         * Held at the bottom of the scrollport rather than parked at the foot
-         * of the form — [10 §11.6]. A book with a folder rail, a filter, a list
-         * and an open entry is several screens tall, and Save was reachable
-         * only by scrolling past all of it, which is how an editor teaches
-         * people to leave work unsaved.
-         *
-         * Last inside the `<form>`, which is what makes the pin last: a sticky
-         * element is held only within the element that holds it, and the form
-         * is everything on this page that Save is about.
-         *
-         * The way back and Delete share the strip with Save, for the reason
-         * Save is in it: they are the controls that matter, and the page being
-         * scrolled to an entry three hundred rows down is no reason for either
-         * to be off screen. Delete moves the *book* — the whole file, as
-         * saved — where *Remove this entry* above edits the draft; the strip's
-         * question says so while there are edits nothing has written.
-         */}
-        <div className={page.actions}>
-          {unsaved ? (
-            <Link to="/library" search={{ kind: 'lorebooks' }} className={link.back}>
-              Back to the library
-            </Link>
-          ) : (
-            <Link
-              to="/library/$kind/$id"
-              params={{ kind: 'lorebooks', id: base.id }}
-              search={{}}
-              className={link.back}
-            >
-              Back to the lorebook
-            </Link>
-          )}
-          <Button
-            type="submit"
-            disabled={!savable || save.isPending || create.isPending}
-            variant="primary"
-          >
-            Save
-          </Button>
-          {/*
-           * What the last control did, said where the control is. *Saved.*, a
-           * restored version, a reapplied draft and a refused write used to
-           * render above the form — which, with the strip pinned halfway down
-           * a long form, is as far out of sight as the foot of the page. The
-           * slot takes the remaining width, with a floor of ten rem: at the
-           * column's width a long sentence wraps in place rather than folding
-           * the strip onto a second line, and on a narrow column the buttons
-           * fold under it rather than squeezing it to a word a line. The
-           * notice stands in for *No changes to save.* while it shows: after
-           * a save both are true, and the second says nothing the first did
-           * not.
-           *
-           * Every 412 used to be filtered out of the error, on the assumption
-           * the dialog had it — but the dialog only opens when the body
-           * carried `current`, so a 412 without one vanished entirely. Only
-           * what the dialog owns is filtered.
-           */}
-          <span className="flex min-w-0 grow basis-40 flex-wrap items-center gap-3 text-sm">
-            {save.isError &&
-            !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
-              <span role="alert" className="text-danger-ink">
-                {save.error.message}
-              </span>
-            ) : null}
-            {refusal !== null ? (
-              <span role="alert" className="text-danger-ink">
-                {refusal}
-              </span>
-            ) : null}
-            {notice !== null ? (
-              <span role="status" className="text-ink-subtle">
-                {notice}
-              </span>
-            ) : changed ? null : (
-              <span className="text-ink-faint">No changes to save.</span>
-            )}
-          </span>
-          {/* Both ask about a file, and a draft has not made one. */}
-          {unsaved ? null : (
-            <span className="ms-auto flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="quiet"
+                  onClick={() => {
+                    setConfirmingDelete(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
               <Button
                 type="button"
-                aria-expanded={historyOpen}
                 onClick={() => {
-                  setHistoryOpen((open) => !open);
+                  setConfirmingDelete(true);
                 }}
               >
-                History
+                Remove this entry
               </Button>
-              <DeleteObject
-                kind="lorebooks"
-                id={base.id}
-                contentHash={base.contentHash}
-                unsaved={changed}
-              />
-            </span>
-          )}
-        </div>
-      </form>
-
-      {unsaved ? null : (
-        <div className="mt-6">
-          <AsStored
-            value={base.object}
-            caption="The saved book, not the form's working state — what a reload would find."
-          />
-        </div>
+            )}
+            {/*
+             * Said where the control is, because it is the thing that makes
+             * the confirmation mild: nothing has left the file until Save,
+             * and after Save the book's own history holds the version that
+             * still had it ([10 §11.2a]).
+             */}
+            <Fine>Nothing is written until you save, and history keeps the version before.</Fine>
+          </div>
+        </section>
       )}
-
-      {historyOpen ? (
-        <div className="mt-6">
-          <HistoryPanel
-            kind="lorebooks"
-            id={base.id}
-            currentObject={base.object}
-            contentHash={base.contentHash}
-            locale={locale}
-            onRestored={(result) => {
-              setBase((previous) => ({
-                ...previous,
-                object: result.object,
-                contentHash: result.contentHash,
-              }));
-              setDraft(structuredClone(result.object));
-              setPristine(structuredClone(result.object));
-              // A restore replaces every entry at once, so the entry the
-              // address names may not be in the book any more. Said rather
-              // than redirected: the list below is the answer, and silently
-              // rewriting somebody's address is worse than telling them.
-              setNotice('Version restored. The state you were on is the newest history entry.');
-            }}
-          />
-        </div>
-      ) : null}
-
-      <UnsavedChangesGuard changed={changed} heading="This lorebook has unsaved changes" />
-
-      {conflict !== null ? (
-        <ConflictDialog
-          title="The lorebook changed while you were editing"
-          onReload={reloadAndReapply}
-          onSaveAsCopy={saveAsCopy}
-          onCancel={() => {
-            setConflict(null);
-          }}
-          copyPending={create.isPending}
-          copyError={create.isError ? create.error.message : null}
-        />
-      ) : null}
-    </>
+    </EditorFrame>
   );
 }
 
