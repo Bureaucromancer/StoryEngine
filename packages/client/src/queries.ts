@@ -24,8 +24,11 @@ import {
   readTranscript,
   readTurn,
   removeSessionHook,
+  deleteSession,
   renameSession,
+  setSessionArchived,
   setSessionLore,
+  setSessionPreset,
   writeSessionChannel,
   type Account,
   type AccountPatch,
@@ -528,6 +531,55 @@ export function useSession(
  * The transcript is deliberately not in the set: turns already taken are what
  * they were, and retrieval changes the *next* one.
  */
+/**
+ * The three session verbs that had routes and no controls — [P7B.2].
+ *
+ * All three invalidate `['sessions']` as well as the session's own entry: the
+ * list is what carries a session's name, its archived state and its existence,
+ * and a panel that changed one without telling the list would leave somebody
+ * looking at a row that no longer describes anything.
+ */
+export function useSetSessionPreset(
+  sessionId: string,
+): UseMutationResult<
+  { session: SessionSummary },
+  Error,
+  { presetId: string } | { preset: Record<string, unknown> }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { presetId: string } | { preset: Record<string, unknown> }) =>
+      setSessionPreset(sessionId, body),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      // The pack decides what the next turn assembles from, so a composed
+      // preview built over the old one is stale the moment this lands.
+      void client.invalidateQueries({ queryKey: ['preview', sessionId] });
+    },
+  });
+}
+
+export function useSetSessionArchived(
+  sessionId: string,
+): UseMutationResult<{ session: SessionSummary }, Error, boolean> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (archived: boolean) => setSessionArchived(sessionId, archived),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
+}
+
+export function useDeleteSession(sessionId: string): UseMutationResult<void, Error, void> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => deleteSession(sessionId),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['sessions'] }),
+  });
+}
+
 export function useSetSessionLore(
   sessionId: string,
 ): UseMutationResult<

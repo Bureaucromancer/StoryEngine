@@ -770,6 +770,23 @@ export interface SessionSummary {
   lore?: string[];
   mode?: string;
   /**
+   * The session's own copy of its prompt pack — [03 §8], claimed at [P7B.2].
+   *
+   * ***On the wire since P2 and undeclared here until now.*** `GET
+   * /api/sessions/:id` sends the whole session file, so this has always
+   * arrived; nothing on the client had a use for it, because until this phase
+   * nothing could change or even display which pack a session runs. The type
+   * was not wrong, it was incomplete — which is the same shape as everything
+   * else [P7B §0.5] collects, one layer up from a route with no caller.
+   *
+   * **`Record<string, unknown>` rather than `Preset`**, on the terms `treatment`
+   * and `lore` above set: a session's pack is a *structural copy* made at
+   * creation and possibly written by a later build, so a client naming its
+   * shape would be claiming to know more than it does. The panel reads `name`
+   * and `params` and passes the rest through untouched.
+   */
+  preset?: Record<string, unknown>;
+  /**
    * The goal chain, for the one caller that needs it back from a write —
    * [06 §7.3.4], [P7.6].
    *
@@ -961,6 +978,43 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
  * An empty name is a legitimate value — it is the state a session may have
  * started in — so this does not refuse one.
  */
+/**
+ * Which pack this session is assembled from — [P7B.2].
+ *
+ * **One of the two, never both.** `presetId` switches to a library preset the
+ * server clones ([03 §8]'s *copy, never link*), or the literal `default` for
+ * whatever the mode ships; `preset` is the session's own pack sent whole, which
+ * is how the panel edits one in place. [P7B §1.1] records that those are the
+ * same operation with a pack of one.
+ */
+export function setSessionPreset(
+  sessionId: string,
+  body: { presetId: string } | { preset: Record<string, unknown> },
+): Promise<{ session: SessionSummary }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/preset`, body);
+}
+
+/**
+ * Archive or restore — [03 §10.3], [P7B.2].
+ *
+ * ***One field on a `PATCH` this client has been sending since P2.*** The route
+ * has accepted `{ archived }` the whole time and `renameSession` below has been
+ * calling it with `{ name }`; nothing ever sent the other half. That is the
+ * sharpest instance of the shape [P7B §0.5] is about — not a missing route, a
+ * missing *field* on a request already being made.
+ */
+export function setSessionArchived(
+  sessionId: string,
+  archived: boolean,
+): Promise<{ session: SessionSummary }> {
+  return request('PATCH', `/api/sessions/${encodeURIComponent(sessionId)}`, { archived });
+}
+
+/** To trash, never erased — [03 §10.2], [03 §10.3]. */
+export function deleteSession(sessionId: string): Promise<void> {
+  return request('DELETE', `/api/sessions/${encodeURIComponent(sessionId)}`);
+}
+
 export function renameSession(
   sessionId: string,
   name: string,

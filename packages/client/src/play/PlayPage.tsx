@@ -40,6 +40,7 @@ import { Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
+import { SessionPanel } from './SessionPanel.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
@@ -387,6 +388,14 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           closed by default: it is a fact about the session rather than about
           any turn, and the story column is the surface. */}
       <LorePanel sessionId={sessionId} />
+
+      {/* **How this session is prompted, and the two verbs it never had** —
+          [P7B.2]. Beside the lore panel because both are facts about the
+          session rather than about a turn, and after it because what a session
+          retrieves from is the thing people reach for more often than which
+          pack it runs. *The seventh disclosure in this column*, which
+          `SessionPanel` says is a debt rather than a design. */}
+      <SessionPanel sessionId={sessionId} />
 
       {/* **What this story is trying to do** — [06 §7.3.3], [06 §7.3.4], [P7.6].
           Above the hooks because a goal is what the session is *for* and a hook

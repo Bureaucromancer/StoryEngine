@@ -25,6 +25,7 @@ import {
   listSessionFiles,
   moveHead,
   readSession,
+  setPreset,
   reconcileHandEdits,
   renameBranchRef,
   setCast,
@@ -320,6 +321,26 @@ const HookParams = Type.Object({
   sessionId: Type.String(),
   hookId: Type.String({ maxLength: 200 }),
 });
+
+/**
+ * A pack to switch to, or the session's own copy as edited — [P7B.2].
+ *
+ * **An id or an object, and never both.** `presetId` names a library preset the
+ * server clones ([03 §8]'s *copy, never link* — editing the library's copy must
+ * not rewrite a game in progress); `preset` is the session's own pack, sent
+ * whole. The panel uses the first to switch and the second to edit in place,
+ * and §1.1 records that those are the same operation with a pack of one.
+ *
+ * The literal `default` is the third arm and it means *whatever this mode
+ * ships*, which is what the create form's blank option means too.
+ */
+const PresetBody = Type.Object(
+  {
+    presetId: Type.Optional(Type.String({ maxLength: 200 })),
+    preset: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  },
+  { additionalProperties: false },
+);
 
 const LoreBody = Type.Object(
   {
@@ -1156,6 +1177,93 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * Which pack this session is assembled from — [P7B.2], and the route
+   * [P6B §4](../../../../docs/design/workplan/20-p6b-playable.md) declined to add
+   * because doing so *"is a question about what a session's preset is"*.
+   * [P7B §1.1] answers it and this is the answer built.
+   *
+   * ~~`PATCH /sessions/:id` accepts only `name`~~ — **a sibling of `PUT …/lore`
+   * and `PUT …/cast` instead**, which is the shape the last two selection
+   * surfaces took and the one whose body is *the object* rather than a diff
+   * ([P6B.0]: *ids, not objects* for links, and the whole document for the
+   * thing the session owns).
+   */
+  app.put(
+    '/sessions/:sessionId/preset',
+    { schema: { params: SessionParams, body: PresetBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { presetId, preset } = request.body as {
+        presetId?: string;
+        preset?: Record<string, unknown>;
+      };
+      const { sessionId } = request.params as { sessionId: string };
+
+      /**
+       * **Exactly one, and checked by branching rather than by asserting.**
+       *
+       * Two would make the route decide which the caller meant and neither
+       * leaves nothing to write — both are the caller's error and worth saying
+       * plainly, because the caller sent both halves. Written as nested
+       * branches so `presetId` narrows to a string where it is read: the
+       * shorter `(a === undefined) === (b === undefined)` form is the same
+       * claim and leaves the compiler unable to see it, which costs a
+       * non-null assertion the lint rules forbid in both directions.
+       */
+      let next: Record<string, unknown>;
+
+      if (presetId === undefined) {
+        if (preset === undefined) {
+          return reply.code(422).send({
+            error: 'one-of',
+            message: 'Send presetId to switch to a library preset, or preset, the pack itself.',
+          });
+        }
+        next = preset;
+      } else {
+        if (preset !== undefined) {
+          return reply.code(422).send({
+            error: 'one-of',
+            message: 'Send presetId or preset, never both — they say different things.',
+          });
+        }
+        if (presetId === 'default') {
+          const session = await readSession(services.sessions, account.handle, sessionId);
+          if (session === null) return reply.code(404).send({ error: 'not-found' });
+          const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+          if (!mode) return reply.code(422).send({ error: 'unknown-mode' });
+          next = structuredClone(mode.definition.assembly.defaultPreset);
+        } else {
+          let row;
+          try {
+            row = read(services.library, account.handle, presetId, PRESET_SCHEMA);
+          } catch (error) {
+            if (error instanceof LibraryError && error.code === 'not-found') {
+              return reply.code(422).send({ error: 'unknown-preset', message: 'No such preset.' });
+            }
+            throw error;
+          }
+          // **Copied, not referenced** ([03 §8]) — the same clone session
+          // creation makes, for the same reason.
+          next = structuredClone(row.body) as Record<string, unknown>;
+        }
+      }
+
+      const updated = await setPreset(
+        services.sessions,
+        account.handle,
+        sessionId,
+        next as NonNullable<Parameters<typeof setPreset>[3]>,
+      );
+      if (updated === null) return reply.code(404).send({ error: 'not-found' });
       return reply.send({ session: updated });
     },
   );

@@ -1590,6 +1590,64 @@ export async function addSessionGoal(
   });
 }
 
+/**
+ * Which prompt pack this session is assembled from, and with what parameters —
+ * [P7B.2], and it answers the question [P6B §4] declined to.
+ *
+ * That section refused to add a route for changing a session's preset because
+ * doing so *"is a question about what a session's preset is"*.
+ * [P7B §1.1](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md) is
+ * that question answered, in two halves:
+ *
+ * **A switch is a new copy, and the turns already taken keep theirs.** The
+ * session's pack is replaced by a fresh clone of another one; nothing rewrites
+ * the record, because the turn record holds the blocks each turn was actually
+ * assembled from — which is what compare reads and what
+ * [10 §3](../../../../docs/design/10-ui-surfaces.md)'s *the same turn before and
+ * after a preset change* has always meant. **The cost, stated: rewinding past a
+ * switch does not un-switch**, and the workbench says which pack a turn used
+ * rather than letting a reader assume the current one.
+ *
+ * **Editing the session's own copy in place is the same operation as switching
+ * to a pack of one**, which is why one function does both: `preset` is the
+ * whole object either way, and whether it came from the library or from the
+ * panel's own fields is not a distinction this layer can see or needs to.
+ *
+ * ***A field on the session and not a channel***, which §1.1 leans and P7.3
+ * decided the same way for voice and dispatch.
+ * [06 §4](../../../../docs/design/06-modes-and-turn-pipeline.md)'s channels are
+ * story state — things a turn changes and a rewind restores. A pack is
+ * configuration: the runner reads it, no step writes it, and a rewind that
+ * silently restored an older pack would surprise more people than one that does
+ * not.
+ */
+export async function setPreset(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  preset: NonNullable<SessionFile['preset']>,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    // `NonNullable`, and the spread is why: under `exactOptionalPropertyTypes`
+    // an explicit `undefined` is not the same as an absent key, so a caller
+    // able to pass one could *remove* a session's pack — which is not a state
+    // this route should be able to produce. A session without a preset falls
+    // back to the mode's default (`gather.ts`), and that is a property of old
+    // files rather than something to offer as an edit.
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      preset,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}
+
 export async function setLore(
   context: SessionContext,
   handle: string,
