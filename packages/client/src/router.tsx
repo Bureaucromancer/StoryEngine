@@ -154,9 +154,33 @@ const sessionsRoute = createRoute({
  * and the stream's snapshot supplies everything else, which is what makes
  * reattach a request rather than a race.
  */
+/**
+ * Which committed turn the workbench is describing — [P7B.7].
+ *
+ * ***In the address rather than in the panel, because the panel's own rule says
+ * so.*** [10 §3](../../../docs/design/10-ui-surfaces.md) calls the workbench a
+ * reader with no state of its own, and `Workbench.tsx` spells out the
+ * consequence: *"the subject follows the route, not a stored selection …
+ * remembering the last subject would quietly make it a place."* A selection
+ * kept in component state would have made it one. This is the same shape the
+ * lorebook editor's `?entry=` already takes, for the same reason.
+ *
+ * Absent means *the turn about to be taken, falling back to the head* — P3.4's
+ * subject, unchanged. Dropped rather than rejected when it is not a string,
+ * like every other search validator here.
+ */
+export interface PlaySearch {
+  turn?: string;
+}
+
+export function validatePlaySearch(search: Record<string, unknown>): PlaySearch {
+  return { ...(typeof search['turn'] === 'string' ? { turn: search['turn'] } : {}) };
+}
+
 const playRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/play/$sessionId',
+  validateSearch: validatePlaySearch,
   component: function Play() {
     const { sessionId } = playRoute.useParams();
     return <PlayPage sessionId={sessionId} />;
