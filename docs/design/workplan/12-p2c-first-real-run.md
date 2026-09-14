@@ -160,7 +160,7 @@ arrives anywhere.
   described was a client with no styling layer at all, so the colours were
   gathered into semantic tokens in `packages/client/src/index.css` and the
   repeated markup into `packages/client/src/ui/`
-  ([10 §1.2](../10-ui-surfaces.md), [19 §6.1](../19-tech-stack.md)). A Tailwind
+  ([10 §1.2](../10-ui-surfaces.md), [20 §6.1](../20-tech-stack.md)). A Tailwind
   palette scale written anywhere else in the client is now a **lint** error,
   which is the part that makes "a stranded assumption" unrepeatable rather than
   repaired. *Not a build error, as this said before it was checked:* the root
@@ -234,7 +234,7 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   `asProviderError` never runs on the path every turn takes. Two consequences
   beyond the message: the SDK dumps the real diagnosis to **stdout as a raw stack
   trace, outside pino and with no `jobId`**, which breaks
-  [21 §4.1](../21-internal-contracts.md)'s one-format contract; and a transient
+  [22 §4.1](../22-internal-contracts.md)'s one-format contract; and a transient
   blip is classified `terminal`, so the retry never fires.
 
   **Why the suite is green is the part worth keeping.** `stream()` has no tests —
@@ -256,7 +256,7 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   `openai-compatible` inherits verbatim, and `includeUsage` never passed to the
   SDK, so `stream_options` never goes on the wire. *(A third — a form edit
   deleting the hand-written override that would fix the first — was found by the
-  same survey and is already fixed.)* [21 §1.4](../21-internal-contracts.md)
+  same survey and is already fixed.)* [22 §1.4](../22-internal-contracts.md)
   calls cost *provider-reported, not estimated*, so this is the phase's headline
   check and it is unpassable by construction. **It is a reporting gap and not a
   pipeline one** — the budgeter uses its own `estimateTokens` and never reads
@@ -297,7 +297,7 @@ merely incomplete. **Every one of these produces a plausible false finding.**
 
 ### 1.3 The failure would be unfindable — a day and a half
 
-[21 §4.1](../21-internal-contracts.md) is unambiguous about what the log owes:
+[22 §4.1](../22-internal-contracts.md) is unambiguous about what the log owes:
 *a child logger binds `requestId`, `account`, `sessionId`, `jobId`, `turnId` once
 at the point the subject comes into existence rather than each call site
 repeating them*. Measured against it, the server has 28 log call sites and **19
@@ -309,12 +309,12 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   `job.committed` had no `sessionId`. A tester reports the id they can see —
   the session's, from the URL — and the lines that would explain it could not be
   found by it. It was closer to a deletion than an addition, as predicted: the
-  child logger moved from `#body` to `start()`, which is what [21 §4.1] asks
+  child logger moved from `#body` to `start()`, which is what [22 §4.1] asks
   for — *once, where the subject comes into existence* — and the three lines
   written outside `#body` inherited the bindings by doing nothing.
 
   **`requestId` is deferred, with a reason rather than by omission.** It is the
-  one binding in [21 §4.1]'s list that does not exist yet: Fastify mints a
+  one binding in [22 §4.1]'s list that does not exist yet: Fastify mints a
   `reqId` per request, a turn outlives the request that submitted it, and
   nothing carries the id across the job table. Threading it means a column, a
   migration and a decision about what the id *means* for a turn recovered after
@@ -334,7 +334,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   narration.~~ Done (F32)** — the step-failure line logs a shape (event, step,
   reason, message, class, call id) rather than the error object, so
   `partialText` and the rendered prompt stay on the record where they belong
-  and out of the log, per [21 §4.1]'s *a log is not a backup and user prose is
+  and out of the log, per [22 §4.1]'s *a log is not a backup and user prose is
   not diagnostic*.
 - **~~Pressing Stop writes an `error` line.~~ Done, same commit** — the
   level follows the reason: `info` for a cancellation, `warn` for `ignore`
@@ -362,7 +362,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
 - **~~The log has no destination, so [§4](#4-verification--the-p2c-exit-gate)
   step 9 cannot be checked at all.~~ Done: `pnpm dev:logged`, and said in the brief at
   [P2C brief §2.4](13-p2c-brief.md).** It is JSON on
-  stdout — deliberately, since [21 §4.1](../21-internal-contracts.md) refuses a
+  stdout — deliberately, since [22 §4.1](../22-internal-contracts.md) refuses a
   file and refuses a pretty transport — and the documented way to run this was
   `pnpm dev`, which multiplexes both packages and prefixes every line with
   `packages/server dev: `. **Measured rather than assumed**, because the claim
@@ -412,7 +412,7 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   control and tier badge from the schema with no client change. The two things
   that were *not* free were the two the test suite refuses to let go: the
   `LIVE_APPLIERS` row, and the key's absence from `config.example.json` and from
-  [21 §4.3](../21-internal-contracts.md)'s table. Both failed the build the
+  [22 §4.3](../22-internal-contracts.md)'s table. Both failed the build the
   moment the key landed, which is the honesty machinery working exactly as
   described.
 
@@ -710,13 +710,13 @@ half: no key at all, an endpoint that may not implement `/models`, one that
 answers `/models` with a single entry called `gpt-3.5-turbo` regardless of what is
 loaded ([P2B §2.6](10-p2b-provider-configuration.md)), a context window the
 adapter has no way to ask about, and `usage` that is frequently absent — which
-matters because [21 §1.4](../21-internal-contracts.md) calls cost
+matters because [22 §1.4](../22-internal-contracts.md) calls cost
 *provider-reported, not estimated*, and an endpoint that reports nothing makes
 every cost figure in the record a zero that looks like a number.
 
 **And the local one is the primary case, not the exotic one.** [00 §1](../00-stance.md)'s
 position is that this runs on your own machine; the household example
-[19 §5.1](../19-tech-stack.md) uses is *"Dad pays for the API"*, which is the
+[20 §5.1](../20-tech-stack.md) uses is *"Dad pays for the API"*, which is the
 hosted case, but the install nobody has to pay for is the one that decides whether
 this is worth running at all.
 
@@ -748,7 +748,7 @@ reason: afterwards, every finding argues for its own importance.
 | **Fixed inside the phase** | It blocks a later scenario, or it is a defect in something this phase's own stages built |
 | **A gate correction** | It shows an exit-gate step describing behaviour the code does not have — the shape [P2B §4](10-p2b-provider-configuration.md)'s first walk found three times |
 | **[Polish](06-polish.md)** | User-facing, bounded, no schema change and no new contract. That file's own bar, and its own framing says these are *"obvious the moment a real person uses the app"* — which is what this phase is |
-| **[PLAYABLE](01-work-plan.md)** or [roadmap](../24-roadmap.md) | Anything about whether the record is legible or the budgeter comprehensible is §4.1's question, not this one's. A deferred feature is the roadmap's |
+| **[PLAYABLE](01-work-plan.md)** or [roadmap](../25-roadmap.md) | Anything about whether the record is legible or the budgeter comprehensible is §4.1's question, not this one's. A deferred feature is the roadmap's |
 
 **Nothing is allowed to have no home.** The phase does not end until every
 finding has one, which is [§4](#4-verification--the-p2c-exit-gate)'s last step
@@ -938,7 +938,7 @@ own `preset.params.maxTokens` in `session.json`, a one-line edit, since a
 created session carries a full inline preset** — an endpoint that returns HTML,
 the machine's network turned off mid-stream. [manual gate §2.2](11-p2-manual-gate.md)
 lists them, and each should surface as a *classified* failure
-([25 E7](../25-open-questions.md)) rather than as a provider string in the UI.
+([26 E7](../26-open-questions.md)) rather than as a provider string in the UI.
 The ceiling is the one whose classification is not E7's: it surfaces as
 `outcome: 'truncated'` on the call rather than as an error class, because a
 ceiling reached is not a failure — which is itself the thing to verify.
@@ -1007,7 +1007,7 @@ somebody else can check they saw it.
    [P2B §4](10-p2b-provider-configuration.md) step 1, and it closes it.*
 2. **Both turns carry a token count that came from the provider**, and a cost
    of `null` rather than `0`. The first half is what §1.2 fixes;
-   [21 §1.4](../21-internal-contracts.md) calls usage *provider-reported, not
+   [22 §1.4](../22-internal-contracts.md) calls usage *provider-reported, not
    estimated*, and today it is null on every turn for two independent reasons.
    The second half is deliberate and stays: no price table ships, and the adapter
    hard-codes `cost: null` rather than fabricate a number. **An earlier draft of
@@ -1024,7 +1024,7 @@ somebody else can check they saw it.
 4. **Five deliberate failures, five classifications** — a wrong key, a model id
    that does not exist, a completion ceiling of ten tokens, an endpoint returning
    HTML, and the network cut mid-stream. Each surfaces as a class
-   ([25 E7](../25-open-questions.md)) and **none puts a provider's own string in
+   ([26 E7](../26-open-questions.md)) and **none puts a provider's own string in
    front of the user.** *Two corrections from walking this step against the
    code:* the ceiling has no UI — it is a one-line hand-edit of the session's
    inline `preset.params.maxTokens`, which [P2C brief §6](13-p2c-brief.md) spells out —

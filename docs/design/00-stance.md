@@ -58,7 +58,7 @@ SillyTavern and it exists to serve raw-completion local backends.
 **Replacement:** the model contract is *chat-shaped with roles, structured output
 and tool calling*. Not "chat-shaped by default with a completion adapter behind
 it" — **raw completion is treated as legacy and is not supported at all**
-([19 §5.5](19-tech-stack.md)).
+([20 §5.5](20-tech-stack.md)).
 
 An earlier draft kept a downgrade adapter. Dropping it entirely is the stronger
 position and costs less than it did three years ago: essentially every local

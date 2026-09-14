@@ -109,7 +109,7 @@ async function aSessionOf(count: number): Promise<{ sessionId: string; turns: Tu
 describe('one turn by id', () => {
   /**
    * [P3.0]'s read: the location index finally doing the job its header
-   * promised, with the cold read behind it because [21 §5] makes the index
+   * promised, with the cold read behind it because [22 §5] makes the index
    * derived — deleting it costs a rescan and nothing else, and a route that
    * 404'd on a missing row would make it load-bearing.
    */
@@ -124,7 +124,7 @@ describe('one turn by id', () => {
 
   it('falls back to the cold read when the index has no row', async () => {
     // The falsifying mutation is returning null on an index miss — the
-    // derived index becomes load-bearing exactly the way [21 §5] forbids.
+    // derived index becomes load-bearing exactly the way [22 §5] forbids.
     const { sessionId, turns } = await aSessionOf(2);
     index.db.prepare('delete from turn').run();
 

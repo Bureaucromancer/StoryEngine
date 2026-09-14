@@ -7,10 +7,10 @@ import { createValidator } from '@storyengine/shared';
 import { readFileBytes } from './storage/files.js';
 
 /**
- * `config.json` — docs/design/21-internal-contracts.md §4.
+ * `config.json` — docs/design/22-internal-contracts.md §4.
  *
  * **The reload tier is declared per key, and that declaration is the source.**
- * [25 D0](../../../docs/design/25-open-questions.md) asks for every key to carry one, and
+ * [26 D0](../../../docs/design/26-open-questions.md) asks for every key to carry one, and
  * [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md) derives the
  * restart-required banner from it rather than from a parallel list. The reason
  * is stated plainly there and worth repeating: *a hand-maintained list of
@@ -129,7 +129,7 @@ export const ConfigSchema = Type.Object(
       /**
        * `silent` is not an operational setting — it exists because the test
        * suite builds whole apps and a level union with no off switch leaves it
-       * nowhere to turn them down ([21 §4](../../../docs/design/21-internal-contracts.md)).
+       * nowhere to turn them down ([22 §4](../../../docs/design/22-internal-contracts.md)).
        */
       level: Type.Union(
         [
@@ -146,7 +146,7 @@ export const ConfigSchema = Type.Object(
        * implemented nowhere; honouring it means a second dependency and a
        * transport for an ergonomic gain in development only, and a terminal
        * that wants it pretty can pipe it
-       * ([21 §4.1](../../../docs/design/21-internal-contracts.md), [P2 §2.2](../../../docs/design/workplan/08-p2-implementation.md)).
+       * ([22 §4.1](../../../docs/design/22-internal-contracts.md), [P2 §2.2](../../../docs/design/workplan/08-p2-implementation.md)).
        * The key stays a union so that adding a format later is not a type
        * change at every call site.
        */
@@ -159,7 +159,7 @@ export const ConfigSchema = Type.Object(
     sessions: Type.Object({
       snapshotEveryNTurns: Type.Integer({ minimum: 1, default: 10 }),
       /**
-       * How often the session stream sends a comment frame — [19 §8].
+       * How often the session stream sends a comment frame — [20 §8].
        *
        * `reconnect` rather than `live`: a keepalive is a property of a
        * *connection*, and an open stream keeps the interval it opened with. It
@@ -183,7 +183,7 @@ export const ConfigSchema = Type.Object(
       extensionStorageQuotaMb: Type.Integer({ minimum: 1, default: 32 }),
       /**
        * The context window a turn may assemble into, when the endpoint does not
-       * say — [21 §1.5].
+       * say — [22 §1.5].
        *
        * No `KNOWN_PROVIDERS` entry sets `maxContextTokens`, because
        * `capabilities.ts` refuses to invent a number it cannot verify. Without
@@ -566,7 +566,7 @@ function valueAt(config: Config, key: string): unknown {
 /**
  * The bootstrap keys an environment variable may set, by variable name —
  * [P6A §1.2](../../../docs/design/workplan/19-p6a-alpha-1.md),
- * [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
+ * [P10 §1.2](../../../docs/design/workplan/27-p10-implementation.md).
  *
  * **This table exists because of a rule about artifacts, not because
  * environment variables are convenient.** [P10 §1.2] forbids the container

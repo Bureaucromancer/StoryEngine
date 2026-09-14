@@ -6,7 +6,7 @@ import type { RandomApi } from '@storyengine/sdk';
 import type { Rng } from './rng.js';
 
 /**
- * The engine's side of the host's `random` — [22 §4](../../../../docs/design/22-extensions.md),
+ * The engine's side of the host's `random` — [23 §4](../../../../docs/design/23-extensions.md),
  * [P7 §1.2](../../../../docs/design/workplan/23-p7-implementation.md).
  *
  * **The interfaces live in `@storyengine/sdk` and the implementation lives
@@ -21,7 +21,7 @@ import type { Rng } from './rng.js';
  * the **package split** that forced the conversion rather than the worker hop:
  * `Rng` is a class with `#private` fields, so no structural interface can stand
  * in for it, and the SDK may not import `server`
- * ([19 §10](../../../../docs/design/19-tech-stack.md)) — so a published contract
+ * ([20 §10](../../../../docs/design/20-tech-stack.md)) — so a published contract
  * could not mention it at all, the alternative being to publish the tape
  * machinery as contract.
  *

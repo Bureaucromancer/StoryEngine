@@ -219,7 +219,7 @@ describe('a turn submitted against an old node', () => {
   });
 
   it('charges once for a branch that is submitted twice', async () => {
-    // [21 §5.1]: a retry must never make a second provider call. Branching does
+    // [22 §5.1]: a retry must never make a second provider call. Branching does
     // not get its own path through the reservation, and this is what says so.
     const sessionId = await createSession();
     const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
@@ -416,7 +416,7 @@ describe('moving the head, through the routes', () => {
 });
 
 /**
- * Rewrite and reroll — [19 §14.5], [P6 §3] step 3, [P6.2].
+ * Rewrite and reroll — [20 §14.5], [P6 §3] step 3, [P6.2].
  *
  * **The fixture has to be built to roll**, which [P6 §0.1a] found the hard way:
  * the production draw sites are `lore.probability` and `lore.group`, so a turn
@@ -669,7 +669,7 @@ describe('rewrite replays the draws, and reroll does not', () => {
       });
       const redo = await turnOnDisk(sessionId, plain.body.turnId as string);
 
-      // A plain redo is *same setup, different words* ([19 §14.6]): the model
+      // A plain redo is *same setup, different words* ([20 §14.6]): the model
       // is not shown a reply it might then avoid or copy. The route inventing
       // `redoOf` from `rewriteOf` is the mutation, and it fills the slot.
       expect(attemptBlocksOf(redo)).toEqual([]);

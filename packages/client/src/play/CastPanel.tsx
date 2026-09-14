@@ -86,7 +86,7 @@ function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
       </div>
 
       {/**
-       * **The prominent surface a refused death is owed** — [06 §8.1], [25 C12].
+       * **The prominent surface a refused death is owed** — [06 §8.1], [26 C12].
        *
        * *"Models kill characters casually and in passing. A missed death is an
        * annoyance corrected in one click; a false one silently removes someone

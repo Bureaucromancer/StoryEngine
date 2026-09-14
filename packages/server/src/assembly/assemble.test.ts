@@ -11,7 +11,7 @@ import type { Candidate } from './types.js';
 
 /**
  * Assembly — [06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md),
- * [21 §1.1, §1.5, §2](../../../../docs/design/21-internal-contracts.md).
+ * [22 §1.1, §1.5, §2](../../../../docs/design/22-internal-contracts.md).
  *
  * The golden-file suite starts here and is CI from now on: the fake provider
  * records every request, so the last test in this file snapshots the rendered

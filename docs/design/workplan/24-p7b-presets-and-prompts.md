@@ -1,14 +1,16 @@
-# 28 — P7B implementation plan: presets and prompt handling
+# 24 — P7B implementation plan: presets and prompt handling
 
-**Status: skeleton, written 2026-09-11 at `46bec98` — the phase after P7, and
-filed out of order on purpose.** Its place is after [P7](23-p7-implementation.md)
-and before [P8](24-p8-implementation.md), which is 24. Taking that number today
-renumbers P8 through P11 and repoints every citation to them — including the
-ones inside the P7 document that branch `p7` is editing — so it sits at the
-first free number instead. `PLAN_ORDER` in
-[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
-real position; one scripted run after P7 merges moves it, and nothing cites a
-work-plan number, so the move costs nothing
+**Status: skeleton, written 2026-09-11 at `46bec98` — the phase after P7.**
+~~Filed out of order on purpose~~ **— and filed here now.** Its place is after
+[P7](23-p7-implementation.md) and before [P8](25-p8-implementation.md), which is
+24. Taking that number while branch `p7` was open would have renumbered P8
+through P11 and repointed every citation to them, including the ones inside the
+document that branch was editing, so it sat at the first free number instead
+with `PLAN_ORDER` in
+[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) holding its real
+position. **One scripted run after P7 merged moved it, on 2026-09-14** — as a
+side effect of a run inserting a design note, which is the cost this arrangement
+predicted: nothing cites a work-plan number, so the move cost nothing
 ([README](README.md)). Format follows [P1](07-p1-implementation.md); citations
 follow the corpus convention.
 
@@ -42,9 +44,9 @@ editors are three panels, which is the pressure. P7's own text knows the gap:
 its P7.9 grows *"a thirteen-block preset that is a code constant nobody can
 open"*, and its re-audit found *"a hook has nowhere to be authored"* and chose
 hand-edited JSON for P7.5 rather than inherit an editor. That is the right call
-for P7 and the wrong end state for 1.0. Why not P11: [P11.2](27-p11-implementation.md)
+for P7 and the wrong end state for 1.0. Why not P11: [P11.2](28-p11-implementation.md)
 applies [10 §11](../10-ui-surfaces.md) *across every editor*, and
-[P11 §1](27-p11-implementation.md) says in as many words that the size of that
+[P11 §1](28-p11-implementation.md) says in as many words that the size of that
 clause *"depends entirely on how many editors P5 through P9 add"*. A hardening
 phase applies a contract across editors; it should not be discovering that
 half of them are missing.
@@ -84,7 +86,7 @@ records P4's amendment and keeps *"browsing, previewing, switching
 mid-session"* — pack selection, never block editing — and no stage from P7.0
 to P7.9 carries even that. P7.2 is the cast panel. P7.3, on branch `p7`, carries
 voice and dispatch as session fields, the session and step overrides of
-[19 §5.1](../19-tech-stack.md), and the role-binding editor; not the pack, not
+[20 §5.1](../20-tech-stack.md), and the role-binding editor; not the pack, not
 `params`. P7's §4 does not list an editor as out of scope, so it is neither in
 nor deliberately out. **P8 through P11 do not build one either**: P9, P10 and
 P11 never use the word *preset*, and P8's one use is an import marker. The only
@@ -157,7 +159,7 @@ path around either. §2 is one stage per absence, in dependency order.
 does not find them twice: voice and dispatch as optional session fields, the
 session and step model overrides, and the role-binding editor (P7.3); the
 input-kind selector and R11's suggested actions (P7.9); the guidance one-click
-refill of [25 C14](../25-open-questions.md) (*"lands in this phase unless
+refill of [26 C14](../26-open-questions.md) (*"lands in this phase unless
 somebody moves it"*, P7 §0.1); the setup wizard and the `setups/` kind's writer
 (P7.4); and the two false deferrals P7 §0.1a struck — the context-window surface
 and the advisory marker — which were already built.
@@ -183,7 +185,7 @@ builds it and absorbs it otherwise, at the revisit, with the date.
 minimum — *create, rename, delete, and the durable core … with everything else
 visible and read-only* — on the P1 precedent, real write path and no assist.
 The field-assist contract, image slots, provenance display and the entry-level
-exchange are [P11.2](27-p11-implementation.md)'s and stay there. A stage in
+exchange are [P11.2](28-p11-implementation.md)'s and stay there. A stage in
 this phase that starts building assist has crossed the line, because the reason
 this phase exists is that nobody can change one sentence, and assist is a way
 of writing sentences faster.
@@ -556,13 +558,13 @@ listed in §4 with the phase that will.
 ## 4. Out of scope, deliberately
 
 The field-assist contract, image slots, provenance display and entry-level
-exchange ([10 §11](../10-ui-surfaces.md) — [P11.2](27-p11-implementation.md)'s,
+exchange ([10 §11](../10-ui-surfaces.md) — [P11.2](28-p11-implementation.md)'s,
 across the editors this phase creates as much as the ones before it); **the
 package editor** (P11.2, where [manual testing §10](05-manual-testing.md) placed
 it on 2026-09-11 — a bundle's editor is a picker over the user's objects and
 belongs with the exchange work); a setup editor beyond P7.4's wizard, which
 *is* the setup's editor by [10 §6](../10-ui-surfaces.md)'s design; personal
-connections and bindings ([10 §15.1](../10-ui-surfaces.md) — [P10.3](26-p10-implementation.md));
+connections and bindings ([10 §15.1](../10-ui-surfaces.md) — [P10.3](27-p10-implementation.md));
 the hook panel and its tuning (P7.5, P11.5); a provider-specific escape hatch
 in `params` ([04 §8.5](../04-schemas.md)'s open question, and it stays open);
 the prompt *preview* as a separate feature, because the workbench's preview

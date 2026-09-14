@@ -3,7 +3,7 @@
 Every release tag has an entry here — [releases §7](docs/design/workplan/04-repo-and-releases.md).
 The reason is not bookkeeping: [09 §7](docs/design/09-server-multiuser-deployment.md)
 makes _what am I running_ a user-facing question rather than a maintainer's one,
-and the About surface planned at [P11.6](docs/design/workplan/27-p11-implementation.md)
+and the About surface planned at [P11.6](docs/design/workplan/28-p11-implementation.md)
 links here to answer it.
 
 Versions are [semantic](https://semver.org), with the caveat
@@ -195,7 +195,7 @@ attach ([P6A §0.1](docs/design/workplan/19-p6a-alpha-1.md)). Nobody else is
 running it, which is the property that carries every obligation.
 
 **No compatibility promise between alpha builds.**
-[21](docs/design/21-internal-contracts.md) licenses the storage tier to change
+[22](docs/design/22-internal-contracts.md) licenses the storage tier to change
 without migration for exactly as long as nothing leaves the install. What this
 build ships instead of migration machinery is a refusal: a data directory
 carries the build that wrote it, and an older build will not open a directory a

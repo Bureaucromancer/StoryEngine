@@ -52,7 +52,7 @@ export const GOAL_JUDGE_STEP: StepDefinition = {
    */
   failure: 'warn',
   /**
-   * `prose`, for the reason [P7.5]'s selector records and [25 C15] generalises:
+   * `prose`, for the reason [P7.5]'s selector records and [26 C15] generalises:
    * `resolveRole` has no cross-role fallback and nothing in this build binds any
    * role but this one, so asking for `fast` would make every goal-bearing
    * session log a failed step. An install that wants something cheaper says so

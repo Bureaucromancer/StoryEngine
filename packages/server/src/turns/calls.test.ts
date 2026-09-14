@@ -96,7 +96,7 @@ describe('planning a call', () => {
     expect(call.budget.limit.tokens).toBeGreaterThan(0);
     expect(call.messages.length).toBeGreaterThan(0);
     // The connection travels beside the record rather than inside it: it holds
-    // `apiKey` and `baseUrl` ([21 §1.4]).
+    // `apiKey` and `baseUrl` ([22 §1.4]).
     expect(connection.id).toBe(CONNECTION.id);
     expect(call.resolved.connectionId).toBe(CONNECTION.id);
     expect(call).not.toHaveProperty('connection');
@@ -184,7 +184,7 @@ describe('planning a call', () => {
 });
 
 /**
- * **[19 §5.1]'s override layers, passed at last** — [P7 §1.9], [P7.3].
+ * **[20 §5.1]'s override layers, passed at last** — [P7 §1.9], [P7.3].
  *
  * `resolveRole` has implemented five layers since P2B and three of the four
  * built ones had **no production caller**: session, step and the actor hint.
@@ -260,7 +260,7 @@ describe('a session overriding a model', () => {
 });
 
 /**
- * **[19 §5.1]'s last and weakest layer, reached at last** — [P7 §1.9], [P7.3].
+ * **[20 §5.1]'s last and weakest layer, reached at last** — [P7 §1.9], [P7.3].
  *
  * §1.9 found the actor hint in the same state as the session and step layers —
  * *"never passed either"* — and named the reason: *"today one turn makes one

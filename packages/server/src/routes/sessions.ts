@@ -59,7 +59,7 @@ import { PathEscapeError } from '../storage/paths.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
- * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [19 §8].
+ * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [20 §8].
  *
  * **Every route resolves its session from the account, never from a parameter.**
  * There is no `:handle` here any more than there is in the library routes: the
@@ -100,7 +100,7 @@ const ChannelParams = Type.Object({
 const ChannelBody = Type.Object({ value: Type.Unknown() }, { additionalProperties: false });
 
 /**
- * A binding is a connection and one of its models — [19 §5.1].
+ * A binding is a connection and one of its models — [20 §5.1].
  *
  * **Validated for shape and not for existence**, which is `setSessionRoles`'
  * argument: a binding naming a removed connection resolves as `dangling`, and
@@ -381,7 +381,7 @@ const SubmitBody = Type.Object(
      */
     parentTurnId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     /**
-     * Replay this turn's draws — **rewrite** rather than reroll, [19 §14.5],
+     * Replay this turn's draws — **rewrite** rather than reroll, [20 §14.5],
      * [P6.2].
      *
      * A turn id rather than a tape: the draws are read from the record on this
@@ -1176,7 +1176,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * Which model this session uses for a role, and for one step — [19 §5.1],
+   * Which model this session uses for a role, and for one step — [20 §5.1],
    * [P7 §1.9], [P7.3].
    *
    * **The surface §1.9 says P7 owes**, and it names the shape: *"a session-level
@@ -1374,7 +1374,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * **History shows the selected path only** ([07 §6]), so the alternatives
        * are not in `turns` and must be named some other way or they are
        * unreachable — which is what [P2C §5] meant by *a storage affordance with
-       * no route*, and what [18 §4.3] predicted for an imported chat: swipes
+       * no route*, and what [19 §4.3] predicted for an imported chat: swipes
        * land correctly in the tree and cannot be seen.
        *
        * Only nodes that actually have alternatives appear. A map of every turn
@@ -1544,7 +1544,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
   /**
    * Undo — apply an effect's `before`, or refuse and offer the branch —
-   * [§1.4], [21 §1.2.1], [P6.3].
+   * [§1.4], [22 §1.2.1], [P6.3].
    *
    * The refusal is the feature. `before` is an inverse only while nothing has
    * touched the same key since; applying it otherwise destroys the later change

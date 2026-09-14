@@ -6,7 +6,7 @@ them, a session or a World; the closure is computed and shown; you adjust it;
 a file comes out.
 
 **Scheduled for 1.0** ([work plan §0](workplan/01-work-plan.md)), where the
-exchange work already sits ([P11](workplan/27-p11-implementation.md)). It reads
+exchange work already sits ([P11](workplan/28-p11-implementation.md)). It reads
 after [15](15-world.md), whose kind it fills, and beside
 [10 §5](10-ui-surfaces.md), whose import review it is the mirror of.
 
@@ -45,7 +45,7 @@ The starting point decides nothing except where the walk begins.
 |---|---|
 | One actor, lorebook, treatment, setup or preset | That object and its closure |
 | A multi-selection of any of those | All of them and the union of their closures |
-| A session | The session, its `localActors`, its channel state, its branch structure and renditions ([25 B12](25-open-questions.md)) |
+| A session | The session, its `localActors`, its channel state, its branch structure and renditions ([26 B12](26-open-questions.md)) |
 | A World | Its members and their closures — which is the case the other rows are special cases of |
 
 **A single object of a single kind may leave as its own file** — `.seactor` for

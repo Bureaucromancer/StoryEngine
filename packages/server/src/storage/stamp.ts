@@ -10,7 +10,7 @@ import type { Layout } from './layout.js';
  * Which build last opened this data directory — [P6A §1.7](../../../../docs/design/workplan/19-p6a-alpha-1.md).
  *
  * **The hazard is not strangers, it is you.**
- * [21](../../../../docs/design/21-internal-contracts.md) licenses the storage
+ * [22](../../../../docs/design/22-internal-contracts.md) licenses the storage
  * tier to change without migration *on the condition that nothing leaves the
  * install*, and nothing does — Alpha 1 is private and undistributed
  * ([P6A §1.1]). So the failure this closes is pointing an older build at a

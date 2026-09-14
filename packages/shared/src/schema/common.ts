@@ -207,7 +207,7 @@ export type Openings = Static<typeof Openings>;
  * other half: a short story from the setting, a page of a character's
  * narration, pasted whole and meant to be read as *this is the register*.
  *
- * The precedent is already in the corpus for pictures. [24 §2.4] separates a
+ * The precedent is already in the corpus for pictures. [25 §2.4] separates a
  * style exemplar from a likeness because "style is a property of the
  * *production*, not the person" — the same character in ink wash and in
  * photoreal is still that character. This is that argument applied to prose,
@@ -302,7 +302,7 @@ export type VisualDescriptors = Static<typeof VisualDescriptors>;
  * lorebook entry as on an actor — *this is what it looks like*, suitable for
  * conditioning generation — which is what lets a later feature treat a
  * location's reference image the way it already treats an actor's
- * ([24 §3](../../../../docs/design/24-roadmap.md)). `map` is the only addition lore needed,
+ * ([25 §3](../../../../docs/design/25-roadmap.md)). `map` is the only addition lore needed,
  * because a diagram is genuinely not a likeness. `illustration` was considered
  * and rejected as a synonym for `reference` that would leave authors guessing.
  */
@@ -330,7 +330,7 @@ export const MediaRole = Type.Union(
     Type.Literal('expression'),
     /**
      * **One body out of a set, the same way** — and still without a reader.
-     * [17 §3]'s Character Studio generates expression *and* pose sets, and Scene
+     * [18 §3]'s Character Studio generates expression *and* pose sets, and Scene
      * selects only on expression, so this arm ships ahead of anything that
      * chooses between poses. Kept beside `expression` rather than folded into it
      * because a scene may want both axes at once and a single role could not say

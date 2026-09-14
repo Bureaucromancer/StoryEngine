@@ -1,4 +1,4 @@
-# 16 — The authoring tier
+# 17 — The authoring tier
 
 **Status: proposal.** The release where **authoring what you have played becomes
 a first-class activity**. Authored rules are its mechanism; they are not its
@@ -9,15 +9,15 @@ product.
 it reads after [06](06-modes-and-turn-pipeline.md) and
 [02](02-infinite-worlds.md), whose extensibility tiers it completes.
 
-One of its two parts began life in [24](24-roadmap.md) — lorebook extraction as
+One of its two parts began life in [25](25-roadmap.md) — lorebook extraction as
 §2c.3 — and moved here when the tier acquired a release, because the feature list
-holds no release commitments ([24](24-roadmap.md) header). The other, the
+holds no release commitments ([25](25-roadmap.md) header). The other, the
 authored-rule vocabulary, is designed in
 [06 §4.1](06-modes-and-turn-pipeline.md) and [02 §3](02-infinite-worlds.md) and
 is not restated here; §2 says only what this release adds to it.
 
 **A third part arrived the same way and left again.** The Character Studio is a
-release of its own at 3.0 ([17](17-character-studio.md)); §4 is the stub, and it
+release of its own at 3.0 ([18](18-character-studio.md)); §4 is the stub, and it
 stays because *why something left* is worth more than a silent deletion.
 
 > **Play a session, keep the world.**
@@ -32,7 +32,7 @@ otherwise.
 
 **A release whose entire content is a language for authors has no forcing
 function.** It would be designed by us, for us, against our own idea of what an
-author needs. That is [25 C7](25-open-questions.md)'s failure mode arriving
+author needs. That is [26 C7](26-open-questions.md)'s failure mode arriving
 through a different door: the corpus argument protects against designing the
 *wrong vocabulary*, and nothing in it protects against designing a vocabulary
 **nobody asked for**.
@@ -65,7 +65,7 @@ something fits.
 The tier itself is designed elsewhere and is not repeated:
 [06 §4.1](06-modes-and-turn-pipeline.md) states the shape and what 1.0 owes it,
 [02 §2](02-infinite-worlds.md) makes the case for it, [02 §3](02-infinite-worlds.md)
-proposes the starting vocabulary, and [25 C7](25-open-questions.md) carries the
+proposes the starting vocabulary, and [26 C7](26-open-questions.md) carries the
 deferral. What this release adds is the vocabulary itself, an evaluator, and an
 authoring surface.
 
@@ -77,7 +77,7 @@ trees — but those are things Infinite Worlds' *authors* built with no engine
 involvement.
 
 **Campaign is not an author.** It is a first-party mode package consuming the
-published SDK ([19 §10](19-tech-stack.md)), and its determinism is
+published SDK ([20 §10](20-tech-stack.md)), and its determinism is
 `update: "engine-computed"` ([06 §4](06-modes-and-turn-pipeline.md)): the mode
 declares a channel and computes the update in code. Combat round maths, HP
 pools, inventory arithmetic, quest counters — Campaign's own TypeScript, needing
@@ -118,7 +118,7 @@ releases without strain, that is evidence too.
 both template rendering and rule conditions — one thing for authors to learn,
 one evaluator to sandbox. **Liquid is already chosen for block templating** and
 P4 proceeds on it, deliberately leaving the other half of
-[25 C6](25-open-questions.md) open ([P4 §6.1](workplan/16-p4-implementation.md)).
+[26 C6](26-open-questions.md) open ([P4 §6.1](workplan/16-p4-implementation.md)).
 
 Deferring rules to 6.0 did not defer that choice; it extended how long the
 project runs on a half-made one. So the question this release opens with is
@@ -153,11 +153,11 @@ be played in, when in practice they are discovered while playing.
 ## 4. The Character Studio — moved
 
 **The Character Studio is a release of its own at 3.0**
-([17](17-character-studio.md)).
+([18](18-character-studio.md)).
 
 It was a member of this tier, and it is the member that did not share the tier's
 gate. What holds §2 and §3 back is a corpus of real authored worlds that only a
-release of Campaign produces ([25 C7](25-open-questions.md)); every one of the
+release of Campaign produces ([26 C7](26-open-questions.md)); every one of the
 Studio's preconditions lands at 1.0, so nothing here held it and nothing it
 needed waited for the corpus.
 
@@ -166,10 +166,10 @@ question was open, and a release is a bad place to discover a navigation
 argument. That reads differently now: inside a tier an unsettled surface question
 is a member that might have to be dropped late, and as a release of its own it is
 the first question the release has to answer
-([17 §6](17-character-studio.md), [10 §2](10-ui-surfaces.md)).
+([18 §6](18-character-studio.md), [10 §2](10-ui-surfaces.md)).
 
 **The stub stays because *why something left* is the most useful thing a document
-can record about it** — the same reason [24](24-roadmap.md) keeps its own — and
+can record about it** — the same reason [25](25-roadmap.md) keeps its own — and
 because the tier's argument is easier to read with the piece that left still
 visible in it. §1's shared shape is real; the Studio is the proof that a shared
 shape is not a shared dependency.
@@ -180,7 +180,7 @@ The standing test. Everything here is small, none of it is a feature at 1.0, and
 all of it is a precondition.
 
 **For the Character Studio** — four, and they went with it to
-[17 §5](17-character-studio.md): typed media roles, structured
+[18 §5](18-character-studio.md): typed media roles, structured
 `VisualDescriptors`, per-media generation provenance, and crop as a stored
 rectangle. All four are unchanged by the move; they are 1.0's obligations to 3.0
 now rather than to this release, and the first is still the one that is not
@@ -201,10 +201,10 @@ Two near misses, both of which would make this a release about *everything left*
 — which is how a scope stops being checkable
 ([releases §0](workplan/04-repo-and-releases.md)).
 
-- **Continuity checking** ([24 §2c.2](24-roadmap.md)). A reader that flags
+- **Continuity checking** ([25 §2c.2](25-roadmap.md)). A reader that flags
   contradictions, not an authoring surface. It shares extraction's dependency on
   the bible and none of its purpose.
-- **The branch tree visualiser** ([24 §1](24-roadmap.md)). A reader over
+- **The branch tree visualiser** ([25 §1](25-roadmap.md)). A reader over
   topology. Same argument.
 
 Both stay on the feature list at High, which is the right place for something
@@ -224,5 +224,5 @@ wanted soon and gated on nothing.
 - **Watch whether Campaign authors ask for rules.** The premise of putting this
   a release behind Campaign is that 5.0 produces authors who then want to say
   something they cannot. If the requests never arrive, the tier is ours rather
-  than theirs, and [24 §4](24-roadmap.md)'s posture — hope somebody else builds
+  than theirs, and [25 §4](25-roadmap.md)'s posture — hope somebody else builds
   it — was the right one all along.

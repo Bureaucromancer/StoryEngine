@@ -31,8 +31,8 @@ import { BUILT_IN_MODE_PACKAGES } from '../packages/server/src/mode-loader.js';
  * **Why this is not a tautology**, which is the standing objection to a test
  * that reads configuration. A tautological config test asserts that a file says
  * what the file says and moves whenever the file moves. Every assertion below
- * holds a promise made somewhere else — in [19 §10](../docs/design/19-tech-stack.md)'s
- * repository shape, in [22 §4.1](../docs/design/22-extensions.md)'s *"built-ins
+ * holds a promise made somewhere else — in [20 §10](../docs/design/20-tech-stack.md)'s
+ * repository shape, in [23 §4.1](../docs/design/23-extensions.md)'s *"built-ins
  * go through the same boundary"*, in P7 §1.1's exit gate — against configuration
  * that is free to drift away from it silently and has exactly one mechanism,
  * this file, that notices. Prose in a design note cannot fail. This can.
@@ -130,7 +130,7 @@ describe('the mode packages exist and are shaped like packages', () => {
   it.each(DIRS)('packages/modes/%s depends on the SDK and nothing else', (dir) => {
     const manifest = readJson<Manifest>('packages', 'modes', dir, 'package.json');
 
-    // [19 §10]: built-in modes consume the published SDK *exactly as a third
+    // [20 §10]: built-in modes consume the published SDK *exactly as a third
     // party would*. A second dependency is not automatically wrong — a mode may
     // want a markdown renderer — but `@storyengine/server` or
     // `@storyengine/shared` here would be, the first because it reverses the
@@ -457,7 +457,7 @@ describe('the engine names no mode', () => {
 
   /**
    * ***The shape that matters.*** A mode id in engine code is the engine knowing
-   * which modes exist, which is the bet [19 §10](../docs/design/19-tech-stack.md)
+   * which modes exist, which is the bet [20 §10](../docs/design/20-tech-stack.md)
    * calls the design's central one.
    */
   it('spells no mode id outside the two places that have a reason', () => {

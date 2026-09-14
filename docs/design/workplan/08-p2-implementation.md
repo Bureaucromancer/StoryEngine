@@ -31,13 +31,13 @@ a promise in a browser tab — and the JSON half is the record claim
 ([03 §8](../03-data-model.md)): complete from the first turn, because everything
 after P2 reads it.
 
-**P2 is where [21](../21-internal-contracts.md) stops being a document.**
+**P2 is where [22](../22-internal-contracts.md) stops being a document.**
 `BlockSource`, `ChannelEffect`, `ChannelState`, `ModelCall`, `BudgetVerdict`,
 `RenderedMessage` and `ProviderCapabilities` all become code here, and the
 discipline is that they become code *as written* — deviations go back into doc
 13 first, because five later phases are specified against it. That discipline
 is already exercised once by this plan: `ChannelEffect` gains a `scope` field
-in [21 §1.2](../21-internal-contracts.md) before any code writes an effect
+in [22 §1.2](../22-internal-contracts.md) before any code writes an effect
 (§2.7).
 
 **And P2 opens by paying P1's debt.** P1 shipped fast with minimal review; a
@@ -76,7 +76,7 @@ add-before-unlink on a rename, the opposite of what P1 §1.1 assumed) found
 and fixed correctly. The path-traversal corpus is thorough and includes the
 subtle cases (drive-relative paths, ADS, reserved device names on the stem).
 The atomic-write kill-safety test SIGKILLs a real child process and guards its
-own vacuous pass. `Config` matches [21 §4](../21-internal-contracts.md)
+own vacuous pass. `Config` matches [22 §4](../22-internal-contracts.md)
 field-for-field with an exhaustiveness test over the tier table. The portable
 schemas have zero field-level drift against [04](../04-schemas.md); uuidv7 is
 bit-correct with monotonicity handled; unknown-field preservation is enforced
@@ -102,7 +102,7 @@ which is not from the audit at all and says so where it appears.
   also taken *before* the write it protects, so a failed write leaves a
   phantom version.
 - **F6.** `provenance.updatedAt` is stamped only by the React editor, so
-  `VersionRecord.authoredAt` — the subtlety [21 §1.6](../21-internal-contracts.md)
+  `VersionRecord.authoredAt` — the subtlety [22 §1.6](../22-internal-contracts.md)
   exists to preserve — is wrong for every other writer: curl, the SDK, and P4's
   importer.
 - **F9.** Tombstone maturation only runs from the watcher (rows accumulate
@@ -289,7 +289,7 @@ So the plan of record stays honest — the P1 ones annotated in
 - **P1.0's "`shared`: types + schemas, no runtime deps" is false as built.**
   `shared` depends on TypeBox and Ajv at runtime, with the exception argued
   only in a `package.json` note. The dependency is right (one schema
-  technology, five jobs — [19 §3](../19-tech-stack.md)); the doc line was wrong,
+  technology, five jobs — [20 §3](../20-tech-stack.md)); the doc line was wrong,
   and the record is this section, not a JSON comment.
 - **P1.5's "Fastify validates against the same JSON Schema" was not
   delivered** — params only, no body schemas (F2). Repaired at P2.0.
@@ -356,7 +356,7 @@ instructions it enforces are true:
   *Corrected again while writing the rule: the count is **two**, not four or
   five. A template literal with a placeholder — `` `${name} (copy)` `` — is one
   message with a value substituted into it, which is precisely the shape ICU
-  MessageFormat wants ([19 §12.3](../19-tech-stack.md)) and precisely what an
+  MessageFormat wants ([20 §12.3](../20-tech-stack.md)) and precisely what an
   extraction sweep turns into a catalogue entry. The audit counted those as
   concatenation; they are not. What is unretrofittable is the sentence that
   exists only in pieces — joined with `+`, or split across JSX children where
@@ -401,7 +401,7 @@ than P1 ever offered (§1.4).
 
 A resumable server-side job that fails overnight with `console.log` is
 undebuggable by design, and P2's charter is exactly that job. So: Fastify's
-logger on with structured output per [21 §4.1](../21-internal-contracts.md), and
+logger on with structured output per [22 §4.1](../22-internal-contracts.md), and
 `log.level` becomes the **first real consumer of the `live` reload tier** —
 which makes the tier minimally real at the same time
 ([work plan §2.2](01-work-plan.md) forbids a config key as a false front). P2.5 then
@@ -417,7 +417,7 @@ logging library that no design section names. And `log.format` loses its
 `pretty` value: it was the documented default with no implementation behind it,
 and honouring it means a second dependency and a transport, for an ergonomic
 gain in dev only. JSON everywhere; a terminal that wants it pretty can pipe it.
-[21 §4.1](../21-internal-contracts.md) is where the record's *fields* are
+[22 §4.1](../22-internal-contracts.md) is where the record's *fields* are
 specified, and that section had to be written before this code, because gate
 step 19 asks the log a question it can only answer if the bindings were decided
 in advance.
@@ -465,11 +465,11 @@ for library objects." **The audit shows P1 did not fully prove it** — F3 and
 F5 are both failures of that thesis under a second writer — so this stage now
 depends on P2.0 explicitly: sessions clone the *fixed* pattern, built on the
 same serialization utility. Turn text goes into FTS on write as part of the
-same ingest pass ([19 §7.1](../19-tech-stack.md)).
+same ingest pass ([20 §7.1](../20-tech-stack.md)).
 
 ### 2.6 The operational store opens here — carried
 
-`/data/state/state.sqlite` ([21 §5.1](../21-internal-contracts.md)) — jobs,
+`/data/state/state.sqlite` ([22 §5.1](../22-internal-contracts.md)) — jobs,
 idempotency keys, later the notification inbox. P2 is the first phase with
 state that is not derived, so the index/operational split is made now. Job
 durability across restart keeps [09 §2](../09-server-multiuser-deployment.md)'s
@@ -492,7 +492,7 @@ what gives it semantics. Reconstruction is replay-from-zero only; the snapshot
 
 **And [P6 §1.5](18-p6-implementation.md)'s question is closed the way it
 leaned:** `ChannelEffect` gains `scope: "session" | "escaped"` in
-[21 §1.2](../21-internal-contracts.md) now, and P2 writes only `"session"`. A
+[22 §1.2](../22-internal-contracts.md) now, and P2 writes only `"session"`. A
 field today is cheaper than a migration at P6, and the doc-18-first discipline
 in the header is exercised rather than asserted.
 
@@ -543,7 +543,7 @@ three things:
 
 The key is scoped to the account and session and retained long enough for a
 browser retry or reconnect to be harmless. A retry must never make a second
-provider call or charge twice ([21 §5.1](../21-internal-contracts.md)). P6 may turn
+provider call or charge twice ([22 §5.1](../22-internal-contracts.md)). P6 may turn
 the stale-head case into an explicit sibling; P2 must not manufacture one by
 race.
 
@@ -677,11 +677,11 @@ because a `.test.tsx` written before it lints, typechecks, and never runs. Then:
   id-based reference resolution.
   (F20, the invalid-file half of this pair, rides with F9's ingest rework at
   P2.3 — §1.3's table records why.)
-- **Logging** (F8): Fastify's logger on, JSON per [21 §4.1](../21-internal-contracts.md),
+- **Logging** (F8): Fastify's logger on, JSON per [22 §4.1](../22-internal-contracts.md),
   `log.level` live-reloadable — the first real live-tier consumer. The config
   *source* consumes self-write suppression rather than reacting to the settings
   UI's own write, and a reload that cannot read a valid file keeps the running
-  config ([21 §4.2](../21-internal-contracts.md)).
+  config ([22 §4.2](../22-internal-contracts.md)).
 - **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset, F21, F24, F25):
   the P1 gate completed to the exit below — manual-vs-external asserted in one
   history, the rebuild property test (randomised write/edit/rename/delete/copy
@@ -724,23 +724,23 @@ in one legible unit.
 **Status: built**, with one contract question answered by the SDK rather than
 by us: AI SDK 7 refuses a `system` role inside `messages` and takes
 `instructions` instead. That is `ProviderCapabilities.systemMessage`'s seam
-arriving a layer earlier than [21 §2](../21-internal-contracts.md) expected —
+arriving a layer earlier than [22 §2](../22-internal-contracts.md) expected —
 the engine above the adapter still thinks in `RenderedMessage` including its
 system blocks, because that is what the record shows, and the translation stops
 at the adapter. No doc change: the contract is unaffected, only where it is
-honoured. **[19 §5.1](../19-tech-stack.md)'s `[OPEN]` is closed** as the
+honoured. **[20 §5.1](../20-tech-stack.md)'s `[OPEN]` is closed** as the
 convenience reading — `hi`/`lo` are the first-run question, not tiers in the
 data model; `roles.ts` records the argument.
 
 `packages/server/src/providers/`: the AI SDK behind the thin internal
-interface ([19 §5](../19-tech-stack.md)); `ProviderCapabilities` per
-[21 §3](../21-internal-contracts.md) with known-provider defaults; model **roles**
-with the hi/lo binding default ([19 §5.1](../19-tech-stack.md)); connections in
+interface ([20 §5](../20-tech-stack.md)); `ProviderCapabilities` per
+[22 §3](../22-internal-contracts.md) with known-provider defaults; model **roles**
+with the hi/lo binding default ([20 §5.1](../20-tech-stack.md)); connections in
 `connections/` per [09 §4.5](../09-server-multiuser-deployment.md) —
 account-scoped plus system scope, never in a portable object; prompt caps as
-ranked-fragment budgets ([19 §5.3](../19-tech-stack.md)). The fake provider
+ranked-fragment budgets ([20 §5.3](../20-tech-stack.md)). The fake provider
 (§2.8) ships here, beside the first real adapter. Chat-completion only
-([19 §5.5](../19-tech-stack.md)) — no completion adapter, no instruct templates,
+([20 §5.5](../20-tech-stack.md)) — no completion adapter, no instruct templates,
 stated in user-facing docs rather than discovered.
 
 *Tests:* capability negotiation and degradation paths against the fake;
@@ -757,7 +757,7 @@ to pass a key. The tape is keyed, JSON-round-trippable, and carries
 
 `int/float/bool/chance/pick/weightedPick/shuffle/dice`, `node:crypto` uniform
 draws, injectable generator, every draw recorded keyed **by site**
-([19 §14](../19-tech-stack.md)). The tape and replay mode are built now even
+([20 §14](../20-tech-stack.md)). The tape and replay mode are built now even
 though nothing rerolls until P6 — the tape is part of the turn record, and a
 record without it cannot support rewrite later. The P1.0 lint rule stops
 banning randomness everywhere and starts pointing here.
@@ -861,7 +861,7 @@ sources that exist (persona, actors, history, preset blocks, the guidance
 block); annotate with `BlockSource` + reason; budget with a full
 `BudgetVerdict` including `nextToDrop`; render to `RenderedMessage[]` with
 `fromBlocks` intact and same-role merging as a provider capability
-([21 §2](../21-internal-contracts.md)). **History is a splittable source** from
+([22 §2](../22-internal-contracts.md)). **History is a splittable source** from
 the start — in-history placement is how real presets work and P4 imports
 them. Lore retrieval is not here (P5); the lore slot exists and resolves
 empty. The `se.` prefix reservation is enforced here (F18), where the first
@@ -913,7 +913,7 @@ Six things the stage settled that the plan had not:
   passed the parameter.
 
 Turn as a job with an id in the operational store; SSE per
-[19 §8](../19-tech-stack.md); the progress-event vocabulary of
+[20 §8](../20-tech-stack.md); the progress-event vocabulary of
 [09 §3.3](../09-server-multiuser-deployment.md) (`turn.started` …
 `turn.finished`), snapshot-plus-cursor reattach. Step failure per
 [06 §6](../06-modes-and-turn-pipeline.md): `failure: "warn"` does not lose the
@@ -1028,7 +1028,7 @@ is still not built.
 11. Read the turn record: every block with source and reason, the budget
     verdict with `nextToDrop`, `ModelCall.resolved` naming what actually ran,
     every RNG draw on the tape keyed by site, cost captured. No nulls where
-    [21](../21-internal-contracts.md) says data.
+    [22](../22-internal-contracts.md) says data.
 12. Two clients on one session both see the stream.
 13. Submit the same idempotency key twice → one job id and one provider call.
     Submit two different keys concurrently against one head → one starts and
@@ -1159,6 +1159,6 @@ finding assigned to P2.0 or P2.3 was genuinely open — no P2.0 work had landed
 table in §1.3 is the live status; where a row now says *Fixed at P2.x*, this
 paragraph is the state it was fixed from.
 The three §1.4 corrections are annotated in P1 with pointers back, and
-`ChannelEffect.scope` landed in [21 §1.2](../21-internal-contracts.md) as §2.7
+`ChannelEffect.scope` landed in [22 §1.2](../22-internal-contracts.md) as §2.7
 promised. Two items were **struck** rather than confirmed: the step-17-via-API
 test (already written at P1.7) and F10's dead `invalidate()` (already removed).

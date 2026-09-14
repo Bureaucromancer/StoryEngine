@@ -8,7 +8,7 @@ import { ensureDirectory } from '../storage/files.js';
 import { migrateState, type StateMigrationResult } from './migrations.js';
 
 /**
- * Opening `state/state.sqlite` — [21 §5.1](../../../../docs/design/21-internal-contracts.md).
+ * Opening `state/state.sqlite` — [22 §5.1](../../../../docs/design/22-internal-contracts.md).
  *
  * Same driver as the index and a different set of promises. The index is
  * derived, so it buys speed with `synchronous = normal` and pays for a crash

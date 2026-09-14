@@ -271,7 +271,7 @@ describe('the config-file line', () => {
 
   /**
    * **The environment layer, where it actually has to work** — [P6A.0],
-   * [P6A §1.2], [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
+   * [P6A §1.2], [P10 §1.2](../../../docs/design/workplan/27-p10-implementation.md).
    *
    * `config.test.ts` proves the resolver: what the layers are and which wins.
    * What it cannot prove is that this entry point *uses* it, and that is the

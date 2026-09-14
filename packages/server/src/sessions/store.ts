@@ -96,7 +96,7 @@ export interface SessionContext {
    * snapshot behind — `sessions.snapshotEveryNTurns`, [P6.0d].
    *
    * **A function, so the value cannot be captured.** The key is tiered `live`
-   * ([21 §4]), and `applyLiveConfig` assigns into the config object rather than
+   * ([22 §4]), and `applyLiveConfig` assigns into the config object rather than
    * replacing it — so a number read at construction would make this key's row
    * in `LIVE_APPLIERS` say `applied` and be a lie, which is the exact failure
    * that table exists to prevent and what `routes/live-config.test.ts` was
@@ -142,7 +142,7 @@ export interface NewSession {
    *
    * It also costs nothing to give up. The only distinction optionality would
    * buy is *never named* versus *named and then emptied*, and nothing consumes
-   * it — the deferred derive-a-name feature ([25 E13]) has to treat both as
+   * it — the deferred derive-a-name feature ([26 E13]) has to treat both as
    * blank, or clearing a name would permanently disable derivation for that
    * session.
    */
@@ -814,7 +814,7 @@ export async function deleteBranchRef(
   });
 }
 
-/** What an undo can answer — [§1.4], [21 §1.2.1], [P6.3]. */
+/** What an undo can answer — [§1.4], [22 §1.2.1], [P6.3]. */
 export type UndoOutcome =
   | { kind: 'undone'; session: SessionFile; turn: Turn }
   | { kind: 'no-session' }
@@ -832,10 +832,10 @@ export type UndoOutcome =
 
 /**
  * Undoes a turn's effects by applying their `before` — [§1.4],
- * [21 §1.2.1](../../../../docs/design/21-internal-contracts.md).
+ * [22 §1.2.1](../../../../docs/design/22-internal-contracts.md).
  *
  * **`before` is only an inverse while nothing has touched the same key since**,
- * and that sentence is the whole of this function. [21 §1.2.1] corrects an
+ * and that sentence is the whole of this function. [22 §1.2.1] corrects an
  * earlier draft that thought otherwise, with the case that makes it plain: HP
  * goes 10 → 8 at turn N and 8 → 5 later; applying turn N's `before: 10` now
  * does not undo turn N, it destroys the later change and produces a state no
@@ -843,7 +843,7 @@ export type UndoOutcome =
  * what converts a silent corruption into an affordance** — and the affordance
  * is the one this phase built: branch from before it and play it differently.
  *
- * **The check reads the log rather than the index.** [21 §1.2.1] says *the
+ * **The check reads the log rather than the index.** [22 §1.2.1] says *the
  * index knows the latest effect per path*; this index knows no effects at all,
  * and [P6.1] decided against the column that would have carried a path — a turn
  * is on every path through it, so *latest on the path* is a question about the
@@ -1388,7 +1388,7 @@ export async function readTurns(
  * promised.
  *
  * **Index hit first, cold read second, and the fallback is required rather
- * than defensive** ([21 §5]): the index is derived, deleting it is a
+ * than defensive** ([22 §5]): the index is derived, deleting it is a
  * non-event, and a route that 404'd on a missing row would make it
  * load-bearing. **The ownership boundary is structural**: the location is
  * only ever resolved under the *requested* session's own turns directory, so
@@ -1426,7 +1426,7 @@ export async function readTurnById(
 }
 
 /**
- * Which model this session uses for a role, and for one step — [19 §5.1],
+ * Which model this session uses for a role, and for one step — [20 §5.1],
  * [P7 §1.9], built at [P7.3].
  *
  * **A whole replacement rather than a merge**, which is the same choice

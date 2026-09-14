@@ -444,7 +444,7 @@ describe('the first-run offer', () => {
       expect(writeDefaultBindings).toHaveBeenCalled();
     });
     // Two bindings, not eight: which role gets which is the server's policy
-    // ([19 §5.1]), so a client that posted a whole document could put `prose`
+    // ([20 §5.1]), so a client that posted a whole document could put `prose`
     // on the cheap model without anybody having chosen that.
     expect(writeDefaultBindings.mock.calls[0]?.[0]).toEqual({
       hi: { connectionId: 'house', modelId: 'gpt-hi' },

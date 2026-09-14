@@ -30,7 +30,7 @@ import {
 import { openState, type OpenedState } from './open.js';
 
 /**
- * The operational store — [21 §5.1], [P2 §2.10].
+ * The operational store — [22 §5.1], [P2 §2.10].
  *
  * What is being tested is a *concurrency contract*, so the tests are shaped
  * around the three answers submission can give rather than around the functions
@@ -420,7 +420,7 @@ describe('the draft is checkpointed with its events', () => {
 describe('the store keeps what the index would throw away', () => {
   it('survives a reopen with its jobs, reservations and drafts intact', async () => {
     // The property the whole index/operational split exists for
-    // ([21 §5.1]): deleting the index is a non-event, and this is the database
+    // ([22 §5.1]): deleting the index is a non-event, and this is the database
     // where that is emphatically not true.
     const path = join(dataDir, 'state', 'state.sqlite');
     const first = await openState({ path });

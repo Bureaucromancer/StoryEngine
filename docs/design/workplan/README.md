@@ -12,7 +12,7 @@ citation key. Work-plan documents are referenced as
 [`P2B §1.2`](10-p2b-provider-configuration.md), [`P6A §1.8`](19-p6a-alpha-1.md),
 [`polish §4`](06-polish.md), [`testing §2`](03-testing.md) and
 [`releases §2`](04-repo-and-releases.md).
-Design documents keep their numbers — a bare `[03 §5]` or `[21 §1]` is one level
+Design documents keep their numbers — a bare `[03 §5]` or `[22 §1]` is one level
 up, and unambiguously so, because nothing here is cited by a number.
 
 **That is what makes the ordering below maintainable.** Nothing points at a
@@ -43,11 +43,11 @@ halves and refuses a work-plan file that has no name in the registry.
 | [14-p2c-log.md](14-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
 | [13-p2c-brief.md](13-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
 | [23-p7-implementation.md](23-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase. §0.1 is the readiness audit: the phase in front of us, with PLAYABLE the only thing before it |
-| [28-p7b-presets-and-prompts.md](28-p7b-presets-and-prompts.md) | P7B skeleton — presets and prompt handling into a usable state: the built-in pack as a library object, a preset editor, a treatment editor, a session-settings panel, and edit-a-block through the pack. Written 2026-09-11 while P7 runs on its branch, and **filed at 28 with its place at 24**, so nothing renumbers under P7's document until it merges |
-| [24-p8-implementation.md](24-p8-implementation.md) | P8 in detail — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. ~~Waits on three phases rather than on time~~ **all three landed, and §0.1 is the revisit they were waited for**: the storage fork settled, cadence narrowed to a procedure, and three findings that move the phase — the spoiler defence is not buildable through `reads` as the step contract stands, nothing on the lore path can be advisory, and this is the first producer of an escaped effect |
-| [25-p9-implementation.md](25-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
-| [26-p10-implementation.md](26-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
-| [27-p11-implementation.md](27-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
+| [24-p7b-presets-and-prompts.md](24-p7b-presets-and-prompts.md) | P7B skeleton — presets and prompt handling into a usable state: the built-in pack as a library object, a preset editor, a treatment editor, a session-settings panel, and edit-a-block through the pack. Written 2026-09-11 while P7 ran on its branch and filed at 28 so nothing would renumber under P7's document; **moved here on 2026-09-14, one scripted run after that branch merged**, which is what the note said would move it |
+| [25-p8-implementation.md](25-p8-implementation.md) | P8 in detail — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. ~~Waits on three phases rather than on time~~ **all three landed, and §0.1 is the revisit they were waited for**: the storage fork settled, cadence narrowed to a procedure, and three findings that move the phase — the spoiler defence is not buildable through `reads` as the step contract stands, nothing on the lore path can be advisory, and this is the first producer of an escaped effect |
+| [26-p9-implementation.md](26-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
+| [27-p10-implementation.md](27-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
+| [28-p11-implementation.md](28-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
 | [19-p6a-alpha-1.md](19-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
 | [20-p6b-playable.md](20-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
 | [21-playable-log.md](21-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](17-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
@@ -65,7 +65,7 @@ beta does, because it is where the design starts being tested by use.
 record.** 07 through 20 are the phases that have landed, in the order they
 landed, each holding its stages struck through with what actually shipped
 against what was planned; several began as skeletons and were revised as their
-phases arrived. 23 through 27 are skeletons — and so is 28, filed out of order — and will be filled in as each phase
+phases arrived. 24 through 28 are skeletons and will be filled in as each phase
 approaches. **20 is the phase in front of us** — P6B, PLAYABLE three phases
 overdue, which [P7 §0.1](23-p7-implementation.md) found blocking its own demo as
 much as the checkpoint's; P7 follows it.
@@ -76,14 +76,18 @@ P2C after P6, and P6A and P6B after P11 — so reading by number went forward to
 P6, back to P2A, forward to P11, and back again to two phases that run before
 it. Two backward jumps in one sequence.
 
-**One document is filed out of order on purpose, and says so.**
-[P7B](28-p7b-presets-and-prompts.md) belongs after P7 and before P8, which is
-24; taking that number renumbers P8 through P11 and repoints every citation to
-them, including the ones inside the P7 document a branch is editing. So it sits
-at the first free number, `PLAN_ORDER` in
-[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
-real position, and one scripted run after P7 merges moves it — the
-twenty-minute operation that script exists to make cheap.
+~~**One document is filed out of order on purpose, and says so.**~~ **No
+longer, as of 2026-09-14 — and the paragraph is kept because it is the worked
+example rather than a stale note.** [P7B](24-p7b-presets-and-prompts.md) belongs
+after P7 and before P8, which is 24; taking that number while branch `p7` was
+open would have renumbered P8 through P11 and repointed every citation to them,
+including the ones inside the document that branch was editing. So it sat at the
+first free number with `PLAN_ORDER` in
+[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holding its
+real position, and one scripted run after P7 merged moved it — which is what
+happened, as a side effect of a run doing something else entirely. **That is the
+claim tested: a document's filing position is free to be wrong for a while,
+because nothing cites a work-plan number.**
 
 **Two phases are manual, and both carry a log.** P2C and P6B are the phases
 whose deliverable is *what a person saw*, so each has a findings log beside it —
@@ -180,7 +184,7 @@ release.
 rather than in the feature list. Its entries are user-facing, bounded, and need
 no schema change and no new contract — the difference between a surface that
 works and one that is pleasant. The bar for the feature list
-([24 up one level](../24-roadmap.md)) is a deferred *feature*; anything that
+([25 up one level](../25-roadmap.md)) is a deferred *feature*; anything that
 clears it leaves this file and picks up a priority tier there.
 
 **[02-triage.md](02-triage.md) is history that still binds.** It records what

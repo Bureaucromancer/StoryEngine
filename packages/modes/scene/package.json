@@ -19,5 +19,5 @@
   "dependencies": {
     "@storyengine/sdk": "workspace:*"
   },
-  "dependencyNote": "One dependency, and that is the claim docs/design/19-tech-stack.md §10 makes: a built-in mode consumes the published SDK exactly as a third party would. `@storyengine/shared` is reachable through the SDK's re-export and is deliberately not listed — two paths to one vocabulary is how the second one stops being the contract."
+  "dependencyNote": "One dependency, and that is the claim docs/design/20-tech-stack.md §10 makes: a built-in mode consumes the published SDK exactly as a third party would. `@storyengine/shared` is reachable through the SDK's re-export and is deliberately not listed — two paths to one vocabulary is how the second one stops being the contract."
 }

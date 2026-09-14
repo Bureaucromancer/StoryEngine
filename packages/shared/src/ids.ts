@@ -11,7 +11,7 @@
  * nothing here derives one from the other.
  *
  * This is the one file exempt from the randomness rule
- * (docs/design/19-tech-stack.md §14.4), and the exemption is argued in
+ * (docs/design/20-tech-stack.md §14.4), and the exemption is argued in
  * eslint.config.js: an id is not a draw. Nothing replays it and no outcome
  * depends on its value.
  *
@@ -45,7 +45,7 @@ function randomCounterSeed(): number {
  * remember the last millisecond it emitted and how far into that millisecond it
  * has counted. That is worth making explicit rather than hiding in a module,
  * for the same reason the RNG service takes its source by injection
- * (docs/design/19-tech-stack.md §14.3) — a caller that needs a fresh sequence,
+ * (docs/design/20-tech-stack.md §14.3) — a caller that needs a fresh sequence,
  * or a test that needs one uncontaminated by whatever ran before it, can have
  * one. `uuidv7` below is the shared instance almost everything should use.
  */

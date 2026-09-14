@@ -1,7 +1,7 @@
 packages:
   - packages/*
   # modes/* joins at P7. The boundary lint rules for it already exist —
-  # see eslint.config.js and docs/design/19-tech-stack.md §10.
+  # see eslint.config.js and docs/design/20-tech-stack.md §10.
   - packages/modes/*
   # Not shipped. It exists so that `@storyengine/*` resolves from the fixture
   # tree the same way it resolves inside a real package — which is what makes

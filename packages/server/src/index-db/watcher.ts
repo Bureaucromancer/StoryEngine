@@ -52,7 +52,7 @@ export interface WatcherOptions {
    * Retention cap for the history a foreign edit leaves behind ([03 §11.3]).
    *
    * **Read at the point of use, not copied here.** `history.keepPerObject` is
-   * tiered `live` ([21 §4]), and the app hands this watcher the very
+   * tiered `live` ([22 §4]), and the app hands this watcher the very
    * `LibraryContext` the routes write through — so both paths into one object's
    * history read the same cell, and a live change reaches both. Copying the
    * number into a field at construction is what made the tier untrue, and it
@@ -369,7 +369,7 @@ export class LibraryWatcher {
      * to anyone reading the log afterwards. [manual gate §2.1](../../../../docs/design/workplan/11-p2-manual-gate.md)
      * step 8 tells a tester to do exactly this.
      *
-     * `warn` rather than `error` — [21 §4.1]'s boundary: the server refused a
+     * `warn` rather than `error` — [22 §4.1]'s boundary: the server refused a
      * file, which is the system working. The path is relative to the data root,
      * which is what the error row already stores and what that section requires.
      *

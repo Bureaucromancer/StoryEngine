@@ -18,7 +18,7 @@ import type { StepDefinition, StepImplementation } from './steps.js';
  * implementation of the same thing.
  *
  * So a mode is data. What it *runs* is named by step id and looked up
- * separately, which is the split [22 §3] draws and what becomes a worker
+ * separately, which is the split [23 §3] draws and what becomes a worker
  * dispatch table at P7.
  */
 export interface ModeDefinition {
@@ -169,7 +169,7 @@ export interface AssemblyPlan {
  * A real state, and session creation is its consumer: POST /api/sessions
  * resolves the mode and writes a null config without asking anybody anything,
  * which is exactly what a no-wizard mode means. ~~The field vocabulary a *real*
- * wizard needs is P7's, and guessing it is what [21 §6] refuses to do for
+ * wizard needs is P7's, and guessing it is what [22 §6] refuses to do for
  * `WidgetSpec`.~~ **The vocabulary arrived at [P7.4]** — see
  * {@link DeclaredSetup}. Scene still declares this arm, and should: it has
  * nothing to ask.
@@ -379,7 +379,7 @@ function answerShapeOf(widget: FieldWidget): object {
  * surfaces (a HUD region, a side panel, a message decoration)"*, built at
  * [P7.11](../../../docs/design/workplan/23-p7-implementation.md).
  *
- * ~~What a contribution *renders* is a `WidgetSpec`, which [21 §6] keeps
+ * ~~What a contribution *renders* is a `WidgetSpec`, which [22 §6] keeps
  * deliberately absent — so this names the slot and carries no payload.~~
  * ***`WidgetSpec` arrived at [P7.1] and this did not grow with it***, which
  * left a field that was compile-time required, runtime-unchecked, sent on the
@@ -392,11 +392,11 @@ function answerShapeOf(widget: FieldWidget): object {
  * `{ region: 'hud', channelId: <that channel>, widget: <that spec> }` — it is
  * the shorthand for the common case, not a rival mechanism. The two are
  * **additive** and need no precedence rule, which is what keeps this from being
- * the two-vocabularies-for-one-thing failure [21 §1.1] exists to prevent: a
+ * the two-vocabularies-for-one-thing failure [22 §1.1] exists to prevent: a
  * channel says *this value is worth showing*, and a mode says *and it goes
  * here*.
  *
- * **Nothing crosses the boundary**, which is [22 §3]'s claim for this bullet
+ * **Nothing crosses the boundary**, which is [23 §3]'s claim for this bullet
  * and the reason it costs nothing: a region name, a channel id and a widget
  * declaration are all data. The client renders; the mode never does. **And
  * never an `html` field** — [10 §8] names it as *"how this decision would be
@@ -437,7 +437,7 @@ export interface SurfaceContribution {
 }
 
 /**
- * The manifest, plus what its declared step ids actually run — [22 §3]'s split.
+ * The manifest, plus what its declared step ids actually run — [23 §3]'s split.
  *
  * `definition` crosses any boundary unchanged; `run` is the half that becomes a
  * dispatch table when steps move to a worker. The built-in mode goes through the

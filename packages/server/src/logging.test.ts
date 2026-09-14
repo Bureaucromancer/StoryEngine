@@ -136,7 +136,7 @@ describe('the log record', () => {
     const [line] = capture.lines();
     expect(line).toBeDefined();
     // Parsing succeeded, which is the assertion: `pretty` would not parse, and
-    // it is why the format union has one value ([21 §4.1]).
+    // it is why the format union has one value ([22 §4.1]).
     expect(line?.['msg']).toBe('a thing happened');
     expect(line?.['level']).toBe(30);
     // Bindings are fields, not phrases inside the message — this is what makes
@@ -260,7 +260,7 @@ describe('the live tier, with its first real consumer', () => {
    * Change it back and the banner should empty, because what is pending is the
    * difference between the port this process bound and the port on disk — a
    * property of the process. A stored pending-set would accumulate, and
-   * [21 §4] argues against a second source of truth for a derived value at
+   * [22 §4] argues against a second source of truth for a derived value at
    * length.
    */
   /**

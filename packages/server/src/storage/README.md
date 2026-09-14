@@ -7,7 +7,7 @@ That is a lint rule, not a convention — see the `no-restricted-imports` block 
 tree reaches the filesystem through the helpers that will live here.
 
 The rule exists ahead of the code it guards because the code it guards is
-[19 §9](../../../../docs/design/19-tech-stack.md)'s *"single most important piece
+[20 §9](../../../../docs/design/20-tech-stack.md)'s *"single most important piece
 of security code in the project"*: one audited path resolver, containment-checked
 against the requesting user's root, symlink-aware. A rule written after the first
 route touches `fs` is a rule negotiated with existing code.
@@ -59,7 +59,7 @@ time a kind gained a field.
 The JSON rides base64 in a `tEXt` chunk so any tool that lists PNG text can read
 it; the media rides raw bytes in a private `seMd` chunk, because ~33% on the
 large half of a card is worth avoiding
-([25 B5](../../../../docs/design/25-open-questions.md)).
+([26 B5](../../../../docs/design/26-open-questions.md)).
 
 **`files.ts` exists because of the rule rather than in spite of it.** The index
 at `../index-db` needs to read files, and the answer to *"may it import

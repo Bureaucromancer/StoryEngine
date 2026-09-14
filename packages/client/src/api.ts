@@ -314,7 +314,7 @@ export interface ImportReport {
  * **Counts and not items.** A sweep of a real library is thousands of rows, and
  * a list that inlined them would be a page nobody could load in order to find
  * the one they wanted. `root` is the absolute path, which lives on this row and
- * nowhere else ([21 §4.1.1]) — the person who typed it can see it, and no
+ * nowhere else ([22 §4.1.1]) — the person who typed it can see it, and no
  * per-file row repeats it.
  */
 export interface ImportJob {
@@ -1042,7 +1042,7 @@ export interface GoalRow {
   current: boolean;
   achieved: boolean;
   /**
-   * The narrator judged this met and it is waiting on a person ([25 C12]).
+   * The narrator judged this met and it is waiting on a person ([26 C12]).
    * Never true at the same time as `achieved`.
    */
   proposed: boolean;
@@ -1351,7 +1351,7 @@ export interface SubmitTurn {
    */
   parentTurnId?: string | null;
   /**
-   * Replay this turn's draws — **rewrite** rather than reroll, [19 §14.5].
+   * Replay this turn's draws — **rewrite** rather than reroll, [20 §14.5].
    *
    * A turn id, not a tape: the server reads the draws from its own record.
    */
@@ -1458,7 +1458,7 @@ export interface AccountPatch {
   capabilities?: Partial<Account['capabilities']>;
 }
 
-/** The tier table and the appliers, sent as data rather than duplicated ([21 §4]). */
+/** The tier table and the appliers, sent as data rather than duplicated ([22 §4]). */
 export interface ConfigView {
   config: Record<string, unknown>;
   path: string;
@@ -1549,7 +1549,7 @@ export interface RoleRow {
    *
    * `unset` is policy, not a fault: there is no sensible text model for an
    * image, so `image`, `video` and `speech` stay unbound until something can
-   * actually serve them ([19 §5.1]).
+   * actually serve them ([20 §5.1]).
    */
   tier: 'hi' | 'lo' | 'unset';
   ok: boolean;
@@ -1658,7 +1658,7 @@ export const adminApi = {
    * The first run's two answers, spread across the roles by the *server*.
    *
    * Two bindings rather than eight, because which role gets which is policy
-   * ([19 §5.1]: the expensive model writes, everything else uses the cheap one)
+   * ([20 §5.1]: the expensive model writes, everything else uses the cheap one)
    * and a client free to spread them differently is an install that can end up
    * with `prose` on the cheap model without anybody having chosen that.
    */

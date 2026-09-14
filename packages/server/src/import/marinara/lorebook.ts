@@ -96,7 +96,7 @@ export function convertLorebook(
   lorebook.description = str(book['description']);
   lorebook.enabled = bool(book['enabled'], true);
   // Marinara's *categories* map to `tags`, because `Lorebook.category` was
-  // removed deliberately ([24 §2d]) — an organisational field that affected
+  // removed deliberately ([25 §2d]) — an organisational field that affected
   // nothing, replaced by the general one.
   const category = str(book['category']);
   if (category.length > 0 && category !== 'uncategorized') lorebook.tags = [category];

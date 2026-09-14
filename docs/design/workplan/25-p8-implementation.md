@@ -1,9 +1,9 @@
-# 24 — P8 implementation plan
+# 25 — P8 implementation plan
 
 **Status: ~~skeleton~~ a plan, revisited 2026-09-13 at `4700aef` — and the
 revisit §0 was written to expect.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md), [P9](25-p9-implementation.md),
-[P10](26-p10-implementation.md) and [P11](27-p11-implementation.md); to be
+[P7](23-p7-implementation.md), [P9](26-p9-implementation.md),
+[P10](27-p10-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for, and it applies unchanged here. **§0 said
 *everything else here waits on three phases rather than on time* — P5, P6 and
@@ -32,7 +32,7 @@ corpus convention.
   it looks because a memory is a lorebook entry and every retrieval mechanism it
   needs shipped at P5.
 - **Within-session summarisation as a rolling summary**
-  ([25 E1](../25-open-questions.md)) — schedulable rather than needing its own
+  ([26 E1](../26-open-questions.md)) — schedulable rather than needing its own
   design pass, with one constraint that must hold on the first commit.
 
 **The demo that defines done:** *start a second session with the same actor and
@@ -253,7 +253,7 @@ as a procedure for that reason rather than as a decision made without evidence.
 extraction *quality* question, which is a tuning matter
 [work plan P11](01-work-plan.md) owns for every other feature and owns for this
 one. The granularity question (§1.2), whose constraint is the part to hold and
-whose answer wants volume. And [25 E2](../25-open-questions.md)'s embeddings,
+whose answer wants volume. And [26 E2](../26-open-questions.md)'s embeddings,
 which this document is the first real customer for and which are not scheduled by
 saying so.
 
@@ -652,7 +652,7 @@ Four concrete pieces, and §0.1's finding 10 is most of the evidence:
 
 #### The notification classes P10 will come looking for
 
-[P10 §1.4](26-p10-implementation.md)'s rule is that every class has a producer or
+[P10 §1.4](27-p10-implementation.md)'s rule is that every class has a producer or
 is not shipped, and its §5 names the inverse risk — *"P7, P8 and P9 each
 producing something notification-worthy and no class existing for it"* — with the
 plan to re-read these three gates before writing the router. So, answered here:
@@ -760,7 +760,7 @@ byte-identity can be confused with a prompt that happens to match. No
 summaries-of-summaries, because [07 §5](../07-branching.md) says content
 addressing handles them *"without special cases"* and that is a claim to inherit
 rather than to exercise on the first commit. No eviction — a summary is small,
-and [25 C8](../25-open-questions.md)'s *generous during alpha* is the standing
+and [26 C8](../26-open-questions.md)'s *generous during alpha* is the standing
 posture for this class of derived file.
 
 *Ends at:* ~~forking a four-hundred-turn session and observing that the parent's
@@ -931,7 +931,7 @@ sit here with the retrieval path rather than with the writer.
 
 *Deliberately not built.* No cross-actor memory
 ([08 §3](../08-cross-session-memory.md), explicitly not 1.0). No widening beyond
-persona. No embeddings ([25 E2](../25-open-questions.md)) — this document is
+persona. No embeddings ([26 E2](../26-open-questions.md)) — this document is
 their first real customer and saying so is not scheduling them.
 
 *Ends at:* the four combinations [08 §4](../08-cross-session-memory.md)'s table
@@ -1065,7 +1065,7 @@ two.**
   mechanical, not a matter of remembering"* and that **every** exit gate ships at
   least one step carrying those words — naming P3, P5, P7, P10 and P11. **P8's
   ten steps carry it nowhere, and neither do P4's, P6's or
-  [P9](25-p9-implementation.md)'s.** So the claim is true of five gates and
+  [P9](26-p9-implementation.md)'s.** So the claim is true of five gates and
   false of four, and the grep it describes silently finds nothing in this
   document. The ten steps above must not be edited, so the phrase goes on the
   critical list instead — *and the count belongs back in
@@ -1098,17 +1098,17 @@ pile it exists to close.
 
 ## 4. Out of scope, deliberately
 
-Chapterisation ([24 §3](../24-roadmap.md) — and note that P7's completed goal
+Chapterisation ([25 §3](../25-roadmap.md) — and note that P7's completed goal
 chain is a better spine for chapters than word count is, which is an argument
 for the roadmap item rather than for pulling it in); embeddings and semantic
-retrieval ([25 E2](../25-open-questions.md) — this document is their first real
+retrieval ([26 E2](../26-open-questions.md) — this document is their first real
 customer if they are ever built, and saying so is not scheduling them);
 cross-actor memory, *Vera recalling that she and Tomas both know you*
 ([08 §3](../08-cross-session-memory.md), which multiplies the scope matrix and is
 explicitly not 1.0); narrator- or World-scoped memory
 ([15](../15-world.md) — but §1.2's constraint is in scope); memories writing
 state (§1.6, and it is a rule rather than a deferral); session export
-([25 B12](../25-open-questions.md)), which is where the non-shareable marking will
+([26 B12](../26-open-questions.md)), which is where the non-shareable marking will
 eventually have to be enforced rather than merely warned about.
 
 ---

@@ -105,7 +105,7 @@ in six places, less ready in five, and moved outright in four.
   are present, chunk splicing on write, never a pixel re-encode, container
   sniffed by magic number rather than extension — and hands the legacy payload
   back raw with a comment saying conversion "is import's job … and lands at
-  P4" (envelope.ts:56–68). The dependencies ([19 §7](../19-tech-stack.md)'s
+  P4" (envelope.ts:56–68). The dependencies ([20 §7](../20-tech-stack.md)'s
   blessed pair plus `png-chunks-encode`) are installed. P4 writes converters,
   not parsers.
 - **`in-history` placement exists and is tested** — `collect.ts:80–88` routes
@@ -149,7 +149,7 @@ in six places, less ready in five, and moved outright in four.
 - **No upload machinery of any kind.** No multipart, no content-type parser
   beyond JSON, no file input or `FormData` anywhere in the client; the one
   request wrapper is JSON-in/JSON-out. `limits.maxUploadMb` is
-  [21 §4.3](../21-internal-contracts.md)'s standing example of a `live` key
+  [22 §4.3](../22-internal-contracts.md)'s standing example of a `live` key
   that is honestly `unread` until exactly this route exists ("The key names
   uploads and will apply live when there is an upload route; there is not
   one"). P4 opens the first upload route and pays that whole bill (§1.3).
@@ -202,7 +202,7 @@ leans on rather than the design it cites:*
 
 - **The treatment slot literal never made it into code.** The Setting→Treatment
   rename ([04 §6]'s blockquote) updated the docs — [04 §8.2] and the
-  [04 §8.4.1] marker table say `{ of: "treatment" }`, and [21 §1.1]'s
+  [04 §8.4.1] marker table say `{ of: "treatment" }`, and [22 §1.1]'s
   `BlockSource` spells the same arm `kind: "treatment"` — while every line of
   shipped code, the scene preset, the workbench fixtures and the published
   JSON Schema artifact say `'setting'`. An importer written to the marker
@@ -371,13 +371,13 @@ licensing answer exists to prevent.
 ### 1.3 Where import runs, what a unit of import is, and how bytes arrive
 
 **A server-side import module — and this is forced, not leaned.**
-[22 §3–§4](../22-extensions.md) has no importer hook and `HostApi.library` can
+[23 §3–§4](../23-extensions.md) has no importer hook and `HostApi.library` can
 only `propose`, never bulk-write; converters-as-extensions would be a design
 change to the extension contract, not a P4 option. The module lands as
 `routes/import.ts` over an `import/` module, in the shape `library.ts` sits
 behind `routes/library.ts`, writing through `create()`/`update()` — which is
 what buys watcher suppression, synchronous indexing (read-after-write is a
-[21 §5] invariant for the server's own writes), the content-hash discipline,
+[22 §5] invariant for the server's own writes), the content-hash discipline,
 and slug allocation (`resolveFreeSlug` already suffixes collisions from `-2`,
 so a corpus of same-named cards is safe at the folder level).
 
@@ -385,7 +385,7 @@ so a corpus of same-named cards is safe at the folder level).
 stated:**
 
 - **A first import writes no version record, and that is correct.** History
-  snapshots the *replaced* state ([21 §1.6]; history.ts:160–164) and a create
+  snapshots the *replaced* state ([22 §1.6]; history.ts:160–164) and a create
   replaces nothing — `create()` takes no attribution at all. The
   `{ kind: 'import'; from }` arm (typed since P1, "no writers until their
   phases") fires when an import **overwrites** an existing object through
@@ -468,10 +468,10 @@ emits.
 order priced in §5):
 
 - **Single files are a browser upload.** `@fastify/multipart` (a new
-  dependency, argued into [19 §7] when it lands), the CSRF header echoed like
+  dependency, argued into [20 §7] when it lands), the CSRF header echoed like
   any mutation, and `limits.maxUploadMb` enforced **per request** off the live
   config reference — which flips its `LIVE_APPLIERS` row from `unread` to
-  `applied` — a row the suite pins from both sides: [21 §4.3]'s coverage test
+  `applied` — a row the suite pins from both sides: [22 §4.3]'s coverage test
   requires the entry to exist, and `config.test.ts` currently asserts the row
   *is* `unread`, so the flip is a deliberate two-file edit rather than a
   drive-by. Fastify's
@@ -590,9 +590,9 @@ numbers are not the interesting part (Marinara caps its own profile import at
 
 **The sweep is a job — and the vocabulary is an append, not a reuse.** A real ST
 directory is years of data; a request that walks it inline times out. The sweep
-lands in the operational store ([21 §5.1]), emits progress, and announces
+lands in the operational store ([22 §5.1]), emits progress, and announces
 completion as `system.notice` — the closed notification list
-([25 A2c](../25-open-questions.md)) is not widened for this. Its durable output
+([26 A2c](../26-open-questions.md)) is not widened for this. Its durable output
 is the review report (§1.4). ~~with the existing job/idempotency vocabulary~~
 **The existing vocabulary cannot hold it**: `job.session_id` is `not null`,
 `idempotency`'s primary key includes `session_id`, and `draft` and `event` both
@@ -604,7 +604,7 @@ migration chain is append-only by its own rule (migrations.ts:6–28), so this i
 the shape it was built for. Import emits through the already-declared,
 never-emitted `job.progress` key (state/events.ts:39).
 
-**Foreign-path doctrine — new, and written back into [21 §4.1]:** F22 and the
+**Foreign-path doctrine — new, and written back into [22 §4.1]:** F22 and the
 log rules govern *library* paths; nothing governed the source side. The rule:
 **source files are named relative to the sweep root** — in logs, in the review
 report, and in `VersionRecord.from` — never absolute. The root itself is
@@ -612,7 +612,7 @@ recorded once, on the job's own record, where the person who typed it can see
 it; it never rides per-file rows or log lines, because the log is the thing
 people paste into issues. One unreadable file is a `warn` (`error` is for what
 the server could not do; a refused foreign file is the system working —
-[21 §4.1]), and **one poisoned file never aborts a sweep** — F22's original
+[22 §4.1]), and **one poisoned file never aborts a sweep** — F22's original
 sin, one bad folder aborting a whole scan, pre-paid and not repeated.
 
 ### 1.4 The review is a feature, not a log — post-hoc, addressable, structured
@@ -643,8 +643,8 @@ bug report, or reopens next week wants an address, and a panel scoped to the
 main view can never be one. The report rides at its own route, keyed by the
 import job's id; the panel over it stays an ordinary reader.
 
-**The report is structured data, never stored prose.** [19 §12.5–12.6] and
-[25 A2d]: the server emits facts — reason classes, counts, field lists,
+**The report is structured data, never stored prose.** [20 §12.5–12.6] and
+[26 A2d]: the server emits facts — reason classes, counts, field lists,
 `{key, params}` — and the sentence is composed at display time ~~through
 Intl/ICU~~ **on the client, from the class**. A report stored as English
 sentences would be A2d's latent bug rebuilt. The reason-class vocabulary is a
@@ -658,7 +658,7 @@ because the fix is a sentence rather than a dependency. `format.ts` is `Intl`
 for dates, numbers and durations; there is no message catalogue, no ICU
 formatter and no i18n dependency anywhere in the workspace, and the label maps
 are literal English objects. The catalogue extraction that would change that is
-[P11 §1.3](27-p11-implementation.md)'s pre-beta sweep. So P4 renders through
+[P11 §1.3](28-p11-implementation.md)'s pre-beta sweep. So P4 renders through
 the label maps this codebase already has — and the decision above is what keeps
 **the largest body of user-facing prose any phase has added** off that sweep's
 debt list, where [P3 §3](15-p3-implementation.md)'s free-English block `reason`
@@ -794,7 +794,7 @@ through the store reader:
     (`services/backupService.ts:45`), zipped in native Rust. This is the heavy
     path: a zip reader plus a SQLite reader, and `node:sqlite` is already here.
   - **There is a fourth, and P4.3 missed it** — *added 2026-09-01, at
-    [18](../18-session-import.md)'s survey.* A single story exports as **`.avt`,
+    [19](../19-session-import.md)'s survey.* A single story exports as **`.avt`,
     one versioned JSON file** (`services/export.ts:28`, shape at
     `services/import/types.ts:24`, `EXPORT_FORMAT_VERSION = '1.8.0'` with nine
     additive revisions recorded in the file). It carries the story, its entries,
@@ -856,7 +856,7 @@ Scope fence, drawn deliberately tight:
 - **An unrecognised macro is preserved verbatim and flagged** — unchanged, and
   now meaningful: recognised macros render, unrecognised ones visibly need a
   look.
-- **What stays open, stated so this is not misread**: [25 C6]'s remaining
+- **What stays open, stated so this is not misread**: [26 C6]'s remaining
   question is which language serves *rule conditions* (deferred with the rule
   vocabulary to 6.0 anyway), and [triage §6.1]'s `[OPEN]` on authoring-side
   macro syntax stays open. P4 settles Liquid **for block templating**, which
@@ -874,7 +874,7 @@ Scope fence, drawn deliberately tight:
 The Setting→Treatment rename was made deliberately ([04 §6]; the kind is named
 for what it holds, and `Setting` was one case-fold from the configuration
 surface) and the docs carry it — [04 §8.2], the [04 §8.4.1] marker table and
-[21 §1.1] all spell the slot source `treatment`. The code never followed:
+[22 §1.1] all spell the slot source `treatment`. The code never followed:
 `preset.ts:114`, `turn.ts:153`, the assembler, the scene preset, the workbench
 fixtures and the published JSON Schema artifact all spell it `'setting'`.
 
@@ -976,7 +976,7 @@ shorthand for the reserved `se.summary` *section*, not a field:
   (`omitWhenEmpty` makes that legal and quiet), and the plan says so here
   rather than letting the gate discover it. Splitting `description` into
   appearance/voice by heuristic would be inventing structure the source does
-  not have. ([25 B1]'s editor-creates-all-four rule is about the editor;
+  not have. ([26 B1]'s editor-creates-all-four rule is about the editor;
   import claims only what it knows.)
 - `scenario` → **a Treatment, created eagerly** (post-hoc posture, §1.4), one
   per distinct scenario text within a sweep (identical text dedupes), with the
@@ -1139,7 +1139,7 @@ amendment — §1.8 carries the answer.*
   and `{{random}}`/`{{time}}` would break replay, which is the RNG rule and the
   record's reproducibility arriving from two directions.
 - *The upload route and the `LIVE_APPLIERS` flip:* `limits.maxUploadMb` is read
-  per request and now reads `applied`, after three phases as [21 §4.3]'s
+  per request and now reads `applied`, after three phases as [22 §4.3]'s
   standing example of an honestly-unread key. The exemplar moved to
   `trash.retentionDays`; **a key stops being an example of dishonesty by
   becoming honest**, which is the table working rather than a defect in it.
@@ -1162,7 +1162,7 @@ with the closed macro table and render context, designed together. The
 single-file upload route (multipart, CSRF, per-request `maxUploadMb` — the
 `LIVE_APPLIERS` flip). §1.9's preset-at-creation parameter, with the recorded
 P7 position amended in the same commit. Docs ride along: 10 §8.4.2 (compat),
-§8.4.3 (nine), [19 §7] (the two new dependencies argued in place),
+§8.4.3 (nine), [20 §7] (the two new dependencies argued in place),
 [docs/api.md](../../api.md) gains the routes.
 
 ### P4.2 — SillyTavern cards and lorebooks
@@ -1438,7 +1438,7 @@ phase after this one no longer assumes this one produced it.
 8. **One poisoned file never aborts a sweep**: a deliberately corrupt card in
    the fixture directory is a `warn`-class row in the review, and the sweep
    completes around it.
-9. **Rebuild equals incremental, after a bulk import** — the [21 §5] CI
+9. **Rebuild equals incremental, after a bulk import** — the [22 §5] CI
    assertion gets the best stress it will ever get, run against the
    post-import library.
 10. **The config surface is honest**: the `LIVE_APPLIERS` row for
@@ -1456,7 +1456,7 @@ phase after this one no longer assumes this one produced it.
     *Corrected 2026-08-30:* there is no ICU message layer in this repository —
     `format.ts` is `Intl` for dates, numbers and durations, the label maps are
     literal English objects, and the catalogue extraction that would change
-    that is [P11 §1.3](27-p11-implementation.md)'s. The decision §1.4 makes is
+    that is [P11 §1.3](28-p11-implementation.md)'s. The decision §1.4 makes is
     unaffected and is the point: emitting `{key, params}` rather than sentences
     is what keeps this phase's large new body of user-facing prose **off**
     P11's sweep debt, beside the workbench `reason` field that is already on
@@ -1495,14 +1495,14 @@ twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
   category, because "will never come" answers differently from "not yet".
 - **Chat and session history import — ~~closed, not deferred~~ *conditional*,
   and out of scope here either way.** The skeleton said "to confirm on revisit";
-  [25 E4](../25-open-questions.md) had already answered: ~~session import
+  [26 E4](../26-open-questions.md) had already answered: ~~session import
   is speculative and unroadmapped,~~ "a half-working importer generates more
   support burden than no importer at all. Better none than one that rots" —
   and card/lorebook/preset import is explicitly distinguished as the bounded
   surface against formats that barely move. ~~Confirmed by citation.~~
 
   *Corrected 2026-09-01, and the correction is about a citation rather than a
-  decision.* **[25 E4] was rewritten on 2026-08-31**, two days after this
+  decision.* **[26 E4] was rewritten on 2026-08-31**, two days after this
   paragraph, to *"conditional on an interchange format — not a commitment, and
   no longer a flat refusal. The condition is the shape, not the appetite"*. The
   quoted words above are the version it replaced, and this document was itself
@@ -1514,8 +1514,8 @@ twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
   `groups` and `group chats` stay `recorded` in §1.8's registry. What changes is
   what the review is saying *when* about. The condition E4 names is
   a session interchange format, which begins at P11's session export
-  ([25 B12](../25-open-questions.md)) — so the answer is *after the phase that
-  writes the target*, and [18](../18-session-import.md) is the survey that makes
+  ([26 B12](../26-open-questions.md)) — so the answer is *after the phase that
+  writes the target*, and [19](../19-session-import.md) is the survey that makes
   the condition checkable. Its §1 reaches this document's own `.seactor` rule
   for the reason: an importer for a format with no writer is what
   [work plan §2.2](01-work-plan.md) forbids.
@@ -1528,7 +1528,7 @@ twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
   recorded with the "not yet importable" category, not converted (§1.5).
 - **The dual-hash pack-update mechanism** (§1.6) and **authoring-side macro
   syntax** ([triage §6.1], still `[OPEN]`).
-- **Thumbnails.** [19 §7] blesses `sharp` for ingest-time thumbnails; nothing
+- **Thumbnails.** [20 §7] blesses `sharp` for ingest-time thumbnails; nothing
   in the demo needs them; the dependency waits for a surface that does.
 
 ---
@@ -1600,7 +1600,7 @@ Undecided by the *design*, not merely absent from the code. Each needs an
 answer written back into the owning document rather than settled here — or is
 listed because this plan schedules the write-back it already owes.
 
-**6.1 Which language serves rule conditions.** [25 C6] is partly settled — one
+**6.1 Which language serves rule conditions.** [26 C6] is partly settled — one
 language, definitely; which one, open — and the rule vocabulary itself is
 deferred to 6.0. P4 proceeds on the settled half (Liquid for block templating,
 chosen in three documents) and deliberately does not close C6; §1.6's scope
@@ -1633,10 +1633,10 @@ makes it true): ~~[10 §5] — the review posture, post-hoc, amended by strike
 [04 §8.4.3] — the heading's "Eight" becomes "Nine" (both with P4.1).~~ *Paid at
 P4.1, and two more the conversion found: §8.4.1's `dialogueExamples` row said
 `examples`, an arm renamed to `samples`, and its `wrapper` prose said eight in a
-third place. [19 §7] gained `liquidjs` and `@fastify/multipart`, argued rather
+third place. [20 §7] gained `liquidjs` and `@fastify/multipart`, argued rather
 than noticed in a lockfile.*
-~~[21 §4.1] — the foreign-path doctrine (with P4.0).~~ *Paid at P4.0: it is
-[21 §4.1.1](../21-internal-contracts.md), and it turned out to be the same rule
+~~[22 §4.1] — the foreign-path doctrine (with P4.0).~~ *Paid at P4.0: it is
+[22 §4.1.1](../22-internal-contracts.md), and it turned out to be the same rule
 one root over — relative to the sweep root rather than the data root, with the
 root itself recorded once on the job.* [testing §5/§6] — which
 corpus CI runs (with P4.0). routes/sessions.ts's recorded P7 position — the
@@ -1660,9 +1660,9 @@ personas live and the compressed-chunk card fact; [triage §2A.3] and
 [work plan P4](01-work-plan.md)'s demonstrable line gained the second arm; and
 [testing §5/§6](03-testing.md) took the corpus-split sentence early, because
 the private corpus's absence is true now and P4.0 would only have re-derived it.
-*Two more are owed and scheduled:* [21 §5.1](../21-internal-contracts.md) gains
+*Two more are owed and scheduled:* [22 §5.1](../22-internal-contracts.md) gains
 the import-job tables beside the turn-job ones (with P4.0), and
-[19 §7](../19-tech-stack.md) gains a zip reader argued in place beside
+[20 §7](../20-tech-stack.md) gains a zip reader argued in place beside
 `@fastify/multipart` and LiquidJS (with the stage that opens an archive) —
 **three new dependencies in one phase, which is worth seeing written in one
 sentence rather than discovered one at a time**.
@@ -1787,7 +1787,7 @@ the grantor is told, not in what the grant permits.
 ### 7.3 Gate step 9 was never run — *closed 2026-08-31, §7.14*
 
 *"Rebuild equals incremental, after a bulk import"* — described in the gate as
-the best stress the [21 §5] assertion will ever get. `rebuild-property.test.ts`
+the best stress the [22 §5] assertion will ever get. `rebuild-property.test.ts`
 exists and predates P4; no import test rebuilds. The one thing P4 could
 contribute to that invariant, it did not contribute.
 
@@ -2344,7 +2344,7 @@ The three of them are the reason to read this section last: they were written
 against the same §7 on a branch that has §7.8's repair and not this entry.*
 
 **Gate step 9 — rebuild equals incremental, after a bulk import.** Added to the
-named `gate` CI step rather than beside it, because it *is* the [21 §5]
+named `gate` CI step rather than beside it, because it *is* the [22 §5]
 assertion. The gate called this the best stress that assertion will ever get and
 the reason is the shape of what import writes rather than its size: a sweep is
 the only thing here that creates many objects of many kinds in one burst,

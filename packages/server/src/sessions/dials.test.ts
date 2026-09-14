@@ -13,7 +13,7 @@ import { levelFragments, packLevels, readDial, resolveLevel } from './dials.js';
 import { SE_HOOK_PACING } from './hooks.js';
 
 /**
- * Difficulty and directedness — [06 §7.3.1], [06 §7.3.2], [23 §5.4], built at
+ * Difficulty and directedness — [06 §7.3.1], [06 §7.3.2], [24 §5.4], built at
  * [P7.8].
  *
  * ***The tests are about the separation as much as about the resolution***,
@@ -88,7 +88,7 @@ describe('what a mode declares when it has a difficulty', () => {
   });
 
   /**
-   * ***[23 §5.4]'s constraint, as an assertion.*** *"A frequency dial stays a
+   * ***[24 §5.4]'s constraint, as an assertion.*** *"A frequency dial stays a
    * separate channel from difficulty, because folding* how often *into* how hard
    * *rebuilds exactly the conflation 06 §7.3.2 exists to prevent."* Three ids,
    * three channels; the day somebody merges two of them this fails.
@@ -163,7 +163,7 @@ describe('which level a session is on', () => {
 
 describe('the fragments a level contributes', () => {
   /**
-   * **Highest priority first**, because [19 §5.3]'s cap drops from the end of
+   * **Highest priority first**, because [20 §5.3]'s cap drops from the end of
    * what it is given and {@link DifficultyLevel} documents `priority` as *lower
    * is dropped first*. Array order would have made the ranking depend on how the
    * author happened to type the list.

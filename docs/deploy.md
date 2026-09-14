@@ -31,7 +31,7 @@ The container binds `0.0.0.0`, because a container's own `127.0.0.1` is its own
 loopback and would be unreachable however you mapped the port
 ([09 §5.3](design/09-server-multiuser-deployment.md)). That is done by setting
 `SE_HOST` — the same variable a bare-metal install would use, not a different
-build ([P10 §1.2](design/workplan/26-p10-implementation.md)) — so you can read it
+build ([P10 §1.2](design/workplan/27-p10-implementation.md)) — so you can read it
 in the Dockerfile and override it.
 
 Binding beyond loopback means the create-the-first-admin screen is reachable from
@@ -85,7 +85,7 @@ directory, which is empty on a first run:
 Everything else is `config.json` in the volume, or the settings page. **The file
 wins over the environment**, because the file is what the settings page writes:
 changing a value in the UI and finding a variable had outranked it would be a bug
-([21 §4](design/21-internal-contracts.md)). The server logs a warning when a
+([22 §4](design/22-internal-contracts.md)). The server logs a warning when a
 variable is set and the file speaks for the same key.
 
 **There is no HTTPS.** On a LAN it cannot be done well without a real domain or a
@@ -108,7 +108,7 @@ docker compose logs storyengine | head -n 5
 
 **An older build will not open a data directory a newer one has written.** It
 refuses and says both versions; it does not migrate. There is no compatibility
-promise between alpha builds — [21](design/21-internal-contracts.md) licenses the
+promise between alpha builds — [22](design/22-internal-contracts.md) licenses the
 storage tier to change without migration for as long as nothing leaves the
 install, and nothing does ([P6A §1.7](design/workplan/19-p6a-alpha-1.md)).
 

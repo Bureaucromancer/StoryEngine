@@ -86,7 +86,7 @@ const EditBody = Type.Object(
 const IdParams = Type.Object({ id: Type.String({ minLength: 1, maxLength: 200 }) });
 
 /**
- * The two models a first run answers with — [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+ * The two models a first run answers with — [20 §5.1](../../../../docs/design/20-tech-stack.md)'s
  * *a good one and a cheap one*.
  *
  * Sent as two bindings rather than as eight, because the eight are policy
@@ -359,9 +359,9 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
    *
    * **Which layer won is computed here, because it is only computable here.**
    * It is a local in `resolveRole`, it is deliberately absent from the turn
-   * record ([21 §1.4] specifies no such field), and before this nothing
+   * record ([22 §1.4] specifies no such field), and before this nothing
    * returned it — so a table showing it would have had to reimplement
-   * [19 §5.1]'s layering in the browser, against two binding maps it would also
+   * [20 §5.1]'s layering in the browser, against two binding maps it would also
    * have had to fetch. That is a second copy of the resolution order living in
    * a different language from the first.
    *

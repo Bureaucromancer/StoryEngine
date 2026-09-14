@@ -10,8 +10,8 @@ import type {
 } from '@storyengine/shared';
 
 /**
- * The provider layer's contracts — [21 §2, §3](../../../../docs/design/21-internal-contracts.md)
- * and [19 §5](../../../../docs/design/19-tech-stack.md), as code.
+ * The provider layer's contracts — [22 §2, §3](../../../../docs/design/22-internal-contracts.md)
+ * and [20 §5](../../../../docs/design/20-tech-stack.md), as code.
  *
  * **The wrapper is not ceremony.** It is where model-hint resolution happens,
  * where role bindings resolve to connections, where per-call cost is captured
@@ -21,7 +21,7 @@ import type {
  * to the engine.
  *
  * It is **not** where a raw-completion adapter attaches, because there is not
- * one ([19 §5.5](../../../../docs/design/19-tech-stack.md)): if it speaks
+ * one ([20 §5.5](../../../../docs/design/20-tech-stack.md)): if it speaks
  * OpenAI-compatible chat it works, and if it does not it does not. That is a
  * position, and it is stated in `docs/api.md` rather than left to be
  * discovered.
@@ -31,7 +31,7 @@ import type {
  * The eight roles a step may ask for.
  *
  * **Steps never name a model.** They name a role, and the install binds roles
- * to connections ([19 §5.1](../../../../docs/design/19-tech-stack.md)) — which
+ * to connections ([20 §5.1](../../../../docs/design/20-tech-stack.md)) — which
  * is what makes an install portable, an extension safe to share, and an actor's
  * `modelHint` resolvable as a *request* rather than as a binding.
  */
@@ -51,7 +51,7 @@ export type {
 /**
  * What an endpoint can do, and where it stops.
  *
- * Verbatim from [21 §3](../../../../docs/design/21-internal-contracts.md) — the
+ * Verbatim from [22 §3](../../../../docs/design/22-internal-contracts.md) — the
  * discipline this phase is under is that the contracts become code *as
  * written*, and a deviation goes into the doc first because five later phases
  * are specified against it.
@@ -60,7 +60,7 @@ export interface ProviderCapabilities {
   supportsTools: boolean;
   supportsStructuredOutput: boolean;
   supportsStreaming: boolean;
-  /** Whether consecutive same-role messages are acceptable. [21 §2] */
+  /** Whether consecutive same-role messages are acceptable. [22 §2] */
   mergeSameRole: 'required' | 'preferred' | 'never';
   /**
    * Whether a leading system message is supported at all — some endpoints want
@@ -189,7 +189,7 @@ export interface Provider {
  *
  * **Here rather than in `roles.ts`, where it was, because the session record
  * needs it** — [P7.3]. `SessionFile.roles` carries per-session overrides
- * ([19 §5.1](../../../../docs/design/19-tech-stack.md)), and importing them from
+ * ([20 §5.1](../../../../docs/design/20-tech-stack.md)), and importing them from
  * `roles.ts` would pull `connections.ts` and the whole storage layer into the
  * session record's type graph for the sake of two strings. This module is the
  * leaf both sides already depend on.

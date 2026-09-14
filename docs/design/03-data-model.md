@@ -377,10 +377,10 @@ duplication disappears for free once persona is a flag on an actor.
 >
 > **Two questions were left open rather than settled by the reversal**, both
 > recorded so the next person meets them instead of re-deriving them:
-> [25 §B14](25-open-questions.md) — whether `scope` should *narrow* a book the
+> [26 §B14](26-open-questions.md) — whether `scope` should *narrow* a book the
 > session has already chosen, which is coherent and was not taken because it
 > introduces a new way for a deliberate choice to go quiet; and
-> [25 §B15](25-open-questions.md) — what a new book's `scope` should default to,
+> [26 §B15](26-open-questions.md) — what a new book's `scope` should default to,
 > given that `global` is the widest value in the union and is what both the
 > factory and the importer currently produce.
 
@@ -472,7 +472,7 @@ recoverable, which makes the taxonomy the part that has to land early even thoug
 the feature does not.
 
 The intended first consumer is rendition conditioning
-([24 §3](24-roadmap.md)), and it is deferred for a real reason rather than a
+([25 §3](25-roadmap.md)), and it is deferred for a real reason rather than a
 scheduling one: passing an image to an image model is trivial, but choosing
 *which* image, when six entries and three actors all carry references, is not.
 That wants the location channel to exist and real sessions to tune against.
@@ -649,7 +649,7 @@ the degraded case.
 
 **Firing an introduction hook writes nothing by itself, and cannot.** It is
 tempting to have it add the character to the cast directly, and that is an
-`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([25 C7](25-open-questions.md)).
+`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([26 C7](26-open-questions.md)).
 The available path is the one [06 §5.2](06-modes-and-turn-pipeline.md) already
 blesses: the hook contributes guidance, the narrator writes the arrival, and
 presence follows the story like any other model-proposed change. Saying so
@@ -911,7 +911,7 @@ A flat list of images is cheap and forecloses everything downstream: an image
 pipeline needs to know *which* picture is the canonical likeness and which is a
 costume variant. Retrofitting roles onto a flat list means guessing, so the
 taxonomy goes in at 1.0 even if only two roles are populated. This is the format
-prerequisite for the Character Studio ([17](17-character-studio.md), 3.0).
+prerequisite for the Character Studio ([18](18-character-studio.md), 3.0).
 
 **Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
 chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
@@ -1039,7 +1039,7 @@ here whose contents are **deliberately disposable**. The record of a rendition
 lives in the turn log with its prompt, seed and parameters; the file under
 `assets/` is the output of running them. Deleting one leaves `asset: null` and a
 picture that can be made again, which is what lets an eviction policy be a later
-decision rather than a migration ([25 E3](25-open-questions.md),
+decision rather than a migration ([26 E3](26-open-questions.md),
 [06 §10.7](06-modes-and-turn-pipeline.md)).
 
 Two consequences worth stating where the layout is, because both are easy to get
@@ -1088,11 +1088,11 @@ Consequences worth having:
 
 **Turn storage must tolerate removal** — a tombstone the reader skips, plus a
 compaction pass that rewrites a segment. No UI needs it at 1.0, but pruning a
-branch subtree ([24 §1.4](24-roadmap.md)) does, and retrofitting deletion into a
+branch subtree ([25 §1.4](25-roadmap.md)) does, and retrofitting deletion into a
 format that assumed pure append is a migration rather than a feature.
 
 **Retention: keep everything.** No automatic compaction of old records
-([25 B3](25-open-questions.md)). A full record runs roughly 10–100× its message
+([26 B3](26-open-questions.md)). A full record runs roughly 10–100× its message
 text, so a thousand-turn session is tens to a couple of hundred megabytes —
 acceptable, and the reason the layout above matters.
 
@@ -1198,7 +1198,7 @@ Reduced to a container, Package has almost no surface of its own:
 **[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes packages far more powerful and makes
 importing one a code-execution decision. Strong lean: **declare only** at 1.0
-([25 A2](25-open-questions.md)).
+([26 A2](26-open-questions.md)).
 
 **[OPEN]** Should a package be able to ship a partially-played session as a
 starting state (a "pre-run prologue")? Attractive for authored content, and it
@@ -1250,7 +1250,7 @@ interface Session {
 `SessionFile` in `packages/server/src/sessions/types.ts`. A session may be started
 without a name and renamed at any time — it is id-addressed, so unlike a library
 object nothing is derived from the name and frozen — and an unnamed one stores
-`""`, which clients render as *Untitled session* ([25 E13](25-open-questions.md)).
+`""`, which clients render as *Untitled session* ([26 E13](26-open-questions.md)).
 The rest of this block is older than the implementation in other ways too:
 `participants`, `origin` and `localActors` are not on `SessionFile`.
 
@@ -1331,7 +1331,7 @@ interface Turn {
   output: { text: string; reasoning?: string }
   /** Terminal only — a turn in flight lives in the operational store ([P2 §2.10]). */
   status: "complete" | "failed" | "suspended"
-  /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
+  /** Every draw the turn consumed, keyed by site ([20 §14.6]). */
   tape: Tape
   /** A tombstone the reader skips. Nothing removes turns at 1.0; pruning a
    *  branch subtree does (§5.5). */
@@ -1343,7 +1343,7 @@ interface Turn {
    *  live-only and the history view disagrees with the live one about what
    *  happened. Added at P2.5, with the runner that produces them. */
   steps: StepOutcome[]
-  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [21 §1.2.1]
+  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [22 §1.2.1]
   /** Resolved references into `input.text` and `output.text`, as an overlay.
    *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1]
    *  ~~`mentions: MentionSpan[]`~~ — renamed 2026-09-11, see below. */
@@ -1414,7 +1414,7 @@ interface AssembledBlock {
   /** The rendered text. Present because the workbench maps every sent byte back
    *  to the block that produced it, which a reference alone cannot do. */
   text: string
-  /** One vocabulary, shared with the preset's slots — [21 §1.1]. Carries the
+  /** One vocabulary, shared with the preset's slots — [22 §1.1]. Carries the
    *  identifier too (*which* lore entry), so provenance is clickable. */
   source: BlockSource
   reason: string                 // "keyword match: 'cathedral'" / "always" / "pinned by user"
@@ -1447,7 +1447,7 @@ be a record claiming a prompt was built. *Absent* and *empty* are different
 claims, and the workbench renders the difference.
 
 **`ModelCall`, `BudgetVerdict`, `ChannelEffect`, `ChannelState` and `BlockSource`
-are defined in [21](21-internal-contracts.md).** They are internal and free to
+are defined in [22](22-internal-contracts.md).** They are internal and free to
 migrate ([04 §1](04-schemas.md)); they are written down because the assembler
 cannot be built against a reference. `ChannelEffect` is the one worth reading
 before writing any of this — it carries the reversibility
@@ -1501,7 +1501,7 @@ that you meant to.
 
 The gap is worth naming plainly, because this design otherwise sells safety hard.
 Branching means you can always go back ([07](07-branching.md)); full history means
-nothing is lost to summarisation ([25 E1](25-open-questions.md)); files on disk
+nothing is lost to summarisation ([26 E1](26-open-questions.md)); files on disk
 mean you can always get your data out (§5). Against all of that, an unqualified
 Delete button is the one place where *gone* means gone — and the first person to
 lose a character they had spent an evening writing will not be consoled by the
@@ -1558,7 +1558,7 @@ Four properties worth fixing now:
   skips the trash. The point of the window is to make the ordinary path
   recoverable, not to make deletion impossible for someone who means it.
 - **Trash is excluded from export and from backup by default**
-  ([25 E6](25-open-questions.md)) — restoring a backup should not resurrect
+  ([26 E6](26-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it.
 
 ### 10.3 Sessions delete the same way, with one addition
@@ -1625,7 +1625,7 @@ and sometimes the user's.
 
 `source` earns its place here more than it does in Marinara, because more things
 edit objects in this design: field assists ([10 §11.1](10-ui-surfaces.md)), the
-assistant's proposals ([22 §4](22-extensions.md)), and import. *"Who changed my
+assistant's proposals ([23 §4](23-extensions.md)), and import. *"Who changed my
 character"* is a question with several possible answers, and the history is where
 it gets one.
 
@@ -1677,7 +1677,7 @@ costs the newest entry rather than the history.
 copied. An agent making a run of small edits can produce hundreds of entries, and
 an unbounded list is a list nobody scrolls.
 
-- **A generous default count, tunable** ([21 §4](21-internal-contracts.md)) —
+- **A generous default count, tunable** ([22 §4](22-internal-contracts.md)) —
   prune oldest first, per object.
 - **Pinned versions are never pruned.** Pinning is what a user does to the state
   they might want back in a year, and it is the entire answer to "the cap ate

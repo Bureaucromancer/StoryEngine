@@ -25,7 +25,7 @@ import { SecretField } from '../ui/SecretField.js';
  * Every entry is English, because nothing here is translated. The day somebody
  * writes a translation is the day another language belongs in this list, and not
  * before — an untranslated `de-DE` would promise German and deliver English. What
- * the value does today is set date and number formatting ([19 §12.6] — `Intl`
+ * the value does today is set date and number formatting ([20 §12.6] — `Intl`
  * from the first component), plus the language the server will use for
  * notifications it composes with the app closed.
  *

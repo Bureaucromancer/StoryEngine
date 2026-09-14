@@ -8,7 +8,7 @@ import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
 
 /**
- * Sessions and turns in the index — [19 §7.1](../../../../docs/design/19-tech-stack.md),
+ * Sessions and turns in the index — [20 §7.1](../../../../docs/design/20-tech-stack.md),
  * [P2 §2.3](../../../../docs/design/workplan/08-p2-implementation.md).
  *
  * Two jobs, and it is worth being clear that they are different. The **turn
@@ -20,7 +20,7 @@ import { inTransaction } from '../storage/transaction.js';
  *
  * Both are derived. `session.json` and the segments are the truth; deleting
  * `index.sqlite` costs a rescan and nothing else
- * ([21 §5](../../../../docs/design/21-internal-contracts.md)), which is why the rebuild scans
+ * ([22 §5](../../../../docs/design/22-internal-contracts.md)), which is why the rebuild scans
  * sessions too and why the CI gate holds the two producers to one answer.
  */
 

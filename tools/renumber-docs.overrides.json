@@ -1,5 +1,5 @@
 {
-  "_comment": "Atoms the link evidence resolves confidently and wrongly. The rewriter prefers a file's own linked citations, which is right nearly everywhere and backwards in a document that quotes the citation convention rather than using it: the work-plan README's sentence about design documents keeping their numbers cites `[03 §5]` and `[21 §1]` as examples of design notes, inside a file whose every other `03` and `21` is a work-plan document. Keyed by `file::atom` so the same atoms elsewhere are untouched.",
+  "_comment": "Atoms the link evidence resolves confidently and wrongly. The rewriter prefers a file's own linked citations, which is right nearly everywhere and backwards in a document that quotes the citation convention rather than using it: the work-plan README's sentence about design documents keeping their numbers cites `[03 §5]` and `[22 §1]` as examples of design notes, inside a file whose every other `03` and `21` is a work-plan document. Keyed by `file::atom` so the same atoms elsewhere are untouched.",
   "docs/design/workplan/README.md::03 §5": "docs/design/03-data-model.md",
-  "docs/design/workplan/README.md::21 §1": "docs/design/21-internal-contracts.md"
+  "docs/design/workplan/README.md::22 §1": "docs/design/22-internal-contracts.md"
 }

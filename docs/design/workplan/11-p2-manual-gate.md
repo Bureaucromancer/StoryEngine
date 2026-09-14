@@ -139,7 +139,7 @@ Run §2.1 against **at least one hosted endpoint and one local runtime**, becaus
 they fail differently.
 
 Watch for: the request is accepted at all; chunks arrive incrementally rather
-than in one lump; `usage` comes back populated, since [21 §1.4] calls it
+than in one lump; `usage` comes back populated, since [22 §1.4] calls it
 *provider-reported, not estimated* and a provider that reports nothing makes
 every budget figure a guess; `ModelCall.resolved` names the model that actually
 ran; and the turn's cost is **`null`, never `0`** — no price table ships and
@@ -149,7 +149,7 @@ the same correction gate step 2 already carries.)*
 
 Then break it deliberately — wrong key, model id that does not exist, a
 deliberately tiny completion ceiling — and check the first two surface as a
-*classified* failure ([25 E7]) rather than a provider string in the UI, while
+*classified* failure ([26 E7]) rather than a provider string in the UI, while
 the ceiling surfaces as `outcome: 'truncated'` on the call: a ceiling reached
 is not a failure, and telling those apart is the point of the field.
 
@@ -216,7 +216,7 @@ found by reading a gate step against the code that was supposed to satisfy it.*
   at all. Two things the stage had not scoped had to land first: a route
   returning per-role resolution — `via` was a local in `resolveRole` and
   returned by nothing, so a role table would have reimplemented
-  [19 §5.1](../19-tech-stack.md) in the browser — and a masked input, since
+  [20 §5.1](../20-tech-stack.md) in the browser — and a masked input, since
   `PasswordInput` was file-private and an API-key field built from `Field`
   would have rendered the key in plain text. **Built:** `GET /api/admin/roles`
   and `editor/SecretField.tsx`.
@@ -267,7 +267,7 @@ refused by a conflict dialog blaming a concurrent editor.
   `job.committed` carried no `sessionId` and `job.unstartable` and `job.lost`
   carried neither, because the child logger was built inside `#body` and all
   three are written outside it. It is built in `start()` now, which is what
-  [21 §4.1] asks for. **`requestId` remains unbound and is deferred with a
+  [22 §4.1] asks for. **`requestId` remains unbound and is deferred with a
   written reason** — a turn outlives the request that submitted it, so carrying
   one means a column and a migration and a decision about what the id means for
   a recovered turn.

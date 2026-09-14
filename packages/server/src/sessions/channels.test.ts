@@ -527,7 +527,7 @@ describe('the clock', () => {
     expect(readClock((await onDisk()).channels)).toEqual({ day: 1, hour: 8, minute: 10 });
     expect(second.effects[0]?.proposedBy).toEqual({ kind: 'engine' });
     // Stored rather than derived, which is what makes undoing the tip an apply
-    // rather than a replay of 0..N−1 ([21 §1.2]).
+    // rather than a replay of 0..N−1 ([22 §1.2]).
     expect(second.effects[0]?.before).toEqual({ day: 1, hour: 8, minute: 5 });
   });
 

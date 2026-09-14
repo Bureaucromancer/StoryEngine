@@ -720,8 +720,8 @@ describe('a duplicated id', () => {
 /**
  * **The role table's route** — [P2B §3] stage P2B.3, and the thing that was
  * missing when the gate was walked: `via` is a local in `resolveRole`, absent
- * from the turn record by design ([21 §1.4]), and returned by nothing. A table
- * showing it would have had to reimplement [19 §5.1] in the browser.
+ * from the turn record by design ([22 §1.4]), and returned by nothing. A table
+ * showing it would have had to reimplement [20 §5.1] in the browser.
  */
 describe('what every role will do', () => {
   it('answers unbound for all eight on a fresh install, and marks the three unset by design', async () => {
@@ -1004,7 +1004,7 @@ describe('a key', () => {
   /**
    * **Exempt, by name and with a reason** — [P7.3], 2026-09-11.
    *
-   * `PUT /api/sessions/:sessionId/roles` writes [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+   * `PUT /api/sessions/:sessionId/roles` writes [20 §5.1](../../../../docs/design/20-tech-stack.md)'s
    * *session override* layer, and the noun collides honestly: it is the same
    * concept as a role binding at a different scope. It is **not** on the
    * credential surface this test guards, and it must not be admin-only, because

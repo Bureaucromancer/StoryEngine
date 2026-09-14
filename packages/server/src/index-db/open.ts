@@ -10,7 +10,7 @@ import { migrate, type MigrationResult } from './migrations.js';
 /**
  * Opening the derived index.
  *
- * **`node:sqlite`, not `better-sqlite3`.** [19 §7](../../../../docs/design/19-tech-stack.md)
+ * **`node:sqlite`, not `better-sqlite3`.** [20 §7](../../../../docs/design/20-tech-stack.md)
  * preferred it *if it held up*, and the live risk was FTS5 —
  * [P1 §1.4](../../../../docs/design/workplan/07-p1-implementation.md) verified it does, unflagged, on
  * the pinned runtime. Removing the project's only unavoidable native dependency

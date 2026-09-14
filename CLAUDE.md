@@ -13,7 +13,7 @@ pnpm workspace, Node ≥ 26, ESM throughout (imports use `.js` suffixes).
   P1.0 and still re-exports `shared` and nothing else; the contract itself is
   P7, but the package predates it so the boundary rule — a built-in mode
   consumes this, never `server` — holds from the first mode
-  (`docs/design/19-tech-stack.md` §10, whose lint rules are already written).
+  (`docs/design/20-tech-stack.md` §10, whose lint rules are already written).
   Its AGPL is deliberate, not inherited: an extension importing it is what
   makes that extension a combined work, so relicensing this one package
   permissively "to be friendly to extension authors" would quietly reverse
@@ -80,7 +80,7 @@ pattern. Never commit `.env`, keys, or raw captures.
   rules and their tests.
 - Adding a config key is a five-place edit — the schema, `CONFIG_TIERS` and
   `DEFAULT_CONFIG` in `config.ts`, `config.example.json`, and the tier table in
-  `docs/design/21-internal-contracts.md` §4 — and `config.test.ts` fails on any
+  `docs/design/22-internal-contracts.md` §4 — and `config.test.ts` fails on any
   one of them missed. The same test parses §4's environment-variable table, so
   a new `SE_*` variable needs a row there too.
 - Phase branches are bare `pN` (`p5`, `p6`, `p6a`) and merge into `main` with

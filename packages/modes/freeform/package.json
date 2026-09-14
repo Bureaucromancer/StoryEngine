@@ -19,5 +19,5 @@
   "dependencies": {
     "@storyengine/sdk": "workspace:*"
   },
-  "dependencyNote": "One dependency, the same one Scene has, and the reason is stronger here: Scene was written before the contract and moved behind it, while this mode was written against it from the first line. If something Freeform needs is missing from `@storyengine/sdk`, that is the contract being wrong and the fix belongs there — which is what a second mode is for (docs/design/19-tech-stack.md §10)."
+  "dependencyNote": "One dependency, the same one Scene has, and the reason is stronger here: Scene was written before the contract and moved behind it, while this mode was written against it from the first line. If something Freeform needs is missing from `@storyengine/sdk`, that is the contract being wrong and the fix belongs there — which is what a second mode is for (docs/design/20-tech-stack.md §10)."
 }

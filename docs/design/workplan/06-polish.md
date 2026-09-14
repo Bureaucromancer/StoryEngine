@@ -2,7 +2,7 @@
 
 **Status: intent, not a proposal.** A running list of things that are worth
 doing and are not feature-list items. The distinction matters, because
-[24](../24-roadmap.md) has a bar — an entry there is a *feature* held out of the
+[25](../25-roadmap.md) has a bar — an entry there is a *feature* held out of the
 committed versions, and it earns its place by being additive to the data model.
 Nothing here clears that bar and nothing here should have to. These are the small differences
 between a surface that works and a surface that is pleasant, and every one of
@@ -12,7 +12,7 @@ and invisible while reading the spec.
 **The house rule for this file:** an item belongs here if it changes what a user
 sees or does, is bounded, and needs no schema change and no new contract. If an
 item turns out to need either, it stops being polish — move it to
-[24](../24-roadmap.md), where it gets a priority tier, or to the phase plan it
+[25](../25-roadmap.md), where it gets a priority tier, or to the phase plan it
 actually belongs to.
 
 Order is intent, not priority. Two of these are arcs and should land in order:
@@ -137,7 +137,7 @@ is the answer to a whole class of "did that take?" doubt.
 
 **Collapsed by default, in both places.** An expandable pane, closed on arrival,
 its state remembered per user rather than per object — which needs somewhere to
-put a preference, and that is [25 B13](../25-open-questions.md), not this item.
+put a preference, and that is [26 B13](../26-open-questions.md), not this item.
 *Unblocked: B13 resolved at [P2A §2.2](09-p2a-configuration-surface.md) and the
 per-user `prefs.json` store shipped with it, so this item no longer waits on
 anything.* In the library that is a
@@ -266,7 +266,7 @@ panels are named for the kinds. What is left here is the client work.
   whatever other "show me the machinery" settings accumulate — the same instinct
   that keeps §2's *As stored* pane. Removing it outright is acceptable if the
   preference plumbing is what stands between this and shipping. Where a
-  preference persists is [25 B13](../25-open-questions.md), shared with item 2;
+  preference persists is [26 B13](../26-open-questions.md), shared with item 2;
   the surface that eventually shows them is [10 §15.1](../10-ui-surfaces.md).
   *Both shipped at [P2A](09-p2a-configuration-surface.md), so the escape hatch in
   the sentence above — delete the view rather than wait — is no longer needed.*
@@ -295,7 +295,7 @@ own links from `{kind, id}`. The duplicate warning without the link is the bug
 F19 already fixed once.
 
 **Two of the five panels have a phase now, 2026-09-11.** Treatments and Presets
-arrive with their editors at [P7B](28-p7b-presets-and-prompts.md), because
+arrive with their editors at [P7B](24-p7b-presets-and-prompts.md), because
 create arrives with the editor and the panel is what renders the button;
 Setups and Packages stay here until theirs do, and the shared machinery stays
 specified here either way.
@@ -325,7 +325,7 @@ kind filter still in its search params. Worth doing in the same change rather
 than leaving the library at `/` with a home bolted beside it — the route a user
 lands on is the one they will bookmark and share.
 
-**Scheduled 2026-09-11 at [P10.4](26-p10-implementation.md)**, beside the
+**Scheduled 2026-09-11 at [P10.4](27-p10-implementation.md)**, beside the
 account gallery: both are arrival, one before sign-in and one after, and one
 stage owning both keeps them from disagreeing about what arrival is for. The
 scope rule above travels with it.
@@ -347,7 +347,7 @@ the variant the settings surface used had neither a hover nor a disabled state,
 so a button that could not be pressed looked exactly like one that could.
 
 **What it is now.** [10 §1.2](../10-ui-surfaces.md) and
-[19 §6.1](../19-tech-stack.md) carry the design; the enforcement is the part
+[20 §6.1](../20-tech-stack.md) carry the design; the enforcement is the part
 that matters to this list:
 
 - The palette is `packages/client/src/index.css` and nowhere else. A Tailwind
@@ -366,10 +366,10 @@ scale, and a dark theme it does not have to think about.
 
 **What was deliberately not done.**
 
-- **No config file.** [25 E10](../25-open-questions.md) records the reasoning.
+- **No config file.** [26 E10](../26-open-questions.md) records the reasoning.
   The theme *setting* did follow, once both themes were right: light, dark or
   match my system, in the Preferences pane ([10 §15.1](../10-ui-surfaces.md)),
-  written to the per-user `prefs.json` that [25 B13](../25-open-questions.md)
+  written to the per-user `prefs.json` that [26 B13](../26-open-questions.md)
   settled — which makes it the first thing to use that store, and the reason the
   pane exists at all. Note the order, because it is E10's whole argument: the
   surfaces were made correct first, and only then was one of them made
@@ -592,4 +592,4 @@ component over a static list of control labels rather than over an index.
 
 **No schema change, no new contract, nothing hidden** — which is exactly this
 file's house rule, and is why the other two thirds of R3 are at
-[25 E10](../25-open-questions.md) instead.
+[26 E10](../26-open-questions.md) instead.

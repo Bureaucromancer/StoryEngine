@@ -15,7 +15,7 @@ import type { Binding } from '../providers/types.js';
 
 /**
  * Sessions and turns on disk — [03 §5.5](../../../../docs/design/03-data-model.md),
- * [21 §1](../../../../docs/design/21-internal-contracts.md).
+ * [22 §1](../../../../docs/design/22-internal-contracts.md).
  *
  * **The turn record's shapes live in `@storyengine/shared` since [P3.0]** —
  * `packages/shared/src/turn.ts`, which carries the contracts' documentation
@@ -190,7 +190,7 @@ export interface SessionFile {
   /** Extras beyond whatever the treatment already links — [03 §7]. */
   lore?: string[];
   /**
-   * Model overrides for this session — [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+   * Model overrides for this session — [20 §5.1](../../../../docs/design/20-tech-stack.md)'s
    * third and fourth layers, [P7 §1.9], built at [P7.3].
    *
    * *"Overrides layer on top in a fixed order: install default → role binding →

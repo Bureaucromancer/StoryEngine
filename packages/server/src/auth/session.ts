@@ -9,10 +9,10 @@ import type { Layout } from '../storage/layout.js';
 import { generateSecret, secretsMatch } from './secrets.js';
 
 /**
- * Sessions — [19 §9](../../../../docs/design/19-tech-stack.md).
+ * Sessions — [20 §9](../../../../docs/design/20-tech-stack.md).
  *
  * **Signed, stateless cookies.** No session table, and that is a decision rather
- * than a shortcut: [21 §5.1](../../../../docs/design/21-internal-contracts.md) points out
+ * than a shortcut: [22 §5.1](../../../../docs/design/22-internal-contracts.md) points out
  * that an earlier draft put session records in the index, which is defined as
  * deletable without consequence — and logging every user out *is* a consequence.
  * A signed cookie removes the table rather than relocating it.
@@ -49,7 +49,7 @@ export interface SessionPayload {
  * **Not in `config.json`** — 13 §4 says config has nowhere to put a
  * credential, and this is one. **Not in the index** — the index is deletable
  * without consequence and losing this logs everyone out. So it lives beside the
- * operational store ([21 §5.1](../../../../docs/design/21-internal-contracts.md)), which is
+ * operational store ([22 §5.1](../../../../docs/design/22-internal-contracts.md)), which is
  * exactly the category of thing whose loss would surprise a user.
  *
  * Generated on first use. Deleting it is survivable and its consequence is

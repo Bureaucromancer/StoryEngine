@@ -510,7 +510,7 @@ function ConnectionForm({
 
 /**
  * The first run's one question — [P2B §3] stage P2B.4, and
- * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s *a good one and a cheap one*.
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md)'s *a good one and a cheap one*.
  *
  * **Two pickers rather than eight**, because eight is more setup than anybody
  * will do and one system-wide default is not enough. Which role gets which is
@@ -660,7 +660,7 @@ function RemoveConnectionDialog({
  * model"* from a support question into a glance.
  *
  * **It renders what the server resolved; it does not work anything out.**
- * [19 §5.1]'s layering lives in `resolveRole`, and a table that inspected the
+ * [20 §5.1]'s layering lives in `resolveRole`, and a table that inspected the
  * binding maps and decided which would win would be a second implementation of
  * the resolution order — wrong the first time a layer is added, and wrong
  * silently. `GET /api/admin/roles` exists precisely so this component can be

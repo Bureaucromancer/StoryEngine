@@ -572,7 +572,7 @@ describe('a rebuild agrees with the index a bulk import built', () => {
      * **P4 gate step 9**, which was never run
      * ([P4 §7.3](../../../../docs/design/workplan/16-p4-implementation.md)).
      *
-     * The gate calls this *the best stress the [21 §5] assertion will ever get*,
+     * The gate calls this *the best stress the [22 §5] assertion will ever get*,
      * and the reason is the shape of what import writes rather than its size. A
      * sweep is the only thing in this system that creates **many objects of many
      * kinds in one burst, through both `create` and `update`, with derived ids,

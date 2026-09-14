@@ -1,8 +1,8 @@
-# 25 — P9 implementation plan
+# 26 — P9 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md), [P8](24-p8-implementation.md),
-[P10](26-p10-implementation.md) and [P11](27-p11-implementation.md); to be
+[P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
+[P10](27-p10-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
 citation convention as [P4](16-p4-implementation.md)'s.
@@ -33,7 +33,7 @@ does not exist (§1.1).
 
 **CI this phase establishes:** golden-file coverage of prompt assembly under the
 provider's declared cap — the ranked-fragment path from
-[19 §5.3](../19-tech-stack.md) getting its second consumer and its first one with
+[20 §5.3](../20-tech-stack.md) getting its second consumer and its first one with
 a hard external limit — plus the recipe-survives-eviction property: *for any
 rendition, dropping `asset` and re-running from `prompt` and `provenance`
 produces a request byte-identical to the original's.* The backdrop's reuse key
@@ -93,7 +93,7 @@ unusual for something this late and worth naming:
 `purpose`, `scope` (both halves, §1.6), `state`, `prompt`, `asset`, `provenance`,
 `error` — and it is the only place in the design that has it. It is **not** in
 [04](../04-schemas.md), which owns portable objects; **not** in
-[21](../21-internal-contracts.md), which owns internal ones; and **not** in
+[22](../22-internal-contracts.md), which owns internal ones; and **not** in
 [03](../03-data-model.md), which owns what is on disk. `sessions/<id>/assets/`
 exists in the layout with nothing writing to it.
 
@@ -101,7 +101,7 @@ That is the same shape of gap as
 [P2B §1](10-p2b-provider-configuration.md)'s missing fallback layer — three
 documents relying on a thing no document defines — and it is named here so it is
 found while planning rather than on the day. The remedy is small: one section in
-[21](../21-internal-contracts.md), one paragraph in
+[22](../22-internal-contracts.md), one paragraph in
 [03 §5](../03-data-model.md) about where the bytes live, and the turn record's
 link to them.
 
@@ -131,7 +131,7 @@ date.** A rendition hangs off a turn, and turns are internal. The
 counter-argument is that the recipe is the durable half and someone will want it
 to survive an export.
 
-When this was written, export was [25 B12](../25-open-questions.md) with no
+When this was written, export was [26 B12](../26-open-questions.md) with no
 release attached, so deciding here would have been deciding early and blind.
 **Export now ships at 1.0** ([work plan §0.5](01-work-plan.md)) at P11, which is after
 this phase — so the lean still holds, but it is no longer a decision that can be
@@ -140,12 +140,12 @@ contributes to an exported session, and whether the recipe travels with it.
 
 ### 1.2 The provider layer speaks chat, and no image endpoint does
 
-`image` is one of the eight model roles ([19 §5.1](../19-tech-stack.md)) and is
+`image` is one of the eight model roles ([20 §5.1](../20-tech-stack.md)) and is
 **unset until a matching connection exists**, because there is no sensible
 text-model fallback for it. So the role vocabulary is ready. What is not ready is
 the adapter: `Provider` in `packages/server/src/providers/types.ts` is
 `generate(request) → GenerationResult` with an optional text `stream`, and
-[19 §5.5](../19-tech-stack.md)'s compatibility surface is stated as *if it speaks
+[20 §5.5](../20-tech-stack.md)'s compatibility surface is stated as *if it speaks
 OpenAI-compatible chat, it works* — which no image-generation API does.
 
 So the phase owns a genuine question rather than a wiring job: **does `Provider`
@@ -156,7 +156,7 @@ re-derive them:
 - Connections, credentials-never-leave-the-server, role binding and the
   five-layer override order are all worth reusing whichever answer wins; the
   *capability record* and the request/response shapes are not.
-- [19 §5.5](../19-tech-stack.md) already says the chat bet is reversible at a
+- [20 §5.5](../20-tech-stack.md) already says the chat bet is reversible at a
   single seam because rendering is isolated as one step. A second *provider
   kind* is a larger claim than a second renderer and should be made
   deliberately.
@@ -187,7 +187,7 @@ not be decided twice.
 
 ### 1.4 Eviction is a later decision, and that is only true if the hook ships
 
-[25 E3](../25-open-questions.md) is explicit that an eviction policy can be
+[26 E3](../26-open-questions.md) is explicit that an eviction policy can be
 adopted later *because adopting one can never cost history*. That holds only if
 two things are true from the first commit: `asset: null` renders as a
 regenerable placeholder rather than a broken image, and the recipe — prompt,
@@ -199,7 +199,7 @@ the shape that makes it safe is not**, and a phase that ships pixels without
 
 [09 §3.5](../09-server-multiuser-deployment.md) defines the class and names
 renditions as its only 1.0 producer; the notification **router** is
-[P10](26-p10-implementation.md)'s. So this phase emits an event nothing routes,
+[P10](27-p10-implementation.md)'s. So this phase emits an event nothing routes,
 and the phases are in that order for good reasons on both sides.
 
 The obligation that follows is [09 §3.4](../09-server-multiuser-deployment.md)'s
@@ -336,7 +336,7 @@ it is recorded in [P7.9](23-p7-implementation.md) from that end.
 
 **Text in, images out.** A background prompt is built from channel state as
 *text*. Conditioning generation on a location's `reference` **image** is
-**lore-conditioned renditions**, deferred past 1.0 by [24 §3](../24-roadmap.md)
+**lore-conditioned renditions**, deferred past 1.0 by [25 §3](../25-roadmap.md)
 and by §4 below, for a reason that survives contact with this feature: *choosing
 which images* is the hard part when six active entries and three present actors
 all carry references, and attaching all of them produces mud.
@@ -353,7 +353,7 @@ request after it works for one location is the one with six.
 
 ### P9.0 — The contract
 
-§1.1: `Rendition` lands in [21](../21-internal-contracts.md), the bytes get a
+§1.1: `Rendition` lands in [22](../22-internal-contracts.md), the bytes get a
 home in [03 §5](../03-data-model.md) under `sessions/<id>/assets/`, and the turn
 record links to them. §1.2's provider question answered and written down before
 any adapter is chosen. **Both unions are closed here** — `kind` with one value
@@ -370,7 +370,7 @@ An ordinary `post`-stage step ([06 §10.3](../06-modes-and-turn-pipeline.md)),
 composing from what is already there: **the moment**, present actors'
 `VisualDescriptors` and their `reference` media, channel state, and the
 treatment's tone. Assembled as **ranked fragments under the provider's declared
-cap** ([19 §5.3](../19-tech-stack.md)) so overrun drops the lowest-ranked
+cap** ([20 §5.3](../20-tech-stack.md)) so overrun drops the lowest-ranked
 fragment rather than truncating mid-sentence — work that was specified for
 exactly this case and has had no consumer until now.
 
@@ -420,7 +420,7 @@ quietly false.
 Many renditions per turn with the user choosing which is shown — structurally
 the turn tree again, siblings under a node, and for the same reason:
 regeneration must never be destructive
-([25 E3](../25-open-questions.md), [06 §10.7](../06-modes-and-turn-pipeline.md)).
+([26 E3](../26-open-questions.md), [06 §10.7](../06-modes-and-turn-pipeline.md)).
 Variations ship; §1.4's `asset: null` rendering ships with them.
 
 **The backdrop's channel binding belongs here**, because *which one is showing*
@@ -532,13 +532,13 @@ moments of a turn deserve a picture, and how many — now specified in full at
 [06 §10.4](../06-modes-and-turn-pipeline.md) and deliberately not built here,
 along with the storyboard surface downstream of it; an eviction *policy* (§1.4 —
 the hook, not the policy); **lore-conditioned renditions**
-([24 §3](../24-roadmap.md): committed
+([25 §3](../25-roadmap.md): committed
 intent rather than a maybe, and deferred because *choosing which images* is the
 hard part when six active entries and three present actors all carry references
 — it wants P7's location channel for an honest selector and real sessions to
 tune against — and §1.7 is explicit that a backdrop is the most plausible excuse
 for crossing that line and still does not cross it); the Character Studio
-([17](../17-character-studio.md)) — which is now a committed release at 3.0 and
+([18](../18-character-studio.md)) — which is now a committed release at 3.0 and
 therefore the nearest post-1.0 consumer of everything this phase builds, rather
 than a member of the authoring tier at 6.0; any model-quality evaluation of
 generated images
@@ -584,7 +584,7 @@ because each is one step away from something this phase does build:
 — and once it exists, generating an image is a provider call and a job. The
 risk is entirely in getting the type right, because it is the one thing here
 that later phases and later *releases* will be stuck with: video and speech are
-named in [24](../24-roadmap.md) as things the `kind` union and
+named in [25](../25-roadmap.md) as things the `kind` union and
 `scope.messageId` should keep cheap, and §1.6 is the three fields that do it —
 the third, `scope.anchor`, being the one this phase actually uses.
 

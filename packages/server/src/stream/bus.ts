@@ -6,7 +6,7 @@ import type { ProgressEvent } from '../state/jobs.js';
 /**
  * In-process fan-out for the session stream —
  * [09 §3.1](../../../../docs/design/09-server-multiuser-deployment.md),
- * [19 §8](../../../../docs/design/19-tech-stack.md).
+ * [20 §8](../../../../docs/design/20-tech-stack.md).
  *
  * Two channels, because that section describes two.
  *
@@ -15,7 +15,7 @@ import type { ProgressEvent } from '../state/jobs.js';
  * cursor. This class only *delivers* them — the store is what makes them true,
  * and a subscriber that missed some reads them back rather than being resent.
  *
- * **Ephemeral**: token deltas, which [19 §8] names first among the traffic SSE
+ * **Ephemeral**: token deltas, which [20 §8] names first among the traffic SSE
  * was chosen for and which [P2 §2.10] explicitly declines to make durable. A
  * delta that was missed is not resent and cannot be: the next checkpoint carries
  * the accumulated text and resyncs it.

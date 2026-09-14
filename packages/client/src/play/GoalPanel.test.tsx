@@ -256,7 +256,7 @@ describe('the goal panel', () => {
   });
 
   /**
-   * ***[25 C12]'s gate, seen from the surface it exists for.*** The judge's
+   * ***[26 C12]'s gate, seen from the surface it exists for.*** The judge's
    * completion is recorded and unapplied, so nothing about the story has moved
    * — and the panel's job is to make that visible and rulable rather than to
    * let it sit in the effect log.

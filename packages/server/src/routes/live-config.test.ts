@@ -15,7 +15,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * **A `live` key the running server does not actually read** — the failure
- * [21 §4.3](../../../../docs/design/21-internal-contracts.md)'s applier table exists to make
+ * [22 §4.3](../../../../docs/design/22-internal-contracts.md)'s applier table exists to make
  * impossible, arriving through the one door the table cannot watch.
  *
  * `LIVE_APPLIERS` says of every `live` key whether anything reads it. Four rows

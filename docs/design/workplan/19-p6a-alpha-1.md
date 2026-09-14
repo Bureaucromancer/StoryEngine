@@ -44,7 +44,7 @@ Unusually for these documents there is no half-revisit, no skeleton and no
 now, and every precondition it depends on is checkable today rather than on the
 day. That is the whole reason it reads differently from
 [P6](18-p6-implementation.md) and [P7](23-p7-implementation.md) through
-[P11](27-p11-implementation.md): those are plans for phases at a distance, and
+[P11](28-p11-implementation.md): those are plans for phases at a distance, and
 this is a plan for the phase in front of us.
 
 **P6A delivers one thing, and the rest is what that thing needs:** a build you
@@ -137,7 +137,7 @@ is the **serving** claim rather than the bind one — equally false today, and m
 true by §0.3's stage rather than this one. Recorded rather than quietly widened,
 because the stage that owns a false sentence is the stage that makes it true.
 
-**The mechanism is constrained, not free.** [P10 §1.2](26-p10-implementation.md)
+**The mechanism is constrained, not free.** [P10 §1.2](27-p10-implementation.md)
 already ruled out the obvious shortcut — the image shipping a different baked
 default — as *"a hidden difference between artifacts"*, and requires **one
 documented environment variable** that a bare-metal operator can set to get the
@@ -171,7 +171,7 @@ the 404 that passage already rejects.
 **Adding the config key is a five-place edit and a test enforces it.** A
 `server.clientRoot` key touches the schema, `CONFIG_TIERS` and `DEFAULT_CONFIG`
 in `config.ts`, then `config.example.json` — and then **the markdown tier table
-in [21 §4](../21-internal-contracts.md)**, because `config.test.ts` reads that
+in [22 §4](../22-internal-contracts.md)**, because `config.test.ts` reads that
 document, regex-parses the table, and asserts key-for-key equality with
 `configKeys()`. This is [work plan §2.3](01-work-plan.md)'s mechanically-checked core
 doing its job, and it is worth naming here so nobody discovers it as a red test.
@@ -246,8 +246,8 @@ gate that is already met:
   directory, and nothing refuses to open one it does not understand.
   *`state/build.json` since [P6A.3], and the refusal with it.*
 - **The image's own shape is an open question the corpus already flagged.**
-  [P10 §5](26-p10-implementation.md) records *"what the container image actually
-  is"* as unsettled and sends it to [19](../19-tech-stack.md), which does not
+  [P10 §5](27-p10-implementation.md) records *"what the container image actually
+  is"* as unsettled and sends it to [20](../20-tech-stack.md), which does not
   answer it. This document is where it gets answered. *Answered at [P6A.4]:
   `node:26-slim`, pnpm ~~from corepack~~ installed with npm at the version
   `packageManager` pins — the first run of the workflow found that Node 25 had
@@ -273,7 +273,7 @@ surface, and no auto-update audience.
 
 **This is a stronger position than a public alpha, not a weaker one.** A public
 alpha of software whose storage tier is still licensed to change without
-migration ([21](../21-internal-contracts.md)'s preamble grants that freedom
+migration ([22](../22-internal-contracts.md)'s preamble grants that freedom
 explicitly *because nothing leaves the install*) would convert open design
 questions into compatibility questions against strangers' data. Staying private
 keeps that licence intact, and three unbuilt phases still depend on it.
@@ -286,7 +286,7 @@ directory beside it so the container's whole bootstrap is one mechanism rather
 than a flag, a variable and a file.
 
 **The container sets the documented variable; it does not get a different
-build.** That is [P10 §1.2](26-p10-implementation.md)'s requirement and the
+build.** That is [P10 §1.2](27-p10-implementation.md)'s requirement and the
 reason it exists — a bare-metal operator can set the same variable to get the
 same behaviour, and a container operator can set it the other way to tighten. The
 image's `0.0.0.0` is then a line in the Dockerfile that anybody can read and
@@ -320,7 +320,7 @@ test any of it because everything ran behind Vite's dev proxy.
 and no admin exists; advertised as a boolean on `GET /api/auth/state` so the
 client can render the field rather than guess; printed to the log on first boot
 in that condition. Compared in constant time.
-[P10 §1.1](26-p10-implementation.md)'s framing is the one to keep — **the check,
+[P10 §1.1](27-p10-implementation.md)'s framing is the one to keep — **the check,
 not the print** — because P1 already printed a token that nothing verified, and
 an operator who reads "setup token" in a console reasonably concludes something
 is enforcing it.
@@ -401,7 +401,7 @@ Write the build identity into the data directory on first open, and refuse to
 open a directory written by a *newer* build than the one running.
 
 **That is the whole of it, and the reason it is so small is §1.1.**
-[21](../21-internal-contracts.md) licenses the storage tier to change without
+[22](../22-internal-contracts.md) licenses the storage tier to change without
 migration on the condition that nothing leaves the install. Nothing does. So the
 hazard is not strangers losing data, it is *you* pointing an older build at a
 volume a newer one has already migrated in place — which is a foot-gun a stamp
@@ -415,8 +415,8 @@ is listed in §4 as the price of publishing rather than built now.
 
 **Packaging ownership is already contested three ways before this phase exists**,
 which is the finding that most needs writing down:
-[P10.0](26-p10-implementation.md) builds a container image and makes `docker run`
-its exit gate; [P10 §4](26-p10-implementation.md) declares packaging out of scope
+[P10.0](27-p10-implementation.md) builds a container image and makes `docker run`
+its exit gate; [P10 §4](27-p10-implementation.md) declares packaging out of scope
 as P11's; and [09 §5.4](../09-server-multiuser-deployment.md) says all six
 artifacts are owned by P11. [work plan §0.5](01-work-plan.md)'s own lesson — *"a bar
 nobody owns is a wish"* — has a converse, and this is it: two owners for one
@@ -434,8 +434,8 @@ So, once, and cited from the other three documents rather than restated in them:
 
 **And the unraid template is not a seventh artifact.**
 [09 §5.4](../09-server-multiuser-deployment.md) calls it *"a thin wrapper over"*
-Tier 1, [25 D0b](../25-open-questions.md)'s canonical enumeration names six and
-does not include it, and [P11 §1.8](27-p11-implementation.md) currently lists
+Tier 1, [26 D0b](../26-open-questions.md)'s canonical enumeration names six and
+does not include it, and [P11 §1.8](28-p11-implementation.md) currently lists
 five names while counting four. Scheduling it with the image resolves the
 miscount rather than adding to it.
 
@@ -489,9 +489,9 @@ argument defaults to *none* rather than to `process.env`, so a test that loads a
 config does not depend on the machine it runs on — the convenience fails open
 where the argument fails closed.
 
-**The variable table is in [21 §4](../21-internal-contracts.md) and a test parses
+**The variable table is in [22 §4](../22-internal-contracts.md) and a test parses
 it**, the same way the tier table has been checked since P2A. That is the
-requirement rather than a courtesy: [P10 §1.2](26-p10-implementation.md) asks for
+requirement rather than a courtesy: [P10 §1.2](27-p10-implementation.md) asks for
 *one documented environment variable* precisely so that the image is not a build
 that behaves differently, and an undocumented variable would satisfy the code and
 fail the rule.
@@ -522,7 +522,7 @@ The root namespace really was empty, there really was no `setNotFoundHandler`
 anywhere, and the client really needed no change — `vite.config.ts` sets no
 `base`, so the built `index.html` names `/assets/…` absolutely and every call in
 `api.ts` is already a relative `/api/…`. The five-place edit landed as described,
-including [21 §4](../21-internal-contracts.md)'s markdown table, and
+including [22 §4](../22-internal-contracts.md)'s markdown table, and
 `config.test.ts` was the thing that would have caught it if it had not.
 
 **Where §0.3 was wrong: `isApi` in the fallback is necessary and not
@@ -555,7 +555,7 @@ default, which nothing had ever chosen, and which is not the `{error, message}`
 shape [docs/api.md](../../api.md) documents. It is `404 {"error":"not-found"}`
 now, in development and in a packaged build alike, and the API doc says so.
 
-**One dependency, argued in [19 §7](../19-tech-stack.md) rather than noticed in a
+**One dependency, argued in [20 §7](../20-tech-stack.md) rather than noticed in a
 lockfile**, per that section's own convention. `@fastify/static` is MIT, pinned,
 first-party to Fastify, and the surface depended on is `root`, `allowedPath` and
 `reply.sendFile`. Sixteen transitive packages, which is the largest addition so
@@ -579,7 +579,7 @@ rendered from one origin with no console error.
 *The stage as it was written:*
 
 > §1.3: `@fastify/static`, the `server.clientRoot` key with its five-place edit
-> including [21 §4](../21-internal-contracts.md)'s table, and the SPA fallback
+> including [22 §4](../22-internal-contracts.md)'s table, and the SPA fallback
 > branching on `isApi`.
 >
 > *Ends at:* one process on one port serving both halves — and `pnpm dev`
@@ -630,7 +630,7 @@ is in front — the same thing `trustProxy` beside it is.
 **The five-place edit was caught by the tests rather than by memory**, which is
 the mechanism [work plan §2.3](01-work-plan.md) asks for working: the key landed in the
 schema, the tiers and `DEFAULT_CONFIG`, the suite went red on
-`config.example.json` and [21 §4](../21-internal-contracts.md)'s table, and named
+`config.example.json` and [22 §4](../22-internal-contracts.md)'s table, and named
 both.
 
 Twelve mutations, twelve red, across the server and the client. Not covered here
@@ -749,7 +749,7 @@ matters immediately.
 a container had no way to say where the client was — the config file lives
 *inside* the data directory, which on a first run is an empty volume. It is a
 fifth entry in `CONFIG_ENVIRONMENT` and a row in
-[21 §4](../21-internal-contracts.md)'s table, which `config.test.ts` enforces.
+[22 §4](../22-internal-contracts.md)'s table, which `config.test.ts` enforces.
 
 **Two checks made mechanical rather than remembered.** `write-build-info.mjs`
 gained `--expect-version`, so a tag that disagrees with the root `package.json`

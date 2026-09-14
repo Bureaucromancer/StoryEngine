@@ -196,7 +196,7 @@ describe('a self-write does not double-index', () => {
 
 describe('deleting index.sqlite is a non-event', () => {
   it('rebuilds from disk on the next open', async () => {
-    // [21 §5](../../../../docs/design/21-internal-contracts.md). The index's defining
+    // [22 §5](../../../../docs/design/22-internal-contracts.md). The index's defining
     // property: losing it costs time and nothing else.
     await library.saveObject(newActor('Vera Solano'), 'vera-solano');
     await library.saveObject(newLorebook('Rain City'), 'rain-city');

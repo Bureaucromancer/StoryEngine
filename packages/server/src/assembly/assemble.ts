@@ -26,7 +26,7 @@ import type {
  * **Deliberately not a tokenizer.** Bundled tokenizers are discarded
  * ([triage §6.2](../../../../docs/design/workplan/02-triage.md)) and the
  * provider reports the real number afterwards
- * ([21 §1.4](../../../../docs/design/21-internal-contracts.md)) — so this is an
+ * ([22 §1.4](../../../../docs/design/22-internal-contracts.md)) — so this is an
  * estimate used to *decide*, with the measured figure landing on the record and
  * the budgeter's margin covering the gap. Four characters per token is the
  * usual rule of thumb for English prose and is wrong in both directions for

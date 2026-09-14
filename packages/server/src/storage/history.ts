@@ -36,7 +36,7 @@ import { resolveWithin } from './paths.js';
 
 /**
  * What made the change this snapshot preserves the state before
- * ([21 §1.6](../../../../docs/design/21-internal-contracts.md)). More things edit objects
+ * ([22 §1.6](../../../../docs/design/22-internal-contracts.md)). More things edit objects
  * here than in the design this is adopted from, and *"who changed my
  * character"* is the question history answers — `assist`, `extension` and
  * `import` have no writers until their phases, but the type is the contract.
@@ -49,7 +49,7 @@ export type VersionSource =
   | { kind: 'external' }
   | { kind: 'restore'; fromVersionId: string };
 
-/** One line of `history/index.jsonl` — [21 §1.6](../../../../docs/design/21-internal-contracts.md). */
+/** One line of `history/index.jsonl` — [22 §1.6](../../../../docs/design/22-internal-contracts.md). */
 export interface VersionRecord {
   id: string;
   /** sha256 of the snapshot payload — the filename under `history/v/`. */

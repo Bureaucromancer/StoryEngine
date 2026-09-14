@@ -411,7 +411,7 @@ now** ([§2.5](12-p2c-first-real-run.md)):
 | Fixed inside the phase | It blocks a later scenario, or it is a defect in something this phase's own stages built |
 | A gate correction | An exit-gate step describes behaviour the code does not have |
 | [Polish](06-polish.md) | User-facing, bounded, no schema change, no new contract |
-| [PLAYABLE](01-work-plan.md) or [roadmap](../24-roadmap.md) | Whether the record is legible or the budgeter comprehensible; or a deferred feature |
+| [PLAYABLE](01-work-plan.md) or [roadmap](../25-roadmap.md) | Whether the record is legible or the budgeter comprehensible; or a deferred feature |
 
 **Nothing is allowed to have no home**, and that is the last step of the gate and
 the one most likely to be skipped.

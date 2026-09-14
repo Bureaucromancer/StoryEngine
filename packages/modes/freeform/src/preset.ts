@@ -593,7 +593,7 @@ export const FREEFORM_PRESET: Preset = {
    * 'Hard' meaning something different in one prompt pack than another is a
    * feature."* Swap this preset and *harsh* means whatever the next one says.
    *
-   * **Ranked, so [19 §5.3]'s cap drops the least important rather than cutting a
+   * **Ranked, so [20 §5.3]'s cap drops the least important rather than cutting a
    * sentence**, and the floor [06 §7.3.1] requires is written into `harsh`
    * itself: *"Obstruction must not reach unreachability. Difficulty modulates
    * the cost and the route, never whether the goal can be attained at all."*

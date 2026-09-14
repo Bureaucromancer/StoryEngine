@@ -219,7 +219,7 @@ function BookRows({ books }: { books: LoreBookRow[] }): JSX.Element {
  * **Zero is unlimited** ([04 §5], and the schema says so), so the pair that
  * reads correctly everywhere else reads *412 / 0* on exactly the books that had
  * no limit at all. One string rather than a cell assembled around two values,
- * which is the shape [19 §12.6a] forbids and also the only way to make the
+ * which is the shape [20 §12.6a] forbids and also the only way to make the
  * denominator conditional without splitting the sentence.
  */
 export function budgetCell(spent: number, budget: number): string {

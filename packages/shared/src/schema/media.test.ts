@@ -133,7 +133,7 @@ describe('MediaRole is a closed union', () => {
 
   it('keeps one vocabulary across kinds — reference means the same on an actor', () => {
     // The reason lore did not get a vocabulary of its own: rendition
-    // conditioning ([24 §3](../../../../docs/design/24-roadmap.md)) has to be able to treat
+    // conditioning ([25 §3](../../../../docs/design/25-roadmap.md)) has to be able to treat
     // a location's reference image the way it treats an actor's.
     const actor = { ...newActor('Vera Solano'), media: [media({ role: 'reference' })] };
     expect(validate(actor).valid).toBe(true);

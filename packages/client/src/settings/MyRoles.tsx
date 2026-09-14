@@ -24,7 +24,7 @@ import { roleLabel, roleModel, roleSource } from './roleWords.js';
  * **For every account, not only one with connections of its own.** A binding is
  * two ids, and re-pointing *Quick background jobs* at the cheaper model on the
  * install's own connection needs no key and no capability. That is
- * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s *"anyone who wants their
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md)'s *"anyone who wants their
  * own key overrides a role without the admin's involvement"* read at its word:
  * the admin decides what exists, the person playing decides which of it they
  * use.

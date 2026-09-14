@@ -170,7 +170,7 @@ what will *ever* ship:
   `Capabilities` block with defaults. Nothing enforces capabilities in P1 because
   none of the gated features exist yet — but the record is written once rather
   than migrated later.
-- **scrypt** for the password hash ([19 §9](../19-tech-stack.md)) — no native
+- **scrypt** for the password hash ([20 §9](../20-tech-stack.md)) — no native
   dependency, in the standard library.
 - A session cookie with sane flags, and **CSRF on state-changing routes**. Both
   are named in [09 §4.1](../09-server-multiuser-deployment.md) as the things whose
@@ -182,7 +182,7 @@ what will *ever* ship:
 
 **Accounts are authoritative state, so they are a file, not an index row** —
 `data/accounts.json`, atomic-written, never derived. Deleting `index.sqlite` must
-stay a non-event ([21 §5](../21-internal-contracts.md)), and it cannot be if
+stay a non-event ([22 §5](../22-internal-contracts.md)), and it cannot be if
 accounts live there. It sits outside every user directory so the file browser
 ([10 §4.2](../10-ui-surfaces.md)) can never serve a password hash, whatever
 `fileAccess` a user is granted. It is written through `storage/atomic.ts` like
@@ -215,14 +215,14 @@ administers and **not** an account — there is no system login
 ### 1.4 Verified locally, so the stack choice holds
 
 - **`node:sqlite` has FTS5, with no flag** (Node 26.4, SQLite 3.53.2). This was
-  the live risk in [19 §7](../19-tech-stack.md); the documented fallback to
+  the live risk in [20 §7](../20-tech-stack.md); the documented fallback to
   `better-sqlite3` is not needed. ~~Re-run the probe on whichever LTS gets
   pinned~~ — **settled at P1.0: the pin is 26, which is the LTS this probe was
   always going to be re-run against.** It becomes LTS in October 2026, roughly
   two months after the first commit and well inside P1, so the probe above
   stands as run and there is nothing to repeat. `engines.node` is `>=26.4.0` and
   CI runs the single version; the reasoning is recorded at
-  [19 §2](../19-tech-stack.md).
+  [20 §2](../20-tech-stack.md).
 - **`crypto.randomUUID()` is v4 only.** uuidv7 is ~20 lines — 48-bit millisecond
   timestamp, version nibble, random tail — and goes in `shared` with a
   monotonicity test. Not worth a dependency.
@@ -236,7 +236,7 @@ there is code to be undisciplined with.
 
 ### P1.0 — Repo skeleton
 
-pnpm workspaces per [19 §10](../19-tech-stack.md):
+pnpm workspaces per [20 §10](../20-tech-stack.md):
 
 ```
 packages/shared/     types + schemas, no runtime deps
@@ -256,14 +256,14 @@ packages/client/     React + Vite; list in P1.6, actor editor in P1.7
   `client`); `client → shared`; `sdk → shared`.
 
   Rules for `modes/*` are written now, before the directory exists. This is
-  [19 §10](../19-tech-stack.md)'s "discipline mechanism, not organisation" — the
+  [20 §10](../20-tech-stack.md)'s "discipline mechanism, not organisation" — the
   claim that built-in modes consume the published SDK exactly as a third party
   would is only true if violating it is a build error, and a rule added after the
   first mode is written is a rule negotiated with existing code.
 - **Two day-one lint rules that apply immediately**: no direct `fs` outside
   `server/src/storage`, and no `Math.random` or `node:crypto` randomness outside
   the RNG service — which does not exist yet, so the rule bans it everywhere
-  until it does ([19 §14.4](../19-tech-stack.md)).
+  until it does ([20 §14.4](../20-tech-stack.md)).
 - Stylelint with the logical-properties rule, written before there is any CSS.
 - AGPL header check as a lint rule; `LICENSE` is already in place.
 - CI on PR: typecheck, lint, build, test. Fast enough never to be skipped
@@ -273,7 +273,7 @@ packages/client/     React + Vite; list in P1.6, actor editor in P1.7
 
 ### P1.1 — `shared`: the portable schemas
 
-TypeBox authored, **JSON Schema is the artefact** ([19 §4](../19-tech-stack.md)) —
+TypeBox authored, **JSON Schema is the artefact** ([20 §4](../20-tech-stack.md)) —
 emitted to `packages/shared/schemas/*.json` by a build step, so third-party tools
 can validate without compiling our types.
 
@@ -317,7 +317,7 @@ packages/server/src/storage/
   layout.ts    user/system roots, kind dirs, slug resolution (§1.1)
 ```
 
-`paths.ts` is [19 §9](../19-tech-stack.md)'s "single most important piece of
+`paths.ts` is [20 §9](../20-tech-stack.md)'s "single most important piece of
 security code in the project": one resolver, containment-checked against the user
 root, symlink-aware, and the reason the no-direct-`fs` rule from P1.0 exists.
 Asset manifests are relative paths within the folder and never escape it
@@ -339,7 +339,7 @@ packages/server/src/storage/card.ts
 pixels** — re-encoding on every save quietly degrades user art
 ([03 §5.2](../03-data-model.md)).
 
-Two chunks, per [25 B5](../25-open-questions.md):
+Two chunks, per [26 B5](../26-open-questions.md):
 
 - `tEXt` carrying base64 JSON — simplest, most widely readable by third-party
   tools.
@@ -380,12 +380,12 @@ of P1 most likely to be got subtly wrong:
   `id → path` and keep the row. This is the whole of the rename story — there is
   no rename special case anywhere else, because the engine never renames folders.
 
-Turn text indexing ([19 §7.1](../19-tech-stack.md)) is scaffolded but unused — no
+Turn text indexing ([20 §7.1](../20-tech-stack.md)) is scaffolded but unused — no
 turns exist until P2.
 
 *Tests:* **rebuild-from-disk equals incremental**, this phase's CI gate; a
 foreign write is picked up; a self-write does not double-index; deleting
-`index.sqlite` and restarting is a non-event ([21 §5](../21-internal-contracts.md));
+`index.sqlite` and restarting is a non-event ([22 §5](../22-internal-contracts.md));
 **a foreign rename is a move, not a delete followed by a create** — the row
 survives with its id and a new path (§1.1); a duplicate id is flagged rather than
 fatal, and **the same copy wins after a rebuild as won incrementally** (§1.2).
@@ -402,9 +402,9 @@ packages/server/src/
   routes/library.ts  CRUD over all six kinds, kind-agnostic
 ```
 
-**Config** is [21 §4](../21-internal-contracts.md)'s interface and key table, with
+**Config** is [22 §4](../22-internal-contracts.md)'s interface and key table, with
 the tier annotation as the *source* of the restart-required notice rather than a
-parallel hand-maintained list ([25 D0](../25-open-questions.md)). `server.host`
+parallel hand-maintained list ([26 D0](../26-open-questions.md)). `server.host`
 defaults to `127.0.0.1` ([09 §5.1](../09-server-multiuser-deployment.md)); ship the
 commented `config.example.json` ([03 §5.4](../03-data-model.md)).
 
@@ -412,7 +412,7 @@ commented `config.example.json` ([03 §5.4](../03-data-model.md)).
 six. List merges user and system libraries with a source badge
 ([10 §5](../10-ui-surfaces.md)). Fastify validates against the same JSON Schema the
 storage layer uses, which is the fifth job for one schema technology
-([19 §3](../19-tech-stack.md)). *Not delivered as built — params only, no body
+([20 §3](../20-tech-stack.md)). *Not delivered as built — params only, no body
 schemas; recorded at [P2 §1.4](08-p2-implementation.md) (F2) and repaired at
 20 P2.0.*
 
@@ -432,7 +432,7 @@ hot-reload thesis has against silently eating a hand-edit.
 
 ### P1.6 — The library list, and login
 
-React + Vite + TanStack ([19 §6](../19-tech-stack.md)). Deliberately small: **one
+React + Vite + TanStack ([20 §6](../20-tech-stack.md)). Deliberately small: **one
 surface for all six kinds with a kind filter**, a source badge for user versus
 system, and a detail view. *Built as specified, but the position it was built
 from has since been reversed: [10 §5](../10-ui-surfaces.md) now calls for one panel
@@ -463,7 +463,7 @@ the first component ([work plan §2](01-work-plan.md)):
   Enforced by the Stylelint rule from P1.0, which is why that rule was written
   before there was any CSS to check.
 - **No sentence built from concatenated fragments, and no user-visible string in
-  logic** ([19 §12.6a](../19-tech-stack.md)). Full i18n extraction is a pre-beta
+  logic** ([20 §12.6a](../20-tech-stack.md)). Full i18n extraction is a pre-beta
   sweep rather than a P1 obligation — these two habits are the part that cannot
   be retrofitted.
 - **`Intl` for every date and relative time.** No hand-rolled "2 minutes ago".
@@ -543,7 +543,7 @@ building either alone would suggest.
 
 It also gives the stage a second falsifiable claim: **the `source` field is
 populated correctly.** An edit through the UI records `manual`, a hand-edit on
-disk records `external` ([21 §1.6](../21-internal-contracts.md)). If those come out
+disk records `external` ([22 §1.6](../22-internal-contracts.md)). If those come out
 the same, the watcher is not distinguishing its own writes from foreign ones,
 which is [03 §5.1.1](../03-data-model.md) failing in a way nothing else in P1
 surfaces.

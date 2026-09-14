@@ -56,7 +56,7 @@ import {
  *
  * **The limit is checked per request, off the live config reference**, which is
  * what flips `limits.maxUploadMb` from `unread` to `applied` after it spent
- * three phases as [21 §4.3]'s standing example of an honestly-unread key.
+ * three phases as [22 §4.3]'s standing example of an honestly-unread key.
  * Fastify's constructor `bodyLimit` stays as the outer bound: it refuses a body
  * before it is read, and this is the number a person actually set.
  */
@@ -322,7 +322,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         at: Date.now(),
       });
       // The root is named back only in the message a person asked for. It never
-      // reaches a log line or a per-item row ([21 §4.1.1]).
+      // reaches a log line or a per-item row ([22 §4.1.1]).
       return reply
         .code(422)
         .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
@@ -872,7 +872,7 @@ async function importOneFile(
     objectId?: string,
   ): UploadResult => ({
     // Named as it arrived, never as a path: the foreign-path doctrine applies to
-    // a single upload as much as to a sweep ([21 §4.1.1]).
+    // a single upload as much as to a sweep ([22 §4.1.1]).
     item: { source: filename, disposition, notes, ...(objectId ? { objectId } : {}) },
     notes,
   });

@@ -69,7 +69,7 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * [15 §5.3](../../../../docs/design/15-world.md) is where that gets decided.
  *
  * **Two questions are open and written down rather than left to be
- * re-derived**, both in [25](../../../../docs/design/25-open-questions.md):
+ * re-derived**, both in [26](../../../../docs/design/26-open-questions.md):
  *
  * - **§B14** — may this field *narrow* a book the session has already chosen?
  *   A `linked` book that a session selected could reasonably go quiet when none

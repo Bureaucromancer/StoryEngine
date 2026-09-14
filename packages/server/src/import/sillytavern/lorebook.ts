@@ -291,7 +291,7 @@ function applyBookFields(
  * outcome the reversal removed. It is safe now because nothing reads the field
  * ([03 §3.4]): a lorebook reaches a session by being selected and by nothing
  * else. Anything that gives `scope` a consumer again has to revisit this line
- * and [25 §B15](../../../../../docs/design/25-open-questions.md) together —
+ * and [26 §B15](../../../../../docs/design/26-open-questions.md) together —
  * writing the most permissive value into every imported book is a decision, and
  * currently an unexamined one.
  */

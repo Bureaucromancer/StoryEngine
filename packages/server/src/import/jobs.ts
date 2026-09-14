@@ -32,7 +32,7 @@ import {
  *
  * **Written after the sweep, in one transaction, not streamed.** A sweep is
  * fast, synchronous and already atomic from the caller's side; the progress
- * emitter [21 §5]'s `job.progress` key was left open for belongs to a *long*
+ * emitter [22 §5]'s `job.progress` key was left open for belongs to a *long*
  * import — the zip of somebody's entire Marinara install — and that is a
  * different feature with a different surface. Recording the outcome is what
  * makes the report addressable; recording it live is what makes a progress bar,
@@ -68,7 +68,7 @@ export interface RecordedJob {
 /**
  * Stores a completed sweep and returns the job id.
  *
- * The **absolute root is stored here and only here**, which is [21 §4.1.1]'s
+ * The **absolute root is stored here and only here**, which is [22 §4.1.1]'s
  * foreign-path doctrine written into the schema rather than trusted to callers:
  * every item names its file relative to this row, so the report can be shown,
  * logged and pasted into an issue without becoming a map of somebody's disk.

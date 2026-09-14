@@ -17,7 +17,7 @@ guessing at it.
 **2.0 adds Write — a surface of its own, holding Outline and Prose
 ([13](../13-write-mode.md)).**
 **3.0 adds the Character Studio — the surface that turns a played actor into a
-reusable visual identity ([17](../17-character-studio.md)).**
+reusable visual identity ([18](../18-character-studio.md)).**
 **4.0 adds World — the continuity container ([15](../15-world.md)).**
 **5.0 adds Campaign — the mode, and the RPG channel library under it.**
 **6.0 adds the authoring tier — authored rules, and the surfaces that make
@@ -42,13 +42,13 @@ dependency graph shows:
 |---|---|
 | **1.0** | Nothing. This is the core loop, and where this project diverges most from what already exists. |
 | **2.0 — Write** | 1.0's substrate *built*. Write consumes lorebook activation, mention resolution, the mode contract as a real interface rather than a shape one built-in mode happens to fit, and the summary chain — P5 through P8 ([13](../13-write-mode.md)). |
-| **3.0 — the Character Studio** | 1.0's actors *played*. Every format prerequisite lands at 1.0 ([17 §5](../17-character-studio.md)), so no later release owns anything it consumes; what it waits for is a stock of actors worth making reusable, because a reusable visual identity is worth nothing until there is a character you want back. |
+| **3.0 — the Character Studio** | 1.0's actors *played*. Every format prerequisite lands at 1.0 ([18 §5](../18-character-studio.md)), so no later release owns anything it consumes; what it waits for is a stock of actors worth making reusable, because a reusable visual identity is worth nothing until there is a character you want back. |
 | **4.0 — World** | 1.0's play *accumulated*. A World is worth nothing until the third session ([15](../15-world.md)), so designing a continuity container before continuities exist is designing against a guess. |
 | **5.0 — Campaign** | 4.0's *continuity to run in*. A campaign is a multi-session form by nature — [06 §7.3](../06-modes-and-turn-pipeline.md) wants sessions-within-a-campaign with structured recaps and a bridging message on resume, and calls that a shared capability rather than a Campaign-specific one. World is where it becomes shared. |
-| **6.0 — the authoring tier** | 5.0's play *authored*. The rule vocabulary was deferred for want of a corpus of real authored worlds to design against ([25 C7](../25-open-questions.md)), and a release of Campaign is what produces one. |
+| **6.0 — the authoring tier** | 5.0's play *authored*. The rule vocabulary was deferred for want of a corpus of real authored worlds to design against ([26 C7](../26-open-questions.md)), and a release of Campaign is what produces one. |
 
 **The 6.0 row is literal rather than a play on the word.**
-[25 C7](../25-open-questions.md)'s argument for deferring the rule vocabulary is
+[26 C7](../26-open-questions.md)'s argument for deferring the rule vocabulary is
 that Infinite Worlds ran on triggers and tracked items for years before arriving
 at PawScript, and arrived at it *with a corpus of real authored worlds to design
 against.* Putting the tier a full release behind Campaign means the language is
@@ -72,7 +72,7 @@ above: a campaign without sessions that know about each other is a campaign with
 the recap written by hand.
 
 **Messages is not a committed version at all.** It was scheduled for 2.0 and now
-sits on the feature list as part of a Social cluster ([24](../24-roadmap.md)),
+sits on the feature list as part of a Social cluster ([25](../25-roadmap.md)),
 on the proposition that messaging, a feed and a board are three modes of a
 *fourth surface* rather than one more mode of Play. That is a better shape than
 the one it had and it is not yet defined well enough to schedule. §0.3 records
@@ -98,10 +98,10 @@ Deferring a mode removes more than the mode:
 
 **Notifications stay at 1.0 but shrink.** The Messages argument for them goes
 away; the other two do not — completion sounds, and awaiting-input when a turn
-suspends for the player ([25 C5](../25-open-questions.md)). In-app plus the
+suspends for the player ([26 C5](../26-open-questions.md)). In-app plus the
 browser Notification API covers 1.0.
 
-**The event schema does not shrink** ([25 A2c](../25-open-questions.md)). Class,
+**The event schema does not shrink** ([26 A2c](../26-open-questions.md)). Class,
 target user, `{key, params}` summary, dedupe key and coalescing window are the
 retrofit cost, and they are as cheap now with two event classes as with ten.
 
@@ -142,7 +142,7 @@ lore-entry fields it wants are optional additions and therefore not a bump
 §0.5.
 
 > **The Character Studio at 3.0 must add no portable schema change at all**
-> ([17 §5](../17-character-studio.md)).
+> ([18 §5](../18-character-studio.md)).
 
 Not *no breaking change* and not *no new kind* — **no change**. All four of the
 Studio's obligations are Actor-card format work inside the 1.0 series: typed
@@ -177,7 +177,7 @@ gets asked whether it was right two releases on rather than four.
 **Campaign's remains the late one**, and the mitigation is unchanged: the strict
 rule is checkable *now* — nothing has to wait for 5.0 to ask whether Campaign's
 channels touch a portable schema, and
-[21 §6](../21-internal-contracts.md) is where that question already lives.
+[22 §6](../22-internal-contracts.md) is where that question already lives.
 
 ### 0.3 The honest cost
 
@@ -188,7 +188,7 @@ way that has no end date.
 - **Heavy channels and engine-computed effects** were Campaign's to prove.
   Freeform uses channels lightly by design, so the model is under-exercised —
   and Campaign is now four releases out rather than one. The mitigation is real
-  but partial: the dice reference extension ([24 §4.4](../24-roadmap.md))
+  but partial: the dice reference extension ([25 §4.4](../25-roadmap.md))
   exercises engine-computed channels and evaluate-before-narrate on a small
   surface, which is a reason to keep it at 1.0 even though Freeform defaults to
   no mechanics.
@@ -224,7 +224,7 @@ cleanly; three that have each acquired one convenience do not, because the
 convenience is now behaviour somebody depends on. Putting the tier a release
 behind Campaign buys a better corpus (§0.6) and pays for it here — and inserting
 the Character Studio ahead of both adds one more release to that bill
-([17 §1.3](../17-character-studio.md)), which is the sharpest thing that
+([18 §1.3](../18-character-studio.md)), which is the sharpest thing that
 re-ordering cost.
 
 **The mitigation is real but it is a person's job rather than a mechanism.** All
@@ -250,7 +250,7 @@ what it lands with.
 
 Three reasons, and the third is the strongest:
 
-- [25 C7](../25-open-questions.md) already held the vocabulary open, and two stable
+- [26 C7](../26-open-questions.md) already held the vocabulary open, and two stable
   schemas were carrying ⚠ warnings because they depended on something
   unspecified — `PlotHook.requires`/`onFire` and `Goal.completion`. Deferring
   removes both warnings and makes those schemas honestly stable.
@@ -272,7 +272,7 @@ That claim is worth being exact about, because the two look coupled.
 quest state machines, loot generators, class trees — but those are things
 Infinite Worlds' *authors* built with no engine involvement. Campaign is not an
 author. It is a first-party mode package consuming the published SDK
-([19 §10](../19-tech-stack.md)), and its determinism comes from
+([20 §10](../20-tech-stack.md)), and its determinism comes from
 `update: "engine-computed"` ([06 §4](../06-modes-and-turn-pipeline.md)) — the
 mode declares a channel and computes the update in code. Combat round maths, HP
 pools, inventory arithmetic, quest counters: Campaign's own TypeScript, needing
@@ -322,7 +322,7 @@ What moves is *catalogue extraction*, which becomes a pre-beta sweep rather than
 a per-component obligation. Extraction over a codebase that never concatenated
 is mechanical work; extraction over one that did is a rewrite. Keeping the
 discipline and dropping the ceremony holds nearly all the value
-([19 §12](../19-tech-stack.md)).
+([20 §12](../20-tech-stack.md)).
 
 ### 0.5 What 1.0 gained
 
@@ -340,18 +340,18 @@ has.
 
 The reasoning that put them on the list is unchanged and right — a home server
 product people cannot install is a home server product nobody uses. What changes
-is that **P11 owns all six** ([P11](27-p11-implementation.md)), while the beta
+is that **P11 owns all six** ([P11](28-p11-implementation.md)), while the beta
 gate keeps its narrower requirement of the OCI image and the tarball
 ([releases §0](04-repo-and-releases.md)). Enough to have users is the beta test;
 enough to be installed by people who are not us is the 1.0 test.
 
-**Session export ships at 1.0** ([25 B12](../25-open-questions.md)).
+**Session export ships at 1.0** ([26 B12](../26-open-questions.md)).
 
 Previously "yes, eventually. Not an early priority", with no release attached.
 Two arguments move it: *feature complete to the 1.0 spec* is not a credible
 claim about a storytelling tool whose stories cannot leave it, and export is the
 beginning of the session interchange format that every other import question
-depends on ([25 B13](../25-open-questions.md)).
+depends on ([26 B13](../26-open-questions.md)).
 
 It carries one hard ordering constraint. [13 §13](../13-write-mode.md) requires
 that export "must not freeze the turn record before §4 is settled", and
@@ -360,7 +360,7 @@ this case. Export at 1.0 with Write at 2.0 triggers it: **[13 §4](../13-write-m
 must be settled before export ships**, which makes Write a near-term design
 question rather than a far one.
 
-**Backup and restore ships at 1.0** ([25 E6](../25-open-questions.md)).
+**Backup and restore ships at 1.0** ([26 E6](../26-open-questions.md)).
 
 Small — quiesce, archive the data directory excluding the index, restore and
 rebuild — and in the same class as the two above. Files on disk means `rsync`
@@ -386,7 +386,7 @@ product.
 The distinction is not cosmetic. A release whose entire content is *a language
 for authors* has no forcing function of its own — it would be designed by us,
 for us, against our own idea of what an author needs. That is
-[25 C7](../25-open-questions.md)'s failure mode arriving through a different
+[26 C7](../26-open-questions.md)'s failure mode arriving through a different
 door: **the corpus protects against designing the wrong vocabulary; nothing in
 it protects against designing a vocabulary nobody asked for.** A release that
 can state its purpose in a sentence a user would recognise — *you can now author
@@ -395,23 +395,23 @@ the part that makes the rest work.
 
 **What lands together:**
 
-The design is [16](../16-authoring.md); this is the scope.
+The design is [17](../17-authoring.md); this is the scope.
 
 | Piece | Why it belongs here |
 |---|---|
-| **The rule vocabulary, its evaluator, and the authoring surface** | The mechanism. [06 §4.1](../06-modes-and-turn-pipeline.md), [25 C7](../25-open-questions.md), [02 §3](../02-infinite-worlds.md) for the starting vocabulary, [16 §2](../16-authoring.md) for what this release adds. |
+| **The rule vocabulary, its evaluator, and the authoring surface** | The mechanism. [06 §4.1](../06-modes-and-turn-pipeline.md), [26 C7](../26-open-questions.md), [02 §3](../02-infinite-worlds.md) for the starting vocabulary, [17 §2](../17-authoring.md) for what this release adds. |
 | **The author-declarable channel surface** | Rules need something to be about. The `owner` field widens at 1.0; what waits is a way for an author to *define* a channel rather than only to have one defined for them ([02 §2.2](../02-infinite-worlds.md)). |
-| **Lorebook extraction from a session** | The play-to-authoring loop itself — *play a session, keep the world* ([16 §3](../16-authoring.md)). Moved off the feature list, because it is the clearest single statement of what this release is for. |
+| **Lorebook extraction from a session** | The play-to-authoring loop itself — *play a session, keep the world* ([17 §3](../17-authoring.md)). Moved off the feature list, because it is the clearest single statement of what this release is for. |
 
 **The Character Studio was a member of this tier and is now 3.0**
-([17](../17-character-studio.md)). It shared the shape — extraction turns a
+([18](../18-character-studio.md)). It shared the shape — extraction turns a
 played session into a lorebook, and the Studio turns a played actor into a
 reusable one — and it turned out not to share the gate: every one of its
 obligations lands at 1.0, so nothing here holds it and nothing it needs waits for
 the corpus. It was also always the least settled member, the only piece whose
 *surface* question was open, and that question is better answered as a release's
 first problem than discovered as a tier's late one
-([17 §6](../17-character-studio.md)).
+([18 §6](../18-character-studio.md)).
 
 **The tier keeps its point with two members and a surface**, because the two that
 remain are the two the corpus argument is actually about: a vocabulary designed
@@ -419,7 +419,7 @@ against real authored worlds, and the loop that produces them. *You can now
 author what you have been playing* is still the sentence.
 
 **What is deliberately *not* here.** Continuity checking and the branch tree
-visualiser stay on the feature list ([24](../24-roadmap.md)) — both are readers
+visualiser stay on the feature list ([25](../25-roadmap.md)) — both are readers
 rather than authoring surfaces, and folding them in would make this a release
 about "everything left", which is how a scope stops being checkable
 ([releases §0](04-repo-and-releases.md)).
@@ -429,7 +429,7 @@ about "everything left", which is how a scope stops being checkable
 serve both template rendering and rule conditions — one thing for authors to
 learn, one evaluator to sandbox. Liquid is already chosen for block templating
 and P4 proceeds on it, deliberately leaving the other half of
-[25 C6](../25-open-questions.md) open ([P4 §6.1](16-p4-implementation.md)).
+[26 C6](../26-open-questions.md) open ([P4 §6.1](16-p4-implementation.md)).
 Deferring rules to 6.0 does not defer that choice; it extends how long the
 project runs on a half-made one. **The revisit should ask whether Liquid still
 looks right for conditions after five releases of using it for templates**, and
@@ -437,7 +437,7 @@ treat "no" as an answer worth having rather than an inconvenience.
 
 ### 0.7 What is not a committed version
 
-Everything else is on the feature list ([24](../24-roadmap.md)), which is a
+Everything else is on the feature list ([25](../25-roadmap.md)), which is a
 different kind of document: three priority tiers with no releases attached, plus
 a parallel wishlist of things we hope somebody else builds.
 
@@ -499,7 +499,7 @@ probably the most useful single list in the document.
 - **Structured `VisualDescriptors`** alongside prose appearance.
 - **Per-media generation provenance including the seed** — a reference image
   whose seed was not recorded cannot be regenerated
-  ([17 §5](../17-character-studio.md)).
+  ([18 §5](../18-character-studio.md)).
 - **Crop as a stored normalised rectangle**, never a destructive edit.
 
 ### The turn record
@@ -514,34 +514,34 @@ probably the most useful single list in the document.
 - **Cost recorded even though nothing displays aggregates at 1.0** — a spend view
   built later over uncaptured data shows nothing ([10 §3](../10-ui-surfaces.md)).
 - **Turn storage tolerates removal** — tombstone plus compaction, no UI needed
-  ([24 §1.6](../24-roadmap.md)).
+  ([25 §1.6](../25-roadmap.md)).
 - **Summaries content-addressed by their inputs**, never a rolling mutable total
   ([07 §5](../07-branching.md)).
 
 ### Runtime
 
 - **One RNG service; every draw recorded; draws keyed by site, not position**
-  ([19 §14](../19-tech-stack.md)).
-- **Steps name model *roles*, never models** ([19 §5.1](../19-tech-stack.md)).
+  ([20 §14](../20-tech-stack.md)).
+- **Steps name model *roles*, never models** ([20 §5.1](../20-tech-stack.md)).
 - **Prompt caps declared per provider; composed prompts built from ranked
-  fragments** ([19 §5.3](../19-tech-stack.md)).
+  fragments** ([20 §5.3](../20-tech-stack.md)).
 - **Server events carry `{key, params}`, never English prose**
   ([09 §3.4](../09-server-multiuser-deployment.md)).
 - **Notification event schema complete from the first producer** — class, target
-  user, dedupe key, coalescing window ([25 A2c](../25-open-questions.md)).
+  user, dedupe key, coalescing window ([26 A2c](../26-open-questions.md)).
 - **`locale` on the account** ([09 §4.2](../09-server-multiuser-deployment.md)).
 - **The step contract async and serialisable from the first step** — the worker
-  boundary ([22](../22-extensions.md)) is not something to convert to later.
+  boundary ([23](../23-extensions.md)) is not something to convert to later.
 - **One audited path-resolution helper**, used by every filesystem-touching
-  route ([19 §9](../19-tech-stack.md)).
+  route ([20 §9](../20-tech-stack.md)).
 
 ### Client
 
 - **CSS logical properties from the first stylesheet.** `margin-inline-start`,
   never `margin-left`. Skip this and RTL is permanently foreclosed
-  ([19 §12.6](../19-tech-stack.md)).
+  ([20 §12.6](../20-tech-stack.md)).
 - **Never concatenate sentences from fragments, and never put a user-visible
-  string in logic** ([19 §12.6a](../19-tech-stack.md)). Wrapping strings and
+  string in logic** ([20 §12.6a](../20-tech-stack.md)). Wrapping strings and
   extracting the catalogue is a pre-beta task; *these two* are habits, and a
   codebase that broke them has to be reworked component by component with nothing
   flagging where (§0.4).
@@ -710,14 +710,14 @@ phase built need a value set, and where does someone set it?*
 
 ## 3. Before any code: close the A-series
 
-[25 §A](../25-open-questions.md) exists precisely because these constrain
+[26 §A](../26-open-questions.md) exists precisely because these constrain
 everything downstream.
 
 **The A-series is closed.** A1/A1c: a worker-thread
-boundary with a namespaced storage API ([22](../22-extensions.md)). A3: connections
+boundary with a namespaced storage API ([23](../23-extensions.md)). A3: connections
 are account-scoped with a system scope, mirroring the library
 ([09 §4.5](../09-server-multiuser-deployment.md)). A4: raw completion is legacy and
-unsupported ([19 §5.5](../19-tech-stack.md)). That resolves the one item this plan
+unsupported ([20 §5.5](../20-tech-stack.md)). That resolves the one item this plan
 called genuinely unretrofittable, and it changes P2 and P7: the step contract is
 async and serialisable from the first step written, not converted later. A5–A8
 are confirmed: multiplayer stays "don't preclude, don't build"; React + Vite +
@@ -784,7 +784,7 @@ decisions the design documents left open (folder naming and rename, duplicate id
 on disk), the phasing revision that pulls auth forward from P10, and the exit
 gate.
 
-Repo shape ([19 §10](../19-tech-stack.md)), workspaces, CI, schema tooling, licence
+Repo shape ([20 §10](../20-tech-stack.md)), workspaces, CI, schema tooling, licence
 headers. Then the part everything else stands on:
 
 - Portable object schemas ([04](../04-schemas.md)) as TypeBox, emitting JSON Schema.
@@ -872,7 +872,7 @@ back to.
 
 **Which there is not.** Writing the plan found that the install-default layer
 [09 §4.5](../09-server-multiuser-deployment.md),
-[10 §15.3](../10-ui-surfaces.md) and [19 §5.1](../19-tech-stack.md) all rely on
+[10 §15.3](../10-ui-surfaces.md) and [20 §5.1](../20-tech-stack.md) all rely on
 does not exist in any form — no file, no path, no layer in the resolver — so a
 dangling binding fails a turn where three documents say it falls back. That is a
 data-model gap rather than a UI one, it is independently testable, and it is the
@@ -1000,7 +1000,7 @@ which [P6B.0](20-p6b-playable.md) then fixed without the walk having happened.*
 
 **~~Skeleton~~ Plan, and now the record: [P6](18-p6-implementation.md)** —
 mostly sequencing, unusually, because [07](../07-branching.md) and
-[19 §14.5](../19-tech-stack.md) already decided the tree model,
+[20 §14.5](../20-tech-stack.md) already decided the tree model,
 swipes-as-branches, snapshots-as-cache and the tape.
 
 Branching, rewrite/reroll, the RNG tape, sibling navigation.
@@ -1105,13 +1105,13 @@ ever been able to do that.
 ### P7 — Modes and channels
 
 **Skeleton: [P7](23-p7-implementation.md)**, whose §0 states what a skeleton
-several phases out is for and applies to [P8](24-p8-implementation.md) through
-[P11](27-p11-implementation.md) as well. Its first finding: the move of the Scene
+several phases out is for and applies to [P8](25-p8-implementation.md) through
+[P11](28-p11-implementation.md) as well. Its first finding: the move of the Scene
 mode behind the SDK is a *move* or a *rewrite*, and `modes/contract.ts` already
 knows which.
 
 - The mode contract as a real interface; built-ins as separate packages
-  consuming the published SDK ([19 §10](../19-tech-stack.md)).
+  consuming the published SDK ([20 §10](../20-tech-stack.md)).
 - Channels, effects, engine-computed updates. **Not the authored-rule vocabulary
   or evaluator** — deferred to 6.0 (§0.4, §0.6), which is the single largest
   thing this phase lost and the reason it is merely large rather than
@@ -1158,7 +1158,7 @@ retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P7B — Presets and prompt handling
 
-**Skeleton: [P7B](28-p7b-presets-and-prompts.md)**, written 2026-09-11 while P7
+**Skeleton: [P7B](24-p7b-presets-and-prompts.md)**, written 2026-09-11 while P7
 runs on its branch, and filed out of order for that reason — its status line
 says why and what moves it.
 
@@ -1185,8 +1185,8 @@ difference. No text editor anywhere in the walk.
 
 ### P8 — Memory
 
-~~**Skeleton: [P8](24-p8-implementation.md)**~~ **Planned:
-[P8](24-p8-implementation.md)**, revisited 2026-09-13 once P5, P6 and P7 had all
+~~**Skeleton: [P8](25-p8-implementation.md)**~~ **Planned:
+[P8](25-p8-implementation.md)**, revisited 2026-09-13 once P5, P6 and P7 had all
 landed — which is what its §0 said it was waiting for. It found the phase's one
 storage decision hiding outside both design documents: `memories/` sits beside `library/`
 and outside everything the index walks, while [08 §7](../08-cross-session-memory.md)
@@ -1195,7 +1195,7 @@ asks for the ordinary lorebook editor, which needs a library address.
 Cross-session memory as an auto-maintained lorebook ([08](../08-cross-session-memory.md))
 is designed and buildable.
 
-**Within-session summarisation is a rolling summary** ([25 E1](../25-open-questions.md)),
+**Within-session summarisation is a rolling summary** ([26 E1](../26-open-questions.md)),
 which is schedulable here rather than needing its own design pass. The one
 constraint that must be honoured on the first commit: it is an **immutable
 chain**, `summary(n) = f(summary(n-1), turns[a..b])`, each link keyed by the hash
@@ -1205,7 +1205,7 @@ cheap branching — so it is a review item, not a detail.
 
 Summaries are derived and disposable, so a bad summariser is a regeneration
 rather than lost history. That is what makes shipping a simple version in P8
-safe. Chapterisation is roadmap ([24 §3](../24-roadmap.md)), not P8.
+safe. Chapterisation is roadmap ([25 §3](../25-roadmap.md)), not P8.
 
 ***The revisit found three things that move the phase***, none of them where the
 plan above was looking. The spoiler defence
@@ -1224,7 +1224,7 @@ satisfiable by a bug without it.
 
 ### P9 — Renditions
 
-**Skeleton: [P9](25-p9-implementation.md)**, and its first stage is a contract
+**Skeleton: [P9](26-p9-implementation.md)**, and its first stage is a contract
 rather than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
 all. The provider layer speaks chat and no image endpoint does, which is the
@@ -1235,7 +1235,7 @@ built against the general rendition shape so video and speech are later kinds.
 
 **And backdrops**, which are the same shape under a second *purpose* rather than
 a second feature ([06 §10.1a](../06-modes-and-turn-pipeline.md),
-[P9 §1.7](25-p9-implementation.md)). This closes an absence older than the phase
+[P9 §1.7](26-p9-implementation.md)). This closes an absence older than the phase
 documents: [06 §7.2](../06-modes-and-turn-pipeline.md) has always said Scene has
 an optional background written by a step, and no document has ever said where the
 image comes from — so without this, P7 ships a backdrop channel that nothing can
@@ -1245,7 +1245,7 @@ subsystem that spends money on its own from spending it per turn.
 
 ### P10 — Multi-user, notifications, deployment
 
-**Skeleton: [P10](26-p10-implementation.md)**, which gives a remainder phase the
+**Skeleton: [P10](27-p10-implementation.md)**, which gives a remainder phase the
 spine it does not have by default: *this is the phase that makes the install
 reachable, and safe, for someone who is not the developer.* Anything here off
 that line gets checked against P11 before it is built.
@@ -1267,11 +1267,11 @@ channels, ~~the loopback bind and its container inversion, the setup token,~~
 mDNS, the account-gallery arrival screen ([12](../12-account-gallery.md)), the
 About surface and §13 source link. *The struck pair went to
 [P6A](19-p6a-alpha-1.md), which shipped the image their deferral was scheduled
-against; [P10.0](26-p10-implementation.md) is what is left.*
+against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-**Skeleton: [P11](27-p11-implementation.md)**, whose exit gate *is* the beta gate
+**Skeleton: [P11](28-p11-implementation.md)**, whose exit gate *is* the beta gate
 — the one structural difference from every other phase document. Its first stage
 is the audit that produces the list, because the list exists today only as *home
 P11* scattered across the phase documents. And §8 below is what it rewrites.
@@ -1283,10 +1283,10 @@ reading view ([10 §12](../10-ui-surfaces.md)), impersonation in Scene
 update check, and the localisation catalogue extraction sweep (§0.4).
 
 **Plus the three things §0.5 moved into 1.0**: session export
-([25 B12](../25-open-questions.md)), backup and restore with its CI restore test
-([25 E6](../25-open-questions.md), [testing](03-testing.md)), and the four packaging
+([26 B12](../26-open-questions.md)), backup and restore with its CI restore test
+([26 E6](../26-open-questions.md), [testing](03-testing.md)), and the four packaging
 artifacts that previously had a requirement and no builder. This is a real
-increase in the last phase's load, and [P11](27-p11-implementation.md) is where
+increase in the last phase's load, and [P11](28-p11-implementation.md) is where
 it gets sized rather than here.
 
 **The plot-hook selector here is the *tuning*, not the build** — a correction,
@@ -1305,7 +1305,7 @@ this is the phase that owns them — which is the correction, because previously
 nothing did.
 
 **No longer here:** the file
-browser ([25 D3](../25-open-questions.md)) and Tailscale ([25 D1](../25-open-questions.md)),
+browser ([26 D3](../26-open-questions.md)) and Tailscale ([26 D1](../26-open-questions.md)),
 both moved to the roadmap.
 
 ---
@@ -1322,10 +1322,10 @@ that does not exist.
   until [13 §4](../13-write-mode.md) is settled.
 - **3.0 — the Character Studio.** Reference-set curation, descriptor authoring
   and the consistency loop that makes a card produce the same person twice
-  ([17](../17-character-studio.md)). The one whose *format* is entirely 1.0's
+  ([18](../18-character-studio.md)). The one whose *format* is entirely 1.0's
   work, which is why it can go this early — and the one that has to settle a
   navigation argument before its scope is even checkable
-  ([17 §6](../17-character-studio.md), [10 §2](../10-ui-surfaces.md)).
+  ([18 §6](../18-character-studio.md), [10 §2](../10-ui-surfaces.md)).
 - **4.0 — World.** The continuity container ([15](../15-world.md)), with the
   story bible that gives a continuity a way to say what it contains. Its three
   cheap obligations on 1.0 are real requirements now rather than insurance, and
@@ -1339,7 +1339,7 @@ that does not exist.
   to move, because it is the one furthest from anything anybody has used yet.
 
 All five are **committed**, not speculative, which distinguishes them from the
-feature list ([24](../24-roadmap.md)). Items there are unscheduled; these are
+feature list ([25](../25-roadmap.md)). Items there are unscheduled; these are
 scheduled.
 
 Each series is also when its §0.2 check gets answered — whether the release
@@ -1377,10 +1377,10 @@ Things that are wrong to schedule because they must happen inside every phase:
   edits go through the watcher. What remains is self-write suppression getting
   its `(path, mtime, size)` token wrong, which shows up as double-indexing rather
   than as missing data.
-- ~~A1, the extension execution model~~ — **closed** ([22](../22-extensions.md)).
+- ~~A1, the extension execution model~~ — **closed** ([23](../23-extensions.md)).
   The remaining risk is not structural but velocity: a boundary means anything
   the API does not expose is blocked until it grows. Watch the signals in
-  [22 §9](../22-extensions.md).
+  [23 §9](../23-extensions.md).
 - **Import fidelity** across three sources with years of edge cases. Expect this
   to take longer than it looks and to keep producing bug reports after P4.
 - **P7 is where the mode contract is tested** — where it meets two real modes and
@@ -1404,7 +1404,7 @@ The other half is release engineering, and it belongs in the beta bar rather
 than after it: build chains, release automation, and the workflows that make
 shipping repeatable rather than an event. Sketched here only to hold the shape —
 **this section is awaiting expansion** and should be rewritten rather than
-extended. **[P11](27-p11-implementation.md) names that rewrite as P11's** — its
+extended. **[P11](28-p11-implementation.md) names that rewrite as P11's** — its
 §1.1 and its P11.9 stage — because a hardening phase that does not know what it
 is hardening toward ends when someone gets tired:
 

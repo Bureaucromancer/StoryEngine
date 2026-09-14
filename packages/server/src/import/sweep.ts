@@ -284,7 +284,7 @@ class Writer {
    * `create()` refuse the whole card, so a character was lost over its picture.
    * That is the poisoned-file rule violated one level down — one bad asset never
    * costs the object it belongs to, exactly as one bad file never aborts a
-   * sweep ([21 §4.1.1]).
+   * sweep ([22 §4.1.1]).
    */
   async #createActor(
     candidate: ImportCandidate,

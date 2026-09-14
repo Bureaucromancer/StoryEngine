@@ -42,7 +42,7 @@ discloses something. A fresh install, and every existing install, shows
 exactly the screen it shows today and keeps the unauthenticated surface it
 has today, until an admin picks the other door.
 
-The key's row in [21 §4](21-internal-contracts.md)'s table, its tier entry
+The key's row in [22 §4](22-internal-contracts.md)'s table, its tier entry
 and its applier land with the build, per the precedent of every key before
 it; until then this note owns the name.
 
@@ -60,7 +60,7 @@ whether the house has an owner.
 
 **A Quiet surface: faces, names, and nothing else.**
 [10 §1.1](10-ui-surfaces.md) splits the surfaces into dense tooling and quiet
-arrival, and [25 E10](25-open-questions.md) already placed sign-in on the
+arrival, and [26 E10](26-open-questions.md) already placed sign-in on the
 quiet side — a Quiet surface that must be styled before anyone has
 authenticated. The gallery is that screen with the typing removed: a grid of
 avatar tiles, each with the account's display name beneath it, centred in the
@@ -320,7 +320,7 @@ scanning — which is observable on a real install rather than predictable from
 here. It clears the polish bar exactly: it changes what a user sees, it is
 bounded, and it needs no schema change and no new contract, because the
 listing already carries everything a client-side filter needs. It is
-deliberately not a [24 §3](24-roadmap.md) row — that table's bar is a feature
+deliberately not a [25 §3](25-roadmap.md) row — that table's bar is a feature
 deferred past 1.0 that is additive to the data model, and this is neither.
 
 **When it lands, the by-name clickthrough may fold into it.** A filter box is
@@ -346,7 +346,7 @@ described and unowned is the lesson
 What the build obliges, so P10's planning is not surprised:
 
 - `auth.loginScreen` end to end: the schema entry, tier row and applier the
-  config tests enforce, the [21 §4](21-internal-contracts.md) table row, and
+  config tests enforce, the [22 §4](22-internal-contracts.md) table row, and
   the select the admin config form derives from the union.
 - `hiddenFromGallery` end to end: the optional field, `toPublic`,
   `updateSelf` and `update`, the client's hand-written account types, and

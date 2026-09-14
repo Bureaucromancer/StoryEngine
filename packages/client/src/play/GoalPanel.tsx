@@ -96,7 +96,7 @@ function summaryLine(
    * **A waiting completion outranks the statement**, and it is the only thing
    * that does. The closed disclosure's job is the sentence being played toward;
    * a proposal nobody has ruled on is the one moment where the useful fact is
-   * that the panel needs opening — and [25 C12]'s whole cost is a person not
+   * that the panel needs opening — and [26 C12]'s whole cost is a person not
    * noticing.
    */
   const waiting = rows.find((row) => row.proposed && !row.achieved);
@@ -129,7 +129,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
       </div>
 
       {/**
-       * ***The narrator's judgement, waiting on a person*** — [25 C12], settled
+       * ***The narrator's judgement, waiting on a person*** — [26 C12], settled
        * at [P7.6]. `se.goal` declares `confirm: ['achieved']`, so a completion
        * the judge proposed is **recorded and unapplied** until this is pressed.
        *

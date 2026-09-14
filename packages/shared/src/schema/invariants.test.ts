@@ -133,7 +133,7 @@ describe('no portable schema carries a connection or a credential', () => {
    * Walking the TypeBox objects catches a violation one step earlier, which is
    * why both are here, but it leaves `emit-schemas` untested (F18): the
    * artefact is what a third party fetches and validates against
-   * ([19 §4](../../../../docs/design/19-tech-stack.md)), and an emitter that
+   * ([20 §4](../../../../docs/design/20-tech-stack.md)), and an emitter that
    * dropped, renamed or added a property would sail past a walk over the input.
    *
    * Read synchronously and deliberately: this package has no business touching

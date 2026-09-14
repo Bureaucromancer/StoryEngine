@@ -151,7 +151,7 @@ export interface ScanContext {
   timing: Readonly<Record<string, EntryTiming>>;
   filters: FilterContext;
   /**
-   * The turn's RNG — [19 §14].
+   * The turn's RNG — [20 §14].
    *
    * **Two fields here are stochastic and both draw through the service**, which
    * is not a style rule: an unrecorded draw does not fail where it is written,
@@ -161,7 +161,7 @@ export interface ScanContext {
    * forbids it is the reason this parameter exists at all — it was written
    * with an injected `() => number` first, and the rule was right.
    *
-   * What the tape buys is the distinction [19 §14.5] draws between **rewrite**
+   * What the tape buys is the distinction [20 §14.5] draws between **rewrite**
    * and **reroll**: swiping replays the same draws, so which of three weather
    * entries is in the prompt does not change under a person who only wanted
    * different prose. That is the property a hand-rolled RNG could not have had,
@@ -564,7 +564,7 @@ function considerAt(
 function rolled(entry: LoreEntry, rng: Rng): boolean {
   if (entry.probability === null) return true;
   /**
-   * Keyed on the entry rather than on the site alone, which is [19 §14]'s
+   * Keyed on the entry rather than on the site alone, which is [20 §14]'s
    * **keyed by site, never by position** applied where it bites hardest: a
    * positional tape hands one entry's coin flip to another the moment a
    * rewrite takes a slightly different path, and lore is where paths differ.
@@ -579,7 +579,7 @@ function rolled(entry: LoreEntry, rng: Rng): boolean {
  * what makes that safe. This was written first as deterministic
  * highest-weight-wins, reasoning that a swipe changing which of three weather
  * entries is in the prompt reads as instability rather than as variety. Good
- * reason, aimed at a problem [19 §14.5] had already solved: draws go on the
+ * reason, aimed at a problem [20 §14.5] had already solved: draws go on the
  * turn's tape and a rewrite replays it, so a swipe keeps the same weather while
  * a genuine reroll gets new weather. Sorting by weight would instead have made
  * `groupWeight: 99` mean *always* rather than *usually*, quietly deleting the

@@ -11,7 +11,7 @@ import { Note } from '../../ui/Text.js';
 import { headroom } from '../headroom.js';
 
 /**
- * The budget verdict — the window with its honest origin ([21 §1.5]'s
+ * The budget verdict — the window with its honest origin ([22 §1.5]'s
  * reshaped limit: ceiling, source, share), what was reserved and spent, and
  * the headroom-aware answer to *what falls out next*. The phrasing judgement
  * is `headroom`'s (gate step 5); every number the sentence uses is already

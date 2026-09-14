@@ -26,7 +26,7 @@ import { FREEFORM_PRESET } from './preset.js';
  * only package in this one's dependencies, its tsconfig references, or its
  * resolvable graph. **Everything below that a mode could not declare would have
  * been a hole in the contract**, and finding those is what a second mode is
- * *for* ([19 §10](../../../../docs/design/19-tech-stack.md)).
+ * *for* ([20 §10](../../../../docs/design/20-tech-stack.md)).
  *
  * [06 §1] gives the shape in one sentence: *"the Aventuras shape — do/say/think/
  * story input, chapters, world-state classification, branching, light or no
@@ -85,7 +85,7 @@ export const FREEFORM_ID = 'storyengine.freeform';
  * Declare it and leave it null forever — the placeholder shape this phase has
  * refused at every stage, and `ModeDefinition.channels` spent five of them
  * demonstrating. Or **declare nothing, and write down what the contract is
- * missing**, which is [25 C16](../../../../docs/design/25-open-questions.md).
+ * missing**, which is [26 C16](../../../../docs/design/26-open-questions.md).
  *
  * *The gap is narrow and real*: a mode may declare a channel a **person** or a
  * **model** writes, and may not declare one the **engine** computes on its

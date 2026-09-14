@@ -456,7 +456,7 @@ describe('pointing the server at a directory', () => {
   });
 
   it('names source files relative to the root, never absolutely', async () => {
-    // [21 §4.1.1]: a review somebody pastes into an issue must not be a
+    // [22 §4.1.1]: a review somebody pastes into an issue must not be a
     // description of their filesystem. The root lives on the job record; the
     // rows do not repeat it.
     await grantFileAccess();

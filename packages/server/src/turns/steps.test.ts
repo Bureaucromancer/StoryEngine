@@ -10,7 +10,7 @@ import type { Turn } from '@storyengine/shared';
 import { callPurposeFor, evaluateCondition, filterReads } from './steps.js';
 
 /**
- * When a step runs, and what it is handed — [06 §6], [22 §3.1].
+ * When a step runs, and what it is handed — [06 §6], [23 §3.1].
  *
  * These exist because an audit measured all three `StepCondition` arms as
  * mutation-insensitive: the runner is the only evaluator, it passes empty sets
@@ -108,7 +108,7 @@ describe('a step is handed only what it declared', () => {
   };
 
   it('withholds history from a step that did not ask for it', () => {
-    // [22 §3.1]'s payload filter, which is also what makes the boundary
+    // [23 §3.1]'s payload filter, which is also what makes the boundary
     // narrow enough to cross a worker hop later.
     expect(filterReads(step(), everything).history).toBeUndefined();
     expect(filterReads(step({ reads: ['history'] }), everything).history).toEqual([]);

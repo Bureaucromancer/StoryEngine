@@ -9,7 +9,7 @@ import writeFileAtomic from 'write-file-atomic';
 /**
  * Every canonical write goes through here.
  *
- * **Temp file, fsync, rename** ([19 §7](../../../../docs/design/19-tech-stack.md)). The
+ * **Temp file, fsync, rename** ([20 §7](../../../../docs/design/20-tech-stack.md)). The
  * failure it prevents is a truncated character card: a crash or a full disk
  * halfway through a direct write leaves a file that is neither the old actor nor
  * the new one, and `card.png` is the only copy of that actor

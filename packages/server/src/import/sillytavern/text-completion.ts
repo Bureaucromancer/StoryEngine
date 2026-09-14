@@ -33,7 +33,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * The sampler fields an OpenAI-compatible chat endpoint understands
- * ([19 §5.5]). Everything else about a text-completion preset is `compat`.
+ * ([20 §5.5]). Everything else about a text-completion preset is `compat`.
  */
 const PARAM_FIELDS: Readonly<Record<string, keyof Preset['params']>> = {
   temp: 'temperature',

@@ -29,7 +29,7 @@ import { writeJsonAtomic } from '../storage/atomic.js';
  *
  * **The tier table travels as data.** The client may not import from the server
  * package, and a duplicated copy of `CONFIG_TIERS` would falsify
- * [21 §4](../../../../docs/design/21-internal-contracts.md)'s claim that the
+ * [22 §4](../../../../docs/design/22-internal-contracts.md)'s claim that the
  * annotation *is* the source. Sending it means a key a newer build adds renders
  * with the right badge without a client release — and `LIVE_APPLIERS` travels
  * beside it, because a control that says *live* and is not read yet is the

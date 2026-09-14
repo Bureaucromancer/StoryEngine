@@ -36,7 +36,7 @@ export { DIAL_CHANNELS, SE_DIFFICULTY, SE_DIRECTEDNESS, dialChannel, type DialAx
  * So there are two channels, two slot arms, two level lists, and no field
  * anywhere that sets both.
  *
- * ***And a third dial that is deliberately not here.*** [23 §5.4] adds the
+ * ***And a third dial that is deliberately not here.*** [24 §5.4] adds the
  * constraint in as many words — a frequency dial stays a **separate** channel
  * from difficulty, *"because folding* how often *into* how hard *rebuilds
  * exactly the conflation 06 §7.3.2 exists to prevent"*. Hook pacing
@@ -137,7 +137,7 @@ export function resolveLevel(
 /**
  * A level's fragments, highest `priority` first.
  *
- * **Ordered here rather than at the cap**, because [19 §5.3]'s machinery drops
+ * **Ordered here rather than at the cap**, because [20 §5.3]'s machinery drops
  * from the end of what it was given and {@link DifficultyLevel} documents
  * `priority` as *"lower is dropped first"*. A collector that emitted them in
  * array order would make the pack's ranking depend on how the author happened to

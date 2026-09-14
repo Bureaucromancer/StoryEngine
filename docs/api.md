@@ -18,7 +18,7 @@ web client, so an address outside `/api` may answer HTML — but an address
 `404 {"error":"not-found"}` like any other JSON error, because a client that
 parses this API is worse served by a page than by a 404. Whether the UI is
 served at all is one config key, `server.clientRoot`
-([21 §4](design/21-internal-contracts.md)); in development it is unset and the
+([22 §4](design/22-internal-contracts.md)); in development it is unset and the
 client is a second process.
 
 ---
@@ -380,7 +380,7 @@ shadowed copies, and any row inside its tombstone settling window
 (`tombstonedAt` in epoch milliseconds, `null` for a live row). Paths are
 portable — root-relative, `/`-separated — never native ones. **Best-effort,
 not a contract**: the index's tables are an implementation detail
-([21 §5](design/21-internal-contracts.md)) and its migration policy is
+([22 §5](design/22-internal-contracts.md)) and its migration policy is
 drop-and-rescan, so after an index schema bump this route may return less
 until the surface catches up. Read-only; the object's contents stay the read
 route's answer.
@@ -408,7 +408,7 @@ converted, `200 { item, notes }` when it did not.
 
 `item` is one row of the import review's vocabulary — `{ source, disposition,
 notes, objectId? }` — where `source` is the filename **as it arrived**, never a
-path ([21 §4.1.1](design/21-internal-contracts.md)). `disposition` is
+path ([22 §4.1.1](design/22-internal-contracts.md)). `disposition` is
 `converted`, `recorded` or `unrecognised`, and the middle one is the interesting
 answer: a PNG card today is a file this build converts at **P4.2**, so it is
 reported as *not yet* rather than refused as broken. Answering `4xx` would tell
@@ -513,7 +513,7 @@ objects are never rewritten and are reported as `unchanged`, which is a differen
 answer from `skipped`.
 
 **Source files in the report are named relative to the root**, never absolutely
-([21 §4.1.1](design/21-internal-contracts.md)) — a review somebody pastes into an
+([22 §4.1.1](design/22-internal-contracts.md)) — a review somebody pastes into an
 issue must not be a description of their filesystem.
 
 The response also carries `suggestions` — see below. A sweep of the wrong folder
@@ -641,7 +641,7 @@ the same way the rest of the library is.
 *What reads it today:* expression sprites, imported with the character
 ([P7.10] again — an actor arriving with a `sprites/` directory keeps every image
 as `role: "expression"` with the filename stem as its label, where before only
-`assets[0]` survived as the portrait). [P9](design/workplan/25-p9-implementation.md)
+`assets[0]` survived as the portrait). [P9](design/workplan/26-p9-implementation.md)
 is the second consumer: a rendition's asset needs serving too, and
 `MediaSelection`'s two arms are already the one shape both go through.
 
@@ -1122,7 +1122,7 @@ reports what it could not read on every turn where somebody playing can see it
 an omitted key means the empty map — a partial update could not express *clear
 this override*, and clearing one is the commoner act.
 
-**Two of [19 §5.1](design/19-tech-stack.md)'s five layers, and the reason they
+**Two of [20 §5.1](design/20-tech-stack.md)'s five layers, and the reason they
 live on the session rather than in a mode** is that section's opening sentence:
 *nothing in a mode, step or extension refers to a provider or a model id*. A
 binding names a `connectionId` that exists on exactly one install, so *a cheap
@@ -1222,7 +1222,7 @@ time, and what decides whether to raise them is `achieved` plus `next`. *The
 author's fuller `detail` does not travel*: [04 §7.1] reserves it for steps.
 
 `goals` rows also carry `proposed` — the narrator judged the goal met and a
-person has not ruled ([25 C12], answered *ask* at P7.6). `se.goal` declares
+person has not ruled ([26 C12], answered *ask* at P7.6). `se.goal` declares
 `confirm: ['achieved']`, so the judge's completion lands on the turn recorded and
 **unapplied**: the three offers stay down and the panel asks. `proposed` and
 `achieved` are never both true, because confirming *is* the applied effect that
@@ -1345,7 +1345,7 @@ two tabs on one session look like. An explicit `null` branches from the root —
 One turn at a time still holds: a second submission while a turn is in flight is
 `409 busy` whether it branches or not.
 
-**`rewriteOf` is the difference between rewrite and reroll** ([19 §14.5]). It
+**`rewriteOf` is the difference between rewrite and reroll** ([20 §14.5]). It
 names a turn whose draws this one should replay: the same roll, so the same
 mechanical outcome and different prose. Absent, the turn draws fresh — which is
 reroll, and also every ordinary turn. **A turn id rather than a tape**, because
@@ -1355,7 +1355,7 @@ wishes it had got, and a turn from another session is `404 no-such-turn`.
 Rewrite is the default of the two gestures, which is what stops swiping past a
 failed check from being save-scumming by accident. A turn that consumed no
 draws has nothing to reroll, and the surface must not offer it one
-([19 §14.6]).
+([20 §14.6]).
 
 **`redoOf` is the other half of a redo**
 ([06 §5.1](design/06-modes-and-turn-pipeline.md), [07 §7](design/07-branching.md)).
@@ -1469,7 +1469,7 @@ state; **409 `not-at-tip`** carrying `keys` and `branchFrom`.
 an inverse only while nothing has touched the same key since — apply it after
 something has and you destroy the later change and produce a state no turn ever
 wrote, plausibly enough that nothing surfaces
-([21 §1.2.1](design/21-internal-contracts.md)). So a turn that is no longer the
+([22 §1.2.1](design/22-internal-contracts.md)). So a turn that is no longer the
 tip **for its keys** is refused with the keys that block it and the node to
 branch from instead. *Tip* is per key: a later turn on a different channel
 blocks nothing.
@@ -1663,7 +1663,7 @@ because it is the kind of thing people should read rather than discover:
 > **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
 
 There is no raw-completion path, no instruct templates, no context templates and
-no stop-sequence machinery ([19 §5.5](design/19-tech-stack.md)). A local model
+no stop-sequence machinery ([20 §5.5](design/20-tech-stack.md)). A local model
 is a connection with a `localhost` URL and no key — llama.cpp, Ollama, vLLM, LM
 Studio and KoboldCpp all expose the same shape. A completion-only service needs
 a translating proxy in front of it, which is an off-the-shelf thing to point at
@@ -1718,7 +1718,7 @@ want exactly the opposite.
 ### `GET /api/me/prefs` · `PATCH /api/me/prefs`
 
 `{ "prefs": { …namespaced keys } }` — client preferences, stored in
-`users/<handle>/prefs.json` ([25 B13](design/25-open-questions.md), resolved).
+`users/<handle>/prefs.json` ([26 B13](design/26-open-questions.md), resolved).
 
 A patch **merges shallowly** and `null` **deletes**. The response is the whole
 document rather than an acknowledgement, so a client lands on the truth rather
@@ -1753,7 +1753,7 @@ write surface for any signed-in account. A bad key is `400 invalid`; too large i
 **What *your* turns will do, where `GET /api/admin/roles` says what the install
 has got.** Same row shape; different layers. This one resolves your own
 `users/<handle>/bindings.json` over the install defaults against the connections
-you may actually use, which is [19 §5.1](design/19-tech-stack.md)'s order — and
+you may actually use, which is [20 §5.1](design/20-tech-stack.md)'s order — and
 `via` is the whole reason to ask a server rather than work it out in a browser.
 
 One request carries the whole pane: the resolved table, the raw document to edit,
@@ -1771,7 +1771,7 @@ hash is the library's stale-check idiom: a mismatch is
 rather than only being told no. That matters more here than for the system file,
 because [10 §4](design/10-ui-surfaces.md) says hand-editing this one works.
 
-**No administrator is involved, and no capability is checked.** [19 §5.1] is
+**No administrator is involved, and no capability is checked.** [20 §5.1] is
 explicit that *anyone who wants their own key overrides a role without the
 admin's involvement*. A binding is two ids; what keeps that safe is that
 `resolveRole` looks the `connectionId` up in the capability-filtered list, so one
@@ -1903,7 +1903,7 @@ refuses it is the state of the install.
 
 **The tier table travels as data.** The client may not import from the server
 package, and a duplicated copy would falsify
-[21 §4](design/21-internal-contracts.md)'s claim that the annotation *is* the
+[22 §4](design/22-internal-contracts.md)'s claim that the annotation *is* the
 source — so a key a newer build adds renders with the right badge without a
 client release. `appliers` is the honest half beside it: a tier says what a key
 is *for*, and this says whether anything reads it yet. The two are allowed to
@@ -2099,7 +2099,7 @@ belong in a URL.
 ```
 
 The install defaults, layered under every account's own
-([19 §5.1](design/19-tech-stack.md)). A whole document rather than a patch per
+([20 §5.1](design/20-tech-stack.md)). A whole document rather than a patch per
 role: eight roles is not a chatty write path, and a wrong binding stops turns
 rather than collapsing a pane.
 
@@ -2122,7 +2122,7 @@ there is nothing on disk to preserve, so a write is a whole rewrite.
 `{ "hi": { "connectionId": "…", "modelId": "…" }, "lo": { … }, "contentHash": "…" }`
 → the same shape `GET /api/admin/bindings` returns.
 
-**Two bindings in, a whole document out** — [19 §5.1]'s *a good one and a cheap
+**Two bindings in, a whole document out** — [20 §5.1]'s *a good one and a cheap
 one*, spread across the roles that have a text fallback. Which role gets which
 is policy — the expensive model writes, everything else uses the cheap one — and
 it stays on the server so that no install ends up with `prose` on the cheap
@@ -2155,9 +2155,9 @@ exactly when somebody else is most likely to have put something there already.
 
 **What every role will do, resolved rather than described.** `via` — which layer
 won — is a local in `resolveRole`, deliberately absent from the turn record
-([21 §1.4](design/21-internal-contracts.md) specifies no such field), and
+([22 §1.4](design/22-internal-contracts.md) specifies no such field), and
 returned by nothing before this. A surface showing it would have had to
-reimplement [19 §5.1]'s layering in the browser, against two binding maps it
+reimplement [20 §5.1]'s layering in the browser, against two binding maps it
 would also have had to fetch: a second copy of the resolution order, in a
 different language from the first.
 

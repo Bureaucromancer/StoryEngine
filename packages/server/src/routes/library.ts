@@ -287,7 +287,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   /**
    * The index rows behind an object — the workbench's projection ([P3.3]).
    *
-   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [21 §5] keeps
+   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [22 §5] keeps
    * the index's tables an implementation detail and the migration policy is
    * drop-and-rescan, so this route *restates* rather than promises — after an
    * index schema bump it may return less until the surface catches up. What it

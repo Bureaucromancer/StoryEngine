@@ -176,7 +176,7 @@ describe('POST /api/me/password', () => {
 });
 
 /**
- * Preferences — [25 B13](../../../../docs/design/25-open-questions.md), through the route.
+ * Preferences — [26 B13](../../../../docs/design/26-open-questions.md), through the route.
  *
  * The store's own tests cover the merge, the deletion and the queue. What is
  * only checkable here is the claim the stage ends on: **a preference survives a
@@ -279,13 +279,13 @@ describe('/api/me/prefs', () => {
 /**
  * The role-binding editor's API — [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
  * *role bindings* bullet, [P7.3], and the writer
- * [19 §5.1](../../../../docs/design/19-tech-stack.md) has been missing since P2.5.
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md) has been missing since P2.5.
  *
  * **What makes these two routes worth having is the layer, not the file.**
  * `resolveRole` has layered a personal binding over the install default since
  * P2B and `users/<handle>/bindings.json` had a reader and no writer, so the
  * layer was reachable only by hand-editing JSON. The claim under test is
- * [19 §5.1]'s: *"anyone who wants their own key overrides a role without the
+ * [20 §5.1]'s: *"anyone who wants their own key overrides a role without the
  * admin's involvement"* — which means an **ordinary account**, which is why the
  * sharpest test here signs in as one.
  */
@@ -367,7 +367,7 @@ describe('the role bindings of the person asking', () => {
   });
 
   /**
-   * **[19 §5.1]'s sentence, as a test with no admin in it.** This is the claim
+   * **[20 §5.1]'s sentence, as a test with no admin in it.** This is the claim
    * the route's placement outside `/api/admin` rests on, and an admin doing it
    * would prove nothing about it.
    */

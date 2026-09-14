@@ -194,7 +194,7 @@ fields describing one relationship.
 edit, because it holds a ref and that is the point. Deleted: the ref dangles
 visibly and non-blockingly, like every other dangling reference in this system
 ([00 §3.3](00-stance.md)). **A World never blocks a delete**, which is the
-[25 B2](25-open-questions.md) answer applied one level up — a container that
+[26 B2](26-open-questions.md) answer applied one level up — a container that
 could refuse to let go of an object would make membership an ownership claim,
 and it is not one. An object may belong to several Worlds.
 
@@ -204,7 +204,7 @@ and it is not one. An object may belong to several Worlds.
 the wire is [16](16-publish.md)'s review step rather than a property of the
 kind. A World published without its sessions is *the Rain City setting*; with
 them, it is *my six Rain City sessions*. Prologue packages
-([25 B10](25-open-questions.md)) are the same mechanism with one session ticked,
+([26 B10](26-open-questions.md)) are the same mechanism with one session ticked,
 and need no feature of their own.
 
 ## 5. Contribution, and `LoreScope` finally has a consumer
@@ -246,7 +246,7 @@ one means the same thing on the install it arrives at — it travels *with* the
 World that gives it meaning. That is the difference between the two variants and
 it is the whole reason one is refused and this one is not.
 
-**[25 B15](25-open-questions.md) is answered by consequence.** A new book's
+**[26 B15](26-open-questions.md) is answered by consequence.** A new book's
 scope defaulted to `global` because nothing read the field; now something does,
 and *"a field nobody sets should not default to the widest value in its own
 union"* becomes actionable. The default is **`linked` with an empty actor
@@ -254,7 +254,7 @@ list** — the narrowest honest statement, meaning *this book has not said where
 it applies*, with the same effect as today for a book nobody scopes. `global`
 stays in the union because the format carries it and imports must preserve it.
 
-**[25 B14](25-open-questions.md) keeps its answer, which is no.** Scope
+**[26 B14](26-open-questions.md) keeps its answer, which is no.** Scope
 contributes; it does not narrow a book the session has already chosen. A person
 who selected a book and sees nothing from it would have to learn that a field on
 the *book* overruled their choice, and that is the same class of silent surprise
@@ -277,7 +277,7 @@ different things.
 
 - **World-scoped memory.** The fourth key [08 §8](08-cross-session-memory.md)
   named and could not supply. Not a second memory store — the existing mechanism
-  with one more scope, which is why [P8 §1.2](workplan/24-p8-implementation.md)
+  with one more scope, which is why [P8 §1.2](workplan/25-p8-implementation.md)
   was told to decide book granularity *knowing a fourth key is coming* and can
   now decide it knowing what the key is.
 - **A hook fired once does not fire again.** Session creation copies hooks from
@@ -338,7 +338,7 @@ the first one's shape rather than inventing a parallel view.
 **Continuity checking is not part of this.** Reading established state back
 against recent turns to flag contradictions is a separate, more expensive
 feature with a false-positive problem the bible does not have, and it stays on
-the feature list ([24 §2c.2](24-roadmap.md)). The bible is what makes it
+the feature list ([25 §2c.2](25-roadmap.md)). The bible is what makes it
 *possible* later; it is not a down payment on it.
 
 ## 8. Transport, and what a World is not allowed to carry
@@ -360,10 +360,10 @@ a World *means* rather than what it validates:
   authored content, and the content/production seam is what makes it safe to
   accept one.
 
-**Rules travel; code does not.** [25 A2](25-open-questions.md)'s answer is
+**Rules travel; code does not.** [26 A2](26-open-questions.md)'s answer is
 unchanged in substance and moves with the name: **a World may ship rules, never
 code.** The security boundary is the closed vocabulary, which is why the
-authoring tier ([16 §2](16-authoring.md)) can hand authors real power without
+authoring tier ([17 §2](17-authoring.md)) can hand authors real power without
 making an import a code-execution decision.
 
 ## 9. The word, and a collision this document created and then resolved
@@ -404,7 +404,7 @@ two get separated; this one records that they were ever one word.
   ([03 §5](03-data-model.md)) and is not what this is.
 - **Not automatic.** Sessions do not join a canon by resembling each other. A
   World is something a person makes and puts things into, for the same reason
-  chapterisation is manual ([25 E1](25-open-questions.md)): a human knows where
+  chapterisation is manual ([26 E1](26-open-questions.md)): a human knows where
   a continuity's edges are and a heuristic does not.
 - **Not a second memory store.** World-scoped memory is the existing mechanism
   with a fourth key, not a parallel system ([08](08-cross-session-memory.md)).

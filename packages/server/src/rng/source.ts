@@ -5,7 +5,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 
 /**
  * Where the numbers actually come from —
- * [19 §14.3](../../../../docs/design/19-tech-stack.md).
+ * [20 §14.3](../../../../docs/design/20-tech-stack.md).
  *
  * **`node:crypto`, and `randomInt` specifically.** It is uniform, where the
  * naive `Math.floor(Math.random() * n)` is subtly *non*-uniform — the sort of

@@ -32,7 +32,7 @@ import { callPurposeFor, type StepCallRequest, type StepDefinition } from './ste
 import { missMessage, needsPrompting, schemaInstruction, schemaMiss } from './structured.js';
 
 /**
- * One model call, and the record of it — [21 §1.4].
+ * One model call, and the record of it — [22 §1.4].
  *
  * Everything a call needs to become a `ModelCall` happens here: resolving the
  * role, budgeting against the endpoint that answered, assembling, rendering,
@@ -112,7 +112,7 @@ export interface CallContext {
   defaults?: RoleBindings;
   usable: Connection[];
   /**
-   * The session's own model overrides — [19 §5.1]'s third and fourth layers,
+   * The session's own model overrides — [20 §5.1]'s third and fourth layers,
    * [P7 §1.9], threaded at [P7.3].
    *
    * **`resolveRole` has implemented these since P2B and nothing outside a test
@@ -129,7 +129,7 @@ export interface CallContext {
   stepRoles?: Record<string, Binding>;
   /**
    * The cast, so a call naming an actor can be resolved with that actor's hint
-   * — [19 §5.1]'s last layer, [P7 §1.9], [P7.3].
+   * — [20 §5.1]'s last layer, [P7 §1.9], [P7.3].
    *
    * **The cards rather than the hints**, because [04 §3]'s `ModelHint` is *"a
    * preference, never a binding"* and the card is the only thing entitled to
@@ -176,7 +176,7 @@ export interface CallOutcome {
  * The randomness rule bans `Math.random` and `node:crypto` outside `rng/`, and
  * drawing backoff through `rng.at()` would put a scheduling artefact on the
  * replay tape. The tape is for draws that affect *outcome*
- * ([19 §14.6](../../../../docs/design/19-tech-stack.md)); a sleep is not one. A named
+ * ([20 §14.6](../../../../docs/design/20-tech-stack.md)); a sleep is not one. A named
  * constant follows `MINUTES_PER_TURN`'s precedent and costs no config key.
  */
 const RETRY_BACKOFF_MS = [250, 1000] as const;
@@ -273,7 +273,7 @@ export interface CallPlan {
   /**
    * The connection the role resolved to. **What dispatch needs and the record
    * never keeps** — a `Connection` holds `apiKey` and `baseUrl`, and the
-   * record is a line in a JSONL file on somebody's disk ([21 §1.4]). Handed
+   * record is a line in a JSONL file on somebody's disk ([22 §1.4]). Handed
    * back rather than re-derived, so `performCall` cannot resolve the role a
    * second time and get a second answer.
    */
@@ -304,7 +304,7 @@ export function planCall(
   // is an admin having removed a connection out from under a binding — and
   // flattening them loses the UI's ability to offer the right one.
   /**
-   * **Both override layers, passed at last** — [19 §5.1], [P7 §1.9], [P7.3].
+   * **Both override layers, passed at last** — [20 §5.1], [P7 §1.9], [P7.3].
    *
    * The step override is keyed by `definition.id` and looked up here rather than
    * declared on the step, which is a correction §1.9 needs: that section says the
@@ -323,7 +323,7 @@ export function planCall(
   const sessionOverride = context.sessionRoles?.[definition.role];
   const stepOverride = context.stepRoles?.[definition.id];
   /**
-   * **The last and weakest layer, reached at last** — [19 §5.1], [P7 §1.9].
+   * **The last and weakest layer, reached at last** — [20 §5.1], [P7 §1.9].
    *
    * A hint applies only when the step says who it is speaking for and that
    * actor's card asks for this role. `resolveRole` does the rest, and what it
@@ -536,7 +536,7 @@ export async function performCall(
            */
           outcome: miss === null ? outcomeOf(result.finishReason) : 'error',
           /**
-           * `retryable`, from the three the vocabulary has ([21 §1.4]) — and it
+           * `retryable`, from the three the vocabulary has ([22 §1.4]) — and it
            * is the honest one: the model said something, it was not the shape,
            * and asking again may work. Not `terminal`, which would tell a UI to
            * stop offering a retry for a case where retrying is the remedy.
@@ -660,7 +660,7 @@ export class CallFailed extends Error {
    * an operator what to change never left the adapter.
    *
    * For the log only, never rendered as UI copy — same terms as
-   * {@link ProviderError.detail}, which [19 §12.7] keeps untranslated.
+   * {@link ProviderError.detail}, which [20 §12.7] keeps untranslated.
    */
   readonly detail: string | undefined;
   readonly partialText: string;

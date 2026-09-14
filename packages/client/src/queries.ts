@@ -53,7 +53,7 @@ import {
 } from './api.js';
 
 /**
- * Server state, through TanStack Query ([19 §6](../../../docs/design/19-tech-stack.md)):
+ * Server state, through TanStack Query ([20 §6](../../../docs/design/20-tech-stack.md)):
  * nearly all client state *is* server state here, and these hooks are the whole
  * of the client's model layer.
  *
@@ -870,7 +870,7 @@ function invalidateProviderSurface(client: QueryClient): void {
  * **Keyed under `me` rather than `admin`, which is the point of the route.**
  * `SettingsPage` renders the admin sections only for an admin, so an
  * `admin`-keyed query would make this pane unmountable for the people
- * [19 §5.1] wrote it for: *"anyone who wants their own key overrides a role
+ * [20 §5.1] wrote it for: *"anyone who wants their own key overrides a role
  * without the admin's involvement"*.
  */
 export function useMyRoles(): UseQueryResult<MyRoles> {
@@ -883,7 +883,7 @@ export function useMyRoles(): UseQueryResult<MyRoles> {
  * **Not optimistic, unlike `usePatchPrefs`.** A preference's whole feedback is
  * the page changing, so a lag reads as a broken control; a binding's feedback is
  * a *resolution* the server computes, and guessing at it here would mean
- * reimplementing [19 §5.1]'s layering in the browser — the second copy
+ * reimplementing [20 §5.1]'s layering in the browser — the second copy
  * `GET /api/me/roles` exists to avoid. So the answer is awaited and the table
  * re-read.
  */

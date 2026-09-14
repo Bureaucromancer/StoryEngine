@@ -103,7 +103,7 @@ export class SillyTavernReader implements SourceReader {
       };
     } catch {
       // A broken settings file costs the personas and nothing else. One poisoned
-      // file never aborts a sweep ([21 §4.1.1]).
+      // file never aborts a sweep ([22 §4.1.1]).
       return { names: {}, descriptions: {} };
     }
   }

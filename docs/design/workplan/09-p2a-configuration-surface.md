@@ -48,7 +48,7 @@ without a text editor is [P2B](10-p2b-provider-configuration.md)'s demo, not
 this one.
 
 **P2A is where three things stop being documents.**
-[21 §4.2](../21-internal-contracts.md)'s *"the settings UI writes this file"*,
+[22 §4.2](../22-internal-contracts.md)'s *"the settings UI writes this file"*,
 including the self-write rule it attaches; `pendingRestart()`, which P2 built,
 tested, and left with no caller ([P2 Appendix A](08-p2-implementation.md)); and
 `Capabilities`, a persisted shape since P1 that nothing has ever honoured.
@@ -71,7 +71,7 @@ behave as though it exists**, and each is currently saying something untrue:
 
 - **`config.example.json` calls the settings UI "the primary path"** for
   configuration, in its own header, in the file every operator reads first.
-- **[21 §4.2](../21-internal-contracts.md) contracts the write path** — *"The
+- **[22 §4.2](../22-internal-contracts.md) contracts the write path** — *"The
   settings UI ([10 §15](../10-ui-surfaces.md)) writes this file"* — and derives
   a self-write-suppression requirement from it.
 - **[09 §4.5](../09-server-multiuser-deployment.md) commissioned a specific
@@ -141,7 +141,7 @@ found. [The API doc](../../api.md) carries the same claim and gets the same fix.
 
 ### 2.2 B13 closes: preferences are a per-user file
 
-[25 B13](../25-open-questions.md) is the only question in its block still marked
+[26 B13](../26-open-questions.md) is the only question in its block still marked
 OPEN, and it leans to the third of three answers: a separate per-user file
 rather than `localStorage` or a map on `Account`. **The lean is already written
 into the layout** — [09 §4.3](../09-server-multiuser-deployment.md)'s canonical
@@ -248,7 +248,7 @@ of what it declares is not true of the running server.**
 - **`ConfigSchema` does not close `additionalProperties`**, so a validated `PUT`
   would accept a credential-shaped key and the unknown-key-preserving write
   would put it on disk. That falsifies the structural claim
-  [21 §4](../21-internal-contracts.md) makes about config having nowhere to put
+  [22 §4](../22-internal-contracts.md) makes about config having nowhere to put
   a key.
 
 **The repairs, in the order they have to happen:**
@@ -258,7 +258,7 @@ of what it declares is not true of the running server.**
   computed per request, stored nowhere. That makes it self-healing: change a
   value, change it back, the notice clears, because it is derived rather than
   accumulated. A stored field would be a second source of truth for a derived
-  value, which is what [21 §4](../21-internal-contracts.md) argues against at
+  value, which is what [22 §4](../22-internal-contracts.md) argues against at
   length.
 - **`applyLiveConfig` assigns into the running config in place** rather than
   replacing it, so every holder of that reference sees the change. Its own
@@ -289,7 +289,7 @@ of what it declares is not true of the running server.**
 
 **The tier table travels to the client as data**, because the client may not
 import from the server package and a duplicated table would falsify
-[21 §4](../21-internal-contracts.md)'s claim that the annotation is the source.
+[22 §4](../22-internal-contracts.md)'s claim that the annotation is the source.
 Sending it means a key a newer build adds renders with the right badge without a
 client release.
 
@@ -452,7 +452,7 @@ which is B13's rot-quietly position asserted rather than described.
 
 *Ends at:* a signed-in person changes their display name, locale and password
 through the API, cannot change their role by asking, and a preference survives a
-move to another browser — closing [25 B13](../25-open-questions.md).
+move to another browser — closing [26 B13](../26-open-questions.md).
 
 ### P2A.3 — Capability enforcement
 
@@ -526,10 +526,10 @@ exist ([testing §3.5](03-testing.md)) and P2A does not create it.
 ### P2A.7 — Docs and drift
 
 [The API doc](../../api.md) gains the settings and administration sections and
-loses two false claims; [25 B13](../25-open-questions.md) is marked resolved in
+loses two false claims; [26 B13](../26-open-questions.md) is marked resolved in
 the file's own vocabulary; [10 §15.2](../10-ui-surfaces.md)'s `[OPEN]` closes;
 [10 §15.5](../10-ui-surfaces.md) names which bullets P2A actually closed;
-[21 §4](../21-internal-contracts.md)'s tier table gains the four keys and the
+[22 §4](../22-internal-contracts.md)'s tier table gains the four keys and the
 re-tier.
 
 *Ends at:* no document still says capability enforcement waits for P10, and no

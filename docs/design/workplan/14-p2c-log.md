@@ -80,7 +80,7 @@ person.
 build     p1-106-g5881765
 endpoint  local stub, streaming
 session   every turn in the run
-expected  [21 §1.4] calls usage provider-reported, not estimated — so with no
+expected  [22 §1.4] calls usage provider-reported, not estimated — so with no
           usage the record should say it has none
 observed  Turn.cost.promptTokens: 0, completionTokens: 0. ModelCall.cost is
           correctly null one level below.
@@ -252,7 +252,7 @@ build     p1-106-g5881765
 endpoint  n/a
 session   rm -rf the data directory while the server is running
 expected  a half-teardown, with the index surviving — [§1.4] says so
-observed  both SQLite stores survive, including `state/`, which [21 §5.1] says
+observed  both SQLite stores survive, including `state/`, which [22 §5.1] says
           is not disposable — while its own signing key, a plain file beside it,
           does not. And `config.json` goes, so the next start silently reverts
           to the 8080 default with `fileFound: false` and no warning.
@@ -364,7 +364,7 @@ so the claim can be refuted.*
 
 **The five homes, from [P2C §2.5](12-p2c-first-real-run.md):** stopped the phase ·
 fixed inside it · a gate correction · [polish](06-polish.md) ·
-[PLAYABLE](01-work-plan.md) or [roadmap](../24-roadmap.md).
+[PLAYABLE](01-work-plan.md) or [roadmap](../25-roadmap.md).
 
 **And a correction to that rule, earned by running it.** Five homes assume every
 entry is a defect. Two of these fourteen are not — **10 and 14 are an

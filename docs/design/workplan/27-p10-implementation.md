@@ -1,8 +1,8 @@
-# 26 — P10 implementation plan
+# 27 — P10 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md), [P8](24-p8-implementation.md),
-[P9](25-p9-implementation.md) and [P11](27-p11-implementation.md); to be
+[P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
+[P9](26-p9-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
 citation convention as [P4](16-p4-implementation.md)'s.
@@ -31,7 +31,7 @@ and will read as a list unless it is given a test. The test:
 > who is not the developer.**
 
 Anything here that does not sit on that line should be checked against
-[P11](27-p11-implementation.md) before it is built, and anything found elsewhere
+[P11](28-p11-implementation.md) before it is built, and anything found elsewhere
 that does sit on it belongs here.
 
 **CI this phase establishes:** the route-enumeration assertion extended —
@@ -142,7 +142,7 @@ channel; the client renders the in-app part.
 
 The wrinkle this phase inherits: the routing signal the design names — per-user
 presence, Active/Idle/DND/Invisible — **arrives with Messages, which is now
-unscheduled** ([24 §3.4](../24-roadmap.md)). So 1.0
+unscheduled** ([25 §3.4](../25-roadmap.md)). So 1.0
 routes on what it has: connection state, and whether the connected client is
 viewing the session in question. Write it as a presence *input* with one
 implementation rather than as a connection check, so real presence substitutes
@@ -154,8 +154,8 @@ less — [work plan §0.3](01-work-plan.md) records the cost of a seam with no d
 
 [09 §3.5](../09-server-multiuser-deployment.md) lists five 1.0 classes.
 `turn.complete`, `turn.failed` and `system.notice` have producers today;
-`artifact.ready` gets one at [P9](25-p9-implementation.md);
-`turn.awaiting-input` has one only if [25 C5](../25-open-questions.md)'s
+`artifact.ready` gets one at [P9](26-p9-implementation.md);
+`turn.awaiting-input` has one only if [26 C5](../26-open-questions.md)'s
 suspending step exists, which [P3 §1.6](15-p3-implementation.md) notes arrives
 early in a different shape — *park, publish, resume-on-intent* — and warns that
 the obvious name is already taken, since `Turn.status: 'suspended'` means a turn
@@ -168,7 +168,7 @@ for configuration that has no producer.
 ### 1.5 The extensions panel needs installation, and nothing installs
 
 [10 §15.5](../10-ui-surfaces.md) names the blocker plainly. The manifest and the
-lifecycle are specified ([22 §6–§7](../22-extensions.md)) and
+lifecycle are specified ([23 §6–§7](../23-extensions.md)) and
 [P7](23-p7-implementation.md) builds the boundary they run behind, but no
 document owns *acquiring and enabling an extension on an install*.
 
@@ -198,7 +198,7 @@ users have active sessions."*
 ### 1.7 Connectivity state ships with its producer, or it ships dark
 
 [10 §15.5](../10-ui-surfaces.md) lists connectivity state as remaining at P10 and
-names its producer as [P11](27-p11-implementation.md)'s update check;
+names its producer as [P11](28-p11-implementation.md)'s update check;
 [P2B §6](10-p2b-provider-configuration.md) records the same dependency from the
 other side. **Two phases, one signal, in the wrong order.**
 
@@ -391,17 +391,17 @@ where it is found and fixed, not P11.
 ## 4. Out of scope, deliberately
 
 Web Push and outbound webhooks/ntfy/Gotify (with Messages, unscheduled —
-[09 §3.6](../09-server-multiuser-deployment.md), [24 §3.4](../24-roadmap.md)); the service worker that Push
+[09 §3.6](../09-server-multiuser-deployment.md), [25 §3.4](../25-roadmap.md)); the service worker that Push
 implies ([09 §3.7](../09-server-multiuser-deployment.md)); Tailscale at every
-level (feature list at High, [25 D1](../25-open-questions.md)); the file browser
-([25 D3](../25-open-questions.md), roadmap); sharing content between users
-([25 A2e](../25-open-questions.md), deferred deliberately, with the merge path
+level (feature list at High, [26 D1](../26-open-questions.md)); the file browser
+([26 D3](../26-open-questions.md), roadmap); sharing content between users
+([26 A2e](../26-open-questions.md), deferred deliberately, with the merge path
 kept open at [09 §4.3](../09-server-multiuser-deployment.md)); multiplayer and
 shared heads ([09 §8](../09-server-multiuser-deployment.md)); a role system
 ([09 §4.2.1](../09-server-multiuser-deployment.md) — named capabilities, and
 [P2A](09-p2a-configuration-surface.md) already built them); auto-provisioning
-accounts ([25 D2](../25-open-questions.md)); and packaging, all six artifacts of
-which [P11](27-p11-implementation.md) now owns ([work plan §0.5](01-work-plan.md)).
+accounts ([26 D2](../26-open-questions.md)); and packaging, all six artifacts of
+which [P11](28-p11-implementation.md) now owns ([work plan §0.5](01-work-plan.md)).
 
 ---
 
@@ -461,11 +461,11 @@ than after.
   argument.
 - ~~**What the container image actually is.** §1.2 decides the bind default
   inverts inside it; nothing yet says what *it* is, and that is a
-  [19](../19-tech-stack.md) question this phase inherits.~~ **Closed by
+  [20](../20-tech-stack.md) question this phase inherits.~~ **Closed by
   [P6A §2](19-p6a-alpha-1.md)**, which answers it — base image, package manager,
   the workspace prune, the volume, the user, the compose file — rather than
   passing it on again. Worth noting that it was routed to
-  [19](../19-tech-stack.md) and [19](../19-tech-stack.md) never grew a section
+  [20](../20-tech-stack.md) and [20](../20-tech-stack.md) never grew a section
   for it: a question forwarded to a document that does not answer it is a
   question with no owner, which is what this bullet was really recording.
 - **Whether §1.8's system-library bullet found an owner.** It is recorded here

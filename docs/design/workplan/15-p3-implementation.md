@@ -326,7 +326,7 @@ rather than in the assembler.** Four things to state now:
   *enforcement* of §3's *"visibly pending until sent"*, not an obstacle to it.
 
 *A note for P7:* park, publish, resume-on-intent is
-[25 C5](../25-open-questions.md)'s mechanism arriving early — said here so C5
+[26 C5](../26-open-questions.md)'s mechanism arriving early — said here so C5
 attaches rather than rebuilds. But the obvious name is taken:
 `Turn.status: 'suspended'` already means a turn that will resume and complete.
 
@@ -386,7 +386,7 @@ already names the workbench as the surface that owes the shared package. A typed
 block table, a typed verdict and an id-keyed comparison cannot be written over
 `unknown`.
 
-[21 §1](../21-internal-contracts.md)'s *"internal and free to migrate"* is what
+[22 §1](../22-internal-contracts.md)'s *"internal and free to migrate"* is what
 makes this a decision rather than a chore: moving the shapes into `shared` is a
 promise to stop churning them. So it lands *after* the record repairs P3.0 now
 adopts from §3, in the same stage — and that ordering is the reason the
@@ -504,7 +504,7 @@ clause became:
   through is gone.
 - **Read a turn by id**: `findTurnLocation` (the location index's first by-id
   reader), `readTurnById` (index hit verified by id-match, cold-read
-  fallback per [21 §5], tombstones absent on both paths), the route with the
+  fallback per [22 §5], tombstones absent on both paths), the route with the
   file's own 404 discipline, and the client's `readTurn`/`useTurn`.
 
 Every new test was reddened by a named falsifying mutation before its
@@ -894,7 +894,7 @@ the browser walk turned up. What the clauses became:
   the button's name, which is what `aria-valuetext` would have carried. The
   number sits beside the bar rather than on the fill, because `contrast.test`
   enumerates the text-on-surface pairs the palette guarantees.
-- **The estimate is labelled, never corrected**, and [25 E5] gains the
+- **The estimate is labelled, never corrected**, and [26 E5] gains the
   recording line: the shipped approximator is `ceil(length/4)` rather than the
   BPE one that section proposes, the one measurement was 10.3% low — exactly
   its stated tolerance — and a fudge factor would make the meter disagree with
@@ -1118,7 +1118,7 @@ are adopted into P3.0's repair list.
   phase's gate steps now compare something to something else.
 - **An honestly stamped budget `limit.source`.** It reports `preset` for a number
   that is three-quarters of the config default, which hides the exact remedy
-  [21 §1.5](../21-internal-contracts.md) says the field exists to suggest. *And
+  [22 §1.5](../22-internal-contracts.md) says the field exists to suggest. *And
   sharper since the audit:* `limits.contextTokens` is now live-editable from the
   settings form, so the number a person can actually change is precisely the one
   the record mislabels.
@@ -1283,7 +1283,7 @@ its surface in the manipulation, and does not owe a control in Preferences.**
 ## 5. Out of scope, deliberately
 
 **The old fences all survive:** aggregate spend tracking (post-1.0 —
-[24 §3](../24-roadmap.md); per-turn tokens only), the keyword test's lore half
+[25 §3](../25-roadmap.md); per-turn tokens only), the keyword test's lore half
 (P5, §1.7), sibling navigation and the branch-aware history view (P6), the
 workbench over renditions (P9), editor completeness (P11), any assembly logic in
 the client, and **no editing of the record itself** — the record is what happened.
@@ -1377,7 +1377,7 @@ cannot be cut, only rediscovered.
 pressure: **P3.7** first — the only item with a commit-protocol change attached,
 and P3.4's stateless preview keeps the meter honest without it. Then **P3.5**,
 which can be an explicit deferral rather than a build. Then **P3.6**, which is
-where [24 §1.4](../24-roadmap.md) already plans a second entry point and can
+where [25 §1.4](../25-roadmap.md) already plans a second entry point and can
 arrive with it.
 
 **Do not cut the Library subject to make room.** P4's own demo is a converted
@@ -1446,7 +1446,7 @@ shadowed copies, and rows inside their tombstone settling window — with
 portable paths only, never native ones (F22); the FTS row stays out, being a
 search artifact rather than an object fact, and so do `body` (the read
 route's answer) and `mtime`/`size` (watcher bookkeeping). The route is
-documented as best-effort: [21 §5](../21-internal-contracts.md) keeps its
+documented as best-effort: [22 §5](../22-internal-contracts.md) keeps its
 implementation-detail posture untouched, the drop-and-rescan migration policy
 stays honest, and the projection may return less after an index schema bump
 until the surface catches up. The answer is written into

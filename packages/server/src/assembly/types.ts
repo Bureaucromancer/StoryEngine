@@ -5,7 +5,7 @@ import type { BlockSource } from '@storyengine/shared';
 
 /**
  * The assembly contracts — [03 §8](../../../../docs/design/03-data-model.md),
- * [21 §1.1 and §1.5](../../../../docs/design/21-internal-contracts.md).
+ * [22 §1.1 and §1.5](../../../../docs/design/22-internal-contracts.md).
  *
  * **The record-crossing shapes live in `@storyengine/shared` since [P3.0]**
  * (`packages/shared/src/turn.ts`, with the contracts' documentation): what

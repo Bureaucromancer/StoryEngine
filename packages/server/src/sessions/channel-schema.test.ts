@@ -8,7 +8,7 @@ import { channelDefinition, registerChannel, SE_CLOCK, SE_LORE_TIMING } from './
 import { installBuiltIns } from '../mode-loader.js';
 
 /**
- * A channel's schema, held to — [06 §4.2], [21 §1.2], [P7.1].
+ * A channel's schema, held to — [06 §4.2], [22 §1.2], [P7.1].
  *
  * `ChannelDefinition.schema` arrived one commit ago with no reader; this is the
  * reader, and the assertions are mostly about *which* values the shipped

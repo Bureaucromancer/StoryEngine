@@ -89,7 +89,7 @@ export interface StepDefinition {
  *
  * **This is the shape a step returns, and publishing it settles a divergence
  * the boundary document recorded and left open**
- * ([22 §4](../../../docs/design/22-extensions.md),
+ * ([23 §4](../../../docs/design/23-extensions.md),
  * [P7 §1.2](../../../docs/design/workplan/23-p7-implementation.md)). 22 has a
  * step handing back `blocks: AssembledBlock[]`; the engine has it handing back
  * candidates, and the engine is right — a *block* is what the assembler
@@ -135,10 +135,10 @@ export interface Candidate {
  * What a step hands back when it wants to change channel state. It cannot stamp
  * `before`, `applied` or an id.
  *
- * **The second divergence [22 §4] recorded, settled the same way**: a step
+ * **The second divergence [23 §4] recorded, settled the same way**: a step
  * *proposes* and the engine decides, so the proposal carries no verdict. 22
  * described a step returning full effects; the engine's narrower shape is the
- * one that makes [21 §1.2](../../../docs/design/21-internal-contracts.md)'s
+ * one that makes [22 §1.2](../../../docs/design/22-internal-contracts.md)'s
  * *a refused effect stays in the record* enforceable, because only the engine
  * can record a refusal.
  */
@@ -153,14 +153,14 @@ export interface EffectProposal {
 /**
  * What a step is given — plain data, and **no guidance**.
  *
- * The omission is the design. [22 §3.1] gives the payload-filter rule this
+ * The omission is the design. [23 §3.1] gives the payload-filter rule this
  * implements — *a step that did not declare `history` does not receive it* — and
  * `reads` names a channel or one of [06 §6]'s pseudo-sources and **nothing that
  * is not a source**, so guidance is not expressible there and could only arrive
  * as an ungated extra.
  *
  * *Was "`history` or `output` and nothing else", which `cast` made wrong 78
- * lines below at [P7.12] — the same sentence [06 §6] and [22 §3.1] carry, and
+ * lines below at [P7.12] — the same sentence [06 §6] and [23 §3.1] carry, and
  * all three needed the same correction (2026-09-13). What matters to the
  * argument is unchanged, and is why the count was never load-bearing: every
  * member of that union is a **source**, and guidance is not one.*
@@ -206,7 +206,7 @@ export interface StepInput {
    * `StepCallRequest.actorId`, which is how an actor reaches `resolveRole`'s
    * last layer.
    *
-   * **Not filtered by `reads`, and the exception is principled.** [22 §3.1]'s
+   * **Not filtered by `reads`, and the exception is principled.** [23 §3.1]'s
    * payload filter is about *sources* — a channel, the history, the output —
    * things a step might not be entitled to. This is the mode's own declaration
    * applied to the mode's own turn, so every step of that mode is entitled to
@@ -226,7 +226,7 @@ export interface StepInput {
    * **A gap a mode found by needing it.** [06 §7.2] asks for *expression
    * selection* as a step writing a channel, and a step could not see an actor's
    * expression set at all: `speakers` above carries ids and nothing else, and
-   * `StepHost` has no library reader until [22 §4]'s capability API. A mode that
+   * `StepHost` has no library reader until [23 §4]'s capability API. A mode that
    * had to be handed its own cast by the engine would be the back door [06 §2]
    * refuses — so the contract widens instead, which is what P7 is for.
    *
@@ -254,7 +254,7 @@ export interface StepInput {
    * which [06 §2] is the section that refuses.
    *
    * **Not filtered by `reads`**, like `input` and `speakers` and for the same
-   * reason: [22 §3.1]'s filter is about *sources* a step might not be entitled
+   * reason: [23 §3.1]'s filter is about *sources* a step might not be entitled
    * to, and this is the mode's own declaration answered for the mode's own
    * session.
    *
@@ -278,7 +278,7 @@ export interface StepResult {
 
 export interface StepCallRequest {
   /**
-   * Which actor this call speaks for — [19 §5.1](../../../docs/design/19-tech-stack.md),
+   * Which actor this call speaks for — [20 §5.1](../../../docs/design/20-tech-stack.md),
    * [P7 §1.9], added at [P7.3].
    *
    * **The last and weakest resolution layer had no way to be reached.** 19 §5.1

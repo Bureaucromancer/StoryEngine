@@ -7,7 +7,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * Schema versioning for the index itself.
  *
  * **The index is derived and disposable, and that changes what a migration is.**
- * [21 §5](../../../../docs/design/21-internal-contracts.md) states the property plainly —
+ * [22 §5](../../../../docs/design/22-internal-contracts.md) states the property plainly —
  * deleting `index.sqlite` costs time and nothing else — so when this schema
  * changes, the correct response is to throw the old one away and rescan rather
  * than to hand-write a migration.
@@ -109,7 +109,7 @@ create index object_by_id on object(id);
 create index object_by_owner_kind on object(owner, schema_id);
 create index object_tombstoned on object(tombstoned_at) where tombstoned_at is not null;
 
--- Search across cards, entries and turn text ([19 §7](../../../../docs/design/19-tech-stack.md)).
+-- Search across cards, entries and turn text ([20 §7](../../../../docs/design/20-tech-stack.md)).
 -- Not an external-content table: keeping it standalone costs a little space and
 -- removes a whole class of desynchronisation bug, which is the right trade for a
 -- store that can be rebuilt whenever it is doubted.
@@ -200,7 +200,7 @@ create index session_by_owner on session(owner, updated_at);
 
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
--- [19 §7.1](../../../../docs/design/19-tech-stack.md) makes three requirements that are
+-- [20 §7.1](../../../../docs/design/20-tech-stack.md) makes three requirements that are
 -- cheap here and awkward later — turn text is indexed on write rather than
 -- lazily, the row stores turn and session ids rather than an offset into a
 -- rendered transcript, and records off the current path stay indexed so a hit

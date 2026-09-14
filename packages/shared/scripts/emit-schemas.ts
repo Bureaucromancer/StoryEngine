@@ -13,7 +13,7 @@ import { PORTABLE_SCHEMAS } from '../dist/index.js';
  * Emits the JSON Schema artefacts.
  *
  * **JSON Schema is the artefact, TypeScript types are the derivative**
- * (docs/design/19-tech-stack.md §4). The direction matters: a third-party tool
+ * (docs/design/20-tech-stack.md §4). The direction matters: a third-party tool
  * validating a `.seworld` has to be able to fetch a schema file, not compile
  * against our types. That is the whole reason the project authors in TypeBox
  * rather than Zod.
@@ -40,7 +40,7 @@ const outputDir = join(here, '..', 'schemas');
  * said `…/storyengine.actor/1.json` while the artefact was
  * `storyengine.actor.1.json`, which makes a published identifier a 404 — and
  * the artefact is published precisely so a third-party tool can fetch one
- * without building anything ([19 §4](../../../docs/design/19-tech-stack.md)).
+ * without building anything ([20 §4](../../../docs/design/20-tech-stack.md)).
  * Flat filenames rather than a directory per kind, so the stale-artefact sweep
  * below stays a one-level `readdir`.
  */

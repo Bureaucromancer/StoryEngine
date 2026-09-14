@@ -9,7 +9,7 @@ import { Badge } from '../ui/Badge.js';
 /**
  * Display names for the six kinds, keyed by folder name. Keyed by the *value*,
  * never the other way around — nothing branches on a displayed string
- * ([19 §12.6](../../../../docs/design/19-tech-stack.md)).
+ * ([20 §12.6](../../../../docs/design/20-tech-stack.md)).
  */
 export const KIND_LABELS: Record<LibraryKind, string> = {
   actors: 'Actors',

@@ -18,7 +18,7 @@ import { installBuiltIns } from '../mode-loader.js';
 import { acceptEffect, type EffectProposal } from './effects.js';
 
 /**
- * The engine decides, and records the decision either way — [21 §1.2].
+ * The engine decides, and records the decision either way — [22 §1.2].
  *
  * The claim under test is that `ChannelDefinition.update` finally means
  * something. It has been a declared field with no consumer since P2.3; a
@@ -94,7 +94,7 @@ describe('a proposal is judged against the channel that owns it', () => {
        * This asserted `after` equalled the value already there, on the reasoning
        * that *"a replay that ignores `applied` still cannot move the clock"* —
        * belt and braces for a replay bug that does not exist, bought at the cost
-       * of the record. [21 §1.2] justifies recording refusals with *"the model
+       * of the record. [22 §1.2] justifies recording refusals with *"the model
        * tried to give itself forty gold and the engine said no"*, and the forty
        * gold was exactly what this pinned out of the record: the workbench
        * rendered `08:00 → 08:00` and said *Rejected* beside it.
@@ -268,7 +268,7 @@ describe('a proposal on a scoped channel', () => {
 });
 
 /**
- * **The `rejectedReason` cause [21 §1.2] lists first and nothing had ever
+ * **The `rejectedReason` cause [22 §1.2] lists first and nothing had ever
  * produced** — [P7.1].
  *
  * That field is documented as *"validation failure, an engine-computed rule

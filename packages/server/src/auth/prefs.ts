@@ -7,7 +7,7 @@ import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 
 /**
- * Client preferences, per user — [25 B13](../../../../docs/design/25-open-questions.md),
+ * Client preferences, per user — [26 B13](../../../../docs/design/26-open-questions.md),
  * closed at [P2A §2.2](../../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * B13 offered three homes and this is the third: a file beside the user's data

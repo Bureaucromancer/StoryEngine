@@ -175,7 +175,7 @@ export class MarinaraReader implements SourceReader {
    * first thing a converter written against the table shape gets wrong. A row
    * whose inner parse fails is one `warn` line and the table converts around it:
    * one poisoned *row* never aborts a table, which is the row-level sibling of
-   * the rule F22 already paid for ([21 §4.1.1]).
+   * the rule F22 already paid for ([22 §4.1.1]).
    */
   async *#actors(table: string, format: string): AsyncIterable<SourceItem> {
     const rows = await this.#rows(table);

@@ -419,7 +419,7 @@ async function findVanishedDuplicates(
  * moment there are two: every site needs a sibling, missing one leaves a stale
  * row in a store whose entire claim is that it is derived and trustworthy, and
  * the failure is silent and survives a restart —
- * [21 §5](../../../../docs/design/21-internal-contracts.md)'s invariants exist
+ * [22 §5](../../../../docs/design/22-internal-contracts.md)'s invariants exist
  * to forbid exactly that. So the knowledge of *which tables an object writes
  * into* lives here, and a table added later is one line rather than a search
  * for call sites somebody has to get complete.

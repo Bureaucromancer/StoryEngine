@@ -126,7 +126,7 @@ export const GOAL_CHANNEL: ChannelDefinition = {
    */
   schema: { type: ['string', 'null'], enum: [...GOAL_STATES, null] },
   /**
-   * ***[25 C12]'s confirmation gate, settled here rather than left open***
+   * ***[26 C12]'s confirmation gate, settled here rather than left open***
    * (2026-09-13, [P7.6]). The question was *"whether narrative completion
    * should require confirmation before it fires"*, and the answer is **yes**,
    * for the reason C12 itself gives and nothing more: *"a missed completion is
@@ -232,7 +232,7 @@ export function readConcluded(channels: Readonly<Record<string, { value: unknown
  *
  * **Derived rather than stored**, like every other *when* in this phase: the
  * answer has to change under a rewind, and a stored turn id would point at a
- * node this branch does not contain. *That retention is what [25 E1] wants for
+ * node this branch does not contain. *That retention is what [26 E1] wants for
  * the reading view — "an adventure's goal chain is a much better spine for
  * chapters than word count is" — and it is free the moment the state is an
  * effect rather than a field.*
@@ -259,7 +259,7 @@ export function achievedOn(path: readonly Turn[]): Map<string, string> {
  * sentence they are playing toward.
  */
 /**
- * Goals the narrator said were met and a person has not ruled on — [25 C12]'s
+ * Goals the narrator said were met and a person has not ruled on — [26 C12]'s
  * gate seen from the panel's side.
  *
  * ***Answered, not acknowledged***, which is the rule {@link pendingStatuses}
@@ -303,7 +303,7 @@ export interface GoalRow {
   current: boolean;
   achieved: boolean;
   /**
-   * The narrator judged this met and it is waiting on a person — [25 C12].
+   * The narrator judged this met and it is waiting on a person — [26 C12].
    * Never true at the same time as {@link achieved}: confirming applies the
    * write, which clears this on the same walk.
    */

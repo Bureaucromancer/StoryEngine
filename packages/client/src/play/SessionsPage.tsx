@@ -390,7 +390,7 @@ export function SessionsPage(): React.JSX.Element {
  * What the closed disclosure says the session will be given.
  *
  * One string rather than a sentence assembled around values in JSX, which is
- * the shape [19 §12.6a] forbids — and it is closed by default, so this line is
+ * the shape [20 §12.6a] forbids — and it is closed by default, so this line is
  * the only thing standing between somebody and a session that retrieves
  * nothing, which is the state every session was in before [P6B.0].
  */

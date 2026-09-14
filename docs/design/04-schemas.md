@@ -5,7 +5,7 @@ agreeing before code, because other people's data ends up in them.
 
 Written as TypeScript for readability. The implementation derives these from
 TypeBox, and **the published artifact is JSON Schema**
-([19 §4](19-tech-stack.md)) — third-party tools need a schema they can validate
+([20 §4](20-tech-stack.md)) — third-party tools need a schema they can validate
 against without compiling our types.
 
 ---
@@ -48,7 +48,7 @@ character.**
 **Turn records are internal despite being large and valuable.** They never leave
 the install, so they can churn freely — which matters, because the assembler
 will churn. With one horizon worth knowing: session export is wanted eventually
-([25 B12](25-open-questions.md)), and when it ships the turn record becomes a
+([26 B12](26-open-questions.md)), and when it ships the turn record becomes a
 portable format and this freedom ends.
 
 ---
@@ -192,7 +192,7 @@ type MediaRole =
 // lorebook entry as on an actor — *this is what it looks like*, suitable for
 // conditioning generation — which is what lets a later feature treat a
 // location's reference image the way it already treats an actor's
-// ([24 §3](24-roadmap.md)). `map` is the only addition lore needed, because a
+// ([25 §3](25-roadmap.md)). `map` is the only addition lore needed, because a
 // diagram is genuinely not a likeness. `illustration` was considered and
 // rejected as a synonym for `reference` that would leave authors guessing.
 //
@@ -277,7 +277,7 @@ The rest of this design describes style: `tone.styleNotes` says "terse,
 hardboiled", `se.voice` is register and verbal tics and is explicit that it is
 not what somebody sounds like. This is the field that *demonstrates* it — a
 passage from the setting, pasted whole. The precedent is
-[17 §3](17-character-studio.md),
+[18 §3](18-character-studio.md),
 which already separated a style exemplar from a likeness for pictures on the
 grounds that style is a property of the production rather than of the person.
 
@@ -335,7 +335,7 @@ interface Actor {
   /** Prose written *as* this person, offered as an exemplar — §3.1.
    *  Top-level rather than under `profile`, and beside `openings`: the profile
    *  is what somebody is like, while a sample demonstrates how they are
-   *  written, which [17 §3](17-character-studio.md) classes as production. */
+   *  written, which [18 §3](18-character-studio.md) classes as production. */
   writingSamples?: WritingSample[]
   lore: Ref[]                      // linked lorebooks, not embedded
 
@@ -499,7 +499,7 @@ type LoreScope =
 // person owned into every prompt — `global` being both this schema's factory
 // default and the SillyTavern importer's fallback ([03 §3.4]).
 //
-// Two questions left open rather than settled, in [25](25-open-questions.md):
+// Two questions left open rather than settled, in [26](26-open-questions.md):
 // §B14, may `scope` narrow a book the session already chose; and §B15, what a
 // new book's scope should default to. [15 §5.3](15-world.md) is where a
 // consumer would come from — inheritance, designed, not inferred from the
@@ -661,7 +661,7 @@ drawing. The `⚠` on `LoreEntry.media` is untouched and means exactly what it
 said. The panel that spends `primaryMediaId` is [10 §5.3](10-ui-surfaces.md).
 
 The intended first real consumer is rendition conditioning
-([24 §3](24-roadmap.md)): a location's `reference` image is the same shape of
+([25 §3](25-roadmap.md)): a location's `reference` image is the same shape of
 input to *illustrate this scene* that an actor's already is
 ([06 §10.3](06-modes-and-turn-pipeline.md)). That is why `reference` carries the
 same meaning across both kinds rather than lore getting a vocabulary of its own.
@@ -1008,7 +1008,7 @@ for the engine to do with it, so there is nothing to enumerate.
 
 ### 6.2 `contentRating` is advisory — and says so
 
-Settled in [25 E8](25-open-questions.md), recorded here because it constrains
+Settled in [26 E8](26-open-questions.md), recorded here because it constrains
 every surface that displays the field.
 
 **The rating states the author's intent for the material. It is not a statement
@@ -1396,7 +1396,7 @@ type SlotSource =
    *  happened. Every preset decides where it sits relative to the lore. */
   | { of: "input" }
 
-// SlotSource is BlockSource ([21 §1.1](21-internal-contracts.md)) minus its two
+// SlotSource is BlockSource ([22 §1.1](22-internal-contracts.md)) minus its two
 // assembler-only origins — `preset`, because a preset's own prose *is* a
 // TextBlock rather than a reference to one, and `step`, because a step's
 // contribution did not exist when the preset was authored. One vocabulary, used
@@ -1551,7 +1551,7 @@ named consequence, never as a silent drop.
   rather than a silent choice among them.
 - **Instruct and context templates** are not converted at all
   ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
-  completion, which is unsupported ([19 §5.5](19-tech-stack.md)).
+  completion, which is unsupported ([20 §5.5](20-tech-stack.md)).
 
   *Extended at [P4 §7.17](workplan/16-p4-implementation.md): they are now
   **recognised** as well as refused, and **recognising is not converting**.* The
@@ -1869,8 +1869,8 @@ the diff.
 
 | Structure | Why not |
 |---|---|
-| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [21](21-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
-| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([25 B7](25-open-questions.md)). Shape in [21 §1.3](21-internal-contracts.md). |
+| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [22](22-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
+| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([26 B7](26-open-questions.md)). Shape in [22 §1.3](22-internal-contracts.md). |
 | **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
@@ -1883,7 +1883,7 @@ the diff.
   schema-level `maxBytes` hint versus a policy enforced at write time.
 - **[OPEN]** Whether `Openings.seeds` should record the expanded result when a
   user accepts one, or leave that entirely to the session
-  ([25 B9](25-open-questions.md)).
+  ([26 B9](26-open-questions.md)).
 
 **Two entries removed as already answered**, and both had drifted into
 contradicting their own resolutions:

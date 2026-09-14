@@ -27,9 +27,9 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * *"Delete `index.sqlite` → sessions, turns and library all still read, and the
  * admin still logs in. Delete `state.sqlite` → an in-flight turn is lost and
  * that is expected; nothing else is."* The index is derived
- * ([03 §5.1](../../../../docs/design/03-data-model.md), [21 §5](../../../../docs/design/21-internal-contracts.md)),
+ * ([03 §5.1](../../../../docs/design/03-data-model.md), [22 §5](../../../../docs/design/22-internal-contracts.md)),
  * so losing it costs a rescan and nothing a person can perceive except a pause;
- * the operational store is authoritative ([21 §5.1]), so losing it costs
+ * the operational store is authoritative ([22 §5.1]), so losing it costs
  * exactly one thing — the turn that had not been written down yet — and the
  * value of the step is that the cost is *named and bounded* rather than
  * discovered.
@@ -302,7 +302,7 @@ describe('step 15 — deleting index.sqlite costs a rescan and nothing a user ca
      * **(4) The turn reads back with its record, not just its id.**
      *
      * `request.calls` is the part that would be quietly lost by a store that
-     * kept only what search needs, and `resolved` is [21 §1.4]'s answer to *"why
+     * kept only what search needs, and `resolved` is [22 §1.4]'s answer to *"why
      * is this turn different"* — a turn record without it is a log line.
      */
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -341,7 +341,7 @@ describe('step 15 — deleting index.sqlite costs a rescan and nothing a user ca
 });
 
 /**
- * The other half of the asymmetry — [21 §5.1], [P2 §2.10].
+ * The other half of the asymmetry — [22 §5.1], [P2 §2.10].
  *
  * `state.sqlite` holds the idempotency reservations, the job rows and the
  * in-progress draft, and none of those is a restatement of anything on disk.
@@ -444,7 +444,7 @@ describe('step 15 — deleting state.sqlite loses the turn in flight and nothing
      * With the store intact this is the case `recovery.test.ts` covers — the job
      * is still active at startup and `reconcile` finalises it into a failed turn
      * carrying its blocks. Here there is no job row to walk, so the reported
-     * outcome is empty, and that emptiness is precisely the cost [21 §5.1]
+     * outcome is empty, and that emptiness is precisely the cost [22 §5.1]
      * names. A non-empty `finalised` here would mean the delete had not taken.
      */
     expect(server.services.reconciliation).toEqual({
@@ -631,7 +631,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
 
     /**
      * And the effects are chained rather than each computed from the pre-turn
-     * state: the second turn's `before` is the first turn's `after`. [21 §1.2]
+     * state: the second turn's `before` is the first turn's `after`. [22 §1.2]
      * makes `before` stored rather than derived so that undoing the tip is an
      * apply and not a replay of 0..N−1, and an unchained `before` would restore
      * a value that had already been superseded — invisible in the head snapshot

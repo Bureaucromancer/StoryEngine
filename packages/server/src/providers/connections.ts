@@ -58,7 +58,7 @@ export interface Connection {
   models: string[];
   /**
    * Per-connection capability overrides, because a limit is a property of *this
-   * endpoint* ([19 §5.3](../../../../docs/design/19-tech-stack.md)).
+   * endpoint* ([20 §5.3](../../../../docs/design/20-tech-stack.md)).
    */
   capabilities?: Partial<ProviderCapabilities>;
 }
@@ -447,7 +447,7 @@ export async function writeConnection(
    * key's argument above always covered and this code did not.
    *
    * The form has no field for them — deliberately, since
-   * [19 §5.3](../../../../docs/design/19-tech-stack.md) makes them the operator saying something
+   * [20 §5.3](../../../../docs/design/20-tech-stack.md) makes them the operator saying something
    * about their own endpoint rather than a setting with a sensible default — so
    * it sends none, and a write that took `input.capabilities` alone **deleted
    * whatever was on disk every time somebody renamed a connection.**

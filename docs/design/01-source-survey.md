@@ -41,7 +41,7 @@ and should be read as such — a promise this document previously made in the fo
 *"and marked as such"*, which it never kept: no claim anywhere below carries an
 inference marker. Stating the caveat once here is honest; the per-claim version
 was not. (The Noodle subsystem was on this list until it was read; the notes are
-at [24 §4.6](24-roadmap.md), and [triage §9](workplan/02-triage.md) had already
+at [25 §4.6](25-roadmap.md), and [triage §9](workplan/02-triage.md) had already
 struck it here.)
 
 ---

@@ -131,7 +131,7 @@ describe('a mode can be written against the SDK alone', () => {
    * **A test is what makes *by accident* impossible.** Every widget arm is a
    * label plus something the server already rendered; the day one of them takes
    * markup is the day an extension can break the app's rendering, and the day
-   * the frontend framework stops being a reversible decision ([19 §6]). Written
+   * the frontend framework stops being a reversible decision ([20 §6]). Written
    * over a value rather than over the type because a type cannot be asserted at
    * run time — what this catches is a field arriving on a declaration, which is
    * where it would arrive.

@@ -210,7 +210,7 @@ describe('a hand edit leaves history behind', () => {
    * **The retention cap is read when a snapshot is taken, not when the watcher
    * was built** — [P2A §2.5].
    *
-   * `history.keepPerObject` is tiered `live` ([21 §4]), and the watcher used to
+   * `history.keepPerObject` is tiered `live` ([22 §4]), and the watcher used to
    * copy it into a private field at construction — so on a running server the
    * routes' write path and the watcher's could be trimming one object's history
    * to two different depths, and a change to the setting reached neither. The
@@ -446,7 +446,7 @@ it('says so when a hand-edited file cannot be read', async () => {
   });
 
   const line = lines.find((entry) => entry['event'] === 'library.invalid');
-  // Relative to the data root, which is what [21 §4.1] requires of a path in
+  // Relative to the data root, which is what [22 §4.1] requires of a path in
   // a log — the log is the thing people paste into issues.
   expect(String(line?.['path'])).not.toContain(library.layout.dataRoot);
   expect(String(line?.['path'])).toContain('rain-city');

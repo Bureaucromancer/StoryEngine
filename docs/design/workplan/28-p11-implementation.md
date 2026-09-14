@@ -1,7 +1,7 @@
-# 27 — P11 implementation plan
+# 28 — P11 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md) through [P10](26-p10-implementation.md); to be
+[P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for, and this is the furthest one — so it is the most a
 *register of deferrals* and the least a plan. Format follows
@@ -18,8 +18,8 @@ the in-app update check, the localisation catalogue extraction sweep
 accessibility audit, and **packaging as all six artifacts**.
 
 **Plus three things [work plan §0.5](01-work-plan.md) moved into 1.0 after this document
-was first written**: session export ([25 B12](../25-open-questions.md)), backup
-and restore with its CI restore test ([25 E6](../25-open-questions.md),
+was first written**: session export ([26 B12](../26-open-questions.md)), backup
+and restore with its CI restore test ([26 E6](../26-open-questions.md),
 [testing](03-testing.md)), and the four packaging artifacts that used to sit at a
 "1.0 bar" nothing owned. §1.8 covers what that does to this phase's size, which
 is the honest question.
@@ -197,7 +197,7 @@ documents leaving it to the other.
 
 ### 1.6 The update check produces a signal P10 already ships a surface for
 
-[P10 §1.7](26-p10-implementation.md) states this from the other side and leans to
+[P10 §1.7](27-p10-implementation.md) states this from the other side and leans to
 moving the check into P10. Recorded here so the two plans do not both defer it:
 **the check is small**, [09 §6.5](../09-server-multiuser-deployment.md) argues
 the connectivity signal is free because the request is being made anyway, and its
@@ -241,7 +241,7 @@ with a requirement and no builder.
 *Corrected at [P6A](19-p6a-alpha-1.md), which had to count them.* This paragraph
 listed **five** names as those four, by including the unraid template
 ([09 §5.3](../09-server-multiuser-deployment.md)) — which is not one of the six.
-[25 D0b](../25-open-questions.md)'s canonical enumeration is OCI image, tarball,
+[26 D0b](../26-open-questions.md)'s canonical enumeration is OCI image, tarball,
 `.deb`, AUR, Windows service installer and Homebrew formula, and
 [09 §5.4](../09-server-multiuser-deployment.md) calls the template *"a thin
 wrapper over"* Tier 1 rather than an artifact beside it. The old sentence's
@@ -258,7 +258,7 @@ an audience.
 
 **Session export is the largest of the three and the one with a dependency.**
 It drags `localActors`, channel state, branch structure and renditions
-([25 B12](../25-open-questions.md)), and it **freezes the turn record** — which
+([26 B12](../26-open-questions.md)), and it **freezes the turn record** — which
 is why [13 §4](../13-write-mode.md) has to be settled before the format is
 fixed, not after. That is a design dependency on a document about a 2.0 feature,
 and it is the sharpest scheduling consequence of the release re-cut. If §2's
@@ -266,7 +266,7 @@ audit finds 17 unsettled when this stage arrives, the stage blocks on 17 rather
 than guessing.
 
 **And it has a second reader nobody in the room represents** — *added
-2026-09-01, from [18 §3](../18-session-import.md).* [25 E4](../25-open-questions.md)
+2026-09-01, from [19 §3](../19-session-import.md).* [26 E4](../26-open-questions.md)
 makes session *import* conditional on an interchange format and says the format
 begins here: *"a format designed with import in mind and a format designed
 without it are different documents, and only one of them can be written at
@@ -280,7 +280,7 @@ free while the format is being written:
    anyone deciding to.
 2. **Leave somewhere for a foreign identifier**, tolerating its absence. The
    three surveyed sources supply a message id, a message id, and nothing at all
-   ([18 §2.1](../18-session-import.md)) — and the one with nothing is the most
+   ([19 §2.1](../19-session-import.md)) — and the one with nothing is the most
    widely deployed.
 3. **Export siblings, not the path.** Every read surface today walks
    `walkPath(head)`; serialising that drops every swipe, which
@@ -299,7 +299,7 @@ Only the fourth costs more by waiting, and it is the one that looks least like
 this stage's business.
 
 **Backup and restore is the smallest.** Quiesce, archive excluding the index,
-restore and rebuild ([25 E6](../25-open-questions.md)). The part that matters is
+restore and rebuild ([26 E6](../26-open-questions.md)). The part that matters is
 the CI restore test, which belongs to [testing](03-testing.md) rather than here.
 
 **What this means for the phase.** P11 was already the largest and least
@@ -331,15 +331,15 @@ count, so the phase's size is known before it starts rather than discovered.
 **The audit does not start from nothing.** A surface sweep on 2026-09-11 ran
 this pass early over [10](../10-ui-surfaces.md) against every phase document,
 and placed what it found: [manual testing §10](05-manual-testing.md) carries the
-rows, [P7B](28-p7b-presets-and-prompts.md) took the prompt-handling surfaces,
-and [P10.3](26-p10-implementation.md), [P10.4](26-p10-implementation.md), P11.1,
+rows, [P7B](24-p7b-presets-and-prompts.md) took the prompt-handling surfaces,
+and [P10.3](27-p10-implementation.md), [P10.4](27-p10-implementation.md), P11.1,
 P11.2 and P11.7 below each gained the items placed with them, dated. What this
 stage owes is the re-run rather than the repeat: the items that arrived after
 that date, and a check that the placements held — a placement is a routing, and
 [manual testing §10.1](05-manual-testing.md) is what a routing nobody re-reads
 turns into.
 
-**One additional review input:** [20 — client loading](../20-client-loading.md)
+**One additional review input:** [21 — client loading](../21-client-loading.md)
 records the early bundle-size baseline and expects growth through the intervening
 phases. Its §7 proposes this audit as the point to measure arrival and navigation
 costs, then decide whether route/tool splitting and serving changes need a stage
@@ -374,7 +374,7 @@ half of this is [polish §1–§2](06-polish.md)'s and lands there or here but n
 twice.
 
 **And the editors that have to exist before a contract can be applied across
-them.** [P7B](28-p7b-presets-and-prompts.md) brings presets and treatments;
+them.** [P7B](24-p7b-presets-and-prompts.md) brings presets and treatments;
 P7.4 writes setups through the wizard, which [10 §6](../10-ui-surfaces.md) makes
 the setup's editor by design; **packages have no editor and no other phase**,
 so the package editor is this stage's — a bundle's editor is a picker over the
@@ -429,7 +429,7 @@ lorebook. Placed 2026-09-11; nothing had named a phase before.
 ### P11.8 — The localisation sweep
 
 §1.3: extraction into catalogues, the deliberately bad machine-generated French
-for testing ([19 §12.4](../19-tech-stack.md)), and missing keys falling back to
+for testing ([20 §12.4](../20-tech-stack.md)), and missing keys falling back to
 English **silently, per key** — a 60%-translated UI should look bilingual, not
 broken.
 
@@ -441,7 +441,7 @@ container and the tarball from a tag; the release cut automated — tag, build,
 publish, changelog; channels wired and *boring*, because a nightly that is often
 broken is worse than none ([releases §4](04-repo-and-releases.md)); version and
 commit embedded in the build, which AGPL §13 requires anyway and which
-[P10](26-p10-implementation.md) needs for its About surface.
+[P10](27-p10-implementation.md) needs for its About surface.
 
 **Written once already, at [P6A](19-p6a-alpha-1.md), and that changes what this
 stage is.** Three of [work plan §8](01-work-plan.md)'s seven bullets were taken there on
@@ -507,14 +507,14 @@ gets removed.
 
 ## 4. Out of scope, deliberately
 
-The branch tree visualiser ([24 §1](../24-roadmap.md)); the file browser
-([25 D3](../25-open-questions.md)) and Tailscale
-([25 D1](../25-open-questions.md)), all three on the feature list; the Character
-Studio ([17](../17-character-studio.md)), which is a committed release at 3.0
+The branch tree visualiser ([25 §1](../25-roadmap.md)); the file browser
+([26 D3](../26-open-questions.md)) and Tailscale
+([26 D1](../26-open-questions.md)), all three on the feature list; the Character
+Studio ([18](../18-character-studio.md)), which is a committed release at 3.0
 rather than a feature-list entry; the prologue
-packages that unblock once export lands ([25 B10](../25-open-questions.md));
-chapterisation and embeddings ([24 §3](../24-roadmap.md),
-[25 E2](../25-open-questions.md)); quality evals of any kind
+packages that unblock once export lands ([26 B10](../26-open-questions.md));
+chapterisation and embeddings ([25 §3](../25-roadmap.md),
+[26 E2](../26-open-questions.md)); quality evals of any kind
 ([testing §4.3](03-testing.md)); and every committed release after 1.0 — the
 Write surface, World, Campaign and the authored-rule tier — which are scheduled
 rather than deferred ([work plan §5](01-work-plan.md)) and whose arrival answers

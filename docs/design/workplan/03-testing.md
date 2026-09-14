@@ -1,6 +1,6 @@
 # 03 — Testing, validation and automation
 
-**Status: proposal.** Expands [19 §13](../19-tech-stack.md), which is now a pointer
+**Status: proposal.** Expands [20 §13](../20-tech-stack.md), which is now a pointer
 here.
 
 Written for a solo developer and a very small team, which is the constraint that
@@ -58,10 +58,10 @@ rule is worth more than a paragraph in a document nobody re-reads.
 
 | Rule | Enforces |
 |---|---|
-| Ban `Math.random` and direct `node:crypto` random outside the RNG service | [19 §14.4](../19-tech-stack.md) |
-| Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [19 §12.6](../19-tech-stack.md) |
+| Ban `Math.random` and direct `node:crypto` random outside the RNG service | [20 §14.4](../20-tech-stack.md) |
+| Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [20 §12.6](../20-tech-stack.md) |
 | No sentence assembled from fragments, and no branching on displayed text | [work plan §2](01-work-plan.md)'s reduced i18n discipline |
-| No hand-rolled date/relative-time formatting; `Intl` only | [19 §12.6](../19-tech-stack.md) |
+| No hand-rolled date/relative-time formatting; `Intl` only | [20 §12.6](../20-tech-stack.md) |
 | No direct `fs` outside the storage package | keeps the path-resolution helper the only door |
 | `config.example.json` declares every key the schema does | [work plan §2.3](01-work-plan.md)'s mechanically checkable core |
 
@@ -86,7 +86,7 @@ the thing that actually forecloses translation. Recorded at
 day one and is being narrowed rather than quietly dropped.
 
 **Architectural boundaries deserve the same treatment**, and here it is not
-hygiene but the enforcement of a stated design bet. [19 §10](../19-tech-stack.md)
+hygiene but the enforcement of a stated design bet. [20 §10](../20-tech-stack.md)
 says built-in modes must consume the published SDK exactly as a third party
 would — "a discipline mechanism, not organisation". That only holds if
 `modes/*` importing `server` is a **build error**. `dependency-cruiser` or
@@ -164,7 +164,7 @@ regeneration and undo simultaneously.
 
 - Validate every fixture and every shipped system-library object against the
   JSON Schemas, in CI. Free, given schemas are the artefact
-  ([19 §4](../19-tech-stack.md)).
+  ([20 §4](../20-tech-stack.md)).
 - **Schema evolution tests**: an object written against `schema/1` must still
   load once `/2` exists, and unknown fields must survive a round trip
   ([04 §2](../04-schemas.md)). Most projects skip this and discover the problem from
@@ -207,7 +207,7 @@ deterministically, including the paths that are hardest to trigger for real:
   ([00 §2.3](../00-stance.md));
 - provider errors, rate limits, timeouts, mid-stream disconnection;
 - prompt-cap overrun and the fragment-dropping behaviour
-  ([19 §5.3](../19-tech-stack.md));
+  ([20 §5.3](../20-tech-stack.md));
 - a step failing without failing the turn.
 
 Because it records requests, it also *is* the golden-file harness from §3.1.
@@ -345,14 +345,14 @@ Two project-specific automations worth having beyond the usual:
   ([releases §3](04-repo-and-releases.md)).
 - **Restore test**, nightly, beside the upgrade test. Populate a data directory,
   back it up, restore into a clean install, assert the library and sessions come
-  back. **An untested restore is not a backup** ([25 E6](../25-open-questions.md)),
+  back. **An untested restore is not a backup** ([26 E6](../26-open-questions.md)),
   and this is the whole reason the backup story can stay as small as it is — the
   index being derived means the archive excludes it and the restore rebuilds it.
   **This is a 1.0 requirement rather than an eventual nicety**
   ([work plan §0.5](01-work-plan.md)): backup and restore moved off the feature list and
   into P11, and this test is the half of it that actually establishes anything.
 - **Session export round-trip.** Export ships at 1.0
-  ([25 B12](../25-open-questions.md), [work plan §0.5](01-work-plan.md)) and freezes the
+  ([26 B12](../26-open-questions.md), [work plan §0.5](01-work-plan.md)) and freezes the
   turn record when it does. Export a session with branches, `localActors`,
   channel state and renditions; re-import it; assert the tree, the effects and
   the reading order survive. This is the test that makes "the record is frozen"
@@ -364,7 +364,7 @@ Renovate or Dependabot for updates, grouped so the noise stays manageable.
 
 ## 7. The extension test kit
 
-Extensions are third-party code running in our process ([25 A1](../25-open-questions.md)),
+Extensions are third-party code running in our process ([26 A1](../26-open-questions.md)),
 so giving authors the means to test is partly self-defence. Published with the
 SDK:
 
@@ -373,10 +373,10 @@ SDK:
 - **Manifest and channel-schema validation.**
 - **The replay-determinism check** — replay an extension's recorded effects and
   assert its behaviour reproduces. This is what catches unrecorded randomness
-  ([24 §4.5](../24-roadmap.md)), and it is a better guarantee than a lint rule we
+  ([25 §4.5](../25-roadmap.md)), and it is a better guarantee than a lint rule we
   cannot apply to code we do not own.
 
-If the first-party dice and poker extensions ([24 §4.4](../24-roadmap.md)) are
+If the first-party dice and poker extensions ([25 §4.4](../25-roadmap.md)) are
 written against this kit, it stays honest.
 
 ---

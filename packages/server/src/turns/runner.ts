@@ -102,7 +102,7 @@ export interface TurnPayload {
    */
   attempt?: { turnId: string; text: string };
   /**
-   * A previous turn's draws, to replay — **rewrite**, [19 §14.5], [P6.2].
+   * A previous turn's draws, to replay — **rewrite**, [20 §14.5], [P6.2].
    *
    * Present means *same mechanical outcome, different prose*: the roll that
    * decided a lore entry's appearance is taken off the tape rather than made
@@ -153,7 +153,7 @@ export class TurnRunner {
    * Hands the runner the app's logger.
    *
    * Set rather than injected because `buildServices` runs before `buildApp`,
-   * and the logger is Fastify's ([21 §4.1] — one mechanism, one format). The
+   * and the logger is Fastify's ([22 §4.1] — one mechanism, one format). The
    * alternative was building the runner lazily on first use, which would make
    * "is there a runner?" a question with a timing-dependent answer.
    */
@@ -174,7 +174,7 @@ export class TurnRunner {
 
     /**
      * **Bound once, where the job comes into existence** —
-     * [21 §4.1](../../../../docs/design/21-internal-contracts.md) says that in as many words,
+     * [22 §4.1](../../../../docs/design/22-internal-contracts.md) says that in as many words,
      * and says why: it is what makes *filter by job id* a complete lifecycle
      * rather than a sample of one.
      *
@@ -377,7 +377,7 @@ export class TurnRunner {
      * guidance text is the thing a step may specifically not hand back
      * ([06 §5.2]), and it has to reach `collectCandidates` so the fired hook
      * lands in the slot the preset positioned rather than after everything else
-     * ([25 C13(c)]). *The callback is engine code handed to engine code — the
+     * ([26 C13(c)]). *The callback is engine code handed to engine code — the
      * selector is the one step `planFor` does not build.*
      */
     const hooks: { report: HookSelectorReport | null } = { report: null };
@@ -608,7 +608,7 @@ export class TurnRunner {
      * **First, and that is what buys the guidance slot.** Step candidates are
      * appended after the preset's, so a fired hook returned as a candidate would
      * arrive at the end of the prompt instead of where the author positioned
-     * guidance — [25 C13(c)], and §1.5 raised it as the thing that had no
+     * guidance — [26 C13(c)], and §1.5 raised it as the thing that had no
      * answer. Running before every other step means the words are in hand by the
      * time any of them assembles, and `collectCandidates` fills the slot
      * properly.
@@ -927,7 +927,7 @@ export class TurnRunner {
                   defaults,
                   usable,
                   /**
-                   * **[19 §5.1]'s third and fourth layers, passed at last** —
+                   * **[20 §5.1]'s third and fourth layers, passed at last** —
                    * [P7 §1.9], [P7.3]. `resolveRole` has implemented both since
                    * P2B and nothing outside a test had ever handed them over, so
                    * the documented layering described a function rather than
@@ -940,7 +940,7 @@ export class TurnRunner {
                     ? {}
                     : { stepRoles: inputs.session.stepRoles }),
                   // So a call naming an actor can be resolved with that actor's
-                  // hint — [19 §5.1]'s last layer, [P7 §1.9]. The cards, not the
+                  // hint — [20 §5.1]'s last layer, [P7 §1.9]. The cards, not the
                   // hints: a step passes an id and cannot pass a preference its
                   // actor does not hold.
                   cast,
@@ -1132,7 +1132,7 @@ export class TurnRunner {
          * `err: error` serialises the error's own enumerable properties, and a
          * `CallFailed` carries `partialText` and `call` — so a failed step wrote
          * **the whole rendered prompt and the model's partial narration** into
-         * the log. [21 §4.1] says portable object bodies never appear there —
+         * the log. [22 §4.1] says portable object bodies never appear there —
          * *a log is not a backup and user prose is not diagnostic* — and it also
          * says a value a later reader filters on is a field rather than a phrase.
          * A blob of prose is neither.
@@ -1306,7 +1306,7 @@ export class TurnRunner {
     }
 
     /**
-     * **A goal met, after the loop** — [06 §7.3.3], [P7.6], [25 C12].
+     * **A goal met, after the loop** — [06 §7.3.3], [P7.6], [26 C12].
      *
      * ***Attributed to the **model**, which is the one thing that makes
      * `model-proposed` mean anything here.*** The policy exists because
@@ -1472,7 +1472,7 @@ function messageOf(error: unknown): string {
 /**
  * What a step failure is worth saying out loud at.
  *
- * [21 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
+ * [22 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
  * it refused. A cancellation is neither — it is the system doing exactly what
  * was asked — and a step whose author declared `ignore` has said in advance that
  * a failure here is unremarkable.
@@ -1491,7 +1491,7 @@ function levelFor(
  * `err: error` serialises an error's own enumerable properties, and the same
  * `CallFailed` that carries `partialText` and `call` can reach these paths — so
  * the rule the step-failure line already follows applies here too:
- * [21 §4.1] says portable object bodies never appear in a log.
+ * [22 §4.1] says portable object bodies never appear in a log.
  *
  * The stack stays, because these are the *internal* failures — a store that is
  * gone, a setup that threw — where it is the diagnostic rather than noise.

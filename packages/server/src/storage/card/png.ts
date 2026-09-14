@@ -33,7 +33,7 @@ import {
  * little at a time, invisibly, which is the sort of loss nobody notices until it
  * is many saves deep.
  *
- * **Two chunks**, per [25 B5](../../../../../docs/design/25-open-questions.md):
+ * **Two chunks**, per [26 B5](../../../../../docs/design/26-open-questions.md):
  *
  * - `tEXt` with base64 JSON, under our own keyword. Base64 costs ~33% and buys
  *   readability by any tool that can list PNG text chunks, and the JSON is the

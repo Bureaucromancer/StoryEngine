@@ -609,7 +609,7 @@ describe('why the model stopped', () => {
 
   /**
    * A content filter is a refusal, not a failure: the call worked and the
-   * provider declined. [21 §1.4] gives `ModelCall.outcome` a `refused` value
+   * provider declined. [22 §1.4] gives `ModelCall.outcome` a `refused` value
    * that had no producer until this.
    */
   it('reads a content filter as a refusal', async () => {

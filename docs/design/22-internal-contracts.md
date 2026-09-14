@@ -1,4 +1,4 @@
-# 21 — Internal contracts
+# 22 — Internal contracts
 
 **Status: proposal.** The structures that never leave the install but that
 everything is built against.
@@ -112,7 +112,7 @@ feature, not a debug string" needs this to be true of the source as well.
 
 **The most load-bearing type in this document.** It carries reversibility
 ([07 §2](07-branching.md)), it crosses the worker boundary
-([22 §4](22-extensions.md)), it is what a branch replays
+([23 §4](23-extensions.md)), it is what a branch replays
 ([07 §4](07-branching.md)), and it is what undo inverts
 ([00 §2.8](00-stance.md)). An effect that cannot state its own inverse breaks all
 four at once.
@@ -292,7 +292,7 @@ interface ChannelDefinition {
    *  and both are declarations rather than code. [10 §8] */
   surface?: WidgetSpec
   /** Terminal values a person has to confirm before they apply — P7.2, and the
-   *  field [25 C12](25-open-questions.md)'s resolution turns on: a model may
+   *  field [26 C12](26-open-questions.md)'s resolution turns on: a model may
    *  propose that a goal was achieved, and a person says whether it was. */
   confirm?: readonly string[]
   /** Optional, and optional deliberately — most schema evolution never needs
@@ -350,7 +350,7 @@ alteration was fitted to the right thing.
 interface ModelCall {
   id: string
   stepId: StepId
-  role: ModelRole                 // never a model id — [19 §5.1]
+  role: ModelRole                 // never a model id — [20 §5.1]
   /** What this call was allowed to produce, derived from the step's declared
    *  contributes/writes (P3.0). Not recoverable after the fact — StepOutcome
    *  records only the counts — and the committed half of [testing §1]'s
@@ -372,12 +372,12 @@ interface ModelCall {
   messages: RenderedMessage[]     // §2
   params: GenerationParams
   /** Provider-reported, not estimated. The measured half of budgeting with a
-   *  margin ([25 E5](25-open-questions.md)). */
+   *  margin ([26 E5](26-open-questions.md)). */
   usage: { promptTokens: number; completionTokens: number } | null
   cost: { amount: number; currency: string } | null
   wallMs: number
   outcome: "ok" | "refused" | "error"
-  /** Classified per [25 E7](25-open-questions.md), so the UI can offer the
+  /** Classified per [26 E7](26-open-questions.md), so the UI can offer the
    *  right recovery rather than surfacing a provider string. */
   error: { class: "transient" | "retryable" | "terminal"; message: string } | null
   retries: number
@@ -490,7 +490,7 @@ endpoint.
 **So it is a provider capability, not a global choice** — `mergeSameRole` on
 `ProviderCapabilities` (§3), defaulted per known provider and overridable per
 connection, exactly like the prompt caps beside it
-([19 §5.3](19-tech-stack.md)).
+([20 §5.3](20-tech-stack.md)).
 
 ```ts
 interface RenderedMessage {
@@ -519,7 +519,7 @@ Two rules that follow:
 
 ## 3. `ProviderCapabilities`
 
-[19 §5.3](19-tech-stack.md) sketches this and trails off in a `// …`. Completed
+[20 §5.3](20-tech-stack.md) sketches this and trails off in a `// …`. Completed
 here because the adapter layer is P2.
 
 ```ts
@@ -552,7 +552,7 @@ config ([00 §3.2](00-stance.md)).
 Referenced in the storage layout ([03 §5.1](03-data-model.md)), given a
 permission rule ([10 §4](10-ui-surfaces.md)), promised a commented example
 ([03 §5.4](03-data-model.md)), and required by
-[25 D0](25-open-questions.md) to annotate **every key** with a reload tier — with
+[26 D0](26-open-questions.md) to annotate **every key** with a reload tier — with
 no key list anywhere. It is P1 work: the bind address alone decides first-boot
 behaviour.
 
@@ -575,14 +575,14 @@ interface Config {
   limits: {
     maxUploadMb: number
     extensionStorageQuotaMb: number
-    contextTokens: number                    // [25 E5]
+    contextTokens: number                    // [26 E5]
     reservedCompletionTokens: number
     providerTimeoutMs: number                // [P2C §1.3]
   }
   trash: { retentionDays: number }          // [03 §10.2]
   history: { keepPerObject: number }        // [03 §11.3]
   updates: { checkEnabled: boolean; channel: "latest" | "testing" | "nightly" }
-  dev: { enabled: boolean }                  // [19 §14]
+  dev: { enabled: boolean }                  // [20 §14]
 }
 ```
 
@@ -598,12 +598,12 @@ interface Config {
 | `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/08-p2-implementation.md)) |
 | `log.format` | `restart` | `json` | §4.1. `pretty` is not a value: it would be a second dependency no section here names |
 | `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](workplan/01-work-plan.md)) |
-| `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([25 C8](25-open-questions.md)) |
+| `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([26 C8](26-open-questions.md)) |
 | `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
 | `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
 | `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3) |
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
-| `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([25 E5](25-open-questions.md)) |
+| `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([26 E5](26-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
 | `limits.providerTimeoutMs` | `live` | `300000` | How long one call may make **no progress** before the turn abandons it ([P2C §1.3](workplan/12-p2c-first-real-run.md)). Silence rather than duration — a streamed chunk re-arms it — because a multi-minute first token is ordinary on a local runtime and a wall-clock ceiling would kill healthy generations. The resulting failure is `terminal`: it is transient in the ordinary sense, but two retries at the full timeout is three times the hang the key exists to end. `0` disables it |
 | `trash.retentionDays` | `live` | `30` | |
@@ -615,7 +615,7 @@ interface Config {
 **The tier annotation is the source, not documentation of it.** The
 restart-required notice ([09 §6](09-server-multiuser-deployment.md)) is derived
 from this table at runtime rather than hand-maintained, which is the whole point
-of [25 D0](25-open-questions.md) — a hand-maintained list of "things that need a
+of [26 D0](26-open-questions.md) — a hand-maintained list of "things that need a
 restart" is wrong within two releases.
 
 **No credentials here.** Connections live in `connections/`
@@ -639,7 +639,7 @@ anything — everything else can wait for the file it finds. The last of them wa
 added at [P6A.4](workplan/19-p6a-alpha-1.md) for the reason the list exists: the
 config file lives *inside* the data directory, so a container starting on an
 empty volume has no file to be configured by. The list is
-[P10 §1.2](workplan/26-p10-implementation.md)'s rule made concrete: the
+[P10 §1.2](workplan/27-p10-implementation.md)'s rule made concrete: the
 container image binds `0.0.0.0` **by setting `SE_HOST`**, not by being a build
 that decided differently, because *a hidden difference between artifacts is a
 support burden shaped like a security feature*. The same variable tightens the
@@ -826,7 +826,7 @@ what must be true of it.
 - **Nothing is answerable only from the index.** The test in
   [03 §5.1](03-data-model.md): if a feature cannot be reconstructed from disk,
   it is storing data in the wrong place.
-- **Turn text is indexed on write**, not lazily ([19 §7.1](19-tech-stack.md)),
+- **Turn text is indexed on write**, not lazily ([20 §7.1](20-tech-stack.md)),
   and rows off the current path stay indexed but carry their branch
   ([10 §14.2](10-ui-surfaces.md)).
 - **Deleting `index.sqlite` is a non-event.** Startup notices and rebuilds.
@@ -839,7 +839,7 @@ been put there or implied into it:
 
 | State | Why it is not derived |
 |---|---|
-| **Auth sessions** | [19 §9](19-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
+| **Auth sessions** | [20 §9](20-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
 | **Notification inbox** | "Persist until seen" ([09 §3.2](09-server-multiuser-deployment.md)) is a durability claim. A notification lost to a rebuild was never durable. |
 | **Jobs and idempotency keys** | A turn in flight, and the keys that stop a retry charging twice, are facts about work — not restatements of anything on disk. |
 | **In-flight turn drafts, and sequenced progress events** | The live turn *during* execution ([P2 §2.10](workplan/08-p2-implementation.md)). The JSONL segment is append-only and terminal-only ([03 §5.5](03-data-model.md)), so the draft's only consistent home is here; event rows carry the reattach cursor and are prunable once the terminal turn exists, because the turn record is their durable meaning. |
@@ -850,7 +850,7 @@ rebuildable — which is exactly why keeping it out of the index matters. Both a
 SQLite; the distinction is what happens when you delete them.
 
 **Auth may not need it at all.** Signed stateless cookies with a short lifetime
-and a server-side revocation list ([19 §9](19-tech-stack.md)) reduce this to a
+and a server-side revocation list ([20 §9](20-tech-stack.md)) reduce this to a
 small denylist rather than a session table, which is the cheaper answer for a
 household. The store is still wanted for jobs and notifications.
 
@@ -882,7 +882,7 @@ per token would make this the wrong trade.
 | ~~`InitPolicy`, `WidgetSpec`~~ | ~~Want the mode contract built first~~ **Both arrived, 2026-09-13.** The contract is `packages/sdk`, shipped at [P7.0](workplan/23-p7-implementation.md); both types shipped at P7.1, one stage later. §1.3 carries `InitPolicy`; `WidgetSpec` has three consumers — `ChannelDefinition.surface`, `SurfaceContribution.widget` ([P7.11](workplan/23-p7-implementation.md)) and the session read's renderer — so the admission rule below is met twice over. **This row was quoted as live by [06 §4](06-modes-and-turn-pipeline.md) and by the SDK's own docstring**, which is why it is struck rather than deleted: the deferral was right, it expired, and the documents that leaned on it have to be able to see that |
 | Rule vocabulary (`Predicate`, `Effect`) | 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) |
 | The SSE wire format | [09 §3.3](09-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
-| Extension `HostApi` | [22 §4](22-extensions.md) owns it |
+| Extension `HostApi` | [23 §4](23-extensions.md) owns it |
 
 **The rule for adding to this document:** a type belongs here when something is
 *built against it* and it never leaves the install. A type that only one module

@@ -65,7 +65,7 @@ import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
 /**
- * The HTTP app — Fastify, per [19 §3](../../../docs/design/19-tech-stack.md).
+ * The HTTP app — Fastify, per [20 §3](../../../docs/design/20-tech-stack.md).
  *
  * The deciding argument there was that this design already needs runtime JSON
  * Schema in four places, so route validation becomes a *fifth* use of the same
@@ -100,7 +100,7 @@ export interface AppServices {
   layout: Layout;
   index: OpenedIndex;
   /**
-   * The operational store — jobs, reservations, drafts, events ([21 §5.1]).
+   * The operational store — jobs, reservations, drafts, events ([22 §5.1]).
    *
    * Beside the index and emphatically not part of it: deleting `index.sqlite`
    * is a non-event, and deleting this one loses an uncommitted turn.
@@ -205,7 +205,7 @@ export interface AppServices {
   configDocument: Record<string, unknown>;
   library: LibraryContext;
   /**
-   * Client preferences, per user ([25 B13]).
+   * Client preferences, per user ([26 B13]).
    *
    * A service rather than a free function because it owns a write queue: a
    * patch is read-modify-write across an `await`, and two of those racing lose
@@ -218,7 +218,7 @@ export interface AppServices {
    * Beside `prefs` and for the same structural reason: it owns a write queue,
    * because every change to it is a read-modify-write across an `await`. It is
    * a *separate* store rather than a key in that one because it has a schema
-   * and validates, which is exactly what [25 B13] decided the preferences bag
+   * and validates, which is exactly what [26 B13] decided the preferences bag
    * would not do.
    */
   tags: TagStore;
@@ -350,7 +350,7 @@ async function assembleWithState(
 
   // A fresh or version-bumped index is empty and says so, which is what makes
   // deleting `index.sqlite` a non-event rather than a silently empty library
-  // ([21 §5](../../../docs/design/21-internal-contracts.md)).
+  // ([22 §5](../../../docs/design/22-internal-contracts.md)).
   if (index.migration.rebuildRequired || options.config.index.rebuildOnStart) {
     await rebuild(index.db, layout);
   }
@@ -546,7 +546,7 @@ export async function buildApp(
      * pino already travels with Fastify, so taking the option instead of
      * declaring and injecting an instance keeps this stage from silently
      * choosing a logging library that no design section names. JSON is the only
-     * format ([21 §4.1]), which is pino's default, so `level` is the whole
+     * format ([22 §4.1]), which is pino's default, so `level` is the whole
      * configuration — and it is also what makes the `live` tier real: pino
      * resolves a child's level through its prototype, so assigning
      * `app.log.level` reaches every logger derived from it.
@@ -918,7 +918,7 @@ function survivesSetupGate(url: string): boolean {
  *
  * The caller decides *when* — this function does not watch anything. What it
  * must never be handed is a config that failed to load: a reload that cannot
- * read a valid file keeps the running one ([21 §4.2]), because a server that
+ * read a valid file keeps the running one ([22 §4.2]), because a server that
  * reverted to defaults on a typo would unbind itself from its own port.
  */
 export function applyLiveConfig(

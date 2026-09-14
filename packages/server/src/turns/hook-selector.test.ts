@@ -85,7 +85,7 @@ function fired(hookId: string, state: 'fired' | 'provisional' = 'fired', applied
  * underneath.
  *
  * *The `Rng` is the production one rather than a stub*, because the entrance
- * draw is [25 C13]'s first caller and a stubbed `weightedPick` would prove
+ * draw is [26 C13]'s first caller and a stubbed `weightedPick` would prove
  * nothing about the property that made it the right method.
  */
 function host(answer: Partial<StepCallResult> = {}): StepHost & { asked: StepCallRequest[] } {
@@ -385,7 +385,7 @@ describe('the cooldown is counted on the path', () => {
   });
 
   /**
-   * **A refused effect is not a firing**, which matters because [21 §1.2] keeps
+   * **A refused effect is not a firing**, which matters because [22 §1.2] keeps
    * refusals in the record: a proposal the engine said no to would otherwise
    * start a cooldown for a hook that never fired.
    */

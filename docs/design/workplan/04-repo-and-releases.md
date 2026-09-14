@@ -17,7 +17,7 @@ what is deferred rather than forgotten.
 | **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [09 §5.4](../09-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
 | **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — the Write surface ([work plan §0](01-work-plan.md), [13](../13-write-mode.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
-| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — the Character Studio ([work plan §0](01-work-plan.md), [17](../17-character-studio.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
+| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — the Character Studio ([work plan §0](01-work-plan.md), [18](../18-character-studio.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
 | **4.0 beta → 4.0** | The same gate again, against the 4.0 scope — World ([work plan §0](01-work-plan.md), [15](../15-world.md)). | 4.0 work continues on `main` while `release/3.0` takes fixes. |
 | **5.0 beta → 5.0** | The same gate again, against the 5.0 scope — Campaign and the RPG channel library ([work plan §0](01-work-plan.md)). | 5.0 work continues on `main` while `release/4.0` takes fixes. |
 | **6.0 beta → 6.0** | The same gate again, against the 6.0 scope — the authoring tier ([work plan §0.6](01-work-plan.md)). | And so on. The pattern does not change again. |
@@ -32,7 +32,7 @@ hotfixes, `main` moves on.
 **The gate definition does not change as the series go up.** *Feature complete
 to the 2.0 spec* is checkable against [13](../13-write-mode.md) exactly as the
 first one is checkable against the 1.0 design notes, and *to the 3.0 spec*
-against [17](../17-character-studio.md) after it. The branch model needs nothing
+against [18](../18-character-studio.md) after it. The branch model needs nothing
 new either:
 §2 already makes release branches per **minor line**, so each major is one more
 line rather than a new pattern. **There is no `1.x` line and never was** — a
@@ -41,7 +41,7 @@ features.
 
 **What the table does not contain is as important as what it does.** Only
 committed scopes get rows. Everything on the feature list
-([24](../24-roadmap.md)) has a priority rather than a release, so nothing there
+([25](../25-roadmap.md)) has a priority rather than a release, so nothing there
 is late, and nothing there gates a beta.
 
 **Beta is a completeness gate, not a quality gate.** "Feature complete to 1.0

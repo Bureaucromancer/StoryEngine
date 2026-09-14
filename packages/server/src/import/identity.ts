@@ -55,7 +55,7 @@ export type ImportIdentity =
  * and they have been in `Provenance` since P1 with nothing writing them
  * ([P4 §0]). The filename is **source-relative**, never absolute — the
  * foreign-path doctrine applies to what we store as much as to what we log
- * ([21 §4.1.1]).
+ * ([22 §4.1.1]).
  */
 export function stampImported<T extends { provenance: Provenance }>(
   object: T,

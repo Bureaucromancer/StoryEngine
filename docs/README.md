@@ -6,7 +6,7 @@
   way to *create* the four kinds that have no editor. ~~and the only way to choose
   a session's lorebooks at all.~~ *A session's lorebooks are chosen in the
   browser since P6B.0; what has no editor is a preset, a treatment or a setup,
-  which is [P11](design/workplan/27-p11-implementation.md)'s.*
+  which is [P11](design/workplan/28-p11-implementation.md)'s.*
 - **[deploy.md](deploy.md)** — running a built one: the image, the compose file
   and the unraid template, since P6A.4. The package is private, and the page
   opens by saying so.

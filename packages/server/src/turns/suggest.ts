@@ -21,7 +21,7 @@ import { initialValue } from '../sessions/channels.js';
  * ***R11's shape survived contact with the code***, which is true of three of
  * the eleven refinements and of this one in full: *"suggested actions, pre-1.0,
  * per-session toggle, keep the unselected."* What it did not settle is **where
- * the unselected ones live**, and [22 §4] says why that is not a detail:
+ * the unselected ones live**, and [23 §4] says why that is not a detail:
  * *"R11's 'save unselected suggestions' is a persisted-shape requirement, and
  * that puts it on the critical path to P11's export freeze rather than in the
  * discretionary pile."*
@@ -147,7 +147,7 @@ export const SUGGEST_STEP: StepDefinition = {
    */
   failure: 'warn',
   /**
-   * `prose`, for [25 C15]'s reason: `resolveRole` has no cross-role fallback and
+   * `prose`, for [26 C15]'s reason: `resolveRole` has no cross-role fallback and
    * nothing in this build binds any role but this one, so asking for `fast`
    * would make every suggesting session log a failed step. An install that wants
    * something cheaper says so through the session's `stepRoles`.

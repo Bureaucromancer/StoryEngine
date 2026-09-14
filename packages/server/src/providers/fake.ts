@@ -80,7 +80,7 @@ export interface ScriptedReply {
    *
    * `usage: null` and an absent `usage` are different claims — the first is what
    * a provider that does not report tokens actually returns, and the record is
-   * required to keep it as null rather than synthesise a number ([21 §1.4]).
+   * required to keep it as null rather than synthesise a number ([22 §1.4]).
    * Optional-with-a-null-member cannot express that on its own, so this says it.
    */
   reportsNoUsage?: true;

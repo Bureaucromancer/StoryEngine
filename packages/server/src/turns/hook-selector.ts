@@ -58,7 +58,7 @@ export const HOOK_SELECTOR_STEP: StepDefinition = {
    * ([06 §5.1]) rather than out as a candidate of this step's own: step
    * candidates are appended *after* the preset's, so a hook returned as a
    * candidate would arrive at the end of the prompt instead of where the author
-   * positioned guidance. That is [25 C13(c)], and running first is what lets the
+   * positioned guidance. That is [26 C13(c)], and running first is what lets the
    * runner fill the slot properly instead.
    */
   stage: 'pre',
@@ -100,7 +100,7 @@ export const HOOK_SELECTOR_STEP: StepDefinition = {
    * *The cheapness §6.1 asks for is a property of the **call**, and stage one is
    * what delivers it*: a handful of premises and a question with a closed
    * answer, rather than the scene. An install that wants a smaller model for it
-   * says so through the session's `stepRoles` — [19 §5.1]'s fourth layer, and
+   * says so through the session's `stepRoles` — [20 §5.1]'s fourth layer, and
    * exactly the case `docs/api.md` describes as *"a cheap model for one noisy
    * step is an operator's decision about their own providers"*.
    *
@@ -537,7 +537,7 @@ function answered(from: unknown): string | null {
 }
 
 /**
- * Which written arrival to use — [04 §6.1a], and [25 C13]'s first production
+ * Which written arrival to use — [04 §6.1a], and [26 C13]'s first production
  * caller.
  *
  * **`weightedPick`, not `pick`, and C13 is why.** A judgement call is re-run on

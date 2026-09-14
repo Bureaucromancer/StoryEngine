@@ -8,7 +8,7 @@ import { CONSERVATIVE_CAPABILITIES } from '../providers/capabilities.js';
 import { budgetPolicyFor, type PresetBudget } from './budget.js';
 
 /**
- * Where the window comes from, and who may narrow it — [21 §1.5], [04 §8.3].
+ * Where the window comes from, and who may narrow it — [22 §1.5], [04 §8.3].
  *
  * This existed with no preset argument at all, so every shipped preset's
  * `contextShare` and `reserveOutputTokens` were written and read by nothing:

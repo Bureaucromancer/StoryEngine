@@ -104,7 +104,7 @@ describe('the review has an address', () => {
     }[];
     expect(jobs).toHaveLength(2);
     expect(jobs[0]?.status).toBe('finished');
-    // The absolute root lives here and only here ([21 §4.1.1]) — the person who
+    // The absolute root lives here and only here ([22 §4.1.1]) — the person who
     // typed it can see it, and no per-item row repeats it.
     expect(jobs[0]?.root).toBe(root);
 

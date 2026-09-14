@@ -16,7 +16,7 @@ import { Badge } from '../ui/Badge.js';
  * an edit.
  *
  * What is shared is the *list*: the synthetic current entry pinned on top
- * ([21 §1.6](../../../../docs/design/21-internal-contracts.md) — the live
+ * ([22 §1.6](../../../../docs/design/22-internal-contracts.md) — the live
  * object is never written to the history file, so the list is where it gets
  * said), the empty state, and each revision's header row. Everything below a
  * header arrives through `body`, because the powers are exactly what the two

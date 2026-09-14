@@ -8,7 +8,7 @@
  * at P1.0 and given its contract at [P7.0]** (docs/design/workplan/23-p7-implementation.md).
  * The package predated the contract on purpose: the boundary rule that makes
  * built-in modes consume this package — rather than reaching into `server` —
- * had to predate the first mode (docs/design/19-tech-stack.md §10), and a rule
+ * had to predate the first mode (docs/design/20-tech-stack.md §10), and a rule
  * whose subject arrives later is still a rule.
  *
  * **What is here is what a step author writes against, and nothing that

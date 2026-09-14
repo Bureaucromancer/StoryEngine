@@ -166,7 +166,7 @@ answers JSON, whatever the client directory happens to contain.
 to set them in.** `SE_DATA_DIR`, `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT` are
 the keys needed before `config.json` can be read — it lives inside the data
 directory — and they are the only ones that take a variable
-([21 §4](docs/design/21-internal-contracts.md)). The file wins over the
+([22 §4](docs/design/22-internal-contracts.md)). The file wins over the
 environment, because the file is what the settings page writes.
 
 ### Starting from a known install, and keeping the log
@@ -184,7 +184,7 @@ the person rather than to a script, so a seeded install still needs one visit to
 Settings before a turn will run.
 
 **`pnpm dev:logged` exists because `pnpm dev` makes the log unreadable.** The
-log is JSON on stdout by design ([21 §4.1](docs/design/21-internal-contracts.md)),
+log is JSON on stdout by design ([22 §4.1](docs/design/22-internal-contracts.md)),
 and pnpm's recursive reporter prefixes every line with `packages/server dev: ` —
 so each record becomes a string that starts with a package name and then happens
 to contain JSON, which `jq` and everything else refuses. `dev:logged` runs the
@@ -266,7 +266,7 @@ defaults.
   prefixed per package. One consequence of two processes under one terminal: a
   signal that does not reach the whole process group can leave a child holding a
   port, and `Port 5173 is in use` on the next start is what that looks like.
-- **The server watches with `tsx`**, per [19 §11](docs/design/19-tech-stack.md),
+- **The server watches with `tsx`**, per [20 §11](docs/design/20-tech-stack.md),
   which names it. Node 26 can strip types unaided, but this codebase imports
   with `.js` specifiers under `NodeNext` and Node will not resolve those onto
   the `.ts` files that actually exist; `tsx` does. It also means dev runs from
@@ -350,7 +350,7 @@ tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
 
 ~~`packages/modes/` does not exist yet — but the lint rules governing it do, which
 is the point~~ — **it exists, since P7.0, and the rules were there first, which
-is still the point** ([19 §10](docs/design/19-tech-stack.md)). A mode package
+is still the point** ([20 §10](docs/design/20-tech-stack.md)). A mode package
 depends on `@storyengine/sdk` and on nothing else; a reference to `../../server`
 would resolve, compile and quietly reverse the decision the split exists to
 enforce, so the boundary graph makes it a lint failure and the single project
@@ -365,14 +365,14 @@ fixture test asserting the enforcement actually fires:
 - **The dependency graph.** `modes → sdk, shared`; `client → shared`;
   `sdk → shared`; `server → shared, sdk`. Never the other way.
 - **No direct `fs`** outside `packages/server/src/storage`, which keeps one
-  audited path resolver the only door ([19 §9](docs/design/19-tech-stack.md)).
+  audited path resolver the only door ([20 §9](docs/design/20-tech-stack.md)).
 - **No randomness** outside the RNG service (`packages/server/src/rng/`, since
   P2.2) — every draw goes through it and lands on the turn's tape, which is
   what makes a rewrite replay the same dice. Two one-file exemptions, id
   generation and cryptographic secrets, each argued where it is granted in
-  `eslint.config.js` ([19 §14.4](docs/design/19-tech-stack.md)).
+  `eslint.config.js` ([20 §14.4](docs/design/20-tech-stack.md)).
 - **Logical CSS properties only**, in stylesheets *and* in Tailwind utility
-  classes ([19 §12.6](docs/design/19-tech-stack.md)).
+  classes ([20 §12.6](docs/design/20-tech-stack.md)).
 - **The engine names no mode.** No `switch` on one, no comparison against a mode
   id, no table keyed by one, anywhere under `packages/server/src` — because an
   engine that knows which modes exist is an engine a third party cannot add one

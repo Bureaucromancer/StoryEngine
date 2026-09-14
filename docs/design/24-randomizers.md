@@ -1,4 +1,4 @@
-# 23 — Randomizers: outcomes and appearances, drawn rather than decided
+# 24 — Randomizers: outcomes and appearances, drawn rather than decided
 
 **Status: outline.** Two agentic addons, wanted early, sketched far enough to
 say where each sits in the existing design and what each asks of it. It defines
@@ -9,7 +9,7 @@ the note exists now rather than when either addon is built.
 It reads
 after [06](06-modes-and-turn-pipeline.md), whose guidance slot, step contract,
 plot-hook selector and difficulty dial it leans on; after
-[19 §14](19-tech-stack.md), whose RNG service is the mechanism; and after
+[20 §14](20-tech-stack.md), whose RNG service is the mechanism; and after
 [10 §11](10-ui-surfaces.md), whose field-assist path is where the second addon
 lives. [02 §4.3](02-infinite-worlds.md) and [02 §5](02-infinite-worlds.md) are
 the problem statement.
@@ -25,7 +25,7 @@ mechanism is named:
 - **Plot collapse.** Given a context and an action, a narrator converges on the
   modal continuation — and the modal continuation is the one in which the
   action works. Sampling temperature does not help, because it varies *words*,
-  not *plot*: [19 §14.6](19-tech-stack.md) already records that the model's own
+  not *plot*: [20 §14.6](20-tech-stack.md) already records that the model's own
   sampling is the source of new prose and nothing else. Ten rewrites of a turn
   produce ten phrasings of the same success.
 - **Appearance collapse.** Asked to describe a character, a model reaches for
@@ -47,8 +47,8 @@ service.
 > The model **proposes and labels**. The engine **weighs and draws**. The model
 > **writes to what was drawn**.
 
-That is [24 §4.2](24-roadmap.md)'s principle — *let a deterministic system do
-the hard work, let the model do the voice* — and [24 §4.3](24-roadmap.md)'s dice
+That is [25 §4.2](25-roadmap.md)'s principle — *let a deterministic system do
+the hard work, let the model do the voice* — and [25 §4.3](25-roadmap.md)'s dice
 trap from the other side: a model asked to roll cannot produce a defensible
 distribution, and a model asked to *rate its own candidates* cannot either,
 because the rating is where the sycophancy went. The weights are never the
@@ -110,7 +110,7 @@ not.
 
 ### 3.2 The call: propose by kind, and permit none
 
-One call at the `fast` role — [19 §5.1](19-tech-stack.md)'s policy is that the
+One call at the `fast` role — [20 §5.1](20-tech-stack.md)'s policy is that the
 expensive model writes and everything that judges uses the cheap one, and this
 judges. Structured output, since `StepCallRequest` already carries a `schema`.
 The model returns a **small set of outcomes**, three to five, each with:
@@ -152,7 +152,7 @@ class of invariant.
 
 The candidates carry ids; the engine assigns each a weight **by kind**; one
 `weightedPick` at a stable site — `plot-randomizer:outcome` — and the winner's
-id goes on the tape. Everything about that is [19 §14](19-tech-stack.md) as
+id goes on the tape. Everything about that is [20 §14](20-tech-stack.md) as
 built: `weightedPick` already records the winner's id rather than its position
 ([P6.2](workplan/18-p6-implementation.md)), so a replay against a list whose
 membership changed refuses rather than mis-selects, which is the exact hazard
@@ -195,11 +195,11 @@ be wrong, for the reason [06 §5.2](06-modes-and-turn-pipeline.md) gives from th
 other direction: guidance *influences prose and must never reach systematic
 outcomes*, and the drawn outcome **is** the systematic outcome. It has the same
 standing as a dice result handed down to the narrator — the thing
-[24 §4.3](24-roadmap.md) describes as *the engine rolls before narration and
+[25 §4.3](25-roadmap.md) describes as *the engine rolls before narration and
 hands the outcome down; the model writes the consequence it was given*.
 
 So it is an ordinary step block — `{ kind: 'step', stepId }` in the source
-vocabulary [21 §1.1](21-internal-contracts.md) already has — carrying the
+vocabulary [22 §1.1](22-internal-contracts.md) already has — carrying the
 outcome's summary and kind, phrased as a constraint. Where that block lands in
 the prompt is §5.3's problem, and it is a real one.
 
@@ -217,7 +217,7 @@ step rather than a discovered gap.
 
 ### 3.5 Rewrite and reroll fall out, and they mean the right things
 
-[19 §14.5](19-tech-stack.md) decided rewrite replays the tape and reroll draws
+[20 §14.5](20-tech-stack.md) decided rewrite replays the tape and reroll draws
 fresh. Applied here, without a line of new design:
 
 | | The draw | The candidate set | The narration call |
@@ -229,7 +229,7 @@ The middle column is the one to notice. **Reroll does not call the model
 again.** The set of outcomes was written once; rerolling is a second draw over
 it, which costs nothing and makes *"not that one"* an instant action. And the
 set being replayed on rewrite is what makes rewrite honest — *same setup, same
-result, different words* ([19 §14.6](19-tech-stack.md)) is only true if the
+result, different words* ([20 §14.6](20-tech-stack.md)) is only true if the
 setup includes the candidate list the draw was made over. A rewrite that
 re-asked the model for outcomes would get a different list, the tape's recorded
 winner would no longer be a candidate, `weightedPick` would correctly refuse the
@@ -376,7 +376,7 @@ version that actually answers the complaint.
 
 ### 4.5 `visual` is the source and the prose is derived
 
-[17 §3](17-character-studio.md) leaves open which of `visual` and `se.appearance` is
+[18 §3](18-character-studio.md) leaves open which of `visual` and `se.appearance` is
 authoritative and says only that they must not drift silently. **For a
 generated actor this addon settles it: the descriptors are drawn first and the
 prose is written from them.** That is a position on the open question, offered
@@ -390,7 +390,7 @@ The field-assist contract ([10 §11.1](10-ui-surfaces.md)) gains one operation
 and one affordance:
 
 - **Redraw** beside **Rewrite**. Rewrite keeps the draw and re-runs the prose —
-  [19 §14.5](19-tech-stack.md)'s pair, in the library. Redraw is a fresh
+  [20 §14.5](20-tech-stack.md)'s pair, in the library. Redraw is a fresh
   palette pass. The distinction should be as visible here as it is in play,
   because *I like her but not that sentence* and *not her* are different
   requests.
@@ -399,7 +399,7 @@ and one affordance:
 
 Revert and Accept-as-is apply unchanged. *Never auto-generate* and *never
 block on the model* ([10 §11.5](10-ui-surfaces.md)) apply unchanged. And the
-Studio's test bench ([17 §3](17-character-studio.md)) is where a draw is checked —
+Studio's test bench ([18 §3](18-character-studio.md)) is where a draw is checked —
 generate against the drawn identity and see whether the image model held it —
 which is the first concrete consumer the test bench has been given.
 
@@ -408,7 +408,7 @@ which is the first concrete consumer the test bench has been given.
 Image models collapse too. Two characters with different descriptors can still
 render as the same face because the model has one face for *woman, thirties,
 serious*. The randomizer moves the distribution of *inputs*; reference images
-and the rest of [17](17-character-studio.md) are what move the distribution of
+and the rest of [18](18-character-studio.md) are what move the distribution of
 outputs, and this addon is a complement to that work rather than a substitute.
 It is the cheap part, which is why it can come first.
 
@@ -421,7 +421,7 @@ things that get expensive to change after P7.
 
 ### 5.1 Stable judgements: a step's call result must survive a rewrite
 
-**The gap.** [19 §14.5](19-tech-stack.md) says rewrite replays the tape and
+**The gap.** [20 §14.5](20-tech-stack.md) says rewrite replays the tape and
 re-runs generation. It does not say what happens to a *judgement* call — a
 `fast` call whose output seeded a draw. If it re-runs, the candidate set changes
 under the tape, the recorded winner is no longer a candidate, and rewrite
@@ -437,19 +437,19 @@ call result as *stable*, the runner replays it on rewrite the way it replays
 draws, and the record says which calls were replayed, as the tape already says
 for draws.
 
-**Touches:** [19 §14.5–14.6](19-tech-stack.md), the turn record in
-[21](21-internal-contracts.md), the runner's replay path
+**Touches:** [20 §14.5–14.6](20-tech-stack.md), the turn record in
+[22](22-internal-contracts.md), the runner's replay path
 ([P6.2](workplan/18-p6-implementation.md)). Cheapest before any step depends on
 the current behaviour.
 
 ### 5.2 Draws outside a turn have nowhere to be recorded
 
-**The gap.** [19 §14.1](19-tech-stack.md) makes singular-and-recorded a
+**The gap.** [20 §14.1](20-tech-stack.md) makes singular-and-recorded a
 correctness property, and *recorded* means *in the turn's effects*. The assist
 path has no turn ([10 §11.4](10-ui-surfaces.md)); its record is
 `GeneratedFieldProvenance`, which carries `original`, `at`, `model` and `seed`
 and no draws. An appearance randomizer built today would either draw
-unrecorded — the exact thing [19 §14](19-tech-stack.md) forbids — or invent a
+unrecorded — the exact thing [20 §14](20-tech-stack.md) forbids — or invent a
 side channel.
 
 **The fix is small and belongs in provenance**, because provenance *is* the
@@ -476,7 +476,7 @@ made worse by placement.
 preset can position and wrap, filled by whichever `generate` steps produced
 one this turn. Dice needs it too, and did not surface the need only because
 the dice reference extension is unbuilt. This is the kind of widening
-[22 §8](22-extensions.md) says the API must be prepared to do; it is also a
+[23 §8](23-extensions.md) says the API must be prepared to do; it is also a
 change to a portable schema, so it wants deciding rather than accreting.
 
 ### 5.4 Difficulty gains a third consumer, and the two dials stay apart
@@ -495,7 +495,7 @@ folding *how often* into *how hard* rebuilds the conflation
 synchronous, cannot cross a worker hop, and that nothing at P2 draws inside a
 step — so the async conversion is free now and expensive later. **The plot
 randomizer is the step that makes *later* arrive.** Whichever lands first
-should be written against the async `random` in [22 §4](22-extensions.md), not
+should be written against the async `random` in [23 §4](23-extensions.md), not
 the live `Rng`, and the conversion should precede it, exactly as P7's lean
 already says. `rng.ts` itself notes that `pick` and `shuffle` still record
 position rather than identity and that *the first production caller is where
@@ -504,7 +504,7 @@ it gets paid for*; the randomizer avoids the hazard by carrying ids and using
 
 ### 5.6 A principle worth writing into 14 §4.2
 
-[24 §4.2](24-roadmap.md) says the deterministic system does the hard work and
+[25 §4.2](25-roadmap.md) says the deterministic system does the hard work and
 the model does the voice. The randomizers sharpen it into something a step
 author can apply without judgement: **a model may propose candidates and label
 them; it may never weight them, rank them or choose among them.** The dice trap
@@ -530,7 +530,7 @@ promise it relocates behind the SDK at P7 without changing shape, enforced by
 take the same route: a built-in step on the P2 contract, reaching for nothing
 that file does not export, so it is a move and not a rewrite when P7 arrives.
 That also makes it a candidate third reference beside dice and poker
-([24 §4.4](24-roadmap.md)) — cheaper than either, and the only one that
+([25 §4.4](25-roadmap.md)) — cheaper than either, and the only one that
 exercises structured output, a step that draws, and evaluate-before-narrate at
 once. Whether it is *the* proof poker was chosen to be is a different question;
 nothing here proposes it displace poker, only that it will find the same seams

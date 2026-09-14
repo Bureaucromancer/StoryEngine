@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 /**
  * Runs the server as its own process, and keeps its log — [P2C §1.3].
  *
- * **The log had no destination.** [21 §4.1](../docs/design/21-internal-contracts.md)
+ * **The log had no destination.** [22 §4.1](../docs/design/22-internal-contracts.md)
  * refuses a file transport and refuses a pretty one on purpose — the log is
  * JSON on stdout, and something else's job is to put it somewhere. Nothing was
  * that something else, so *every failure was findable in the log from its

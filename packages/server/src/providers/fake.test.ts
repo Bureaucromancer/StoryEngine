@@ -203,7 +203,7 @@ describe('the double has time in it, and honours a stop', () => {
   });
 
   it('can report no usage at all, distinctly from reporting zero', async () => {
-    // `usage: null` and an absent `usage` are different claims, and [21 §1.4]
+    // `usage: null` and an absent `usage` are different claims, and [22 §1.4]
     // requires the record to keep the first as null rather than synthesise a
     // number.
     const provider = new FakeProvider({ script: [{ text: 'x', reportsNoUsage: true }] });

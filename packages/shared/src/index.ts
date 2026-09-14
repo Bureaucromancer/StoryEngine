@@ -5,7 +5,7 @@
  * Portable types and schemas, shared by server, client and the SDK.
  *
  * Authored as TypeBox; **the published artefact is JSON Schema**
- * (docs/design/19-tech-stack.md §4), emitted to `schemas/` by
+ * (docs/design/20-tech-stack.md §4), emitted to `schemas/` by
  * `pnpm --filter @storyengine/shared emit-schemas` so that third-party tools can
  * validate a card or a world without compiling our types.
  *

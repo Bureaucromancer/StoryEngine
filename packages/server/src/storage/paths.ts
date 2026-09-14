@@ -8,7 +8,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 /**
  * **The audited path helper.**
  *
- * [19 §9](../../../../docs/design/19-tech-stack.md) calls this *"the single most important
+ * [20 §9](../../../../docs/design/20-tech-stack.md) calls this *"the single most important
  * piece of security code in the project"*, and
  * [10 §4.4](../../../../docs/design/10-ui-surfaces.md) is why: every filesystem-touching
  * route resolves through here, so containment is a property of one function
