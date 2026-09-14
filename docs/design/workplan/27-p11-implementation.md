@@ -140,14 +140,31 @@ that cannot are the finding, not an omission.
 | 15 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — specified nearly verbatim, *"a collapsed line while things go well"* | P3.5 built it inside the workbench panel only | The line outside the panel. **Check:** somebody who never opens the workbench can see a turn is running | **Unowned; a [P7B](28-p7b-presets-and-prompts.md) candidate**, held with 16 and [polish §11](06-polish.md) because the three are one story |
 | 16 | **[R4](22-walkthrough-refinements.md) — where the reader's view sits while a turn streams** — [manual testing §10](05-manual-testing.md)'s *"largest genuine blank in the corpus"* | Nothing | **A paragraph in [10](../10-ui-surfaces.md), first.** **Check:** none nameable until that paragraph exists | **Unowned, and the one row §1.1's rule cannot grade** — an item with no specification has no artifact to name |
 | 17 | **The first-party system library's content** — [25 A2e](../25-open-questions.md): *"a full system library ships alongside"* | The mechanism — `SYSTEM_OWNER`, `system/library/`, read-only, loaded for everyone | Content. **Check:** a fresh install has something in it | **Not a hardening item and not code.** Here as content, or explicitly nothing — but not silently nothing |
+| 18 | **A session's model override has no control** — [19 §5.1](../19-tech-stack.md): *"anyone who wants their own key overrides a role without the admin's involvement"* | Everything but the surface. [P7.3](23-p7-implementation.md) built `PUT /sessions/:id/roles`, the resolution layer and the tests, and named where the control goes — *"beside the lore panel's disclosure"* | The panel: the account's usable connections, the role vocabulary, and the step layer under it. **Check:** a session's turn resolves through an override a person set in the browser | **Unowned, and a P11 candidate.** Added 2026-09-14 by [P7B §1.12](28-p7b-presets-and-prompts.md)'s route-caller check, which is the third instrument this section has run |
+| 19 | **A named node can be created and never renamed or removed** — [07 §6](../07-branching.md): *promoting a swipe is creating a `BranchRef`*, and *deleting one later deletes a name* | Two of three verbs. `POST /sessions/:id/refs` has a control on the play page; `PATCH` and `DELETE …/refs/:refId` have none | The list the names live in — [P6 §1.2](18-p6-implementation.md)'s history strip, not the post-1.0 tree visualiser. **Check:** a name given by mistake can be corrected, and one no longer wanted removed | **Unowned, and a P11 candidate.** Same check, same day. *A create with no undo is not what the visualiser's deferral was about* |
 
-**Seventeen, and the count is the point** — P11.0's *Ends at* asks for one so
-the phase's size is known before it starts. **Six go to [P7B](28-p7b-presets-and-prompts.md)**
-(rows 1–5, and row 9's prototype); **three become work here** — P11.10, P11.11
-and search joining P11.1; **two are deferred by direction** (row 9's full
-version, row 10); **one is P10's fork** to settle; and **five are still
+~~**Seventeen, and the count is the point**~~ ***Nineteen since 2026-09-14, and
+the way the last two arrived is the point*** — P11.0's *Ends at* asks for a
+count so the phase's size is known before it starts. **Six go to
+[P7B](28-p7b-presets-and-prompts.md)** (rows 1–5, and row 9's prototype);
+**three become work here** — P11.10, P11.11 and search joining P11.1; **two are
+deferred by direction** (row 9's full version, row 10); **one is P10's fork** to
+settle; **one more was built in P7B's own sweep** (the admin password reset,
+which is not a row here because it was found and answered on the same day, and
+[P7B §1.12](28-p7b-presets-and-prompts.md) records it); and **seven are still
 unowned**, of which one (row 16) cannot be owned until somebody writes a
 paragraph.
+
+***Rows 18 and 19 were found by a test, which is new.*** Both earlier passes
+were a person reading; this one was
+[`route-callers.test.ts`](../../../packages/server/src/routes/route-callers.test.ts)
+walking Fastify's route table against the client's source, written at
+[P7B.5](28-p7b-presets-and-prompts.md) as that phase's gate row 17. It found
+four routes with no caller in the time it takes to run a test file, two days
+after a careful manual sweep over the same code found none of them. **That is
+the argument for the instrument, and it is also the argument for P11.0 keeping
+its budget**: the check can only find a capability that shipped as a *route*,
+and rows 14 through 17 above are things no route walk will ever notice.
 
 ***And this is the second sweep, not the first.*** [P7B](28-p7b-presets-and-prompts.md)
 was created on 2026-09-11 out of a pass over [10](../10-ui-surfaces.md) against

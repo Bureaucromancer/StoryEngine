@@ -38,9 +38,12 @@ import { SchemaFields } from './SchemaFields.js';
  * lays out all six. The consequence is not abstract — it is that
  * `SlotSource.outlet` has been *settable by nothing* since P5, that
  * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s C3
- * still reads *"hand-edit `preset.params.maxTokens` in the session's own
- * `session.json`"*, and that the one sentence the whole product is about was a
- * code constant.
+ * ~~still reads~~ **read, until P7B.5 struck it** (2026-09-14) *"hand-edit
+ * `preset.params.maxTokens` in the session's own `session.json`"*, and that the
+ * one sentence the whole product is about was a code constant. *The tense is
+ * corrected rather than the sentence deleted: what this editor is for is the
+ * state it was built out of, and a file that describes only the state it
+ * arrived at cannot say why it exists.*
  *
  * **The shape is the schema's** ([10 §11.2d](../../../../docs/design/10-ui-surfaces.md)),
  * through [SchemaFields](./SchemaFields.tsx) — so `budget`, `params`,

@@ -315,7 +315,16 @@ export function refusalFor(
   return `These cannot be empty: ${named.join(', ')}.`;
 }
 
-/** The same question where only the answer matters — the create control asks it. */
+/**
+ * The same question where only the answer matters — the create control asks it.
+ *
+ * ***It answers `true` for every kind since [P7B.6]***, and so does
+ * `editorRouteFor`'s non-null and `newRouteFor`'s: the tables above cover the
+ * whole of `LibraryKind`. Kept for the reason `LibraryPage`'s refusal is kept —
+ * a seventh kind joins `LIBRARY_DIRECTORIES` in one edit and gains an editor in
+ * another, and the gap between those two edits is the only time this function
+ * has ever had work to do.
+ */
 export function kindHasEditor(kind: LibraryKind): boolean {
   return editorRouteFor(kind) !== null;
 }

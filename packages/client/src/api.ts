@@ -1694,6 +1694,25 @@ export const adminApi = {
   removeAccount: (handle: string): Promise<undefined> =>
     request('DELETE', `/api/admin/accounts/${handle}`),
 
+  /**
+   * An administrator setting somebody else's password — [P7B.5].
+   *
+   * **The route has shipped since P2A and nothing called it**, which is the
+   * class [P7B §0.5](../../../docs/design/workplan/28-p7b-presets-and-prompts.md)
+   * is about and the one item the route-caller check found that was cheap
+   * enough to answer in the sweep that found it. Without a caller the only way
+   * to restore access to an account whose password is lost is to delete it and
+   * make a new one, which discards that person's library — a repair that costs
+   * more than the thing it repairs.
+   *
+   * *`newPassword` and not `password`, matching the route's body: the field is
+   * named for what it is rather than for the account it belongs to, because the
+   * one thing this call must not be confused with is `changePassword`, which
+   * takes the current one as well.*
+   */
+  setAccountPassword: (handle: string, newPassword: string): Promise<undefined> =>
+    request('POST', `/api/admin/accounts/${encodeURIComponent(handle)}/password`, { newPassword }),
+
   listConnections: (): Promise<{ connections: AdminConnection[] }> =>
     request('GET', '/api/admin/connections'),
 

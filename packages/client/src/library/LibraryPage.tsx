@@ -112,6 +112,16 @@ export function LibraryPage(): JSX.Element {
  * answer changes with every editor that lands and a sentence naming them is a
  * second list of the table above — the one that was false the day this one grew
  * its second row.
+ *
+ * ***And as of [P7B.6] that sentence is unreachable, which is the good outcome
+ * and not a reason to delete it*** (2026-09-14). `EDITOR_ROUTES` now covers the
+ * whole of `LibraryKind` — the six folders
+ * [03 §5.1](../../../../docs/design/03-data-model.md) names — so every branch
+ * of this component that is ever taken is the button. The refusal stays because
+ * **it is the guard, not the message**: a seventh kind is added to
+ * `LIBRARY_DIRECTORIES` in one edit and its editor in another, and the window
+ * between them is exactly when a *New* that landed nowhere would ship. Deleting
+ * an unreachable guard is how the thing it guarded against comes back.
  */
 function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
   // The all-kinds view offers what it always did. Which kind an unfiltered

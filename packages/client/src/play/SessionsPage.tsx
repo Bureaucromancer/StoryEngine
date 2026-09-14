@@ -305,6 +305,17 @@ export function SessionsPage(): React.JSX.Element {
              * next time the mode's default changes. Dropping it would take a
              * choice away and quietly convert every future session into a
              * pinned one.
+             *
+             * ***And its hint's second half stopped being true at [P7B.2]***
+             * (corrected 2026-09-14). It read ~~*Copied into the session at
+             * creation, and not changeable afterwards*~~; the session panel
+             * switches the pack of a session already running, through
+             * `PUT /api/sessions/:id/preset`. The first half did not move and
+             * is the half worth keeping — it is [03 §8]'s copy, and the reason
+             * editing a pack in the library cannot reach a game in progress.
+             * *[P7B §1.7] named this comment and asked the stage that falsified
+             * it to correct it; P7B.2 missed it and P7B.5's sweep caught it,
+             * which is the order that rule is written to survive.*
              */}
             <SelectField
               label="Preset"
@@ -316,7 +327,7 @@ export function SessionsPage(): React.JSX.Element {
                 ),
               ]}
               onChange={setPreset}
-              hint="Copied into the session at creation, and not changeable afterwards."
+              hint="Copied into the session at creation. You can switch it later from the session's own panel, and the copy is what keeps a library edit from reaching a game in progress."
             />
 
             <SelectField

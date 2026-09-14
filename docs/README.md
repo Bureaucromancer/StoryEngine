@@ -3,7 +3,8 @@
 - **[api.md](api.md)** — the HTTP API, as built. The client browses everything,
   edits actors since P1.7 and lorebooks since P5.1, deletes since P4.4, and
   makes an actor or a lorebook from the library page; the API is still the only
-  way to *create* the four kinds that have no editor. ~~and the only way to choose
+  way to *create* ~~the four kinds that have no editor~~ ***nothing: every
+  library kind has an editor and a create control from [P7B](design/workplan/28-p7b-presets-and-prompts.md)***. ~~and the only way to choose
   a session's lorebooks at all.~~ *A session's lorebooks are chosen in the
   browser since P6B.0;* ~~*what has no editor is a preset, a treatment or a
   setup, which is [P11](design/workplan/27-p11-implementation.md)'s.*~~

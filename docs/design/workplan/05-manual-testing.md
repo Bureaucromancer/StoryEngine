@@ -458,7 +458,7 @@ those apart is the point of the field.
 |---|---|---|---|
 | **C1** | Wrong key. | [manual gate §2.2](11-p2-manual-gate.md), P2 |PASS |
 | **C2** | A model id that does not exist. | [manual gate §2.2](11-p2-manual-gate.md) |PASS |
-| **C3** | **A completion ceiling of ten tokens.** No UI for this: hand-edit `preset.params.maxTokens` in the session's own `session.json`, a one-line edit, since a created session carries a full inline preset. Expect **`outcome: 'truncated'`** on the call, not an error class. | [manual gate §2.2](11-p2-manual-gate.md), [P2C.2](12-p2c-first-real-run.md) |PASS |
+| **C3** | **A completion ceiling of ten tokens.** ~~No UI for this: hand-edit `preset.params.maxTokens` in the session's own `session.json`, a one-line edit, since a created session carries a full inline preset.~~ ***There is a UI, from [P7B.2]***: *Maximum reply length* on the session panel, which writes the session's own pack through `PUT /api/sessions/:id/preset`. **The old wording is struck rather than replaced**, per [§0](#the-two-tier-gate)'s rule that a step is never edited to match what was walked — this one was walked on the hand-edit path and passed, and the re-walk on the UI path is a different check of the same claim. Expect **`outcome: 'truncated'`** on the call, not an error class. | [manual gate §2.2](11-p2-manual-gate.md), [P2C.2](12-p2c-first-real-run.md) |PASS |
 | **C4** | An endpoint that returns HTML. | [P2C.2](12-p2c-first-real-run.md) |PASS |
 | **C5** | The machine's network off mid-stream. | [P2C.2](12-p2c-first-real-run.md) |PASS |
 | **C6** | **Kill the server mid-turn** (Ctrl-C), restart, reload. The partial turn is recorded failed and the session is usable. | [manual gate §2.3](11-p2-manual-gate.md) |PASS |
@@ -510,7 +510,7 @@ added that nothing else has a home for.
 | **D8** | Over a library object: the as-stored view matches the bytes on disk — **hand-edit the file and watch the panel follow**; the folder path is one you can paste into a file manager; the revision list is there **with no restore button**. | P3 7 |PASS |
 | **D9** | Over a **shadowed** object, the index rows name the winning path. | P3 8 |PASS |
 | **D10** | **The panel says what is happening while it happens.** Take a turn with it open: the running step is named, a skipped step says why, a failure attaches to the step rather than the turn — and on commit the panel shows the record instead, with neither view lingering beside the other. | P3 8a |PASS |
-| **D11** | **Compare.** Hand-edit the session's own copied preset on disk, drop a block's priority, take the same turn again: the compare view shows exactly what changed, and its address can be pasted into a bug report. | P3 9 | |
+| **D11** | **Compare.** ~~Hand-edit the session's own copied preset on disk, drop a block's priority, take the same turn again~~ ***From the browser, since [P7B.4]***: open the workbench on a turn, follow *Edit in the pack* from a block row, change its text, and reroll. The compare view shows exactly what changed, and its address can be pasted into a bug report. *The hand-edit path still works and is still the harder case — [09 §4.4] — so walking it too is worth the minute it costs.* | P3 9 | |
 | **D12** | **The replay path is wired** — a committed tape can be handed to a runner and replays. *Not* identical draws; that moved to P5 and then to P6. | P3 10 | |
 | **D13** | **Dry run**, if P3.7 shipped: inspect then send → one record; abandon → nothing sent, nothing charged, and a restart does not commit it. The pending state is visible and the session says it is busy. | P3 11 | |
 | **D14** | **The legibility claim itself.** Somebody who did not build the turn opens the panel on a real turn they did not script and says why it came out that way — without the log, the source, or a JSON pretty-printer. **And its honest counterpart:** at least one turn where the answer is *I could not tell*, written down with what was missing. | P3 12, §6, PLAYABLE hyp. 4 | |
@@ -871,7 +871,7 @@ a claim nobody made.*
 | **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **L, pending** | **Sitting L**, three steps and the desk work that closes the phase. **Merged into `main` 2026-09-13 at `589900e`, and open** — the first phase where §7's rule and P6A's *the merge is the close* disagree, and the first with a derived non-empty critical list for the rule to hold. **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing (§10), and **three await a person** — **L1** author a small mode against the SDK with no `server`; **L2** Freeform played end to end; **L3** a wizard for a mode the engine knows nothing about. *P7 calls them C1–C3; they are relettered in sitting L because sitting C has a C1 already.* Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
 | **P8** | 10 (14 rows) | **1a, 2, 3, 5, 7, 8a, 9, 10** — when they land | not yet opened | **Planned rather than sketched, 2026-09-13** ([P8 §3.1](24-p8-implementation.md)). Eight rows automatable, three Standing, and **three criticals — C1 cross-session recall named in the workbench, C2 a hand correction surviving the next extraction, C3 no spoiler bleed.** All three are *short-session* checks, which is unusually cheap for a critical list. **What the list cannot reach is the phase's own headline**: *the same session, four hundred turns long* is refused by clause (iii), because nothing here has ever played four hundred turns and a synthesised tree proves the chain rather than the summary. That walk is a sitting behind PLAYABLE, with **sitting G** |
 | **P9 … P11** | 15 / 10 / 10 | — | not yet opened | **35 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is, and as P8's C1 now is |
-| **P7B** | ~~12~~ **17** | the one check that is not a stage, if it can be written | skeleton, 2026-09-11; **widened 2026-09-14** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](28-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](27-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing |
+| **P7B** | ~~12~~ **17** | the one check that is not a stage, if it can be written | skeleton, 2026-09-11; **widened 2026-09-14** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](28-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](27-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing. ***Written and green 2026-09-14, and it found an eighteenth, a nineteenth and a twentieth on its first run*** ([P7B §1.12](28-p7b-presets-and-prompts.md)) — which is the answer to the clause before it, arriving from a test rather than from a walk. **The ten stages are all committed; the critical list is walked on the day the phase closes and nothing below records a walk** |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document
@@ -1033,12 +1033,31 @@ that only grows. Their state today:
   a route that legitimately has no client caller should have to say so in one
   line, and writing those lines is itself the audit.
 
-  *And the honest risk*, since this section's job is to say what a check cannot
+  ~~*And the honest risk*, since this section's job is to say what a check cannot
   do: the client's request layer may be too dynamic to walk statically, in which
   case the fallback is a hand-maintained list — worse, but still a list somebody
-  has to look at, which is more than exists today. [P7B §3](28-p7b-presets-and-prompts.md)
+  has to look at, which is more than exists today.~~ [P7B §3](28-p7b-presets-and-prompts.md)
   carries it as the one gate item that is not a stage, and [P7B §5](28-p7b-presets-and-prompts.md)
   carries the risk.
+
+  ***Built at [P7B.5](28-p7b-presets-and-prompts.md), 2026-09-14 — and the risk
+  was real and the fallback was not needed.*** The request layer is dynamic:
+  `api.ts` composes six addresses through URL helpers and splits a seventh
+  across a `+`. Joining adjacent templates and expanding the helpers **by shape
+  rather than by name** reads them, so the list is derived rather than
+  maintained, and a helper written later in the same shape is found without
+  editing the check. *The route side does not walk text at all* — it reads
+  Fastify's own routing tree through `routesUnder()`, which is why the check
+  lives in `packages/server` rather than in `tools/`: the first draft
+  reconstructed paths by regex, assumed one mount prefix, and reported seventeen
+  admin routes as uncalled.
+
+  **What it found on its first honest run is the argument for it**: four routes
+  with no caller that a careful manual sweep over the same code, two days
+  earlier, had not found — a session's model override, rename and delete of a
+  named node, and an administrator resetting a password. That last one was built
+  the same day. *What it still cannot do is say whether a capability that never
+  became a route is missing, which is why this section keeps the person.*
 
 
 ---

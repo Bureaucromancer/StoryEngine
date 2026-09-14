@@ -864,6 +864,26 @@ export function useUpdateAccount(): UseMutationResult<
   });
 }
 
+/**
+ * An administrator setting somebody else's password — [P7B.5].
+ *
+ * **No invalidation, for `useChangePassword`'s reason and one more.** Nothing
+ * the client caches changes: a password is not in `AdminAccountList`, and a
+ * session is a signed stateless cookie with no denylist, so this cannot end one
+ * held elsewhere — including the target's. The surface has to say that rather
+ * than imply otherwise by refreshing something.
+ */
+export function useSetAccountPassword(): UseMutationResult<
+  undefined,
+  Error,
+  { handle: string; newPassword: string }
+> {
+  return useMutation({
+    mutationFn: (input: { handle: string; newPassword: string }) =>
+      adminApi.setAccountPassword(input.handle, input.newPassword),
+  });
+}
+
 export function useRemoveAccount(): UseMutationResult<undefined, Error, string> {
   const client = useQueryClient();
   return useMutation({
