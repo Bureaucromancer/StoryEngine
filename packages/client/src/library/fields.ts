@@ -6,6 +6,7 @@ import {
   isKnownSchema,
   LOREBOOK_SCHEMA,
   newActor,
+  newPreset,
   newLorebook,
   PORTABLE_SCHEMAS,
 } from '@storyengine/shared';
@@ -115,6 +116,7 @@ const SHOWN_AS_STORAGE = new Set(['schema', 'id']);
 const EDITOR_ROUTES = {
   actors: '/library/actors/$id/edit',
   lorebooks: '/library/lorebooks/$id/edit',
+  presets: '/library/presets/$id/edit',
 } as const satisfies Partial<Record<LibraryKind, string>>;
 
 /**
@@ -139,6 +141,15 @@ const NEW_OBJECTS: Record<
 > = {
   actors: { noun: 'actor', make: (name) => newActor(name) },
   lorebooks: { noun: 'lorebook', make: (name) => newLorebook(name) },
+  /**
+   * ***The factory, even though the editor does not start from it*** —
+   * [P7B.1]. `NewPresetPage` seeds a new pack from a shipped one ([P7B §1.3]:
+   * an empty block list is a session that assembles nothing), so this is the
+   * fallback for an install with no modes loaded rather than the usual path.
+   * It stays the shared factory for the reason the other two are: a local
+   * literal would be a second definition of *what a new preset is*.
+   */
+  presets: { noun: 'preset', make: (name) => newPreset(name) },
 };
 
 /**
@@ -153,6 +164,7 @@ const NEW_OBJECTS: Record<
 const NEW_ROUTES = {
   actors: '/library/actors/new',
   lorebooks: '/library/lorebooks/new',
+  presets: '/library/presets/new',
 } as const satisfies Record<EditorKind, string>;
 
 /**
@@ -196,6 +208,7 @@ const NEW_ROUTES = {
 const REQUIRED_FIELDS: Record<EditorKind, readonly string[]> = {
   actors: ['name'],
   lorebooks: ['name'],
+  presets: ['name'],
 };
 
 /** Where a new one is written, or null when this kind has no editor yet. */

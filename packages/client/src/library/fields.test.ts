@@ -138,6 +138,8 @@ describe('which kinds have an editor, asked in one place', () => {
     expect(editorRouteFor('actors')).toBe('/library/actors/$id/edit');
     expect(kindHasEditor('lorebooks')).toBe(true);
     expect(editorRouteFor('lorebooks')).toBe('/library/lorebooks/$id/edit');
+    expect(kindHasEditor('presets')).toBe(true);
+    expect(editorRouteFor('presets')).toBe('/library/presets/$id/edit');
   });
 
   /**
@@ -147,8 +149,15 @@ describe('which kinds have an editor, asked in one place', () => {
    * have done it, which is why the second address is asserted above rather than
    * only the second `true`.
    */
-  it('answers for the four that do not, address included', () => {
-    for (const kind of ['treatments', 'setups', 'presets', 'packages'] as const) {
+  /**
+   * ***Four became three at [P7B.1]***, and this assertion is on its way out
+   * rather than being maintained: it states an **absence**, and the phase it
+   * belongs to exists to remove the absence. When the last three kinds get
+   * editors at [P7B.6] the test goes with them — an assertion that every kind
+   * has one is the claim worth keeping, and it is the one above.
+   */
+  it('answers for the three that do not, address included', () => {
+    for (const kind of ['treatments', 'setups', 'packages'] as const) {
       expect(kindHasEditor(kind)).toBe(false);
       expect(editorRouteFor(kind)).toBeNull();
     }

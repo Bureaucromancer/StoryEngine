@@ -8,6 +8,7 @@ import { isLibraryKind, type LibraryKind } from './api.js';
 import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
 import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
+import { NewPresetPage, PresetEditorPage } from './editor/PresetEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
@@ -258,6 +259,30 @@ const newLorebookRoute = createRoute({
   component: NewLorebookPage,
 });
 
+/**
+ * The preset editor's address — [P7B.1], and the third entry in
+ * `EDITOR_ROUTES`.
+ *
+ * ***The address six phase documents pointed at and none created.*** [P2 §5]
+ * onward each sent the preset editor to the next phase; `SlotSource.outlet` has
+ * been settable only by hand-writing JSON since P5 because this route did not
+ * exist. No search params: a preset has no sub-object with an address of its
+ * own the way a lorebook entry does — a block is addressed by its position in
+ * one list on one page.
+ */
+const presetEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/presets/$id/edit',
+  component: PresetEditorPage,
+});
+
+/** A new preset — and unlike the other two, it starts from a shipped pack ([P7B §1.3]). */
+const newPresetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/presets/new',
+  component: NewPresetPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
@@ -266,6 +291,8 @@ const routeTree = rootRoute.addChildren([
   newActorRoute,
   lorebookEditorRoute,
   newLorebookRoute,
+  presetEditorRoute,
+  newPresetRoute,
   sessionsRoute,
   playRoute,
   compareRoute,
