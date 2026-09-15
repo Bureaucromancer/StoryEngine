@@ -1,8 +1,14 @@
 # 24 — P7B implementation plan: presets, prompt handling, and the surfaces the server already has
 
-**Status: all ten stages committed, 2026-09-14 — the critical list is walked on
-the day the phase closes and this document records no walk.** Every stage in §2
-carries a *Done* block naming its commit.
+**Status: merged into `main` 2026-09-15 at `e7d6dee`, and open.** All ten stages
+are committed and each carries a *Done* block in §2 naming its commit. **The
+merge is not the close** — [manual testing §7](05-manual-testing.md) says a phase
+closes when its critical list is walked, and P7B's is not: gate rows **1, 5, 10
+and 14** plus the judgement sitting at row **12** are
+[sitting M](05-manual-testing.md) there, which is where a critical list has to
+live to get walked. Results go into §3.2 when they exist, **never into §3's
+seventeen steps**, which [§0](05-manual-testing.md)'s first honesty condition
+forbids.
 
 ~~**Filed out of order on purpose.**~~ ***Moved to 24 at
 [P7B.5](#p7b5--the-sweep), 2026-09-14, which is what the paragraph below said
@@ -1149,6 +1155,38 @@ for the prompt pack, nine phases late; the check here is that it does not
 generate new debt of the same kind — every field the editors add is a field
 some surface can set, and every one the schema carries that they do not set is
 listed in §4 with the phase that will.
+
+### 3.2 What was answered, and by what — opened 2026-09-15 at the merge
+
+*A second table, which is [manual testing §0](05-manual-testing.md)'s first
+honesty condition: **the seventeen steps above are never edited**, and this
+records what answered them. Opened at the merge with the automated half filled
+and the rest blank, rather than written after the walk — a table that appears
+only once there is good news is a table nobody believes.*
+
+| Step | Answered | By |
+|---|---|---|
+| **1** The pack demo end to end, no JSON | **NO — M1, a person** | Every part of it is asserted separately and **nothing asserts the walk**. Open. |
+| **2** The default pack has an object; the workbench row links | **YES — AUTO** | `system-library.test.ts`; the link needed no code, since `collect.ts` has written `presetId` since P4.4 and `workbench/address.ts` has linked whenever there is one |
+| **3** The system copy refuses edit and delete; *Copy to my library* works | **YES — AUTO** | `system-library.test.ts` and `library.ts`'s existing refusals; `CopyToMyLibrary.tsx` gives the copy a new `uuidv7()` and every other field verbatim |
+| **4** A slot's `outlet`, set in the editor, positions an entry | **YES — AUTO** | `PresetEditorPage.test.tsx`'s *sets a slot block's outlet, which nothing could do before* — asserted on the **object the client sent**, because that is what would otherwise have been hand-written. [P5 §3](17-p5-implementation.md)'s standing defect, retired |
+| **5** Switch the pack mid-session; the old record still names the old blocks | **PART — AUTO; the reading is M2** | `session-preset.test.ts` for the switch and the record. *What no assertion covers is whether the history **reads** as the record it is*, which is the failure §1.1 was written to prevent |
+| **6** C3 without a text editor | **NO — M6, a person** | The control exists (*Maximum reply length*, P7B.2) and the walk is what retires C3's struck wording. Open. |
+| **7** A treatment's framing reaches the next turn's `se.treatment` block | **YES — AUTO** | The treatment editor writes the field and the assembler has read it since P5; `kinds.tsx` and the existing assembly tests |
+| **8** Archive and delete from the UI; delete lands in trash | **YES — AUTO** | `SessionPanel.test.tsx`, over `setSessionArchived` and `deleteSession` — the second of which had no client wrapper at all before this phase |
+| **9** `fields.test.ts`'s negative deleted; *New* on exactly the shelves with an editor | **YES — AUTO** | The negative is deleted rather than edited, as the stage required. *And the tables now cover the whole of `LibraryKind`*, so `LibraryPage`'s no-editor refusal is unreachable — kept as the guard, with a comment saying so (P7B.6) |
+| **10** A hand edit under an open panel is refused with the conflict dialog | **NO — M3, a person** | The 412 path is the editor shell's and is asserted on editor pages; **this is its first walk on a surface that is not one.** Open. |
+| **11** The rebuild gate holds with the system folder; a restart writes no spurious version | **YES — AUTO** | `pnpm test:gate` with the folder present, and `materialiseModePresets`' read-then-compare |
+| **12** Play several turns on a browser-authored pack and judge the narrator | **NO — M5, a sitting** | Not a step, and no test could be written for it even in principle: the question is about prose |
+| **13** A Setup opens and survives a reload; a package assembled in the browser | **PART — AUTO; the picker is M6** | The editor half is `kinds.tsx`'s; a picker over somebody's whole library is a surface a test cannot judge |
+| **14** The workbench on a passed turn, **and it says which turn** | **NO — M4, a person** | `Workbench.tsx` selects from `?turn=` and the ordering rule is asserted. *Every assertion here passes just as well against a panel that renders the head and labels it correctly by accident*, which is why this is a walk |
+| **15** Break an actor file, import, read the quarantine from the browser | **NO — M6, a person** | `QuarantinePanel` exists and renders null when clean. The walk retires [manual gate §3.5](11-p2-manual-gate.md), failing since it was written. Open. |
+| **16** `/` is a page, the wordmark reaches it, it shows this build's changelog | **YES — AUTO** | `HomePage.test.tsx`, over a build-time `?raw` import so the changelog is **this** build's; the comments in `router.tsx` and `Shell.tsx` no longer describe a future |
+| **17** A route with neither a caller nor a written exemption fails | **YES — AUTO** | `packages/server/src/routes/route-callers.test.ts`, and it found four routes on its first honest run — §1.12 |
+
+**Nine of seventeen answered by tests, two answered in part, six await a
+person** — all six in [sitting M](05-manual-testing.md), and every one of them
+wants a live endpoint.
 
 ---
 

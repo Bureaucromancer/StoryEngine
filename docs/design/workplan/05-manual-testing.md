@@ -224,29 +224,39 @@ is below; this is the afternoon.*
    somebody outside it, and an afternoon spent finding out that it does not is an
    afternoon that changes [P8](25-p8-implementation.md) onward.
 2. **K, entire** — and it is not an afternoon. ~~**This is the only item on this
-   list holding a phase open:**~~ **two items on this list now hold a phase
-   open** (2026-09-13): under [§0](#the-two-tier-gate)'s model K *is*
-   [P6B](20-p6b-playable.md)'s gate, so P6B does not close until K1–K9 have
-   results — and **L is [P7](23-p7-implementation.md)'s**, on the same terms.
+   list holding a phase open:**~~ ~~**two items on this list now hold a phase
+   open** (2026-09-13)~~ ***three, since 2026-09-15***: under
+   [§0](#the-two-tier-gate)'s model K *is* [P6B](20-p6b-playable.md)'s gate, so
+   P6B does not close until K1–K9 have results; **L is
+   [P7](23-p7-implementation.md)'s**; and **M is
+   [P7B](24-p7b-presets-and-prompts.md)'s**, on the same terms.
    ~~K0 cuts alpha 4 before anything is recorded.~~ *K0 said cut alpha 4, and it
-   was cut on 2026-09-09 — before P7's sixty-seven commits. **L0 is the same
-   question asked again** and the two sittings want the same answer, so read L0
-   before walking either.* Two sittings and 45 minutes of desk work.
+   was cut on 2026-09-09 — before P7's sixty-seven commits and P7B's twelve.
+   **L0 and M0 are the same question asked again** and all three sittings want
+   one answer, so read L0 before walking any of them.* Two sittings and 45
+   minutes of desk work.
 3. **L2 and L3, in the sitting K builds.** Both want a running install with a
    real connection, which is exactly what K1 stands up — so they are cheaper
-   after K and duplicated work before it, the same argument item 5 makes for F.
+   after K and duplicated work before it, the same argument item 7 makes for F.
    **L4 after them**, because it is what closes P7.
-4. **D11–D20** — needs only the running app and a text editor (R7). D18, D19 and
+4. **M, entire, in the same sitting** — added 2026-09-15. **Every row of it
+   wants what K1 stands up**, which is the honest difference from L: L could
+   claim nothing waited on a resource and M cannot, because every one of its
+   rows is about what a turn assembles. So M1–M4 belong beside L2 and L3 rather
+   than ahead of them, **M6 is three cheap walks once the install is up**, and
+   **M5 is an hour of play** that reads more like G than like a step. M7 closes
+   the phase.
+5. **D11–D20** — needs only the running app and a text editor (R7). D18, D19 and
    D20 are the three storage scenarios no other document has a home for, and
    D17 needs a re-check first: it was flagged unperformable, and P5.6 may have
    made it performable.
-5. **E3–E5, E7–E13** — the fixture arm of import, walkable without the corpus.
+6. **E3–E5, E7–E13** — the fixture arm of import, walkable without the corpus.
    Only E1, E2 and part of E6 want R1.
-6. **F0–F5, F7–F10, F13, F15, F16** — lore against a seeded install. F0 is the
+7. **F0–F5, F7–F10, F13, F15, F16** — lore against a seeded install. F0 is the
    entry point and the walk nobody could do before [P6B.0](20-p6b-playable.md).
    **Walk K first regardless:** K1 and K2 build the install F wants, so F is
    cheaper after K and duplicated work before it — and K1 discharges F0 outright.
-7. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
+8. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
    machine (R5) is; **H1 and H2** when there is an ubuntu box (R6).
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
@@ -817,6 +827,66 @@ or a channel through this contract.
 
 ---
 
+### M — P7B's critical list — *a sitting on a live install, and the one that closes P7B*
+
+**The third critical list under [§0](#the-two-tier-gate)'s model, and the first
+one that is honest about wanting a resource.**
+[P7B](24-p7b-presets-and-prompts.md) merged into `main` on 2026-09-15 with its
+ten stages committed and these unwalked, so under [§7](#7-closing-a-gate-and-closing-a-phase)
+the phase is open until they have results. Its own labels are gate rows 1, 5, 10,
+12 and 14; **they are M1–M5 here**, for the reason L's are L1–L3 — a row number
+is a row number in whichever document you are holding, and this file is the one
+that sequences the walk.
+
+**Derived, not chosen.** P7B's gate is seventeen rows. **Nine are answered by
+named tests** — the materialised pack and its link, the system copy's refusals,
+the outlet, the treatment's framing, archive and delete, `fields.test.ts`'s
+deleted negative, the rebuild gate, `/` as a page, and the route-caller check
+itself — and go to [§5](#5-already-discharged-and-by-what). What is left is
+**four steps that each name a claim no assertion covers**, one judgement sitting,
+the three walked rows that are not critical, and the desk work.
+
+**Clause (iii) is *not* satisfied, and saying so is the difference from L.** L
+could claim nothing waited on a resource; **every row below wants a running
+install with a real endpoint** — R2 or R3 — because every one of them is about
+what a turn assembles. So M sits with L2 and L3 in the sitting K1 stands up, and
+walking it before that means standing the same install up twice.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **M0** | **The install — a precondition, not a check**, as K0 and L0 are. M wants what K1 builds: a real endpoint, a model that answers, and a session that can take several turns. **Read L0 first** — the build question it forks on is the same one, asked again after P7B's twelve commits. | — | |
+| **M1** | **The phase's whole claim, end to end.** Copy the Scene default from the library, change the sentence that begins *"You are the narrator of a scene"*, start a session on the copy, take a turn, and read the changed sentence in the rendered messages. **No JSON, no text editor, no `curl` anywhere in the walk** — and every step of it was impossible before this phase, the first one since P2. | P7B 1 | |
+| **M2** | **Switch the pack mid-session and take the same turn again.** The new turn assembles from the new pack, **the old turn's record still names the old blocks**, compare shows the difference, and a rewind past the switch behaves as [P7B §1.1](24-p7b-presets-and-prompts.md) documents. The automated half asserts the switch; what a person is here for is whether the history *reads* as the record it is, because a switch that quietly rewrote what earlier turns claim to have used is the failure §1.1 was written to prevent. | P7B 5 | |
+| **M3** | **Hand-edit the session's copied pack on disk while the settings panel has it open**, then save from the panel. It is refused with the conflict dialog, not accepted over the hand edit — [09 §4.4](../09-server-multiuser-deployment.md)'s claim, for the one object this walk sheet has always edited by hand. **The 412 path is the editor shell's and it is new**, so this is the first walk of it on a surface that is not an editor page. | P7B 10 | |
+| **M4** | **Open the workbench on a turn the head has passed**, and read that turn's blocks, calls, effects and verdicts — **and check that the panel says which turn it is showing.** [10 §3](../10-ui-surfaces.md)'s sentence has been false since P3, and a person is the only instrument that notices a panel quietly showing the wrong turn: every automated assertion here passes just as well against a panel that renders the head and labels it correctly by accident. | P7B 14 | |
+| **M5** | **Play several turns on a pack authored entirely in the browser, and judge whether the narrator changed the way the edit intended.** A sitting, not a step — the one row in this gate that no test could be written for even in principle, because the question is about prose. **Change one thing at a time** and say what you expected before you read what came out ([§8](#8-where-a-finding-goes)). | P7B 12 | |
+| **M6** | **The remainder, which is cheap once M0 is up.** Three walks that are not critical and want the same install: `maxTokens` set to ten from the session panel and the next call reporting `truncated` (**which re-walks C3 on the UI path** — its hand-edit wording is struck, not replaced); breaking an actor file by hand, importing, and reading what was quarantined and why from the browser (**which retires [manual gate §3.5](11-p2-manual-gate.md)**, a step that has failed since it was written); and assembling a package in the browser from objects you own, because a picker over somebody's whole library is a surface a test cannot judge. | P7B 6, 15, 13b; **C3**; **manual gate 3.5** | |
+| **M7** | **Desk work, and it is what closes the phase.** Write the results into [P7B §3.2](24-p7b-presets-and-prompts.md) — never into the gate's own seventeen steps, which [§0](#the-two-tier-gate)'s first honesty condition forbids — then update §6's row here, and write P7B's status line. **Route every `CORRECTION` into the document that owns the step**, which §7 names as the item that gets skipped. | P7B's close | |
+
+**What this list cannot reach, and the gate says it rather than this file.**
+Every row checks that a named surface arrived and behaves. **None of them can
+say whether an eighteenth surface is missing** — which is the class
+[P7B §0.5](24-p7b-presets-and-prompts.md) is about, and exactly why gate row 17
+is a test rather than a step. A walk of the things the walker just built cannot
+find the thing nobody built.
+
+**A second way it could pass and be worthless.** M1 through M4 are *does it
+work* questions and the surfaces are new, so the temptation is to author a pack
+that is obviously fine. **Author a bad one on purpose** — a block list with the
+instruction removed, an outlet no lore entry addresses, a `maxTokens` that
+truncates mid-sentence — because the editors' job is not only to accept what
+works, and [refinements](22-walkthrough-refinements.md) is where an afternoon on
+a new surface earns itself.
+
+**Answers:** whether the prompt pack is a thing a person can own, which is what
+nine phases of deferral left unanswered and what
+[03 §8](../03-data-model.md)'s copy-never-link rule exists to make safe.
+**Unblocks:** P7B's close, and the assumption every editor after this one is
+built on — that [10 §11.2d](../10-ui-surfaces.md)'s *the editor's shape is the
+schema's shape* survives contact with six kinds rather than two.
+
+---
+
 
 ## 5. Already discharged, and by what
 
@@ -871,7 +941,7 @@ a claim nobody made.*
 | **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **L, pending** | **Sitting L**, three steps and the desk work that closes the phase. **Merged into `main` 2026-09-13 at `589900e`, and open** — the first phase where §7's rule and P6A's *the merge is the close* disagree, and the first with a derived non-empty critical list for the rule to hold. **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing (§10), and **three await a person** — **L1** author a small mode against the SDK with no `server`; **L2** Freeform played end to end; **L3** a wizard for a mode the engine knows nothing about. *P7 calls them C1–C3; they are relettered in sitting L because sitting C has a C1 already.* Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
 | **P8** | 10 (14 rows) | **1a, 2, 3, 5, 7, 8a, 9, 10** — when they land | not yet opened | **Planned rather than sketched, 2026-09-13** ([P8 §3.1](25-p8-implementation.md)). Eight rows automatable, three Standing, and **three criticals — C1 cross-session recall named in the workbench, C2 a hand correction surviving the next extraction, C3 no spoiler bleed.** All three are *short-session* checks, which is unusually cheap for a critical list. **What the list cannot reach is the phase's own headline**: *the same session, four hundred turns long* is refused by clause (iii), because nothing here has ever played four hundred turns and a synthesised tree proves the chain rather than the summary. That walk is a sitting behind PLAYABLE, with **sitting G** |
 | **P9 … P11** | 15 / 10 / 10 | — | not yet opened | **35 person-walked steps still to arrive.** P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is, and as P8's C1 now is |
-| **P7B** | ~~12~~ **17** | the one check that is not a stage, if it can be written | skeleton, 2026-09-11; **widened 2026-09-14** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](24-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](28-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing. ***Written and green 2026-09-14, and it found an eighteenth, a nineteenth and a twentieth on its first run*** ([P7B §1.12](24-p7b-presets-and-prompts.md)) — which is the answer to the clause before it, arriving from a test rather than from a walk. **The ten stages are all committed; the critical list is walked on the day the phase closes and nothing below records a walk** |
+| **P7B** | ~~12~~ **17** | **2, 3, 4, 7, 8, 9, 11, 16, 17** — §5 | **M, pending** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](24-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](28-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing. ***Written and green 2026-09-14, and it found an eighteenth, a nineteenth and a twentieth on its first run*** ([P7B §1.12](24-p7b-presets-and-prompts.md)) — which is the answer to the clause before it, arriving from a test rather than from a walk. ~~**The ten stages are all committed; the critical list is walked on the day the phase closes and nothing below records a walk**~~ ***Merged into `main` 2026-09-15 at `e7d6dee`, and open*** — the same split P7's row above records, for the same reason: §7's rule is that a phase closes when its critical list is walked, and P7B's is not. **Sitting M**, four criticals and a judgement sitting: **M1** the pack demo end to end; **M2** the mid-session switch against compare and a rewind; **M3** the hand edit under an open panel; **M4** the workbench saying which turn it is showing; **M5** several turns on a browser-authored pack, judged. Nine rows answered by tests and in §5, three walked-but-not-critical folded into **M6** because they want the same install, and **M7** is the desk work. *Every row of M wants a live endpoint, which no earlier critical list had to admit* |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document
