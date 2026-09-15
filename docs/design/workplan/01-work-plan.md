@@ -1261,11 +1261,24 @@ satisfiable by a bug without it.
 
 ### P9 — Renditions
 
-**Skeleton: [P9](26-p9-implementation.md)**, and its first stage is a contract
-rather than a feature: `Rendition` is specified in
+~~**Skeleton: [P9](26-p9-implementation.md)**~~ ***A plan:
+[P9](26-p9-implementation.md)***, audited 2026-09-15 — and its first stage is a
+contract rather than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
 all. The provider layer speaks chat and no image endpoint does, which is the
-phase's one real question.
+phase's one real question **and the one its audit deliberately did not answer**:
+it wants a real endpoint in hand rather than another paragraph, which is what
+[manual testing](05-manual-testing.md)'s R10 is for.
+
+**It does not wait on [P8](25-p8-implementation.md), and only the numbering
+suggests it does.** P9's dependencies are P6, P7 and P10; the single place it and
+P8 could touch is the step payload, and the narrow shape P9 wants shipped with
+P7's contract. *Worth knowing because [§0.4](#04-further-cuts-not-driven-by-the-mode-scope)'s question —
+whether renditions are worth 1.0 at all — is easier to weigh when the ordering is
+known to be free.* The audit also found the phase smaller than it read in one
+place and larger in another: the ranked-fragment capper P9.1 assumed it would
+build is already written and tested with no caller, and P9.2's jobs are a second
+job shape rather than the reuse the document claimed.
 
 Per-turn and on-demand illustration ([06 §10](../06-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.
