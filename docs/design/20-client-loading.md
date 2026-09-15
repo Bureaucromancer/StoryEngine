@@ -317,3 +317,60 @@ the client offers refresh recovery. The architecture preference is already
 clear enough to guide growth: keep one application, make its substantial
 surfaces and optional tools load when used, and allow its total size to grow
 without making every visit load all of it.
+
+### 7.1 The trigger fired: `react-markdown` on the arrival route (2026-09-15)
+
+§7 names three conditions for bringing the review forward. One of them —
+**"a substantial new browser dependency joins the common entry"** — has now
+happened, deliberately and with the measurement taken at the time rather than
+reconstructed later. This subsection records it, because a trigger that fires
+and is not written down is a trigger nobody will find.
+
+**What changed.** Home ([P7B.9], revised) stopped rendering `CHANGELOG.md` as
+text in a `<pre>` and started rendering it as a document. That needs a markdown
+renderer, and `react-markdown` is pinned in
+[`packages/client/package.json`](../../packages/client/package.json). `/` is the
+entry route, so this is the common entry by definition — there is no route it
+could be behind.
+
+**Measured, by building `main` and the change back to back on the same machine
+with the same toolchain.** Vite's own per-chunk report, which is where §1's
+figures came from. `main` here is `d490838`, re-measured at merge so that the
+pair below is the pair that is true of `main` rather than of the branch's older
+base — the delta came back within 0.01 kB gzip of the branch measurement, which
+is itself the evidence that it is the dependency being measured and not four
+commits of unrelated drift:
+
+| | Modules | JavaScript | gzip | CSS | gzip |
+| --- | --- | --- | --- | --- | --- |
+| Before | 567 | 788.66 kB | 231.40 kB | 33.28 kB | 6.82 kB |
+| After | 729 | 909.25 kB | 268.11 kB | 34.06 kB | 6.94 kB |
+| Delta | +162 | **+120.59 kB** | **+36.71 kB (+15.9%)** | +0.78 kB | +0.12 kB |
+
+Two things to read off that table rather than off the headline. The first is
+that **§1's baseline is stale**: it records 676.82 kB / 199.15 kB from the audit
+at `a54afcc`, and the entry had already grown to 788.66 kB / 231.40 kB before
+this change touched it. The dependency is not what made this client large. The
+second is that +36.71 kB gzip is nevertheless a real sixth of the entry, arriving
+on the one route every visit starts at, for a feature that is read once per
+upgrade.
+
+**The decision, stated rather than deferred by silence: the review is not
+brought forward, and this is the number that justifies not bringing it
+forward.** §7's remedy for a fired trigger is to schedule the audit, not to
+refuse the dependency, and the audit's value comes from having much more of the
+1.0 client to measure. One dependency at one sixth does not change what that
+audit would find or what it would recommend; it changes the starting figure,
+which is why the figure is here. The review point stays **P11.0**, and the
+first line of its baseline capture is now known.
+
+**The contingency, pre-argued so that it is a decision and not a scramble.** If
+arrival on the entry route becomes a complaint before P11.0, the answer is not to
+remove the renderer but to move it off the common entry: `React.lazy` around
+[`ChangelogDocument`](../../packages/client/src/home/ChangelogDocument.tsx)
+inside `HomePage`, behind a `Suspense` fallback. That leaves the parser, the
+labels and the workbench's release table — none of which touch markdown — in the
+entry, and puts only the renderer in a chunk `/` fetches. It is exactly §4.2's
+*optional tools within a page*, and the cost is one line of fallback text on a
+surface [10 §1.1](10-ui-surfaces.md) files as Quiet, which should be a sentence
+rather than a spinner.

@@ -555,6 +555,13 @@ Nothing else — and that fence is the stage, because
 [polish §5](06-polish.md) already says at length that a home page attracts every
 idea anybody has ever had about a dashboard.
 
+***Revised 2026-09-15, and the fence is where it was.*** The changelog is
+rendered as a document rather than dumped as text, and the release history lives
+in the workbench beside it. That is this one thing done properly, not a fifth
+thing; the four deferred panels are untouched. P7B.9's *Revised* note below
+carries the argument, the measured cost of the renderer, and the check against
+the accretion this section is guarding against.
+
 *The value is not the changelog.*
 [`router.tsx`](../../../packages/client/src/router.tsx) throws a redirect from
 `/` under a docstring reading *"`/` redirects until home is built… every link
@@ -1090,6 +1097,42 @@ defers the full [10 §2.2](../10-ui-surfaces.md) home by direction — nominally
 1.0 feature, expected immediately before the cut-over to feature-complete beta,
 and possibly further out — and a prototype that quietly grew a session list
 would be that deferral being reversed by accretion rather than by decision.
+
+#### Revised — 2026-09-15 — the changelog becomes a document, and gains a history
+
+The note above is a record of the fourteenth and is not edited. This is what
+changed the day after, recorded in live prose beneath it: the terms of the
+argument, and the check on the warning it closes with.
+
+**Two defects in the prototype as shipped.** The page rendered `CHANGELOG.md` as
+text, so its release headings, sections and bold leads reached the screen as the
+characters that spell them — and the fence had been read as forbidding a
+renderer rather than as forbidding *panels*. And it showed the whole file at
+once, which is too much to arrive on and too little to look anything up in.
+
+**What it is now.** One release, rendered, newest by default; the full release
+history in the workbench, which is now that panel's fourth subject
+([10 §3](../10-ui-surfaces.md)); the selection in the address, `/?release=…`,
+because a selection held in the panel would have made a reader into a place.
+
+**The dependency, and the trigger it fires.** `react-markdown` is pinned in the
+client. `/` is the entry route, so this is
+[20 §7](../20-client-loading.md)'s *"a substantial new browser dependency joins
+the common entry"* by definition. It was measured at the time — **+120.59 kB
+minified, +36.71 kB gzip, a sixth of the entry** — and the decision not to bring
+P11.0's audit forward, with the lazy-loading contingency, is recorded at
+[20 §7.1](../20-client-loading.md). The price the struck docstring named was
+real; what it got wrong was the trade.
+
+***The warning above is the right one, and this is not it.*** The test is
+**which deferral**. [10 §2.2](../10-ui-surfaces.md)'s four panels — resume,
+start, notice, recent work — are each a reader over *the user's own data*,
+needing a surface that computes something; a session list is the first of them
+and is exactly what the note names. None of the four is here and none is nearer.
+What changed is the one thing the page already showed, shown properly, and
+neither the rendering nor the release list adds a *subject*: the page's is still
+*what changed in this build*. [Polish §5b](06-polish.md) carries the same
+argument where the item lives, with the About seam this leaves open.
 
 ---
 

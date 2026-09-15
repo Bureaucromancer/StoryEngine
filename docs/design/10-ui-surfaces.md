@@ -114,6 +114,19 @@ that way: §12 strips the machinery on purpose. Nothing here softens that. A den
 workbench and a calm reading view are not a contradiction — they are the same
 design answering two different questions, and §2 says as much about the pair.
 
+**Arrival is on the Quiet side of that table, and home is built with the tooling
+column — which was a real inconsistency, now settled** (2026-09-15, with the
+prototype's revision). The settlement is that §1.2's three separators are
+**separable**, and this is the general rule rather than an exception for one
+page: a surface may take **type** and **measure** for a block of prose without
+taking **chrome**, and without becoming a reading surface. Home does exactly
+that. Its column stays the shell's because it sits beside the workbench and
+carries a control; the rendered changelog inside it takes `--text-story` and
+`--container-reading` and nothing else. So a page can hold a reading column
+without being one, and the test of which it is remains chrome — the story
+surfaces carry no border and no panel background, so tool chrome still cannot
+land on one by accident.
+
 **Where the two meet, tooling gives way.** The play surfaces carry controls, and
 the temptation is to treat them as tool surfaces because there is a lot the
 engine could show. They are not: what the engine understands belongs in §13's
@@ -345,6 +358,16 @@ matters more once the library is per-kind panels (§5): there is no single list
 left to land on, and picking one kind arbitrarily would be worse than the list
 was. See [polish §5](workplan/06-polish.md) for the build-level detail.
 
+**What is built is a prototype, and the four above are not in it** — [P7B.9],
+revised 2026-09-15. The page shows one release of this build's changelog,
+rendered, with the whole release history in the workbench beside it (§3). That
+revision is the one thing the prototype already showed, shown properly; the
+numbered list above is untouched and no nearer, because each of its four is a
+reader over the user's own data and needs a surface that computes something.
+The day arrival grows a fifth thing that is about the person rather than about
+the build, that is the deferral being reversed, and it wants a decision rather
+than a commit.
+
 ### 2.3 The backdrop, and what it is not allowed to cost
 
 Play can carry a **backdrop** — a generated or uploaded image of where the story
@@ -435,6 +458,31 @@ a quiet reinterpretation:
 second one arrives the section should be rewritten around *what the main view is
 about* rather than around *the record it has*. One exception is a decision; two
 is a definition nobody updated.
+
+***Over home, the panel shows the releases*** — 2026-09-15, with the arrival
+page's revision (§2.2). Home renders one release of this build's changelog; the
+panel lists every release of the same document, and a row opens one in the page.
+
+**This is not the second exception, and the test is the relationship rather than
+a promise.** The main view's subject is *a release of this build's changelog*;
+the panel's is *every release of the same document* — the same subject at list
+scale, which is exactly the relationship the turn picker has to the turn it
+shows, and the reason a picker is admitted in this panel at all. It holds no
+state: the selection is in the address, the list derives from a string the
+bundle already contains, and it issues no request. It writes nothing, and the
+only preference in play is the dock's own open state, which every subject
+shares.
+
+*What would make it the second exception*, said plainly so the line above stays
+visible: a control here that changed something, or a subject that survived
+leaving `/`.
+
+**A table rather than a picker, which is a departure worth the sentence.** The
+turn picker is a `<select>` because a scrollable list of turns in a column two
+hundred pixels wide would be a second transcript competing with the first.
+Nothing here competes — home's panel shows one release and never the history, so
+the list is the only place the history exists — and releases grow by a handful a
+year where a session's turns grow without bound.
 
 *The index rows*, decided at [P3 §7.4](workplan/15-p3-implementation.md): every
 row the index holds for the id — the winner first in portable-path order, the

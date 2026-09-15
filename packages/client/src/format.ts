@@ -76,6 +76,51 @@ function formatterFor(locale: string | undefined, options: Intl.DateTimeFormatOp
 }
 
 /**
+ * A bare `YYYY-MM-DD` — a CHANGELOG release heading's third field.
+ *
+ * **Not `formatTimestamp`, and the difference is not pedantry.** A release
+ * heading carries a *calendar date*: no time, no zone, nothing that fixes an
+ * instant. `new Date('2026-09-09')` is specified to parse as **UTC midnight**,
+ * so handing it to a formatter in the reader's own zone renders it as the
+ * eighth for everybody west of Greenwich — and the workbench's list would then
+ * disagree, in a way nobody could reproduce, with the file it is reading and
+ * with the tag the release actually carries.
+ *
+ * `timeZone: 'UTC'` pins the render to the zone the parse used, which is the
+ * only way a date with no instant behind it comes out as the same day
+ * everywhere. The date is built from its own fields rather than from the string
+ * so that the parse is not a second thing to trust.
+ *
+ * An unparsable input comes back unchanged, which is `formatTimestamp`'s
+ * posture for `formatTimestamp`'s reason: the value is still information, and a
+ * blank would hide it. `Temporal.PlainDate` is what this eventually becomes —
+ * it is exactly this type — but it is not in the client's baseline yet.
+ */
+export function formatCalendarDate(date: string, locale?: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (match === null) return date;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const value = new Date(Date.UTC(year, month - 1, day));
+  // **`Date.UTC` rolls over rather than refusing**, so a thirteenth month is a
+  // date in the following year and a fortieth day is a date in the following
+  // month — silently, and well-formed enough to render. `2026-13-40` came back
+  // as *Feb 9, 2027* before this check existed. Reading the fields back is the
+  // cheap way to tell a date that was written from one that was computed out of
+  // nonsense, and a heading nobody can parse is shown as typed for the same
+  // reason the malformed case above is.
+  if (
+    value.getUTCFullYear() !== year ||
+    value.getUTCMonth() !== month - 1 ||
+    value.getUTCDate() !== day
+  ) {
+    return date;
+  }
+  return formatterFor(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(value);
+}
+
+/**
  * A count — tokens, rows — with the locale's grouping. `1234` unformatted
  * reads fine; `128000` does not, and the context windows this app renders are
  * the second kind.

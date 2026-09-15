@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  formatCalendarDate,
   formatCount,
   formatDuration,
   formatEpochMs,
@@ -116,5 +117,53 @@ describe('counts and durations', () => {
     // falsifying mutation is rethrowing instead of falling back.
     expect(() => formatCount(1000, 'en_GB')).not.toThrow();
     expect(() => formatDuration(1000, 'en_GB')).not.toThrow();
+  });
+});
+
+/**
+ * The calendar half — [home, revised]. A CHANGELOG release heading's date has
+ * no time and no zone, and the bug this guards is the one that only shows up
+ * for readers in the wrong half of the world.
+ */
+describe('a calendar date', () => {
+  it('renders the day that was written, not the one before it', () => {
+    // **The falsifying mutation is dropping `timeZone: 'UTC'`.** Without it
+    // this reads as the eighth in every zone behind Greenwich, because
+    // `new Date('2026-09-09')` is UTC midnight. The day is asserted rather than
+    // the whole ICU string, which moves between Node releases.
+    expect(formatCalendarDate('2026-09-09', 'en-GB')).toContain('9');
+    expect(formatCalendarDate('2026-09-09', 'en-GB')).not.toContain('8 Sep');
+    expect(formatCalendarDate('2026-09-09', 'en-US')).toBe('Sep 9, 2026');
+  });
+
+  it('does not move the day whatever zone the machine is in', () => {
+    // Pinned by construction rather than by trusting the runner's TZ: the two
+    // zones furthest either side of UTC would disagree if the format did not
+    // pin one. `Intl` reads the option, not the environment.
+    const written = formatCalendarDate('2026-01-01', 'en-US');
+
+    expect(written).toBe('Jan 1, 2026');
+  });
+
+  it('gives back anything that is not a calendar date, unchanged', () => {
+    // `formatTimestamp`'s posture: the value is still information. An RFC 3339
+    // instant is deliberately in this list — it belongs to the other function,
+    // and quietly accepting it here is how the two stop being distinguishable.
+    for (const input of ['', 'unknown', '2026-9-9', '2026-09-09T00:00:00Z', '9 September 2026']) {
+      expect(formatCalendarDate(input, 'en-US'), input).toBe(input);
+    }
+  });
+
+  it('refuses a well-formed date that is not a real one', () => {
+    // `Date.UTC` rolls over instead of refusing: before the round-trip check
+    // these rendered as *Feb 9, 2027* and *Mar 1, 2025* rather than as the
+    // nonsense they are. Found by this test, which is why it is here.
+    expect(formatCalendarDate('2026-13-40', 'en-US')).toBe('2026-13-40');
+    expect(formatCalendarDate('2025-02-29', 'en-US')).toBe('2025-02-29');
+    expect(formatCalendarDate('2026-00-10', 'en-US')).toBe('2026-00-10');
+  });
+
+  it('falls back rather than throwing on a typed locale', () => {
+    expect(() => formatCalendarDate('2026-09-09', 'en_GB')).not.toThrow();
   });
 });

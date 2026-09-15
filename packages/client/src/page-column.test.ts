@@ -72,10 +72,12 @@ function routeComponents(): string[] {
 /**
  * The file that defines a component, and the files it renders one hop out.
  *
- * One hop, because two route components are legitimately a line of delegation:
- * `router.tsx`'s inline `Play` and `Compare` exist to read route params and
- * hand them down, and `kinds.tsx`'s six exist so that three kinds share one
- * editor. **Neither should be made to spell a column it does not own**, and
+ * One hop, because three route components are legitimately a line of
+ * delegation: `router.tsx`'s inline `Home`, `Play` and `Compare` exist to read
+ * route params and search params and hand them down, and `kinds.tsx`'s six
+ * exist so that three kinds share one editor. (`Home` joined them the day after
+ * this test was written, reading `?release=` for the arrival page — which is
+ * the shape the sentence already described, arriving once more.) **Neither should be made to spell a column it does not own**, and
  * following one hop is cheaper than a map of exceptions that would then need
  * its own staleness check.
  */

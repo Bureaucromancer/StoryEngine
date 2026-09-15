@@ -178,6 +178,18 @@ async function overSessions(): Promise<void> {
   await screen.findByRole('heading', { level: 1 });
 }
 
+/**
+ * Home — the fourth subject, [home, revised]. `/` is the least specific address
+ * in the app, so the branch that reaches it is the last in the chain, and the
+ * thing worth asserting through the *real* router is that it is reached at all.
+ */
+async function overHome(release?: string): Promise<void> {
+  await act(async () => {
+    await router.navigate({ to: '/', search: release === undefined ? {} : { release } });
+  });
+  await screen.findByRole('heading', { name: 'StoryEngine', level: 1 });
+}
+
 async function overObject(at?: { source: 'user'; slug: string }): Promise<void> {
   await act(async () => {
     await router.navigate({
@@ -420,6 +432,75 @@ describe('the library subject', () => {
     const table = await within(dock).findByRole('region', { name: 'Index rows' });
     expect(within(table).getByText('Winner — shown')).toBeTruthy();
     expect(within(dock).queryByText(/The copy that loads lives at/)).toBeNull();
+  });
+});
+
+/**
+ * The release index — [home, revised], asserted here because this is the file
+ * that drives the real router, and the claim is about which route reaches which
+ * subject rather than about what the subject renders (`workbench/home/
+ * subject.test.tsx` owns that).
+ */
+describe('the home subject', () => {
+  it('lists the releases over `/`, and does not follow you off it', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overHome();
+
+    const dock = await screen.findByRole('complementary');
+    const releases = await within(dock).findByRole('region', { name: 'Releases' });
+    expect(within(releases).getByRole('link', { name: '1.0-alpha 4' })).toBeTruthy();
+
+    // The panel is a reader whose subject follows the main view: leaving home
+    // must take the list with it, not leave it behind as a remembered place.
+    await overSessions();
+    expect(within(dock).queryByRole('region', { name: 'Releases' })).toBeNull();
+    expect(within(dock).getByText(/Nothing here has a record to show/)).toBeTruthy();
+  });
+
+  it('marks the release the address names, and the newest when it names none', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overHome();
+
+    const dock = await screen.findByRole('complementary');
+    const releases = await within(dock).findByRole('region', { name: 'Releases' });
+    expect(
+      within(releases).getByRole('link', { name: '1.0-alpha 4' }).getAttribute('aria-current'),
+    ).toBe('page');
+
+    await overHome('1.0.0-alpha.1');
+    expect(
+      within(releases).getByRole('link', { name: '1.0-alpha 1' }).getAttribute('aria-current'),
+    ).toBe('page');
+    // **The regression this pins.** Under the router's default the newest row's
+    // empty search is a *subset* of every address, so `1.0-alpha 4` stayed lit
+    // alongside whichever release was actually chosen — two current rows, and
+    // no test would have noticed if only presence were asserted.
+    expect(
+      within(releases).getByRole('link', { name: '1.0-alpha 4' }).getAttribute('aria-current'),
+    ).toBeNull();
+    expect(releases.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+  });
+
+  /**
+   * The panel and the page must agree even when the address names nothing this
+   * build carries: the page falls back to the newest and says so, so the panel
+   * marks the newest. Through the real router, where the fallback is the case
+   * no link's own address matches.
+   */
+  it('marks the newest when the address names a release the build does not have', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overHome('9.9.9');
+
+    const dock = await screen.findByRole('complementary');
+    const releases = await within(dock).findByRole('region', { name: 'Releases' });
+
+    expect(releases.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    expect(
+      within(releases).getByRole('link', { name: '1.0-alpha 4' }).getAttribute('aria-current'),
+    ).toBe('page');
   });
 });
 

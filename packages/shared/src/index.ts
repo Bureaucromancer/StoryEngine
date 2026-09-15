@@ -51,6 +51,12 @@ export * from './matching.js';
 // [releases §7.1]'s rule as code, so the footer derives it rather than typing
 // it, and a CHANGELOG heading can be held to the same rule.
 export * from './version.js';
+// The same heading, read the other way: `CHANGELOG.md` as releases rather than
+// as a string. Beside `version.js` because it recognises a release heading with
+// `versionName`, and here rather than in the client because the grammar was
+// already read by the release workflow and two tests before the arrival page
+// became a fourth reader.
+export * from './changelog.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';

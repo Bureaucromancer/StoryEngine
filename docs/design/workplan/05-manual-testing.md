@@ -1131,6 +1131,39 @@ that only grows. Their state today:
   the same day. *What it still cannot do is say whether a capability that never
   became a route is missing, which is why this section keeps the person.*
 
+- **Whether a rendered document reads as a document, nothing sees** — added
+  2026-09-15 with the arrival page's revision
+  ([polish §5b](06-polish.md)). Home stopped dumping `CHANGELOG.md` into a
+  `<pre>` and started rendering it, and **three defects in that change were
+  found by opening a browser and by nothing else**:
+
+  - the bold sentence that opens nearly every changelog bullet was **invisible**
+    — `text-ink` emphasis on a `text-ink` body, so weight alone carried the whole
+    distinction and lost;
+  - *Added*, *Fixed* and *Changed* read as stray lines rather than as section
+    labels, being the same size and weight as the lede directly beneath them;
+  - every release row in the workbench links to `/`, and the router's search
+    matching is a **subset** test, so the newest row was marked current
+    *alongside* whichever release had actually been chosen — two current rows.
+
+  **Only the third is now pinned**, and it is worth saying why it was the one
+  that could be: it is a fact about the DOM (`aria-current` appearing more than
+  once), so `workbench/home/subject.test.tsx` and `dock.test.tsx` assert
+  *uniqueness* rather than presence, and the fill that makes the mark
+  perceivable is asserted as a class. The first two are **not testable as
+  written, and this entry does not pretend a check is coming**: every element
+  was present, correctly nested, correctly labelled, and carried a real token —
+  a passing tree in every respect except the one that mattered. Contrast
+  [F16]'s class, which `tailwind-utilities.test.ts` *can* catch because a
+  class that emits no rule is a mechanical property. *Legibility is not, and
+  this is the section that keeps the person.*
+
+  Two cheap things that would narrow it, neither built: a contrast floor
+  between a body token and the emphasis token used inside it — `ui/contrast.test.ts`
+  already measures pairs against 4.5:1 and measures none of these — and a
+  screenshot of `/` in the standing list, since the whole page is one document
+  and a person looking at it is the instrument that found all three.
+
 
 ---
 
