@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { newPreset } from '@storyengine/shared';
+import { newPreset, validate } from '@storyengine/shared';
 
 /**
  * ***The editor six phase documents deferred*** — [P7B.1].
@@ -28,7 +28,23 @@ import { newPreset } from '@storyengine/shared';
 const PRESET_ID = '01a008de-7e08-70d0-899c-f6869d6b9abc';
 const SYSTEM_ID = '0199c000-0000-7000-8000-00000000e5e7';
 
-/** A pack with one of each block kind — which is the whole of §8.1. */
+/**
+ * A pack with one of each block kind — which is the whole of §8.1.
+ *
+ * ***Written in the schema's shape, and checked against it below*** (corrected
+ * 2026-09-15). The first version of this fixture spelled a slot
+ * `{ source: { kind: 'lore' } }`, which is not a shape any preset has ever had:
+ * [04 §8.1](../../../../docs/design/04-schemas.md) puts the discriminator on the
+ * **block** (`kind: 'slot' | 'text'`) and the arm on `source.of`. The editor read
+ * `source.kind`, the fixture supplied `source.kind`, and the two agreed with
+ * each other about something neither had checked with the schema — so the stage
+ * shipped an editor in which **no slot in any real pack was a slot**, and this
+ * file said it worked.
+ *
+ * **The repair that matters is the assertion below, not the shape here.** A
+ * fixture invented beside the code it checks agrees with that code by
+ * construction; one the shipped validator accepts cannot.
+ */
 function pack(id: string, name: string): Record<string, unknown> {
   return {
     ...newPreset(name),
@@ -39,7 +55,12 @@ function pack(id: string, name: string): Record<string, unknown> {
         label: 'Instruction',
         role: 'system',
         enabled: true,
+        placement: { at: 'sequence' },
         priority: 100,
+        appliesTo: [],
+        advisory: false,
+        omitWhenEmpty: false,
+        kind: 'text',
         template: 'You are the narrator of a scene.',
       },
       {
@@ -47,8 +68,13 @@ function pack(id: string, name: string): Record<string, unknown> {
         label: 'Lore',
         role: 'system',
         enabled: true,
+        placement: { at: 'sequence' },
         priority: 50,
-        source: { kind: 'lore' },
+        appliesTo: [],
+        advisory: false,
+        omitWhenEmpty: true,
+        kind: 'slot',
+        source: { of: 'lore', phase: 'before' },
       },
     ],
   };
@@ -119,6 +145,29 @@ function renderEditor(page: 'edit' | 'new' = 'edit'): void {
 }
 
 describe('editing the sentence that makes a mode a narrator', () => {
+  /**
+   * ***The floor under every assertion below*** — added 2026-09-15, and it is
+   * the test that would have caught what this file shipped.
+   *
+   * Everything in this describe is a claim about *a preset*, and a fixture the
+   * shipped validator refuses is not one. The two arms are both needed: the
+   * fixture validating, and the shape it validates in being the one the editor
+   * branches on — `kind` on the block, `of` on the source. Asserting the second
+   * explicitly, rather than trusting the first to imply it, is what keeps a
+   * later widening of the schema from quietly restoring the hole.
+   */
+  it('uses a fixture the shipped schema accepts, in the shape the editor branches on', () => {
+    const result = validate(pack(PRESET_ID, 'Harbour'));
+    expect(result.valid ? [] : result.issues, 'the fixture is not a valid preset').toEqual([]);
+
+    const blocks = pack(PRESET_ID, 'Harbour')['blocks'] as Record<string, unknown>[];
+    const slot = blocks.find((block) => block['kind'] === 'slot');
+    expect(slot, 'no block in the fixture is a slot').toBeTruthy();
+    expect((slot?.['source'] as Record<string, unknown>)['of']).toBe('lore');
+    // And the field the editor used to read, which no preset carries.
+    expect((slot?.['source'] as Record<string, unknown>)['kind']).toBeUndefined();
+  });
+
   it('shows a text block as prose and a slot as a position', async () => {
     renderEditor();
 
