@@ -10,6 +10,7 @@ import { ApiError, type LibraryObject } from '../api.js';
 import { isRequiredField } from '../library/fields.js';
 import { useEditorBase, useLibrary } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { nudge } from '../ui/reorder.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
@@ -79,7 +80,15 @@ const PRESETS: EditorKind<Draft> = {
 
 export function PresetEditorPage(): JSX.Element {
   const { id } = routeApi.useParams();
-  return <EditorLoader id={id} />;
+  // The page's own column ([P3.−1] — `ui/classes.ts` has the why), wrapped
+  // around the loader rather than inside it so pending, error, read-only and
+  // the editor all lay out alike. **Missing from this page since P7B.1 built
+  // it**, corrected 2026-09-15.
+  return (
+    <div className={page.tooling}>
+      <EditorLoader id={id} />
+    </div>
+  );
 }
 
 function EditorLoader(props: { id: string }): JSX.Element {
@@ -133,18 +142,24 @@ function EditorLoader(props: { id: string }): JSX.Element {
  */
 export function NewPresetPage(): JSX.Element {
   const shipped = useLibrary('presets');
-
-  if (shipped.isPending) return <p className="text-ink-subtle">Loading…</p>;
-
   const pack = (shipped.data?.objects ?? []).find((row) => row.source === 'system');
+
+  // The column wraps the wait as well as the form, so the page does not shift
+  // sideways when the library answers — see `PresetEditorPage` above.
   return (
-    <NewFromSeed
-      seed={
-        pack === undefined
-          ? newPreset('')
-          : { ...structuredClone(pack.object), id: uuidv7(), name: '' }
-      }
-    />
+    <div className={page.tooling}>
+      {shipped.isPending ? (
+        <p className="text-ink-subtle">Loading…</p>
+      ) : (
+        <NewFromSeed
+          seed={
+            pack === undefined
+              ? newPreset('')
+              : { ...structuredClone(pack.object), id: uuidv7(), name: '' }
+          }
+        />
+      )}
+    </div>
   );
 }
 
@@ -285,7 +300,35 @@ function BlockRow(props: {
 }): JSX.Element {
   const { block } = props;
   const source = (block['source'] ?? {}) as Record<string, unknown>;
-  const isSlot = typeof source['kind'] === 'string';
+
+  /**
+   * ***The schema's own discriminator, and [P7B.1] used the wrong one***
+   * (corrected 2026-09-15, found by [P8 §0.3](../../../../docs/design/workplan/25-p8-implementation.md)'s
+   * readiness audit).
+   *
+   * ~~`typeof source['kind'] === 'string'`~~ named a field **no preset has ever
+   * carried**. [04 §8.1](../../../../docs/design/04-schemas.md)'s shape is
+   * `{ kind: 'slot' | 'text', source: { of: … } }` — the discriminator is on the
+   * *block* and the arm is `source.of` — so `isSlot` was false for every slot in
+   * every shipped pack, every slot rendered as a text block with an empty
+   * *Template* box, and the **Outlet** control this stage exists to provide
+   * appeared nowhere. *The stage's headline claim — that
+   * [P5 §3](../../../../docs/design/workplan/17-p5-implementation.md)'s
+   * settable-by-nothing defect is retired — was false against every real file.*
+   *
+   * **Its test passed because the fixture was shaped like the bug.** That is the
+   * failure mode worth more than the fix: a fixture invented beside the code it
+   * checks agrees with the code by construction. The test now validates its own
+   * fixture against `PRESET_SCHEMA` before asserting anything with it.
+   *
+   * *`source.of` is read openly rather than matched against a list*, for the
+   * reason `workbench/address.ts` reads its own vocabulary that way: a pack
+   * written by a later build carries an arm this one has never heard of — which
+   * is exactly what [P8.1] adds — and the honest rendering of that is the word
+   * itself, not a crash and not a text box that would overwrite the slot.
+   */
+  const positions = typeof source['of'] === 'string' ? source['of'] : null;
+  const isSlot = block.kind === 'slot' || positions !== null;
 
   return (
     <div className="rounded-control border border-line p-3">
@@ -326,7 +369,11 @@ function BlockRow(props: {
       </div>
 
       {isSlot ? (
-        <Fine>{`Positions ${String(source['kind'])}. The engine supplies what goes here.`}</Fine>
+        <Fine>
+          {positions === null
+            ? 'A slot the engine fills. This build does not know what it positions.'
+            : `Positions ${positions}. The engine supplies what goes here.`}
+        </Fine>
       ) : (
         <Field
           label="Template"

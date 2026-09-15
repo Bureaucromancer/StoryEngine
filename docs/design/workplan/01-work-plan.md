@@ -1211,12 +1211,23 @@ routes whose only callers are their own tests, green in CI the whole time
 
 ### P8 — Memory
 
-~~**Skeleton: [P8](25-p8-implementation.md)**~~ **Planned:
-[P8](25-p8-implementation.md)**, revisited 2026-09-13 once P5, P6 and P7 had all
-landed — which is what its §0 said it was waiting for. It found the phase's one
-storage decision hiding outside both design documents: `memories/` sits beside `library/`
-and outside everything the index walks, while [08 §7](../08-cross-session-memory.md)
-asks for the ordinary lorebook editor, which needs a library address.
+~~**Skeleton: [P8](25-p8-implementation.md)**~~ ~~**Planned:
+[P8](25-p8-implementation.md)**~~ ***Ready to start: [P8](25-p8-implementation.md)***,
+revisited 2026-09-13 once P5, P6 and P7 had all landed — which is what its §0
+said it was waiting for — and **re-audited 2026-09-15 after P7B**, which is what
+its §0.3 is. It found the phase's one storage decision hiding outside both design
+documents: `memories/` sits beside `library/` and outside everything the index
+walks, while [08 §7](../08-cross-session-memory.md) asks for the ordinary
+lorebook editor, which needs a library address.
+
+**The re-audit changed nothing about the plan and two things about its
+surroundings.** All ten of the first audit's findings still hold, so the stages
+are sized against the code they will meet. What moved is that the surfaces two of
+them wanted now exist: [P7B](24-p7b-presets-and-prompts.md) built the preset
+editor, so the summary slot arrives editable with no client edit, and it built
+the session panel [08 §7](../08-cross-session-memory.md)'s two switches belong
+on. *The audit also found the preset editor rendering no slot as a slot, which is
+what a readiness audit is for.*
 
 Cross-session memory as an auto-maintained lorebook ([08](../08-cross-session-memory.md))
 is designed and buildable.
@@ -1250,11 +1261,24 @@ satisfiable by a bug without it.
 
 ### P9 — Renditions
 
-**Skeleton: [P9](26-p9-implementation.md)**, and its first stage is a contract
-rather than a feature: `Rendition` is specified in
+~~**Skeleton: [P9](26-p9-implementation.md)**~~ ***A plan:
+[P9](26-p9-implementation.md)***, audited 2026-09-15 — and its first stage is a
+contract rather than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
 all. The provider layer speaks chat and no image endpoint does, which is the
-phase's one real question.
+phase's one real question **and the one its audit deliberately did not answer**:
+it wants a real endpoint in hand rather than another paragraph, which is what
+[manual testing](05-manual-testing.md)'s R10 is for.
+
+**It does not wait on [P8](25-p8-implementation.md), and only the numbering
+suggests it does.** P9's dependencies are P6, P7 and P10; the single place it and
+P8 could touch is the step payload, and the narrow shape P9 wants shipped with
+P7's contract. *Worth knowing because [§0.4](#04-further-cuts-not-driven-by-the-mode-scope)'s question —
+whether renditions are worth 1.0 at all — is easier to weigh when the ordering is
+known to be free.* The audit also found the phase smaller than it read in one
+place and larger in another: the ranked-fragment capper P9.1 assumed it would
+build is already written and tested with no caller, and P9.2's jobs are a second
+job shape rather than the reuse the document claimed.
 
 Per-turn and on-demand illustration ([06 §10](../06-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.

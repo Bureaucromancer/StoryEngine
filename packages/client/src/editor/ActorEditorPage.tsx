@@ -140,7 +140,17 @@ export function NewActorPage(): JSX.Element {
     };
   });
 
-  return <Editor initial={draft} unsaved />;
+  // The page's own column, for the reason `ActorEditorPage` above states and
+  // **which this page has never had** — corrected 2026-09-15. A create route is
+  // a page like any other; without this the form ran edge to edge with no
+  // gutter, and the only left padding on screen came from the nested section
+  // fieldsets, which read as though the sections were indented rather than as
+  // though the page had none.
+  return (
+    <div className={page.tooling}>
+      <Editor initial={draft} unsaved />
+    </div>
+  );
 }
 
 /**
