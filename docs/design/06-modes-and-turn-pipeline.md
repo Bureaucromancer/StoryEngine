@@ -954,7 +954,7 @@ Design notes:
 - **A background channel says which backdrop is showing; §10.1a says where the
   image comes from.** *Declared at [P7.9](workplan/23-p7-implementation.md) as
   `se.backdrop`, with the media union this paragraph demands and the rendition
-  arm dead until [P9](workplan/25-p9-implementation.md) — which is the whole
+  arm dead until [P9](workplan/26-p9-implementation.md) — which is the whole
   content of the obligation. `se.expression` and `se.location` joined it at
   P7.12; the latter collects what P9's backdrop selector assumes and P7.9 did not
   declare.* The two halves were separated for years by the fact that

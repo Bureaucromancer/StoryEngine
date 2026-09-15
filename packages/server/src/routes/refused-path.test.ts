@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newLorebook } from '@storyengine/shared';
 
 import { rebuild } from '../index-db/rebuild.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * A folder name the filesystem allows and this server will not touch — F22.
@@ -112,6 +112,19 @@ describe('a refused path', () => {
     });
     expect(created.status).toBe(201);
 
+    /**
+     * What a rebuild does before the refused folder exists.
+     *
+     * ***Deltas rather than absolutes, changed at [P7B.0].*** These read `2`,
+     * `1`, `1` when the only things on disk were this test's own two objects.
+     * P7B.0 ships prompt packs in the system scope, so the absolutes moved —
+     * but the claim never was *the whole install scans to three numbers*, it
+     * was **one bad folder costs exactly one object**. That is a difference,
+     * and writing it as one is what stops the next shipped object from
+     * breaking a test about something else.
+     */
+    const before = await rebuild(server.services.index.db, server.services.layout);
+
     const kindRoot = join(server.dataDir, 'users', 'ned', 'library', 'lorebooks');
     const refused = newLorebook('Hand Made');
     await mkdir(join(kindRoot, 'con'), { recursive: true });
@@ -119,15 +132,15 @@ describe('a refused path', () => {
 
     const result = await rebuild(server.services.index.db, server.services.layout);
 
-    // Scanned, counted, and stepped over.
-    expect(result.scanned).toBe(2);
-    expect(result.indexed).toBe(1);
-    expect(result.skipped).toBe(1);
+    // Scanned, counted, and stepped over — one more seen, none more indexed.
+    expect(result.scanned).toBe(before.scanned + 1);
+    expect(result.indexed).toBe(before.indexed);
+    expect(result.skipped).toBe(before.skipped + 1);
 
     // And the library that has nothing to do with it is intact.
-    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    const listed = await ownObjects(server, 'lorebooks');
     expect(listed.status).toBe(200);
-    expect(listed.body.objects.map((row: { id: string }) => row.id)).toEqual([ordinary.id]);
+    expect(listed.objects.map((row) => row.id)).toEqual([ordinary.id]);
   });
 
   it('is skipped by a rebuild and indexed by the watcher, which P2.3 owns', async () => {

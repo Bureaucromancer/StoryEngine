@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { openLocalSource } from '../storage/local-source.js';
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 import { MemoryFileSource } from './memory-source.js';
 import { sweep } from './sweep.js';
 
@@ -73,8 +73,9 @@ async function run(tree: Record<string, Uint8Array | string>) {
 }
 
 const count = async (kind: string): Promise<number> => {
-  const listed = await server.request({ method: 'GET', url: `/api/library/${kind}` });
-  return (listed.body.objects as unknown[]).length;
+  // The account's own, not the merged list — [P7B.0] put the built-in prompt
+  // packs in the system scope, and a sweep never writes there.
+  return (await ownObjects(server, kind)).objects.length;
 };
 
 describe('a folder nobody arranged', () => {

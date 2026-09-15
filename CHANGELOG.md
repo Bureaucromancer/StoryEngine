@@ -3,7 +3,7 @@
 Every release tag has an entry here — [releases §7](docs/design/workplan/04-repo-and-releases.md).
 The reason is not bookkeeping: [09 §7](docs/design/09-server-multiuser-deployment.md)
 makes _what am I running_ a user-facing question rather than a maintainer's one,
-and the About surface planned at [P11.6](docs/design/workplan/27-p11-implementation.md)
+and the About surface planned at [P11.6](docs/design/workplan/28-p11-implementation.md)
 links here to answer it.
 
 Versions are [semantic](https://semver.org), with the caveat

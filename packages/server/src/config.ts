@@ -566,7 +566,7 @@ function valueAt(config: Config, key: string): unknown {
 /**
  * The bootstrap keys an environment variable may set, by variable name —
  * [P6A §1.2](../../../docs/design/workplan/19-p6a-alpha-1.md),
- * [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
+ * [P10 §1.2](../../../docs/design/workplan/27-p10-implementation.md).
  *
  * **This table exists because of a rule about artifacts, not because
  * environment variables are convenient.** [P10 §1.2] forbids the container

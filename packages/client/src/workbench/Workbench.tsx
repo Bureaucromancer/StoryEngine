@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Link, useMatch } from '@tanstack/react-router';
+import { Link, useMatch, useNavigate } from '@tanstack/react-router';
 import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
-import { isLibraryKind } from '../api.js';
+import { isLibraryKind, type TurnRecord } from '../api.js';
 import {
   useAuthState,
   useLiveTurn,
@@ -14,6 +14,7 @@ import {
   useTranscript,
 } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import {
   clampSize,
@@ -127,7 +128,7 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
           </Button>
         </div>
         {play !== undefined ? (
-          <PlaySubject sessionId={play.params.sessionId} />
+          <PlaySubject sessionId={play.params.sessionId} selected={play.search.turn} />
         ) : object !== undefined && isLibraryKind(object.params.kind) ? (
           <LibrarySubject
             kind={object.params.kind}
@@ -306,7 +307,13 @@ function ResizeHandle(props: {
  * point at a historical one until the transcript grows per-turn affordances
  * ([P3.6]).
  */
-function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
+function PlaySubject({
+  sessionId,
+  selected,
+}: {
+  sessionId: string;
+  selected: string | undefined;
+}): JSX.Element {
   /**
    * **Force-fire sits under whichever subject is showing** — [10 §10.1], [P7.5].
    *
@@ -324,13 +331,19 @@ function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
    */
   return (
     <div className="flex flex-col gap-4">
-      <TurnOrPreview sessionId={sessionId} />
+      <TurnOrPreview sessionId={sessionId} selected={selected} />
       <ForceFire sessionId={sessionId} />
     </div>
   );
 }
 
-function TurnOrPreview({ sessionId }: { sessionId: string }): JSX.Element {
+function TurnOrPreview({
+  sessionId,
+  selected,
+}: {
+  sessionId: string;
+  selected: string | undefined;
+}): JSX.Element {
   const transcript = useTranscript(sessionId);
   const preview = usePreview(sessionId);
   const liveTurn = useLiveTurn(sessionId);
@@ -345,14 +358,26 @@ function TurnOrPreview({ sessionId }: { sessionId: string }): JSX.Element {
    * early, which is the decision the stage made about [09 §3.3]; the record
    * takes over the moment the turn commits and the transcript refetches.
    */
-  const live = liveTurn.data?.live;
-  if (live?.state === 'running') {
-    return <LiveSubject live={live} locale={locale} />;
-  }
+  /**
+   * ***An explicit selection outranks both*** — [P7B.7].
+   *
+   * The two branches below are about *what is happening now*, and they are the
+   * right default precisely because nobody asked for anything else. Once
+   * somebody has asked, yanking the panel away to the live turn or to the
+   * composer would make the picker a control that undoes itself — and the
+   * composer's is the worse of the two, because typing is exactly what a person
+   * does while reading an old turn.
+   */
+  if (selected === undefined) {
+    const live = liveTurn.data?.live;
+    if (live?.state === 'running') {
+      return <LiveSubject live={live} locale={locale} />;
+    }
 
-  const pending = preview.data?.preview;
-  if (pending?.pendingInput === true) {
-    return <PreviewSubject preview={pending} locale={locale} />;
+    const pending = preview.data?.preview;
+    if (pending?.pendingInput === true) {
+      return <PreviewSubject preview={pending} locale={locale} />;
+    }
   }
 
   if (transcript.isPending) {
@@ -365,13 +390,44 @@ function TurnOrPreview({ sessionId }: { sessionId: string }): JSX.Element {
       </p>
     );
   }
-  const head = transcript.data.turns.at(-1);
-  if (head === undefined) {
+  const turns = transcript.data.turns;
+  if (turns.length === 0) {
+    return <p className="text-sm text-ink-muted">This session has no turns yet.</p>;
+  }
+
+  /**
+   * ***The panel can be pointed at a turn the head has passed*** — [P7B.7],
+   * closing [F-05] and [R1].
+   *
+   * [10 §3](../../../../docs/design/10-ui-surfaces.md) has said the panel shows
+   * any turn, *current or historical*, since it was written; it was wired to
+   * the head, and the paragraph above this function recorded that as a limit
+   * waiting on *"per-turn affordances"* that never arrived. The affordance is
+   * the picker below and the selection lives in the address (`?turn=`), which
+   * is what keeps the panel a reader rather than a place.
+   *
+   * **Read from the transcript, not fetched.** The transcript is the path, and
+   * *the head has passed it* is exactly what a path turn is — so the turn is
+   * already here and selecting one costs no request. `useTurn` is what reaches
+   * a turn **off** the path, which `ComparePage` already does and which this
+   * picker deliberately does not offer: the tree is the surface for choosing
+   * among siblings, and a flat list that mixed abandoned branches into it would
+   * be a second, worse tree.
+   */
+  const chosen = selected === undefined ? undefined : turns.find((one) => one.id === selected);
+  const head = turns.at(-1);
+  const subject = chosen ?? head;
+  if (subject === undefined) {
     return <p className="text-sm text-ink-muted">This session has no turns yet.</p>;
   }
   return (
     <>
-      <p className="text-sm text-ink-muted">The head turn of this session.</p>
+      <TurnPicker turns={turns} sessionId={sessionId} selected={chosen?.id} />
+      <p className="text-sm text-ink-muted">
+        {chosen === undefined
+          ? 'The head turn of this session.'
+          : 'A turn the head has passed. Nothing here is live.'}
+      </p>
       {/* **The panel supplies the entry point, and the view supplies the
           address** — [P3 §1.5]. Rendered only when there is something to
           compare against: the first turn of a session has no before, and a
@@ -379,19 +435,19 @@ function TurnOrPreview({ sessionId }: { sessionId: string }): JSX.Element {
           destination is a full view rather than a second subject here, which
           is [P3 §7.2]'s settlement in one element: you leave once, on
           purpose, and arrive somewhere you can bookmark. */}
-      {head.parentTurnId === null ? null : (
+      {subject.parentTurnId === null ? null : (
         <p>
           <Link
             to="/compare/$sessionId"
             params={{ sessionId }}
-            search={{ before: head.parentTurnId, after: head.id }}
+            search={{ before: subject.parentTurnId, after: subject.id }}
             className={link.inline}
           >
             Compare with the turn before it
           </Link>
         </p>
       )}
-      <TurnSubject turn={head} locale={locale} />
+      <TurnSubject turn={subject} locale={locale} sessionId={sessionId} />
     </>
   );
 }
@@ -402,5 +458,51 @@ function EmptySubject(): JSX.Element {
       Nothing here has a record to show. The workbench follows the main view — open a session in
       Play and it will show the turn beneath it.
     </p>
+  );
+}
+
+/**
+ * Which committed turn the panel is describing — [P7B.7].
+ *
+ * **A select, not a list.** The panel is a column two hundred pixels wide
+ * beside the thing it describes; a scrollable turn list in it would be a second
+ * transcript competing with the first. The tree is where somebody chooses among
+ * *branches*; this chooses among the turns on the path they are already on.
+ *
+ * **Newest first**, because the head is the default and the turns anybody
+ * reaches back for are the recent ones. The blank option is not *no turn* — it
+ * is P3.4's subject, *the turn about to be taken, falling back to the head*,
+ * which is a live answer rather than an absence and is why it is worded as one.
+ */
+function TurnPicker({
+  turns,
+  sessionId,
+  selected,
+}: {
+  turns: readonly TurnRecord[];
+  sessionId: string;
+  selected: string | undefined;
+}): JSX.Element {
+  const navigate = useNavigate();
+
+  return (
+    <SelectField
+      label="Showing"
+      value={selected ?? ''}
+      options={[
+        ['', 'What happens next'],
+        ...[...turns].reverse().map((turn: TurnRecord, index: number) => {
+          const ordinal = turns.length - index;
+          return [turn.id, `Turn ${String(ordinal)}`] as [string, string];
+        }),
+      ]}
+      onChange={(turn) => {
+        void navigate({
+          to: '/play/$sessionId',
+          params: { sessionId },
+          search: turn === '' ? {} : { turn },
+        });
+      }}
+    />
   );
 }

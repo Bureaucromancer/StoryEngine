@@ -1,13 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
 import { parseKinds, parseList } from './search-lists.js';
 import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
 import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
+import { HomePage } from './home/HomePage.js';
+import { NewPresetPage, PresetEditorPage } from './editor/PresetEditorPage.js';
+import {
+  NewPackagePage,
+  NewSetupPage,
+  NewTreatmentPage,
+  PackageEditorPage,
+  SetupEditorPage,
+  TreatmentEditorPage,
+} from './editor/kinds.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
@@ -151,17 +161,24 @@ const libraryRoute = createRoute({
 });
 
 /**
- * `/` redirects until home is built. Not a component rendering the library —
+ * ~~`/` redirects until home is built. Not a component rendering the library —
  * that would leave two addresses for one page and make *which* of them is
  * canonical a thing to remember. One redirect, and every link resolves to the
- * address that will still be correct after home lands.
+ * address that will still be correct after home lands.~~
+ *
+ * ***Home landed*** — [P7B.9]. The redirect's whole argument was about keeping
+ * this address free for the page that would eventually want it, and this is
+ * that page: a prototype, deliberately, with the full
+ * [10 §2.2](../../../docs/design/10-ui-surfaces.md) home deferred past core alpha
+ * ([polish §5](../../../docs/design/workplan/06-polish.md) carries the terms).
+ * **The link-resolution property the redirect was protecting is now paid
+ * rather than promised**: every `to="/"` in the app reaches a page, and the
+ * library keeps its own address instead of answering at two.
  */
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => {
-    throw redirect({ to: '/library', search: {} });
-  },
+  component: HomePage,
 });
 
 const sessionsRoute = createRoute({
@@ -176,12 +193,53 @@ const sessionsRoute = createRoute({
  * and the stream's snapshot supplies everything else, which is what makes
  * reattach a request rather than a race.
  */
+/**
+ * Which committed turn the workbench is describing — [P7B.7].
+ *
+ * ***In the address rather than in the panel, because the panel's own rule says
+ * so.*** [10 §3](../../../docs/design/10-ui-surfaces.md) calls the workbench a
+ * reader with no state of its own, and `Workbench.tsx` spells out the
+ * consequence: *"the subject follows the route, not a stored selection …
+ * remembering the last subject would quietly make it a place."* A selection
+ * kept in component state would have made it one. This is the same shape the
+ * lorebook editor's `?entry=` already takes, for the same reason.
+ *
+ * Absent means *the turn about to be taken, falling back to the head* — P3.4's
+ * subject, unchanged. Dropped rather than rejected when it is not a string,
+ * like every other search validator here.
+ */
+export interface PlaySearch {
+  turn?: string;
+  /**
+   * A block of the session's own pack to open for editing — [P7B.4].
+   *
+   * The workbench's block table links here; the session panel opens on it. In
+   * the address for the same reason `turn` is: the panel is reached *from*
+   * somewhere, and a control that opened a panel by poking its state would
+   * leave the address unable to say what the page is showing.
+   */
+  block?: string;
+}
+
+export function validatePlaySearch(search: Record<string, unknown>): PlaySearch {
+  return {
+    ...(typeof search['turn'] === 'string' ? { turn: search['turn'] } : {}),
+    ...(typeof search['block'] === 'string' ? { block: search['block'] } : {}),
+  };
+}
+
 const playRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/play/$sessionId',
+  validateSearch: validatePlaySearch,
   component: function Play() {
     const { sessionId } = playRoute.useParams();
-    return <PlayPage sessionId={sessionId} />;
+    // The block to open on travels as a prop rather than being read inside the
+    // page, for the reason `sessionId` already does: the page is mounted in
+    // tests without a router, and a component reaching for a route API would
+    // throw the moment it rendered anywhere but here.
+    const { block } = playRoute.useSearch();
+    return <PlayPage sessionId={sessionId} {...(block === undefined ? {} : { block })} />;
   },
 });
 
@@ -297,6 +355,72 @@ const newLorebookRoute = createRoute({
   component: NewLorebookPage,
 });
 
+/**
+ * The preset editor's address — [P7B.1], and the third entry in
+ * `EDITOR_ROUTES`.
+ *
+ * ***The address six phase documents pointed at and none created.*** [P2 §5]
+ * onward each sent the preset editor to the next phase; `SlotSource.outlet` has
+ * been settable only by hand-writing JSON since P5 because this route did not
+ * exist. No search params: a preset has no sub-object with an address of its
+ * own the way a lorebook entry does — a block is addressed by its position in
+ * one list on one page.
+ */
+const presetEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/presets/$id/edit',
+  component: PresetEditorPage,
+});
+
+/** A new preset — and unlike the other two, it starts from a shipped pack ([P7B §1.3]). */
+const newPresetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/presets/new',
+  component: NewPresetPage,
+});
+
+/**
+ * The last three — [P7B.3] and [P7B.6], and with them **every library kind has
+ * an editor**.
+ *
+ * Six addresses in one block because they are six of the same address: their
+ * pages are one component and three declarations
+ * ([kinds.tsx](./editor/kinds.tsx)), which is what it looks like when a form
+ * comes out of the schema rather than being written per kind. The static-beats-
+ * dynamic ranking `newActorRoute` documents applies to each `new` here for the
+ * same reason and is asserted the same way.
+ */
+const treatmentEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/treatments/$id/edit',
+  component: TreatmentEditorPage,
+});
+const newTreatmentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/treatments/new',
+  component: NewTreatmentPage,
+});
+const setupEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/setups/$id/edit',
+  component: SetupEditorPage,
+});
+const newSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/setups/new',
+  component: NewSetupPage,
+});
+const packageEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/packages/$id/edit',
+  component: PackageEditorPage,
+});
+const newPackageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/packages/new',
+  component: NewPackagePage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
@@ -305,6 +429,14 @@ const routeTree = rootRoute.addChildren([
   newActorRoute,
   lorebookEditorRoute,
   newLorebookRoute,
+  presetEditorRoute,
+  newPresetRoute,
+  treatmentEditorRoute,
+  newTreatmentRoute,
+  setupEditorRoute,
+  newSetupRoute,
+  packageEditorRoute,
+  newPackageRoute,
   sessionsRoute,
   playRoute,
   compareRoute,

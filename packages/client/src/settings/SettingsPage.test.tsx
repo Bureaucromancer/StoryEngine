@@ -40,6 +40,7 @@ const patchPrefs = vi.fn();
 // about, the way the connections surface already is. `MyRoles.test.tsx` is the
 // file about that pane.
 const readMyRoles = vi.fn();
+const setAccountPassword = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -60,6 +61,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     createAccount: vi.fn(),
     updateAccount: vi.fn(),
     removeAccount: vi.fn(),
+    setAccountPassword: (...a: unknown[]) => setAccountPassword(...a) as unknown,
     writeConfig: (...a: unknown[]) => writeConfig(...a) as unknown,
     // P2B's third section. Mocked here only so this file keeps testing what it
     // is about — the connections surface has its own file beside this one.
@@ -369,6 +371,85 @@ describe('removing an account', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Type ned to confirm' }), 'ned');
 
     expect(confirm.hasAttribute('disabled')).toBe(false);
+  });
+});
+
+/**
+ * ***Restoring access to an account*** — [P7B.5].
+ *
+ * `POST /api/admin/accounts/:handle/password` shipped at P2A and nothing called
+ * it until the route-caller check
+ * ([`route-callers.test.ts`](../../../server/src/routes/route-callers.test.ts))
+ * asked. **The sharp assertion is which handle it went to**, because these
+ * controls are one per row and a component that read the wrong row's handle
+ * would set the wrong person's password — a bug with no visible symptom on the
+ * page that caused it, discovered by somebody who cannot sign in.
+ */
+describe('setting an account’s password', () => {
+  beforeEach(() => {
+    listAccounts.mockResolvedValue({
+      accounts: [
+        { ...account('admin'), hasUsableConnection: true },
+        {
+          ...account('user'),
+          handle: 'vera',
+          displayName: 'Vera',
+          hasUsableConnection: true,
+        },
+      ],
+      withoutUsableConnection: 0,
+      systemConnectionCount: 1,
+    });
+    setAccountPassword.mockResolvedValue(undefined);
+  });
+
+  /** The row's own handle, not the first row's. */
+  it('sends the typed password to the account whose row it is on', async () => {
+    renderPage('admin');
+
+    const row = (await screen.findByText('Vera')).closest('li');
+    expect(row).not.toBeNull();
+    const panel = within(row as HTMLElement);
+
+    await userEvent.type(panel.getByRole('textbox', { name: /^New password/ }), 'a long password');
+    await userEvent.click(panel.getByRole('button', { name: 'Set password' }));
+
+    await waitFor(() => {
+      expect(setAccountPassword).toHaveBeenCalledWith('vera', 'a long password');
+    });
+    expect(setAccountPassword).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A blank box is refused here rather than sent. The create form's hint says a
+   * blank field is a legal empty password, which is true of *making* an account
+   * on an install with no minimum; setting one from a box somebody clicked past
+   * is a different act, and the two surfaces must not read the same.
+   */
+  it('refuses a blank box without asking the server', async () => {
+    renderPage('admin');
+
+    const row = (await screen.findByText('Vera')).closest('li');
+    await userEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Set password' }));
+
+    expect(await screen.findByText('Type the new password first.')).toBeTruthy();
+    expect(setAccountPassword).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The two things the mechanism does *not* do, which an administrator would
+   * otherwise assume it did. Both are properties of the route and the session
+   * cookie rather than of this form, which is why they are said here rather
+   * than left to be discovered.
+   */
+  it('says that it neither re-enables nor signs anybody out', async () => {
+    renderPage('admin');
+
+    const row = (await screen.findByText('Vera')).closest('li');
+    const hint = within(row as HTMLElement).getByText(/does not re-enable a disabled account/);
+
+    expect(hint.textContent).toContain('does not sign them out');
+    expect(hint.textContent).toContain('At least 8 characters');
   });
 });
 

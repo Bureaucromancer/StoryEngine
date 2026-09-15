@@ -800,24 +800,24 @@ about. Each is a line or two to collect and awkward to discover mid-stage.*
    suspending step is written, or every step written this phase is written against
    a vocabulary that later has to move.
 3. **[25 C3](../25-open-questions.md) — impersonation, and the split P11 asks P7
-   to make.** [P11.4](27-p11-implementation.md) says *"this stage is whatever half
+   to make.** [P11.4](28-p11-implementation.md) says *"this stage is whatever half
    of that P7 did not take, and the revisit should start by finding out which."*
    P7's revisit did not know it was asked.
 4. **[25 A1c](../25-open-questions.md) — the namespaced key/value storage host
    API.** If P7.0 publishes `HostApi`, P7.0 decides whether storage is in it.
    Extension *installation* is P10's; the API is not.
-5. **P8's spoiler defence is a P7 dependency.** [P8](24-p8-implementation.md)
+5. **P8's spoiler defence is a P7 dependency.** [P8](25-p8-implementation.md)
    requires that memory never extract from hidden content — a hook's premise, an
    unfired hook's entrances, a hidden channel, GM-only state. All four arrive in
    this phase, and the defence needs hidden content **identifiable to a later
    extractor**, not merely hidden in a panel. A flag and a discipline in P7.1 and
    P7.5.
-6. **[P9](25-p9-implementation.md) asks for two things, and §P7.9 collects one.**
+6. **[P9](26-p9-implementation.md) asks for two things, and §P7.9 collects one.**
    The backdrop channel's media reference is collected; *"P7 owes P9 a step that
    can be added without a back door"* is not — and it is the contract's fourth
    witness, which bears directly on §1.8. Nor is the **location channel** P9's
    backdrop selector assumes P7 declares.
-7. **[P10](26-p10-implementation.md)'s notification classes come from this phase's
+7. **[P10](27-p10-implementation.md)'s notification classes come from this phase's
    hooks and goals**, and its revisit is told to re-read P7's gate for *things a
    person should be told about*. The gate has to contain them.
 8. **[R11](22-walkthrough-refinements.md) — suggested actions — is routed to P7.9
@@ -2474,7 +2474,7 @@ selection were never fields.** Neither exists anywhere in the code — the only
 narrator declaration is `ModeDefinition.voice`. Party is a move; those two are
 new.*
 *Also this stage's: **hidden content must be identifiable to a later extractor**,
-not merely hidden in a panel — [P8](24-p8-implementation.md)'s spoiler defence
+not merely hidden in a panel — [P8](25-p8-implementation.md)'s spoiler defence
 cannot be built before the content exists and must not be deferred past P8.*
 
 *Ends at:* a character dead on one branch and alive on the other, in the panel,
@@ -3090,7 +3090,7 @@ enumerates the six things an implementation must read.*
 *Entrances are shown by label, never by text* ([08 §6](../08-cross-session-memory.md),
 [10 §10.1](../10-ui-surfaces.md)). An unfired entrance is hidden
 content, and a panel that spoils the arrival defeats the feature. *Which is also
-[P8](24-p8-implementation.md)'s constraint arriving early: hidden content has to
+[P8](25-p8-implementation.md)'s constraint arriving early: hidden content has to
 be identifiable to a later extractor, not merely unrendered.*
 
 *Ends at:* a hook firing with the record saying why, a committed hook uncommitted
@@ -3972,7 +3972,7 @@ and so is not deferrable past the export freeze.
 background channel declared here holds *which backdrop is showing*; two phases
 later P9 generates backdrops and writes that channel
 ([06 §10.1a](../06-modes-and-turn-pipeline.md),
-[P9 §1.7](25-p9-implementation.md)). So **its value must be a media reference
+[P9 §1.7](26-p9-implementation.md)). So **its value must be a media reference
 able to name either an authored image or a rendition's asset, from this
 declaration onward.** The narrower shape is the tempting one, because a filename
 is all P7 can actually produce — and choosing it means changing a channel's
@@ -4000,7 +4000,7 @@ is the build's first plausible `user-only` subject, which is the gap P7.1 needs
 filled anyway.*
 
 **And a second obligation to P9 that §P7.9 does not collect.**
-[P9](25-p9-implementation.md) also says *"P7 owes P9 a step that can be added
+[P9](26-p9-implementation.md) also says *"P7 owes P9 a step that can be added
 without a back door"* — a rendition step is the contract's **fourth witness**, and
 the first added by a phase that is not about modes. That bears directly on §1.8,
 which weighs only the assistant. *And P9's backdrop selector assumes a **location
@@ -4431,14 +4431,14 @@ absorbed.
 Authoring is **not P11's**: that phase's editor stage is a sweep applying
 [10 §11]'s contract — assist, provenance, history — **across editors that
 exist**, and it creates none, so four missing editors routed there had an owner
-on paper and none in fact. **They are [P7B.1, P7B.3 and P7B.6](28-p7b-presets-and-prompts.md)'s** — the
+on paper and none in fact. **They are [P7B.1, P7B.3 and P7B.6](24-p7b-presets-and-prompts.md)'s** — the
 preset editor, the treatment editor, and the two that complete the six kinds.
 **That phase was written three days before this correction and for the same
 reason from the other end**: its §0.1 traces six documents each sending the
 preset editor to the next phase until the chain ran out of phases, which is this
 paragraph's complaint with the names filled in. A second sweep then went looking
 for other items of the same shape, found seventeen, and is recorded at
-[P11 §0.1](27-p11-implementation.md); six are P7B's, **including the outlet's
+[P11 §0.1](28-p11-implementation.md); six are P7B's, **including the outlet's
 authoring half this paragraph could not close.**
 
 ---
@@ -4597,7 +4597,7 @@ whoever finds it.
 
 **And one thing that is not out of scope but reads like it:** the assistant's
 mode definition, §1.8. It is listed here so that leaving it in P11 is a decision
-rather than an omission. *Since it was written, [P9](25-p9-implementation.md) has
+rather than an omission. *Since it was written, [P9](26-p9-implementation.md) has
 volunteered a **fourth** witness of its own — a rendition step, added by a phase
 that is not about modes, which is the variety §1.8 says the phase lacks and gets
 for free two phases later rather than never. It does not answer §1.8's question,

@@ -345,17 +345,42 @@ export function SessionsPage(): React.JSX.Element {
               hint="A treatment brings its own lorebooks and its own framing."
             />
 
+            {/*
+             * ***The blank option acquired a visible twin at [P7B.0]***, and
+             * keeping both is the decision.
+             *
+             * This list is the library's, so it now carries the shipped packs
+             * as ordinary rows — the mode's own default appears here by its
+             * name for the first time. That does **not** make the blank option
+             * redundant, and the difference is worth the longer label: naming
+             * *Scene* pins this session to that pack, while leaving it blank
+             * says *whatever this mode ships*, which is a different answer the
+             * next time the mode's default changes. Dropping it would take a
+             * choice away and quietly convert every future session into a
+             * pinned one.
+             *
+             * ***And its hint's second half stopped being true at [P7B.2]***
+             * (corrected 2026-09-14). It read ~~*Copied into the session at
+             * creation, and not changeable afterwards*~~; the session panel
+             * switches the pack of a session already running, through
+             * `PUT /api/sessions/:id/preset`. The first half did not move and
+             * is the half worth keeping — it is [03 §8]'s copy, and the reason
+             * editing a pack in the library cannot reach a game in progress.
+             * *[P7B §1.7] named this comment and asked the stage that falsified
+             * it to correct it; P7B.2 missed it and P7B.5's sweep caught it,
+             * which is the order that rule is written to survive.*
+             */}
             <SelectField
               label="Preset"
               value={preset}
               options={[
-                ['', "The mode's own"],
+                ['', "The mode's own, whichever it ships"],
                 ...(presets.data?.objects ?? []).map(
                   (one) => [one.id, one.name] as [string, string],
                 ),
               ]}
               onChange={setPreset}
-              hint="Copied into the session at creation, and not changeable afterwards."
+              hint="Copied into the session at creation. You can switch it later from the session's own panel, and the copy is what keeps a library edit from reaching a game in progress."
             />
 
             <SelectField

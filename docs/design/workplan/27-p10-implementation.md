@@ -1,8 +1,8 @@
-# 26 — P10 implementation plan
+# 27 — P10 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md), [P8](24-p8-implementation.md),
-[P9](25-p9-implementation.md) and [P11](27-p11-implementation.md); to be
+[P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
+[P9](26-p9-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
 citation convention as [P4](16-p4-implementation.md)'s.
@@ -31,7 +31,7 @@ and will read as a list unless it is given a test. The test:
 > who is not the developer.**
 
 Anything here that does not sit on that line should be checked against
-[P11](27-p11-implementation.md) before it is built, and anything found elsewhere
+[P11](28-p11-implementation.md) before it is built, and anything found elsewhere
 that does sit on it belongs here.
 
 **CI this phase establishes:** the route-enumeration assertion extended —
@@ -154,7 +154,7 @@ less — [work plan §0.3](01-work-plan.md) records the cost of a seam with no d
 
 [09 §3.5](../09-server-multiuser-deployment.md) lists five 1.0 classes.
 `turn.complete`, `turn.failed` and `system.notice` have producers today;
-`artifact.ready` gets one at [P9](25-p9-implementation.md);
+`artifact.ready` gets one at [P9](26-p9-implementation.md);
 `turn.awaiting-input` has one only if [25 C5](../25-open-questions.md)'s
 suspending step exists, which [P3 §1.6](15-p3-implementation.md) notes arrives
 early in a different shape — *park, publish, resume-on-intent* — and warns that
@@ -178,7 +178,7 @@ attached. Building the panel over a stub is the one option to refuse: a screen
 that lists nothing and installs nothing is exactly the false front
 [10 §15.5](../10-ui-surfaces.md) uses capability granting to illustrate.
 
-***Confirmed, not resolved, 2026-09-14.*** [P11 §0.1](27-p11-implementation.md)'s
+***Confirmed, not resolved, 2026-09-14.*** [P11 §0.1](28-p11-implementation.md)'s
 documentation sweep looked for 1.0 commitments no phase owns and found this one
 already named here, with one detail worth adding: **the account capability
 exists and has never gated anything.** `enableExtensions` has shipped on
@@ -212,7 +212,7 @@ users have active sessions."*
 ### 1.7 Connectivity state ships with its producer, or it ships dark
 
 [10 §15.5](../10-ui-surfaces.md) lists connectivity state as remaining at P10 and
-names its producer as [P11](27-p11-implementation.md)'s update check;
+names its producer as [P11](28-p11-implementation.md)'s update check;
 [P2B §6](10-p2b-provider-configuration.md) records the same dependency from the
 other side. **Two phases, one signal, in the wrong order.**
 
@@ -356,7 +356,7 @@ link into a surface that does the real work.~~
 nominally a 1.0 feature, expected immediately before the cut-over to
 feature-complete beta, and possibly further out
 ([polish §5](06-polish.md) carries the wording). A changelog-only prototype
-lands at [P7B.9](28-p7b-presets-and-prompts.md) so `/` stops being a redirect
+lands at [P7B.9](24-p7b-presets-and-prompts.md) so `/` stops being a redirect
 and the wordmark has somewhere to point.
 
 **The argument above for pairing it with the gallery was good and it survives
@@ -430,7 +430,7 @@ shared heads ([09 §8](../09-server-multiuser-deployment.md)); a role system
 ([09 §4.2.1](../09-server-multiuser-deployment.md) — named capabilities, and
 [P2A](09-p2a-configuration-surface.md) already built them); auto-provisioning
 accounts ([25 D2](../25-open-questions.md)); and packaging, all six artifacts of
-which [P11](27-p11-implementation.md) now owns ([work plan §0.5](01-work-plan.md)).
+which [P11](28-p11-implementation.md) now owns ([work plan §0.5](01-work-plan.md)).
 
 ---
 

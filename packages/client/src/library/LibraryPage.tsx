@@ -16,6 +16,7 @@ import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
+import { QuarantinePanel } from './QuarantinePanel.js';
 import {
   emptyMessage,
   panelFor,
@@ -101,6 +102,11 @@ export function LibraryPage(): JSX.Element {
         }}
       />
 
+      {/* Above the list and below the filter: it is about objects that are
+          *missing* from the list, so a reader has to meet it before concluding
+          something was deleted ([P7B.8]). */}
+      <QuarantinePanel />
+
       <MakeSomething kinds={kinds} />
 
       {library.isPending ? <p className="text-ink-subtle">Loading the library…</p> : null}
@@ -142,6 +148,18 @@ export function LibraryPage(): JSX.Element {
  * answer changes with every editor that lands and a sentence naming them is a
  * second list of the table above — the one that was false the day this one grew
  * its second row.
+ *
+ * ***And as of [P7B.6] both of those sentences are unreachable, which is the
+ * good outcome and not a reason to delete them*** (2026-09-14, amended at the
+ * merge with the selector bar, which turned one refusal into two).
+ * `EDITOR_ROUTES` now covers the whole of `LibraryKind` — the six folders
+ * [03 §5.1](../../../../docs/design/03-data-model.md) names — so `makeable` is
+ * never empty for any selection, and every branch of this component that is
+ * ever taken is the buttons. The refusal stays because **it is the guard, not
+ * the message**: a seventh kind is added to `LIBRARY_DIRECTORIES` in one edit
+ * and its editor in another, and the window between them is exactly when a
+ * *New* that landed nowhere would ship. Deleting an unreachable guard is how
+ * the thing it guarded against comes back.
  */
 function MakeSomething(props: { kinds: readonly LibraryKind[] }): JSX.Element {
   /**

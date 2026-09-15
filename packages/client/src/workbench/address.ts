@@ -24,7 +24,14 @@ import type { BlockSource } from '@storyengine/shared';
  *   ([06 §5.1]) — and gets its address with history's, for the same reason.
  * - **samples** names a sample inside whichever object carried it. The actor
  *   carrier links, for the reason `actor` does — it is a library object with a
- *   page. Treatment and Lorebook get a label until those pages exist.
+ *   page. ~~Treatment and Lorebook get a label until those pages exist.~~
+ *   ***All three carriers link since [P7B.5]*** (2026-09-14): the pages exist —
+ *   lorebooks since P5.1 and treatments since
+ *   [P7B.3](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md) —
+ *   and the condition this sentence was written under is the one the
+ *   route-caller sweep went looking for. A sample is prose somebody wrote in an
+ *   object they own, and the panel's whole claim is that a reader can get from
+ *   a block to the thing that produced it.
  * - **preset** names a block in the session's *copied* pack. The copy keeps the
  *   id it was copied from, so an **imported** preset links back to the file it
  *   came out of — which is what P4.4's demo turns on. A pack copied from a mode
@@ -35,7 +42,7 @@ import type { BlockSource } from '@storyengine/shared';
  */
 export interface SourceAddress {
   label: string;
-  link?: { kind: 'actors' | 'presets'; id: string };
+  link?: { kind: 'actors' | 'presets' | 'treatments' | 'lorebooks'; id: string };
 }
 
 /**
@@ -93,11 +100,29 @@ export function blockSourceAddress(source: BlockSource): SourceAddress {
   if (source.kind === 'persona' && source.actorId !== null) {
     return { label, link: { kind: 'actors', id: source.actorId } };
   }
-  // A sample the cast carried is prose on somebody's card, so the block table
-  // can click through to it — the same claim the `actor` arm makes. The other
-  // two carriers have no editor page to reach yet.
-  if (source.kind === 'samples' && source.owner.kind === 'actor') {
-    return { label, link: { kind: 'actors', id: source.owner.id } };
+  // A sample is prose in an object somebody owns, so the block table can click
+  // through to it — the same claim the `actor` arm makes. ~~The other two
+  // carriers have no editor page to reach yet.~~ **All three have one now**
+  // ([P7B.5]); the map is by carrier because the owner's `kind` is the turn
+  // record's word for it and the library's folder name is a different word,
+  // and a record written by a newer build may carry a third.
+  if (source.kind === 'samples') {
+    const kind = SAMPLE_OWNERS[source.owner.kind];
+    if (kind !== undefined) return { label, link: { kind, id: source.owner.id } };
   }
   return { label };
 }
+
+/**
+ * The library kind each `samples` carrier is, keyed by the record's own word.
+ *
+ * Open rather than exhaustive, for `SOURCE_LABELS`' reason one line up: a turn
+ * record is free-to-move tier and a build that has never heard of a carrier
+ * should render the label rather than crash. An unknown carrier gets no link,
+ * which is what it got before any of them did.
+ */
+const SAMPLE_OWNERS: Record<string, 'actors' | 'treatments' | 'lorebooks' | undefined> = {
+  actor: 'actors',
+  treatment: 'treatments',
+  lore: 'lorebooks',
+};

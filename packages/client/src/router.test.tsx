@@ -56,16 +56,19 @@ describe('narrowing a list by kind or by mode', () => {
  * home will take, and the library is explicitly not the answer to arrival.
  *
  * Driving the real router rather than asserting on the route table: the table
- * says a redirect is *configured*, and what matters is that it *fires*. This is
- * also the regression that catches someone reinstating the library at `/` for
- * convenience.
+ * says a route is *configured*, and what matters is where a navigation *lands*.
+ * This is also the regression that catches someone reinstating the library at
+ * `/` for convenience.
+ *
+ * ***`/` stopped being a redirect at [P7B.9]*** and is a page. The assertion
+ * that moved is the destination; the claim did not.
  */
 describe('the root address', () => {
-  it('redirects to the library, because / is reserved for home', async () => {
+  it('stays at the root, which is home rather than the library', async () => {
     await router.navigate({ to: '/' });
     await router.invalidate();
 
-    expect(router.state.location.pathname).toBe('/library');
+    expect(router.state.location.pathname).toBe('/');
   });
 
   it('leaves /library alone once it is there', async () => {

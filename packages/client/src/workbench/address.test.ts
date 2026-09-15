@@ -70,6 +70,54 @@ describe('every source has an address', () => {
     ).toBeUndefined();
   });
 
+  /**
+   * ***The carrier a sample came out of, all three of them*** — [P7B.5].
+   *
+   * Only the actor carrier linked before, and the reason was true when it was
+   * written: treatments and lorebooks had no editor page to reach. Both have
+   * one now — lorebooks since P5.1, treatments since
+   * [P7B.3](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md) —
+   * and a block whose prose came from an object a person owns should reach it.
+   *
+   * *The record's word and the library's folder name differ for two of the
+   * three*, which is the whole reason there is a map rather than a cast:
+   * `lore` is the carrier and `lorebooks` is the shelf.
+   */
+  it('links a writing sample to whichever object carried it', () => {
+    expect(
+      blockSourceAddress({
+        kind: 'samples',
+        owner: { kind: 'actor', id: 'a-3', contentHash: 'sha256:z' },
+        sampleId: 's-1',
+      }).link,
+    ).toEqual({ kind: 'actors', id: 'a-3' });
+    expect(
+      blockSourceAddress({
+        kind: 'samples',
+        owner: { kind: 'treatment', id: 'tr-1', contentHash: 'sha256:w' },
+        sampleId: 's-2',
+      }).link,
+    ).toEqual({ kind: 'treatments', id: 'tr-1' });
+    expect(
+      blockSourceAddress({
+        kind: 'samples',
+        owner: { kind: 'lore', id: 'lb-1', contentHash: 'sha256:v' },
+        sampleId: 's-3',
+      }).link,
+    ).toEqual({ kind: 'lorebooks', id: 'lb-1' });
+  });
+
+  /** A carrier this build has never heard of gets the label and no address. */
+  it('does not invent a shelf for a sample carrier from a newer build', () => {
+    const foreign = {
+      kind: 'samples',
+      owner: { kind: 'anthology', id: 'x-1', contentHash: 'sha256:u' },
+      sampleId: 's-4',
+    } as unknown as BlockSource;
+    expect(blockSourceAddress(foreign).link).toBeUndefined();
+    expect(blockSourceAddress(foreign).label).toBe('Writing sample');
+  });
+
   it('labels a source kind from a newer build with the word itself', () => {
     const foreign = { kind: 'weather' } as unknown as BlockSource;
     expect(blockSourceAddress(foreign).label).toBe('weather');

@@ -9,7 +9,7 @@ not quietly correct either side.
 
 It sits here rather than in [01](01-source-survey.md) because the source survey
 answers *what these codebases do* and this answers *what it would cost us*, and
-because §3 is addressed to a phase — [P11](workplan/27-p11-implementation.md) —
+because §3 is addressed to a phase — [P11](workplan/28-p11-implementation.md) —
 rather than to a reader.
 
 **Sources surveyed from disk, and pinned**, on the argument
@@ -70,7 +70,7 @@ described as conditional. The comment was the only wrong part.
 
 **Feasible, cheaper than E4's language suggests in the plumbing, more expensive
 than it looks in the target — and correctly sequenced after
-[P11](workplan/27-p11-implementation.md).**
+[P11](workplan/28-p11-implementation.md).**
 
 Three findings hold it up, and the third is the one that decides the schedule.
 
@@ -255,7 +255,7 @@ one-to-one and a plan that assumes it is will be wrong about its own size.
 **This is the section with a deadline, and the only one addressed to a phase.**
 
 [25 B12](25-open-questions.md) ships session export at 1.0, owned by
-[P11 §1.8](workplan/27-p11-implementation.md), and E4 is explicit that *"a format
+[P11 §1.8](workplan/28-p11-implementation.md), and E4 is explicit that *"a format
 designed with import in mind and a format designed without it are different
 documents, and only one of them can be written at P11."* What follows is that
 difference, as concretely as this survey can put it. None of it is a request to
@@ -380,7 +380,7 @@ future reader deciding the size should not re-derive it.
 - **The review vocabulary.** `{ key, params }` notes, seven dispositions, the
   addressable report, `import_job` / `import_item`, and the near-miss diagnosis.
   A session sweep would emit into all of it unchanged, which also keeps its prose
-  off [P11 §0.4](workplan/27-p11-implementation.md)'s localisation sweep.
+  off [P11 §0.4](workplan/28-p11-implementation.md)'s localisation sweep.
 - **The session write path.** `createSession`, `appendTurnOnly`, `advanceHead`,
   `reconcileSession` — turns can be written without running a model today.
 
@@ -392,7 +392,7 @@ a conclusion this document has.
 
 ## 6. Sequencing
 
-**After [P11](workplan/27-p11-implementation.md), and not before**, for the reason
+**After [P11](workplan/28-p11-implementation.md), and not before**, for the reason
 in §1: until session export exists, an importer for the interchange format is a
 reader for a format with no writer, and [work plan §2.2](workplan/01-work-plan.md)
 forbids it under the rule that struck `.seactor`.

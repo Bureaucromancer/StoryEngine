@@ -412,8 +412,19 @@ function ownerKeyOf(owner: LibraryOwner): string {
  * ([03 §11.1](../../../docs/design/03-data-model.md)): a save that changes nothing must
  * produce neither a write nor a history entry, and the only honest way to know
  * is to build the exact bytes and compare.
+ *
+ * ***Exported at [P7B.0], for the one caller outside this module.***
+ * [system-library.ts](./system-library.ts) writes each loaded mode's default
+ * pack into the system scope at boot, and it has to produce **byte-identical
+ * output to the request path** or every restart would look like an edit to the
+ * watcher, the index and the history. Spelling the encoding a second time is
+ * exactly how the two would drift, and the drift would be silent — a JSON file
+ * that differs by a trailing newline is a file that rewrites itself forever.
+ * Nothing else about the create path is reusable there: `create` resolves a
+ * free slug, claims an id and refuses a duplicate, and a materialiser does the
+ * opposite of all three on purpose.
  */
-async function encodeObject(
+export async function encodeObject(
   layout: Layout,
   owner: LibraryOwner,
   schemaId: PortableSchemaId,

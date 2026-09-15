@@ -22,6 +22,7 @@ import { MetadataRow } from '../ui/MetadataRow.js';
 import { SectionTitle } from '../ui/Text.js';
 import { AsStored } from './AsStored.js';
 import { ByField } from './ByField.js';
+import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
@@ -207,6 +208,15 @@ function ObjectView(props: {
             Edit
           </Link>
         ) : null}
+        {/*
+         * *In place of edit*, which is [10 §5]'s own phrasing — so it sits
+         * where Edit would have been rather than beside it, and only for the
+         * scope that cannot be edited. A shadowed user copy gets neither:
+         * `mutable` withholds Edit from it for the F19 reason above, and
+         * offering to fork the losing half of a duplicated id would copy an
+         * object other than the one on screen.
+         */}
+        {object.source === 'system' ? <CopyToMyLibrary kind={kind} object={object.object} /> : null}
         {mutable(object) ? (
           <DeleteObject
             kind={kind}

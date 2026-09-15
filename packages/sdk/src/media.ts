@@ -14,7 +14,7 @@
  *
  * ***The second arm is dead on arrival, and that is the entire content of the
  * obligation.*** P7 can only produce the first: nothing generates a picture
- * until [P9](../../../docs/design/workplan/25-p9-implementation.md). Declaring
+ * until [P9](../../../docs/design/workplan/26-p9-implementation.md). Declaring
  * the narrower shape now — a filename, or an authored reference alone — is the
  * tempting move, and §7.2 says what it costs: *"narrowing it to a filename now
  * means changing a channel's schema under live sessions later ([06 §4.2]) to

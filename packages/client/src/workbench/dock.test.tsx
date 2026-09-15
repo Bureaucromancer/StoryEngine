@@ -741,3 +741,79 @@ describe('the panel over a turn being taken', () => {
     expect(within(dock).getByText('se.narrate')).toBeTruthy();
   });
 });
+
+/**
+ * ***The panel can be pointed at a turn the head has passed*** — [P7B.7],
+ * which closes [F-05] and [R1].
+ *
+ * [10 §3] has said *current or historical* since it was written and the panel
+ * was wired to the head; `Workbench.tsx`'s own paragraph recorded that as a
+ * limit waiting on per-turn affordances. It was filed unowned in
+ * [manual testing §10] for five days short of a year of phases.
+ *
+ * **Through the real router, because the selection is in the address.** The
+ * panel keeps no state — that is [10 §3]'s rule and the reason a component-level
+ * selection was the wrong shape — so a test that drove a prop would be testing
+ * something the app does not do.
+ */
+describe('pointing the panel at a past turn', () => {
+  it('shows the head until somebody asks for something else', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    expect(await within(dock).findByText('The head turn of this session.')).toBeTruthy();
+  });
+
+  it('follows the address to an earlier turn, and says it is not live', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    await act(async () => {
+      await router.navigate({
+        to: '/play/$sessionId',
+        params: { sessionId: SESSION_ID },
+        search: { turn: TURNS[0]!.id },
+      });
+    });
+
+    const dock = await screen.findByRole('complementary');
+    expect(
+      await within(dock).findByText('A turn the head has passed. Nothing here is live.'),
+    ).toBeTruthy();
+    expect(within(dock).queryByText('The head turn of this session.')).toBeNull();
+  });
+
+  /**
+   * The picker would be a control that undoes itself otherwise: typing is
+   * exactly what somebody does while reading an old turn, and the composed
+   * preview outranking an explicit selection would yank the panel away
+   * mid-sentence.
+   */
+  it('keeps the chosen turn while a turn is being composed', async () => {
+    stagedPreview = pendingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    await act(async () => {
+      await router.navigate({
+        to: '/play/$sessionId',
+        params: { sessionId: SESSION_ID },
+        search: { turn: TURNS[0]!.id },
+      });
+    });
+
+    const dock = await screen.findByRole('complementary');
+    expect(
+      await within(dock).findByText('A turn the head has passed. Nothing here is live.'),
+    ).toBeTruthy();
+    expect(
+      within(dock).queryByText(
+        'What would be sent if this turn were taken now — nothing has been sent.',
+      ),
+    ).toBeNull();
+  });
+});

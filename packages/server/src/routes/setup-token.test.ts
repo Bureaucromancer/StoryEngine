@@ -14,7 +14,7 @@ import { makeTestServer, type TestServer } from '../test-server.js';
  * The first-run setup token, and the cookie hardening that travels with it —
  * F10, [09 §5.1](../../../../docs/design/09-server-multiuser-deployment.md),
  * [P6A §1.4](../../../../docs/design/workplan/19-p6a-alpha-1.md),
- * [P10 §1.1](../../../../docs/design/workplan/26-p10-implementation.md).
+ * [P10 §1.1](../../../../docs/design/workplan/27-p10-implementation.md).
  *
  * **The claim is the check, not the print.** P1 printed a freshly generated
  * token on every non-loopback boot and stored it nowhere, so nothing verified

@@ -453,8 +453,12 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       // `presetId` so the workbench can link a block back to the preset it came
       // from ([P4 §2], P4.4). The session's pack is a copy, but a copy keeps the
       // id it was copied from — so for an imported preset this addresses the
-      // library object, and for a mode default it addresses nothing and the
-      // panel shows a label.
+      // library object, and ~~for a mode default it addresses nothing and the
+      // panel shows a label~~ **since [P7B.0] a mode default addresses one too**:
+      // the pack is materialised into the system library at boot, under the very
+      // id written here. Nothing on this line changed, which is the interesting
+      // part — the link was always emitted and there was simply nothing on the
+      // other end of it.
       { kind: 'preset', blockId: block.id, presetId: context.preset.id },
       undefined,
     );

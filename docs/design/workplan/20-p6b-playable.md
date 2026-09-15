@@ -706,13 +706,13 @@ log its signal:
   (`library/fields.ts`). Creation follows each kind's editor, and ~~that is P7's
   and P11's~~ ***that turned out to be neither*** — P7 did not take it and P11's
   editor stage sweeps editors that exist rather than creating any. **It is
-  [P7B.1, P7B.3 and P7B.6](28-p7b-presets-and-prompts.md)'s**, in a phase created because this routing was
+  [P7B.1, P7B.3 and P7B.6](24-p7b-presets-and-prompts.md)'s**, in a phase created because this routing was
   the shape it was created to catch.
 - **No session housekeeping.** ~~No rename, archive or delete in the UI, though
   the routes exist.~~ ***Rename landed; archive and delete did not*** — 2026-09-14,
-  [P11 §0.1](27-p11-implementation.md). `SessionsPage` calls `renameSession`,
+  [P11 §0.1](28-p11-implementation.md). `SessionsPage` calls `renameSession`,
   which `PATCH`es the very route that has also accepted `{ archived }` since P2.
-  The remaining two are [P7B.2](28-p7b-presets-and-prompts.md)'s.
+  The remaining two are [P7B.2](24-p7b-presets-and-prompts.md)'s.
 - **No way to change a session's mode or preset after creation** (§4).
 - **No per-user connection surface.** A non-admin cannot configure their own
   provider; only an admin can, and that is P10's.

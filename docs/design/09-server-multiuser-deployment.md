@@ -1028,7 +1028,7 @@ build-from-source stays first-class.
 | **Beta** | The OCI image and the tarball |
 | **1.0** | `.deb`, AUR, the Windows service installer, the Homebrew formula — and the in-app update *check* ([§6.5](#65-update-check-and-using-it-as-a-connectivity-signal)) |
 
-**All six are owned by P11** ([P11](workplan/27-p11-implementation.md)), which is
+**All six are owned by P11** ([P11](workplan/28-p11-implementation.md)), which is
 the correction to an earlier version of this table. The 1.0 row used to be a
 *bar* with no phase behind it, and P11 — the last phase — had put those four out
 of scope, so the requirement existed and the builder did not.
@@ -1056,8 +1056,8 @@ re-assignment rather than a repeat of the same defect.** That one fixed four
 artifacts with a requirement
 and no builder; the failure available here is the mirror image — one artifact
 with two builders — and it was already live before P6A existed, since
-[P10.0](workplan/26-p10-implementation.md) gated on `docker run` while
-[P10 §4](workplan/26-p10-implementation.md) called packaging P11's. So the
+[P10.0](workplan/27-p10-implementation.md) gated on `docker run` while
+[P10 §4](workplan/27-p10-implementation.md) called packaging P11's. So the
 boundary is stated once, at the foot of this section, and cited from P10 and P11
 rather than restated in either.
 
@@ -1085,8 +1085,8 @@ section warns about — the CI matrix entry aside — is a cost of *having users
 Tiers 2 and 3 are untouched and remain exactly as scheduled above.
 
 **Ownership, since three documents have claimed it.**
-[P10.0](workplan/26-p10-implementation.md) gates on `docker run`,
-[P10 §4](workplan/26-p10-implementation.md) calls packaging P11's, and the
+[P10.0](workplan/27-p10-implementation.md) gates on `docker run`,
+[P10 §4](workplan/27-p10-implementation.md) calls packaging P11's, and the
 paragraph above says all six are P11's. The boundary, stated once and cited from
 the others: **P6A builds** the image, compose file and template; **P10 consumes**
 them; **P11 owns** the tarball, the other four artifacts, and public

@@ -1,8 +1,8 @@
-# 25 — P9 implementation plan
+# 26 — P9 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md), [P8](24-p8-implementation.md),
-[P10](26-p10-implementation.md) and [P11](27-p11-implementation.md); to be
+[P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
+[P10](27-p10-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
 citation convention as [P4](16-p4-implementation.md)'s.
@@ -199,7 +199,7 @@ the shape that makes it safe is not**, and a phase that ships pixels without
 
 [09 §3.5](../09-server-multiuser-deployment.md) defines the class and names
 renditions as its only 1.0 producer; the notification **router** is
-[P10](26-p10-implementation.md)'s. So this phase emits an event nothing routes,
+[P10](27-p10-implementation.md)'s. So this phase emits an event nothing routes,
 and the phases are in that order for good reasons on both sides.
 
 The obligation that follows is [09 §3.4](../09-server-multiuser-deployment.md)'s
@@ -449,7 +449,7 @@ they gate, and building either here would be a control over a decision nothing
 makes yet.
 
 ***And nothing owns the judgement they arrive with*** — found 2026-09-14 by
-[P11 §0.1](27-p11-implementation.md)'s sweep.
+[P11 §0.1](28-p11-implementation.md)'s sweep.
 [06 §10.4](../06-modes-and-turn-pipeline.md) says the count judgement *"lands in
 a later one"* and **P10 and P11 are the only later phases; neither mentions it**.
 So this deferral, and the two dials with it, currently point at nobody — which

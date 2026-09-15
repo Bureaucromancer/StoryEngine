@@ -96,6 +96,19 @@ export interface AuthState {
 }
 
 /** The object envelope every library read returns (docs/api.md). */
+/** One file the library holds and cannot read — `library.ts`'s `LibraryFileError`. */
+export interface LibraryFileError {
+  /** Portable, never native: which folder, not where the server keeps its disk. */
+  path: string;
+  source: 'user' | 'system';
+  /** The `schema` the file claims, which may be why it was refused. */
+  kind: string;
+  slug: string;
+  reason: string;
+  detail: string | null;
+  seenAt: number;
+}
+
 export interface LibraryObject {
   id: string;
   schema: string;
@@ -483,6 +496,20 @@ export const api = {
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 
   /**
+   * What the library could not load — [P7B.8].
+   *
+   * ***The route has existed since P2 and nothing called it.***
+   * [manual gate §3.5](../../../docs/design/workplan/11-p2-manual-gate.md) has
+   * said *"No client code calls it"* for six phases, and its gate step has
+   * failed the whole time: *"Break an actor by hand and the app is silent:
+   * stale content presented as current, edited, then refused by a conflict
+   * dialog blaming a concurrent editor."* A quarantine nobody can look into is
+   * a deletion with extra steps.
+   */
+  libraryErrors: (): Promise<{ errors: LibraryFileError[] }> =>
+    request('GET', '/api/library/errors'),
+
+  /**
    * `at` reads one *specific* copy of a duplicated id (docs/api.md, Library).
    *
    * Deliberately a parameter on this call rather than something `objectUrl`
@@ -751,6 +778,23 @@ export interface SessionSummary {
    */
   mode?: { id: string };
   /**
+   * The session's own copy of its prompt pack — [03 §8], claimed at [P7B.2].
+   *
+   * ***On the wire since P2 and undeclared here until now.*** `GET
+   * /api/sessions/:id` sends the whole session file, so this has always
+   * arrived; nothing on the client had a use for it, because until this phase
+   * nothing could change or even display which pack a session runs. The type
+   * was not wrong, it was incomplete — which is the same shape as everything
+   * else [P7B §0.5] collects, one layer up from a route with no caller.
+   *
+   * **`Record<string, unknown>` rather than `Preset`**, on the terms `treatment`
+   * and `lore` above set: a session's pack is a *structural copy* made at
+   * creation and possibly written by a later build, so a client naming its
+   * shape would be claiming to know more than it does. The panel reads `name`
+   * and `params` and passes the rest through untouched.
+   */
+  preset?: Record<string, unknown>;
+  /**
    * The goal chain, for the one caller that needs it back from a write —
    * [06 §7.3.4], [P7.6].
    *
@@ -942,6 +986,43 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
  * An empty name is a legitimate value — it is the state a session may have
  * started in — so this does not refuse one.
  */
+/**
+ * Which pack this session is assembled from — [P7B.2].
+ *
+ * **One of the two, never both.** `presetId` switches to a library preset the
+ * server clones ([03 §8]'s *copy, never link*), or the literal `default` for
+ * whatever the mode ships; `preset` is the session's own pack sent whole, which
+ * is how the panel edits one in place. [P7B §1.1] records that those are the
+ * same operation with a pack of one.
+ */
+export function setSessionPreset(
+  sessionId: string,
+  body: { presetId: string } | { preset: Record<string, unknown> },
+): Promise<{ session: SessionSummary }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/preset`, body);
+}
+
+/**
+ * Archive or restore — [03 §10.3], [P7B.2].
+ *
+ * ***One field on a `PATCH` this client has been sending since P2.*** The route
+ * has accepted `{ archived }` the whole time and `renameSession` below has been
+ * calling it with `{ name }`; nothing ever sent the other half. That is the
+ * sharpest instance of the shape [P7B §0.5] is about — not a missing route, a
+ * missing *field* on a request already being made.
+ */
+export function setSessionArchived(
+  sessionId: string,
+  archived: boolean,
+): Promise<{ session: SessionSummary }> {
+  return request('PATCH', `/api/sessions/${encodeURIComponent(sessionId)}`, { archived });
+}
+
+/** To trash, never erased — [03 §10.2], [03 §10.3]. */
+export function deleteSession(sessionId: string): Promise<void> {
+  return request('DELETE', `/api/sessions/${encodeURIComponent(sessionId)}`);
+}
+
 export function renameSession(
   sessionId: string,
   name: string,
@@ -1620,6 +1701,25 @@ export const adminApi = {
 
   removeAccount: (handle: string): Promise<undefined> =>
     request('DELETE', `/api/admin/accounts/${handle}`),
+
+  /**
+   * An administrator setting somebody else's password — [P7B.5].
+   *
+   * **The route has shipped since P2A and nothing called it**, which is the
+   * class [P7B §0.5](../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
+   * is about and the one item the route-caller check found that was cheap
+   * enough to answer in the sweep that found it. Without a caller the only way
+   * to restore access to an account whose password is lost is to delete it and
+   * make a new one, which discards that person's library — a repair that costs
+   * more than the thing it repairs.
+   *
+   * *`newPassword` and not `password`, matching the route's body: the field is
+   * named for what it is rather than for the account it belongs to, because the
+   * one thing this call must not be confused with is `changePassword`, which
+   * takes the current one as well.*
+   */
+  setAccountPassword: (handle: string, newPassword: string): Promise<undefined> =>
+    request('POST', `/api/admin/accounts/${encodeURIComponent(handle)}/password`, { newPassword }),
 
   listConnections: (): Promise<{ connections: AdminConnection[] }> =>
     request('GET', '/api/admin/connections'),

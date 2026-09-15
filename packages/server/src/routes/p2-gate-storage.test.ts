@@ -17,7 +17,7 @@ import { replayChannels } from '../sessions/store.js';
 import type { ChannelEffect, SessionFile, Turn } from '../sessions/types.js';
 import { STATE_SCHEMA_VERSION } from '../state/migrations.js';
 import { Layout } from '../storage/layout.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * The two storage claims of the exit gate — [P2 §4](../../../../docs/design/workplan/08-p2-implementation.md)
@@ -317,10 +317,9 @@ describe('step 15 — deleting index.sqlite costs a rescan and nothing a user ca
     // **(5) The library holds both objects.** This one *is* index-backed —
     // `GET /api/library` lists rows, not files — so it fails outright if the
     // rebuild never ran over the object half.
-    const library = await server.request({ method: 'GET', url: '/api/library' });
-    expect((library.body.objects as { id: string }[]).map((row) => row.id).sort()).toEqual(
-      [actorId, bookId].sort(),
-    );
+    // The account's own — [P7B.0]'s shipped packs share this list ([10 §5]).
+    const library = await ownObjects(server);
+    expect(library.objects.map((row) => row.id).sort()).toEqual([actorId, bookId].sort());
 
     /**
      * **(6) The load-bearing one.**
@@ -536,8 +535,9 @@ describe('step 15 — deleting state.sqlite loses the turn in flight and nothing
     ]);
     expect((found.body.objects as { id: string }[]).map((row) => row.id)).toEqual([killed.bookId]);
 
-    const library = await server.request({ method: 'GET', url: '/api/library' });
-    expect((library.body.objects as { id: string }[]).map((row) => row.id).sort()).toEqual(
+    // The account's own — [P7B.0]'s shipped packs share this list ([10 §5]).
+    const library = await ownObjects(server);
+    expect(library.objects.map((row) => row.id).sort()).toEqual(
       [killed.actorId, killed.bookId].sort(),
     );
 

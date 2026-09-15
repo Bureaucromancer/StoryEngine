@@ -1,20 +1,36 @@
-# 28 — P7B implementation plan: presets, prompt handling, and the surfaces the server already has
+# 24 — P7B implementation plan: presets, prompt handling, and the surfaces the server already has
 
-**Status: skeleton, written 2026-09-11 at `46bec98` — the phase after P7, and
-filed out of order on purpose.** Its place is after [P7](23-p7-implementation.md)
-and before [P8](24-p8-implementation.md), which is 24. Taking that number today
-renumbers P8 through P11 and repoints every citation to them — including the
-ones inside the P7 document that branch `p7` is editing — so it sits at the
-first free number instead. `PLAN_ORDER` in
-[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
-real position; one scripted run after P7 merges moves it, and nothing cites a
-work-plan number, so the move costs nothing
-([README](README.md)). Format follows [P1](07-p1-implementation.md); citations
-follow the corpus convention.
+**Status: all ten stages committed, 2026-09-14 — the critical list is walked on
+the day the phase closes and this document records no walk.** Every stage in §2
+carries a *Done* block naming its commit.
+
+~~**Filed out of order on purpose.**~~ ***Moved to 24 at
+[P7B.5](#p7b5--the-sweep), 2026-09-14, which is what the paragraph below said
+would happen.*** Its place is after [P7](23-p7-implementation.md) and before
+[P8](25-p8-implementation.md), ~~which is 24~~ **and it is now there**; P8
+through P11 each moved up one and every citation to them was repointed by the
+script. Written 2026-09-11 at `46bec98`; the original reasoning is kept because
+it is the argument for filing a document at the wrong number rather than waiting:
+
+> Taking that number today renumbers P8 through P11 and repoints every citation
+> to them — including the ones inside the P7 document that branch `p7` is
+> editing — so it sits at the first free number instead. `PLAN_ORDER` in
+> [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
+> real position; one scripted run after P7 merges moves it, and nothing cites a
+> work-plan number, so the move costs nothing ([README](README.md)).
+
+*The move cost two defects in the script, both found by running it and neither
+findable without: a second copy of the slug-to-name table that had already
+drifted — it would have rewritten every `[28 §x]` citation of **this** document
+to `undefined §x` — and a root-relative test that read a sibling citation as a
+path from the repository root and rewrote three thousand of them into links that
+resolve nowhere a reader stands. A script kept in the repository to be run again
+is only as good as its first real run says it is.* Format follows
+[P1](07-p1-implementation.md); citations follow the corpus convention.
 
 ***Widened 2026-09-14 by a second sweep, and the two halves are one phase.***
 A documentation pass looking for pre-1.0 commitments no phase owns found
-seventeen — the register is [P11 §0.1](27-p11-implementation.md) — and five of
+seventeen — the register is [P11 §0.1](28-p11-implementation.md) — and five of
 them turned out to be this document's finding wearing different clothes. §0.5 is
 the argument for folding rather than filing them beside this one, and it is
 short: the sentence this phase was written around and the sentence that sweep
@@ -59,9 +75,9 @@ editors are three panels, which is the pressure. P7's own text knows the gap:
 its P7.9 grows *"a thirteen-block preset that is a code constant nobody can
 open"*, and its re-audit found *"a hook has nowhere to be authored"* and chose
 hand-edited JSON for P7.5 rather than inherit an editor. That is the right call
-for P7 and the wrong end state for 1.0. Why not P11: [P11.2](27-p11-implementation.md)
+for P7 and the wrong end state for 1.0. Why not P11: [P11.2](28-p11-implementation.md)
 applies [10 §11](../10-ui-surfaces.md) *across every editor*, and
-[P11 §1](27-p11-implementation.md) says in as many words that the size of that
+[P11 §1](28-p11-implementation.md) says in as many words that the size of that
 clause *"depends entirely on how many editors P5 through P9 add"*. A hardening
 phase applies a contract across editors; it should not be discovering that
 half of them are missing.
@@ -200,7 +216,7 @@ builds it and absorbs it otherwise, at the revisit, with the date.
 minimum — *create, rename, delete, and the durable core … with everything else
 visible and read-only* — on the P1 precedent, real write path and no assist.
 The field-assist contract, image slots, provenance display and the entry-level
-exchange are [P11.2](27-p11-implementation.md)'s and stay there. A stage in
+exchange are [P11.2](28-p11-implementation.md)'s and stay there. A stage in
 this phase that starts building assist has crossed the line, because the reason
 this phase exists is that nobody can change one sentence, and assist is a way
 of writing sentences faster.
@@ -216,7 +232,7 @@ grows a schema is a phase that has started being P8.
 commitments no phase owns, starting from the observation that four of the six
 library kinds have no editor and asking whether that was the only one of its
 shape. **It was not; there are seventeen**, and the register is
-[P11 §0.1](27-p11-implementation.md).
+[P11 §0.1](28-p11-implementation.md).
 
 **Five of them belong here, and the reason is that they are this document's §0.1
 from the other end.** §0.1 traces a *forward* chain: six documents each sent the
@@ -252,7 +268,7 @@ because it outlives this phase.
 
 **Two of the second sweep's findings were deliberately not folded**, and both
 are recorded in §4 with the decision that put them there: **search** stays
-[P11.1](27-p11-implementation.md)'s, and **the full home** stays a 1.0 feature
+[P11.1](28-p11-implementation.md)'s, and **the full home** stays a 1.0 feature
 expected immediately before the beta cut-over.
 
 ---
@@ -496,13 +512,13 @@ setup editor is the smallest of the four**: the create side is done and is the
 *right* shape — naming a configuration you already played rather than filling in
 a blank one — and what is missing is opening one and changing a field.
 
-*This corrects [P11.2](27-p11-implementation.md), which read that P7.4's wizard
+*This corrects [P11.2](28-p11-implementation.md), which read that P7.4's wizard
 **is** the setup's editor by [10 §6](../10-ui-surfaces.md)'s design. It is the
 setup's **creator**; the code is explicit about the difference.*
 
 **A package's editor is a picker, not a form** — a bundle is an arbitrary set of
 objects ([03 §7](../03-data-model.md), [04 §9](../04-schemas.md)), so its editor
-is a selection over what the user owns. **It was [P11.2](27-p11-implementation.md)'s
+is a selection over what the user owns. **It was [P11.2](28-p11-implementation.md)'s
 until 2026-09-14 and the argument for keeping it there undercut itself**: *across
 every editor* cannot apply to an editor that does not exist, which is a reason to
 build it before the sweep rather than inside it.
@@ -511,7 +527,7 @@ build it before the sweep rather than inside it.
 package editor with no `.sepack` import or export is a form over a bundle nobody
 can move, and `.sepack` is **not** in this phase — [P4](16-p4-implementation.md)'s
 *"P11-ish"* is the corpus's only assignment for it and it is routed beside
-[P11.10](27-p11-implementation.md)'s session export, since both freeze a format
+[P11.10](28-p11-implementation.md)'s session export, since both freeze a format
 and nothing else here touches one. So the package editor lands able to *make* and
 *describe* a bundle and not to *send* one. That is a real half-measure and it is
 the one this phase accepts: the alternative is a sixth library kind that stays
@@ -520,7 +536,7 @@ uncreatable for another two phases.
 ### 1.10 Home arrives as a prototype, and the full version is deferred by name
 
 ***Added 2026-09-14, and it reverses a placement made three days earlier.*** The
-first sweep put home at **[P10.4](26-p10-implementation.md)**, beside the
+first sweep put home at **[P10.4](27-p10-implementation.md)**, beside the
 gallery. It is **deferred instead**, and the terms are recorded rather than
 translated: **not core-alpha work**; still nominally a 1.0 feature, expected
 *immediately before the cut-over to feature-complete beta*, **and it may be
@@ -556,7 +572,7 @@ sign-in; and `tools/release.test.ts` already pins `CHANGELOG.md`'s version
 against three other files, so a fourth consumer inherits that guarantee. *The
 cost, stated:* the bundle grows by the changelog — sixteen kilobytes today — and
 [20 — client loading](../20-client-loading.md) is what measures whether that
-matters, at [P11.0](27-p11-implementation.md).
+matters, at [P11.0](28-p11-implementation.md).
 
 ### 1.11 What the fold deliberately did not collect
 
@@ -565,7 +581,7 @@ matters, at [P11.0](27-p11-implementation.md).
 four near-misses are named so the revisit does not re-litigate them:
 
 - **Search** ([10 §14](../10-ui-surfaces.md)) fits the rule exactly and is
-  **[P11.1](27-p11-implementation.md)'s anyway**, decided 2026-09-14: it and the
+  **[P11.1](28-p11-implementation.md)'s anyway**, decided 2026-09-14: it and the
   reading view are read-surfaces over the same data and share a print story,
   which is a better grouping than *shipped route with no caller*. `README.md`
   already promises it to a reader, so the deferral is on the clock.
@@ -583,7 +599,64 @@ four near-misses are named so the revisit does not re-litigate them:
   Building one third of a scroll-and-progress story is how the other two thirds
   get built twice.
 - **`.sepack` import and export** — §1.9's stated half-measure, routed beside
-  [P11.10](27-p11-implementation.md).
+  [P11.10](28-p11-implementation.md).
+
+### 1.12 What the check found that the sweep did not — 2026-09-14
+
+**A different instrument, which is the whole argument for gate row 17.** §1.11
+lists what a *person reading documentation* found and this phase declined to
+take. This section lists what nobody found at all until
+[`route-callers.test.ts`](../../../packages/server/src/routes/route-callers.test.ts)
+walked the route table at P7B.5 — and it is four more routes in exactly the
+position §0.5 describes: shipped, tested, green in CI, reachable from nothing.
+
+*The check is the reason this section is short rather than the reason it is
+long.* Thirty-one routes came back on the first run; twenty-four of those were
+the check being wrong about prefixes and helper-composed addresses, and the
+stage record under P7B.5 says how. Seven were real, and two of the seven are
+correct absences with an argument already written somewhere:
+`GET /api/modes/:modeId`, because `GET /api/modes` carries every mode's whole
+declaration and a client holding the list never asks about one; and
+`PUT /sessions/:id/cast`, because [06 §8](../06-modes-and-turn-pipeline.md) puts
+the persona at setup and §1.6 has `cast.actors` mid-move to channel state, which
+`play/LorePanel.tsx` says in as many words.
+
+***The criterion for building one in the sweep rather than owing it***, stated
+because a sweep that quietly builds four panels is not a sweep: **build it if
+the surface is a control on a page that already exists and the route poses no
+design question; owe it if the surface is a page or panel that does not exist,
+or if where it goes is a decision.** One of the five passed.
+
+- **Built here.** `POST /admin/accounts/:handle/password` — an administrator
+  resetting somebody's password, shipped at P2A with no caller. The absence was
+  not cosmetic: an account's folder under `data/users` **is** that person's
+  library, so the only repair for a forgotten password was to delete the account
+  and make a new one, which costs more than the problem. It is a field and a
+  button on a row `AdminAccounts` already draws.
+- **Owed: `PUT /sessions/:id/roles`** — a session's model override, which
+  [19 §5.1](../19-tech-stack.md) is explicit that *"anyone who wants their own
+  key overrides a role without the admin's involvement"*. [P7.3] built the
+  route, the resolution layer and the tests, and named where the surface goes —
+  *"beside the lore panel's disclosure"* — and built no control. It is a panel
+  rather than a control, it needs the account's usable connections and the role
+  vocabulary, and §1.4's placement answer predates the session panel this phase
+  actually shipped. Routed to [P11 §0.1](28-p11-implementation.md)'s register.
+- **Owed: `PATCH` and `DELETE /sessions/:id/refs/:refId`** — renaming and
+  removing a named node. [07 §6](../07-branching.md) says *promoting a swipe is
+  creating a `BranchRef`* and that *deleting one later deletes a name*; the
+  promote half has a control on the play page and the other two have none, so a
+  name is creatable and permanent. The surface is the list §6 sends to the
+  history strip, which does not exist — the tree visualiser is post-1.0
+  ([24 §1](../24-roadmap.md)) but a create with no undo is not what that
+  deferral was about. Routed to the same register.
+- **Not owed here: `GET /api/search`**, which §1.11 and §4 already route to
+  [P11.1](28-p11-implementation.md).
+
+**And one thing the check found that is not a route.** `workbench/address.ts`
+linked a writing sample's block to its carrier only when the carrier was an
+actor, because *"the other two carriers have no editor page to reach yet"* —
+true when written, and false since P5.1 and P7B.3. Corrected in the sweep under
+the same criterion: three lines, on a panel that already exists.
 
 ---
 
@@ -613,6 +686,37 @@ by its name rather than as *the mode's own*. The `preset.ts` comment corrected.
 *Ends at:* the `se.instruction` row in the workbench links to an object, and
 that object has a *Copy to my library* button.
 
+#### Done — 2026-09-14, `f37903c`
+
+**The workbench link needed no code at all, and finding that out is the stage's
+first result.** `collect.ts` has written `presetId` onto every preset-sourced
+block since P4.4 and `workbench/address.ts` has linked whenever there is one;
+what was missing was never the link, it was **an object at the other end**. A
+stage sized as *wire the link* would have found nothing to wire and concluded
+the feature worked.
+
+**`materialiseModePresets` reads before it writes**, so an unchanged restart
+touches no file — which is not tidiness but the exit-gate row 11 claim: a write
+per boot would append a history version per boot, and a user's revision list for
+a shipped object would fill with revisions nobody made. It runs after `Layout`
+and before the rebuild and the watcher, so the index meets ordinary files by
+either path, and `pnpm test:gate` holds with the folder present.
+
+***And then twenty-three assertions broke, which is the finding worth keeping.***
+Every one of them measured *the user's library* as *everything the list route
+returned* — `expect(objects).toHaveLength(2)` over a route that merges the
+user's scope with the system's, as [10 §5](../10-ui-surfaces.md) says it must.
+They were not wrong about behaviour; they were wrong about vocabulary, and they
+had been since P1 because the system scope was always empty. `ownObjects()` in
+`test-server.ts` carries the distinction and its docstring carries this
+paragraph. **Two were upgraded rather than patched** — the merge test, which
+wanted the merge it was accidentally asserting away, and the scan-count test,
+which now asserts a delta rather than an absolute, because an absolute count of
+everything on disk is a number that changes whenever anything ships.
+
+*`encodeObject` gained an export and a docstring naming its one caller outside
+`library.ts`, rather than a second copy of the write path in the materialiser.*
+
 ### P7B.1 — The preset editor, minimum
 
 §1.3 built: `/library/presets/:id/edit` and `/library/presets/new`,
@@ -627,6 +731,51 @@ the same `validate()` the write path runs. The Presets panel of
 *Ends at:* the demo's first half — the sentence changed in the browser and read
 in the rendered messages.
 
+#### Done — 2026-09-14, `b9dc9b2`, `a8c699f` and `dcd9194`
+
+***The mechanism §1.3 asks for already existed and was already general***, which
+is why one stage produced six editors rather than one.
+`shared/src/schema/banners.ts` promoted the schema files' comment banners to a
+real annotation at P5, and `client/src/library/fields.ts` has derived field
+rows, groups, labels and numeric bounds from any schema since — its own
+docstring says *"this is not a lorebook feature that other kinds opt into, it is
+the general shape."* Only `lorebook.ts` carried banners and only `ByField.tsx`
+read them. So `SchemaFields.tsx` is the **write-side twin of a read-side
+component that was already written**, and §1.3's *the editor's shape is the
+schema's shape* cost a file rather than a phase.
+
+**Three commits, and the middle one is the answer to §4's own worry about
+refactors.** `b9dc9b2` extracted the shell (`object-editor.ts`,
+`EditorFrame.tsx`, `ConflictDialog.tsx`); `a8c699f` moved the lorebook editor
+onto it — 1472 lines to 1187, and the actor editor 754 to 409 — with
+`LorebookEditorPage.test.tsx` and `ActorEditorPage.test.tsx` **unedited where
+they assert behaviour**; `dcd9194` is the preset editor, which is what the other
+two were for.
+
+***The extraction exposed two real defects, which is the argument for doing it
+before writing four more editors rather than after.***
+
+- **The 412 dialog said *"The actor changed"* over a lorebook.** Two editors had
+  drifted into two dialogs and one of them carried the other's noun. *The first
+  fix was worse than the bug*: a `noun` prop interpolated into a sentence, which
+  `no-restricted-syntax` refused with the reason it exists — *a sentence
+  assembled from fragments cannot be translated*. The dialog takes the whole
+  sentence.
+- **The two editors disagreed about stamping `provenance.updatedAt`**, and the
+  lorebook's comment argued its side. Checked against `library.ts` rather than
+  reasoned about: **the server stamps, and it compares the bytes as sent,
+  before stamping.** So a client that stamps is a client racing the server's
+  own clock for no gain. The shell sends unstamped and `stampUpdated` is deleted
+  with a note saying why.
+
+**What the preset editor retires by existing:** `SlotSource.outlet` had been
+*settable by nothing* since P5 with hand-written JSON as its only repair, and
+[P5 §3](17-p5-implementation.md) recorded that as a standing defect for two
+phases. *New preset* starts from a shipped pack rather than a blank, because
+[P4.5](16-p4-implementation.md)'s *a blank-page dead end teaches worse than no
+button* is worse here than for actors: an empty block list produces no error,
+it produces a turn that narrates nothing, discovered at play time.
+
 ### P7B.2 — The session-settings surface
 
 §1.1 and §1.4 built: the route; the panel, absorbing lore selection and P7.3's
@@ -637,6 +786,30 @@ The `sessions.ts` and `SessionsPage.tsx` comments corrected.
 
 *Ends at:* C3 and D11 walked with no text editor open.
 
+#### Done — 2026-09-14, `614e750`
+
+§1.4's route, in the shape §1.4 chose: `PUT /sessions/:sessionId/preset`, the
+body being the object rather than a diff, like `PUT …/lore` and `PUT …/cast`
+before it. `SessionPanel.tsx` carries the pack switcher, *Maximum reply length*
+and the temperature, the session's own copy editable in place, and **archive and
+delete** — the second of which had no client wrapper at all and the first of
+which was one field on a `PATCH` `SessionsPage` has been sending since P2.
+
+***What is not done, said plainly because the stage text promised it.*** §1.4
+says **one Session panel, not three**. There is no such consolidation. The
+honest reason is that §1.4 was written against a play page with three panels and
+this stage's own work took it to six — lore, dials, hooks, cast, the HUD and now
+this — so *consolidate the three* is no longer a description of anything, and
+doing it properly is a layout decision about six surfaces rather than a
+merge of two. **The debt is written into `SessionPanel.tsx` rather than left in
+this document alone**, so the next person to open that file reads it before they
+add a seventh.
+
+*C3 and D11's old wordings are struck rather than replaced, per
+[§0](05-manual-testing.md)'s rule that a gate step is never edited to match what
+was walked — both were walked on the hand-edit path and passed, and the UI path
+is a different check of the same claim.*
+
 ### P7B.3 — The treatment editor, minimum
 
 §1.5 built: `/library/treatments/:id/edit` and `/new`; framing, tone, samples,
@@ -645,6 +818,27 @@ world* from the lorebook page; the Treatments panel with its button.
 
 *Ends at:* a framing sentence typed in the browser arriving in the next turn's
 `se.treatment` block.
+
+#### Done — 2026-09-14, `b55fe9e` — with P7B.6
+
+**Recorded with P7B.6 because they are one commit and that is the finding.**
+Once the shell and `SchemaFields` existed, a treatment editor was a
+*declaration* rather than a component: `kinds.tsx` holds what each kind is
+called, what its blurb says, what its 412 sentence reads and which fields are
+shown read-only, and `SimpleEditorPage.tsx` is the page all three share. Three
+editors, one file each of description.
+
+**The bar is §0.4's and saying it plainly is part of the work: usable, not
+complete.** A treatment's cast rows arrive **shown as stored and not writable**,
+which `SchemaFields` renders with the sentence *this editor does not write this
+field yet* rather than dropping the field —
+[10 §2.1](../10-ui-surfaces.md) forbids a hidden field, and a field silently
+absent from an editor is one a user cannot discover is there. Hooks are
+read-only as §1.5 decided.
+
+*What this replaces is worse than an incomplete form: before it, the only way to
+change the sentence injected into every single turn was to write JSON by hand or
+to `POST` it with `curl`.*
 
 ### P7B.4 — Edit a block, through the pack
 
@@ -655,6 +849,22 @@ the result. No record change.
 *Ends at:* [10 §3](../10-ui-surfaces.md)'s sentence answered, and
 [P3 §1.8](15-p3-implementation.md)'s three mechanical facts re-stated as
 *still true, and no longer in the way*.
+
+#### Done — 2026-09-14, `2023004`
+
+*Edit in the pack* on the workbench's block table, shown for a block whose
+source is `preset` and carries an id — which since P7B.0 is every block a
+shipped pack contributed. It opens the **session's own copy**, and that is the
+whole of why this stage is cheap: [03 §8](../03-data-model.md)'s copy already
+guarantees the object the link opens is the one this session assembles from, so
+there is no override to store and **no record field**, which is what
+[P3 §1.8](15-p3-implementation.md) said was missing and what §1.6 declined to
+add.
+
+`sessionId` is threaded through `BlockTable`, `CallView` and `TurnSubject` as an
+optional, so the compare view — which renders the same table for two turns of
+possibly different sessions — keeps working without a link it cannot make
+meaningful.
 
 ### P7B.5 — The sweep
 
@@ -678,6 +888,62 @@ is a hand-maintained list — worse, and still more than exists today.
 *Ends at:* the demo, and a test that fails when a route is added without a
 caller.
 
+#### Done — 2026-09-14
+
+***The risk this stage was written with named itself on the first run, and the
+answer was not the fallback.*** §0.5 and
+[manual testing §9](05-manual-testing.md) both warned that *the client's request
+layer may be too dynamic to walk statically, in which case the fallback is a
+hand-maintained list — worse, and still more than exists today.* It is dynamic.
+The fallback was not needed, and what it cost to avoid is worth recording,
+because the first draft of this check was **wrong in two ways and both of them
+would have passed review**:
+
+- **It rebuilt route paths by regex from `routes/*.ts` and assumed every module
+  mounts at `/api`.** Three mount at `/api/admin`, so seventeen admin routes
+  came back as orphans. The repair is not a better regex: `routesUnder()` in
+  `test-server.ts` reads Fastify's own routing tree and has done since P2B, and
+  its docstring is about exactly this failure — *"a hand-maintained array is
+  wrong the first time somebody adds one in a hurry, and it is wrong
+  silently."* **The check therefore lives in `packages/server`, not in
+  `tools/`**, which is a reversal of the draft's own stated reasoning: *text on
+  both sides, no imports* is tidier and less true than *routes from Fastify,
+  client as text*.
+- **It matched string literals by equality.** `api.ts` composes six addresses
+  through `objectUrl` and `versionUrl` and splits a seventh across a `+`, so
+  history, rows, restore, amend and the media bytes all looked uncalled. Joining
+  adjacent templates and expanding URL helpers **by shape rather than by name**
+  reads them, and a seventh helper written the same way is found without editing
+  the check.
+
+*It also counted client **test** files as callers, which is the one corpus that
+must never count: a route's own tests call it, and that is the reason the suite
+could be green over five missing surfaces in the first place.*
+
+**Thirty-one orphans on the first run, twenty-four of them the check being
+wrong, seven real.** Two are correct absences and four are recorded as owed,
+with the criterion that separates *build it now* from *owe it* — §1.12 carries
+all of it, including the one that was built here (`POST
+/admin/accounts/:handle/password`, an administrator resetting a password, which
+had no caller and whose only alternative was deleting the account).
+
+**Two maps rather than one**, which is the shape the gate row asks for read
+carefully: `EXEMPT` is an argument that no surface is needed and `OWED` is a
+promise that one is, and a reader can count the second. Both are checked against
+the live route table, so a line outliving its route fails — which is
+[manual testing §10.1](05-manual-testing.md)'s subject.
+
+**And the bookkeeping.** `docs/README.md`'s *four kinds that have no editor*
+becomes none; C3 and D11 struck and rewritten to the UI path; the *New* control
+checked on all six shelves, with the dead-guard consequence recorded under
+P7B.6; §1.7's three comments audited, of which **two were still standing** —
+`routes/sessions.ts`' *"P7 keeps the surface"* and `SessionsPage.tsx`'s *"not
+changeable afterwards"*, both falsified by P7B.2 and both missed by it. *§1.7's
+rule is that a comment is corrected in the stage that falsifies it; the sweep is
+the net under that rule rather than a replacement for it, and this is the
+evidence that the net is needed.* `workbench/address.ts`' sample links, and the
+renumber the status line promised, are the other two entries.
+
 ### P7B.6 — The setup and package editors
 
 §1.9. `/library/setups/:id/edit` and `/library/packages/:id/edit` with their
@@ -691,6 +957,27 @@ make and describe a bundle and not to send one (§1.9's stated limit).
 
 *Depends on:* P7B.1, whose editor shell both reuse. *Ends at:* every library
 kind answers `kindHasEditor`, and *New* is on all six shelves.
+
+#### Done — 2026-09-14, `b55fe9e` — with P7B.3
+
+The three declarations in `kinds.tsx`, and `fields.test.ts`'s *"answers for the
+four that do not"* **deleted rather than edited**, as the stage asked: it
+asserted an absence, and the absence is what was removed.
+
+***The consequence nobody planned for is that the tables now cover the whole
+union.*** `EDITOR_ROUTES` and `NEW_ROUTES` are typed against each other so a
+kind in one and not the other fails to compile, and `LIBRARY_DIRECTORIES` is
+exactly the six folders [03 §5.1](../03-data-model.md) names — so
+`kindHasEditor` answers `true` for every input that exists, and
+`LibraryPage`'s *"This kind has no editor yet"* sentence is unreachable.
+**All three are kept and all three now say so in their comments**, because they
+are the guard rather than the message: a seventh kind joins the directory map in
+one edit and gains an editor in another, and the window between those two edits
+is the only time any of them has ever had work to do. *Deleting an unreachable
+guard is how the thing it guarded against comes back.*
+
+The package editor lands at §1.9's stated limit — able to make and describe a
+bundle, not to send one, because `.sepack` is not in this phase.
 
 ### P7B.7 — The workbench, pointed at any turn
 
@@ -707,6 +994,24 @@ shows that turn's blocks, calls, effects and budget verdicts — **and the panel
 says which turn it is showing**, which is the ambiguity a panel acquires the
 moment it can show two things.
 
+#### Done — 2026-09-14, `3ca6de0`
+
+`TurnPicker` in `Workbench.tsx`, and the selection lives in the URL as
+`?turn=`, which is what makes a workbench view something a person can paste into
+a bug report — the same claim the compare view's address already makes.
+
+**The ordering rule is the stage's real content.** A panel that can show two
+things needs an answer to *which*, and the answer is that **an explicit
+selection outranks the live turn and the preview**: a turn arriving at the head
+must not yank somebody off the turn they were reading, and a panel that silently
+followed the head would be exactly [10 §3](../10-ui-surfaces.md)'s sentence
+being false in the other direction. Clearing the selection returns to following
+the head.
+
+*[F-05](21-playable-log.md) is retired, three phases after it was graded
+[R1](22-walkthrough-refinements.md) and five days after
+[manual testing §10](05-manual-testing.md) recorded it unowned.*
+
 ### P7B.8 — The import quarantine's listing
 
 `GET /api/library/errors`
@@ -719,6 +1024,21 @@ since P2. **A quarantine nobody can look into is a deletion with extra steps.**
 went to `compat` and why, from the browser — the gate step
 [manual gate §3.5](11-p2-manual-gate.md) has failed since it was written.
 
+#### Done — 2026-09-14, `f56dfc8` — with P7B.9
+
+`QuarantinePanel` on the library page, over the route's own
+`LibraryFileError[]` — path, source, kind, slug, reason, detail and when it was
+seen. **It renders nothing when the quarantine is empty**, which is the same
+rule the cast panel and the HUD follow: a permanent empty box teaches a reader
+to stop looking at that corner of the screen, and this is a corner that must be
+looked at on the one day it has something in it.
+
+*`GET /api/library/errors` shipped at P2, and
+[manual gate §3.5](11-p2-manual-gate.md) has carried "No client code calls it"
+in every gate sheet since — six phases of a written observation that nothing
+acted on. It is the clearest single instance of the class gate row 17's check
+exists to catch, which is why it is worth the sentence.*
+
 ### P7B.9 — Home, as a prototype that shows the changelog
 
 §1.10. `/` becomes a page rather than a redirect, the wordmark points at it, the
@@ -727,6 +1047,19 @@ page renders the changelog, and **nothing else goes on it in this phase.**
 *Depends on:* nothing. *Ends at:* the two comments in `router.tsx` and
 `Shell.tsx` that describe home as a future are rewritten to describe the
 present, and `/` is not a redirect.
+
+#### Done — 2026-09-14, `f56dfc8` — with P7B.8
+
+`HomePage` renders `CHANGELOG.md` through Vite's `?raw` import, so the page
+shows **this build's** changelog rather than a fetched one — the same argument
+`about/AboutBuild.tsx` makes about facts concerning the running build, and the
+reason there is no route behind this.
+
+**The fence is the stage**, and it held: nothing else is on the page. §1.10
+defers the full [10 §2.2](../10-ui-surfaces.md) home by direction — nominally a
+1.0 feature, expected immediately before the cut-over to feature-complete beta,
+and possibly further out — and a prototype that quietly grew a session list
+would be that deferral being reversed by accretion rather than by decision.
 
 ---
 
@@ -822,7 +1155,7 @@ listed in §4 with the phase that will.
 ## 4. Out of scope, deliberately
 
 The field-assist contract, image slots, provenance display and entry-level
-exchange ([10 §11](../10-ui-surfaces.md) — [P11.2](27-p11-implementation.md)'s,
+exchange ([10 §11](../10-ui-surfaces.md) — [P11.2](28-p11-implementation.md)'s,
 across the editors this phase creates as much as the ones before it);
 ~~**the package editor** (P11.2, where [manual testing §10](05-manual-testing.md)
 placed it on 2026-09-11 — a bundle's editor is a picker over the user's objects
@@ -830,7 +1163,7 @@ and belongs with the exchange work)~~ ~~a setup editor beyond P7.4's wizard,
 which *is* the setup's editor by [10 §6](../10-ui-surfaces.md)'s design~~
 ***both reversed 2026-09-14 and taken as P7B.6 — §1.9 has the argument and the
 correction: P7.4 built the setup's **creator**, not its editor***; personal
-connections and bindings ([10 §15.1](../10-ui-surfaces.md) — [P10.3](26-p10-implementation.md));
+connections and bindings ([10 §15.1](../10-ui-surfaces.md) — [P10.3](27-p10-implementation.md));
 the hook panel and its tuning (P7.5, P11.5); a provider-specific escape hatch
 in `params` ([04 §8.5](../04-schemas.md)'s open question, and it stays open);
 the prompt *preview* as a separate feature, because the workbench's preview
@@ -842,13 +1175,13 @@ mean).
 
 ***And the four things the 2026-09-14 fold put out of scope***, each with the
 decision that put it there rather than by omission: **search**
-([P11.1](27-p11-implementation.md), §1.11); **the full home**
+([P11.1](28-p11-implementation.md), §1.11); **the full home**
 ([polish §5](06-polish.md), deferred to immediately before the beta cut-over and
 possibly further, §1.10); **openings and the seed-expansion loop**, a candidate
 held on the expand loop's cost (§1.11); **[10 §9](../10-ui-surfaces.md)'s live
 turn view**, held with [R4](22-walkthrough-refinements.md) and
 [polish §11](06-polish.md) because the three are one story (§1.11); and
-**`.sepack` import and export**, beside [P11.10](27-p11-implementation.md)
+**`.sepack` import and export**, beside [P11.10](28-p11-implementation.md)
 (§1.9).
 
 **And one thing that is not out of scope but reads like it:** the record. §1.1

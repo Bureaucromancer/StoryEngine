@@ -44,7 +44,7 @@ Unusually for these documents there is no half-revisit, no skeleton and no
 now, and every precondition it depends on is checkable today rather than on the
 day. That is the whole reason it reads differently from
 [P6](18-p6-implementation.md) and [P7](23-p7-implementation.md) through
-[P11](27-p11-implementation.md): those are plans for phases at a distance, and
+[P11](28-p11-implementation.md): those are plans for phases at a distance, and
 this is a plan for the phase in front of us.
 
 **P6A delivers one thing, and the rest is what that thing needs:** a build you
@@ -137,7 +137,7 @@ is the **serving** claim rather than the bind one — equally false today, and m
 true by §0.3's stage rather than this one. Recorded rather than quietly widened,
 because the stage that owns a false sentence is the stage that makes it true.
 
-**The mechanism is constrained, not free.** [P10 §1.2](26-p10-implementation.md)
+**The mechanism is constrained, not free.** [P10 §1.2](27-p10-implementation.md)
 already ruled out the obvious shortcut — the image shipping a different baked
 default — as *"a hidden difference between artifacts"*, and requires **one
 documented environment variable** that a bare-metal operator can set to get the
@@ -246,7 +246,7 @@ gate that is already met:
   directory, and nothing refuses to open one it does not understand.
   *`state/build.json` since [P6A.3], and the refusal with it.*
 - **The image's own shape is an open question the corpus already flagged.**
-  [P10 §5](26-p10-implementation.md) records *"what the container image actually
+  [P10 §5](27-p10-implementation.md) records *"what the container image actually
   is"* as unsettled and sends it to [19](../19-tech-stack.md), which does not
   answer it. This document is where it gets answered. *Answered at [P6A.4]:
   `node:26-slim`, pnpm ~~from corepack~~ installed with npm at the version
@@ -286,7 +286,7 @@ directory beside it so the container's whole bootstrap is one mechanism rather
 than a flag, a variable and a file.
 
 **The container sets the documented variable; it does not get a different
-build.** That is [P10 §1.2](26-p10-implementation.md)'s requirement and the
+build.** That is [P10 §1.2](27-p10-implementation.md)'s requirement and the
 reason it exists — a bare-metal operator can set the same variable to get the
 same behaviour, and a container operator can set it the other way to tighten. The
 image's `0.0.0.0` is then a line in the Dockerfile that anybody can read and
@@ -320,7 +320,7 @@ test any of it because everything ran behind Vite's dev proxy.
 and no admin exists; advertised as a boolean on `GET /api/auth/state` so the
 client can render the field rather than guess; printed to the log on first boot
 in that condition. Compared in constant time.
-[P10 §1.1](26-p10-implementation.md)'s framing is the one to keep — **the check,
+[P10 §1.1](27-p10-implementation.md)'s framing is the one to keep — **the check,
 not the print** — because P1 already printed a token that nothing verified, and
 an operator who reads "setup token" in a console reasonably concludes something
 is enforcing it.
@@ -415,8 +415,8 @@ is listed in §4 as the price of publishing rather than built now.
 
 **Packaging ownership is already contested three ways before this phase exists**,
 which is the finding that most needs writing down:
-[P10.0](26-p10-implementation.md) builds a container image and makes `docker run`
-its exit gate; [P10 §4](26-p10-implementation.md) declares packaging out of scope
+[P10.0](27-p10-implementation.md) builds a container image and makes `docker run`
+its exit gate; [P10 §4](27-p10-implementation.md) declares packaging out of scope
 as P11's; and [09 §5.4](../09-server-multiuser-deployment.md) says all six
 artifacts are owned by P11. [work plan §0.5](01-work-plan.md)'s own lesson — *"a bar
 nobody owns is a wish"* — has a converse, and this is it: two owners for one
@@ -435,7 +435,7 @@ So, once, and cited from the other three documents rather than restated in them:
 **And the unraid template is not a seventh artifact.**
 [09 §5.4](../09-server-multiuser-deployment.md) calls it *"a thin wrapper over"*
 Tier 1, [25 D0b](../25-open-questions.md)'s canonical enumeration names six and
-does not include it, and [P11 §1.8](27-p11-implementation.md) currently lists
+does not include it, and [P11 §1.8](28-p11-implementation.md) currently lists
 five names while counting four. Scheduling it with the image resolves the
 miscount rather than adding to it.
 
@@ -491,7 +491,7 @@ where the argument fails closed.
 
 **The variable table is in [21 §4](../21-internal-contracts.md) and a test parses
 it**, the same way the tier table has been checked since P2A. That is the
-requirement rather than a courtesy: [P10 §1.2](26-p10-implementation.md) asks for
+requirement rather than a courtesy: [P10 §1.2](27-p10-implementation.md) asks for
 *one documented environment variable* precisely so that the image is not a build
 that behaves differently, and an undocumented variable would satisfy the code and
 fail the rule.

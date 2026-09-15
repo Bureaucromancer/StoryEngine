@@ -70,6 +70,19 @@ describe('a link out of the data root', () => {
   });
 
   it('is not indexed, so nothing downstream ever holds an escaping path', async () => {
+    /**
+     * What a rebuild scans before the link exists.
+     *
+     * ***A baseline rather than a constant, changed at [P7B.0]***, which put the
+     * built-in prompt packs into the system scope and so made the old
+     * `toBe(0)` false. It was worth more than a number fix: zero was only ever
+     * a *proxy* for the claim, true because nothing else happened to be on
+     * disk. The claim is **the link contributes nothing**, which is a
+     * comparison — and a comparison stays true the next time something ships
+     * with the install.
+     */
+    const before = await rebuild(server.services.index.db, server.services.layout);
+
     const link = await linkIntoTheLibrary('escape');
     if (!linkSupported) return;
 
@@ -84,7 +97,7 @@ describe('a link out of the data root', () => {
     // refuse it" and "we never see it", and only the first survives someone
     // relaxing that filter.
     const result = await rebuild(server.services.index.db, server.services.layout);
-    expect(result.scanned).toBe(0);
+    expect(result.scanned).toBe(before.scanned);
 
     const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
     expect(listed.body.objects).toHaveLength(0);

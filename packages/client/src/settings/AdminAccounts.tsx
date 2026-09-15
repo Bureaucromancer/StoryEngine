@@ -11,6 +11,7 @@ import {
   useAuthState,
   useCreateAccount,
   useRemoveAccount,
+  useSetAccountPassword,
   useUpdateAccount,
 } from '../queries.js';
 import { Button } from '../ui/Button.js';
@@ -224,6 +225,8 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
         </p>
       )}
 
+      <SetPassword handle={row.handle} />
+
       <Button
         type="button"
         variant="dangerOutline"
@@ -235,6 +238,109 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
       </Button>
     </li>
   );
+}
+
+/**
+ * ***An administrator restoring access to an account*** — [P7B.5].
+ *
+ * **`POST /api/admin/accounts/:handle/password` has shipped since P2A with no
+ * caller**, which the route-caller check
+ * ([`route-callers.test.ts`](../../../server/src/routes/route-callers.test.ts))
+ * found and this answers. The consequence of the absence was not cosmetic: the
+ * only way to get somebody back into a forgotten account was to delete it and
+ * make a new one, and an account's folder under `data/users` is their library,
+ * so the repair destroyed more than the problem did.
+ *
+ * **Two things the hint says because the mechanism does them and a person would
+ * assume otherwise.** It does not re-enable a disabled account — the route
+ * calls `changePassword` rather than `resetPassword` precisely so that an
+ * administrator who disabled somebody does not undo that by accident — and it
+ * does not end a session held elsewhere, because a session is a signed
+ * stateless cookie with no denylist. An admin resetting a password to lock
+ * somebody out would otherwise believe they had.
+ *
+ * *A blank box is refused here rather than sent*, which is why this does not
+ * reuse `firstPasswordRule`: that sentence tells an administrator a blank
+ * field is a legal empty password, which is true of **creating** an account on
+ * an install with no minimum. Setting one silently, from a box somebody could
+ * click past, is a different act.
+ */
+function SetPassword({ handle }: { handle: string }): JSX.Element {
+  const set = useSetAccountPassword();
+  const auth = useAuthState();
+  const [value, setValue] = useState('');
+  const [blank, setBlank] = useState(false);
+
+  return (
+    <form
+      className="mt-4 flex flex-col gap-2"
+      aria-labelledby={`password-${handle}`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (value === '') {
+          setBlank(true);
+          return;
+        }
+        setBlank(false);
+        set.mutate(
+          { handle, newPassword: value },
+          {
+            onSuccess: () => {
+              setValue('');
+            },
+          },
+        );
+      }}
+    >
+      <h5 id={`password-${handle}`} className="text-xs font-medium text-ink-faint">
+        Set a new password
+      </h5>
+      <Field
+        label="New password"
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          if (next !== '') setBlank(false);
+        }}
+        hint={resetPasswordRule(auth.data?.minPasswordLength ?? 0)}
+        error={blank ? 'Type the new password first.' : null}
+      />
+      <div>
+        <Button type="submit" variant="quiet" size="compact">
+          Set password
+        </Button>
+      </div>
+      {set.isError ? (
+        <p role="alert" className="text-sm text-danger-ink">
+          {set.error.message}
+        </p>
+      ) : null}
+      {/* A 204 changes nothing on the page, so without this the only evidence
+          that anything happened is the box emptying itself. */}
+      {set.isSuccess ? (
+        <p role="status" className="text-sm text-ink-subtle">
+          Their password is set. Tell them what it is.
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+/**
+ * What to type in the reset box, as one whole sentence per case.
+ *
+ * The number is `auth.minPasswordLength`, read from `GET /api/auth/state`
+ * rather than mirrored here, because it is this install's setting — the same
+ * argument `firstPasswordRule` below makes, and the same source.
+ */
+function resetPasswordRule(minimum: number): string {
+  const floor =
+    minimum === 0
+      ? 'This install sets no minimum length.'
+      : minimum === 1
+        ? 'At least 1 character.'
+        : `At least ${String(minimum)} characters.`;
+  return `${floor} It does not re-enable a disabled account, and it does not sign them out where they are already signed in.`;
 }
 
 /** Making an account, which is the phase's demo in one form. */

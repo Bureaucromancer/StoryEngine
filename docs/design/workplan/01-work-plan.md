@@ -340,7 +340,7 @@ has.
 
 The reasoning that put them on the list is unchanged and right — a home server
 product people cannot install is a home server product nobody uses. What changes
-is that **P11 owns all six** ([P11](27-p11-implementation.md)), while the beta
+is that **P11 owns all six** ([P11](28-p11-implementation.md)), while the beta
 gate keeps its narrower requirement of the OCI image and the tarball
 ([releases §0](04-repo-and-releases.md)). Enough to have users is the beta test;
 enough to be installed by people who are not us is the 1.0 test.
@@ -1105,8 +1105,8 @@ ever been able to do that.
 ### P7 — Modes and channels
 
 **Skeleton: [P7](23-p7-implementation.md)**, whose §0 states what a skeleton
-several phases out is for and applies to [P8](24-p8-implementation.md) through
-[P11](27-p11-implementation.md) as well. Its first finding: the move of the Scene
+several phases out is for and applies to [P8](25-p8-implementation.md) through
+[P11](28-p11-implementation.md) as well. Its first finding: the move of the Scene
 mode behind the SDK is a *move* or a *rewrite*, and `modes/contract.ts` already
 knows which.
 
@@ -1158,7 +1158,7 @@ retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P7B — Presets, prompt handling, and the surfaces the server already has
 
-**Skeleton: [P7B](28-p7b-presets-and-prompts.md)**, written 2026-09-11 while P7
+**Skeleton: [P7B](24-p7b-presets-and-prompts.md)**, written 2026-09-11 while P7
 runs on its branch, and filed out of order for that reason — its status line
 says why and what moves it. **Widened 2026-09-14** by a second sweep, and the
 two halves turned out to be one phase: see §0.1 there.
@@ -1195,7 +1195,7 @@ across editors; it should not be discovering that half of them are missing.
 **What this phase deliberately does not take.** The full home stays a 1.0
 feature expected immediately before the cut-over to feature-complete beta, and
 may move further out ([polish §5](06-polish.md) carries the wording). **Search**
-stays [P11](27-p11-implementation.md)'s, beside the reading view, because the
+stays [P11](28-p11-implementation.md)'s, beside the reading view, because the
 two are read-surfaces over the same data and share a print story. Both are
 choices rather than omissions and both are recorded where they were made.
 
@@ -1211,8 +1211,8 @@ routes whose only callers are their own tests, green in CI the whole time
 
 ### P8 — Memory
 
-~~**Skeleton: [P8](24-p8-implementation.md)**~~ **Planned:
-[P8](24-p8-implementation.md)**, revisited 2026-09-13 once P5, P6 and P7 had all
+~~**Skeleton: [P8](25-p8-implementation.md)**~~ **Planned:
+[P8](25-p8-implementation.md)**, revisited 2026-09-13 once P5, P6 and P7 had all
 landed — which is what its §0 said it was waiting for. It found the phase's one
 storage decision hiding outside both design documents: `memories/` sits beside `library/`
 and outside everything the index walks, while [08 §7](../08-cross-session-memory.md)
@@ -1250,7 +1250,7 @@ satisfiable by a bug without it.
 
 ### P9 — Renditions
 
-**Skeleton: [P9](25-p9-implementation.md)**, and its first stage is a contract
+**Skeleton: [P9](26-p9-implementation.md)**, and its first stage is a contract
 rather than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
 all. The provider layer speaks chat and no image endpoint does, which is the
@@ -1261,7 +1261,7 @@ built against the general rendition shape so video and speech are later kinds.
 
 **And backdrops**, which are the same shape under a second *purpose* rather than
 a second feature ([06 §10.1a](../06-modes-and-turn-pipeline.md),
-[P9 §1.7](25-p9-implementation.md)). This closes an absence older than the phase
+[P9 §1.7](26-p9-implementation.md)). This closes an absence older than the phase
 documents: [06 §7.2](../06-modes-and-turn-pipeline.md) has always said Scene has
 an optional background written by a step, and no document has ever said where the
 image comes from — so without this, P7 ships a backdrop channel that nothing can
@@ -1271,7 +1271,7 @@ subsystem that spends money on its own from spending it per turn.
 
 ### P10 — Multi-user, notifications, deployment
 
-**Skeleton: [P10](26-p10-implementation.md)**, which gives a remainder phase the
+**Skeleton: [P10](27-p10-implementation.md)**, which gives a remainder phase the
 spine it does not have by default: *this is the phase that makes the install
 reachable, and safe, for someone who is not the developer.* Anything here off
 that line gets checked against P11 before it is built.
@@ -1293,11 +1293,11 @@ channels, ~~the loopback bind and its container inversion, the setup token,~~
 mDNS, the account-gallery arrival screen ([12](../12-account-gallery.md)), the
 About surface and §13 source link. *The struck pair went to
 [P6A](19-p6a-alpha-1.md), which shipped the image their deferral was scheduled
-against; [P10.0](26-p10-implementation.md) is what is left.*
+against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-**Skeleton: [P11](27-p11-implementation.md)**, whose exit gate *is* the beta gate
+**Skeleton: [P11](28-p11-implementation.md)**, whose exit gate *is* the beta gate
 — the one structural difference from every other phase document. Its first stage
 is the audit that produces the list, because the list exists today only as *home
 P11* scattered across the phase documents. And §8 below is what it rewrites.
@@ -1312,7 +1312,7 @@ update check, and the localisation catalogue extraction sweep (§0.4).
 ([25 B12](../25-open-questions.md)), backup and restore with its CI restore test
 ([25 E6](../25-open-questions.md), [testing](03-testing.md)), and the four packaging
 artifacts that previously had a requirement and no builder. This is a real
-increase in the last phase's load, and [P11](27-p11-implementation.md) is where
+increase in the last phase's load, and [P11](28-p11-implementation.md) is where
 it gets sized rather than here.
 
 **The plot-hook selector here is the *tuning*, not the build** — a correction,
@@ -1430,7 +1430,7 @@ The other half is release engineering, and it belongs in the beta bar rather
 than after it: build chains, release automation, and the workflows that make
 shipping repeatable rather than an event. Sketched here only to hold the shape —
 **this section is awaiting expansion** and should be rewritten rather than
-extended. **[P11](27-p11-implementation.md) names that rewrite as P11's** — its
+extended. **[P11](28-p11-implementation.md) names that rewrite as P11's** — its
 §1.1 and its P11.9 stage — because a hardening phase that does not know what it
 is hardening toward ends when someone gets tired:
 

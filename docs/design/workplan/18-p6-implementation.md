@@ -146,7 +146,7 @@ eventually looks.
   reconstructing at an old node is a replay-from-zero test before P6 and a
   branch test after. Like the fixture-pair gate at P5.6, it wants editing in the
   stage that changes it, not repairing when it goes red.
-- **P9 depends on reconstruction-at-a-node** ([P9 §1](25-p9-implementation.md)
+- **P9 depends on reconstruction-at-a-node** ([P9 §1](26-p9-implementation.md)
   reasons from *"P6 shipped reconstruction at a node — so that turn's state is a
   thing that can be asked for"*). P6 is not the last phase to care about this
   machinery, which is an argument for the property test being the real
@@ -869,7 +869,7 @@ work, not a mention.
   something a tester will not find, so it is not a bug report to expect. P6 is
   where it acquires one.
 - **Reconstruction-at-a-node is P9's input too**
-  ([P9 §1](25-p9-implementation.md)). Worth knowing while building it: the
+  ([P9 §1](26-p9-implementation.md)). Worth knowing while building it: the
   consumer is not only this phase's UI.
 
 ### 1.8 Which reply an edit changes — the contradiction P3 handed here
