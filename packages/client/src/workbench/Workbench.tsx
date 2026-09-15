@@ -25,6 +25,7 @@ import {
   workbenchSizePatch,
 } from './prefs.js';
 import { ForceFire } from './ForceFire.js';
+import { ReleaseSubject } from './home/ReleaseSubject.js';
 import { ImportSubject } from './import/ImportSubject.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
@@ -38,7 +39,9 @@ import { TurnSubject } from './turn/TurnSubject.js';
  * whatever the main view is showing. The subject over Play is the head turn
  * rendered by `TurnSubject` — the block table, budget verdict and call
  * inspector, [P3.2]. Over a library object it is `LibrarySubject` — the raw
- * truth of that object, [P3.3]. Over everything else, an honest empty state.
+ * truth of that object, [P3.3]. Over home it is `ReleaseSubject` — every
+ * release of the changelog the page is showing one of, [home, revised]. Over
+ * everything else, an honest empty state.
  *
  * **Non-modal is the load-bearing property, and it is achieved by omission.**
  * No `aria-modal`, no `useFocusTrap` — that hook must never be attached here:
@@ -86,6 +89,11 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
   // the answer is import, because the list as a whole is what it is about
   // ([P4 §7.12]).
   const libraryList = useMatch({ from: '/library', shouldThrow: false });
+  // Home ([home, revised]) — the only route whose subject is a *document*
+  // rather than a record, and still a reader: `ReleaseSubject` carries the
+  // argument for why that is not [10 §3]'s second exception. Matched last in
+  // the chain below because `/` is the least specific address in the app.
+  const home = useMatch({ from: '/', shouldThrow: false });
   const asideRef = useRef<HTMLElement | null>(null);
   const prefs = usePrefs();
   const patchPrefs = usePatchPrefs();
@@ -141,6 +149,8 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
           />
         ) : libraryList !== undefined ? (
           <ImportSubject />
+        ) : home !== undefined ? (
+          <ReleaseSubject selected={home.search.release} />
         ) : (
           <EmptySubject />
         )}

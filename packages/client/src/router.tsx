@@ -175,10 +175,53 @@ const libraryRoute = createRoute({
  * rather than promised**: every `to="/"` in the app reaches a page, and the
  * library keeps its own address instead of answering at two.
  */
+/**
+ * Which release home is showing — [home, revised].
+ *
+ * ***In the address rather than in the panel, because the panel's own rule says
+ * so*** — the sentence `turn` already carries, for the same mechanism. The
+ * release index lives in the workbench, and [10 §3](../../../docs/design/10-ui-surfaces.md)
+ * calls that panel a reader with no state of its own; `Workbench.tsx` spells out
+ * the consequence: *"the subject follows the route, not a stored selection …
+ * remembering the last subject would quietly make it a place."* A selection held
+ * in the panel would have made it one.
+ *
+ * Absent means *the newest release in this build's changelog*, which is P7B.9's
+ * subject unchanged — a live answer rather than an absence, and worded as one on
+ * the page.
+ */
+export interface IndexSearch {
+  release?: string;
+}
+
+/**
+ * **Dropped rather than rejected**, this router's posture everywhere — and here
+ * the page goes one further, because the failure has a second shape. A value
+ * that is not a string is dropped by this function; a string naming a release
+ * *this build's file does not carry* survives validation and is answered by the
+ * page, which shows the newest and says that is what it did.
+ *
+ * That second case is not an edge. A changelog is pinned to the build that
+ * bundled it, so a link shared from a newer install names a release this one has
+ * never heard of — the same expected end `?entry=` has when a book outlives the
+ * entry it pointed at ([04 §5.2]).
+ */
+export function validateIndexSearch(search: Record<string, unknown>): IndexSearch {
+  return { ...(typeof search['release'] === 'string' ? { release: search['release'] } : {}) };
+}
+
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: HomePage,
+  validateSearch: validateIndexSearch,
+  component: function Home() {
+    // The release travels as a prop rather than being read inside the page, for
+    // the reason `playRoute` already passes `block` that way: the page is
+    // mounted in tests without a router, and a component reaching for a route
+    // API would throw the moment it rendered anywhere but here.
+    const { release } = indexRoute.useSearch();
+    return <HomePage {...(release === undefined ? {} : { release })} />;
+  },
 });
 
 const sessionsRoute = createRoute({

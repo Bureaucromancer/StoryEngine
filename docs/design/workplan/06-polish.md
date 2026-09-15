@@ -368,6 +368,57 @@ account gallery: both are arrival, one before sign-in and one after, and one
 stage owning both keeps them from disagreeing about what arrival is for. The
 scope rule above travels with it.
 
+### 5b. The prototype revised, 2026-09-15 — the changelog as a document
+
+**Revisions to the prototype, not a step toward the full version**, and the
+distinction is the whole of why this subsection exists rather than a commit
+message. Two things were wrong with the page in use. The changelog was not
+rendered — every release heading, section and bold lead reached the screen as
+the characters that spell them, inside a `<pre>` — and there was no history: the
+whole file at once, which is too much on arrival and too little for looking
+anything up.
+
+**What it is now.** The page shows **one** release, the newest by default,
+rendered as a document. The **workbench holds the index** of every release
+([10 §3](../10-ui-surfaces.md)), and opening one puts it in the page. The
+selection lives in the address, `/?release=…`, because the list is in a panel
+that [10 §3] calls a reader with no state of its own.
+
+**The dependency was taken knowingly and the price is on the record.**
+`react-markdown` is pinned in the client, and `/` is the entry route, so this
+fires [20 §7](../20-client-loading.md)'s revisit trigger by definition. The
+measurement — **+120.59 kB minified, +36.72 kB gzip, a sixth of the entry** —
+and the decision not to bring P11.0's audit forward are recorded at
+[20 §7.1](../20-client-loading.md), with the lazy-loading contingency
+pre-argued. The struck reasoning in `HomePage.tsx` was right about the price and
+wrong about the trade: sixteen kilobytes in a `<pre>` is not *legible as it
+stands* when it is the only thing on the page.
+
+***Why this is not the accretion [P7B.9] warned about.*** That stage's own note
+says *"a prototype that quietly grew a session list would be that deferral being
+reversed by accretion rather than by decision"*, and the test of the warning is
+**which deferral**. §5's four panels — resume, start, notice, recent work — are
+each a reader over *the user's own data*, needing a surface that computes
+something. **None of them is here and none is nearer.** What changed is the one
+thing the prototype already showed. A document that renders as a document, and a
+panel listing the releases of the same document, add no new *subject*: the
+page's is still *what changed in this build*, and the panel's is still *what the
+main view is showing*.
+
+**The deferral's terms are unchanged, restated here so proximity to good news
+does not soften them.** The full version is not core-alpha work; it stays
+nominally a 1.0 feature, expected *immediately before the cut-over to
+feature-complete beta*, **and it may be pushed further out than that**.
+
+**One seam recorded rather than solved.** [CHANGELOG.md](../../../CHANGELOG.md)'s
+own preamble says the About surface planned at
+[P11.6](28-p11-implementation.md) links to it to answer *what am I running*;
+[P7B.9](24-p7b-presets-and-prompts.md) put the changelog on home instead, for a
+reason that was explicitly *"the value is not the changelog"*. This revision
+makes home much the better of the two and still does not decide what About shows
+when it arrives. That question belongs to P11.6 and should not be discovered
+there.
+
 ---
 
 ## 6. The styling layer, and the second theme it exists to allow

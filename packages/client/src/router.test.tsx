@@ -7,6 +7,7 @@ import { LIBRARY_KINDS } from './api.js';
 import {
   router,
   validateLibrarySearch,
+  validateIndexSearch,
   validateObjectSearch,
   validateSessionsSearch,
 } from './router.js';
@@ -76,6 +77,39 @@ describe('the root address', () => {
     await router.invalidate();
 
     expect(router.state.location.pathname).toBe('/library');
+  });
+
+  /**
+   * `?release=` — [home, revised]. Which release home is showing lives in the
+   * address, because the list that chooses it is in the workbench and [10 §3]
+   * calls that panel a reader with no state of its own.
+   */
+  it('keeps a release in the address without leaving the root', async () => {
+    await router.navigate({ to: '/', search: { release: '1.0.0-alpha.1' } });
+    await router.invalidate();
+
+    expect(router.state.location.pathname).toBe('/');
+    expect(validateIndexSearch(router.state.location.search)).toEqual({
+      release: '1.0.0-alpha.1',
+    });
+  });
+
+  it('drops a release that is not a string rather than rejecting the address', () => {
+    // The posture every validator in this file shares: a half-copied link still
+    // means something — *home, no particular release* — and the page it lands
+    // on is real. Whether the string names a release this build carries is the
+    // page's question, not the router's, and the page answers it out loud.
+    expect(validateIndexSearch({ release: 7 })).toEqual({});
+    expect(validateIndexSearch({ release: ['1.0.0'] })).toEqual({});
+    expect(validateIndexSearch({})).toEqual({});
+    expect(validateIndexSearch({ release: '9.9.9' })).toEqual({ release: '9.9.9' });
+  });
+
+  it('leaves no key at all when there is no release, rather than an undefined one', () => {
+    // `exactOptionalPropertyTypes` is why every validator here spreads rather
+    // than assigning: `{ release: undefined }` is a different object and would
+    // serialise into the address as an empty query.
+    expect(Object.keys(validateIndexSearch({ release: 7 }))).toEqual([]);
   });
 });
 

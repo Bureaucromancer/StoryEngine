@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { parseChangelog } from './changelog.js';
 import { versionName } from './version.js';
 
 /**
@@ -108,11 +109,14 @@ describe('versionName', () => {
    * name has to be what the string yields.
    */
   it('agrees with every name the CHANGELOG has typed beside a string', () => {
-    const headings = [...read('../../../CHANGELOG.md').matchAll(/^## (\S+) — (.+?) — /gm)];
-    expect(headings.length).toBeGreaterThanOrEqual(2);
-    for (const heading of headings) {
-      const version = heading[1] ?? '';
-      expect(versionName(version), version).toBe(heading[2]);
+    // **Through `parseChangelog`, not through a regex of its own.** This test
+    // used to carry the fourth spelling of the heading grammar in the
+    // repository; `changelog.ts` is now the reader, and consuming it here means
+    // the pairing is asserted against the same parse the arrival page renders.
+    const releases = parseChangelog(read('../../../CHANGELOG.md')).releases;
+    expect(releases.length).toBeGreaterThanOrEqual(2);
+    for (const release of releases) {
+      expect(versionName(release.version), release.version).toBe(release.name);
     }
   });
 });

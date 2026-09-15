@@ -51,6 +51,24 @@ export const link = {
   object: 'font-medium text-ink underline decoration-line-strong hover:decoration-ink-subtle',
   /** Back to the surface above this one. */
   back: 'text-sm text-ink-subtle underline hover:text-ink',
+  /**
+   * An anchor *inside* rendered prose — the changelog's links on home, and the
+   * reading view's when [P11.1] brings it.
+   *
+   * **It is `inline` without the size, and that is the whole difference.**
+   * `inline` carries `text-sm` because it is used under a heading and beside a
+   * control, where there is no surrounding type step to inherit. Prose has one:
+   * a `text-story` paragraph sets the size and the leading, and an anchor that
+   * reset itself to `text-sm` would be a word a step smaller than the sentence
+   * it sits in — visible on every line it wraps, and the kind of wobble nobody
+   * can name when they see it.
+   *
+   * `text-ink` rather than `ink-subtle` for the same reason: dimming a link
+   * inside body copy makes it read as less important than the words around it,
+   * which is backwards. The underline carries the affordance and the decoration
+   * colour carries the hover, which is `object`'s arrangement one step quieter.
+   */
+  prose: 'text-ink underline decoration-line-strong hover:decoration-ink-subtle',
 } as const;
 
 /**
@@ -124,7 +142,20 @@ export const control =
  * times, and 48rem as both `max-w-reading` and `max-w-3xl`. These are the two,
  * each spelled here and nowhere else. `tooling` is the shell's width —
  * [10 §1.2] names it as the measure the reading column is *against* — and
- * `reading` is the story column's and nothing else's.
+ * ~~`reading` is the story column's and nothing else's.~~
+ *
+ * ***The recipe is still the story column's; the measure it is built on is
+ * not*** — [home, revised]. Home renders the changelog as prose, and [10 §1.2]
+ * says what makes prose prose: **type** (`text-story`), **measure**
+ * (`--container-reading`) and **chrome** (none). Home takes the first two, for
+ * that one block, and none of the third — because it sits beside the workbench
+ * and carries a control. So it is a reading column *inside* a tooling column
+ * rather than a page that has quietly become a reading surface, and it spells
+ * `max-w-reading` at its own call site as the layout that is, rather than
+ * reaching for this recipe: `reading`'s `mx-auto` and padding are a *page
+ * column*, and nesting one inside another is how a measure becomes an indent.
+ * The struck sentence was right about the recipe and was read as a claim about
+ * the token; this is the distinction it was missing.
  *
  * **Pages own their column; the shell does not wrap the outlet.** The reason
  * is mechanical rather than aesthetic: Play's column must be the scroll
