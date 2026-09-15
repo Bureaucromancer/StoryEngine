@@ -246,13 +246,18 @@ export function NewLorebookPage(): JSX.Element {
     };
   });
 
+  // The page's own column, as `LorebookEditorPage` above has and this has not
+  // since it was written — corrected 2026-09-15, with the four other create
+  // routes and the four editors that never had one.
   return (
-    <Editor
-      initial={draft}
-      unsaved
-      selectedEntry={selectedEntry}
-      onSelectEntry={setSelectedEntry}
-    />
+    <div className={page.tooling}>
+      <Editor
+        initial={draft}
+        unsaved
+        selectedEntry={selectedEntry}
+        onSelectEntry={setSelectedEntry}
+      />
+    </div>
   );
 }
 

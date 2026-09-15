@@ -6,6 +6,7 @@ import { useState, type JSX } from 'react';
 import { ApiError, type LibraryObject } from '../api.js';
 import { blankFor, isRequiredField, type EditorKind as Kind } from '../library/fields.js';
 import { useEditorBase } from '../queries.js';
+import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import type { Draft } from './book-form.js';
 import { EditorFrame } from './EditorFrame.js';
@@ -111,7 +112,32 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
   };
 }
 
+/**
+ * ***The column belongs here, and it is six routes at once***
+ * ([`kinds.tsx`](./kinds.tsx) delegates all three editors to this component and
+ * all three create routes to the one below).
+ *
+ * `page.tooling` is [P3.−1]'s settlement — the shell's `<main>` is a bare
+ * scroll container and **pages own their column**, which
+ * [`ui/classes.ts`](../ui/classes.ts) states and gives the mechanical reason
+ * for. *These six never had one*, corrected 2026-09-15: without it the form ran
+ * edge to edge with no gutter, and the only left padding on screen came from
+ * the nested disclosures `SchemaFields` draws — so the sections read as
+ * indented when in fact everything else was flush against the window.
+ *
+ * Wrapped around the whole loader rather than around the editor, so pending,
+ * error, read-only and the form all lay out alike; `ActorEditorPage` gives the
+ * same reason for the same placement.
+ */
 export function SimpleEditorLoader(props: { kind: SimpleKind; id: string }): JSX.Element {
+  return (
+    <div className={page.tooling}>
+      <SimpleEditorBody kind={props.kind} id={props.id} />
+    </div>
+  );
+}
+
+function SimpleEditorBody(props: { kind: SimpleKind; id: string }): JSX.Element {
   const base = useEditorBase(props.kind.kind, props.id);
 
   if (base.isPending) return <p className="text-ink-subtle">Loading…</p>;
@@ -158,7 +184,11 @@ export function NewSimplePage(props: { kind: SimpleKind }): JSX.Element {
     };
   });
 
-  return <SimpleEditor kind={props.kind} initial={draft} unsaved />;
+  return (
+    <div className={page.tooling}>
+      <SimpleEditor kind={props.kind} initial={draft} unsaved />
+    </div>
+  );
 }
 
 function SimpleEditor(props: {

@@ -10,6 +10,7 @@ import { ApiError, type LibraryObject } from '../api.js';
 import { isRequiredField } from '../library/fields.js';
 import { useEditorBase, useLibrary } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { nudge } from '../ui/reorder.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
@@ -79,7 +80,15 @@ const PRESETS: EditorKind<Draft> = {
 
 export function PresetEditorPage(): JSX.Element {
   const { id } = routeApi.useParams();
-  return <EditorLoader id={id} />;
+  // The page's own column ([P3.−1] — `ui/classes.ts` has the why), wrapped
+  // around the loader rather than inside it so pending, error, read-only and
+  // the editor all lay out alike. **Missing from this page since P7B.1 built
+  // it**, corrected 2026-09-15.
+  return (
+    <div className={page.tooling}>
+      <EditorLoader id={id} />
+    </div>
+  );
 }
 
 function EditorLoader(props: { id: string }): JSX.Element {
@@ -133,18 +142,24 @@ function EditorLoader(props: { id: string }): JSX.Element {
  */
 export function NewPresetPage(): JSX.Element {
   const shipped = useLibrary('presets');
-
-  if (shipped.isPending) return <p className="text-ink-subtle">Loading…</p>;
-
   const pack = (shipped.data?.objects ?? []).find((row) => row.source === 'system');
+
+  // The column wraps the wait as well as the form, so the page does not shift
+  // sideways when the library answers — see `PresetEditorPage` above.
   return (
-    <NewFromSeed
-      seed={
-        pack === undefined
-          ? newPreset('')
-          : { ...structuredClone(pack.object), id: uuidv7(), name: '' }
-      }
-    />
+    <div className={page.tooling}>
+      {shipped.isPending ? (
+        <p className="text-ink-subtle">Loading…</p>
+      ) : (
+        <NewFromSeed
+          seed={
+            pack === undefined
+              ? newPreset('')
+              : { ...structuredClone(pack.object), id: uuidv7(), name: '' }
+          }
+        />
+      )}
+    </div>
   );
 }
 
