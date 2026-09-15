@@ -387,7 +387,7 @@ that [10 §3] calls a reader with no state of its own.
 **The dependency was taken knowingly and the price is on the record.**
 `react-markdown` is pinned in the client, and `/` is the entry route, so this
 fires [20 §7](../20-client-loading.md)'s revisit trigger by definition. The
-measurement — **+120.59 kB minified, +36.72 kB gzip, a sixth of the entry** —
+measurement — **+120.59 kB minified, +36.71 kB gzip, a sixth of the entry** —
 and the decision not to bring P11.0's audit forward are recorded at
 [20 §7.1](../20-client-loading.md), with the lazy-loading contingency
 pre-argued. The struck reasoning in `HomePage.tsx` was right about the price and

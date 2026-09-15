@@ -1119,7 +1119,7 @@ because a selection held in the panel would have made a reader into a place.
 client. `/` is the entry route, so this is
 [20 §7](../20-client-loading.md)'s *"a substantial new browser dependency joins
 the common entry"* by definition. It was measured at the time — **+120.59 kB
-minified, +36.72 kB gzip, a sixth of the entry** — and the decision not to bring
+minified, +36.71 kB gzip, a sixth of the entry** — and the decision not to bring
 P11.0's audit forward, with the lazy-loading contingency, is recorded at
 [20 §7.1](../20-client-loading.md). The price the struck docstring named was
 real; what it got wrong was the trade.

@@ -335,19 +335,23 @@ could be behind.
 
 **Measured, by building `main` and the change back to back on the same machine
 with the same toolchain.** Vite's own per-chunk report, which is where §1's
-figures came from:
+figures came from. `main` here is `d490838`, re-measured at merge so that the
+pair below is the pair that is true of `main` rather than of the branch's older
+base — the delta came back within 0.01 kB gzip of the branch measurement, which
+is itself the evidence that it is the dependency being measured and not four
+commits of unrelated drift:
 
 | | Modules | JavaScript | gzip | CSS | gzip |
 | --- | --- | --- | --- | --- | --- |
-| Before | 567 | 788.22 kB | 231.31 kB | 33.28 kB | 6.82 kB |
-| After | 729 | 908.81 kB | 268.03 kB | 34.06 kB | 6.94 kB |
-| Delta | +162 | **+120.59 kB** | **+36.72 kB (+15.9%)** | +0.78 kB | +0.12 kB |
+| Before | 567 | 788.66 kB | 231.40 kB | 33.28 kB | 6.82 kB |
+| After | 729 | 909.25 kB | 268.11 kB | 34.06 kB | 6.94 kB |
+| Delta | +162 | **+120.59 kB** | **+36.71 kB (+15.9%)** | +0.78 kB | +0.12 kB |
 
 Two things to read off that table rather than off the headline. The first is
 that **§1's baseline is stale**: it records 676.82 kB / 199.15 kB from the audit
-at `a54afcc`, and the entry had already grown to 788.22 kB / 231.31 kB before
+at `a54afcc`, and the entry had already grown to 788.66 kB / 231.40 kB before
 this change touched it. The dependency is not what made this client large. The
-second is that +36.69 kB gzip is nevertheless a real sixth of the entry, arriving
+second is that +36.71 kB gzip is nevertheless a real sixth of the entry, arriving
 on the one route every visit starts at, for a feature that is read once per
 upgrade.
 
