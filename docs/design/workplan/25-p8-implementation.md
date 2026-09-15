@@ -1,9 +1,9 @@
-# 24 — P8 implementation plan
+# 25 — P8 implementation plan
 
 **Status: ~~skeleton~~ a plan, revisited 2026-09-13 at `4700aef` — and the
 revisit §0 was written to expect.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md), [P9](25-p9-implementation.md),
-[P10](26-p10-implementation.md) and [P11](27-p11-implementation.md); to be
+[P7](23-p7-implementation.md), [P9](26-p9-implementation.md),
+[P10](27-p10-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for, and it applies unchanged here. **§0 said
 *everything else here waits on three phases rather than on time* — P5, P6 and
@@ -652,7 +652,7 @@ Four concrete pieces, and §0.1's finding 10 is most of the evidence:
 
 #### The notification classes P10 will come looking for
 
-[P10 §1.4](26-p10-implementation.md)'s rule is that every class has a producer or
+[P10 §1.4](27-p10-implementation.md)'s rule is that every class has a producer or
 is not shipped, and its §5 names the inverse risk — *"P7, P8 and P9 each
 producing something notification-worthy and no class existing for it"* — with the
 plan to re-read these three gates before writing the router. So, answered here:
@@ -1065,7 +1065,7 @@ two.**
   mechanical, not a matter of remembering"* and that **every** exit gate ships at
   least one step carrying those words — naming P3, P5, P7, P10 and P11. **P8's
   ten steps carry it nowhere, and neither do P4's, P6's or
-  [P9](25-p9-implementation.md)'s.** So the claim is true of five gates and
+  [P9](26-p9-implementation.md)'s.** So the claim is true of five gates and
   false of four, and the grep it describes silently finds nothing in this
   document. The ten steps above must not be edited, so the phrase goes on the
   critical list instead — *and the count belongs back in

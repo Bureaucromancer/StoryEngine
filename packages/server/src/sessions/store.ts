@@ -1596,7 +1596,7 @@ export async function addSessionGoal(
  *
  * That section refused to add a route for changing a session's preset because
  * doing so *"is a question about what a session's preset is"*.
- * [P7B §1.1](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md) is
+ * [P7B §1.1](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md) is
  * that question answered, in two halves:
  *
  * **A switch is a new copy, and the turns already taken keep theirs.** The

@@ -658,7 +658,7 @@ because the fix is a sentence rather than a dependency. `format.ts` is `Intl`
 for dates, numbers and durations; there is no message catalogue, no ICU
 formatter and no i18n dependency anywhere in the workspace, and the label maps
 are literal English objects. The catalogue extraction that would change that is
-[P11 §1.3](27-p11-implementation.md)'s pre-beta sweep. So P4 renders through
+[P11 §1.3](28-p11-implementation.md)'s pre-beta sweep. So P4 renders through
 the label maps this codebase already has — and the decision above is what keeps
 **the largest body of user-facing prose any phase has added** off that sweep's
 debt list, where [P3 §3](15-p3-implementation.md)'s free-English block `reason`
@@ -1456,7 +1456,7 @@ phase after this one no longer assumes this one produced it.
     *Corrected 2026-08-30:* there is no ICU message layer in this repository —
     `format.ts` is `Intl` for dates, numbers and durations, the label maps are
     literal English objects, and the catalogue extraction that would change
-    that is [P11 §1.3](27-p11-implementation.md)'s. The decision §1.4 makes is
+    that is [P11 §1.3](28-p11-implementation.md)'s. The decision §1.4 makes is
     unaffected and is the point: emitting `{key, params}` rather than sentences
     is what keeps this phase's large new body of user-facing prose **off**
     P11's sweep debt, beside the workbench `reason` field that is already on

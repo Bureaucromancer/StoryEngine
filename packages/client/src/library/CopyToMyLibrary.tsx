@@ -38,7 +38,7 @@ import { Button } from '../ui/Button.js';
  * be a lossy fork of the thing a user asked to keep exactly.
  *
  * ***What it deliberately does not record, and the reason is not laziness.***
- * [P7B §1.2](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md) wants
+ * [P7B §1.2](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md) wants
  * a fork to eventually say *copied from which object, at which content hash*, so
  * that a later *your copy is behind the shipped one* is answerable — and then
  * says it is **not built here**. `Provenance` has no field for it, `metadata` is

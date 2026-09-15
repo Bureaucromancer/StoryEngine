@@ -34,7 +34,7 @@ import { SchemaFields } from './SchemaFields.js';
  * ***The sentence that makes Scene a narrator, editable at last*** — [P7B.1].
  *
  * Six documents sent this editor to the next phase, from P2 onwards, and the
- * chain ran out of phases: [P7B §0.1](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md)
+ * chain ran out of phases: [P7B §0.1](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
  * lays out all six. The consequence is not abstract — it is that
  * `SlotSource.outlet` has been *settable by nothing* since P5, that
  * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s C3

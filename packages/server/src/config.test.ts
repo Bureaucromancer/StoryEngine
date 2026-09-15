@@ -466,7 +466,7 @@ describe('the closed unions travel with the config', () => {
 
 /**
  * The environment layer — [P6A.0], [P6A §1.2], [21 §4],
- * [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
+ * [P10 §1.2](../../../docs/design/workplan/27-p10-implementation.md).
  *
  * **The claim the phase turns on is the first test**: a server that takes its
  * bind address from a variable with no config file anywhere. Until this stage

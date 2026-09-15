@@ -27,7 +27,7 @@ import type { BlockSource } from '@storyengine/shared';
  *   page. ~~Treatment and Lorebook get a label until those pages exist.~~
  *   ***All three carriers link since [P7B.5]*** (2026-09-14): the pages exist —
  *   lorebooks since P5.1 and treatments since
- *   [P7B.3](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md) —
+ *   [P7B.3](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md) —
  *   and the condition this sentence was written under is the one the
  *   route-caller sweep went looking for. A sample is prose somebody wrote in an
  *   object they own, and the panel's whole claim is that a reader can get from

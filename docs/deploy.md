@@ -31,7 +31,7 @@ The container binds `0.0.0.0`, because a container's own `127.0.0.1` is its own
 loopback and would be unreachable however you mapped the port
 ([09 §5.3](design/09-server-multiuser-deployment.md)). That is done by setting
 `SE_HOST` — the same variable a bare-metal install would use, not a different
-build ([P10 §1.2](design/workplan/26-p10-implementation.md)) — so you can read it
+build ([P10 §1.2](design/workplan/27-p10-implementation.md)) — so you can read it
 in the Dockerfile and override it.
 
 Binding beyond loopback means the create-the-first-admin screen is reachable from

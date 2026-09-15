@@ -639,7 +639,7 @@ anything — everything else can wait for the file it finds. The last of them wa
 added at [P6A.4](workplan/19-p6a-alpha-1.md) for the reason the list exists: the
 config file lives *inside* the data directory, so a container starting on an
 empty volume has no file to be configured by. The list is
-[P10 §1.2](workplan/26-p10-implementation.md)'s rule made concrete: the
+[P10 §1.2](workplan/27-p10-implementation.md)'s rule made concrete: the
 container image binds `0.0.0.0` **by setting `SE_HOST`**, not by being a build
 that decided differently, because *a hidden difference between artifacts is a
 support burden shaped like a security feature*. The same variable tightens the

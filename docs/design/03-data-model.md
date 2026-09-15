@@ -945,11 +945,11 @@ should be a warning threshold that the indicator crosses, not a write that
 fails.
 
 **Deferred, with the condition rather than a date.** Found unowned by
-[P11 §0.1](workplan/27-p11-implementation.md)'s sweep and deferred there on the
+[P11 §0.1](workplan/28-p11-implementation.md)'s sweep and deferred there on the
 stated ground that the audience is currently the developer and people treating
 this as a development project, for whom an 80 MB card is a curiosity rather than
 a broken share. **That is checkable and it expires**: the deferral ends when the
-audience does, which is the same moment [P10](workplan/26-p10-implementation.md)
+audience does, which is the same moment [P10](workplan/27-p10-implementation.md)
 makes the install reachable by somebody who is not the developer.
 
 **[OPEN]** Compression of the embedded payload. Base64 in `tEXt` is ~33%

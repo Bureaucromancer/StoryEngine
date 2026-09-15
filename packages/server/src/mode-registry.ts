@@ -50,7 +50,7 @@ import type { TurnPlan } from './turns/steps.js';
  * *Mutable rather than an instance threaded through every caller, deliberately.*
  * What P7 needs is that the registry stops being populated by a static import;
  * whether mode availability is ever **scoped** — per install, per account — is
- * [P10](../../../docs/design/workplan/26-p10-implementation.md)'s, with
+ * [P10](../../../docs/design/workplan/27-p10-implementation.md)'s, with
  * extension installation, and inventing the scoping now would be exactly the
  * shape the struck paragraph above warned against building early.
  */

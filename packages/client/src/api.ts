@@ -1698,7 +1698,7 @@ export const adminApi = {
    * An administrator setting somebody else's password — [P7B.5].
    *
    * **The route has shipped since P2A and nothing called it**, which is the
-   * class [P7B §0.5](../../../docs/design/workplan/28-p7b-presets-and-prompts.md)
+   * class [P7B §0.5](../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
    * is about and the one item the route-caller check found that was cheap
    * enough to answer in the sweep that found it. Without a caller the only way
    * to restore access to an account whose password is lost is to delete it and

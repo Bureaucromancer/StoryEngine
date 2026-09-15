@@ -1884,7 +1884,7 @@ the diff.
   there*: the editor showing the number is the requirement, and a cap — schema
   `maxBytes` hint or a policy at write time — is the separate and weaker
   question. Neither is owned by a phase; the indicator is deferred with a stated
-  condition rather than a date ([P11 §0.1](workplan/27-p11-implementation.md)).
+  condition rather than a date ([P11 §0.1](workplan/28-p11-implementation.md)).
 - **[OPEN]** Whether `Openings.seeds` should record the expanded result when a
   user accepts one, or leave that entirely to the session
   ([25 B9](25-open-questions.md)).

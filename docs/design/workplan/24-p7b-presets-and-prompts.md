@@ -1,20 +1,36 @@
-# 28 — P7B implementation plan: presets, prompt handling, and the surfaces the server already has
+# 24 — P7B implementation plan: presets, prompt handling, and the surfaces the server already has
 
-**Status: skeleton, written 2026-09-11 at `46bec98` — the phase after P7, and
-filed out of order on purpose.** Its place is after [P7](23-p7-implementation.md)
-and before [P8](24-p8-implementation.md), which is 24. Taking that number today
-renumbers P8 through P11 and repoints every citation to them — including the
-ones inside the P7 document that branch `p7` is editing — so it sits at the
-first free number instead. `PLAN_ORDER` in
-[`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
-real position; one scripted run after P7 merges moves it, and nothing cites a
-work-plan number, so the move costs nothing
-([README](README.md)). Format follows [P1](07-p1-implementation.md); citations
-follow the corpus convention.
+**Status: all ten stages committed, 2026-09-14 — the critical list is walked on
+the day the phase closes and this document records no walk.** Every stage in §2
+carries a *Done* block naming its commit.
+
+~~**Filed out of order on purpose.**~~ ***Moved to 24 at
+[P7B.5](#p7b5--the-sweep), 2026-09-14, which is what the paragraph below said
+would happen.*** Its place is after [P7](23-p7-implementation.md) and before
+[P8](25-p8-implementation.md), ~~which is 24~~ **and it is now there**; P8
+through P11 each moved up one and every citation to them was repointed by the
+script. Written 2026-09-11 at `46bec98`; the original reasoning is kept because
+it is the argument for filing a document at the wrong number rather than waiting:
+
+> Taking that number today renumbers P8 through P11 and repoints every citation
+> to them — including the ones inside the P7 document that branch `p7` is
+> editing — so it sits at the first free number instead. `PLAN_ORDER` in
+> [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
+> real position; one scripted run after P7 merges moves it, and nothing cites a
+> work-plan number, so the move costs nothing ([README](README.md)).
+
+*The move cost two defects in the script, both found by running it and neither
+findable without: a second copy of the slug-to-name table that had already
+drifted — it would have rewritten every `[28 §x]` citation of **this** document
+to `undefined §x` — and a root-relative test that read a sibling citation as a
+path from the repository root and rewrote three thousand of them into links that
+resolve nowhere a reader stands. A script kept in the repository to be run again
+is only as good as its first real run says it is.* Format follows
+[P1](07-p1-implementation.md); citations follow the corpus convention.
 
 ***Widened 2026-09-14 by a second sweep, and the two halves are one phase.***
 A documentation pass looking for pre-1.0 commitments no phase owns found
-seventeen — the register is [P11 §0.1](27-p11-implementation.md) — and five of
+seventeen — the register is [P11 §0.1](28-p11-implementation.md) — and five of
 them turned out to be this document's finding wearing different clothes. §0.5 is
 the argument for folding rather than filing them beside this one, and it is
 short: the sentence this phase was written around and the sentence that sweep
@@ -59,9 +75,9 @@ editors are three panels, which is the pressure. P7's own text knows the gap:
 its P7.9 grows *"a thirteen-block preset that is a code constant nobody can
 open"*, and its re-audit found *"a hook has nowhere to be authored"* and chose
 hand-edited JSON for P7.5 rather than inherit an editor. That is the right call
-for P7 and the wrong end state for 1.0. Why not P11: [P11.2](27-p11-implementation.md)
+for P7 and the wrong end state for 1.0. Why not P11: [P11.2](28-p11-implementation.md)
 applies [10 §11](../10-ui-surfaces.md) *across every editor*, and
-[P11 §1](27-p11-implementation.md) says in as many words that the size of that
+[P11 §1](28-p11-implementation.md) says in as many words that the size of that
 clause *"depends entirely on how many editors P5 through P9 add"*. A hardening
 phase applies a contract across editors; it should not be discovering that
 half of them are missing.
@@ -200,7 +216,7 @@ builds it and absorbs it otherwise, at the revisit, with the date.
 minimum — *create, rename, delete, and the durable core … with everything else
 visible and read-only* — on the P1 precedent, real write path and no assist.
 The field-assist contract, image slots, provenance display and the entry-level
-exchange are [P11.2](27-p11-implementation.md)'s and stay there. A stage in
+exchange are [P11.2](28-p11-implementation.md)'s and stay there. A stage in
 this phase that starts building assist has crossed the line, because the reason
 this phase exists is that nobody can change one sentence, and assist is a way
 of writing sentences faster.
@@ -216,7 +232,7 @@ grows a schema is a phase that has started being P8.
 commitments no phase owns, starting from the observation that four of the six
 library kinds have no editor and asking whether that was the only one of its
 shape. **It was not; there are seventeen**, and the register is
-[P11 §0.1](27-p11-implementation.md).
+[P11 §0.1](28-p11-implementation.md).
 
 **Five of them belong here, and the reason is that they are this document's §0.1
 from the other end.** §0.1 traces a *forward* chain: six documents each sent the
@@ -252,7 +268,7 @@ because it outlives this phase.
 
 **Two of the second sweep's findings were deliberately not folded**, and both
 are recorded in §4 with the decision that put them there: **search** stays
-[P11.1](27-p11-implementation.md)'s, and **the full home** stays a 1.0 feature
+[P11.1](28-p11-implementation.md)'s, and **the full home** stays a 1.0 feature
 expected immediately before the beta cut-over.
 
 ---
@@ -496,13 +512,13 @@ setup editor is the smallest of the four**: the create side is done and is the
 *right* shape — naming a configuration you already played rather than filling in
 a blank one — and what is missing is opening one and changing a field.
 
-*This corrects [P11.2](27-p11-implementation.md), which read that P7.4's wizard
+*This corrects [P11.2](28-p11-implementation.md), which read that P7.4's wizard
 **is** the setup's editor by [10 §6](../10-ui-surfaces.md)'s design. It is the
 setup's **creator**; the code is explicit about the difference.*
 
 **A package's editor is a picker, not a form** — a bundle is an arbitrary set of
 objects ([03 §7](../03-data-model.md), [04 §9](../04-schemas.md)), so its editor
-is a selection over what the user owns. **It was [P11.2](27-p11-implementation.md)'s
+is a selection over what the user owns. **It was [P11.2](28-p11-implementation.md)'s
 until 2026-09-14 and the argument for keeping it there undercut itself**: *across
 every editor* cannot apply to an editor that does not exist, which is a reason to
 build it before the sweep rather than inside it.
@@ -511,7 +527,7 @@ build it before the sweep rather than inside it.
 package editor with no `.sepack` import or export is a form over a bundle nobody
 can move, and `.sepack` is **not** in this phase — [P4](16-p4-implementation.md)'s
 *"P11-ish"* is the corpus's only assignment for it and it is routed beside
-[P11.10](27-p11-implementation.md)'s session export, since both freeze a format
+[P11.10](28-p11-implementation.md)'s session export, since both freeze a format
 and nothing else here touches one. So the package editor lands able to *make* and
 *describe* a bundle and not to *send* one. That is a real half-measure and it is
 the one this phase accepts: the alternative is a sixth library kind that stays
@@ -520,7 +536,7 @@ uncreatable for another two phases.
 ### 1.10 Home arrives as a prototype, and the full version is deferred by name
 
 ***Added 2026-09-14, and it reverses a placement made three days earlier.*** The
-first sweep put home at **[P10.4](26-p10-implementation.md)**, beside the
+first sweep put home at **[P10.4](27-p10-implementation.md)**, beside the
 gallery. It is **deferred instead**, and the terms are recorded rather than
 translated: **not core-alpha work**; still nominally a 1.0 feature, expected
 *immediately before the cut-over to feature-complete beta*, **and it may be
@@ -556,7 +572,7 @@ sign-in; and `tools/release.test.ts` already pins `CHANGELOG.md`'s version
 against three other files, so a fourth consumer inherits that guarantee. *The
 cost, stated:* the bundle grows by the changelog — sixteen kilobytes today — and
 [20 — client loading](../20-client-loading.md) is what measures whether that
-matters, at [P11.0](27-p11-implementation.md).
+matters, at [P11.0](28-p11-implementation.md).
 
 ### 1.11 What the fold deliberately did not collect
 
@@ -565,7 +581,7 @@ matters, at [P11.0](27-p11-implementation.md).
 four near-misses are named so the revisit does not re-litigate them:
 
 - **Search** ([10 §14](../10-ui-surfaces.md)) fits the rule exactly and is
-  **[P11.1](27-p11-implementation.md)'s anyway**, decided 2026-09-14: it and the
+  **[P11.1](28-p11-implementation.md)'s anyway**, decided 2026-09-14: it and the
   reading view are read-surfaces over the same data and share a print story,
   which is a better grouping than *shipped route with no caller*. `README.md`
   already promises it to a reader, so the deferral is on the clock.
@@ -583,7 +599,7 @@ four near-misses are named so the revisit does not re-litigate them:
   Building one third of a scroll-and-progress story is how the other two thirds
   get built twice.
 - **`.sepack` import and export** — §1.9's stated half-measure, routed beside
-  [P11.10](27-p11-implementation.md).
+  [P11.10](28-p11-implementation.md).
 
 ### 1.12 What the check found that the sweep did not — 2026-09-14
 
@@ -624,7 +640,7 @@ or if where it goes is a decision.** One of the five passed.
   *"beside the lore panel's disclosure"* — and built no control. It is a panel
   rather than a control, it needs the account's usable connections and the role
   vocabulary, and §1.4's placement answer predates the session panel this phase
-  actually shipped. Routed to [P11 §0.1](27-p11-implementation.md)'s register.
+  actually shipped. Routed to [P11 §0.1](28-p11-implementation.md)'s register.
 - **Owed: `PATCH` and `DELETE /sessions/:id/refs/:refId`** — renaming and
   removing a named node. [07 §6](../07-branching.md) says *promoting a swipe is
   creating a `BranchRef`* and that *deleting one later deletes a name*; the
@@ -634,7 +650,7 @@ or if where it goes is a decision.** One of the five passed.
   ([24 §1](../24-roadmap.md)) but a create with no undo is not what that
   deferral was about. Routed to the same register.
 - **Not owed here: `GET /api/search`**, which §1.11 and §4 already route to
-  [P11.1](27-p11-implementation.md).
+  [P11.1](28-p11-implementation.md).
 
 **And one thing the check found that is not a route.** `workbench/address.ts`
 linked a writing sample's block to its carrier only when the carrier was an
@@ -1139,7 +1155,7 @@ listed in §4 with the phase that will.
 ## 4. Out of scope, deliberately
 
 The field-assist contract, image slots, provenance display and entry-level
-exchange ([10 §11](../10-ui-surfaces.md) — [P11.2](27-p11-implementation.md)'s,
+exchange ([10 §11](../10-ui-surfaces.md) — [P11.2](28-p11-implementation.md)'s,
 across the editors this phase creates as much as the ones before it);
 ~~**the package editor** (P11.2, where [manual testing §10](05-manual-testing.md)
 placed it on 2026-09-11 — a bundle's editor is a picker over the user's objects
@@ -1147,7 +1163,7 @@ and belongs with the exchange work)~~ ~~a setup editor beyond P7.4's wizard,
 which *is* the setup's editor by [10 §6](../10-ui-surfaces.md)'s design~~
 ***both reversed 2026-09-14 and taken as P7B.6 — §1.9 has the argument and the
 correction: P7.4 built the setup's **creator**, not its editor***; personal
-connections and bindings ([10 §15.1](../10-ui-surfaces.md) — [P10.3](26-p10-implementation.md));
+connections and bindings ([10 §15.1](../10-ui-surfaces.md) — [P10.3](27-p10-implementation.md));
 the hook panel and its tuning (P7.5, P11.5); a provider-specific escape hatch
 in `params` ([04 §8.5](../04-schemas.md)'s open question, and it stays open);
 the prompt *preview* as a separate feature, because the workbench's preview
@@ -1159,13 +1175,13 @@ mean).
 
 ***And the four things the 2026-09-14 fold put out of scope***, each with the
 decision that put it there rather than by omission: **search**
-([P11.1](27-p11-implementation.md), §1.11); **the full home**
+([P11.1](28-p11-implementation.md), §1.11); **the full home**
 ([polish §5](06-polish.md), deferred to immediately before the beta cut-over and
 possibly further, §1.10); **openings and the seed-expansion loop**, a candidate
 held on the expand loop's cost (§1.11); **[10 §9](../10-ui-surfaces.md)'s live
 turn view**, held with [R4](22-walkthrough-refinements.md) and
 [polish §11](06-polish.md) because the three are one story (§1.11); and
-**`.sepack` import and export**, beside [P11.10](27-p11-implementation.md)
+**`.sepack` import and export**, beside [P11.10](28-p11-implementation.md)
 (§1.9).
 
 **And one thing that is not out of scope but reads like it:** the record. §1.1

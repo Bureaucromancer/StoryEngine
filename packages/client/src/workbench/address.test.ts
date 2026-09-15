@@ -76,7 +76,7 @@ describe('every source has an address', () => {
    * Only the actor carrier linked before, and the reason was true when it was
    * written: treatments and lorebooks had no editor page to reach. Both have
    * one now — lorebooks since P5.1, treatments since
-   * [P7B.3](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md) —
+   * [P7B.3](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md) —
    * and a block whose prose came from an object a person owns should reach it.
    *
    * *The record's word and the library's folder name differ for two of the

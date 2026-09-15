@@ -146,14 +146,14 @@ const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String()
  * library nobody can evaluate. The session still copies rather than links
  * ([03 §8]): editing a preset must not silently change a game in progress.
  *
- * ***The surface is [P7B](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md)'s,
+ * ***The surface is [P7B](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)'s,
  * not P7's, and it has arrived*** (corrected 2026-09-14). P7 closed through
  * P7.14 with browsing and previewing and no pack surface at all, which is the
  * deferral [P7B §0.1] traces through six documents. Switching mid-session is
  * `PUT /sessions/:sessionId/preset` below, written at P7B.2 — so this comment's
  * last remaining claim is the one that never moved: the copy.
  *
- * *[P7B §1.7](../../../../docs/design/workplan/28-p7b-presets-and-prompts.md)
+ * *[P7B §1.7](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
  * asked for this correction in the stage that falsified it and P7B.2 missed it;
  * the sweep at P7B.5 is the net under that rule, not a replacement for it.*
  */

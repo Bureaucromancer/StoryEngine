@@ -49,7 +49,7 @@ that are all checkable now.
   would be a guess about which likeness matters.
 - **The rendition pipeline has to have run.** P9 builds generation, per-media
   provenance and the eviction hooks
-  ([P9](workplan/25-p9-implementation.md)); the test bench (§3) is a *consumer*
+  ([P9](workplan/26-p9-implementation.md)); the test bench (§3) is a *consumer*
   of that machinery rather than a second copy of it, and 1.0 is where it gets
   exercised against real sessions rather than against fixtures.
 

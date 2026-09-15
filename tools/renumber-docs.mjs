@@ -220,36 +220,44 @@ if (process.argv.includes('--rewrite')) {
       .replace(/^\d{2}-/, '')
       .replace(/\.md$/, '');
 
-  const NAMES = {
-    'work-plan': 'work plan',
-    triage: 'triage',
-    testing: 'testing',
-    'repo-and-releases': 'releases',
-    'manual-testing': 'manual testing',
-    polish: 'polish',
-    'p1-implementation': 'P1',
-    'p2-implementation': 'P2',
-    'p2a-configuration-surface': 'P2A',
-    'p2b-provider-configuration': 'P2B',
-    'p2-manual-gate': 'manual gate',
-    'p2c-first-real-run': 'P2C',
-    'p2c-brief': 'P2C brief',
-    'p2c-log': 'P2C log',
-    'p3-implementation': 'P3',
-    'p4-implementation': 'P4',
-    'p5-implementation': 'P5',
-    'p6-implementation': 'P6',
-    'p6a-alpha-1': 'P6A',
-    'p6b-playable': 'P6B',
-    'playable-log': 'playable log',
-    'walkthrough-refinements': 'refinements',
-    'p7-implementation': 'P7',
-    'p8-implementation': 'P8',
-    'p9-implementation': 'P9',
-    'p10-implementation': 'P10',
-    'p11-implementation': 'P11',
-  };
+  /**
+   * The work-plan names, **from `PLAN_ORDER` rather than beside it**.
+   *
+   * ~~A second literal spelling out the same slug-to-name pairs.~~ *It had
+   * already drifted by the time anybody ran this* (corrected 2026-09-14 at
+   * P7B.5): `p7b-presets-and-prompts` was added to `PLAN_ORDER` when the
+   * document was filed and never to this copy, so the first real run would have
+   * rewritten every `[28 §x]` citation of it to `undefined §x` — a defect
+   * visible only on the one day the script is used, which is the worst schedule
+   * a defect can have. One source, and the drift cannot recur.
+   */
+  const NAMES = Object.fromEntries(PLAN_ORDER);
   const labelFor = (next) => (isPlan(next) ? NAMES[slugOf(next)] : numberOf(next));
+
+  /**
+   * Was this href written from the repository root rather than from its file?
+   *
+   * ~~`!href.startsWith('.')`~~ ***and that is wrong for the form this corpus
+   * actually uses*** (corrected 2026-09-14 at P7B.5, on the run that would have
+   * shipped it). A work-plan document cites its sibling as
+   * `[P7]` + `(23-p7-implementation.md)` — no leading `./`, and unambiguously
+   * relative — so the old test called every one of those root-relative and
+   * rewrote **3142 links** into `docs/design/workplan/23-…` from inside
+   * `docs/design/workplan/`. Those resolve from the repository root and nowhere
+   * else, so GitHub renders every one of them as a 404, and
+   * [`doc-links.test.ts`](./doc-links.test.ts) does not catch it: it tries both
+   * bases deliberately, because both forms appear in the corpus for good
+   * reasons.
+   *
+   * The honest question is not how the href is spelled but **which base it
+   * resolved against**, which `oldTarget` already has to work out. A link is
+   * root-relative only when the file's own directory does not explain it.
+   */
+  function wasRootRelative(file, href) {
+    const [p] = href.split('#');
+    if (!p) return false;
+    return !OLD_TO_NEW.has(posix.normalize(posix.join(posix.dirname(file), p)));
+  }
 
   /** Resolve an href written from `file` against the OLD tree, textually. */
   function oldTarget(file, href) {
@@ -390,8 +398,9 @@ if (process.argv.includes('--rewrite')) {
           if (!target) return whole;
           const next = OLD_TO_NEW.get(target);
           const frag = href.includes('#') ? `#${href.slice(href.indexOf('#') + 1)}` : '';
-          const rootRel = !href.startsWith('.');
-          const newHref = rootRel ? next + frag : posix.relative(posix.dirname(file), next) + frag;
+          const newHref = wasRootRelative(file, href)
+            ? next + frag
+            : posix.relative(posix.dirname(file), next) + frag;
           let newLabel = label;
           if (/^\d{2}(?=[\s\]\-—.]|$)/.test(label)) {
             newLabel = `${labelFor(next)}${label.slice(2)}`;

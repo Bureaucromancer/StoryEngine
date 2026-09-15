@@ -641,7 +641,7 @@ the same way the rest of the library is.
 *What reads it today:* expression sprites, imported with the character
 ([P7.10] again — an actor arriving with a `sprites/` directory keeps every image
 as `role: "expression"` with the filename stem as its label, where before only
-`assets[0]` survived as the portrait). [P9](design/workplan/25-p9-implementation.md)
+`assets[0]` survived as the portrait). [P9](design/workplan/26-p9-implementation.md)
 is the second consumer: a rendition's asset needs serving too, and
 `MediaSelection`'s two arms are already the one shape both go through.
 

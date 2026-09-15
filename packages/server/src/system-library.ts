@@ -25,7 +25,7 @@ import { SYSTEM_OWNER, type Layout } from './storage/layout.js';
  * anyone noticing it had never been exercised.
  *
  * What lands here is the smallest thing that changes that and the thing
- * [P7B §1.2](../../../docs/design/workplan/28-p7b-presets-and-prompts.md) argues
+ * [P7B §1.2](../../../docs/design/workplan/24-p7b-presets-and-prompts.md) argues
  * for: **each loaded mode's default prompt pack, written into the system scope
  * at boot.** After this the Scene pack has a folder, an index row, a detail
  * route and a link from the workbench — and a session created without naming a

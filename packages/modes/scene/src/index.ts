@@ -33,7 +33,7 @@ export { SCENE_PRESET } from './preset.js';
  * **Not the whole of [22 §6]'s manifest, and deliberately not.** That object
  * carries `id`, `license`, an SDK version range and a capability request, all of
  * which exist to be shown to a human at install time — and nothing installs
- * until [P10](../../../../docs/design/workplan/26-p10-implementation.md). Minting
+ * until [P10](../../../../docs/design/workplan/27-p10-implementation.md). Minting
  * the full shape now would be inventing an install-time contract with no
  * installer to hold it honest, which is the mistake `ModeDefinition.channels`
  * spent five stages demonstrating. One key of it, the key a built-in actually
