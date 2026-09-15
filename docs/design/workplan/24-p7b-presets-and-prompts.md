@@ -774,13 +774,37 @@ before writing four more editors rather than after.***
   own clock for no gain. The shell sends unstamped and `stampUpdated` is deleted
   with a note saying why.
 
-**What the preset editor retires by existing:** `SlotSource.outlet` had been
+~~**What the preset editor retires by existing:** `SlotSource.outlet` had been
 *settable by nothing* since P5 with hand-written JSON as its only repair, and
 [P5 §3](17-p5-implementation.md) recorded that as a standing defect for two
-phases. *New preset* starts from a shipped pack rather than a blank, because
+phases.~~ *New preset* starts from a shipped pack rather than a blank, because
 [P4.5](16-p4-implementation.md)'s *a blank-page dead end teaches worse than no
 button* is worse here than for actors: an empty block list produces no error,
 it produces a turn that narrates nothing, discovered at play time.
+
+***And that first sentence was false on disk for a day*** — corrected
+2026-09-15 at `3287d67`, found by [P8 §0.3](25-p8-implementation.md)'s readiness
+audit rather than by anything here. **The editor decided a block was a slot by
+reading `source.kind`, which no preset has ever carried**:
+[04 §8.1](../04-schemas.md) puts the discriminator on the block
+(`kind: 'slot' | 'text'`) and the arm on `source.of`, which is what `collect.ts`
+and every shipped pack use. So every slot in every real file rendered as a *text*
+block with an empty template box, **the Outlet control appeared nowhere**, and
+[P5 §3](17-p5-implementation.md)'s defect was retired against a fixture and
+nothing else.
+
+***The part worth keeping is why the test did not catch it.*** The fixture spelled
+a slot `{ source: { kind: 'lore' } }` — **invented beside the code it was
+checking**, so the two agreed with each other about something neither had put to
+the schema. The repair is therefore not only the discriminator: the fixture is
+now in the schema's shape and a floor test **validates it with the shipped
+`validate()`** before anything else asserts with it. *A fixture the validator
+accepts cannot agree with the code by construction, which is the property this
+file's other tests were quietly relying on and did not have.*
+
+*This is also the sharpest instance of what [§0.5] is about, arriving from the
+other direction: not a surface with no caller, but **a surface whose caller was
+its own test**.*
 
 ### P7B.2 — The session-settings surface
 
@@ -1169,7 +1193,7 @@ only once there is good news is a table nobody believes.*
 | **1** The pack demo end to end, no JSON | **NO — M1, a person** | Every part of it is asserted separately and **nothing asserts the walk**. Open. |
 | **2** The default pack has an object; the workbench row links | **YES — AUTO** | `system-library.test.ts`; the link needed no code, since `collect.ts` has written `presetId` since P4.4 and `workbench/address.ts` has linked whenever there is one |
 | **3** The system copy refuses edit and delete; *Copy to my library* works | **YES — AUTO** | `system-library.test.ts` and `library.ts`'s existing refusals; `CopyToMyLibrary.tsx` gives the copy a new `uuidv7()` and every other field verbatim |
-| **4** A slot's `outlet`, set in the editor, positions an entry | **YES — AUTO** | `PresetEditorPage.test.tsx`'s *sets a slot block's outlet, which nothing could do before* — asserted on the **object the client sent**, because that is what would otherwise have been hand-written. [P5 §3](17-p5-implementation.md)'s standing defect, retired |
+| **4** A slot's `outlet`, set in the editor, positions an entry | ~~**YES — AUTO**~~ **YES — AUTO, from 2026-09-15** | `PresetEditorPage.test.tsx`'s *sets a slot block's outlet, which nothing could do before* — asserted on the **object the client sent**, because that is what would otherwise have been hand-written. ***It was false for a day***: the editor read `source.kind` and no preset carries that field, so no slot rendered as a slot and the control appeared nowhere. Fixed at `3287d67`, **and the fixture that hid it replaced by one the shipped validator accepts** — see P7B.1's record. [P5 §3](17-p5-implementation.md)'s standing defect, retired for real |
 | **5** Switch the pack mid-session; the old record still names the old blocks | **PART — AUTO; the reading is M2** | `session-preset.test.ts` for the switch and the record. *What no assertion covers is whether the history **reads** as the record it is*, which is the failure §1.1 was written to prevent |
 | **6** C3 without a text editor | **NO — M6, a person** | The control exists (*Maximum reply length*, P7B.2) and the walk is what retires C3's struck wording. Open. |
 | **7** A treatment's framing reaches the next turn's `se.treatment` block | **YES — AUTO** | The treatment editor writes the field and the assembler has read it since P5; `kinds.tsx` and the existing assembly tests |

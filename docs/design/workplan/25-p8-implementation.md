@@ -1,7 +1,17 @@
 # 25 — P8 implementation plan
 
-**Status: ~~skeleton~~ a plan, revisited 2026-09-13 at `4700aef` — and the
-revisit §0 was written to expect.** Drafted 2026-08-29 alongside
+**Status: ~~skeleton~~ ~~a plan~~ *ready to start*, 2026-09-15 at `3287d67`.**
+The plan is the 2026-09-13 revisit below; what makes it *ready* is §0.3, which
+re-ran §0.1's audit against the tree after [P7B](24-p7b-presets-and-prompts.md)
+landed twelve commits on it. **All ten of §0.1's findings still hold**, so every
+stage is still sized against the code it will meet; four things P7B moved are
+recorded, one of them a live defect the audit found in the editor P8.1 leans on;
+and **§5's fallback cut stands unchanged**, which is the thing to read first if
+this phase ever has to be cut short. **P8.0 is blocked by nothing and is where it
+opens.**
+
+Revisited 2026-09-13 at `4700aef` — the revisit §0 was written to expect. Drafted
+2026-08-29 alongside
 [P7](23-p7-implementation.md), [P9](26-p9-implementation.md),
 [P10](27-p10-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
@@ -245,9 +255,13 @@ turn volumes plus P5's retriever budget"*, and
 [manual testing](05-manual-testing.md) names this phase's cadence sizing among
 the things **sitting G**, the long pass, unblocks. Neither sitting G nor
 [sitting K](05-manual-testing.md) has been walked — K is also what P7's three
-criticals wait on. **So the phase can open, build the chain, put it in the
-pipeline and create the books before anything is measured**, and §1.3 is written
-as a procedure for that reason rather than as a decision made without evidence.
+criticals wait on ~~.~~ **and, since 2026-09-15, what
+[sitting M](05-manual-testing.md)'s five rows want too** (§0.3): P7B merged with
+its critical list unwalked, so **three phases now hold open on one sitting**.
+*That sharpens this paragraph rather than changing it.* **So the phase can open,
+build the chain, put it in the pipeline and create the books before anything is
+measured**, and §1.3 is written as a procedure for that reason rather than as a
+decision made without evidence.
 
 **What does *not* block, stated so it is not treated as if it did.** The
 extraction *quality* question, which is a tuning matter
@@ -264,6 +278,96 @@ available today and is what §3's AUTO rows use — and it tests **the chain, no
 the summary**. That distinction is load-bearing and §3.1 carries it: scripted
 output can prove that keys are shared and bytes identical; it cannot prove a
 summary of four hundred real turns is worth reading.
+
+---
+
+### 0.3 Ready to start — re-audited 2026-09-15 at `3287d67`
+
+*§0.1 ran at `4700aef`, **before [P7B](24-p7b-presets-and-prompts.md) existed**.
+Twelve commits, a merge and a renumber have landed since, so the audit is run
+again rather than assumed — which is the same discipline §0 applied to waiting
+for P5, P6 and P7, at a smaller scale.*
+
+#### What still holds — all ten of §0.1's findings, and saying so is the result
+
+**Re-checked line by line, and not one of them has moved.** `memoriesRoot` still
+dangles at `storage/layout.ts:360` with `layout.test.ts` as its only caller; the
+history window is still the hard cut at `turns/gather.ts:263`; `acceptEffect`
+still hard-codes `scope: 'session'` at `turns/effects.ts:117`; `StepInput.history`
+is still `readonly Turn[]` (`sdk/src/steps.ts:268`); `SlotSource` and
+`BlockSource` still have **no summary arm**; `assembly/collect.ts` still forces
+advisory for exactly `guidance` and `attempt`; `retrieval/blocks.ts` still builds
+a lore candidate with **no book id**; `provenance.source` still has no writer but
+`import/identity.ts`'s; `LoreEntry.locked` still has **no reader anywhere**; and
+`client/src/api.ts` still declares `moveHead`'s return as
+`{ session: SessionSummary }`, typing the abandoned-effect count away.
+
+***An audit re-run that confirms is a result rather than a formality.*** It means
+none of the five things §0.1 called *audits badly* was quietly repaired by a
+phase that was not looking at them — so **every one of them is still P8's**, and
+the stages that own them in §2 are sized correctly rather than optimistically.
+
+#### What P7B moved — four items, and one of them is a defect this audit found
+
+1. ***The preset editor exists, and P8.1's deferral becomes a no-op.*** That
+   stage's *Deliberately not built* says *"there is no preset editor in the
+   client at all, which [P7.14](23-p7-implementation.md) flagged for P11"*.
+   [P7B.1](24-p7b-presets-and-prompts.md) built one, and it renders **the
+   schema's shape**: `SchemaFields` reads a preset's non-block fields out of the
+   emitted artefact, and a slot block is rendered from `source.of` read openly
+   rather than matched against a list. **So `{ of: 'summary' }` arrives editable
+   with no client edit at all**, which is a better outcome than the clause
+   assumed and costs P8.1 nothing.
+
+   ***And this audit is what found that it did not work.*** The editor asked
+   `typeof source['kind'] === 'string'`, and `source.kind` is a field **no preset
+   has ever carried** — [04 §8.1](../04-schemas.md) puts the discriminator on the
+   block and the arm on `source.of`. Every slot in every shipped pack rendered as
+   a *text* block with an empty template box and no **Outlet** control, which
+   makes P7B.1's claim to have retired
+   [P5 §3](17-p5-implementation.md)'s defect false against every file on disk.
+   Fixed at `3287d67`, with the fixture that hid it replaced by one the shipped
+   validator accepts. *Named here rather than only in the commit, because the
+   readiness audit finding a live defect in the thing the next stage builds on is
+   exactly what the audit is for.*
+2. ***P8.4's settings surface exists, and the stage inherits its debt.***
+   [08 §7](../08-cross-session-memory.md) asks for *per session, in settings* —
+   two switches, the tri-state list, a link to the book — and
+   `play/SessionPanel.tsx` ([P7B.2](24-p7b-presets-and-prompts.md)) is that
+   place. **P8.4 therefore adds sections to a panel rather than building one.**
+   What travels with it is the debt that panel records in its own docstring: the
+   play column carried six panels before P7B.2 added a seventh, and
+   [P7B §1.4](24-p7b-presets-and-prompts.md)'s *one Session panel, not three* is
+   further from done than when it was written. **P8.4 makes it eight**, and a
+   stage that adds one without saying so is how a column becomes a list.
+3. ***Every stage that adds a route now has a build-time obligation.***
+   `packages/server/src/routes/route-callers.test.ts`
+   ([P7B.5](24-p7b-presets-and-prompts.md)) walks Fastify's route table against
+   the client's source and **fails on a route with neither a caller nor a written
+   exemption**. P8.4's `SessionMemoryConfig` is a route and P8.2's book creation
+   may be one, so [work plan §2.3](01-work-plan.md)'s standing line — *no phase
+   exits with configuration that has no surface* — stops being a checklist item
+   read at the gate and becomes a test that fails on the commit. §3.1's
+   standing-line row carries it.
+4. ***The blocking picture gains a third phase and the conclusion does not
+   change.*** §0.2 says *"neither sitting G nor sitting K has been walked — K is
+   also what P7's three criticals wait on."* **Sitting M**
+   ([manual testing §4](05-manual-testing.md)) is now there too: P7B merged
+   2026-09-15 with four criticals and a judgement sitting unwalked, and every one
+   of its rows wants the live endpoint K1 stands up. So **three phases hold open
+   on one sitting**, which sharpens §0.2's argument rather than altering it —
+   **P8.0 is blocked by none of it**, and is still the only stage in this phase of
+   which that is true.
+
+#### What this section deliberately does not do
+
+**It does not re-decide anything.** §1's decisions were made at the revisit
+against a tree that, on every point they turn on, is the tree that exists today —
+finding 1 above is the only place where the code moved under a stage, and it
+moved in the stage's favour. **§5's fallback cut stands unchanged**: chain,
+pipeline, books, manual capture and the toggles, with the automatic extractor
+deferred, remains the right thing to cut under pressure and nothing since
+2026-09-13 bears on it.
 
 ---
 ## 1. Decisions this plan has to make
@@ -811,10 +915,19 @@ ships is the one outcome §1.8 refuses.**
 *Deliberately not built.* No new viewer, as above. **No `historyWindow` change** —
 the window stays at twenty and the summary is a separate slot, because widening
 it to overlap the summary makes two producers of the same turns and lets the
-budgeter decide which survives. No preset-editor surface for the new slot: there
-is no preset editor in the client at all, which [P7.14](23-p7-implementation.md)
-flagged for P11, and the shipped mode presets position the slot, which is where
-the standing line is discharged.
+budgeter decide which survives. ~~No preset-editor surface for the new slot:
+there is no preset editor in the client at all, which
+[P7.14](23-p7-implementation.md) flagged for P11, and the shipped mode presets
+position the slot, which is where the standing line is discharged.~~
+
+***That clause is a no-op rather than a deferral*** (§0.3, 2026-09-15):
+[P7B.1](24-p7b-presets-and-prompts.md) built the editor and it renders the
+schema's shape, so **the new slot arrives editable with no client edit** —
+`SchemaFields` reads the non-block fields out of the emitted artefact and a slot
+block is drawn from `source.of` read openly, precisely so an arm a build has
+never heard of renders as itself. *The shipped mode presets still position the
+slot, which is still where the standing line is discharged; what has gone is the
+sentence saying nobody could see it afterwards.*
 
 *Ends at:* the four-hundred-turn session assembles inside budget with the summary
 in the prompt, and the block table names the links and which turns each covered.
@@ -916,6 +1029,18 @@ on*, which is the control the requirement actually asks for. The settings UI fro
 [08 §7](../08-cross-session-memory.md): two switches, the list of the account's
 other sessions with the same actors showing auto-on rather than hiding them, and
 the link to the book.
+
+***And that UI has a place to be, which it did not when this was written***
+(§0.3, 2026-09-15). 08 §7 says *per session, in settings*, and
+`play/SessionPanel.tsx` ([P7B.2](24-p7b-presets-and-prompts.md)) is it — so this
+stage adds sections to a panel rather than building one. **The debt travels with
+the surface**: that panel's docstring records the play column at seven and
+[P7B §1.4](24-p7b-presets-and-prompts.md)'s *one Session panel, not three* as
+further from done than when it was written. **This makes it eight**, and a stage
+that adds one without saying so is how a column becomes a list.
+*Its route is also the first in this phase to meet the check §0.3's third item
+names — `SessionMemoryConfig` must have a client caller or a written exemption
+before the suite is green.*
 
 Scope is `(user, actor, persona)` with the per-user axis **not a toggle and not
 overridable**, and persona scope a default a setting may widen.
@@ -1050,7 +1175,7 @@ second question is PLAYABLE's, it is as answerable in November, and under clause
 | **8b** A hook premise fired in session one does not appear in session two, and neither does an unfired entrance | **a person** | **critical — C3.** (i) ✓ §5 calls it the phase's riskiest claim; (ii) ✓ *"the one failure in this phase a person will notice immediately and never forgive"*; (iii) ✓ a treatment with one hook and two sessions — and it **became** walkable at [P7.5](23-p7-implementation.md) |
 | **9** Creating a session in a treatment that already has one offers *start isolated* | **a test** | **AUTO** — a route and a component test. Fails (ii): a missing offer is a one-line fix at any time, and [08 §6](../08-cross-session-memory.md) calls this the *cheap* mitigation |
 | **10** Delete an origin session: §1.7's chosen behaviour happens | **a test** | **AUTO**, and **the step's own clause is the interesting part** — *"the behaviour the plan chose rather than the one the code happened to do."* §1.7 finds those are now the same behaviour, arrived at independently by `sessions/store.ts` and [03 §10.3](../03-data-model.md), so the test pins agreement rather than discovering it. The *new* half is the confirmation's sentence, which is a component test |
-| **The standing line** — no configuration without a surface | **a checklist**, and it has six rows | **critical in part.** `share`, `intake`, the tri-state list, the persona widening, and the summariser's cadence. **Plus one inverse instance this phase inherits**: the abandoned-effect count is on the wire and typed away in the client — *a record with no surface*, which is the standing line's mirror and is P8's to close because P8 is what makes the count non-zero |
+| **The standing line** — no configuration without a surface | ~~**a checklist**, and it has six rows~~ **a test and a checklist** | **critical in part.** ***The mechanical half arrived 2026-09-15*** (§0.3): `route-callers.test.ts` fails on a route with neither a client caller nor a written exemption, so every route this phase adds — `SessionMemoryConfig` first — is checked on the commit rather than at the gate. *What it cannot see is a **field** with no surface, which is what the six rows below are.* `share`, `intake`, the tri-state list, the persona widening, and the summariser's cadence. **Plus one inverse instance this phase inherits**: the abandoned-effect count is on the wire and typed away in the client — *a record with no surface*, which is the standing line's mirror and is P8's to close because P8 is what makes the count non-zero |
 
 **The critical list, derived rather than preferred — three items, a sitting or
 two.**
