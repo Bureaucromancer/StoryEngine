@@ -2,14 +2,23 @@
 
 **Status: ~~skeleton~~ ~~a plan, audited 2026-09-15 at `2fb75e5`~~ ~~built out
 against the tree, re-audited 2026-09-16 at `bf88153` — and deliberately not
-opened~~ built, 2026-09-16, on branch `p9` — and it does not close.** All six
-stages landed (`fae4de7`, `bf27efa`, `18b5b8f`, `5819843`, `49f43c2`,
-`041882e`), and §3.2 records thirteen of the gate's fifteen rows discharged by
-test. **The two criticals were never walked**: C1 and C2 both need an endpoint
-that serves the `image` role, which is
+opened~~ ~~built, 2026-09-16, on branch `p9`~~ merged into `main` 2026-09-16 at
+`f51ad46`, and open.** All six stages landed (`fae4de7`, `bf27efa`, `18b5b8f`,
+`5819843`, `49f43c2`, `041882e`), each with a *Done* block in §2 naming its
+commit, and §3.2 records thirteen of the gate's fifteen rows discharged by test.
+
+**The merge is not the close** —
+[manual testing §7](05-manual-testing.md) says a phase closes when its critical
+list is **walked**, and P9's was never walked at all. C1 and C2 both need an
+endpoint that serves the `image` role, which is
 [R10](05-manual-testing.md) and is not to hand — so they are carried as
 **sitting O** and this phase stays open behind them. *A block is an errand, not
 a judgement*, and the errand is one endpoint.
+
+*`main` as it stood immediately before the merge is `c9336b0`*, which is the
+merge commit's own first parent and is also where the `p8` branch points — so
+the tree without any of this is one checkout away and needed no marker of its
+own.
 
 Drafted 2026-08-29 alongside [P7](23-p7-implementation.md),
 [P8](25-p8-implementation.md), [P10](27-p10-implementation.md) and

@@ -1283,8 +1283,9 @@ satisfiable by a bug without it.
 ### P9 — Renditions
 
 ~~**Skeleton: [P9](26-p9-implementation.md)**~~ ~~*A plan, audited
-2026-09-15*~~ ~~*A plan built out against the tree*~~ ***Built, 2026-09-16, on
-branch `p9` — and open***: [P9](26-p9-implementation.md),
+2026-09-15*~~ ~~*A plan built out against the tree*~~ ~~***Built, 2026-09-16, on
+branch `p9`***~~ ***Merged into `main` 2026-09-16 at `f51ad46`, and open***:
+[P9](26-p9-implementation.md),
 re-audited 2026-09-16 at `bf88153` — and its first stage is a contract rather
 than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
@@ -1323,7 +1324,8 @@ that hold a phase open — K for P6B, L for P7, M for P7B, N for P8 — all want
 cannot be closed.
 
 ***That is exactly what happened*** (2026-09-16). All six stages landed —
-`fae4de7`, `bf27efa`, `18b5b8f`, `5819843`, `49f43c2`, `041882e` — and
+`fae4de7`, `bf27efa`, `18b5b8f`, `5819843`, `49f43c2`, `041882e`, merged into
+`main` the same day at `f51ad46` — and
 [§3.2](26-p9-implementation.md) records **thirteen of the gate's fifteen rows
 discharged by test**. The two criticals were **never walked**, which is the form
 this project keeps rather than a shortfall to tidy: they are carried as
