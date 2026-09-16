@@ -38,12 +38,29 @@ export function kindOfSchema(schemaId: string): LibraryKind | null {
 }
 
 /** The public account shape from `GET /api/auth/state` — never hashes or salts. */
+/**
+ * One tile on the sign-in screen — [12 §6](../../../docs/design/12-account-gallery.md).
+ *
+ * ***Three fields, and the narrowness is the contract.*** The server's
+ * projection picks exactly these; a field added to `Account` reaches this socket
+ * only when a line of code picks it, which is what keeps an unauthenticated
+ * listing from growing a role or a capability by accident.
+ */
+export interface GalleryEntry {
+  handle: string;
+  displayName: string;
+  /** A content-hash token, or null — in which case the client draws the tile. */
+  avatar: string | null;
+}
+
 export interface Account {
   handle: string;
   displayName: string;
   role: string;
   enabled: boolean;
   locale: string | null;
+  /** Absent means listed on the sign-in screen — [12 §4]. Only objectors carry it. */
+  hiddenFromGallery?: boolean;
   capabilities: {
     privateConnections: boolean;
     fileAccess: string;
@@ -76,6 +93,15 @@ export interface AuthState {
    * which is the one that makes an exposed install look broken.
    */
   setupTokenRequired: boolean;
+  /**
+   * Which of the two front doors this install shows — [12 §1.2].
+   *
+   * **Required rather than optional**, for `setupTokenRequired`'s reason one
+   * field up: client and server ship together, and a `?? 'form'` at the use site
+   * would be a guess — here a benign one, which is exactly how it would stop
+   * being noticed when the server stopped sending it.
+   */
+  loginScreen: 'form' | 'gallery';
   account: Account | null;
   /**
    * The shortest password this install accepts where one is *set*.
@@ -412,6 +438,8 @@ export const api = {
   updateMe: (patch: {
     displayName?: string;
     locale?: string | null;
+    /** *Shown on the sign-in screen* — [12 §4]. */
+    hiddenFromGallery?: boolean;
   }): Promise<{
     account: Account;
   }> => request('PATCH', '/api/me', patch),
@@ -494,6 +522,24 @@ export const api = {
    * scopes present and `scope: 'user' | 'system'` is the field that says which.
    * A second response type would have been two names for one record.
    */
+  /**
+   * The sign-in gallery — [12 §6](../../../docs/design/12-account-gallery.md).
+   *
+   * **Unauthenticated, and it answers 404 in form mode**, which is the whole of
+   * the family's scoping: a default install's unauthenticated surface is
+   * byte-for-byte what it has always been.
+   */
+  gallery: (): Promise<{ accounts: GalleryEntry[] }> => request('GET', '/api/auth/gallery'),
+
+  /** Your own face. Multipart, because it is bytes — [12 §5.2]. */
+  uploadAvatar: (file: File): Promise<{ avatar: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm('/api/me/avatar', form);
+  },
+
+  removeAvatar: (): Promise<undefined> => request('DELETE', '/api/me/avatar'),
+
   listMyConnections: (): Promise<{ connections: AdminConnection[] }> =>
     request('GET', '/api/me/connections'),
 
@@ -1775,6 +1821,8 @@ export interface AccountPatch {
   role?: 'admin' | 'user';
   enabled?: boolean;
   capabilities?: Partial<Account['capabilities']>;
+  /** Beside `enabled` and **not** inside `capabilities` — [12 §4]. */
+  hiddenFromGallery?: boolean;
 }
 
 /** The tier table and the appliers, sent as data rather than duplicated ([21 §4]). */

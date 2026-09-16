@@ -12,7 +12,7 @@ import { Layout } from './storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from './test-server.js';
 
 /**
- * *Restart now*, and the two things [09 §6.4](../../docs/design/09-server-multiuser-deployment.md)
+ * *Restart now*, and the two things [09 §6.4](../../../docs/design/09-server-multiuser-deployment.md)
  * says it must not do naively — [P10 §1.6], [P10.3].
  *
  * ***The control is a trap or it is a feature, and the difference is entirely

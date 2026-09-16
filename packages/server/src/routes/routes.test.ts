@@ -168,11 +168,21 @@ describe('the password minimum is the operator’s', () => {
      * means the empty string is a password, not that passwords are off.
      *
      * `makeTestServer` shallow-spreads `options.config`, so the whole `auth`
-     * section has to be passed. That is complete today because the section has
+     * section has to be passed. ~~That is complete today because the section has
      * one key, and it would silently stop being complete the moment a second
-     * joins it.
+     * joins it.~~
+     *
+     * ***A second joined it at [P10.4] — `auth.loginScreen` — and it was not
+     * silent.*** `tsc` refused the literal, naming the missing field, which is
+     * the shallow-spread's shape being enforced by the type rather than by this
+     * paragraph. Worth the correction because the warning above was right about
+     * the risk and wrong about the failure mode: the compiler is what stands
+     * between a shallow spread and a section that quietly loses a key, and it
+     * does stand there.
      */
-    const open = await makeTestServer({ config: { auth: { minPasswordLength: 0 } } });
+    const open = await makeTestServer({
+      config: { auth: { minPasswordLength: 0, loginScreen: 'form' } },
+    });
     try {
       const setup = await open.request({
         method: 'POST',

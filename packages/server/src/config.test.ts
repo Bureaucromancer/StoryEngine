@@ -388,10 +388,19 @@ describe('config has nowhere to put a credential', () => {
     // `GET /api/auth/state` so the first-run form can state the rule before
     // anybody types. A value handed to anyone who can reach the port is not a
     // credential; that is the argument this list asks for.
+    //
+    // `auth.loginScreen` trips it on `auth` alone and the argument is the same
+    // shape, one notch weaker, which is why it is written out rather than
+    // waved through: it is a two-value union naming **which arrival screen an
+    // install shows** ([12 §1.1]), it is published on the same unauthenticated
+    // `GET /api/auth/state` for the same reason — a pre-auth client cannot
+    // choose a screen it has not been told about — and a value that is one of
+    // exactly `form` and `gallery` has nowhere for a secret to hide.
     const knownSafe = [
       'server.trustProxy',
       'server.host',
       'auth.minPasswordLength',
+      'auth.loginScreen',
       'limits.contextTokens',
       'limits.reservedCompletionTokens',
     ];

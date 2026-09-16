@@ -237,7 +237,13 @@ describe('a turn completes on text while its picture is still being made', () =>
      * by the time this runs, and what it waits for is the **worker** finishing,
      * not the turn.
      */
-    await eventually(async () => (await renditionsOf()).every((one) => one.state !== 'pending'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty: `every` over an empty list is true, so this would otherwise
+      // wait for nothing whenever the record has not landed yet — which is the
+      // teardown race this wait exists to close, reopened by the wait itself.
+      return all.length > 0 && all.every((one) => one.state !== 'pending');
+    });
   });
 
   it('lands the picture on the record afterwards', async () => {

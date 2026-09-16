@@ -40,6 +40,7 @@ describe('the build line before sign-in', () => {
     authState.mockResolvedValue({
       setupRequired: true,
       setupTokenRequired: false,
+      loginScreen: 'form',
       account: null,
       minPasswordLength: 8,
       build: ALPHA,
@@ -54,6 +55,7 @@ describe('the build line before sign-in', () => {
     authState.mockResolvedValue({
       setupRequired: false,
       setupTokenRequired: false,
+      loginScreen: 'form',
       account: null,
       minPasswordLength: 8,
       build: null,

@@ -159,13 +159,29 @@ describe('a place already rendered dispatches no job', () => {
      */
     await write('se.location', 'the taproom');
     await takeATurn();
-    await eventually(async () => (await renditionsOf()).every((one) => one.state === 'ready'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // **Non-empty, and that clause is load-bearing.** `every` over an empty
+      // list is **true**, so without it this waits for nothing at all whenever
+      // the record has not been written yet — and the next line reads
+      // `[0]` off an empty array. *Found 2026-09-16 under the full suite's
+      // load, where it presented as "the backdrop never landed" in one file and
+      // passed in isolation every time.* It is the vacuous half of the same
+      // fire-and-forget design [P9.2] chose deliberately: the dispatch is
+      // detached, so *no renditions yet* and *all renditions settled* are the
+      // same answer to `every`.
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
     expect(fake.images).toHaveLength(1);
 
     // A second room. A new place is a new recipe, so this one is paid for.
     await write('se.location', 'the cellar');
     await takeATurn();
-    await eventually(async () => (await renditionsOf()).every((one) => one.state === 'ready'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty, for the reason spelled out on the first of these.
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
     expect(fake.images).toHaveLength(2);
 
     // And back upstairs. **Nothing is dispatched**, which is the whole row.
@@ -187,7 +203,11 @@ describe('a place already rendered dispatches no job', () => {
      */
     await write('se.location', 'the taproom');
     await takeATurn();
-    await eventually(async () => (await renditionsOf()).every((one) => one.state === 'ready'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty, for the reason spelled out on the first of these.
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
 
     const first = (await renditionsOf())[0];
     if (first === undefined) throw new Error('the backdrop never landed');
@@ -215,7 +235,11 @@ describe('a place already rendered dispatches no job', () => {
      */
     await write('se.location', 'the taproom');
     await takeATurn();
-    await eventually(async () => (await renditionsOf()).every((one) => one.state === 'ready'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty, for the reason spelled out on the first of these.
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
 
     await eventually(async () => {
       const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
@@ -249,7 +273,11 @@ describe('a turn accumulates renditions rather than replacing them', () => {
 
   it('keeps every sibling, with its own recipe', async () => {
     const turnId = await takeATurn();
-    await eventually(async () => (await renditionsOf()).every((one) => one.state === 'ready'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty, for the reason spelled out on the first of these.
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
 
     const first = (await renditionsOf())[0];
     if (first === undefined) throw new Error('the illustration never landed');
@@ -294,7 +322,11 @@ describe('a turn accumulates renditions rather than replacing them', () => {
 
   it('refuses a pointer to another turn’s picture', async () => {
     await takeATurn();
-    await eventually(async () => (await renditionsOf()).every((one) => one.state === 'ready'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty, for the reason spelled out on the first of these.
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
     const first = (await renditionsOf())[0];
 
     // A pointer to somebody else's picture would render one turn's moment under

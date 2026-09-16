@@ -14,7 +14,7 @@ import {
 } from './updates.js';
 
 /**
- * The update check — [09 §6.5](../../docs/design/09-server-multiuser-deployment.md),
+ * The update check — [09 §6.5](../../../docs/design/09-server-multiuser-deployment.md),
  * [P10 §1.7], [P10.3].
  *
  * ***Two claims, and the second is the one that is easy to get wrong.***

@@ -89,6 +89,9 @@ export function AdminAccounts(): JSX.Element {
  */
 function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void }): JSX.Element {
   const update = useUpdateAccount();
+  // Already cached by the gate that rendered this page, so reading it is free.
+  const auth = useAuthState();
+  const galleryMode = auth.data?.loginScreen === 'gallery';
   const refused = update.isError ? update.error.message : null;
 
   function patch(next: AccountPatch): void {
@@ -180,6 +183,29 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
                 patch({ capabilities: { fileAccess: value } });
               }}
               hint="Anything above “No” lets them name any directory on this machine outside the data directory and have the server read it — the import review lists every file it found there, including ones it could not import. Grant it to someone you would give a shell to on this machine. The in-app file browser has not shipped; until it does, “May edit their own files” differs from “May import from a folder” only in what it will mean later."
+            />
+            {/**
+             * ***Beside the capabilities and deliberately not among them*** —
+             * [12 §4], [P10.4]. It is not a fourth capability: capabilities are
+             * what an account **may do**, and this grants nothing and withholds
+             * nothing — a hidden account signs in identically, by typing its
+             * handle. It is kin to the display name above.
+             *
+             * ***And it says so on an install that shows the other door.***
+             * [12 §4] asks for exactly that: *"on an install whose `loginScreen`
+             * is `form`, the toggle says it currently changes nothing"* — which
+             * is why this one is rendered with a different sentence rather than
+             * hidden the way the *You* form hides its copy. An admin is the
+             * person who would change the setting that makes it matter, and
+             * hiding it from them would hide the connection.
+             */}
+            <CheckboxField
+              label="Shown on the sign-in screen"
+              checked={row.hiddenFromGallery !== true}
+              onChange={(shown) => {
+                patch({ hiddenFromGallery: !shown });
+              }}
+              hint={galleryHint(galleryMode)}
             />
           </div>
         </fieldset>
@@ -525,4 +551,18 @@ function firstPasswordRule(minimum: number): string {
   }
   if (minimum === 1) return 'At least 1 character. They can change it once they sign in.';
   return `At least ${String(minimum)} characters. They can change it once they sign in.`;
+}
+
+/**
+ * *The consequence beside the switch*, which is [10 §15.2]'s standing rule —
+ * and here the consequence depends on a setting somewhere else on this page.
+ *
+ * **One whole sentence per case**, never a stem with a clause bolted on: the
+ * assembly rule forbids building a sentence from fragments, and these two say
+ * different things rather than the same thing with a caveat.
+ */
+function galleryHint(galleryMode: boolean): string {
+  return galleryMode
+    ? 'Their face and name appear in the grid people pick from. Turning this off does not change how they sign in — they type their handle, exactly as they can now.'
+    : 'This install shows the by-name sign-in form, so nothing is currently shown to anybody. The setting is kept and applies if auth.loginScreen is changed to “gallery”.';
 }

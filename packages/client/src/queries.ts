@@ -48,6 +48,7 @@ import {
   type RoleRow,
   type ConfigView,
   type AuthState,
+  type GalleryEntry,
   type Credentials,
   type IndexRow,
   type LibraryKind,
@@ -322,7 +323,7 @@ export function useMe(): UseQueryResult<{ account: Account }> {
 export function useUpdateMe(): UseMutationResult<
   { account: Account },
   Error,
-  { displayName?: string; locale?: string | null }
+  { displayName?: string; locale?: string | null; hiddenFromGallery?: boolean }
 > {
   const client = useQueryClient();
   return useMutation({
@@ -362,6 +363,50 @@ export function useObjectImportNotes(objectId: string): UseQueryResult<{
   return useQuery({
     queryKey: ['import-notes', objectId],
     queryFn: () => api.objectImportNotes(objectId),
+  });
+}
+
+/**
+ * The sign-in gallery — [12 §6], [P10.4].
+ *
+ * ***Mounted only by the gallery screen***, which is the same absent-is-absent
+ * mechanism the settings page uses: a browser arriving at a `form`-mode install
+ * never asks, so the route's 404 is a thing nobody sees rather than a thing in a
+ * console.
+ *
+ * *No refetch interval.* An arrival screen is looked at once; a poll on an
+ * unauthenticated route would be this install talking to nobody, repeatedly.
+ */
+export function useGallery(): UseQueryResult<{ accounts: GalleryEntry[] }> {
+  return useQuery({ queryKey: ['gallery'], queryFn: api.gallery, retry: false });
+}
+
+/**
+ * Setting or clearing your own face — [12 §5.2].
+ *
+ * Both invalidate `auth/state` as well as the gallery, because the signed-in
+ * surfaces render the same face and a save that only refreshed the sign-in
+ * screen would leave the person looking at their old one.
+ */
+export function useUploadAvatar(): UseMutationResult<{ avatar: string }, Error, File> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.uploadAvatar,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['gallery'] });
+      void client.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+}
+
+export function useRemoveAvatar(): UseMutationResult<undefined, Error, void> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.removeAvatar(),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['gallery'] });
+      void client.invalidateQueries({ queryKey: ['me'] });
+    },
   });
 }
 

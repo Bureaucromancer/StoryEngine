@@ -855,6 +855,55 @@ for. What that now means is a constraint on whoever builds the full home — *it
 has to be read against this stage* — rather than a claim about which stage
 builds it. Polish §5's scope rule travels with it either way.
 
+#### Done — 2026-09-16
+
+***[12 §8] was written to be read at the build rather than re-derived, and it
+was.*** Every obligation it enumerates shipped: the config key end to end with
+its tier row, applier and derived select; `hiddenFromGallery` through `toPublic`,
+`updateSelf`, `update` and both toggles; `loginScreen` on `/auth/state`; the
+route family; the tile grid and the generated tile. The three tests it names are
+`gallery.test.ts`'s, under the names that section gives them.
+
+***The upload route was not the server's first, and [12 §5.2] said it would
+be.*** P4 built one for the import sweep, and it had already extracted
+`readOnePart` — *"before the second copy existed rather than after"*, in its own
+words — so two of the three obligations that section names were waiting with a
+caller. **What was actually new is the sniffing**, which is this route's own:
+`readOnePart` bounds the size and hands over bytes, and believing a filename is
+how an HTML document gets stored as `avatar.png` and served back with a type
+somebody else chose.
+
+***The generated tile's two inputs are the part worth arguing about, and [12
+§5.4] got them right.*** Initials from the **display name**, hue from the
+**handle** — so a rename moves your letters and leaves your colour, which is what
+lets the tile be how you find yourself in a grid. *The falsifying mutation is
+hashing the display name*, and `tile.test.ts` is written against exactly that.
+**`oklch` rather than `hsl`**, which the appearance layer already decided for
+every other colour in the build: equal lightness numbers look equally light
+across hues there and do not in `hsl`, so a tile in `hsl` would be the one
+surface whose yellows glare.
+
+***Two mechanical instruments caught things during the build, and both are worth
+recording.*** `routes.test.ts`'s own comment predicted the shallow-spread problem
+— *"complete today because the section has one key, and it would silently stop
+being complete the moment a second joins it"* — and a second key joined it;
+**the compiler refused the literal by name**, so the warning was right about the
+risk and wrong about the failure mode, and it is corrected in place.
+`tailwind-utilities.test.ts` caught `hover:bg-surface-raised`, a token that does
+not exist, which is the exact defect that test was written for: an element
+silently losing a property, found by somebody looking at the page weeks later.
+
+***And a real defect in [P9]'s own tests, found by load rather than by
+reading.*** Six waits of the form
+`eventually(() => renditions.every((one) => one.state === 'ready'))` **pass
+vacuously over an empty list**, so they wait for nothing whenever the record has
+not been written yet — and the next line reads `[0]` off an empty array. It
+presented once in a full run as *"the backdrop never landed"* and passed in
+isolation every time. *It is the vacuous half of the fire-and-forget design
+[P9.2] chose deliberately*: the dispatch is detached, so **no renditions yet** and
+**all renditions settled** are the same answer to `every`. Fixed in all three
+gate files with the non-empty clause, and named here rather than called a flake.
+
 ### P10.5 — About, the source link, and the embedded version
 
 [09 §7](../09-server-multiuser-deployment.md)'s licence obligations that are

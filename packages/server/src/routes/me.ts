@@ -7,7 +7,9 @@ import type { FastifyInstance } from 'fastify';
 import { requireAccount } from '../app.js';
 import type { AppServices } from '../app.js';
 import { refuseShortPassword } from '../auth/password-policy.js';
+import { deleteAvatar, writeAvatar } from '../auth/avatars.js';
 import { PrefsError } from '../auth/prefs.js';
+import { readOnePart } from './import.js';
 import {
   pickBindings,
   readSystemBindings,
@@ -56,6 +58,15 @@ const ProfilePatch = Type.Object(
   {
     displayName: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     locale: Type.Optional(Type.Union([Type.String({ maxLength: 35 }), Type.Null()])),
+    /**
+     * *Shown on the sign-in screen* — [12 §4], [10 §15.1], [P10.4].
+     *
+     * ***In the *You* form and not in Preferences***, which is the same line
+     * `ui.theme` is on the other side of: what only your own browser reads is a
+     * preference, and what **other people and the server** read is an account
+     * field. A gallery is built by the server for a reader who is nobody yet.
+     */
+    hiddenFromGallery: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -136,7 +147,11 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const body = request.body as { displayName?: string; locale?: string | null };
+    const body = request.body as {
+      displayName?: string;
+      locale?: string | null;
+      hiddenFromGallery?: boolean;
+    };
     const updated = await services.accounts.updateSelf(account.handle, body);
     return reply.send({ account: updated });
   });
@@ -196,6 +211,64 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
      */
     await services.accounts.changePassword(account.handle, body.newPassword);
     return reply.code(204).send();
+  });
+
+  /**
+   * Your face — [12 §5.2](../../../../docs/design/12-account-gallery.md), [P10.4].
+   *
+   * ***Self-service only, and that is the line rather than an omission.*** *"The
+   * face is the account holder's to set, the way the display name is; admins get
+   * the hide flag, not somebody else's portrait."* There is no
+   * `PUT /api/admin/accounts/:handle/avatar` and there should not be.
+   *
+   * **Three obligations, and two of them are `readOnePart`'s**: bound the size
+   * by `limits.maxUploadMb` — 413 with the number in it — and take the bytes as
+   * received. The third is this route's own: ***sniff the bytes, never trust the
+   * extension*** ([10 §4.4]), because a route that believed a filename would
+   * store an HTML document as `avatar.png` and serve it back with a content type
+   * somebody else chose.
+   *
+   * ***And a fixed cap below the config's***, which [12 §5.2] asks for in as
+   * many words: *"plus a fixed sanity cap in the handler, because an avatar that
+   * large is a mistake whatever the config says. No new config key: nobody tunes
+   * avatar sizes, and not everything is a setting."* `maxUploadMb` defaults to
+   * 64 and exists for a library import; a 64 MB portrait is a misdirected file.
+   */
+  app.post('/me/avatar', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const part = await readOnePart(request, reply, services);
+    if (part === null) return;
+
+    const stored = await writeAvatar(services.layout, account.handle, part.bytes, {
+      maxBytes: Math.min(services.config.limits.maxUploadMb * MEGABYTE, AVATAR_CAP_BYTES),
+    });
+
+    if ('refused' in stored) {
+      return stored.refused === 'too-large'
+        ? await reply.code(413).send({
+            error: 'too-large',
+            message: `An avatar has to be under ${String(AVATAR_CAP_MB)} MB.`,
+          })
+        : await reply.code(415).send({
+            error: 'not-an-image',
+            message: 'That is not a PNG, JPEG or WebP image.',
+          });
+    }
+
+    // The token, so a client can compose the URL it will now be served from —
+    // which is how the cache-busting in [12 §5.3] reaches the browser.
+    return await reply.send({ avatar: stored.digest });
+  });
+
+  /** Removing it goes back to the drawn tile, which every account always has. */
+  app.delete('/me/avatar', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    await deleteAvatar(services.layout, account.handle);
+    return await reply.code(204).send();
   });
 
   app.get('/me/prefs', async (request, reply) => {
@@ -337,3 +410,17 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     return reply.send(await userBindingsState(services.layout, account.handle));
   });
 }
+
+/** A megabyte, so the arithmetic above says what it means. */
+const MEGABYTE = 1024 * 1024;
+
+/**
+ * The fixed cap [12 §5.2] asks for, above whatever `maxUploadMb` says.
+ *
+ * **Two megabytes**, because a portrait rendered at a few hundred pixels is
+ * tens of kilobytes and anything past this is a photograph somebody dropped on
+ * the wrong control. *Not a config key*: nobody tunes avatar sizes, and
+ * [work plan §2.3]'s standing line is that not everything is a setting.
+ */
+const AVATAR_CAP_MB = 2;
+const AVATAR_CAP_BYTES = AVATAR_CAP_MB * MEGABYTE;

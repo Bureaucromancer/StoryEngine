@@ -137,6 +137,40 @@ export const Account = Type.Object(
      */
     locale: Type.Union([Type.String(), Type.Null()]),
     capabilities: Capabilities,
+    /**
+     * Kept off the sign-in grid — [12 §4](../../../../docs/design/12-account-gallery.md),
+     * [P10.4].
+     *
+     * ***Optional, and absent means listed.*** The polarity is chosen so that
+     * absence is correct by construction: every account written before this
+     * field existed is a listed account, and the filter that builds the gallery
+     * — keep `enabled`, drop this — does the right thing to a record that has
+     * never heard of it, with no default machinery to forget. *The positive
+     * spelling (`listedInGallery`, default true) fails exactly there*: the
+     * first reader that forgets the default hides every account created before
+     * the feature shipped.
+     *
+     * ***Optional in the schema with the default applied in code, and that is a
+     * constraint rather than a style choice.*** Account validation runs with
+     * `useDefaults` off, every other field here is required, and this store
+     * **blocks rather than degrades** on a file that fails validation — it is
+     * the one that does. A required field would brick every existing install on
+     * upgrade.
+     *
+     * **Not a fourth capability.** Capabilities are what an account *may do*,
+     * enumerated so an admin can be shown each with its consequence
+     * ([09 §4.2.1]); this grants nothing and withholds nothing — the account
+     * signs in identically either way, by typing its handle
+     * ([12 §2]'s lockout invariant). It is kin to `displayName`: a fact about
+     * how the account is *shown*.
+     *
+     * **On `Account` rather than in `prefs.json`** because the server reads it
+     * for a reader who is nobody yet. [10 §15.1] draws that line for the theme:
+     * what only your own browser reads is a preference, what other people and
+     * the server read is an account field, and a gallery is built before there
+     * is a session to have preferences.
+     */
+    hiddenFromGallery: Type.Optional(Type.Boolean()),
     createdAt: Type.Integer(),
   },
   { title: 'Account' },
@@ -178,8 +212,75 @@ export function toPublic(account: Account): PublicAccount {
     enabled: account.enabled,
     locale: account.locale,
     capabilities: account.capabilities,
+    /**
+     * **Picked, which is this function's whole design working as intended** —
+     * [12 §4]. A signed-in client needs it to render the toggle; an
+     * unauthenticated one gets {@link toGalleryEntry}'s narrower shape instead,
+     * which does not carry it because *whether you opted out* is not a thing to
+     * publish to nobody.
+     *
+     * *Omitted rather than defaulted to `false`*, so a `PublicAccount` says the
+     * same thing the record does: the field's presence marks a choice somebody
+     * made, and `accounts.json` stays *"a plain document somebody can read"*.
+     */
+    ...(account.hiddenFromGallery === undefined
+      ? {}
+      : { hiddenFromGallery: account.hiddenFromGallery }),
     createdAt: account.createdAt,
   };
+}
+
+/**
+ * One tile on the sign-in screen — [12 §6](../../../../docs/design/12-account-gallery.md),
+ * [P10.4].
+ *
+ * ***Its own projection, never `PublicAccount`.*** {@link toPublic} is already
+ * built by picking rather than omitting, on the argument that the fields most
+ * likely to be added are the ones that must not leak — **and it is still too
+ * wide for this socket**: it carries `role`, `enabled`, `capabilities`, `locale`
+ * and `createdAt`, none of which belongs in front of an unauthenticated caller.
+ *
+ * So this is a second, narrower picking function with the same property, and
+ * `gallery.test.ts` holds it to exactly three fields: a field added to
+ * `Account` reaches the sign-in screen only when a line of code picks it.
+ */
+export interface GalleryEntry {
+  handle: string;
+  displayName: string;
+  /**
+   * A content-hash token for the uploaded face, or null when there is none —
+   * in which case the client draws one ([12 §5.4]).
+   *
+   * *A token rather than a URL*, so the address is the client's to compose and
+   * the cache-busting is structural: a changed face is a changed token is a
+   * changed URL, and an unchanged one is a 304.
+   */
+  avatar: string | null;
+}
+
+/**
+ * ***Typed over the fields it picks, not over `Account`***, which is the
+ * picking argument one level up: a function that took a whole account could be
+ * handed one and quietly start reading more of it, and the narrow parameter is
+ * what makes *"a field reaches the sign-in screen only when a line picks it"*
+ * a fact about the signature rather than about this body.
+ *
+ * It also means the two callers hand over a `PublicAccount` — which has already
+ * dropped the hash and the salt — so the projection is narrowing a narrow thing
+ * rather than reaching back into the record.
+ */
+export function toGalleryEntry(
+  account: Pick<Account, 'handle' | 'displayName'>,
+  avatar: string | null,
+): GalleryEntry {
+  return { handle: account.handle, displayName: account.displayName, avatar };
+}
+
+/** **Filter: enabled and not hidden. Nothing else** — [12 §6]. */
+export function isListedInGallery(
+  account: Pick<Account, 'enabled' | 'hiddenFromGallery'>,
+): boolean {
+  return account.enabled && account.hiddenFromGallery !== true;
 }
 
 /**
@@ -368,7 +469,18 @@ export class Accounts {
    */
   async updateSelf(
     handle: string,
-    patch: { displayName?: string; locale?: string | null },
+    patch: {
+      displayName?: string;
+      locale?: string | null;
+      /**
+       * ***A widening, and a deliberate one*** — [12 §4], [P10.4]. This method
+       * rebuilds its patch field by field *precisely so* that adding a field is
+       * a decision rather than a consequence, and hiding your own face from the
+       * sign-in screen is a privacy preference about your own face: the account
+       * holder's, the way the display name is.
+       */
+      hiddenFromGallery?: boolean;
+    },
   ): Promise<PublicAccount> {
     // **Picked, not forwarded.** The narrow signature is a compile-time
     // guarantee and TypeScript's types are erased, so forwarding `patch` whole
@@ -380,6 +492,9 @@ export class Accounts {
     return this.#patch(handle, {
       ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
       ...(patch.locale === undefined ? {} : { locale: patch.locale }),
+      ...(patch.hiddenFromGallery === undefined
+        ? {}
+        : { hiddenFromGallery: patch.hiddenFromGallery }),
     });
   }
 
@@ -402,6 +517,8 @@ export class Accounts {
       role?: Account['role'];
       enabled?: boolean;
       capabilities?: Partial<Capabilities>;
+      /** [12 §4]: *"both the person and the admin can set it."* */
+      hiddenFromGallery?: boolean;
     },
   ): Promise<PublicAccount> {
     return this.#patch(handle, patch);
@@ -415,6 +532,7 @@ export class Accounts {
       role?: Account['role'];
       enabled?: boolean;
       capabilities?: Partial<Capabilities>;
+      hiddenFromGallery?: boolean;
     },
   ): Promise<PublicAccount> {
     const file = await this.#read();
@@ -432,7 +550,19 @@ export class Accounts {
       ...(patch.capabilities === undefined
         ? {}
         : { capabilities: { ...account.capabilities, ...patch.capabilities } }),
+      /**
+       * **`false` removes the field rather than storing it**, which keeps
+       * [12 §4]'s polarity true on disk: absence means listed, so *"only
+       * objectors carry the field"* and `accounts.json` stays a document where
+       * a field's presence marks a choice somebody made.
+       */
+      ...(patch.hiddenFromGallery === undefined
+        ? {}
+        : patch.hiddenFromGallery
+          ? { hiddenFromGallery: true }
+          : {}),
     };
+    if (patch.hiddenFromGallery === false) delete updated.hiddenFromGallery;
 
     assertAdminSurvives(file, account, updated);
     await this.#write({
