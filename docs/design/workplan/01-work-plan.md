@@ -1390,10 +1390,29 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-**Skeleton: [P11](28-p11-implementation.md)**, whose exit gate *is* the beta gate
-— the one structural difference from every other phase document. Its first stage
-is the audit that produces the list, because the list exists today only as *home
-P11* scattered across the phase documents. And §8 below is what it rewrites.
+~~**Skeleton: [P11](28-p11-implementation.md)**~~ ***A register,
+re-audited 2026-09-16 at `2f3f5d9`***: [P11](28-p11-implementation.md), whose exit
+gate *is* the beta gate — the one structural difference from every other phase
+document. Its first stage
+is the audit that produces the list, ~~because the list exists today only as *home
+P11* scattered across the phase documents~~ **and a partial list now exists**:
+§0.1 registered nineteen unowned 1.0 commitments on 2026-09-14, and §0.2 re-ran it
+on 2026-09-16 against [P7B](24-p7b-presets-and-prompts.md),
+[P8](25-p8-implementation.md) and [P9](26-p9-implementation.md) once all three had
+merged. And §8 below is what it rewrites.
+
+***What the re-run found is one new row and it is the expensive kind.*** Six of
+the nineteen are built — the four editors, session delete and archive, the
+workbench on a past turn, the import quarantine's listing and home's prototype —
+and the check is mechanical, because `route-callers.test.ts`'s OWED map went from
+seven entries to four and the four are the register's own rows. **The twentieth
+is [P8](25-p8-implementation.md)'s deferred automatic extractor**, cut
+deliberately on that phase's named fallback and landing in a corpus where neither
+later phase mentions it. It is row 14's shape — a careful deferral with no
+destination — and it is worse in one respect: **two of P8's three gate criticals
+travel with it**, so *feature complete to the 1.0 spec* is not a claim the beta
+gate can make until some phase takes it or somebody records that 1.0 ships manual
+capture on purpose.
 
 Everything left that the 1.0 spec commits to and the phases above did not
 absorb: the assistant, editors-are-not-dumb-forms across every editor, the

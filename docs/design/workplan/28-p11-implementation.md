@@ -1,8 +1,22 @@
 # 28 — P11 implementation plan
 
-**Status: skeleton.** Drafted 2026-08-29 alongside
+**Status: ~~skeleton~~ a register, re-audited 2026-09-16 at `2f3f5d9` — and
+still not a plan.** Drafted 2026-08-29 alongside
 [P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); to be
-revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
+revisited before the phase starts.
+
+***What the re-audit found, in one line: six of §0.1's nineteen rows are built,
+the instrument that found the sharpest of them has been joined by a second one,
+and the only new unowned row is the one component a shipped phase deliberately
+cut.*** [P7B](24-p7b-presets-and-prompts.md), [P8](25-p8-implementation.md) and
+[P9](26-p9-implementation.md) all merged between 2026-09-15 and 2026-09-16 — so
+for the first time this document has been re-read against three phases that
+happened rather than three that were planned. **§0.2 is that re-run.** Its
+headline is [P8](25-p8-implementation.md)'s **automatic extractor**, cut
+deliberately on that phase's own named fallback and landing in a corpus where
+neither later phase mentions it — row 14's shape exactly, and worse in one
+respect: two of P8's three gate criticals travel with it, so an unowned
+extractor is two gate rows nobody can ever walk. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for, and this is the furthest one — so it is the most a
 *register of deferrals* and the least a plan. Format follows
 [P1](07-p1-implementation.md); citation convention as
@@ -141,19 +155,31 @@ that cannot are the finding, not an omission.
 | 16 | **[R4](22-walkthrough-refinements.md) — where the reader's view sits while a turn streams** — [manual testing §10](05-manual-testing.md)'s *"largest genuine blank in the corpus"* | Nothing | **A paragraph in [10](../10-ui-surfaces.md), first.** **Check:** none nameable until that paragraph exists | **Unowned, and the one row §1.1's rule cannot grade** — an item with no specification has no artifact to name |
 | 17 | **The first-party system library's content** — [25 A2e](../25-open-questions.md): *"a full system library ships alongside"* | The mechanism — `SYSTEM_OWNER`, `system/library/`, read-only, loaded for everyone | Content. **Check:** a fresh install has something in it | **Not a hardening item and not code.** Here as content, or explicitly nothing — but not silently nothing |
 | 18 | **A session's model override has no control** — [19 §5.1](../19-tech-stack.md): *"anyone who wants their own key overrides a role without the admin's involvement"* | Everything but the surface. [P7.3](23-p7-implementation.md) built `PUT /sessions/:id/roles`, the resolution layer and the tests, and named where the control goes — *"beside the lore panel's disclosure"* | The panel: the account's usable connections, the role vocabulary, and the step layer under it. **Check:** a session's turn resolves through an override a person set in the browser | **Unowned, and a P11 candidate.** Added 2026-09-14 by [P7B §1.12](24-p7b-presets-and-prompts.md)'s route-caller check, which is the third instrument this section has run |
+| 20 | **[P8](25-p8-implementation.md)'s automatic extractor** — [08 §2](../08-cross-session-memory.md), and [P8 §5](25-p8-implementation.md)'s named fallback cut | The chain, the books, **manual capture** and the toggles. The extractor itself: nothing. `LoreEntry.locked` has a **writer** and no reader | The extraction step, and the two gate rows that travel with it. **Check:** [P8](25-p8-implementation.md)'s C2 — *a hand correction survives the next extraction* — stops being vacuous | **No phase.** Added 2026-09-16 by §0.2's re-run. P10 and P11 are the only later phases and the word appears in **neither** |
 | 19 | **A named node can be created and never renamed or removed** — [07 §6](../07-branching.md): *promoting a swipe is creating a `BranchRef`*, and *deleting one later deletes a name* | Two of three verbs. `POST /sessions/:id/refs` has a control on the play page; `PATCH` and `DELETE …/refs/:refId` have none | The list the names live in — [P6 §1.2](18-p6-implementation.md)'s history strip, not the post-1.0 tree visualiser. **Check:** a name given by mistake can be corrected, and one no longer wanted removed | **Unowned, and a P11 candidate.** Same check, same day. *A create with no undo is not what the visualiser's deferral was about* |
 
-~~**Seventeen, and the count is the point**~~ ***Nineteen since 2026-09-14, and
-the way the last two arrived is the point*** — P11.0's *Ends at* asks for a
-count so the phase's size is known before it starts. **Six go to
-[P7B](24-p7b-presets-and-prompts.md)** (rows 1–5, and row 9's prototype);
-**three become work here** — P11.10, P11.11 and search joining P11.1; **two are
-deferred by direction** (row 9's full version, row 10); **one is P10's fork** to
-settle; **one more was built in P7B's own sweep** (the admin password reset,
-which is not a row here because it was found and answered on the same day, and
-[P7B §1.12](24-p7b-presets-and-prompts.md) records it); and **seven are still
+~~**Seventeen, and the count is the point**~~ ~~***Nineteen since 2026-09-14, and
+the way the last two arrived is the point***~~ ***Twenty since 2026-09-16, and
+six of them are built*** — P11.0's *Ends at* asks for a
+count so the phase's size is known before it starts. **Six went to
+[P7B](24-p7b-presets-and-prompts.md)** (rows 1–5, and row 9's prototype) **and
+all six shipped**, which §0.2 records against an instrument rather than against a
+reading; **three become work here** — P11.10, P11.11 and search joining P11.1;
+**two are deferred by direction** (row 9's full version, row 10); **one is P10's
+fork** to settle; **one more was built in P7B's own sweep** (the admin password
+reset, which is not a row here because it was found and answered on the same day,
+and [P7B §1.12](24-p7b-presets-and-prompts.md) records it); and **eight are still
 unowned**, of which one (row 16) cannot be owned until somebody writes a
 paragraph.
+
+***The twentieth arrived the way the fourteenth did, which is the pattern worth
+naming rather than the row.*** Row 14 was a phase saying *this is not mine* into
+a corpus with no later owner; row 20 is the same sentence from a phase that had
+already shipped. **Both are deliberate cuts made well**, with the argument
+written down at the moment of cutting — and both landed nowhere, because a
+deferral names what it is *not* doing and a schedule is somebody else's edit.
+[manual testing §10.1](05-manual-testing.md) is a whole section about this shape;
+what §0.1 and §0.2 add is that it happens to phases that are being careful.
 
 ***Rows 18 and 19 were found by a test, which is new.*** Both earlier passes
 were a person reading; this one was
@@ -240,6 +266,191 @@ mechanical property with a mechanical check, and it is filed at
 [manual testing §9](05-manual-testing.md) and again as
 [P7B](24-p7b-presets-and-prompts.md)'s one gate item that is not a stage.
 
+### 0.2 Re-audited 2026-09-16 at `2f3f5d9`, after P7B, P8 and P9
+
+***The first re-run against phases that happened rather than phases that were
+planned.*** §0.1 was built on 2026-09-14, when [P7B](24-p7b-presets-and-prompts.md)
+was three days old and [P8](25-p8-implementation.md) and
+[P9](26-p9-implementation.md) were documents. All three have since built and
+merged — `e7d6dee`, `4a6e377`, `f51ad46` — so the register can be checked against
+a tree rather than against a schedule for the first time since it was written.
+
+**What it did not do is discharge P11.0**, and the shape of the pass says why.
+Almost all of it was **mechanical** — an OWED map counted, a tier table read, a
+`grep -c`, a lint run — which is what a re-run of a register should mostly be,
+and which is why the six discharges below are stated as a count rather than as a
+reading. *The one row it added was not.* Row 20 came from reading a shipped
+phase's own fallback cut against the two phases that come after it, and **no
+instrument in this repository can see it**: an extractor that was never built
+exposes no route and no setting.
+
+**So the split §0.1 named holds, with a second worked example on each side.**
+Instruments find what shipped and is unreachable — and there are **two** of them
+now rather than one. Reading finds what never shipped and is nobody's. P11.0 is
+the second thing, done systematically.
+
+#### What the three phases discharged — six rows, and the count is mechanical
+
+Rows **1, 2, 3, 4, 5 and 9's prototype** are built.
+
+- **Row 1 is the one that changes another section.** `EDITOR_ROUTES` now covers
+  the whole of `LibraryKind`, and `library/fields.test.ts` stopped counting an
+  absence down: *"counting down an absence is not maintenance, it is a test being
+  kept alive past the thing it was about"*, so the assertion runs over the whole
+  key set and says the positive — **every kind has an editor, at its own
+  address**. P11.2's *across every editor becomes six rather than two* was a
+  projection when it was written and is now a fact about the tree.
+- **Rows 2 and 3** (session delete and archive in the UI) landed at
+  [P7B.2](24-p7b-presets-and-prompts.md), **row 4** (the workbench on a turn the
+  head has passed) at [P7B.7](24-p7b-presets-and-prompts.md), **row 5** (the
+  import quarantine's listing) at [P7B.8](24-p7b-presets-and-prompts.md), and
+  **row 9's prototype** at [P7B.9](24-p7b-presets-and-prompts.md) — `HomePage.tsx`
+  and the changelog rendered as a document rather than dumped into a `<pre>`.
+
+***And the check is a count rather than a claim.***
+[`route-callers.test.ts`](../../../packages/server/src/routes/route-callers.test.ts)'s
+**OWED map held seven entries and now holds four** — and the four are §0.1's rows
+6, 18 and 19 *exactly*: `GET /api/search`, `PUT /api/sessions/:p/roles`, and
+`PATCH` and `DELETE` on `…/refs/:refId`. Nothing had to be re-read to establish
+that. **A register that can be checked by running a test file is a register that
+survives the person who wrote it**, which is the argument §0.1 made for the
+instrument and is the first evidence for it.
+
+#### The one new unowned row, and it carries two gate criticals
+
+**Row 20 — [P8](25-p8-implementation.md)'s automatic extractor.**
+
+P8 shipped on [§5](25-p8-implementation.md)'s named fallback cut: the chain, the
+books, manual capture and the toggles, **with the extractor deferred**. That cut
+was made well and for a stated reason — *"the one component whose value nobody
+can currently evidence and whose failure mode §1.5 calls unforgivable"* — and it
+was named in advance *"so that cutting under pressure cuts the right thing"*.
+
+**What it was not is scheduled.** `grep -c extractor` over
+[P10](27-p10-implementation.md) returns **0**, and over this document it returned
+**0** until this section. They are the only two later phases. So the corpus
+currently says *when the extractor arrives* and names no arrival.
+
+***This is worse than row 14 in one specific respect and it should not be read as
+equivalent.*** Row 14's unowned judgement costs a feature nobody has. Row 20
+costs a **gate**: [manual testing §6](05-manual-testing.md)'s P8 row records that
+C2 (*a hand correction survives the next extraction*) is **vacuous** under the cut
+and that C3's extraction half *"has no extractor to bleed"* — **both travel with
+the stage**, in that row's own words. P8 is merged and open on
+[sitting N](05-manual-testing.md). So two of its three criticals cannot be walked
+by anybody, at any time, until some phase owns the thing they are about.
+
+**Recorded rather than assigned**, which is §0.1's treatment of row 14 and the
+same reasoning: §1.1's rule would eject an extractor as a feature rather than a
+hardening item, and this document has no destination to eject it *to*. Inventing
+one is what §5's closing paragraph says to resist. What the revisit owes is a
+decision, and what this section owes is making the decision unavoidable.
+
+#### Four corrections, and one of them is this phase's own citation
+
+1. ***P11.9 is wrong about About — and the interesting part is that its evidence
+   was right.*** It says the About surface is one *"that no UI document yet
+   specifies"*, on the grounds that [10 §15.3](../10-ui-surfaces.md)
+   *"enumerates the admin panels and About is not among them"*. **That clause is
+   true and the conclusion does not follow**: About is specified in
+   [10 §15.1](../10-ui-surfaces.md), the *user* half — *"About: what build this
+   is — the name, the version string"* — so the search was run in the admin half
+   and stopped there. And `packages/client/src/about/` already ships
+   `AboutBuild.tsx` and a `BuildFooter`, because
+   [P6A](19-p6a-alpha-1.md)'s embedded version had to surface somewhere. The
+   About half of P11.9 is **specified and partly built**, and what is left there
+   is the audience obligations rather than the page. *A negative established over
+   one section of a document is a negative about that section*, which is the
+   general form of this one.
+2. ***P11.10's hard dependency is a re-read, not a design session.***
+   §1.8 and §5 both say the stage **blocks** if [13 §4](../13-write-mode.md) is
+   unsettled. §4 is written through §4.8, states its decision as a rule — *"A call
+   is a turn. An edit is a version. Apply is an edit."* — and §4.8 says in as many
+   words that ***"§4 is settled before export's format is frozen, not after"***
+   and that *"everything here is still free today — nothing has shipped."* The one
+   `[OPEN]` inside it is §4.5's *whether several sessions per manuscript should be
+   allowed*, which carries a lean, rests on a stated non-goal, and **does not
+   touch the turn record's shape**. The dependency is real and it is an afternoon.
+3. ***P11.10 gained a second record to freeze, named and dated.***
+   [P9 §1.1](26-p9-implementation.md) decided `Rendition` is **internal tier** and
+   graduates *when the turn record does* — on `turn.ts`'s own sentence, *"session
+   export ([25 B12](../25-open-questions.md)) is the event that ends this
+   freedom"*. So the format this stage freezes is the turn record **and** the
+   rendition record, [21 §7](../21-internal-contracts.md) is where the second one
+   is written, and §1.8's four consequences apply to both.
+4. ***A miscitation [P9](26-p9-implementation.md) introduced, found by reading its
+   own citation.*** P9.4 wrote *"[25 E4]'s budget is where this is properly
+   answered"* about the tokens a hand-pressed illustration spends outside any
+   turn's tape. **[25 E4] is session import from other platforms.** There is no
+   budget question in [25](../25-open-questions.md) at all; aggregate spend
+   tracking is **post-1.0** per [24 §3](../24-roadmap.md), which is what
+   [10 §3](../10-ui-surfaces.md) and `CostSummary`'s docstring both already say.
+   Corrected in both places on the day this section was written.
+
+#### §1.3's measurement, re-run — the discipline held and the catalogue tripled
+
+§1.3 asks for one number as *"the cheapest possible early warning"*: if real
+violations have grown from two toward twenty, the discipline eroded.
+
+**They have not, and the reason is stronger than a count.** Both selectors are
+*enforced* — `restrictedSyntax({ userFacing: true })` fails the build on a
+sentence joined with `+` and on a sentence split across JSX children — so the
+violation count is **zero by construction**, and `pnpm lint` is green over a tree
+that has since gained P7B's four editors, P8's memory panel and P9's rendition
+surfaces. The warning §1.3 wanted is now a build failure, which is better than a
+measurement.
+
+***What grew is the catalogue, exactly as §1.3 predicted, and the number is the
+sweep's size.*** Roughly **ten** open-keyed label maps on 2026-08-31; **thirty-one
+across twenty-one files** today. Every one is still a class-to-word lookup with
+the English on the client and `{ key, params }` on the wire — the shape
+extraction wants — so P11.8 is still *moving maps into a catalogue* rather than
+*finding sentences in server code*.
+
+**One number in that measurement is less comfortable.** §1.3 calls
+`note-labels.test.ts` *"the model for what this sweep should leave behind"* — a
+build-time check that the class set and the word set agree. **It is applied once,
+in thirty-one places.** That is not a violation of anything and nothing has
+regressed; it is the observation that the model exists, is cheap, and has not
+propagated, and P11.8 is the stage that either propagates it or says why not.
+
+#### And a second instrument, already in the tree
+
+`config.ts`'s `CONFIG_TIERS` marks four keys **`'unread'`** — a tier that means
+*this setting exists and nothing consumes it*:
+
+| Key | Whose |
+|---|---|
+| `trash.retentionDays` | **P11.7.** `config.ts` says it outright: *"the maturation sweep does not read it; trash retention is not implemented"* |
+| `updates.checkEnabled` | **P11.6** |
+| `updates.channel` | **P11.6** |
+| `limits.extensionStorageQuotaMb` | **P10's extension fork** (§0.1 row 11) |
+
+***This is [§3](#3-verification--the-p11-exit-gate)'s standing line with a
+mechanical reading.*** [work plan §2.3](01-work-plan.md) says no phase exits with
+configuration that has no surface, and §3 escalates that to a completeness claim
+because there is no later phase to defer to. `config.test.ts` already fails when
+a key is missing from the tier table, so **the set of unsurfaced settings is
+enumerable by reading one table** rather than by a person going looking.
+
+**It finds a different shape from the route walk, which is why it is worth having
+both.** `route-callers.test.ts` finds capabilities that shipped as **routes** and
+nothing calls; this finds capabilities that shipped as **settings** and nothing
+reads. Between them they cover the two forms a shipped-but-unreachable
+commitment takes — and neither would have found rows 14, 16 or 20, which is the
+same limit §0.1 named for the first instrument and which keeps P11.0 a stage.
+
+#### What this section deliberately does not do
+
+- **It does not discharge P11.0.** Two instruments and a re-read are not a
+  systematic pass over the design corpus, and the rows they cannot reach are the
+  ones that matter most.
+- **It does not re-place a routed row.** Rows 6, 7, 8, 13 and 14 keep their
+  placements; what changed under them is recorded above and nothing moved.
+- **It does not assign row 20.** Naming an owner for a deferral this document
+  does not own would be the failure §5 closes on — a hardening phase absorbing
+  work because it was the last one standing.
+
 ---
 
 ## 1. Decisions this plan has to make
@@ -278,6 +489,14 @@ whatever P8 through P10 add to the pile between now and then. **It does not
 discharge the stage**, and the reason is in the audit's own closing section:
 every one of its rows was found by reading, and the class it found — a route
 whose only caller is its own test — is exactly the class reading is worst at.
+
+***§0.2 does three of those four and narrows the stage again*** (2026-09-16). The
+re-count is run, §1.3's re-measurement is run, and *what P8 and P9 added to the
+pile* is answered — **one row**, and it is the extractor. What is left for P11.0
+is the systematic pass itself and **whatever P10 adds**, which is the only phase
+between here and the stage. *The instruments are two now rather than one*, and
+§0.2's closing section says what neither of them can see — which is the same
+limit, restated with a second example rather than dissolved.
 
 ### 1.3 The i18n sweep is extraction, and only the discipline made it mechanical
 
@@ -331,6 +550,21 @@ most of what a catalogue is for.
 here and still owed. P4 did not add a second instance of it — the review's
 `{ key, params, level }` was chosen against exactly that — so the debt is one
 item rather than two.
+
+***Re-measured 2026-09-16 (§0.2), across three more phases, and the warning this
+section asked for has become a build failure.*** Both selectors are *enforced*
+rather than counted — `restrictedSyntax({ userFacing: true })` fails the build on
+a sentence joined with `+` and on one split across JSX children — so the real
+violation count is **zero by construction** over a tree that has since gained
+P7B's four editors, P8's memory panel and P9's rendition surfaces.
+
+**The catalogue went from roughly ten maps to thirty-one across twenty-one
+files**, which is this section's predicted good outcome and is also the sweep's
+size stated in the only unit that matters. *And the one number that is less
+comfortable*: `note-labels.test.ts`, which this section calls **the model for
+what the sweep should leave behind**, is applied **once** in those thirty-one
+places. Nothing regressed — it is the observation that a cheap model has not
+propagated, and P11.8 either propagates it or says why not.
 
 ### 1.4 The reading view is cheap, which is why it is at risk
 
@@ -429,9 +663,30 @@ It drags `localActors`, channel state, branch structure and renditions
 ([25 B12](../25-open-questions.md)), and it **freezes the turn record** — which
 is why [13 §4](../13-write-mode.md) has to be settled before the format is
 fixed, not after. That is a design dependency on a document about a 2.0 feature,
-and it is the sharpest scheduling consequence of the release re-cut. If §2's
+and it is the sharpest scheduling consequence of the release re-cut. ~~If §2's
 audit finds 17 unsettled when this stage arrives, the stage blocks on 17 rather
-than guessing.
+than guessing.~~
+
+***Read on 2026-09-16 (§0.2), and it is an afternoon rather than a block.***
+[13 §4](../13-write-mode.md) is written through §4.8 and states its decision as a
+rule — *"A call is a turn. An edit is a version. Apply is an edit."* — and §4.8
+answers this paragraph from the other side in as many words: ***"§4 is settled
+before export's format is frozen, not after"***, with *"everything here is still
+free today — nothing has shipped."* The one `[OPEN]` left inside it is §4.5's
+*whether several sessions per manuscript should be allowed*, which carries a
+lean, rests on a stated non-goal, and **does not touch the turn record's shape**.
+So the stage's dependency is somebody re-reading one section and confirming it,
+not a design session it can block on.
+
+***And the freeze acquired a second record, named and dated.***
+[P9 §1.1](26-p9-implementation.md) decided `Rendition` is **internal tier** and
+graduates *when the turn record does* — on `turn.ts`'s own sentence, *"session
+export ([25 B12](../25-open-questions.md)) is the event that ends this freedom"*.
+So P11.10 freezes the turn record **and** the rendition record
+([21 §7](../21-internal-contracts.md)), the four consequences below apply to
+both, and P9 paid the cost of that answer in advance rather than leaving it to
+this stage: the rendition's tier claim is checked by `emit-schemas` producing no
+diff, so nothing has to be un-published first.
 
 **And it has a second reader nobody in the room represents** — *added
 2026-09-01, from [18 §3](../18-session-import.md).* [25 E4](../25-open-questions.md)
@@ -622,6 +877,15 @@ ones.
 both directions: a sweep over six editors is the same work as a sweep over two,
 and running it before the six exist would guarantee running it twice.
 
+***The six exist, as of 2026-09-16*** (§0.2). `EDITOR_ROUTES` covers the whole of
+`LibraryKind` and `library/fields.test.ts` asserts it over the whole key set with
+six distinct addresses — it no longer counts an absence down, on its own stated
+grounds that *"counting down an absence is not maintenance, it is a test being
+kept alive past the thing it was about."* **So this stage's subject is a fact
+about the tree rather than a projection**, the sequencing decision above was
+taken correctly, and what P11.0 owes here is a read of six editors rather than a
+question about how many there will be.
+
 ### P11.3 — The assistant
 
 §1.5's decision executed: the mode definition wherever it ended up, plus the
@@ -694,10 +958,21 @@ actually taught rather than restating the list.
 
 **What P6A deliberately left here is the audience half**, and it is the half with
 the obligations: public distribution, the AGPL §13 source link and the About
-surface that no UI document yet specifies
+surface ~~that no UI document yet specifies
 ([10 §15.3](../10-ui-surfaces.md) enumerates the admin panels and About is not
-among them), the channels, and the upgrade and restore tests that only matter
+among them)~~, the channels, and the upgrade and restore tests that only matter
 once somebody else's data is at stake.
+
+***The About clause is corrected 2026-09-16 (§0.2), in the direction that makes
+this stage smaller — and the sentence above was right about the wrong thing.***
+[10 §15.3](../10-ui-surfaces.md) genuinely does not enumerate About; **§15.1
+does**, in the *user* half — *"About: what build this is — the name, the version
+string"* — so the negative was established over the admin section and read as a
+negative about the document. And `packages/client/src/about/` already ships
+`AboutBuild.tsx` and a `BuildFooter`, because
+[P6A](19-p6a-alpha-1.md)'s embedded version had to surface somewhere. So what is
+left here is the **audience** obligations attached to About — the AGPL §13 source
+link and the channels — rather than the surface itself.
 
 *Ends at:* the demo.
 
@@ -723,11 +998,23 @@ corpus has ever given it. Deciding at the revisit whether it is this stage, a
 twelfth, or [P7B](24-p7b-presets-and-prompts.md)'s package editor growing an export button
 is cheaper than deciding now.
 
-*Depends on:* [13 §4](../13-write-mode.md), and on nothing else here.
+***The record this stage freezes is two records, since 2026-09-16*** (§0.2, §1.8).
+[P9 §1.1](26-p9-implementation.md) decided `Rendition` is internal tier and
+graduates *at this event*, on the sentence `turn.ts`'s own header carries —
+*"session export ([25 B12](../25-open-questions.md)) is the event that ends this
+freedom"*. So [21 §7](../21-internal-contracts.md)'s rendition contract comes with
+the turn record, and §1.8's four consequences are asked of both. **P9 paid for
+that answer rather than leaving it here**: the tier claim is checked by
+`emit-schemas` producing no diff, so this stage inherits a record that has never
+been published under a schema it would now have to honour.
+
+*Depends on:* [13 §4](../13-write-mode.md) — **read 2026-09-16 and found written
+and settled through §4.8**, so this is a confirmation rather than a block
+(§1.8) — and on nothing else here.
 *Ends at:* a session exported from one install loads on another, siblings
 included — **not the path**, which is the consequence most likely to be lost by
-a serialiser written against `walkPath(head)` — and the turn record is declared
-frozen.
+a serialiser written against `walkPath(head)` — and the turn record **and the
+rendition record** are declared frozen.
 
 ### P11.11 — Backup and restore
 
@@ -797,6 +1084,25 @@ check but a **completeness claim** — there is no later phase to defer to, so
 anything still configurable only by text editor either gets a surface here or
 gets removed.
 
+***That claim has a mechanical reading as of 2026-09-16*** (§0.2). `config.ts`'s
+`CONFIG_TIERS` marks a key **`'unread'`** when nothing consumes it, and
+`config.test.ts` fails when a key is missing from the table — so the set of
+unsurfaced settings is **enumerable by reading one table** rather than by a
+person going looking. Four today: `trash.retentionDays` (P11.7),
+`updates.checkEnabled` and `updates.channel` (P11.6), and
+`limits.extensionStorageQuotaMb` (P10's extension fork). **Row 1 above should be
+read as including that table reaching zero**, which is the strongest form this
+line has ever had.
+
+***One thing this gate cannot assert, named rather than left to row 12.***
+[P8](25-p8-implementation.md)'s C2 and C3 travel with its deferred **automatic
+extractor** (§0.2's row 20), which no phase owns — so *feature complete to the
+1.0 spec* is a claim this gate cannot make while memory's only writer is a person
+pressing a button. **Either some phase takes the extractor before this gate is
+walked, or row 12's reader records that 1.0 ships manual capture deliberately.**
+What must not happen is row 12 being walked by somebody who does not know the
+question was open.
+
 ---
 
 ## 4. Out of scope, deliberately
@@ -849,11 +1155,19 @@ requires for beta to count.
 **Three things the revisit cannot settle from this document and must go and
 read:**
 
-- **[13](../13-write-mode.md), before session export is specified.** §1.8 makes
-  this a hard dependency — the export format freezes the turn record, and 17 is
+- ~~**[13](../13-write-mode.md), before session export is specified.** §1.8 makes
+  this a hard dependency — the export format freezes the turn record, and 13 is
   a 2.0 document that has to be settled first. If it is not settled when the
   stage arrives, the stage blocks. Worth checking early rather than at the
-  stage, because the fix is a design session and not a day.
+  stage, because the fix is a design session and not a day.~~
+
+  ***Checked early, 2026-09-16, which is what this bullet asked for*** (§0.2).
+  [13 §4](../13-write-mode.md) is written through §4.8, states its decision as a
+  rule, and §4.8 answers this bullet directly: *"§4 is settled before export's
+  format is frozen, not after"*, with *"everything here is still free today."* The
+  one `[OPEN]` inside it does not touch the turn record's shape. **So the revisit
+  owes a confirmation, not a design session** — and the bullet's instinct was
+  right, because checking it cost an hour and would have cost a stage.
 - **[P2C log](14-p2c-log.md) and whatever PLAYABLE produced.** A hardening phase's
   real list is *what people hit*, and by then there will be two sources of that
   — the P2C sessions and everything since. An audit that reads only the code
@@ -868,3 +1182,20 @@ home, which is how it becomes the phase that ends when somebody gets tired.
 §1.1's rule — *a list without owners never ends* — is the defence, and the
 revisit should apply it to items this document has itself accumulated, not only
 to ones the audit finds.
+
+***And the hardest instance of that rule is now on the table*** — 2026-09-16,
+§0.2's row 20. [P8](25-p8-implementation.md)'s **automatic extractor** was cut
+deliberately, for a stated reason, on a fallback this project named in advance;
+and P10 and P11 are the only later phases and **neither mentions it**. §1.1's rule
+would eject it as a feature, and §0.1 already recorded that the rule's *"goes to
+the roadmap or to a phase"* clause **has no destination when P11 is the last
+phase**.
+
+**So the revisit faces the rule's own unanswered case, on an item that costs a
+gate rather than a feature**: two of P8's three criticals travel with the
+extractor, so while it has no owner P8 is merged, open, and holding two rows
+nobody can walk. The three honest answers are *P11 takes it and admits it is not
+hardening*, *the roadmap takes it and 1.0's memory is manual capture on purpose*,
+or *a phase is created for it the way [P7B](24-p7b-presets-and-prompts.md) was*.
+**What is not available is leaving it where it is**, because that is the state it
+is in now and it reads as a schedule.

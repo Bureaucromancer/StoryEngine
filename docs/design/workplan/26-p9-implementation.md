@@ -1401,7 +1401,16 @@ illustration's `fast` call is on no turn's tape, because there is no turn. The
 provenance survives on the rendition — binding, seed, fragments as sent — and
 what is absent is the token accounting. Making it a turn would put a node with no
 prose in somebody's transcript, which is a worse trade for a story than a missing
-line in a cost total. [25 E4]'s budget is where it is properly answered.
+line in a cost total.
+
+~~[25 E4]'s budget is where it is properly answered.~~ ***Miscited, and corrected
+2026-09-16 by [P11 §0.2](28-p11-implementation.md)'s re-audit.*** [25 E4] is
+*session import from other platforms*; there is no budget question in
+[25](../25-open-questions.md) at all. **Aggregate spend tracking is post-1.0**
+([24 §3](../24-roadmap.md)), which [10 §3](../10-ui-surfaces.md) and
+`CostSummary`'s docstring both already said — so the correct reading is that
+nothing in 1.0 totals this, and the note's job is to make sure whatever does
+knows the call is out there.
 
 ***And a bug the stage found in its own predecessor***: `imageBinding` on the
 runner options resolved the `image` role a **second** time, in a different

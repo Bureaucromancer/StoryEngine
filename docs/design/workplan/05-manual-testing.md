@@ -1383,6 +1383,36 @@ says stops being checked.**
 
 ---
 
+**A second instance, and this one costs two rows of a gate** — added 2026-09-16
+by [P11 §0.2](28-p11-implementation.md)'s re-audit, which registers it as its
+row 20.
+
+[P8](25-p8-implementation.md) shipped on its own named fallback cut with the
+**automatic extractor deferred**. The cut was made well: §5 named it in advance
+*"so that cutting under pressure cuts the right thing"*, the reason is written
+out, and the phase document says *"when the extractor arrives"*. **It names no
+arrival.** `grep -c extractor` over [P10](27-p10-implementation.md) and
+[P11](28-p11-implementation.md) returns zero for both, and they are the only
+later phases.
+
+***What makes it this section's business rather than the work plan's*** is §6's
+own P8 row: C2 (*a hand correction survives the next extraction*) is **vacuous**
+under the cut and C3's extraction half *"has no extractor to bleed"*, and that
+row records that **both travel with the stage**. So while the extractor has no
+owner, **two of P8's three criticals cannot be walked by anybody** — not blocked
+on a resource the way [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)
+is, but blocked on a schedule that does not exist. [Sitting N](#n--p8s-critical-list--one-row-and-the-shortest-a-phase-has-ever-closed-on)
+is one row because of it.
+
+*The difference from F22 is the direction, and it is worth one line.* F22 was
+moved **onto a stage that was never created**. This was moved **off every stage
+and onto no document at all** — which is harder to see, because there is no
+dangling pointer to find. What found it was reading a shipped phase's own cut
+against the two phases that come after it, which is the pass
+[P11 §0.2](28-p11-implementation.md) exists to be.
+
+---
+
 ## 11. What this file replaced
 
 **The pre-P6 walk sheet is merged into this file and gone.** It was
