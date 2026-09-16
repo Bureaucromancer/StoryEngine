@@ -1339,6 +1339,24 @@ is asserted. Every claim about **what it looks like** is not. §0.4's question,
 *are renditions worth 1.0 at all*, is therefore no easier to answer than it was;
 what has changed is that the code exists to answer it with.
 
+***And the fleshing out closed two of its own forks and pinned its split seam***
+(2026-09-16). **All twelve stages now name what they depend on, what they end at
+and the check that says they are done** — §1.1's rule turned on the document's own
+list, which its §5 asks for. Two forks fell out of it: the **assistant's mode
+definition** is P11's because [P7](23-p7-implementation.md) shipped without
+answering its §1.8, which is precisely the *both documents leaving it to the
+other* that P11 §1.5 said must not happen; and **P11.4's impersonation** is the
+whole feature rather than a remainder, because P7's own dependency list records
+that *"P7's revisit did not know it was asked."*
+
+***And the split is not where §5 guessed.*** With every stage carrying a
+dependency, **nine of twelve depend on nothing** — so the seam is not product
+completion against release engineering, it is *everything else* against **P11.8
+and P11.9**, the only two that depend on the phase. **That cut cannot be a release
+boundary**, because [releases §0](04-repo-and-releases.md) requires P11.9 for beta
+to count: the honest form is two phases and one release, which is worth knowing
+before somebody proposes a split as a way to ship sooner.
+
 ***Three decisions the phase closed on its way through***, all recorded in the
 plan rather than in commit messages: `Rendition` is **internal tier** and
 graduates when the turn record does, at the export freeze (§1.1, which is the
@@ -1411,9 +1429,10 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-~~**Skeleton: [P11](28-p11-implementation.md)**~~ ***A register,
-re-audited 2026-09-16 at `2f3f5d9`***: [P11](28-p11-implementation.md), whose exit
-gate *is* the beta gate — the one structural difference from every other phase
+~~**Skeleton: [P11](28-p11-implementation.md)**~~ ~~***A register,
+re-audited 2026-09-16 at `2f3f5d9`***~~ ***A register with a costed stage list,
+fleshed out 2026-09-16 at `7c5e0bd`***: [P11](28-p11-implementation.md), whose
+exit gate *is* the beta gate — the one structural difference from every other phase
 document. Its first stage
 is the audit that produces the list, ~~because the list exists today only as *home
 P11* scattered across the phase documents~~ **and a partial list now exists**:

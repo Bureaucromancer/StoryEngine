@@ -1,11 +1,23 @@
 # 28 — P11 implementation plan
 
-**Status: ~~skeleton~~ a register, re-audited 2026-09-16 at `2f3f5d9` — and
-still not a plan.** Drafted 2026-08-29 alongside
+**Status: ~~skeleton~~ ~~a register, re-audited 2026-09-16 at `2f3f5d9`~~ a
+register with a costed stage list, fleshed out 2026-09-16 at `7c5e0bd` — and
+still not a plan, for the reason §0 gives rather than for want of work.** Drafted 2026-08-29 alongside
 [P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); to be
 revisited before the phase starts.
 
-***What the re-audit found, in one line: six of §0.1's nineteen rows are built,
+***What the fleshing out did, in one line: every one of the twelve stages now
+names what it depends on, what it ends at, and the check that says it is done*** —
+§1.1's rule applied to this document's **own** accumulated list, which
+[§5](#5-what-only-the-revisit-can-settle) asks for in as many words and which no
+sweep of the corpus was ever going to do. **Two of §1's forks closed with it**:
+the assistant's (§1.5 — by P7 shipping without answering) and P11.4's *find out
+which half P7 took* (**none**). **And §5's structural question has its answer
+pinned**: the seam is not where that section guessed, because nine of twelve
+stages depend on nothing and only P11.8 and P11.9 depend on the phase.
+
+***What the re-audit before it found, in one line: six of §0.1's nineteen rows are
+built,
 the instrument that found the sharpest of them has been joined by a second one,
 and the only new unowned row is the one component a shipped phase deliberately
 cut.*** [P7B](24-p7b-presets-and-prompts.md), [P8](25-p8-implementation.md) and
@@ -597,6 +609,41 @@ surface and tools, or it all stays here and P11 accepts that it may find the
 contract wrong after everything is built on it. What must not happen is both
 documents leaving it to the other.
 
+---
+
+#### Resolved 2026-09-16 — by P7 closing, which is the arm this section feared
+
+***P7 shipped without answering, so the answer is the default one.*** [P7
+§1.8](23-p7-implementation.md) posed the same fork from its side — *"to decide at
+the revisit: whether the assistant's mode definition is pulled into P7"* — and
+P7's buildable work finished on 2026-09-13 across fifteen stages, merged at
+`589900e`, with the question still in its §5. **So the assistant's mode
+definition is P11's**, and it is P11's *by expiry* rather than by decision, which
+is the sentence above coming true.
+
+**P7 saw it coming and left the record in the right shape**, which is the part
+worth keeping rather than scolding. Its §4 lists the assistant's mode definition
+under *not out of scope but reads like it*, **specifically** so that *"leaving it
+in P11 is a decision rather than an omission"*. A deferral that names itself as a
+deferral is the thing this corpus keeps asking for; what neither document has is
+a mechanism that makes a phase answer before it closes.
+
+***And the worry the fork existed to manage got smaller on its own.*** §1.8's
+real subject is that two similar modes are a weak test of the mode contract. P7
+records the mitigation: [P9](26-p9-implementation.md)'s rendition step is a
+**fourth witness volunteered by a phase that is not about modes**, which is the
+variety §1.8 said the phase lacked — *"it does not answer §1.8's question…  it
+does change the price of answering **no**."* **The price was paid and it was
+lower than budgeted.** P9's step exercised the contract from outside and found no
+fault in it; what it did find was that a mode could not be imported by the engine
+and that `CastEntry` was missing a field, both of which P9 fixed inside the
+contract rather than by widening it.
+
+**What this stage therefore builds is all of it** — mode definition, surface and
+tools — and P11.3 says so. *The residual risk is unchanged and is now this
+phase's alone*: if the contract is wrong, P11 finds out after everything is built
+on it. **That risk is why P11.3 is not last**, which §2's ordering now states.
+
 ### 1.6 The update check produces a signal P10 already ships a surface for
 
 [P10 §1.7](27-p10-implementation.md) states this from the other side and leans to
@@ -773,6 +820,22 @@ the phase. Read §2 as P11.0, P11.10, P11.11, P11.1 … P11.9, and treat the
 numbers as filing order — the same convention the work-plan documents themselves
 run on.
 
+***And since 2026-09-16 the reading order can be derived rather than asserted.***
+Every stage now carries a *Depends on* line, so the order is a topological sort of
+twelve stages of which **nine depend on nothing** (§5). That makes two constraints
+and one preference explicit:
+
+- **P11.8 last but one, P11.9 last.** The sweep depends on everything that adds
+  user-facing prose and the packaging depends on everything; these are the
+  phase's only internal dependencies, and they are the seam §5 pins.
+- **P11.3 early rather than late**, which is a preference with a reason: §1.5's
+  residual risk is that the mode contract turns out wrong and P11 finds out
+  *after everything is built on it*. **That risk does not fall by waiting.**
+  Running the assistant before the sweeps is how a contract fault gets found
+  while there is still phase left to absorb it.
+- **Everything else in any order** — worth saying, because a list of twelve reads
+  as a sequence whether or not it is one.
+
 ### P11.0 — The audit that makes the list
 
 A systematic pass over the design documents producing every 1.0 commitment with
@@ -810,6 +873,21 @@ costs, then decide whether route/tool splitting and serving changes need a stage
 before broader distribution. It adds a review, not a pre-priced implementation
 commitment; observed loading problems can bring it forward.
 
+*Depends on:* **P10 having closed**, and nothing else. §0.2 answered *what P8 and
+P9 added to the pile* — one row — so P10 is the only phase left between this
+document and this stage.
+
+*Proof obligation:* **the two instruments, run and recorded** — which is the only
+mechanical part of an audit and therefore the only part worth an obligation.
+`route-callers.test.ts`'s OWED map and `config.ts`'s `'unread'` tier are both
+enumerable in seconds, both fail the build when they go stale, and between them
+they cover the two shapes a shipped-but-unreachable commitment takes (§0.2).
+**The stage's real output is the list, and a list has no check** — which is
+§1.1's rule turned on this stage and answered rather than dodged: *what the rule
+can hold here is that the two countable things were counted; the rest is
+reading, and §0.2 is the evidence that reading finds what the instruments
+cannot.*
+
 ### P11.1 — The reading view
 
 [10 §12](../10-ui-surfaces.md): any node rather than only the head, live rather
@@ -827,6 +905,27 @@ lorebook, [10 §5.3](../10-ui-surfaces.md), which is the same print stylesheet
 and the same Markdown pass run over a different record. Both are the kind of
 cheap item §1.4 warns gets cut, so they are named here rather than left to
 P11.0 to rediscover.
+
+*Depends on:* nothing. Every input exists — the turn tree, `walkPath`, the
+rendition records [P9](26-p9-implementation.md) wrote, and `GET /api/search`,
+which has served objects and turns since P2 and which
+[`route-callers.test.ts`](../../../packages/server/src/routes/route-callers.test.ts)
+still lists as **owed a caller**. *That OWED entry is this stage's, and it is
+discharged by building the surface rather than by editing the map.*
+
+*Ends at:* a two-hundred-turn session reads end to end as prose at the head **and
+at an abandoned node**, prints through the browser with a real stylesheet, and
+copies as Markdown that pastes usefully elsewhere — and a search hit lands on the
+node it names.
+
+*Proof obligation:* `packages/client/src/reading/…` — **the fence, asserted
+rather than intended.** §1.4 says the view must not drift toward the workbench,
+which is a claim about what it renders: *no cost, no token count, no model id,
+no block table anywhere in the reading route's subtree.* A source-text assertion
+over that directory is the cheap form and it is the form that survives somebody
+adding a *helpful* line two phases later. Plus `route-callers.test.ts` losing its
+`GET /api/search` row — which is the mechanical half, and the one that says the
+surface is reachable rather than merely written.
 
 ### P11.2 — Editors are not dumb forms, across every editor
 
@@ -886,13 +985,53 @@ about the tree rather than a projection**, the sequencing decision above was
 taken correctly, and what P11.0 owes here is a read of six editors rather than a
 question about how many there will be.
 
+*Depends on:* nothing here — [P7B](24-p7b-presets-and-prompts.md) built the six
+and its merge is the dependency, already discharged.
+
+*Ends at:* every editor offers assist, provenance and history, and a collapsed
+section names what inside it is not at its default.
+
+*Proof obligation:* `packages/client/src/editor/…` — **over the key set, not over
+the editors somebody remembered.** `fields.test.ts` is the model and it is in
+this file already: the claim runs over `LIBRARY_KINDS` and fails when a kind is
+added without the affordance, which is the difference between a test that
+tracks the feature and one that tracks the day it was written. *The
+not-at-its-default invariant is the row [P5 §2](17-p5-implementation.md) refused
+to cut, and it is the one an assertion can hold exactly* — the others are
+rendering.
+
 ### P11.3 — The assistant
 
-§1.5's decision executed: the mode definition wherever it ended up, plus the
-surface ([10 §7](../10-ui-surfaces.md)) — summonable from anywhere as a panel,
-starter prompts, ambient context **disclosed as a block in the turn record**,
-domain tools rather than filesystem tools, and every mutation a reviewable diff
-carrying `GeneratedFieldProvenance`.
+§1.5's decision executed — ***and as of 2026-09-16 the decision is that all of it
+is here***: P7 closed without pulling the mode definition across, so this stage
+builds the definition **and** the surface ([10 §7](../10-ui-surfaces.md)) —
+summonable from anywhere as a panel, starter prompts, ambient context **disclosed
+as a block in the turn record**, domain tools rather than filesystem tools, and
+every mutation a reviewable diff carrying `GeneratedFieldProvenance`.
+
+**Early in the phase rather than late, and §1.5 is why.** The residual risk the
+fork was managing is that the mode contract turns out wrong *after everything is
+built on it*. That risk does not fall by waiting; it falls by finding out. So
+this stage runs before the sweeps — ahead of P11.2's six editors and P11.8's
+catalogue — because a contract fault found here is a fault found while there is
+still a phase left to absorb it.
+
+*Depends on:* nothing in this phase. [06 §7.4](../06-modes-and-turn-pipeline.md)
+says the whole design is *a session, in a mode, with an actor card*, and all
+three have shipped since P7.
+
+*Ends at:* the assistant answers a question about the user's own library,
+proposes a change as a diff, and the applied change carries provenance.
+
+*Proof obligation:* **`tools/repo-shape.test.ts`, not a component test** — the
+check §3's row 4 already names and puts *in the gate*: **no part of it is a
+second chat implementation.** That is a grep, it is mechanical, and it is the
+only assertion that holds [06 §7.4](../06-modes-and-turn-pipeline.md)'s actual
+claim — *"if building it requires a parallel chat implementation, something in
+the mode contract is wrong."* A passing assistant built the wrong way would
+satisfy every behavioural test and fail this one. *Plus the ambient-context
+block appearing in the turn record*, which is what makes the disclosure real
+rather than promised.
 
 ### P11.4 — Scene's remainder, and impersonation
 
@@ -901,15 +1040,110 @@ carrying `GeneratedFieldProvenance`.
 P7/P11 scope* — so this stage is whatever half of that P7 did not take, and
 the revisit should start by finding out which.
 
+***Found out, 2026-09-16: P7 took none of it, and P7 says so itself.*** That
+document's own dependency list carries the row — *"[25 C3] — impersonation, and
+the split P11 asks P7 to make… [P11.4] says 'this stage is whatever half of that
+P7 did not take, and the revisit should start by finding out which.'*
+***P7's revisit did not know it was asked.***"* And the tree agrees: the word
+appears in no package. **So there is no split. This stage is the whole feature**,
+which makes it larger than the sentence above reads and smaller than it sounds.
+
+**Smaller than it sounds, because §3.1 already reduced it to a mechanism that
+exists.** *"Impersonate — the model writes your next message as your persona —
+is simply a `player`-controlled member being model-authored for one turn. Same
+mechanism, flipped for a turn."* Scene has `control` on party members since P7,
+so what is missing is the *flip*: one turn authored against the persona's card
+with the persona as subject rather than audience, and a reroll that costs
+nothing.
+
+*Depends on:* nothing. Scene's party and `control` shipped at P7.
+
+*Ends at:* a player stuck for words gets a draft in their own character's voice,
+edits or accepts it, and rerolling it is one button.
+
+*Proof obligation:* `packages/modes/scene/src/…` — **the card is the subject, not
+the audience** ([06 §3.1](../06-modes-and-turn-pipeline.md)), which is a claim
+about the assembled prompt and therefore assertable on the block list: the
+persona's card is present as the thing being written *as*, and the turn is an
+ordinary one on the record. *A turn that cannot be rerolled would satisfy the
+first half and miss the point of the feature*, so the reroll is in the
+obligation.
+
 ### P11.5 — Hook tuning, played
 
 §1.7. Not a build stage — a stage whose output is settings, prompt wording and a
 panel that survived contact with a real pool.
 
+***And as of 2026-09-16 the subject is enumerable, which is what makes a tuning
+stage schedulable at all.*** P7 shipped the mechanism, so what this stage tunes
+is four numbers, one constant and one absence:
+
+| What | Where it is now |
+|---|---|
+| The four levels' **cadence and cooldown** | `sessions/hooks.ts` — `sparse: 6/20`, `normal: 3/10`, `aggressive: 1/4`, `manual-only: ∞/∞` |
+| **How long a commitment waits** before lapsing | `HOOK_PATIENCE = 3` |
+| **How `sparse` reads to a model** | ***Nowhere.*** [06 §6.1](../06-modes-and-turn-pipeline.md) puts the levels' prose in the **pack** and the numbers in engine code; `turns/hook-selector.ts` records that the pacing prose *"arrives as an ordinary block when the pack grows one"* — and no pack has grown one |
+
+**The third row is the one that is not tuning.** A pack block that does not exist
+cannot be worded better by playing; it has to be written first, and writing it is
+a small build inside a stage that says it is not a build stage. *Naming it here
+is the point* — otherwise the stage arrives, discovers a missing block, and
+either grows silently or drops the half of §1.7 that is about **wording**.
+
+*Depends on:* a live endpoint and hours of play — the only stage here whose
+input is a person's time rather than code. *It therefore depends on
+[manual testing](05-manual-testing.md)'s R2 in the way the sittings do, and
+should be walked with **sitting G** rather than beside it: one long unscripted
+session answers this stage and PLAYABLE's fourth hypothesis at once.*
+
+*Ends at:* four levels produce recognisably different sessions, and a session at
+`sparse` with eligible hooks explains its own quiet.
+
+*Proof obligation:* **none, and that is this stage's honest answer to §1.1's
+rule.** [work plan §2.1](01-work-plan.md) lists *that hook pacing works at all*
+among the hypotheses nothing has tested, and a hypothesis is not discharged by an
+assertion — it is discharged by playing and writing down what happened. **What
+this stage owes instead is a written result** in [manual testing](05-manual-testing.md),
+in the form §0's two-tier gate uses. *An item that cannot name a check is
+supposed to be ejected by §1.1; this one is kept because the rule's own purpose —
+that nothing ends by someone getting tired — is served by a sitting with a
+recorded outcome, which is the same thing a check buys.*
+
 ### P11.6 — Update check, About badge, and better failures
 
 §1.6, if P10 did not take it; the conditional connectivity warning, admin-only;
 and the error-message improvement that is the feature's actual value.
+
+***Two settings for it already ship, unread*** — 2026-09-16, and this is the
+sharpest reason to settle the ownership rather than carry it. `config.ts`'s
+`CONFIG_TIERS` marks **`updates.checkEnabled` and `updates.channel`** as
+`'unread'`, the tier meaning *nothing consumes this*. So the configuration
+shipped ahead of the producer, which is precisely what
+[P10 §1.7](27-p10-implementation.md) calls *shipping dark* — arrived at by
+default rather than chosen.
+
+**[P10 §1.7](27-p10-implementation.md) leans to taking the check, and its
+re-audit strengthened the lean**, so the live reading is that **this stage is
+P10's** and what remains here is the half P10 does not want: *better failures*.
+That half is the feature's actual value and it is independent of the badge —
+*"this server appears to have no internet access"* instead of a raw DNS or TLS
+error, and the same sentence at first run before somebody configures a remote
+provider that will never work.
+
+*Depends on:* P10's answer to its §1.7, which is a reading of one paragraph
+rather than a build. **If P10 takes the check, this stage is the error messages
+alone**; if it does not, the check comes here with them.
+
+*Ends at:* an install with no internet says so in a sentence somebody can act on,
+**and the two `'unread'` keys either have a consumer or are gone.**
+
+*Proof obligation:* `config.test.ts` — **the tier table, read as an assertion.**
+Those two keys leaving `'unread'` is the mechanical form of this stage being
+done, and it is already enforced in the direction that matters: a key missing
+from the table fails the build. *The conditionality is the part a test must also
+hold* — an install whose connections are all local is legitimate, so the
+assertion is that a local-only install produces **no** warning, which is the
+failure mode §1.6 names and the one a happy-path test would never see.
 
 ### P11.7 — Trash retention and restore, and the accessibility audit
 
@@ -928,12 +1162,66 @@ the table, the counts, the panel, and *played alongside*
 ([10 §5.3](../10-ui-surfaces.md)), which is the same query read from a
 lorebook. Placed 2026-09-11; nothing had named a phase before.
 
+***And the retention half has a marker in the tree*** — 2026-09-16.
+`trash.retentionDays` is `'unread'` in `CONFIG_TIERS`, with `config.ts` saying it
+outright: *"the maturation sweep does not read it; trash retention is not
+implemented."* **So the setting, the window and the folder all exist and nothing
+sweeps** — which is the standing line's shape with a default of 30 days that has
+never expired anything.
+
+*Depends on:* nothing. `Layout.trashRoot` and the move-on-delete path have
+shipped since P4.4.
+
+*Ends at:* a deleted object is restorable within the window and gone after it,
+with its history intact in both directions — and the confirmation names what
+refers to it before anybody presses the button.
+
+*Proof obligation:* **two, because this stage is two features wearing one
+heading.** For retention, a sweep test over a **clock the test controls** — the
+one shape that can assert *gone after it* without waiting thirty days, and the
+reason to write it here rather than let somebody reach for a real date. For the
+link table, the count itself: an object referenced by a session, a treatment and
+a package reports **three**, which is the claim [03 §10.1](../03-data-model.md)
+makes and the one a panel showing *Used by* would otherwise assert only by
+looking right. *The accessibility pass has no proof obligation and should not
+pretend to one* — [P2 §2.11](08-p2-implementation.md) calls it an audit over
+surfaces built to the habit, and an audit's output is findings.
+
 ### P11.8 — The localisation sweep
 
 §1.3: extraction into catalogues, the deliberately bad machine-generated French
 for testing ([19 §12.4](../19-tech-stack.md)), and missing keys falling back to
 English **silently, per key** — a 60%-translated UI should look bilingual, not
 broken.
+
+***The size is measured rather than estimated*** — §1.3's re-measurement,
+2026-09-16: **thirty-one open-keyed label maps across twenty-one files**, up from
+roughly ten. Every one is still a class-to-word lookup with the English on the
+client and `{ key, params }` on the wire, so the sweep is **moving maps into a
+catalogue** rather than hunting sentences in server code — which is the outcome
+§1.3 traded for on day one and the reason this stage is a sweep at all.
+
+**And one number says what the stage should leave behind.**
+`library/note-labels.test.ts` — which §1.3 calls *the model* — fails the build
+when the server emits a class the client has no sentence for **and** when the
+client holds a sentence for a class nothing emits. **It is applied once, in
+thirty-one places.** Nothing has regressed; the model simply has not propagated,
+and propagating it is most of what a catalogue is for.
+
+*Depends on:* everything else in the phase, and this is the one real ordering
+constraint in §2. A sweep run before P11.1's reading view, P11.3's assistant and
+P11.7's restore UI would be a sweep run twice — *the same argument P11.2 makes
+about editors, one level up.*
+
+*Ends at:* the app runs in the test French with no layout breakage, and an
+untranslated key renders English with no placeholder and no console noise.
+
+*Proof obligation:* **`note-labels.test.ts`'s shape, generalised to the
+catalogue** — the class set and the word set agree, for every map, as one
+build-time check rather than thirty-one hand-written ones. *That is also the
+answer to how anybody knows the sweep is finished*: it is finished when a map
+outside the catalogue fails the build, not when somebody has been through the
+list.
 
 ### P11.9 — Release engineering, which is the other half of the bar
 
@@ -974,6 +1262,20 @@ negative about the document. And `packages/client/src/about/` already ships
 left here is the **audience** obligations attached to About — the AGPL §13 source
 link and the channels — rather than the surface itself.
 
+*Depends on:* everything this phase ships, because it packages it — **and on
+nothing outside**, since [P6A](19-p6a-alpha-1.md) took the half with the
+unrecoverable decisions. *This is the stage that gates the phase rather than
+being part of it*, which §2's ordering already says.
+
+*Proof obligation:* **`git tag` twice on one commit produces identical
+artifacts** — the reproducibility claim in the only form that distinguishes it
+from *the build works*, and the form [work plan §8](01-work-plan.md)'s rewrite has
+to be able to assert. Plus `tools/release.test.ts` **extended from one artifact to
+five**: it already fails when the version disagrees across `package.json`,
+`CHANGELOG.md`, `compose.yaml` and the unraid template, and each new artifact adds
+a place for that version to disagree. *That test is the cheapest thing this stage
+inherits and the one most likely to be forgotten, because it passes today.*
+
 *Ends at:* the demo.
 
 ### P11.10 — Session export, and the format it freezes
@@ -1008,6 +1310,16 @@ that answer rather than leaving it here**: the tier claim is checked by
 `emit-schemas` producing no diff, so this stage inherits a record that has never
 been published under a schema it would now have to honour.
 
+*Proof obligation:* **the round trip, and the three things a serialiser written
+against our own records would silently get wrong** (§1.8). A session exported and
+re-read keeps its **siblings** — assert the count, because `walkPath(head)` drops
+them and the loss is invisible against a linear session; survives a record with
+`input`, `output`, `request`, `cost` and `steps` **absent**, which is what a
+hand-edit divergence turn already is on disk and what a tightened serialiser
+would reject; and round-trips a turn carrying a **foreign identifier** it does not
+understand. *The first is the one that costs data, and no fixture this build
+produces would catch it unless the fixture branches* — so the fixture branches.
+
 *Depends on:* [13 §4](../13-write-mode.md) — **read 2026-09-16 and found written
 and settled through §4.8**, so this is a confirmation rather than a block
 (§1.8) — and on nothing else here.
@@ -1028,7 +1340,19 @@ restore actually exercised"* among the release-engineering bullets rather than
 among the features — which is the right place for it and is also how this came
 to have no stage: everybody could see where the *test* went.
 
-*Depends on:* nothing. *Ends at:* a restored install serves the sessions the
+*Depends on:* nothing.
+
+*Proof obligation:* **the CI restore test, which belongs to
+[testing](03-testing.md) rather than to this stage** — this phase's one case of
+the check living outside the document that owes it, and also how the stage came
+to have no home at all (§1.8: *everybody could see where the test went*). What
+the obligation adds is the clause that makes it a restore test rather than a copy
+test: **the index is rebuilt, not carried.** Archive excluding `index.sqlite`,
+restore, and assert the sessions are served *and* that a search answers — a
+search answering is the only observable proof the rebuild ran, and an archive
+that quietly included the index would pass every other check.
+
+*Ends at:* a restored install serves the sessions the
 archive was taken from, with the index rebuilt rather than carried — and the
 test that says so runs without a person.
 
@@ -1036,8 +1360,19 @@ test that says so runs without a person.
 
 ## 3. Verification — the P11 exit gate
 
-Sketch; expand on revisit. **This gate is also the beta gate**, which is the one
-structural difference from every other phase document here.
+~~Sketch; expand on revisit.~~ **This gate is also the beta gate**, which is the
+one structural difference from every other phase document here.
+
+***Expanded 2026-09-16, and the expansion is mostly a pointer rather than more
+rows.*** Every stage in §2 now carries a **proof obligation** — §1.1's rule
+applied to this document's own list, which §5 asks for in as many words — so the
+twelve rows below no longer have to carry the mechanical detail as well. **Row 1
+is what does the work**: *P11.0's list is empty, item by item, with each item's
+named check green*, and each stage's obligation is now one of those named checks.
+
+**What the rows below are for is the part no stage's obligation can hold**: the
+claims that span stages (row 2's two-hundred-turn session, row 6's whole app in
+French), and row 12, which is a person reading the design corpus.
 
 1. P11.0's list is empty, item by item, with each item's named check green.
 2. A two-hundred-turn session reads end to end as prose, at the head and at an
@@ -1077,6 +1412,25 @@ among them, **which means row 12 was the only thing standing between a missing
 export and a green beta gate** — and row 12 is the row that depends entirely on
 a person reading carefully. A gate whose safety net is *somebody will notice* is
 the arrangement [manual testing §0](05-manual-testing.md) was adopted to end.
+
+***And row 13, added 2026-09-16, is the one this phase cannot assert about
+itself.*** [P8](25-p8-implementation.md)'s **automatic extractor** is unowned
+(§0.2's row 20) and two of P8's three gate criticals travel with it. So:
+
+13. **Either some phase has taken the extractor, or this gate records that 1.0
+    ships manual capture deliberately** — and [sitting N](05-manual-testing.md)'s
+    two vacuous rows are marked as such rather than left blank. *This is not a
+    build row and it is not optional*: while it is unanswered, *feature complete
+    to the 1.0 spec* is a claim nobody is entitled to make, and row 12's reader
+    would have to notice on their own that the question was open.
+
+***What the split between the twelve rows and the stage obligations costs, said
+plainly*** (2026-09-16): a reader now has to look in two places to know what this
+gate checks. **That is the right trade and it was not free.** The alternative —
+one list carrying both — is what produced a ten-row gate missing its two newest
+commitments, because a list that holds everything is a list nobody re-reads
+against the stages. *Row 1's wording is what joins them, and it is the sentence
+to keep correct if anything here drifts.*
 
 **And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** By this phase the line is not a per-phase
@@ -1151,6 +1505,49 @@ stage list: P11.1 through P11.5 are product completion, and P11.6 through P11.9
 are release engineering plus sweeps. Those have different audiences, different
 kinds of done, and only one of them is what [releases §0](04-repo-and-releases.md)
 requires for beta to count.
+
+---
+
+#### The seam, pinned 2026-09-16 — and it is not quite where this paragraph put it
+
+***What the revisit was asked to decide in advance is the seam, not the split***,
+and now that every stage carries a *Depends on* the seam can be read off the
+dependencies rather than guessed from the headings.
+
+**Nine of the twelve stages depend on nothing.** P11.1, P11.2, P11.3, P11.4,
+P11.7, P11.11 and P11.0 are independent outright; P11.5 depends on a person's
+time and P11.6 on a paragraph in [P10](27-p10-implementation.md). **Only two have
+a dependency inside this phase**, and they are the seam:
+
+- **P11.8** depends on everything that adds user-facing prose — the sweep run
+  before P11.1, P11.3 and P11.7 is a sweep run twice.
+- **P11.9** depends on everything, because it packages it.
+
+***So the split is not P11.1–P11.5 against P11.6–P11.9.*** It is **everything
+else** against **P11.8 and P11.9**, which is a much better-shaped cut than the
+paragraph above proposes: the second half is two stages, both of which are
+*about* the first half rather than beside it, and neither is a feature. **A
+first phase that ships the product completion and defers the sweep and the
+packaging is coherent**; the reverse is not, and neither is a cut down the middle
+of the independent nine.
+
+**Two consequences worth stating, because they decide whether the cut is
+available at all.**
+
+1. **P11.10 and P11.11 go in the first half**, despite being appended last.
+   Export freezes the turn record and backup protects it; both are product
+   commitments that [work plan §0.5](01-work-plan.md) moved *into 1.0*, and a
+   beta that shipped without them would be beta by a different definition.
+2. ***But [releases §0](04-repo-and-releases.md) requires P11.9 for beta to
+   count***, which means the cut **cannot be a release boundary**. A first phase
+   ending before P11.9 is a phase, not a beta. *So the honest form of the split
+   is two phases and one release*, and saying that now is what stops a split
+   being proposed later as a way to ship something sooner — which it would not
+   be.
+
+*What would move the seam:* a stage acquiring a dependency on another. Nothing
+here has one today, and the *Depends on* lines are where anybody would see it
+arrive.
 
 **Three things the revisit cannot settle from this document and must go and
 read:**
