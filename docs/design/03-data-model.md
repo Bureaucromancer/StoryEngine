@@ -758,7 +758,6 @@ disposable index**.
         setups/     <slug>/setup.json
         packages/   <slug>/...             (see §7)
       trash/                  # deleted objects awaiting the retention window §10.2
-      memories/               # auto-maintained, see [08](08-cross-session-memory.md)
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
         session.json
@@ -768,6 +767,23 @@ disposable index**.
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
 ```
+
+***~~`memories/`~~ is gone from the tree above, 2026-09-16 at P8.2.*** It sat
+there from the first draft, beside `library/` and outside everything the index
+walks — so a book under it would have been unindexed, unsearchable and
+unaddressable, while [08 §7](08-cross-session-memory.md) asks for *a link to the
+memory book itself, opening the ordinary lorebook editor*, which needs a library
+address. `Layout.memoriesRoot()` existed from P1 with no caller and no directory
+ever created.
+
+**[P8 §1.1](workplan/25-p8-implementation.md) decided it: a memory book is an
+ordinary library lorebook**, under `library/lorebooks/` like any other, marked
+`provenance.source = 'session'`. The deciding argument was not the one that
+section expected — it is that the resolver has to answer *"the memory book for
+this user, actor and persona"* as a **query**, and only the library already has a
+table to ask. The helper is deleted rather than left leaning, with a repo-shape
+assertion behind the deletion, because *"a path helper that survives the phase
+without a caller is the same defect twice."*
 
 **Every user owns a complete, independent library.** There is no shared *user*
 area and no ownership field — the path is the owner

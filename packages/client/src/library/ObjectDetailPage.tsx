@@ -21,6 +21,7 @@ import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
 import { SectionTitle } from '../ui/Text.js';
 import { AsStored } from './AsStored.js';
+import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
@@ -150,6 +151,38 @@ function ObjectView(props: {
         <Alert tone="error" className="mb-6">
           Another folder on disk holds the same id at an earlier path, and that copy is the one that
           loads. Nothing is lost; this copy is shown so the duplicate stays visible.
+        </Alert>
+      ) : null}
+
+      {/*
+       * ***The warning [08 §2](../../../../docs/design/08-cross-session-memory.md)
+       * asks for, on the object rather than on an export path*** — [P8.2].
+       *
+       * That section says a memory book *"must not be treated as authored
+       * content"* and asks to **warn on any export path — this is the one place
+       * the reuse could bite.** ***There is no export path.*** Nothing in this
+       * build downloads a library object, and session export is
+       * [25 B12](../../../../docs/design/25-open-questions.md), explicitly out of
+       * this phase's scope — so a warning written against that path would be a
+       * warning nobody can reach, which is the deliverable-nothing-noticed shape
+       * this phase deleted a helper over.
+       *
+       * **So it goes where a person meets the book**, which is here: the page
+       * that shows what it holds, and the page they are on when they decide to
+       * copy it out of the app by hand. What is owed when an export path is
+       * built is that it read the same marking, and the marking is what this
+       * phase put on disk. *Recorded rather than quietly deferred* — [P8.2] says
+       * the warning lands **with** the book, and this is it landing.
+       *
+       * Neutral rather than warning: nothing is wrong with the book, and colouring
+       * a working feature as a fault is the surface arguing with the person — the
+       * same rule the `Off` badge follows one file over.
+       */}
+      {provenanceSourceOf(object) === 'session' ? (
+        <Alert tone="neutral" className="mb-6">
+          This book was written by play rather than by hand. It is personal, it may hold things you
+          would not hand to anyone, and it is not meant to be shared or published. Correcting an
+          entry is expected — a corrected entry is left alone afterwards.
         </Alert>
       ) : null}
 

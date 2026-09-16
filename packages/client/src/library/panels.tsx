@@ -117,6 +117,20 @@ function scopeKindOf(object: LibraryObject): string | null {
   return typeof kind === 'string' ? kind : null;
 }
 
+/**
+ * Where the object says it came from — `Provenance.source`, [P8.2].
+ *
+ * *Read defensively for `scopeKindOf`'s reason*: the client is handed whatever
+ * the server read off disk, and a hand-edited file is a supported way to get
+ * data in.
+ */
+export function provenanceSourceOf(object: LibraryObject): string | null {
+  const provenance = field(object, 'provenance');
+  if (typeof provenance !== 'object' || provenance === null) return null;
+  const source: unknown = (provenance as { source?: unknown }).source;
+  return typeof source === 'string' ? source : null;
+}
+
 function updatedAt(object: LibraryObject): string | null {
   return timestampsOf(object.object).updatedAt;
 }
@@ -131,6 +145,7 @@ function updatedAt(object: LibraryObject): string | null {
 function nameBadges(object: LibraryObject): JSX.Element {
   const enabled = field(object, 'enabled');
   const linked = scopeKindOf(object) === 'linked';
+  const derived = provenanceSourceOf(object) === 'session';
 
   return (
     <>
@@ -170,6 +185,27 @@ function nameBadges(object: LibraryObject): JSX.Element {
       {linked ? (
         <Badge title="Authored as belonging to particular actors. A book is in play only if the session or its treatment names it.">
           Linked
+        </Badge>
+      ) : null}
+      {/*
+       * ***Derived from play, not written by hand*** —
+       * [08 §2](../../../../docs/design/08-cross-session-memory.md), [P8.2].
+       *
+       * **The badge is half of what [P8 §1.1] priced the storage decision at.**
+       * A memory book is an ordinary library lorebook, so it sits on the shelf
+       * beside authored ones — and 08 §2 is explicit that it *"must not be
+       * treated as authored content… derived, personal, and often full of things
+       * you would not hand someone."* With the location gone as a signal, the
+       * marking is what is left, and a marking nobody can see is not one.
+       *
+       * The same asymmetry `Off` argues for: authored is the default and gets no
+       * badge, and the state a reader would be surprised by is the one that
+       * does. Neutral rather than danger, because a memory book is working
+       * correctly — the warning belongs on the way *out*, not on the shelf.
+       */}
+      {derived ? (
+        <Badge title="Written by play rather than by hand. Editing an entry here is expected; a corrected entry is left alone afterwards.">
+          Memories
         </Badge>
       ) : null}
     </>

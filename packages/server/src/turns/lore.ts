@@ -10,6 +10,7 @@ import {
 } from '@storyengine/shared';
 
 import { resolveRef } from '../library.js';
+import { memoryBooksOf } from '../memory/books.js';
 import type { LibraryContext } from '../library.js';
 
 /**
@@ -112,7 +113,31 @@ export type LoreRoute =
   /** The treatment this session names links it. */
   | 'treatment'
   /** The session's own list names it. */
-  | 'session';
+  | 'session'
+  /**
+   * ***The account's own memory book for somebody in the cast*** — [08 §2],
+   * [P8.2].
+   *
+   * **This is not the field volunteering.** The refusal above stands: no
+   * lorebook is active that has not been selected for the session, and
+   * [P5.7]'s reversal is why. What admits a book here is not something the book
+   * *claims* — its `scope`, its tags, its name — it is an **engine rule over the
+   * session's own declared cast**, plus a toggle the session owns. A book cannot
+   * put itself on this list by being edited; it gets on it by being the memory
+   * book of somebody this session declared it is playing with.
+   *
+   * *Which is exactly the shape [P8 §0.1]'s finding 8 says was missing.* A
+   * memory book reaches a session by being **found**, and finding it is a query
+   * against the library the account already owns — not a link somebody has to
+   * remember to add, which for an auto-maintained book nobody would.
+   *
+   * **Reported, like the other two, and here it is what makes [P5.8]'s tester
+   * answerable.** *Why is this book being scanned* has a different repair for
+   * each route: unlink the book, unlink the treatment, or **turn intake off for
+   * this session**. A memory book arriving under `by: 'session'` would send
+   * somebody looking through a link list it is not in.
+   */
+  | 'memory';
 
 /** A resolved object with the address of the bytes that were read — [P3.0]. */
 export interface LoreSource {
@@ -170,7 +195,7 @@ export interface ResolvedLore {
 export function resolveLore(
   library: LibraryContext,
   handle: string,
-  session: { treatment?: unknown; lore?: unknown } | null | undefined,
+  session: { treatment?: unknown; lore?: unknown; cast?: unknown } | null | undefined,
 ): ResolvedLore {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
@@ -228,8 +253,40 @@ export function resolveLore(
   }
 
   /**
-   * ~~Then whatever the library's own scopes admit.~~ **Nothing else. The
-   * library is not read.**
+   * ***Then the cast's memory books*** — [08 §2], [P8.2], and the one thing that
+   * *is* read out of the library rather than linked.
+   *
+   * **Appended rather than prepended**, so an authored book keeps its place: a
+   * session's own links are what somebody chose, and a memory book is what play
+   * accumulated. The order matters only for the `seen` check below — a book
+   * reached by both roads keeps the first route that admitted it, which for a
+   * memory book somebody also linked by hand is `'session'`, and correctly: they
+   * chose it, so unlinking is the repair.
+   *
+   * **`intake` is not read here and defaults to on**, which is [P8 §2]'s split
+   * rather than an omission: P8.2 ships the route and its reporting with the
+   * toggle defaulted, and [P8.4] fills the predicate along with the association
+   * list. *The reporting ships first deliberately*, so [P5.8]'s keyword tester
+   * never has to answer *why is this book being scanned* with a blank.
+   */
+  for (const found of memoryBooksFor(library, handle, session.cast)) {
+    if (seen.has(found.path)) continue;
+    seen.add(found.path);
+    books.push({
+      book: found.book,
+      id: found.id,
+      contentHash: found.contentHash,
+      // Never required. A memory book that failed to resolve is a session with
+      // no history of this character, which is every first session — and a
+      // `required` link would make that a loud failure instead of a normal one.
+      required: false,
+      by: 'memory',
+    });
+  }
+
+  /**
+   * ~~Then whatever the library's own scopes admit.~~ **Nothing else besides the
+   * above. The library's own scopes are not read.**
    *
    * [P5.7] listed every book this account owns and admitted the ones whose
    * `scope` claimed to apply. That is gone: the list above is the whole answer,
@@ -250,6 +307,44 @@ export function resolveLore(
     books,
     missing,
   };
+}
+
+/**
+ * The memory books for whoever this session says it is playing with.
+ *
+ * **Guarded like everything else this function touches**, for `resolveLore`'s
+ * stated reason: `readSession` validates nothing beyond the id being a string,
+ * and a hand-edited `cast` is a supported way to get data in.
+ *
+ * *One book per actor, scoped to the session's persona*, which is [08 §3]'s
+ * default. **Widening to every persona is [P8.4]'s setting**, and it belongs
+ * there rather than here because it is a session's choice rather than a
+ * resolution rule.
+ */
+function memoryBooksFor(
+  library: LibraryContext,
+  handle: string,
+  cast: unknown,
+): { book: Lorebook; id: string; contentHash: string; path: string }[] {
+  if (typeof cast !== 'object' || cast === null) return [];
+  const declared = cast as { persona?: unknown; actors?: unknown };
+  const actors = Array.isArray(declared.actors)
+    ? declared.actors.filter((id): id is string => typeof id === 'string' && id !== '')
+    : [];
+  if (actors.length === 0) return [];
+
+  const persona = typeof declared.persona === 'string' ? declared.persona : null;
+  const wanted = new Set(actors);
+  return memoryBooksOf(library, handle)
+    .filter((one) => wanted.has(one.scope.actor) && one.scope.persona === persona)
+    .map((one) => ({
+      book: one.book,
+      id: one.id,
+      contentHash: one.contentHash,
+      // The index row's own path, so the `seen` de-duplication above compares
+      // the same thing for all three routes.
+      path: one.path,
+    }));
 }
 
 interface LoreWant {

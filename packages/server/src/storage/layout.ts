@@ -357,10 +357,6 @@ export class Layout {
     return resolveWithin(this.sessionsRoot(handle), sessionId);
   }
 
-  memoriesRoot(handle: string): string {
-    return resolveWithin(this.userRoot(handle), 'memories');
-  }
-
   /** Deleted objects awaiting the retention window ([03 §10.2]). */
   trashRoot(handle: string): string {
     return resolveWithin(this.userRoot(handle), 'trash');

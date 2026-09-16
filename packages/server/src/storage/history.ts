@@ -47,7 +47,28 @@ export type VersionSource =
   | { kind: 'extension'; extensionId: string }
   | { kind: 'import'; from: string }
   | { kind: 'external' }
-  | { kind: 'restore'; fromVersionId: string };
+  | { kind: 'restore'; fromVersionId: string }
+  /**
+   * ***A memory this account's own play wrote*** — [08 §2], [P8.2]. The seventh
+   * kind, and the first added since the type was written.
+   *
+   * **Named rather than folded into `extension`**, which is the arm it looks
+   * most like. *"Who changed my character"* is the question history answers, and
+   * *an extension did* and *a session did* are different answers with different
+   * repairs: one is software somebody installed, the other is the story they
+   * were playing. `sessionId` is what makes the second one act-on-able — it is
+   * the line in the list that says **which** story, and it is the same origin ref
+   * the entry itself carries in its metadata.
+   *
+   * ***And it prices what [P8 §1.1] left unpriced.*** That section's cost table
+   * has a row reading *"a history version per extraction — a seventh
+   * `VersionSource` kind and a retention posture. Real, unpriced above, an
+   * afternoon."* This is the kind; the retention posture is
+   * [03 §11.3](../../../../docs/design/03-data-model.md)'s ordinary pruning,
+   * which a derived book has more need of than an authored one and no different
+   * a rule for.
+   */
+  | { kind: 'memory'; sessionId: string };
 
 /** One line of `history/index.jsonl` — [21 §1.6](../../../../docs/design/21-internal-contracts.md). */
 export interface VersionRecord {
