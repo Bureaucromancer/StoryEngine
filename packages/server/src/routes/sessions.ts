@@ -36,6 +36,7 @@ import {
   readTurns,
   readTurnById,
   setArchived,
+  setMemoryConfig,
   setName,
   undoTurn,
   writeChannel,
@@ -46,6 +47,12 @@ import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
+import { ownerKey } from '../index-db/ingest.js';
+import { listSessionRows } from '../index-db/sessions.js';
+import { userOwner } from '../storage/layout.js';
+import { rememberThis } from '../memory/capture.js';
+import type { SessionMemoryConfig } from '../memory/config.js';
+import { memoryPanel } from '../memory/panel.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -357,6 +364,51 @@ const LoreBody = Type.Object(
   {
     treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
     lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 }),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * ***Remember this*** — [08 §2.1], [P8.3]'s cut form.
+ *
+ * **Four fields and none of them optional**, which is the honest shape for an
+ * affordance whose whole claim is that the person pressing it knows what
+ * mattered. The client prefills every one of them from the message and the
+ * session; what lands is whatever they left in the boxes.
+ *
+ * `keys` is required rather than defaulted because an entry with no keys never
+ * activates: a capture that quietly wrote one would produce a memory that
+ * exists, is listed, is editable, and can never reach a prompt.
+ */
+/**
+ * The two switches, the widening and the tri-state list — [08 §4], [08 §7].
+ *
+ * **Replaced whole**, per `setMemoryConfig`: a partial update has no way to say
+ * *remove this association*, and a deletion sentinel would be a second
+ * vocabulary for a map the client already holds entire.
+ */
+const MemoryBody = Type.Object(
+  {
+    share: Type.Boolean(),
+    intake: Type.Boolean(),
+    acrossPersonas: Type.Boolean(),
+    associations: Type.Record(
+      Type.String({ minLength: 1, maxLength: 200 }),
+      Type.Union([Type.Literal('always'), Type.Literal('never')]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const RememberBody = Type.Object(
+  {
+    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+    actorId: Type.String({ minLength: 1, maxLength: 200 }),
+    text: Type.String({ minLength: 1, maxLength: 4000 }),
+    keys: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), {
+      minItems: 1,
+      maxItems: 32,
+    }),
   },
   { additionalProperties: false },
 );
@@ -752,8 +804,40 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * transcript — the cost [P7.3] refused to pay for the roster, refused here
        * too and for the same reason.
        */
+      /**
+       * ***Warn when this treatment already has a session, and offer to start
+       * isolated*** — [08 §6](../../../../docs/design/08-cross-session-memory.md)'s
+       * cheapest mitigation, [P8.5].
+       *
+       * **Spoiler bleed is the sharp failure** — *"replay a package or start a
+       * second story in the same treatment, and intake will happily import what
+       * happened last time, including twists and plot hooks that fired"* — and
+       * 08 §6 lists the mitigations *in order of how much they cost*. This is
+       * the first: *"cheap and catches the common case."*
+       *
+       * ***After creation rather than before it, which is a decision.*** The
+       * warning exists so somebody can seal the session, and **nothing has been
+       * read yet**: a session is created with no turns, so intake has had no
+       * occasion to import anything. Asking before creating would mean a second
+       * round trip and a modal in front of the button people press most; saying
+       * it beside the new session, with one control that turns both toggles off,
+       * is the same protection at the moment it first matters. *And the control
+       * is the one obvious action [08 §4]'s `[OPEN]` asks for* — *"isolating a
+       * session must be one obvious action rather than two toggles found in a
+       * drawer"*.
+       *
+       * Its own read rather than the panel's: at creation the question is only
+       * *has this treatment been played before*, which is a walk over the
+       * account's sessions and nothing else.
+       */
+      const sharesTreatmentWith =
+        typeof treatment !== 'string' || treatment === ''
+          ? []
+          : await sessionsInTreatment(services, account.handle, session.id, treatment);
+      const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
+
       const parts = setupPlanFor(mode).steps.length;
-      if (parts === 0) return await reply.code(201).send({ session });
+      if (parts === 0) return await reply.code(201).send({ session, ...warn });
 
       const reserved = await submitTurn(services.jobs, {
         account: account.handle,
@@ -767,10 +851,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // Nothing else can have reserved a turn on a session created one line
         // ago. Answering with the session rather than an error is the honest
         // outcome if it somehow does: the session exists and is playable.
-        return await reply.code(201).send({ session });
+        return await reply.code(201).send({ session, ...warn });
       }
       services.runner.start(reserved.job, { setup: true });
-      return await reply.code(201).send({ session, activeJob: reserved.job });
+      return await reply.code(201).send({ session, activeJob: reserved.job, ...warn });
     } catch (error) {
       if (error instanceof PathEscapeError) {
         return reply.code(422).send({ error: 'refused-path', message: error.message });
@@ -1440,6 +1524,125 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         session = await setArchived(services.sessions, account.handle, sessionId, body.archived);
       }
       return reply.send({ session });
+    },
+  );
+
+  /**
+   * ***A memory, written by the only judge who cannot be wrong about what
+   * mattered*** — [08 §2.1](../../../../docs/design/08-cross-session-memory.md),
+   * [P8 §5], [P8.3]'s cut form.
+   *
+   * **On the session rather than on the library**, because what it takes is a
+   * session's answer to *whose memory* and *from which turn*: the actor has to
+   * be in this session's cast, the persona comes from it, and the turn has to be
+   * on it. A library route would have had to be handed all three and trust them.
+   *
+   * *The refusals are outcomes rather than exceptions*, which is what lets the
+   * hidden-content one carry a sentence: [P8.5]'s remainder is **a refusal with
+   * a reason rather than a filter**, and a 409 with an empty body would be a
+   * filter with a status code.
+   */
+  app.post(
+    '/sessions/:sessionId/remember',
+    { schema: { params: SessionParams, body: RememberBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as {
+        turnId: string;
+        actorId: string;
+        text: string;
+        keys: string[];
+      };
+
+      const outcome = await rememberThis(
+        services.sessions,
+        services.library,
+        account.handle,
+        sessionId,
+        body,
+      );
+
+      switch (outcome.kind) {
+        case 'captured':
+          return reply.code(201).send({ bookId: outcome.bookId, entryId: outcome.entryId });
+        case 'no-session':
+          return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+        case 'no-turn':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+        case 'not-in-cast':
+          return reply.code(400).send({
+            error: 'not-in-cast',
+            message: 'That character is not in this session’s cast.',
+          });
+        case 'empty':
+          return reply.code(400).send({
+            error: 'empty',
+            message: 'A memory needs something to say and at least one keyword to fire on.',
+          });
+        case 'refused':
+          // 409 rather than 400: the request is well formed and the *turn* is
+          // what cannot be remembered, which is a state rather than a mistake.
+          return reply.code(409).send({ error: 'hidden-content', message: outcome.reason });
+      }
+    },
+  );
+
+  /**
+   * ***Whether this session shares its memories and draws on them***, and what
+   * it would read if it did — [08 §4], [08 §7], [P8.4].
+   *
+   * Two routes on one path: the read builds the panel (the switches, the link to
+   * each book, and the account's other sessions with the same actors), and the
+   * write replaces the settings whole.
+   *
+   * **Off the session read deliberately.** `GET /sessions/:id` is fetched on
+   * every turn by every open tab, and the panel walks every session file the
+   * account owns — paying for that always, to serve a drawer somebody opens
+   * occasionally, is the wrong trade. See `memory/panel.ts`.
+   */
+  app.get(
+    '/sessions/:sessionId/memory',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const panel = await memoryPanel(
+        services.sessions,
+        services.library,
+        account.handle,
+        sessionId,
+      );
+      if (panel === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+      }
+      return reply.send(panel);
+    },
+  );
+
+  app.put(
+    '/sessions/:sessionId/memory',
+    { schema: { params: SessionParams, body: MemoryBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as SessionMemoryConfig;
+      const session = await setMemoryConfig(services.sessions, account.handle, sessionId, body);
+      if (session === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+      }
+      return reply.send({ memory: session.memory ?? body });
     },
   );
 
@@ -2230,4 +2433,34 @@ function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefine
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The account's other sessions played under the same treatment — [08 §6], [P8.5].
+ *
+ * **Files rather than an index query**, for `memory/panel.ts`'s reason: the
+ * index's session row carries a name and a head and no treatment, and adding one
+ * would be a schema change made to serve one warning — the direction
+ * [03 §5.1]'s *the index is never the only home for a fact* says not to solve
+ * this from.
+ *
+ * *Archived sessions count.* An archived session is fully intact ([03 §10.3])
+ * and its memories are in the books either way, so hiding it here would hide
+ * exactly the replay somebody is most likely to have forgotten about.
+ */
+async function sessionsInTreatment(
+  services: AppServices,
+  handle: string,
+  exceptSessionId: string,
+  treatment: string,
+): Promise<{ sessionId: string; name: string }[]> {
+  const found: { sessionId: string; name: string }[] = [];
+  for (const row of listSessionRows(services.sessions.index, [ownerKey(userOwner(handle))], {
+    includeArchived: true,
+  })) {
+    if (row.sessionId === exceptSessionId) continue;
+    const other = await readSession(services.sessions, handle, row.sessionId);
+    if (other?.treatment === treatment) found.push({ sessionId: row.sessionId, name: row.name });
+  }
+  return found;
 }

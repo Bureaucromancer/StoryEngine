@@ -15,7 +15,7 @@ import type {
 import type { Config } from '../config.js';
 import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
-import { resolveRole, type RoleBindings } from '../providers/roles.js';
+import { resolveRole, type RoleBindings, type RoleResolution } from '../providers/roles.js';
 import type { Binding } from '../providers/types.js';
 import type { CastMember } from './cast.js';
 import {
@@ -289,6 +289,57 @@ export interface CallPlan {
  * must not be able to route around. [P3 §1.7]'s *assemble-without-dispatch as
  * a parameterised function* is this function.
  */
+/**
+ * Which model a step's call resolves to — [19 §5.1]'s five layers, once.
+ *
+ * **Extracted from {@link planCall} at [P8.1], and the extraction is the point
+ * rather than tidiness.** The summariser has to put its *resolved* binding into
+ * every summary key ([P8 §1.9]: a session's `stepRoles` send the same declared
+ * role to different models, so the declared role identifies nothing) — and it
+ * has to know that binding **before** the call, to look the link up by content
+ * address and usually not make one. A second copy of this layering in the runner
+ * would be a second answer to *which model is this*, and the first time the two
+ * disagreed a session would derive its chain under one model and read it under
+ * another.
+ *
+ * *The hint layer still needs the step's own request*, because a hint applies
+ * only when the step says who it speaks for. A caller with no request in hand —
+ * the runner, deciding a key — passes no actor, which is what every merged call
+ * does anyway.
+ */
+export function resolveStepRole(
+  context: Pick<
+    PlanContext,
+    'bindings' | 'defaults' | 'usable' | 'sessionRoles' | 'stepRoles' | 'cast'
+  >,
+  definition: StepDefinition,
+  role: ModelRole,
+  actorId: string | undefined,
+): RoleResolution {
+  const sessionOverride = context.sessionRoles?.[role];
+  const stepOverride = context.stepRoles?.[definition.id];
+  /**
+   * **The last and weakest layer, reached at last** — [19 §5.1], [P7 §1.9].
+   *
+   * A hint applies only when the step says who it is speaking for and that
+   * actor's card asks for this role. `resolveRole` does the rest, and what it
+   * does is the part worth not re-deriving here: *"a hint may choose among the
+   * models the resolved connection already offers, and it may never change the
+   * connection — which is what stops an imported actor card repointing
+   * somebody's provider."*
+   */
+  const hint = hintFor(context, actorId, role);
+  return resolveRole({
+    role,
+    bindings: context.bindings,
+    ...(context.defaults === undefined ? {} : { defaults: context.defaults }),
+    usable: context.usable,
+    ...(sessionOverride === undefined ? {} : { sessionOverride }),
+    ...(stepOverride === undefined ? {} : { stepOverride }),
+    ...(hint === undefined ? {} : { hint }),
+  });
+}
+
 export function planCall(
   context: PlanContext,
   request: StepCallRequest,
@@ -320,28 +371,7 @@ export function planCall(
    * from a present one and `exactOptionalPropertyTypes` is on: passing
    * `sessionOverride: undefined` is not the same as not passing it.
    */
-  const sessionOverride = context.sessionRoles?.[definition.role];
-  const stepOverride = context.stepRoles?.[definition.id];
-  /**
-   * **The last and weakest layer, reached at last** — [19 §5.1], [P7 §1.9].
-   *
-   * A hint applies only when the step says who it is speaking for and that
-   * actor's card asks for this role. `resolveRole` does the rest, and what it
-   * does is the part worth not re-deriving here: *"a hint may choose among the
-   * models the resolved connection already offers, and it may never change the
-   * connection — which is what stops an imported actor card repointing
-   * somebody's provider."*
-   */
-  const hint = hintFor(context, request.actorId, definition.role);
-  const resolution = resolveRole({
-    role: definition.role,
-    bindings: context.bindings,
-    ...(context.defaults === undefined ? {} : { defaults: context.defaults }),
-    usable: context.usable,
-    ...(sessionOverride === undefined ? {} : { sessionOverride }),
-    ...(stepOverride === undefined ? {} : { stepOverride }),
-    ...(hint === undefined ? {} : { hint }),
-  });
+  const resolution = resolveStepRole(context, definition, definition.role, request.actorId);
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 
   const provider = context.providers(resolution.connection);
@@ -753,7 +783,7 @@ function outcomeOf(reason: FinishReason): ModelCall['outcome'] {
  * preference would otherwise be the one actor it could not apply to.
  */
 function hintFor(
-  context: PlanContext,
+  context: Pick<PlanContext, 'cast'>,
   actorId: string | undefined,
   role: ModelRole,
 ): { preferredModelIds?: string[] } | undefined {

@@ -283,6 +283,47 @@ export const FREEFORM_PRESET: Preset = {
         of: 'samples',
       },
     },
+    /**
+     * ***The story above the window*** — [07 §5.1](../../../../docs/design/07-branching.md),
+     * [25 E1](../../../../docs/design/25-open-questions.md), added at
+     * [P8.1](../../../../docs/design/workplan/25-p8-implementation.md).
+     *
+     * **The slot is where the standing line is discharged.** A chain nothing
+     * positions is a chain nothing reads, and the engine never splices a block
+     * of its own — so a summary reaches a prompt because a pack put it
+     * somewhere, the same way the goal statement does.
+     *
+     * **Priority 8, just under history's floor, and the arithmetic is the
+     * point.** Links are emitted at `priority + index` the way history turns
+     * are, so on a four-hundred-turn session the chain occupies 8..26 against
+     * history's 10..29. Read as a trim order that is what a reader would
+     * choose: *the oldest summarised stretch goes first*, and **the most recent
+     * stretch — the one that ends where the window begins — outranks the oldest
+     * verbatim turns**, which is right, because those turns are already the
+     * least valuable thing in the window.
+     *
+     * **Not advisory**, for the reason the samples block gives: a summary is
+     * ordinary context a model may see on any call, and marking it advisory
+     * would bar it from every effects and verdict call ([06 §6]) — which would
+     * make a long session's judge blind to everything but the last twenty turns.
+     */
+    {
+      id: 'se.summary',
+      label: 'the story so far',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 8,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'summary',
+      },
+    },
     {
       id: 'se.history',
       label: 'history',

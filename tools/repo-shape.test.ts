@@ -492,3 +492,49 @@ describe('the engine names no mode', () => {
     expect([...ALLOWED.keys()].sort()).toEqual(['mode-registry.ts', 'test-mode.ts']);
   });
 });
+
+/**
+ * ***`memoriesRoot` is gone, and the assertion is what makes that a decision***
+ * — [P8 §1.1](../docs/design/workplan/25-p8-implementation.md), P8.2.
+ *
+ * `Layout.memoriesRoot()` existed from P1 with **no caller and no directory ever
+ * created**, pointing at a `memories/` folder beside `library/` and outside
+ * everything the index walks. [03 §5.1](../docs/design/03-data-model.md) had it
+ * in the tree; two P2C reviews recorded it as P8's to resolve. §1.1 settled it
+ * the other way — a memory book is an ordinary library lorebook, because the
+ * resolver needs a **query** and only the library has a table to ask — and then
+ * wrote the sentence this file exists to enforce: *"whichever wins,
+ * `memoriesRoot()` is either the answer or is deleted. A path helper that
+ * survives the phase without a caller is the same defect twice."*
+ *
+ * **Enforced by nobody otherwise**, which is why §P8.2's proof obligation asks
+ * for this arm by name: nothing in the suite fails when a dangling helper comes
+ * back, and [P7](../docs/design/workplan/23-p7-implementation.md)'s gate step 1
+ * is the worked example of a deliverable nothing noticed. *Here rather than in
+ * `layout.test.ts` for this file's standing reason: that test is about what the
+ * paths **are**, and this is about a path that must not exist.*
+ *
+ * Matched in code rather than in a comment, so the paragraph in `layout.ts`
+ * explaining why there is no such helper does not fail its own test.
+ */
+describe('the storage layout keeps no root the library owns', () => {
+  const LAYOUT = join(ROOT, 'packages/server/src/storage/layout.ts');
+
+  it('finds the layout, or the assertion below is vacuously true', () => {
+    expect(existsSync(LAYOUT)).toBe(true);
+    // A control: the accessor beside the deleted one, so a file this test could
+    // no longer parse cannot read as a clean run.
+    expect(codeOf(LAYOUT)).toContain('sessionRoot(');
+  });
+
+  it('declares no memoriesRoot, which P8 §1.1 deleted rather than answered', () => {
+    expect(codeOf(LAYOUT)).not.toContain('memoriesRoot');
+  });
+});
+
+/** A file's source with its comments removed — `the engine names no mode`'s rule. */
+function codeOf(path: string): string {
+  return readFileSync(path, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+}

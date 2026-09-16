@@ -212,10 +212,38 @@ export function loreBlocks(input: BlocksInput): { blocks: LoreBlock[]; unplaced:
           // character reads as before it. The precise placement is not lost:
           // it is where the block *is* in the sequence.
           phase: placement.at === 'after' ? 'after' : 'before',
+          // [P8 §1.6], [P8.4]: the activation has carried this the whole time
+          // and the block dropped it, which is why *the workbench names the
+          // entry and its origin* was unanswerable from the record.
+          bookId: activation.bookId,
         },
         reason: reasonFor(activation),
         role: activation.entry.role,
         text: activation.entry.content,
+        /**
+         * ***A candidate from a derived book is advisory whatever slot
+         * positions it*** — [08 §5](../../../../docs/design/08-cross-session-memory.md),
+         * [P8 §1.6], [P8.4], and this is the third arm of the advisory union.
+         *
+         * **The property existed and the route into it did not.** `admit()`
+         * throws rather than filtering, and
+         * [testing §1](../../../../docs/design/workplan/03-testing.md) has
+         * carried *no advisory block ever appears in an effect-producing call*
+         * since P2 — but `assembly/collect.ts` forces the flag for exactly two
+         * *slot sources*, `guidance` and `attempt`, and otherwise inherits the
+         * positioning slot's. **So a memory entry and an authored lore entry
+         * arriving through the same `{ of: 'lore' }` slot were
+         * indistinguishable to the firewall**, and nothing on the lore path
+         * could be advisory at all.
+         *
+         * *Here rather than at the slot, because here is where the book is
+         * known.* A slot is positioning; this is a fact about where the words
+         * came from, by the identical argument that forces the flag for
+         * guidance: 08 §5 says a memory *"must not set a trust channel in this
+         * session"*, or **starting a new session silently populates its state
+         * from another one the player may not even remember.**
+         */
+        ...(activation.book.provenance.source === 'session' ? { advisory: true as const } : {}),
         ...spreadPriority(priorityFor(activation, input.latestMessage, input.basePriority)),
       },
     });

@@ -7,6 +7,7 @@ import { registerMode } from './mode-registry.js';
 import { PARTY_CHANNEL, PRESENCE_CHANNEL, STATUS_CHANNEL } from './sessions/cast.js';
 import { CONCLUDED_CHANNEL, GOAL_CHANNEL, GOAL_CURSOR_CHANNEL } from './sessions/goals.js';
 import { HOOK_CHANNEL, HOOK_PACING_CHANNEL } from './sessions/hooks.js';
+import { MEMORY_WRITTEN_CHANNEL } from './memory/channel.js';
 import { SUGGEST_CHANNEL } from './turns/suggest.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
@@ -142,6 +143,21 @@ export async function installBuiltIns(): Promise<void> {
    * prose and nothing else, so there is nothing mode-shaped to route it through.
    */
   registerChannel(SUGGEST_CHANNEL);
+  /**
+   * ***What this turn wrote into a memory book, and will not be able to
+   * un-write*** — [07 §7], [P8 §1.9], [P8.2].
+   *
+   * `storyengine.memory` is a package for the five above it's reason: every mode
+   * that plays with a character wants memory and none of them owns it.
+   *
+   * **The build's first `escapes: true` channel**, which is the point of
+   * registering it here rather than leaving it to a mode. P6 shipped the whole
+   * escaped-effect mechanism — the field, the four readers that skip a replay,
+   * the count on `moveHead` — and `acceptEffect` then hard-coded `'session'`, so
+   * the count was structurally zero and the abandonment banner had nothing to
+   * report. This is the producer that makes it non-zero.
+   */
+  registerChannel(MEMORY_WRITTEN_CHANNEL);
 
   // Then the modes, each bringing the channels it declares.
   for (const specifier of BUILT_IN_MODE_PACKAGES) {

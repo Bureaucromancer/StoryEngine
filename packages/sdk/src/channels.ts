@@ -192,11 +192,42 @@ export interface ChannelDefinition {
    * completed them"*, which is what a per-goal key on an effect log is and what
    * a field on a session record is not.
    *
+   * ***`book` joined at [P8.2]***, for the reason the two before it did and with
+   * one of its own: a session plays with more than one character, so *what this
+   * turn wrote into which memory book* is a fact about a book, and a
+   * session-scoped value would have to be a map keyed by book to say it — which
+   * is what a `scopeKey` is. The alternative, `entry`, is the scope of the
+   * **things written** rather than of the place they went.
+   *
    * **Nothing reads this mechanically** — the key is composed from whatever
    * `scopeKey` an effect carries — so it is a declaration, and widening it is a
    * widening of what a mode may honestly say about itself.
    */
-  scope: 'session' | 'actor' | 'entry' | 'hook' | 'goal';
+  scope: 'session' | 'actor' | 'entry' | 'hook' | 'goal' | 'book';
+  /**
+   * ***Whether writing this channel reaches outside the session*** —
+   * [07 §7](../../../docs/design/07-branching.md), [P8 §1.9], [P8.2].
+   *
+   * 07 §7 classifies an **escaped effect** as one branching cannot un-write: a
+   * lorebook entry promoted to the shared library, a file on disk, a message
+   * sent. P6 shipped the whole mechanism for them — `ChannelEffect.scope`, the
+   * four readers that skip a replay, the abandoned count on `moveHead` — and
+   * then `acceptEffect` **hard-coded `scope: 'session'`**, so nothing could ever
+   * be one. P6's own comment said so: *"P2 writes only `session`; the field
+   * exists so P6 needs a field rather than a migration."*
+   *
+   * **The declaration is the right home and a step's proposal is not**, which is
+   * the correction: whether an effect escapes is a fact about *the channel* —
+   * about what writing it does in the world — and a step that could claim its
+   * own writes were session-local would be one honest declaration away from
+   * making a branch look reversible when it is not. So it is declared once,
+   * beside the channel, and read by the engine.
+   *
+   * **Absent is `false`**, which is every channel written before this and is
+   * what all of them mean: a clock, a trust level and an entry's timing are
+   * session state, and rewinding past them genuinely does un-write them.
+   */
+  escapes?: boolean;
   update: 'model-proposed' | 'engine-computed' | 'user-only';
   visibility: 'player' | 'hidden';
   /** Tokens the channel may spend when rendered into a prompt. Null for none. */

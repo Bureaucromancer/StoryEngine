@@ -11,6 +11,8 @@ import {
   cancelTurn,
   createBranchRef,
   moveHead,
+  type Abandoned,
+  type CastRow,
   submitTurn,
   undoTurn,
   type ModeSurface,
@@ -41,6 +43,7 @@ import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { SessionPanel } from './SessionPanel.js';
+import { RememberThis } from './RememberThis.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
@@ -208,16 +211,35 @@ export function PlayPage({
    */
   const goToSibling = useMutation({
     mutationFn: (turnId: string) => moveHead(sessionId, turnId, true),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
       void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
       void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
       void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
     },
   });
 
+  /**
+   * ***What the line you left still has out in the world*** — [07 §7]'s honesty
+   * banner, [P6.3], surfaced at [P8.3].
+   *
+   * **P6.3 shipped the count and `api.ts` typed it away**, which [P8 §3.1] calls
+   * the standing line's *inverse instance*: not configuration with no surface
+   * but **a record with no surface**. It was harmless while nothing could write
+   * an escaped effect, and it stops being harmless in the phase that produces
+   * one — which is why closing it is P8's rather than P6's.
+   *
+   * *Shown only when the count is non-zero*, because *this line left nothing
+   * behind* is the ordinary case and a banner that appears on every head move
+   * would be furniture. *Dismissed by the next move*, not by a close button: the
+   * statement is about the move that just happened, so the next one replaces it.
+   */
+  const [abandoned, setAbandoned] = useState<Abandoned | null>(null);
+
   const continueFrom = useMutation({
     mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.id),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
       void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
       void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
       void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
@@ -456,6 +478,7 @@ export function PlayPage({
             key={turn.id}
             sessionId={sessionId}
             surfaces={session.data?.surfaces}
+            cast={session.data?.cast ?? []}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
             busy={
@@ -515,6 +538,18 @@ export function PlayPage({
        * stack of stale messages from earlier attempts is its own confusion.
        * Each clears when its own control is used again. */}
       {failure === undefined ? null : <AlertNote role="alert">{failure.message}</AlertNote>}
+
+      {/* ***The line you left still has things out in the world*** — [07 §7],
+          [P6.3], surfaced at [P8.3]. Not an error: nothing went wrong, and
+          07 §7 calls this *"a small honesty feature that avoids a confusing
+          class of bug reports"* — the report being *I abandoned that line and
+          Vera still remembers it*. Saying the number is the whole feature;
+          offering to undo it would be offering to un-write a library. */}
+      {abandoned === null ? null : (
+        <AlertNote>
+          {`${String(abandoned.turns)} ${abandoned.turns === 1 ? 'turn is' : 'turns are'} no longer on this line, and ${String(abandoned.escapedEffects)} ${abandoned.escapedEffects === 1 ? 'thing it wrote' : 'things they wrote'} outside the session ${abandoned.escapedEffects === 1 ? 'stays' : 'stay'} written — memories are kept where they were saved.`}
+        </AlertNote>
+      )}
 
       <form
         className="flex flex-col gap-2"
@@ -635,10 +670,13 @@ function TurnView({
   onName,
   sessionId,
   surfaces,
+  cast,
 }: {
   turn: TurnRecord;
   siblings: string[];
   sessionId: string;
+  /** Whose memory a capture could be — read once by the page, per `surfaces`. */
+  cast: readonly CastRow[];
   /** A mode's message decorations, read once by the page — see `ModeRegion`. */
   surfaces: readonly ModeSurface[] | undefined;
   busy: boolean;
@@ -756,6 +794,16 @@ function TurnView({
         >
           Continue from here
         </Button>
+        {/* ***Remember this*** — [08 §2.1], [P8.3]'s cut form. Beside the other
+            per-message gestures because that is what it is: a thing you do to
+            one message, on the message. */}
+        <RememberThis
+          sessionId={sessionId}
+          turnId={turn.id}
+          cast={cast}
+          prose={turn.output?.text ?? ''}
+          busy={busy}
+        />
         {/* Undo is offered on every turn and refused by the server when
             something has written the same channels since — the refusal is the
             feature ([§1.4]), and hiding the button would make the rule

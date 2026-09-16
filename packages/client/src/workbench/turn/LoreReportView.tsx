@@ -78,12 +78,24 @@ const SKIP_LABELS: Record<string, string> = {
 };
 
 /**
- * Why a book is being scanned at all — and there are only two, because
- * selection is the only route a book reaches a session by.
+ * Why a book is being scanned at all — ~~and there are only two, because
+ * selection is the only route a book reaches a session by.~~
+ *
+ * ***Three since [P8.2]***, and the third is still not a book volunteering:
+ * a memory book is admitted by an **engine rule over the session's declared
+ * cast** plus a toggle the session owns, never by anything the book claims about
+ * itself. What matters here is that the three have **three different repairs** —
+ * unlink the book, unlink the treatment, or turn intake off for this session —
+ * which is the question [P5.8]'s keyword tester exists to answer and the reason
+ * the route travels on the row rather than being inferred from the book.
+ *
+ * *The fallback below prints a route this build has not heard of rather than a
+ * blank*, which is the posture that made adding this one a one-line change.
  */
 const ROUTE_LABELS: Record<string, string> = {
   treatment: 'linked by the treatment',
   session: 'linked by this session',
+  memory: 'memories of somebody in the cast',
 };
 
 /** Enough to see the shape without becoming the panel. */

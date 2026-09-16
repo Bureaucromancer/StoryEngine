@@ -248,6 +248,33 @@ export const SlotSource = Type.Union(
      * where it sits relative to the lore and the instructions.
      */
     Type.Object({ of: Type.Literal('input') }),
+    /**
+     * The story above the window, as a chain of summaries —
+     * [07 §5.1](../../../../docs/design/07-branching.md),
+     * [25 E1](../../../../docs/design/25-open-questions.md), [P8.1].
+     *
+     * **Not a bigger `history`, and the distinction decides the budget.**
+     * `history` is the mode's `historyWindow` of verbatim turns; this is
+     * everything older, each link keyed by the hash of its inputs. The two never
+     * overlap — [P8.1] refuses to widen the window for exactly that reason,
+     * because a turn with two producers lets the budgeter decide which survives.
+     *
+     * ***So the alternative to this slot is not a longer history, it is
+     * nothing.*** [P8 §5] is the argument: at turn four hundred everything above
+     * turn twenty is already gone, so a summary does not compete with the
+     * transcript — it competes with lore and the actor card, at a priority the
+     * preset author chooses here.
+     *
+     * **Several candidates, one per link**, in the chain's own order, so the
+     * budgeter can drop the oldest stretch of story and keep the recent one
+     * rather than choosing between all of it and none. The same reason `history`
+     * is splittable and `actor` is one candidate per actor.
+     *
+     * Added rather than substituted, as `attempt` was: every preset written
+     * before it keeps meaning what it meant, and an older build's collector
+     * skips an arm it has not heard of rather than refusing the file.
+     */
+    Type.Object({ of: Type.Literal('summary') }),
   ],
   { title: 'SlotSource' },
 );

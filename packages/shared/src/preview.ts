@@ -102,11 +102,21 @@ export interface LoreBookRow {
   bookId: string;
   bookName: string;
   /**
-   * Why this book is being scanned. **Selection is the only route** — this
+   * Why this book is being scanned. ~~**Selection is the only route**~~ — this
    * session named it, or the treatment this session names links it. A book
    * nobody selected is not in the prompt, whatever its own fields say.
+   *
+   * ***`memory` is the third route, added at
+   * [P8.2](../../../docs/design/workplan/25-p8-implementation.md), and it is
+   * still not a field volunteering.*** A book does not get here by claiming to
+   * apply; it gets here because it is **the account's own memory book for
+   * somebody this session declared it is playing with**, which is an engine rule
+   * over the session's cast plus a toggle the session owns. The repair the
+   * keyword tester offers differs for each of the three — unlink the book,
+   * unlink the treatment, or turn intake off — which is why the route is on the
+   * row rather than inferred from the book.
    */
-  by: 'treatment' | 'session';
+  by: 'treatment' | 'session' | 'memory';
   /** What its own two limits allowed and what they spent — [03 §3.2]. */
   tokenBudget: number;
   tokensSpent: number;

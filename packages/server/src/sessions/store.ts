@@ -18,6 +18,7 @@ import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import type { Binding, ModelRole } from '../providers/types.js';
+import type { SessionMemoryConfig } from '../memory/config.js';
 import { acceptEffect } from '../turns/effects.js';
 import {
   channelKey,
@@ -304,6 +305,35 @@ export async function setCast(
  * four of those are properties of doing nothing except setting a field, which is
  * why it is a field.
  */
+/**
+ * ***Whether this session shares its memories and draws on them*** — [08 §4],
+ * [08 §7], [P8.4].
+ *
+ * **Replaced whole rather than patched field by field**, which is the shape the
+ * UI wants and the honest one for a tri-state list: a partial update would have
+ * no way to say *remove this association*, and the alternative — a sentinel for
+ * deletion — is a second vocabulary for a map the client already holds entire.
+ *
+ * `setArchived`'s shape one function up, for its reason: under the session lock,
+ * written atomically, re-indexed.
+ */
+export async function setMemoryConfig(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  memory: SessionMemoryConfig,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = { ...session, memory, updatedAt: new Date().toISOString() };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}
+
 export async function setArchived(
   context: SessionContext,
   handle: string,

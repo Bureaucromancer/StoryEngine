@@ -63,4 +63,5 @@ export type {
   StepImplementation,
   StepInput,
   StepResult,
+  TranscriptTurn,
 } from './steps.js';

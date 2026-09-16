@@ -36,15 +36,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /**
  * `MarkerType` → our slot sources.
  *
- * Ten values. Seven map. `chat_summary` is P8-shaped, and `id_macro_cards` and
- * `agent_data` have no home at all — each recorded with the review class that
- * says *when*, which is the whole difference between "not yet" and "never"
- * ([P4 §1.4], collected into [P7 §1.10](../../../../../docs/design/workplan/23-p7-implementation.md)).
+ * ~~Ten values. Seven map.~~ ***Ten values. Eight map*** — [P8.1], 2026-09-16.
+ * `id_macro_cards` and `agent_data` have no home at all, each recorded with the
+ * review class that says *when*, which is the whole difference between "not yet"
+ * and "never" ([P4 §1.4], collected into
+ * [P7 §1.10](../../../../../docs/design/workplan/23-p7-implementation.md)).
+ *
+ * ***`chat_summary` was the one deferral with a phase named on it, and the phase
+ * arrived.*** [P8 §1.8] deferred it here in as many words — *"this one has no
+ * home until the summary chain exists"* — and said what the revisit owed: **one
+ * line rather than a stage.** *"When the chain exists, the marker becomes a slot
+ * source and the block converts — or it does not, and the review's answer stops
+ * being 'not yet' and becomes 'not converted'. Either is fine; leaving it saying
+ * 'not yet' after this phase ships is not."* It converts, because
+ * `{ of: 'summary' }` is the same thing Marinara's marker names: the story above
+ * the window, positioned by the pack.
  */
 const MARKERS: Readonly<Record<string, SlotSource>> = {
   character: { of: 'actor', sectionId: 'se.summary' },
   persona: { of: 'persona' },
   chat_history: { of: 'history' },
+  chat_summary: { of: 'summary' },
   lorebook: { of: 'lore', phase: 'before' },
   world_info_before: { of: 'lore', phase: 'before' },
   world_info_after: { of: 'lore', phase: 'after' },
@@ -53,7 +65,6 @@ const MARKERS: Readonly<Record<string, SlotSource>> = {
 
 /** Markers we recognise and cannot place, with the phase that would give them one. */
 const DEFERRED_MARKERS: Readonly<Record<string, string>> = {
-  chat_summary: 'P8',
   id_macro_cards: 'never',
   agent_data: 'never',
 };

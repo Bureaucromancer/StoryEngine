@@ -14,6 +14,7 @@ import type {
 import { estimateTokens } from './assemble.js';
 import { channelDefinition, initialValue } from '../sessions/channels.js';
 import { levelFragments } from '../sessions/dials.js';
+import type { SummaryLink } from '../sessions/summary-chain.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
 import { renderChannelValue, renderTemplate, type RenderContext } from './template.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
@@ -66,6 +67,21 @@ export interface CollectContext {
   inputKind?: string;
   /** Oldest first, already windowed by the mode's `historyWindow`. */
   history: readonly Turn[];
+  /**
+   * The story above the window — [07 §5.1], [P8.1].
+   *
+   * **Handed in, never derived here**, which is this context's standing rule and
+   * has the sharpest reason of any field that follows it: deriving a link is a
+   * model call, and a collector that made one would make it again for every
+   * preview of every prompt. `sessions/summaries.ts` does the deriving, once,
+   * behind a content address; this is its result.
+   *
+   * *Absent means no chain was computed* — a preview built before the summariser
+   * ran, or a mode with no summary step — which is a different statement from
+   * *the session is not long enough to have one*, and {@link emptyReason} draws
+   * the same line for it that it draws for lore.
+   */
+  summary?: readonly SummaryLink[];
   /** With the hash of the bytes that were read, so the source can say which ([P3.0]). */
   persona: { actor: Actor; contentHash: string } | null;
   actors: readonly { actor: Actor; contentHash: string }[];
@@ -285,6 +301,19 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      */
     case 'lore':
       return context.lore === undefined ? 'no-producer' : 'empty-source';
+
+    /**
+     * ***Lore's line, for lore's reason, and the distinction matters more
+     * here.*** A caller that computed no chain — a preview taken before the
+     * summariser ran, a mode with no summary step — really is *waiting on the
+     * engine*, and that is `no-producer`. A chain that was computed and is empty
+     * says something an author can act on: **this session is not yet longer than
+     * its window**, so there is nothing above it to summarise. Collapsing the two
+     * would send somebody looking for a missing phase when what they need is
+     * twenty more turns.
+     */
+    case 'summary':
+      return context.summary === undefined ? 'no-producer' : 'empty-source';
 
     case 'treatment':
     case 'channel':
@@ -621,6 +650,40 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        */
       return emit(block, context.input?.text ?? '', { kind: 'input' }, undefined);
 
+    case 'summary': {
+      /**
+       * The chain, oldest link first — [07 §5.1], [P8.1].
+       *
+       * **One candidate per link**, which is `history`'s and `actor`'s shape and
+       * is chosen for the same reason: a single candidate holding four hundred
+       * turns of story would make the budgeter's only move dropping all of it.
+       * Split, the trim order gives up the *oldest* stretch and keeps the recent
+       * one, which is the trade a reader would make.
+       *
+       * ***The candidate id carries the link key rather than an index***, so a
+       * block in one turn's record and the same block in the next turn's are
+       * recognisably the same stretch of story even when a fork has renumbered
+       * everything after it. An index would have been stable only while nobody
+       * branched, which is the failure this whole phase is built to avoid.
+       *
+       * **`priority + index`, which is `history`'s arithmetic and has to be.**
+       * The trim order is *lowest first*, so a shared priority would make the
+       * budgeter's tie-break decide which stretch of story survives — and its
+       * tie-break is *later-listed first*, which would drop the **newest** link
+       * and keep the oldest. Offsetting by position makes the sacrifice run the
+       * only way a reader would accept it: the distant past goes before the
+       * recent past.
+       */
+      return (context.summary ?? []).flatMap((link, index) =>
+        emit(
+          { ...block, priority: block.priority + index },
+          link.text,
+          { kind: 'summary', linkKey: link.key, range: [link.from, link.to] },
+          `${block.id}.${link.key}`,
+        ),
+      );
+    }
+
     case 'samples': {
       /**
        * Writing samples — [04 §3.1]. Prose offered as an exemplar of tone
@@ -714,6 +777,20 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             // and which are the two fields a lore block exists to carry.
             role: one.candidate.role,
             reason: one.candidate.reason,
+            /**
+             * ***And its advisory flag, which is the third arm of the union***
+             * — [08 §5], [P8 §1.6], [P8.4].
+             *
+             * `emit` forces the marker for two *slot sources* and otherwise
+             * inherits the positioning slot's, which is why nothing on the lore
+             * path could be advisory: a memory entry and an authored one arrive
+             * through the same `{ of: 'lore' }` slot. `retrieval/blocks.ts` sets
+             * it where the book is known, and this is the line that stops it
+             * being thrown away one function later. **A union, never a
+             * replacement**: a preset that marks its lore slot advisory keeps
+             * doing so for the authored entries too.
+             */
+            ...(one.candidate.advisory === true ? { advisory: true as const } : {}),
           })),
         );
     }

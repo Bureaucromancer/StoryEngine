@@ -1212,13 +1212,33 @@ routes whose only callers are their own tests, green in CI the whole time
 ### P8 — Memory
 
 ~~**Skeleton: [P8](25-p8-implementation.md)**~~ ~~**Planned:
-[P8](25-p8-implementation.md)**~~ ***Ready to start: [P8](25-p8-implementation.md)***,
-revisited 2026-09-13 once P5, P6 and P7 had all landed — which is what its §0
+[P8](25-p8-implementation.md)**~~ ~~***Ready to start:
+[P8](25-p8-implementation.md)***~~ ***Built on §5's fallback cut, 2026-09-16, and
+open*** — six stages on `p8`, each with a *Done* block naming its commit, and
+**§3.2** as the gate's results table.
+
+***The cut was taken deliberately rather than under pressure***, which is why §5
+named one: the chain, the pipeline, the books, **manual capture** and the
+toggles, with the **automatic extractor deferred**. §5's argument is that the
+extractor is *"the one component whose value nobody can currently evidence and
+whose failure mode §1.5 calls unforgivable"* — and what shipped in its place is
+the affordance [08 §2.1](../08-cross-session-memory.md) calls nearly free and
+authored by *the only judge who cannot be wrong about what mattered*.
+
+**The cut removes two of the three criticals' subjects, and the phase says so
+first.** C2 and C3 are both about the extractor; both travel with it. So P8
+closes on **C1 alone**, C1 is unwalked, and the phase merges and stays open —
+[P7](23-p7-implementation.md)'s precedent and [P7B](24-p7b-presets-and-prompts.md)'s.
+Its critical list is **sitting N** in [manual testing](05-manual-testing.md).
+
+Revisited 2026-09-13 once P5, P6 and P7 had all landed — which is what its §0
 said it was waiting for — and **re-audited 2026-09-15 after P7B**, which is what
 its §0.3 is. It found the phase's one storage decision hiding outside both design
-documents: `memories/` sits beside `library/` and outside everything the index
+documents: `memories/` sat beside `library/` and outside everything the index
 walks, while [08 §7](../08-cross-session-memory.md) asks for the ordinary
-lorebook editor, which needs a library address.
+lorebook editor, which needs a library address. ***Settled and deleted***: a
+memory book is an ordinary library lorebook marked `provenance.source =
+'session'`, and `memoriesRoot()` is gone with a repo-shape assertion behind it.
 
 **The re-audit changed nothing about the plan and two things about its
 surroundings.** All ten of the first audit's findings still hold, so the stages

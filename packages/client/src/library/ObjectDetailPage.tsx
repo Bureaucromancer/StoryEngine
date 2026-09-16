@@ -20,7 +20,11 @@ import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
 import { SectionTitle } from '../ui/Text.js';
+import { useQuery } from '@tanstack/react-query';
+
+import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
+import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
@@ -154,6 +158,38 @@ function ObjectView(props: {
       ) : null}
 
       {/*
+       * ***The warning [08 §2](../../../../docs/design/08-cross-session-memory.md)
+       * asks for, on the object rather than on an export path*** — [P8.2].
+       *
+       * That section says a memory book *"must not be treated as authored
+       * content"* and asks to **warn on any export path — this is the one place
+       * the reuse could bite.** ***There is no export path.*** Nothing in this
+       * build downloads a library object, and session export is
+       * [25 B12](../../../../docs/design/25-open-questions.md), explicitly out of
+       * this phase's scope — so a warning written against that path would be a
+       * warning nobody can reach, which is the deliverable-nothing-noticed shape
+       * this phase deleted a helper over.
+       *
+       * **So it goes where a person meets the book**, which is here: the page
+       * that shows what it holds, and the page they are on when they decide to
+       * copy it out of the app by hand. What is owed when an export path is
+       * built is that it read the same marking, and the marking is what this
+       * phase put on disk. *Recorded rather than quietly deferred* — [P8.2] says
+       * the warning lands **with** the book, and this is it landing.
+       *
+       * Neutral rather than warning: nothing is wrong with the book, and colouring
+       * a working feature as a fault is the surface arguing with the person — the
+       * same rule the `Off` badge follows one file over.
+       */}
+      {provenanceSourceOf(object) === 'session' ? (
+        <Alert tone="neutral" className="mb-6">
+          This book was written by play rather than by hand. It is personal, it may hold things you
+          would not hand to anyone, and it is not meant to be shared or published. Correcting an
+          entry is expected — a corrected entry is left alone afterwards.
+        </Alert>
+      ) : null}
+
+      {/*
        * **The fields first, and the storage facts under a heading below them.**
        * Reordered here rather than left where it was, because
        * [polish §1](../../../../docs/design/workplan/06-polish.md)'s complaint
@@ -163,7 +199,7 @@ function ObjectView(props: {
        * The block is not demoted out of sight: [10 §5] wants the disk layout
        * legible, and a heading is what turns a lead paragraph into a section.
        */}
-      <ObjectBody object={object} kind={kind} search={props.search} />
+      <ObjectBody object={object} kind={kind} search={props.search} locale={locale} />
 
       <SectionTitle as="h2" className="mb-2 mt-8">
         Storage
@@ -250,11 +286,13 @@ function ObjectBody(props: {
   object: LibraryObject;
   kind: LibraryKind;
   search: ObjectSearch;
+  /** The reader's, for a memory's origin date — [19 §12.6]. */
+  locale: string | undefined;
 }): JSX.Element {
   const { object, search } = props;
 
   if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
-    return <LorebookBody object={object} search={search} />;
+    return <LorebookBody object={object} search={search} locale={props.locale} />;
   }
   return <ByField schemaId={object.schema} value={object.object} />;
 }
@@ -266,14 +304,34 @@ function ObjectBody(props: {
  * per object view for a kind that has no book page to put the answer on would
  * be traffic for a question nobody asked.
  */
-function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): JSX.Element {
+function LorebookBody(props: {
+  object: LibraryObject;
+  search: ObjectSearch;
+  locale: string | undefined;
+}): JSX.Element {
   const { object, search } = props;
   const notes = useObjectImportNotes(object.id);
+  /**
+   * ***The account's sessions, so a memory can name where it came from*** —
+   * [08 §2], [P8.5].
+   *
+   * **Read here rather than in the view**, which is pure and tested without a
+   * query client. The same key `SessionsPage` holds, so this is a cache hit for
+   * anybody who has looked at their sessions; and `enabled` keeps an authored
+   * book from fetching a list it has no use for.
+   */
+  const sessions = useQuery({
+    queryKey: ['sessions'],
+    queryFn: listSessions,
+    enabled: provenanceSourceOf(object) === 'session',
+  });
 
   return (
     <LorebookView
       book={object.object as unknown as Lorebook}
       focused={search.entry ?? null}
+      {...(sessions.data === undefined ? {} : { sessions: sessions.data.sessions })}
+      {...(props.locale === undefined ? {} : { locale: props.locale })}
       linkToEntry={(entryId, children) => (
         /**
          * **Every link on this page is built here**, which is the same

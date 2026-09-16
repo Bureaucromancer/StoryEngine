@@ -203,18 +203,30 @@ describe('the Marinara preset is our block model with different field names', ()
     );
   });
 
-  it('records a marker that needs a later phase, and says which', () => {
-    // `chat_summary` is P8-shaped; `agent_data` never gets a home. The review
-    // class carries the difference between *not yet* and *never*.
+  /**
+   * ~~`chat_summary` is P8-shaped; `agent_data` never gets a home.~~
+   *
+   * ***The phase arrived*** — [P8.1], 2026-09-16. [P8 §1.8] deferred
+   * `chat_summary` here and named the one outcome it refused: *"leaving it
+   * saying 'not yet' after this phase ships is not"* fine. So the marker now
+   * converts to `{ of: 'summary' }` and this test asserts the conversion rather
+   * than the deferral. **`agent_data` stays**, which is what keeps the review
+   * class meaningful: the difference between *not yet* and *never* is only
+   * legible while both exist.
+   */
+  it('converts the marker whose phase has arrived, and still defers the one that never will', () => {
     const result = convertPreset({ ...PRESET, sectionOrder: ['a', 'b'] }, [
       { ...SECTIONS[1], id: 'a', markerConfig: { type: 'chat_summary' } },
       { ...SECTIONS[1], id: 'b', identifier: 'x', markerConfig: { type: 'agent_data' } },
     ]);
     if (!result.ok) throw new Error('refused');
-    const { notes } = result.value;
+    const { preset: converted, notes } = result.value;
     const deferred = notes.filter((n) => n.key === 'import.preset.markerNeedsLaterMachinery');
 
-    expect(deferred.map((n) => n.params['when'])).toEqual(['P8', 'never']);
+    expect(deferred.map((n) => n.params['when'])).toEqual(['never']);
+
+    const summary = converted.blocks.find((b) => b.kind === 'slot' && b.source.of === 'summary');
+    expect(summary).toBeDefined();
   });
 
   it('carries the choice blocks across and says they are inert', () => {

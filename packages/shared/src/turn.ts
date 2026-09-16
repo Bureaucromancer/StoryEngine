@@ -150,7 +150,27 @@ export type BlockSource =
       sectionId?: string;
       field?: 'traits' | 'visual';
     }
-  | { kind: 'lore'; entryId: string; phase: 'before' | 'after' }
+  /**
+   * One lorebook entry the retriever activated.
+   *
+   * ***`bookId` since [P8.4], and its absence was a real gap rather than an
+   * omission.*** [P8 §1.6]: *"`retrieval/blocks.ts` builds the candidate with no
+   * **book id**, though the activation carries one — so even the demo's *the
+   * workbench names the entry and its origin* is unanswerable from the record."*
+   * Two books can hold entries with the same id (importing one source twice is
+   * the ordinary way there), so the entry id alone does not identify an entry;
+   * the block's own `id` has been namespaced by both since P5.6 and this is the
+   * same fact in the shape a reader can follow.
+   *
+   * **What it buys is a link.** A memory block can say which book it came from,
+   * and a book knows which session wrote it — which is how the workbench answers
+   * *the entry, its origin session and why it was retrieved*, the sentence
+   * [P8]'s demo turns on.
+   *
+   * Absent on every record written before P8.4, so a reader links when it is
+   * there and labels when it is not — `persona`'s rule for a session with none.
+   */
+  | { kind: 'lore'; entryId: string; phase: 'before' | 'after'; bookId?: string }
   /**
    * One half of one past turn — F36: `part` because a turn is **two** blocks,
    * the player's words as `user` and the model's as `assistant`. `turnId` is
@@ -225,6 +245,29 @@ export type BlockSource =
   | { kind: 'attempt'; turnId: string | null }
   /** What the player just did — the turn that is happening, not history. */
   | { kind: 'input' }
+  /**
+   * One link of the summary chain — [07 §5.1], [P8.1].
+   *
+   * `linkKey` is the content address: the hash of the previous link's key, the
+   * keys of the units it covers, and the resolved summariser. It is the
+   * identity, and it is *why* the block table can say anything at all about a
+   * summary — a chain keyed on its inputs is a chain whose links can be named,
+   * where a mutated running total would have had nothing to name.
+   *
+   * `range` is the inclusive span of **path indices counted from the root**,
+   * which is a meaningful thing to record only because
+   * `sessions/summary-chain.ts` anchors boundaries there: on a head-relative
+   * scheme the same numbers would mean something different on every turn. This
+   * is what [P8]'s gate step 1 means by *which summary links covered which
+   * turns*.
+   *
+   * *Indices rather than turn ids, which is a real limit.* A reader who wants
+   * to click through to the turns has to walk the path to resolve them. The
+   * alternative is a list of up to twenty ids on every summary block of every
+   * turn record, which is a persisted-shape cost paid on every turn for a
+   * navigation affordance no surface asks for yet.
+   */
+  | { kind: 'summary'; linkKey: string; range: [number, number] }
   // The two a slot can never name, because no preset positions them.
   /**
    * A block the preset authored, rather than a slot it positioned.

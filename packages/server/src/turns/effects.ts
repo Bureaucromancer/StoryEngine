@@ -112,9 +112,27 @@ export function acceptEffect(
     rejectedReason: refusal,
     supersedes,
     channelVersion: definition?.version ?? 1,
-    // P2 writes only `session` ([P2 §2.7]); the field exists so P6 needs a
-    // field rather than a migration.
-    scope: 'session',
+    /**
+     * ~~P2 writes only `session` ([P2 §2.7]); the field exists so P6 needs a
+     * field rather than a migration.~~
+     *
+     * ***From the declaration, since [P8.2].*** That comment was true and then
+     * stopped being the whole story: P6 shipped `ChannelEffect.scope`, the four
+     * readers that skip an escaped effect on replay, and `moveHead`'s count of
+     * how many are still out in the world — and then this line meant **nothing
+     * could ever be one**, so the count was structurally zero and the banner had
+     * nothing to say. [P8 §1.9] is the finding, and [07 §7] is the class: *"a
+     * lorebook entry promoted to the shared library"* is exactly what a memory
+     * write is.
+     *
+     * **A fact about the channel, never about the proposal.** A step that could
+     * say its own writes were session-local would be one honest declaration away
+     * from making a branch look reversible when it is not, which is the same
+     * failure `callPurposeFor` refuses one file over. So it is read off
+     * `ChannelDefinition.escapes`, and a channel nobody declared falls to
+     * `'session'` — the state every channel written before this is in.
+     */
+    scope: definition?.escapes === true ? 'escaped' : 'session',
   };
 }
 

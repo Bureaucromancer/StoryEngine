@@ -87,11 +87,26 @@ it".
 
 `StepDefinition` already declares
 ~~`reads: (ChannelId | "history" | "output")[]`~~
-`reads: (ChannelId | "history" | "output" | "cast")[]` — the fourth added at
-[P7.12](workplan/23-p7-implementation.md), for a mode that had to see an actor's
-expression set and could not. *The widening is the rule working rather than an
-exception to it*: the alternative was the engine handing a mode its own cast
-unasked, which is the back door this section's filter exists to close.
+~~`reads: (ChannelId | "history" | "output" | "cast")[]`~~
+`reads: (ChannelId | "history" | "output" | "cast" | "transcript")[]` — the
+fourth added at [P7.12](workplan/23-p7-implementation.md), for a mode that had to
+see an actor's expression set and could not. *The widening is the rule working
+rather than an exception to it*: the alternative was the engine handing a mode
+its own cast unasked, which is the back door this section's filter exists to
+close.
+
+***The fifth, `transcript`, is the first one added to make a payload
+narrower*** — [P8.1](workplan/25-p8-implementation.md), 2026-09-16. Every
+earlier member widened what a step could ask for; this one exists because
+`history` is *too wide to refuse with*. A `Turn` carries
+`request.calls[].blocks[].text`, so a hook's premise and an unfired entrance's
+finished prose arrive verbatim inside the record a step declared `history` to
+get, and [08 §6](08-cross-session-memory.md)'s *never extract from hidden
+content* is a rule with no seam to enforce it at. `transcript` is that seam:
+what was said, what came back, and the node it was on. **Added with the payload
+rather than with its consumer**, because a payload narrowed after a consumer
+exists is a payload narrowed by subtraction, and nobody can then say which
+fields were load-bearing.
 That field was added so the pipeline could reason about dependencies. It does
 double duty here:
 
@@ -175,6 +190,7 @@ interface StepContext {
   speakers?: ActorId[]                  // P7.3 — unfiltered; the mode's own policy
   setup?: Record<string, unknown>       // P7.4 — unfiltered, for the same reason
   cast?: CastEntry[]                    // P7.12 — filtered; declared by `reads`
+  transcript?: TranscriptTurn[]         // P8.1 — filtered; what was said, never the record
   config: unknown                       // the extension's own settings
   host: HostApi                         // async, narrow, typed
 }

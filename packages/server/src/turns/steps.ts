@@ -7,6 +7,7 @@ import type {
   StepDefinition,
   StepImplementation,
   StepInput,
+  TranscriptTurn,
 } from '@storyengine/sdk';
 
 import type { CallPurpose } from '../assembly/types.js';
@@ -44,6 +45,7 @@ export type {
   StepImplementation,
   StepInput,
   StepResult,
+  TranscriptTurn,
 } from '@storyengine/sdk';
 
 /** What the runner knows about the turn when it evaluates a condition. */
@@ -167,8 +169,18 @@ export function filterReads(
     /**
      * **Unfiltered, like `input`** — [P7.3]. [22 §3.1]'s rule is about sources a
      * step might not be entitled to; this is the mode's own policy applied to
-     * the mode's own turn, and `reads` has exactly two pseudo-sources ([06 §6])
-     * rather than a growing list of them.
+     * the mode's own turn.
+     *
+     * *~~and `reads` has exactly two pseudo-sources ([06 §6]) rather than a
+     * growing list of them.~~* **The count was wrong when it was written and is
+     * wronger now** (2026-09-16): `cast` made three at [P7.12] and `transcript`
+     * makes four at [P8.1], so the list did grow. **The argument does not depend
+     * on the count and never did** — what matters is that every member is a
+     * *source a step might not be entitled to*, and the mode's own policy
+     * applied to the mode's own turn is not one. `transcript` is the sharpest
+     * case for the rule rather than against it: it was added precisely so a step
+     * could be denied something, which is the first widening of this union that
+     * makes a payload smaller.
      */
     ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
     // Unfiltered for `speakers`' reason: the mode's own declaration, answered
@@ -185,8 +197,46 @@ export function filterReads(
       : { cast: everything.cast }),
     channels,
     ...(definition.reads.includes('history') ? { history: everything.history } : {}),
+    /**
+     * ***The narrow half of `history`, and it is a projection rather than a
+     * slice*** — [P8 §1.5], [P8.1]. `history` above hands over whole `Turn`s,
+     * and a `Turn` carries `request.calls[].blocks[].text`: a hook's premise, an
+     * unfired entrance's finished prose and a hidden channel's rendered value,
+     * verbatim. [08 §6] asks that memory never be extracted from those and says
+     * the mitigation must be *refuse at the source* rather than a filter,
+     * *"because the extraction has already written the sentence down"* — and
+     * against this contract there was no source to refuse at.
+     *
+     * So the projection: what was said, what came back, and the node it was on.
+     * **Derived here rather than by the caller**, so there is exactly one
+     * statement anywhere of what a transcript is; a runner that built its own
+     * would be a second such statement, and the two would drift on the first
+     * field somebody added to `Turn`.
+     */
+    ...(definition.reads.includes('transcript')
+      ? { transcript: transcriptOf(everything.history) }
+      : {}),
     ...(definition.reads.includes('output') && everything.output !== undefined
       ? { output: everything.output }
       : {}),
   };
+}
+
+/**
+ * A path as `reads: ['transcript']` sees it — [P8.1].
+ *
+ * **`raw` is dropped along with the record**, which is worth naming because it
+ * is the one field a reader might expect to survive: it is the player's text
+ * *before* mention resolution, and a step entitled to the resolved text has no
+ * claim on the unresolved one. Everything else here is the smallest thing that
+ * still lets a consumer attribute what it found to a node ([P8 §1.4]).
+ */
+export function transcriptOf(path: readonly Turn[]): TranscriptTurn[] {
+  return path.map((turn) => ({
+    turnId: turn.id,
+    ...(turn.input === undefined
+      ? {}
+      : { input: { actorId: turn.input.actorId, kind: turn.input.kind, text: turn.input.text } }),
+    ...(turn.output === undefined ? {} : { output: { text: turn.output.text } }),
+  }));
 }

@@ -36,12 +36,14 @@ import {
 } from '../state/events.js';
 import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
-import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
+import { CallFailed, Cancelled, performCall, resolveStepRole, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
 import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
+import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
+import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
@@ -411,6 +413,18 @@ export class TurnRunner {
      */
     const suggested: { report: SuggestReport | null } = { report: null };
     /**
+     * The story above the window — [P8.1]. Up here with the other four for the
+     * reason the paragraph above gives: `write()` closes over it, and a
+     * declaration further down is a temporal dead zone the compiler is happy
+     * with and the first turn is not.
+     *
+     * *Nothing of this lands on the turn record directly*, unlike the four
+     * above: a summary reaches the record as **blocks on a call**, through the
+     * collector, which is what makes the block table able to say which links
+     * covered which turns without a fifth field on `Turn`.
+     */
+    const summaries: { report: SummariseReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -666,6 +680,84 @@ export class TurnRunner {
       : declaredPlan;
 
     /**
+     * ***The summariser, prepended*** — [07 §5.1], [P8.1], and the fifth
+     * engine-owned step. `pre`, because what it produces goes into **this**
+     * turn's prompt: the selector is `pre` for the identical reason, and a chain
+     * built by a `post` step would be permanently one link behind the story.
+     *
+     * **Three gates, and each of them saves a model call rather than tidying
+     * up.**
+     *
+     * *No summary slot in the pack, no step.* A session whose preset positions
+     * nothing would otherwise pay a `fast`-role call per turn to fill a cache
+     * nothing reads. This is the same judgement `suggesting` makes one block
+     * down — **keep the step out of the plan rather than idling it** — and for
+     * the same reason: a step outcome that means *this feature exists* rather
+     * than anything about the turn is noise on every turn of every session.
+     *
+     * *Nothing above the window, no step.* `planChain` would return an empty
+     * plan and `ensureChain` would derive nothing, so the call is saved by
+     * arithmetic rather than by policy — but the step row would still appear.
+     *
+     * *An unresolvable role, no step.* The summariser's **resolved** binding is
+     * in every key ([P8 §1.9]), so a chain cannot be keyed before the role
+     * resolves. `resolveStepRole` is the same layering `planCall` applies, which
+     * is why it was extracted rather than restated: a second answer to *which
+     * model is this* would let a session derive its chain under one model and
+     * read it under another.
+     */
+    const wantsSummary =
+      payload.setup !== true &&
+      preset.blocks.some(
+        (block) => block.enabled && block.kind === 'slot' && block.source.of === 'summary',
+      ) &&
+      history.length > mode.definition.assembly.historyWindow;
+
+    const summariserRole = wantsSummary
+      ? resolveStepRole(
+          {
+            bindings,
+            defaults,
+            usable,
+            ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
+            ...(inputs.session?.stepRoles === undefined
+              ? {}
+              : { stepRoles: inputs.session.stepRoles }),
+            cast,
+          },
+          SUMMARISE_STEP,
+          SUMMARISE_STEP.role ?? 'prose',
+          undefined,
+        )
+      : null;
+
+    const withSummary: TurnPlan =
+      summariserRole?.ok === true
+        ? {
+            steps: [
+              summarise({
+                layout: commit.sessions.layout,
+                handle: job.account,
+                sessionId: job.sessionId,
+                policy: {
+                  ...DEFAULT_SUMMARY_POLICY,
+                  window: mode.definition.assembly.historyWindow,
+                },
+                key: summariserKey(
+                  { connectionId: summariserRole.connection.id, modelId: summariserRole.modelId },
+                  SUMMARISE_PROMPT,
+                  preset.params,
+                ),
+                report: (report) => {
+                  summaries.report = report;
+                },
+              }),
+              ...plan.steps,
+            ],
+          }
+        : plan;
+
+    /**
      * **The mention pass, after the prose and before the judge** — [06 §8.2],
      * [P7.7], and the third engine-owned step.
      *
@@ -690,7 +782,7 @@ export class TurnRunner {
       payload.setup !== true && findable
         ? {
             steps: [
-              ...plan.steps,
+              ...withSummary.steps,
               extractMentions({
                 subjects: () => {
                   const introducing = pendingIntroduction(hooks, inputs.hooks.pool);
@@ -712,7 +804,7 @@ export class TurnRunner {
               }),
             ],
           }
-        : plan;
+        : withSummary;
 
     const withJudge: TurnPlan =
       judging && inputs.goals.current !== null
@@ -902,6 +994,14 @@ export class TurnRunner {
                     ...(hooks.report?.guidance === undefined
                       ? {}
                       : { hookGuidance: hooks.report.guidance }),
+                    // The story above the window — [07 §5.1], [P8.1]. Filled by
+                    // the summariser, which is `pre` for the selector's reason
+                    // and has therefore run before this loop reached anything
+                    // that assembles. **Absent is not empty**: a session with no
+                    // summary slot builds no chain, and `emptyReason` draws the
+                    // line between *waiting on the engine* and *not yet long
+                    // enough to have one*.
+                    ...(summaries.report === null ? {} : { summary: summaries.report.links }),
                     // [06 §7.3.3]'s *always injected*, resolved by the gather so
                     // a preview and a turn cannot disagree about which goal.
                     ...(inputs.goals.current === null

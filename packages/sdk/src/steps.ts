@@ -266,7 +266,57 @@ export interface StepInput {
   channels: Record<string, ChannelState>;
   /** Present only when `reads` includes `history`. */
   history?: readonly Turn[];
+  /**
+   * ***What was said, and nothing about how it was produced*** — declared by
+   * `reads: ['transcript']`, added at
+   * [P8.1](../../../docs/design/workplan/25-p8-implementation.md).
+   *
+   * **The narrow half of `history`, and it exists because the wide half cannot
+   * be narrowed later.** [08 §6](../../../docs/design/08-cross-session-memory.md)
+   * asks that memory never be extracted from hidden content — a hook's premise,
+   * an unfired hook's entrances, a hidden channel, GM-only state — and says the
+   * mitigation must be *refuse at the source* rather than a filter, *"because
+   * the extraction has already written the sentence down."*
+   *
+   * ***As the contract stood, that refusal was not expressible.*** `history`
+   * above is `readonly Turn[]`, unfiltered, and the runner hands a step the
+   * **full path** where the collector gets the windowed slice. A `Turn` carries
+   * `request.calls[].blocks[].text` — so a premise, a chosen entrance's finished
+   * prose and a hidden channel's rendered value all arrive verbatim inside the
+   * record a step declared `history` to get, before any prompt is written.
+   * [P8 §1.5] is the finding: *"refusing at the source is not expressible, and
+   * filtering inside the extractor is exactly what 08 §6 rejects."*
+   *
+   * **Built with the payload rather than with its consumer**, which is the rule
+   * `filterReads` states about itself: a payload narrowed *after* a consumer
+   * exists is a payload narrowed by subtraction, and nobody can then say which
+   * fields were load-bearing. The extractor arrives later; the shape it must be
+   * held to arrives now.
+   *
+   * *What it still legitimately carries is the narrator's own output*, and an
+   * entrance that fired is finished prose sitting in it. That remainder is a
+   * refusal with a reason rather than a filter — [P8.5]'s, not this field's.
+   */
+  transcript?: readonly TranscriptTurn[];
   /** Present only when `reads` includes `output`. */
+  output?: { text: string };
+}
+
+/**
+ * One past turn, as a step that may not see the record sees it.
+ *
+ * `turnId` so a step can attribute what it found — [P8 §1.4]'s *each entry
+ * carries a ref to its origin* needs a node to point at, and an extractor handed
+ * anonymous prose could not supply one. It is an identity and nothing more: no
+ * request, no blocks, no effects, no tape.
+ *
+ * Both halves optional for the reason the record has them optional. A turn whose
+ * generation failed has an input and no output, and saying so is different from
+ * saying it was empty.
+ */
+export interface TranscriptTurn {
+  turnId: string;
+  input?: { actorId: string | null; kind: string; text: string };
   output?: { text: string };
 }
 
