@@ -23,6 +23,10 @@ export * from './turn.js';
 // reason: it decorates names inside one install and never crosses a boundary
 // ([05](../../../docs/design/05-tagging.md)).
 export * from './tags.js';
+// Renditions — internal tier, beside the turn record and governed by the same
+// sentence: a rendition hangs off a turn, travels with the session directory,
+// and graduates to `schema/` when the turn record does ([25 B12]'s freeze).
+export * from './rendition.js';
 // What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
 // Beside the record rather than in it: it is never written to disk.
 export * from './preview.js';

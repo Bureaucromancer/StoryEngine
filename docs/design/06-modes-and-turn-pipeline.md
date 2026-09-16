@@ -1541,6 +1541,41 @@ them: derive from turn content, cost money, can fail, are re-runnable, and are
 worth showing in the workbench. Building images against this shape rather than
 as "the image feature" is most of what makes video and speech cheap later.
 
+#### Three of those fields were typed wrong — corrected 2026-09-16 at [P9.0](workplan/26-p9-implementation.md)
+
+***The shape held; two of the three types it names could not carry what this
+section asks of them, and the third was never defined at all.***
+[21 §7](21-internal-contracts.md) is the built interface and the argument for
+each; what follows is the summary, here because this is where a reader meets the
+sketch.
+
+- ~~`provenance: GeneratedFieldProvenance`~~ → **`RenditionProvenance`**. That
+  type's `seed` is documented *"the input the generation ran from"* — a prompt
+  string — and §10.7 below means the **sampling seed**. One word apart, and an
+  implementation that reused it would satisfy the type, pass review, and ship a
+  rendition that cannot be reproduced. It also has no field for workflow
+  parameters, which §10.7 says are never discarded. *Widening it was the worse
+  repair*: it is portable, so a sampling seed added to it would travel inside
+  every exported actor card.
+- ~~`asset: AssetRef | null`~~ → **`RenditionAsset | null`**. `MediaRole` has
+  eight members and none of them is `illustration`, so a picture of a moment
+  filed under one carries a role that is a duplicate of `purpose` or a lie;
+  `AssetRef` also carries no `mime`, which is the one thing serving the bytes
+  requires.
+- ~~`prompt: AssembledPrompt | null`~~ → **`AssembledPrompt`, never null.** A
+  `pending` rendition with no prompt is a record that cannot be re-run, so
+  *the recipe outlives the pixels* would be false during exactly the window in
+  which the pixels do not exist yet. And **`AssembledPrompt` was defined
+  nowhere** — one occurrence in the corpus, the line above that names it. It is
+  `CappedPrompt` plus the fragments the cap ran over plus the separator, because
+  §10.3's *written once and replayed* is unsatisfiable without the parts.
+
+**Four fields were added, and none of them is new design.** `schema` and
+`sessionId` make the record a file that can be identified; `digest` is §10.1a's
+reuse key, given a home rather than recomputed; `ordering` is §10.4's *"if the
+engine sorts on a number, that number is on the rendition"*, shipping at `0`.
+`anchorResolved?: false` records §10.4a's miss.
+
 **Lifecycle is what the other union is for.** `purpose` is the axis on which
 renditions genuinely do differ in lifecycle — an illustration belongs to one
 turn, a backdrop is shown across many — and keeping it out of `kind` is what

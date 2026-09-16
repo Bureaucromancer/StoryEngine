@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { RenditionReport } from './rendition.js';
 import type { HookPacing, Ref } from './schema/common.js';
 import type { Span } from './matching.js';
 import type { GenerationParams } from './schema/preset.js';
@@ -919,6 +920,30 @@ export interface Turn {
    * differently.
    */
   spans?: TextSpan[];
+  /**
+   * What the rendition step asked for — [06 §10](../../../docs/design/06-modes-and-turn-pipeline.md),
+   * [P9.1].
+   *
+   * ***Ids and a verdict, never the records***, and unlike `suggestions` above
+   * that split is forced rather than argued. A suggestion is produced *during*
+   * the turn, so it can be a field on an append-only line; a rendition is
+   * dispatched after the turn commits and then moves `pending → ready`
+   * ([06 §10.2]), which a line that is never rewritten cannot express. So the
+   * mutable half lives in `sessions/<id>/renditions/` and the turn keeps the one
+   * thing that was true when it committed: what it asked for.
+   *
+   * *The direction matters as much as the split.* A rendition names its turn and
+   * a turn does not name its renditions — which is the only direction that works
+   * for one made by hand forty turns later, and is why `Turn.renditions` is a
+   * report of this turn's own step rather than an index of everything hanging
+   * off the node.
+   *
+   * **Absent means the step did not run** — every turn of a session with
+   * renditions off, and every turn taken before this phase. It never means *it
+   * ran and asked for nothing*, which is what `held` is for, and which is the
+   * distinction every optional field on this record draws.
+   */
+  renditions?: RenditionReport;
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;

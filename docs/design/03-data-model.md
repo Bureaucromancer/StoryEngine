@@ -763,7 +763,9 @@ disposable index**.
         session.json
         turns/000001.jsonl …   # append-only segments, never rewritten. §5.5
         snapshots/             # derived channel state, keyed by TurnId. [07 §4]
-        assets/
+        summaries/             # derived, content-addressed. [07 §5.1], P8.0
+        renditions/            # one file per rendition — the recipe. §5.5, P9.0
+        assets/                # the pixels, and the one disposable directory
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
 ```
@@ -1064,8 +1066,31 @@ turn).
 sessions/<id>/
   session.json
   turns/000001.jsonl … 000014.jsonl     # append-only, never rewritten
-  assets/
+  renditions/<rendition-id>.json        # the recipe: prompt, seed, parameters
+  assets/<rendition-id>.png             # the pixels
 ```
+
+***Two directories rather than one, and the split is the whole of §10.7's
+promise*** — drawn 2026-09-16 at [P9.0](workplan/26-p9-implementation.md).
+`renditions/` holds the record and `assets/` holds the output of running it, so
+*"deleting one leaves `asset: null` and a picture that can be made again"* is a
+statement about two paths rather than about two fields in one file. **Deleting
+`assets/` costs money and deleting `renditions/` costs history**, which is the
+sentence an eviction policy has to be able to act on and could not if the recipe
+lived inside the thing being evicted.
+
+*One file per rendition rather than one per turn*, because a rendition is written
+by exactly one job and read by everybody: two workers finishing two pictures of
+one turn would each rewrite a shared file and the second would win. It is
+`snapshots/` and `summaries/` at the level below, for the reason those two are
+one file per key.
+
+**Neither root is a `Layout` method**, and that is deliberate rather than an
+omission. `summariesRoot` and `snapshotsRoot` are module functions in the modules
+that write them, and this is how a session subdirectory has always been added
+here — which is also why [P8 §1.1](workplan/25-p8-implementation.md)'s rule
+against a dangling path helper is honoured by not creating one rather than by
+timing it.
 
 **`assets/` is where renditions put their pixels** — illustrations and backdrops
 alike ([06 §10](06-modes-and-turn-pipeline.md)) — and it is the one directory
