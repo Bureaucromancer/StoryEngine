@@ -1282,9 +1282,10 @@ satisfiable by a bug without it.
 
 ### P9 — Renditions
 
-~~**Skeleton: [P9](26-p9-implementation.md)**~~ ***A plan:
-[P9](26-p9-implementation.md)***, audited 2026-09-15 — and its first stage is a
-contract rather than a feature: `Rendition` is specified in
+~~**Skeleton: [P9](26-p9-implementation.md)**~~ ~~*A plan, audited
+2026-09-15*~~ ***A plan built out against the tree: [P9](26-p9-implementation.md)***,
+re-audited 2026-09-16 at `bf88153` — and its first stage is a contract rather
+than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
 all. The provider layer speaks chat and no image endpoint does, which is the
 phase's one real question **and the one its audit deliberately did not answer**:
@@ -1300,6 +1301,25 @@ known to be free.* The audit also found the phase smaller than it read in one
 place and larger in another: the ranked-fragment capper P9.1 assumed it would
 build is already written and tested with no caller, and P9.2's jobs are a second
 job shape rather than the reuse the document claimed.
+
+***P8 has since been built and merged, which turns the ordering claim into a
+record*** ([P9 §0.3](26-p9-implementation.md)). All ten findings of the first
+audit still hold at the paths they were checked at, so every stage is still sized
+against the code it will meet. **What P8 left behind is four things P9 no longer
+has to invent** — a length-prefixed content digest, a derive-only-the-misses
+chain with a call counter on it, a `resolveStepRole` that answers *which model*
+before the call, and a fourth worked example of the engine applying an effect a
+step may not propose. *And one rule that bites:* P8 deleted a session-scoped path
+helper with no caller and put an assertion behind the deletion, and P9.0's exit
+condition as drafted added another — corrected in place, in the proof rather than
+the stage.
+
+**The phase is ready to build and is not ready to close**, which is the honest
+pair. P9.0 is blocked by nothing; both of the gate's criticals are blocked on
+R10, an **image** endpoint that no other outstanding sitting produces: the four
+that hold a phase open — K for P6B, L for P7, M for P7B, N for P8 — all want a
+**chat** one. A P9 opened before that errand starts can be built in full and
+cannot be closed.
 
 Per-turn and on-demand illustration ([06 §10](../06-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.

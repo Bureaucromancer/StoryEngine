@@ -1,13 +1,28 @@
 # 26 — P9 implementation plan
 
-**Status: ~~skeleton~~ a plan, audited 2026-09-15 at `2fb75e5`.** Drafted
-2026-08-29 alongside [P7](23-p7-implementation.md),
+**Status: ~~skeleton~~ ~~a plan, audited 2026-09-15 at `2fb75e5`~~ built out
+against the tree, re-audited 2026-09-16 at `bf88153` — and deliberately not
+opened.** Drafted 2026-08-29 alongside [P7](23-p7-implementation.md),
 [P8](25-p8-implementation.md), [P10](27-p10-implementation.md) and
 [P11](28-p11-implementation.md). [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. §0.1 is the readiness audit that turns this one
 into a plan, §0.2 separates what blocks the phase from what merely has not
-happened, §2's stages gain dependencies and proof obligations, and §3 is split
-under [manual testing §0](05-manual-testing.md)'s two-tier gate.
+happened, **§0.3 is the build-out** — §0.1's audit re-run after
+[P8](25-p8-implementation.md) landed a phase on this tree — §2's stages gain
+dependencies and proof obligations, and §3 is split under
+[manual testing §0](05-manual-testing.md)'s two-tier gate.
+
+***What the build-out found, in one line: nothing this phase depends on has
+moved, four things it was going to build now exist, and one of its own proof
+obligations would fail a rule P8 wrote.*** All ten of §0.1's findings still hold
+at the paths they were checked at. What P8 added is a length-prefixed content
+digest, a lazy derive-what-is-missing chain with a call counter on it, a
+`resolveStepRole` that answers *which model* **before** the call, and a fourth
+worked example of the engine applying an effect a step may not propose — which
+are §1.7's reuse key, P9.3's dispatch assertion, P9.1's replayed moment and
+§1.7's `engine-computed` route, in that order. What it also wrote is *"a path
+helper that survives the phase without a caller is the same defect twice"*, and
+P9.0's exit condition as drafted adds one.
 
 ***The audit's headline: this phase is startable, and it is not waiting on
 [P8](25-p8-implementation.md).*** §0 names P6, P7 and P10 as the phases it
@@ -64,6 +79,15 @@ asked for a second time, so the assertion has to be run against an implementatio
 that makes no text call on re-creation. Written the natural way it regenerates,
 the golden files pass anyway on the day, and the digest quietly stops matching
 itself a month later. P9.1 says it again where the code is.
+
+***And the harness for it exists, on another subject*** (2026-09-16, §0.3's item
+3). `packages/server/src/sessions/summary-chain-property.test.ts` is
+[P8](25-p8-implementation.md)'s version of the same assertion: generated shapes
+under fast-check, plus one on-disk tree where deleting the derived files and
+re-deriving is asserted to produce **byte-identical** output rather than
+equivalent output. *Drop `asset` and re-run from `prompt` and `provenance`* is
+that test with a different noun, so what this phase writes is a second instance
+of a pattern rather than a first.
 
 ---
 
@@ -224,14 +248,24 @@ are the two corrections it has to make, and the stage ends with a rendition that
 can be written and read with no provider behind it at all.
 
 **What genuinely blocks, and it blocks P9.1 onward rather than the phase.**
-[Manual testing §3](05-manual-testing.md) has nine standing prerequisites and
-**none of them is an endpoint that serves the `image` role.** Twelve of §3's
-fifteen steps want pixels, §1.2's provider question is the phase's one real
-question and wants one real endpoint rather than another paragraph, and R2 — *a
-hosted endpoint with a real key* — is a **chat** endpoint. That is a lead-time
-item in §3's own sense: *not arranged before the day.* **This phase owes that
-file an R-row before it owes it anything else**, and §3.1 below is written
-against it.
+[Manual testing §3](05-manual-testing.md) has ~~nine~~ ***ten*** standing
+prerequisites and **none of them was an endpoint that serves the `image` role.**
+Twelve of §3's fifteen steps want pixels, §1.2's provider question is the phase's
+one real question and wants one real endpoint rather than another paragraph, and
+R2 — *a hosted endpoint with a real key* — is a **chat** endpoint. That is a
+lead-time item in §3's own sense: *not arranged before the day.* ~~**This phase
+owes that file an R-row before it owes it anything else**~~, and §3.1 below is
+written against it.
+
+***Paid the same day, and the tenth row is it*** (2026-09-16, §0.3's item 6).
+**R10** — *an endpoint that serves the `image` role, with a key* — is in §3's
+table, cited from §6's P9 row, and says in its own cell that **both of this
+phase's criticals are blocked on it and nothing else**. So the count above is
+corrected rather than struck: the file has ten prerequisites because this
+document's audit added the tenth. **The errand is unchanged and is now
+addressed to somebody**, which is the whole distinction this section draws — *a
+deferral is a judgement and a block is an errand*, and an errand nobody has
+written down is neither.
 
 **What does *not* block, stated so it is not treated as if it did.** The count
 judgement and its two dials (§4) — deferred, unowned, and deliberately not this
@@ -240,6 +274,225 @@ phase's, with the three things P9 must not foreclose already named. An eviction
 person (§5) — a real gap, and one no amount of planning closes. And
 [P10](27-p10-implementation.md)'s router (§1.5), which is the whole reason this
 phase emits an event nothing listens to and says so.
+
+### 0.3 Ready to build out — re-audited 2026-09-16 at `bf88153`
+
+*§0.1 ran at `2fb75e5`, **before [P8](25-p8-implementation.md) was built**.
+Fourteen commits, three merges and a whole phase have landed since, so the audit
+is run again rather than assumed — [P8 §0.3](25-p8-implementation.md)'s discipline,
+returned to the document it was borrowed from. §0.2's headline survives the
+re-run **and acquires a proof it could not have had**: P8 opened, built and
+merged without one sentence of this plan moving on its account, which is a
+stronger claim than reading §0's dependency list could ever produce.*
+
+#### What still holds — all ten of §0.1's findings, with the paths they were re-checked at
+
+**Line by line, and not one has moved.** `Rendition` is in no schema: the name
+occurs twice in `packages/shared/src` and **both are prose**
+(`schema/common.ts:362`, `schema/media.test.ts:135`), which is finding 1 in a
+sharper form for the second time — the shared package now *cites*
+`Rendition.purpose` in a docstring as *"the other half of the same pair"* and
+declares the type nowhere. `Provider` is still
+`{ kind, capabilities, generate, stream? }` (`providers/types.ts:171`).
+`GeneratedFieldProvenance` still types `seed` as `string | null` documented *"the
+input the generation ran from"*, with no field for workflow parameters
+(`schema/common.ts:136`). `MODEL_ROLES` still carries `image` **and** `fast`
+(`shared/src/turn.ts:47`). Nothing routes a notification — `artifact.ready`
+appears in no package, and `state/events.ts` still says progress events *"need no
+`{key, params}` summary the way a **notification** does"*. `MediaSelection`'s
+`{ from: 'rendition' }` arm is still dead on arrival by design and
+`BACKDROP_CHANNEL` is still `update: 'engine-computed'`. `state/jobs.ts`'s `Job`
+is still turn-shaped and `import/jobs.ts` is still a review-report store.
+`StepInput.output` is still `{ text: string }` gated on `reads`.
+
+***And `providers/prompt-caps.ts` has now survived a second phase with no
+caller.*** 156 lines and its test; the only other occurrences anywhere in the
+workspace are in `packages/server/dist/`, which is build output of itself.
+Finding 6 said P9.1 is a call site rather than a build, and what the re-run adds
+is that the module is no longer *newly* dangling — it is the state §0.1 called *a
+`memoriesRoot` in miniature*, and P8 has since decided what to do with the
+original.
+
+#### What P8 moved — six items, and the first is a rule one of this phase's own stages would break
+
+1. ***`memoriesRoot` was deleted with an assertion behind it, and P9.0's proof
+   obligation is written on the wrong side of that rule.***
+
+   §0.1's finding 8 concludes that P9.0 **adds the accessor** for
+   `sessions/<id>/assets/`. [P8 §1.1](25-p8-implementation.md) met the other
+   member of that class and went the other way: `Layout.memoriesRoot()` — a
+   session-scoped root drawn in [03 §5](../03-data-model.md)'s tree and written
+   to by nothing since P1 — is **deleted**, the tree line is struck with its
+   date, and `tools/repo-shape.test.ts` carries an arm named *"the storage layout
+   keeps no root the library owns"*. [03 §5](../03-data-model.md) states the
+   reason in a sentence: ***"a path helper that survives the phase without a
+   caller is the same defect twice."***
+
+   **That sentence is about this stage.** P9.0's *Ends at* is *"a rendition
+   record that can be written, read and rendered as `state: "pending"` with no
+   provider behind it at all"* — and nothing in a `pending` rendition writes
+   bytes, so an accessor added there is a path helper with no caller, which is
+   precisely what was just removed for being one. The repair is small and it
+   changes the **proof** rather than the stage: the obligation asserts a
+   **caller**, not an accessor. Either P9.0 adds the accessor together with the
+   first code that resolves an `asset` to a path — the reader that turns one into
+   a URL, or the hook `asset: null` implies — or the accessor lands in P9.2 with
+   the first writer and P9.0 ships the path *convention* in
+   [21](../21-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
+   **What it may not do is add a dangling accessor and call it an exit
+   condition**, which is the form the obligation currently takes.
+
+   *Finding 8's count is stale too, in the direction that makes the point:*
+   `storage/layout.ts` declares **seventeen** methods. It declared eighteen at
+   `2fb75e5`, and P8.2 removed one — this one. The half that matters is
+   unchanged: the only `assetsRoot` is object-scoped, `(owner, schemaId, slug)`.
+
+2. ***The recipe digest has a primitive, a precedent, and — visible only beside
+   the primitive — a missing field.***
+
+   §1.7 specifies the backdrop reuse key as *"a hash over the assembled ranked
+   fragments as sent, excluding the sampling seed"*.
+   `sessions/summary-chain.ts` now ships `digest(parts)`: SHA-256 over an ordered
+   list with **each part length-prefixed**, and the prefix argued at length,
+   because a bare concatenation makes `H("ab","c")` and `H("a","bc")` equal and
+   *"a collision in a **cache key** is not a crash, it is a session quietly
+   reading another line's summary."* Read for backdrops, that is *a session
+   quietly showing another place's backdrop* — the same defect with pixels, and
+   harder to notice.
+
+   **And `summariserKey` puts the resolved `Binding` in the key** — *"the whole
+   binding, not the model id. Two connections serving what they both call
+   `llama-3.1-8b` are not the same model."* §1.7's digest names the fragments and
+   **says nothing about the model**, so as specified, rebinding `image` to a
+   different endpoint returns the old provider's backdrop for every place already
+   visited, permanently and with no way to ask for the new one. **The digest keys
+   the resolved binding too.** The asymmetry is [P8 §1.9](25-p8-implementation.md)'s
+   unchanged: wrong toward *derive* costs one image, wrong toward *reuse* shows a
+   picture no current configuration can account for.
+
+   *`digest` is private to `summary-chain.ts`*, so this is a lift rather than an
+   import — and two hand-rolled hash encodings in one codebase is how two answers
+   to *what is this keyed on* come to exist. Export it and cite it, or the second
+   one will differ in the prefix and nobody will find out until the keys are on
+   disk.
+
+3. ***`ensureChain` is §1.7's reuse key, already built and already
+   property-tested, on a different subject.***
+
+   *Read what is held, derive what is not*: `sessions/summaries.ts` looks a link
+   up by content address, derives only the misses, and returns `derived` — a
+   count instrumented from the first stage so that *"a warm chain derives zero"*
+   is a number rather than a claim. That is §1.7's *"before dispatching, the step
+   looks for a ready background rendition whose recipe digest already matches"*
+   and P9.3's *"asserted on the dispatch and not on the pixels"*, written once
+   already.
+
+   **What P9 should take is the instrument and not only the shape.** A dispatch
+   counter on the rendition path makes gate steps 10 and 12 assertions about a
+   number rather than about an absence, which is the difference between *no job
+   was dispatched* and *no job was observed*. And
+   `summary-chain-property.test.ts` is the harness the recipe-survives-eviction
+   property wants: fast-check over generated shapes, plus one on-disk tree where
+   deleting the derived files and re-deriving is asserted to produce
+   **byte-identical** output — which is exactly the shape of *drop `asset` and
+   re-run from `prompt` and `provenance`*.
+
+4. ***A sixth engine-owned step, and the runner now has the gate P9.4's off
+   switch needs.***
+
+   P9.1's step is engine-owned and appended by the runner, which made the
+   summariser *the fifth* at [P8.1](25-p8-implementation.md). Two things that
+   stage built are P9.1's directly.
+
+   **`resolveStepRole` is extracted from `planCall`** (`turns/calls.ts`), so a
+   caller can know a step's *resolved* binding **before** the call. It was
+   extracted because the summariser has to key on that binding and then usually
+   not call at all — which is the same sentence as §1.7's digest and as P9.1's
+   replayed moment, twice over. It did not exist at `2fb75e5`; a P9.1 written
+   then would have had to do the extraction itself, and the note in its docstring
+   about *"a second copy of this layering would be a second answer to which model
+   is this"* is the reason it should not be done twice now.
+
+   **And `wantsSummary`'s three gates are the pattern for *off*.** The runner
+   keeps the summariser out of the plan rather than running it to do nothing —
+   *"a step outcome that means this feature exists rather than anything about the
+   turn is noise on every turn of every session"* — which is what gate step 12
+   asks for in its expensive half: *backdrop off, and no `image` call was made*.
+   Not a provider that returns null, not a step that returns early. **Absent from
+   the plan**, which is also the only version of *off* that step 12's call-log
+   assertion can tell from the others.
+
+5. ***The route P9.3 writes the backdrop by has a fourth worked example, a week
+   old — and gate step 11 acquires a new way to be quietly false.***
+
+   §1.7 warns that a stage which discovers `BACKDROP_CHANNEL`'s
+   `engine-computed` policy *by failing an effect proposal* will be tempted to
+   widen the channel, and that widening it is the one repair that undoes the
+   argument. `memory/capture.ts`'s `recordEscape` is now the nearest example of
+   the path that is not that: a turn with **no model call and no tape**, carrying
+   an effect the engine accepted through `acceptEffect` — *"which is
+   `writeChannel`'s shape and `undoTurn`'s and `divergenceTurn`'s"*. A generator
+   whose result the *engine* applies has four precedents in this tree and needs
+   no new mechanism.
+
+   ***The new hazard is `escapes`.*** `ChannelDefinition` gained
+   `escapes?: boolean` at [P8.2](25-p8-implementation.md) and `ChannelEffect.scope`
+   can now really be `'escaped'` — a scope `applyEffects`, `undoTurn` and
+   `reconstructAlong` all **skip**, because an escaped effect is one the session
+   cannot take back. A backdrop selection declared that way would look correct on
+   the turn it was written and silently fail to return on rewind, which is gate
+   step 11 failing in the one manner its *empty diff* assertion does not look
+   for: nothing was written, and that is the bug. `BACKDROP_CHANNEL` declares no
+   `escapes` and must not gain one. §1.7's *the artefact is not an effect; the
+   selection is* now needs its second half said out loud — **and the selection is
+   an ordinary one.**
+
+6. ***R10 exists, so the blocker is filed rather than merely found — and it is an
+   errand nothing else in that file discharges.***
+
+   §0.2 and §3.1 both say [manual testing §3](05-manual-testing.md) *"has nine
+   standing prerequisites"*. It has **ten**: **R10** — *an endpoint that serves
+   the `image` role* — was added by this document's own audit, and is
+   cross-referenced from §3's table and from §6's P9 row, which names both
+   criticals as blocked on it and on nothing else. Both sentences are corrected
+   below; the block itself is unchanged, and so is the distinction §0.2 draws
+   between a deferral and an errand.
+
+   ***What did change is the shape of the queue.***
+   [P8 §0.3](25-p8-implementation.md) counted three phases holding open on an
+   unwalked sitting's live endpoint; P8 then merged with **sitting N** unwalked,
+   making four — **K** is [P6B](20-p6b-playable.md)'s, **L** is
+   [P7](23-p7-implementation.md)'s, **M** is
+   [P7B](24-p7b-presets-and-prompts.md)'s and **N** is
+   [P8](25-p8-implementation.md)'s — and **every one of them wants a chat
+   endpoint**, as does G. **R10 is a second errand and none of them discharges
+   it.** The day that unblocks four phases leaves both of P9's criticals exactly
+   where they are, which is the argument for starting this errand on its own
+   rather than assuming it rides along with the others.
+
+#### What this section deliberately does not do
+
+**It does not answer §1.2.** That decision wants one real image endpoint in hand
+and still does not have one. The evidence the audit added — that
+`ProviderCapabilities` already straddles both shapes, carrying `maxPromptChars`
+and `usefulPromptChars` beside `supportsTools` and `mergeSameRole` — is
+unchanged, and is still evidence rather than an answer.
+
+**It does not re-decide anything else.** §1's decisions were made against a tree
+that, on every point they turn on, is the tree that exists today. Item 1 is the
+only place the code moved *against* a stage, and it moves that stage's proof
+rather than its content; items 2 through 5 are work this phase no longer has to
+invent.
+
+***And it does not open the phase.*** §0.2's *P9.0 is blocked by nothing* holds,
+and it is now the second phase in a row for which that sentence is true — but
+what [P8](25-p8-implementation.md) walked into was a gate with criticals a person
+could reach on the endpoints this project already has. P9's two cannot be
+reached at all until R10 is, and [manual testing §7](05-manual-testing.md) closes
+a phase on its critical list. **A P9 opened before that errand starts is a phase
+that can be built in full and cannot be closed** — which is a thing to decide
+deliberately, the way [P8](25-p8-implementation.md) decided its cut, rather than
+to discover at the gate.
 
 ---
 ## 1. Decisions this plan has to make
@@ -255,8 +508,23 @@ phase emits an event nothing listens to and says so.
 [03](../03-data-model.md), which owns what is on disk. ~~`sessions/<id>/assets/`
 exists in the layout with nothing writing to it.~~ ***It exists in
 [03 §5](../03-data-model.md)'s tree and in none of the code*** (§0.1's finding
-8): `storage/layout.ts` has fifteen accessors and no session-scoped one, so
-P9.0 **adds** the path rather than starting to write to a waiting one.
+8): `storage/layout.ts` has ~~fifteen~~ ***seventeen*** accessors and no
+session-scoped one, so P9.0 **adds** the path rather than starting to write to a
+waiting one.
+
+***And it adds it with a caller or not at all*** — 2026-09-16, §0.3's item 1.
+The count moved because [P8.2](25-p8-implementation.md) **deleted**
+`memoriesRoot()`, the other session-scoped root drawn in
+[03 §5](../03-data-model.md) and written to by nothing, and put a
+`tools/repo-shape.test.ts` arm behind the deletion so it cannot come back. The
+sentence [03 §5](../03-data-model.md) gives for it is the one this stage has to
+answer to: ***"a path helper that survives the phase without a caller is the same
+defect twice."*** A `pending` rendition writes no bytes, so P9.0 ending *"with no
+provider behind it at all"* and adding an accessor is that defect a third time.
+**Either the accessor arrives with the first code that resolves an `asset` to a
+path, or it arrives in P9.2 with the first writer** and P9.0 ships the convention
+in [21](../21-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
+P9.0's proof obligation below is amended to ask for the caller.
 
 That is the same shape of gap as
 [P2B §1](10-p2b-provider-configuration.md)'s missing fallback layer — three
@@ -487,6 +755,30 @@ the digest is a cheap early warning for it. (Subject to §1.1's finding — the 
 has to be a field the recipe actually holds before excluding it means anything,
 and in the type the design currently names it is not.)
 
+***Two amendments the primitive makes obvious, both 2026-09-16*** — §0.3's item
+2, and neither is visible until you read
+[P8](25-p8-implementation.md)'s `sessions/summary-chain.ts` beside this
+paragraph.
+
+- **The resolved binding is in the key, not only the fragments.** As written
+  above, rebinding the `image` role to a different endpoint returns the *old*
+  provider's backdrop for every place already visited, with no way to ask for the
+  new one — the digest cannot tell the two apart because the model is not in it.
+  `summariserKey` makes the opposite call for the identical reason
+  ([P8 §1.9](25-p8-implementation.md)): *"the whole binding, not the model id.
+  Two connections serving what they both call `llama-3.1-8b` are not the same
+  model."* The asymmetry is the same size here and points the same way — wrong
+  toward *derive* costs one image, wrong toward *reuse* shows a picture nobody's
+  current configuration accounts for.
+- **Length-prefix the parts.** `digest()` hashes an ordered list with each part's
+  length written before it, and says why: a bare concatenation makes
+  `H("ab","c")` and `H("a","bc")` equal, and *"a collision in a cache key is not
+  a crash, it is a session quietly reading another line's summary."* Here that is
+  a session quietly showing another place's backdrop, which is the same defect
+  and harder to notice. The function is private to its module, so this is a lift
+  — **cite it and share it**, because the second hand-rolled encoding in a
+  codebase is how two answers to *what is this keyed on* come to exist.
+
 **This is also §5's cost question, answered for the one purpose that could
 answer it.** Every other rendition is a deliberate act that spends money once.
 A backdrop is the one the engine would run on its own, and per-turn it would
@@ -564,7 +856,15 @@ and [P8 §2](25-p8-implementation.md) both needed the same amendment).
   are these two different*, and two is what P9.3 creates.
 - **Nothing here depends on [P8](25-p8-implementation.md)** (§0.2), including
   P9.1, whose payload question §0.1's finding 10 answers out of the contract P7
-  already shipped.
+  already shipped. ***And P8 has since been built, which turns that from a
+  prediction into a record*** (2026-09-16, §0.3): a whole phase landed on this
+  tree and no stage below moved on its account. **What it did leave is four
+  things these stages no longer have to invent** — a content digest (P9.1,
+  §1.7), a derive-only-the-misses chain with a call counter (P9.3), a
+  `resolveStepRole` that answers *which model* before the call (P9.1), and a
+  fourth example of the engine applying an effect a step may not propose (P9.3).
+  *A dependency that runs one way only in the direction of reuse is not a
+  dependency; it is a head start.*
 
 ### P9.0 — The contract
 
@@ -585,9 +885,20 @@ is a field, not a hope*: a rendition round-trips with its sampling seed and its
 workflow parameters intact, and **a rendition carrying only
 `GeneratedFieldProvenance`'s fields fails to validate**. The second arm is the
 one that matters, because §1.1's whole warning is that the wrong type passes
-review. Plus one arm in `tools/repo-shape.test.ts`'s manner: the session assets
+review. ~~Plus one arm in `tools/repo-shape.test.ts`'s manner: the session assets
 path has an accessor, since §0.1's finding 8 is that a path drawn in a document
-is enforced by nobody.
+is enforced by nobody.~~
+
+***Amended 2026-09-16 — the repo-shape arm asserts a **caller**, not an
+accessor*** (§0.3's item 1, §1.1). An accessor with nothing calling it is what
+[P8.2](25-p8-implementation.md) deleted and wrote a rule against, in that same
+file, about that same directory level: *"a path helper that survives the phase
+without a caller is the same defect twice."* So the arm reads the way its
+neighbour reads — `sessionAssetsRoot` is named by code outside its own test, or
+it is not declared yet — and the stage takes whichever half of the fork §1.1
+names. ***If that leaves this stage with no storage arm at all, it has exactly
+the right number***: P9.0's subject is a type and a record, and the path is P9.2's
+the moment there are bytes to put under it.
 
 ### P9.1 — The step, and the prompt
 
@@ -639,6 +950,29 @@ called by nothing. **So the work here is ranking and calling, not capping** — 
 the stage's first act should be to read that module's docstring, because it
 already states the property this stage would otherwise have to argue for: *the
 cap is an input to generation, not a guillotine at send.*
+
+***Two more that [P8](25-p8-implementation.md) built, and the second is the
+harder one*** — 2026-09-16, §0.3's item 4.
+
+- **`resolveStepRole` already exists**, extracted from `planCall` at
+  [P8.1](25-p8-implementation.md) (`turns/calls.ts`) so that a caller may know a
+  step's *resolved* binding **before** the call. It was extracted for a reason
+  this stage has twice: the summariser keys on the binding and then usually makes
+  no call at all, which is §1.7's digest and *the moment is replayed, never
+  regenerated* in one function. Its docstring is the argument against a second
+  copy — *"a second copy of this layering in the runner would be a second answer
+  to which model is this"* — and a P9.1 that resolves the `fast` and `image`
+  roles its own way makes that second answer.
+- **This step is the sixth engine-owned one**, after the hook selector, the
+  mention pass, the goal judge, the suggester and the summariser, and the runner
+  appends it the way it appends those. ***What to copy is `wantsSummary`'s
+  gates*** — the runner keeps the summariser **out of the plan** rather than
+  running it to do nothing, because *"a step outcome that means this feature
+  exists rather than anything about the turn is noise on every turn of every
+  session."* That is exactly what P9.4's *off* has to mean and what gate step 12
+  asserts on the call log: not a provider returning null, not a step returning
+  early. **Absent from the plan**, which is the only version of off that a
+  call-log assertion can tell from the others.
 
 *Depends on:* P9.0, for the recipe the digest hashes. *Ends at:* a turn produces
 a rendition request whose prompt is assembled from ranked fragments inside the
@@ -697,6 +1031,29 @@ returning to a place return the backdrop you picked for it rather than the first
 one generated there. Rewind and branching are then [07 §2](../07-branching.md)'s
 and nothing is written for them — the check is that nothing *was*.
 
+***The route is decided and now has a fourth worked example*** — 2026-09-16,
+§0.3's item 5. `BACKDROP_CHANNEL` is `engine-computed`, so a rendition step
+*proposing* the effect is refused by the channel's own policy (§1.7), and the
+path that is not refused is the one `memory/capture.ts`'s `recordEscape` takes:
+a turn with **no model call and no tape**, carrying an effect the engine accepted
+through `acceptEffect` — *"which is `writeChannel`'s shape and `undoTurn`'s and
+`divergenceTurn`'s"*. Read it before this stage rather than during it. §1.7's
+warning stands: **a stage that discovers the policy by failing a proposal will
+want to widen the channel, and widening it is the one repair that undoes the
+argument.**
+
+***And the empty diff has a new way to be false.*** `ChannelDefinition` gained
+`escapes?: boolean` at [P8.2](25-p8-implementation.md), and an effect whose
+channel declares it is written with `scope: 'escaped'` — a scope `applyEffects`,
+`undoTurn` and `reconstructAlong` all **skip**, because an escaped effect is one
+a session cannot take back. A backdrop selection declared that way is correct on
+the turn it is written and silently does not return on rewind, which is gate step
+11 failing in the single manner an *empty diff* does not look for: nothing was
+written, and that is the bug. `BACKDROP_CHANNEL` declares no `escapes` and must
+not gain one, so the diff this stage asserts is empty must be empty of that too.
+§1.7's *the artefact is not an effect; the selection is* needs its second half
+said out loud — **and the selection is an ordinary one.**
+
 *Depends on:* P9.2. *Ends at:* two renditions of one turn, either selectable;
 `asset: null` on both rendering as regenerable placeholders; and walking back
 into a place showing the backdrop **you chose** for it, with no job dispatched.
@@ -704,7 +1061,11 @@ into a place showing the backdrop **you chose** for it, with no job dispatched.
 *Proof obligation:* `packages/server/src/routes/p9-gate-selection.test.ts` —
 *a place already rendered dispatches no job*, asserted **on the dispatch and not
 on the pixels**, because a reuse that quietly regenerates is identical on screen
-and shows up only on a bill. Plus the branch arm, whose assertion is a **diff**:
+and shows up only on a bill. ***Assert a number rather than an absence***
+(2026-09-16, §0.3's item 3): `ensureChain`'s `ChainResult.derived` is the same
+claim already instrumented — *"a warm chain derives zero"* — and it is a count
+because *no job was dispatched* and *no job was observed* are different
+assertions, one of which survives a harness that stopped watching. Plus the branch arm, whose assertion is a **diff**:
 the code written to make rewind work on backdrops is empty. *If this stage finds
 itself writing branch-aware code, §1.7 says the split was implemented
 backwards — so the test is the one that notices.*
@@ -768,6 +1129,9 @@ Deferred here by name from [P3 §5](15-p3-implementation.md). Renditions are
 worth showing for the same reason calls are: they cost money, they can fail, and
 *why did this one come out different* is answerable from two seeds. No new
 viewer — the block and call tables already exist and this is a third row kind.
+*And a fresh precedent for adding one*: [P8.1](25-p8-implementation.md) gave
+`BlockSource` a `summary` arm and the block table rendered it, which is the same
+move at a smaller size (2026-09-16).
 
 *Depends on:* P9.3, because *why are these two different* needs two.
 *Ends at:* the demo.
@@ -847,12 +1211,17 @@ is to hand.*
 
 ***Clause (iii) decides this gate, and it decides it against almost all of it.***
 **Twelve of the fifteen steps want pixels, and nothing in this project can make
-one.** [Manual testing §3](05-manual-testing.md)'s nine standing prerequisites
-contain no endpoint that serves the `image` role — R2 is a chat endpoint — so
-§0.2's R-row is not a formality but **the thing that decides whether this gate
-has a critical list at all**. Until it exists, every row below that needs an
-image is *blocked* rather than *deferred*, and the difference matters: a deferral
-is a judgement and a block is an errand.
+one.** [Manual testing §3](05-manual-testing.md)'s ~~nine~~ ***ten*** standing
+prerequisites contain no endpoint that serves the `image` role — R2 is a chat
+endpoint — so §0.2's R-row is not a formality but **the thing that decides
+whether this gate has a critical list at all**. Until it exists, every row below
+that needs an image is *blocked* rather than *deferred*, and the difference
+matters: a deferral is a judgement and a block is an errand.
+
+***The row is now **R10** and it is why the number changed*** (2026-09-16, §0.3's
+item 6). Nothing else moved: R10 is *"not to hand"*, the four sittings that hold
+a phase open (K, L, M, N) all queue on a **chat** endpoint that does not answer
+it, and both criticals below still wait on this one thing.
 
 | Step | Answered by | State |
 |---|---|---|
@@ -1012,6 +1381,35 @@ answered here on purpose; the other two are unchanged:**
   has to take Scene's backgrounds with it or explain what does. Worth weighing
   rather than treating as an argument that wins — a channel with no value is a
   smaller embarrassment than a subsystem nobody wanted.
+
+  ***And the question is posed as all-or-nothing because no smaller P9 is
+  written down*** — 2026-09-16, and it is this build-out's one addition to this
+  section. [P8 §5](25-p8-implementation.md) named a **fallback cut** in advance,
+  and [P8](25-p8-implementation.md) then shipped it: *"the cut was taken
+  deliberately rather than under pressure, which is the whole reason §5 named
+  one."* **This section names none**, so the only moves available to a P9 under
+  pressure are *build it* and *defer the phase*, and the second is the one that
+  leaves P7's channel unfillable. That is a gap in the plan rather than in the
+  phase, and closing it is a paragraph rather than a decision — but it has to be
+  the revisit's paragraph, because the two candidate shapes cost opposite things
+  and this document should not pick between them at a desk:
+
+  - **Backdrops first, illustration deferred.** P9.0, §1.7's ranking, the digest
+    and P9.3's channel binding; no moment call, no anchor, no per-turn
+    illustration. It fills P7's channel, keeps the contract and the recipe, and
+    ships the one purpose that caches perfectly — and it removes **both**
+    criticals' subjects, which is the shape [P8](25-p8-implementation.md)'s cut
+    took and the reason that phase merged open. *It does not remove R10*: a
+    backdrop is still an image.
+  - **Illustration first, backdrops deferred.** The document's own reading order,
+    and it costs exactly what §1.7 says it costs — P7 ships a backdrop channel
+    nothing can fill, for a second release.
+
+  **Neither is the cut yet**, and saying which is the revisit's, next to the
+  question above it. What the build-out can say is that the machinery for
+  *taking* a cut honestly now exists and has been used once: a phase merges, the
+  status line says what was left out, and the gate's own steps are never edited
+  to match ([manual testing §0](05-manual-testing.md)).
 - **Eviction** (§1.4), which the document already makes contingent on the hook
   shipping.
 - **What a rendition costs a person.** Every other subsystem here is free to
