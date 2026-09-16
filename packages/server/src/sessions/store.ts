@@ -334,6 +334,41 @@ export async function setMemoryConfig(
   });
 }
 
+/**
+ * Chooses which rendition of a turn is shown — [06 §10.7], [P9.3].
+ *
+ * ***Additive, never replacing***, which is the whole of §10.7's first policy:
+ * *"illustrating an old turn adds; it does not overwrite… regeneration must
+ * never be a destructive act on something the user liked."* So this writes a
+ * pointer and nothing else — every sibling stays on disk with its own recipe,
+ * and switching back is another pointer write.
+ *
+ * `setMemoryConfig`'s shape one function up: the session lock, an atomic write,
+ * and a re-index. Under the lock because the session file is rewritten whole and
+ * a turn append is doing the same thing to the same file.
+ */
+export async function setRenditionSelection(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turnId: string,
+  renditionId: string,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = {
+      ...session,
+      renditionSelection: { ...(session.renditionSelection ?? {}), [turnId]: renditionId },
+      updatedAt: new Date().toISOString(),
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}
+
 export async function setArchived(
   context: SessionContext,
   handle: string,

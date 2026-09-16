@@ -77,7 +77,7 @@ const ILLUSTRATION_RANKS = { moment: 100, actors: 80, tone: 60, place: 40, chann
  * belongs in a backdrop and what belongs in an illustration are different
  * questions asked of one turn.
  */
-const BACKDROP_RANKS = { place: 100, tone: 80, channels: 60 } as const;
+const BACKDROP_RANKS = { place: 100, tone: 80 } as const;
 
 /**
  * The fragments of an illustration — [06 §10.3]'s four.
@@ -126,11 +126,43 @@ export function illustrationFragments(inputs: FragmentInputs): PromptFragment[] 
  *
  * **The place is `required`** for the reason the moment is: a backdrop prompt
  * that lost its location is a prompt for a mood.
+ *
+ * ***A fourth absence, found by the test that asserts the money row***
+ * (2026-09-16). [06 §10.1a] describes the background branch as taking *"channel
+ * state and the treatment's tone"*, and a first draft read that literally: every
+ * rendered channel, with the location lifted to the top. **That makes a backdrop
+ * regenerate every turn**, because Scene's clock renders to the minute
+ * (`Day 1, 09:15`) and every turn advances it — so the recipe changes whether or
+ * not the place did, the digest never matches, and the reuse lookup becomes a
+ * function that always misses.
+ *
+ * Which is exactly the failure [06 §10.6] names: *"a backdrop that regenerates
+ * each turn is the failure mode rather than the thorough option."* And the
+ * sentence that decides it is §10.6's other one — **a backdrop generates *when
+ * the place changes*** — so the recipe has to be over what describes the
+ * **place**, and a minute-precision clock describes a *moment*.
+ *
+ * ***So the backdrop's recipe is the place and the tone, and the gap is named
+ * rather than papered over***: nothing in the channel contract says which
+ * channels describe a place and which describe a moment. A mode that tracks
+ * weather has something a backdrop genuinely wants and no way to say so. That is
+ * a widening for whoever needs it — a flag on `ChannelDefinition`, or a
+ * declaration on the mode — and inventing one here for a feature with one
+ * consumer would be guessing at a vocabulary. What ships is the version whose
+ * cost is one image per place, which is what §1.7's digest exists to buy.
  */
 export function backdropFragments(inputs: FragmentInputs): PromptFragment[] {
   const fragments: PromptFragment[] = [];
 
-  pushChannels(fragments, inputs.channels, BACKDROP_RANKS.place, BACKDROP_RANKS.channels, true);
+  const place = inputs.channels.find((channel) => channel.id.endsWith('.location'));
+  if (place !== undefined && place.text.trim() !== '') {
+    fragments.push({
+      id: 'place',
+      text: place.text.trim(),
+      rank: BACKDROP_RANKS.place,
+      required: true,
+    });
+  }
 
   if (inputs.tone !== null && inputs.tone.trim() !== '') {
     fragments.push({ id: 'tone', text: inputs.tone.trim(), rank: BACKDROP_RANKS.tone });

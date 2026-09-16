@@ -52,6 +52,7 @@ import { capabilitiesFor } from './providers/capabilities.js';
 import { resolveConnections } from './providers/connections.js';
 import { dispatchRenditions, type RenditionWorkerContext } from './renditions/worker.js';
 import { reconcileRenditionJobs } from './renditions/jobs.js';
+import { selectBackdrop } from './renditions/backdrop.js';
 import { installBuiltIns } from './mode-loader.js';
 import { assertModesRunnable } from './mode-registry.js';
 import {
@@ -521,6 +522,9 @@ async function assembleWithState(
     },
     changed: (sessionId, rendition) => {
       bus.rendition(sessionId, rendition);
+    },
+    select: async (account, sessionId, renditionId) => {
+      await selectBackdrop(sessions, account, sessionId, renditionId, { kind: 'engine' });
     },
   };
 

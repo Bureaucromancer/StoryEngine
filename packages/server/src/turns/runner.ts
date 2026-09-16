@@ -57,7 +57,13 @@ import {
 } from './render.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
-import { renditionIdFor, writeRendition } from '../renditions/store.js';
+import {
+  readRenditions,
+  renditionIdFor,
+  reusableBackdrop,
+  writeRendition,
+} from '../renditions/store.js';
+import { selectedBackdrop } from '../renditions/backdrop.js';
 import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
@@ -971,6 +977,17 @@ export class TurnRunner {
      */
     const wantsIllustration = payload.setup !== true && readIllustration(running) === 'each-turn';
     const wantsBackdrop = payload.setup !== true && readBackdropOn(running);
+    /**
+     * What this session has already made, for the reuse lookup — [P9 §1.7].
+     *
+     * **One directory read, and only when something might ask.** A session with
+     * no backdrop never pays for it; one with a backdrop pays once per turn
+     * rather than once per candidate. `listSummaries` sets the economics and
+     * P8's property test exercised them at four hundred files.
+     */
+    const renditionsHeld = wantsBackdrop
+      ? await readRenditions(commit.sessions.layout, job.account, job.sessionId)
+      : new Map();
     const renderRoles =
       wantsIllustration || wantsBackdrop
         ? {
@@ -1047,15 +1064,32 @@ export class TurnRunner {
                  */
                 workflow: {},
                 /**
+                 * ***A place already rendered dispatches no job*** — [06 §10.1a],
+                 * [P9 §1.7], [P9.3].
+                 *
                  * *A thunk, which is `ExtractContext.subjects`' shape and its
                  * reason*: the digest is not known until the fragments are
-                 * assembled, which happens inside the step. **Always null until
-                 * [P9.3]**, so this build dispatches every backdrop — the lookup
-                 * arrives with the store that can answer it, and wiring a reuse
-                 * check to a function that cannot look anything up would be a
-                 * counter that reads zero for the wrong reason.
+                 * assembled, which happens inside the step, so a context built
+                 * eagerly would have to guess.
+                 *
+                 * **Resolved to the currently selected sibling rather than the
+                 * oldest**, which is §10.1a's own clause and the difference
+                 * between *a* backdrop for the tavern and *the* one you picked
+                 * for it: a manual regenerate adds a sibling and selects it, so
+                 * a digest with three renditions behind it has to answer with
+                 * the one a person chose.
+                 *
+                 * *Read from the set the gather already walked*, so returning to
+                 * a place costs a lookup rather than a directory read per turn.
                  */
-                reusable: () => null,
+                reusable: (digest: string) => {
+                  const already = reusableBackdrop(
+                    renditionsHeld,
+                    digest,
+                    selectedBackdrop(running),
+                  );
+                  return already === null ? null : { renditionId: already.id };
+                },
                 report: (report) => {
                   renditions.report = report;
                 },

@@ -258,6 +258,20 @@ describe('what Scene declares, and what the engine does with it', () => {
     // Off, like `se.staging` and for its reason: an image is the player's own
     // machine, and the control being visible is what makes the default honest.
     expect(BACKDROP_ON_CHANNEL.init).toEqual({ kind: 'literal', value: false });
+    /**
+     * ***And neither backdrop channel escapes*** — [P9 §0.3]'s amendment to
+     * [P9 §1.7], asserted here because this is where the declaration is.
+     *
+     * `ChannelDefinition` gained `escapes?: boolean` at [P8.2], and an effect
+     * whose channel declares it is written with `scope: 'escaped'` — a scope
+     * `applyEffects`, `undoTurn` and `reconstructAlong` all **skip**, because an
+     * escaped effect is one a session cannot take back. A backdrop selection
+     * declared that way would be correct on the turn it was written and would
+     * silently fail to return on rewind, which is the one way [P9]'s *the diff
+     * is empty* check can be satisfied and still be wrong.
+     */
+    expect(BACKDROP_CHANNEL.escapes).toBeUndefined();
+    expect(BACKDROP_ON_CHANNEL.escapes).toBeUndefined();
     // The three [P7.12] added, which are the rest of §7.2's sentence.
     expect(STAGING_CHANNEL.id).toBe('se.staging');
     expect(EXPRESSION_CHANNEL.id).toBe('se.expression');

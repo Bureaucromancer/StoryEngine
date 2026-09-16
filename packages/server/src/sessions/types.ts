@@ -248,6 +248,29 @@ export interface SessionFile {
    * difference between resuming and guessing.
    */
   lastSelectedChild?: Record<string, string>;
+  /**
+   * ***Which rendition of a turn is shown*** — [06 §10.7]'s *"a turn holds a
+   * list of renditions and the user picks which is shown"*, [P9.3].
+   *
+   * **A map here rather than a field on the turn, and that is forced** — the
+   * same sentence `lastSelectedChild` above makes, about the same kind of fact.
+   * A turn is a line in an append-only segment ([03 §5.5]), so a field on the
+   * record could be written once, at creation, when there is one sibling and the
+   * question has not been asked.
+   *
+   * ***Backdrops are deliberately not in here.*** Which backdrop is showing is
+   * **channel state** — [06 §10.1a]'s *"the artefact is not an effect; the
+   * selection is"* — because it has to rewind and branch, and a map in this file
+   * would do neither. An illustration's selection is a preference about a node
+   * and genuinely is not story state: losing it costs a person one click, which
+   * is `lastSelectedChild`'s own test for what may live here.
+   *
+   * *`turns/suggest.ts` refused this file for suggestions and was right to*: a
+   * map growing one entry per turn forever, pruned by nothing. This grows one
+   * entry per turn **somebody chose a second picture for**, which is a different
+   * rate — and unlike a suggestion, there is nowhere else it can go.
+   */
+  renditionSelection?: Record<string, string>;
 
   /**
    * ***Whether this session shares memories and draws on them*** —

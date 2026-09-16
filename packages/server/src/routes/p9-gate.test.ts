@@ -37,7 +37,7 @@ import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test
  *
  * *What this file cannot reach is C1*, which is a person watching a picture
  * arrive in a browser they closed and reopened. That is blocked on
- * [manual testing](05-manual-testing.md)'s R10 and recorded as blocked rather
+ * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s R10 and recorded as blocked rather
  * than walked.
  */
 

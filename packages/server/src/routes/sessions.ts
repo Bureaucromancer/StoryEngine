@@ -37,6 +37,7 @@ import {
   readTurnById,
   setArchived,
   setMemoryConfig,
+  setRenditionSelection,
   setName,
   undoTurn,
   writeChannel,
@@ -92,6 +93,14 @@ const RenditionParams = Type.Object({
   sessionId: Type.String(),
   renditionId: Type.String(),
 });
+
+/** Choosing among a turn's siblings — [P9.3]. */
+const TurnRenditionParams = Type.Object({
+  sessionId: Type.String(),
+  turnId: Type.String(),
+});
+
+const SelectRenditionBody = Type.Object({ renditionId: Type.String({ minLength: 1 }) });
 
 /**
  * A channel write addresses the **map key**, not the channel id — [P7.1].
@@ -1743,6 +1752,59 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         .header('content-type', rendition.asset.mime)
         .header('etag', rendition.asset.digest)
         .send(Buffer.from(bytes));
+    },
+  );
+
+  /**
+   * ***Which rendition of a turn is shown*** — [06 §10.7], [P9.3].
+   *
+   * **A pointer write and nothing else.** Every sibling stays on disk with its
+   * own recipe, which is §10.7's first policy — *"regeneration must never be a
+   * destructive act on something the user liked"* — and switching back is
+   * another write of this route.
+   *
+   * *Illustrations only.* Which **backdrop** is showing is channel state
+   * ([06 §10.1a]), because it has to rewind and branch, and it moves through
+   * `PUT /sessions/:id/channels/se.backdrop` like any other engine-computed
+   * value. Two questions that read alike and have different lifetimes.
+   */
+  app.put(
+    '/sessions/:sessionId/turns/:turnId/rendition',
+    { schema: { params: TurnRenditionParams, body: SelectRenditionBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const { renditionId } = request.body as { renditionId: string };
+
+      // The rendition has to exist and has to be this turn's: a pointer to
+      // somebody else's picture would render one turn's moment under another's
+      // prose, which is a worse outcome than a 404.
+      const rendition = await readRendition(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        renditionId,
+      );
+      if (rendition?.turnId !== turnId) {
+        return reply
+          .code(404)
+          .send({ error: 'no-rendition', message: 'No such rendition on that turn.' });
+      }
+
+      const session = await setRenditionSelection(
+        services.sessions,
+        account.handle,
+        sessionId,
+        turnId,
+        renditionId,
+      );
+      if (session === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+      }
+      return reply.send({ selected: renditionId });
     },
   );
 

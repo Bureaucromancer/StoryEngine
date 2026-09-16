@@ -43,6 +43,16 @@ export interface RenditionWorkerContext {
   connectionFor: (account: string) => Promise<Connection | null>;
   /** Told when a rendition's state changed, so the stream can say so. */
   changed?: (sessionId: string, rendition: Rendition) => void;
+  /**
+   * Points the backdrop channel at a rendition that just became ready — [P9.3].
+   *
+   * ***A callback rather than a direct call***, because the write needs a
+   * `SessionContext` and this module has a `Layout`: the two are different
+   * halves of the session store, and a worker that held both would be a worker
+   * that could append turns. What it can do is say *this one is ready*, and the
+   * engine decides that means the backdrop moved.
+   */
+  select?: (account: string, sessionId: string, renditionId: string) => Promise<void>;
   /** Injected so a test can make a seed predictable. */
   seed?: () => number;
 }
@@ -197,6 +207,23 @@ export async function runRendition(
     };
     await writeRendition(context.layout, job.account, job.sessionId, ready);
     setRenditionJobStatus(context.db, job.id, 'done');
+
+    /**
+     * ***A backdrop that arrived is a backdrop that is showing*** — [06 §10.1a],
+     * [P9.3].
+     *
+     * The artefact is on disk; the **selection** is channel state, and nothing
+     * would be showing until something wrote the pointer. Only for a background:
+     * an illustration belongs to one turn and is shown because that turn is on
+     * screen, which needs no pointer at all.
+     *
+     * *After the record is written*, so a channel that names a rendition always
+     * names one that exists — the same ordering `appendTurnToSession` takes for
+     * the turn and its head: **the durable thing first, then the derived one**.
+     */
+    if (ready.purpose === 'background') {
+      await context.select?.(job.account, job.sessionId, ready.id);
+    }
     context.changed?.(job.sessionId, ready);
   } catch (error) {
     await fail(context, job, record, classOf(error));
