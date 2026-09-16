@@ -1,0 +1,279 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { createHash } from 'node:crypto';
+
+import type { Binding } from '../providers/types.js';
+import type { Turn } from './types.js';
+
+/**
+ * The rolling summary, keyed — [07 §5.1](../../../../docs/design/07-branching.md),
+ * [25 E1](../../../../docs/design/25-open-questions.md), [P8.0].
+ *
+ * **"Rolling" describes the chain, not mutation.** [07 §5.1] is explicit that
+ * the forbidden design is the one-record-updated-in-place version, *"and it is
+ * forbidden for a reason worth restating: it is the obvious implementation, it
+ * looks identical from the UI, and the damage only shows up the first time
+ * someone branches a long session."* Nothing in the product surface will ever
+ * reveal which of the two was built, which is why
+ * [P8](../../../../docs/design/workplan/25-p8-implementation.md)'s header makes
+ * it a review item rather than a detail.
+ *
+ * **This module is the keying and nothing else.** It does no I/O, makes no model
+ * call and reads no configuration, so every property the phase turns on can be
+ * asserted over plain values. `summaries.ts` beside it is the store, and the one
+ * function that composes the two lives there.
+ *
+ * ---
+ *
+ * ***Two levels, and the summariser's identity in the key*** — [P8 §1.9], which
+ * is [P6 §0.2](../../../../docs/design/workplan/18-p6-implementation.md)
+ * re-reading 07 §5.1 against P8 and finding the handoff is three-party rather
+ * than two: [13](../../../../docs/design/13-write-mode.md)'s node summaries ride
+ * this same machinery. The flat formula in P8's header is the shape of the
+ * result, not the shape of the keys:
+ *
+ * ```
+ * unit(t)  = f_unit( content(t) )                     two: keyed by content, not by id
+ * link(n)  = f_link( key(link(n-1)), [key(unit_a) … key(unit_b)] )
+ * key(x)   = H( SUMMARISER + x's declared inputs )
+ * ```
+ *
+ * - **A unit is keyed by its content, never by its turn id.** In Play a rewrite
+ *   makes a *sibling node* with a new id, so ids happen to work and the
+ *   difference is invisible — *which is exactly why building it wrong here is
+ *   cheap and discovering it in Write is not.* In Write a node is edited in
+ *   place and keeps its id, so an id-keyed unit is a stale cache that never
+ *   misses.
+ * - **A link is keyed by the sequence of unit keys, never by prose.** This is
+ *   the whole reason for two levels. In Play a fork invalidates one link; in
+ *   Write dragging a chapter invalidates every link after it — recomputed from
+ *   unit keys that is a cheap re-summarise over summaries, and recomputed from
+ *   prose it is the full pass again.
+ * - **`SUMMARISER` is the *resolved* binding, not the declared role.** [07 §5]
+ *   says *"plus the summariser prompt, model and parameters"* and §5.1 drops it
+ *   when it restates the formula, which is how both documents came to miss it. A
+ *   session's `stepRoles` send the same declared role to different models, so
+ *   the declared role identifies nothing.
+ *
+ * ***`f_unit` is the identity here, and the two-level keying is still the
+ * point.*** In Play a unit is one turn and its condensation is its own words, so
+ * a second derived store would be machinery nothing reads. What must exist now
+ * is the *key* shape: a link that names unit keys rather than prose is a link
+ * Write can re-derive by swapping `f_unit` for a real node summariser without
+ * touching anything below. Building the one-level version and widening it later
+ * is the migration this comment exists to avoid.
+ */
+
+export const SUMMARY_SCHEMA = 'storyengine.summary/1';
+
+/**
+ * How the path is cut into links.
+ *
+ * `window` is the mode's `historyWindow` — the turns `turns/gather.ts` hands the
+ * collector verbatim. Nothing inside it is ever summarised, because a turn in
+ * both the window and a link is two producers of the same words competing for
+ * the same budget, which is what [P8.1]'s *deliberately not built* refuses.
+ *
+ * ***`span` is the open sizing, and this is the honest place to say so.***
+ * [P8 §1.3] narrows cadence *"to a procedure rather than a decision"*: the
+ * measurement that settles it is the ratio of extraction calls to narration
+ * calls at the cadence the summariser already needs, and
+ * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s
+ * sitting G supplies the denominator. Twenty is a default chosen to match the
+ * window, so a link freezes exactly as the turns it covers leave it — not a
+ * measured answer, and not to be read as one.
+ */
+export interface SummaryPolicy {
+  /** Turns per link. At least one. */
+  span: number;
+  /** The mode's `historyWindow`. Turns inside it are never summarised. */
+  window: number;
+}
+
+export const DEFAULT_SUMMARY_POLICY: SummaryPolicy = { span: 20, window: 20 };
+
+/** One turn, as the chain addresses it. */
+export interface SummaryUnit {
+  key: string;
+  /** Display and navigation. **Never** part of any key — see the header. */
+  turnId: string;
+  /** What `f_unit` produced. The turn's own words, in Play. */
+  text: string;
+}
+
+/**
+ * A link the path calls for, before anything has been derived or read.
+ *
+ * `from` and `to` are inclusive indices **into the path, counted from the
+ * root** — which is what makes the shared-prefix property true by construction
+ * rather than by care. See {@link planChain}.
+ */
+export interface PlannedLink {
+  key: string;
+  previousKey: string | null;
+  units: readonly SummaryUnit[];
+  from: number;
+  to: number;
+  /** A full `span` of turns. A partial link is the one a fork invalidates. */
+  complete: boolean;
+}
+
+/**
+ * One link on disk. Content-addressed: the file's name is {@link SummaryLink.key}.
+ *
+ * ***No `createdAt`, and the absence is the interesting part of this shape.***
+ * `sessions/snapshots.ts` carries one and should: a snapshot is named by the
+ * node it is the state at, so two writes of the same node are two legitimate
+ * files and knowing which is newer is worth a field. A summary is named by the
+ * hash of its inputs, and a timestamp inside it would mean *the same key can
+ * hold two different byte sequences* — which is precisely the equality
+ * [P8 §3.1](../../../../docs/design/workplan/25-p8-implementation.md)'s row 3
+ * promises: **content addressing makes regeneration byte-identical rather than
+ * merely equivalent, so it is an equality and not a judgement.** A field that
+ * changes on every write would have quietly turned that row back into a
+ * judgement. The filesystem's mtime answers *when* for anyone who needs it.
+ */
+export interface SummaryLink {
+  schema: typeof SUMMARY_SCHEMA;
+  key: string;
+  /** The resolved summariser's key, so a file says what produced it. */
+  summariser: string;
+  previousKey: string | null;
+  unitKeys: readonly string[];
+  /** Which turns this covered, for the block table. Display, never identity. */
+  turnIds: readonly string[];
+  from: number;
+  to: number;
+  text: string;
+}
+
+/**
+ * A digest over an ordered list of parts, each length-prefixed.
+ *
+ * **The prefix is not decoration.** A bare concatenation makes `H("ab", "c")`
+ * and `H("a", "bc")` the same digest, which over a list of unit keys means two
+ * different chains can collide — and a collision in a *cache key* is not a
+ * crash, it is a session quietly reading another line's summary. Fixed-width hex
+ * keys would make that unreachable for the unit list alone; the prefix makes it
+ * unreachable for the prompt and the parameter blob too, which are arbitrary
+ * strings a mode author writes.
+ */
+function digest(parts: readonly string[]): string {
+  const hash = createHash('sha256');
+  for (const part of parts) {
+    hash.update(`${String(part.length)}:`);
+    hash.update(part);
+  }
+  return hash.digest('hex');
+}
+
+/**
+ * The resolved summariser's identity — [P8 §1.9]'s third bullet.
+ *
+ * **The whole binding, not the model id.** Two connections serving what they
+ * both call `llama-3.1-8b` are not the same model, and the cost of being wrong
+ * in that direction is a chain that silently mixes two models' prose; the cost
+ * of being wrong in the other is a regeneration, which
+ * [P8](../../../../docs/design/workplan/25-p8-implementation.md)'s own safety
+ * argument says is what makes this phase safe — *summaries are derived and
+ * disposable, so a bad summariser is a regeneration rather than lost history.*
+ * An asymmetry that one-sided is not a close call.
+ *
+ * `params` is stringified rather than typed, because a summariser's generation
+ * parameters are whatever the step passes and the key only has to change when
+ * they do.
+ */
+export function summariserKey(binding: Binding, prompt: string, params: unknown): string {
+  return digest([binding.connectionId, binding.modelId, prompt, JSON.stringify(params ?? null)]);
+}
+
+/**
+ * What the chain summarises over: what was said, and what came back.
+ *
+ * ***Not the assembled record, and the restraint is worth stating even though
+ * the summariser is entitled to it.*** [P8 §1.3] establishes that the summariser
+ * *is* entitled to the record where the extractor is not — the two want
+ * different payloads, which is the reason one step cannot be both. So this is
+ * not a firewall. It is that a turn's `request.calls[].blocks[].text` is *the
+ * prompt that produced the turn*, and summarising the prompt rather than the
+ * story would carry a hook's premise into every later prompt through the back
+ * door. The player's words and the narrator's reply are what happened.
+ *
+ * A failed or suspended turn has no output and contributes its input alone,
+ * which is the honest reading: something was said and nothing came back.
+ */
+export function unitTextOf(turn: Turn): string {
+  return JSON.stringify({ i: turn.input?.text ?? '', o: turn.output?.text ?? '' });
+}
+
+/** `H(SUMMARISER + content(t))`. **Content, never the turn id** — see the header. */
+export function unitKeyOf(summariser: string, turn: Turn): string {
+  return digest(['unit', summariser, unitTextOf(turn)]);
+}
+
+/** `H(SUMMARISER + key(link(n-1)) + [key(unit)…])`. **Unit keys, never prose.** */
+export function linkKeyOf(
+  summariser: string,
+  previousKey: string | null,
+  unitKeys: readonly string[],
+): string {
+  return digest(['link', summariser, previousKey ?? '', ...unitKeys]);
+}
+
+/**
+ * The links a path calls for, in order. Pure, and the stage's whole claim.
+ *
+ * ***Boundaries are anchored to depth from the root, never to distance from the
+ * head.*** Link *k* covers path indices `[k * span, (k + 1) * span)`. A fork is
+ * a sibling inside the **same session directory**, so the shared prefix has
+ * identical depth indices, identical turns, identical unit keys and therefore
+ * identical link keys — *two lines resolve the same key to the same file, and
+ * nothing has to copy anything or decide not to.* Head-relative boundaries would
+ * shift every time a line grew, which is the same defect as a mutable record
+ * wearing a content-addressed hat.
+ *
+ * **The trailing link is the one in progress, and it freezes for free.** Its
+ * range is truncated at the window, so it gains a unit per turn and re-keys each
+ * time — which is [07 §5]'s *"at most one summary is ever invalidated by a fork:
+ * the one in progress"*, arrived at rather than arranged for. When it reaches a
+ * full `span` its unit list is exactly the list it would have had as a complete
+ * link, so **the key it arrives at is the key it would have been given**, and
+ * freezing costs no model call at all.
+ *
+ * Nothing inside the window is covered, per {@link SummaryPolicy}.
+ */
+export function planChain(
+  path: readonly Turn[],
+  summariser: string,
+  policy: SummaryPolicy,
+): PlannedLink[] {
+  const span = Math.max(1, Math.floor(policy.span));
+  const coverable = Math.max(0, path.length - Math.max(0, Math.floor(policy.window)));
+
+  const links: PlannedLink[] = [];
+  let previousKey: string | null = null;
+
+  for (let from = 0; from < coverable; from += span) {
+    const to = Math.min(from + span, coverable) - 1;
+    const units: SummaryUnit[] = [];
+    for (let at = from; at <= to; at += 1) {
+      const turn = path[at];
+      // `noUncheckedIndexedAccess`, and the guard is not ceremonial: `coverable`
+      // is derived from `path.length` above, so a hole here would mean the array
+      // changed underneath the loop — a miss is the right answer either way.
+      if (turn === undefined) continue;
+      units.push({ key: unitKeyOf(summariser, turn), turnId: turn.id, text: unitTextOf(turn) });
+    }
+
+    const key = linkKeyOf(
+      summariser,
+      previousKey,
+      units.map((unit) => unit.key),
+    );
+    links.push({ key, previousKey, units, from, to, complete: to - from + 1 === span });
+    previousKey = key;
+  }
+
+  return links;
+}
