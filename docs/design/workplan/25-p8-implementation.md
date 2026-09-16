@@ -1,14 +1,30 @@
 # 25 — P8 implementation plan
 
-**Status: ~~skeleton~~ ~~a plan~~ *ready to start*, 2026-09-15 at `3287d67`.**
-The plan is the 2026-09-13 revisit below; what makes it *ready* is §0.3, which
+**Status: ~~skeleton~~ ~~a plan~~ ~~*ready to start*, 2026-09-15 at `3287d67`~~
+*built on §5's fallback cut, 2026-09-16, and open.* Six stages are committed on
+`p8` and each carries a *Done* block in §2 naming its commit; **§3.2** is the
+gate's results table.**
+
+***The cut was taken deliberately rather than under pressure***, which is the
+whole reason §5 named one: **the chain, the pipeline, the books, manual capture
+and the toggles**, with the **automatic extractor deferred**. That version ships
+the load-bearing part, the reuse and the configuration, and defers *"the one
+component whose value nobody can currently evidence and whose failure mode §1.5
+calls unforgivable."*
+
+***And the cut removes two of the three criticals' subjects, which §3.2 says
+first because it is the uncomfortable half.*** C2 (*a correction survives the next
+extraction*) and C3 (*no spoiler bleed*) are both about the extractor. They travel
+with it. **The phase therefore closes on C1 alone — and C1 is not walked**, so
+this merges and stays open, which is [P7](23-p7-implementation.md)'s precedent and
+[P7B](24-p7b-presets-and-prompts.md)'s: *a merge is not the close.*
+
+The plan is the 2026-09-13 revisit below; what made it *ready* is §0.3, which
 re-ran §0.1's audit against the tree after [P7B](24-p7b-presets-and-prompts.md)
-landed twelve commits on it. **All ten of §0.1's findings still hold**, so every
-stage is still sized against the code it will meet; four things P7B moved are
-recorded, one of them a live defect the audit found in the editor P8.1 leans on;
-and **§5's fallback cut stands unchanged**, which is the thing to read first if
-this phase ever has to be cut short. **P8.0 is blocked by nothing and is where it
-opens.**
+landed twelve commits on it. **All ten of §0.1's findings still held**, so every
+stage was sized against the code it met; four things P7B moved are recorded, one
+of them a live defect the audit found in the editor P8.1 leans on. **P8.0 was
+blocked by nothing and is where it opened.**
 
 Revisited 2026-09-13 at `4700aef` — the revisit §0 was written to expect. Drafted
 2026-08-29 alongside
@@ -884,6 +900,51 @@ phase's CI claim.** The falsifying mutation is dropping the summariser from the
 key: the first arm still passes and the second fails, which is why the pair
 exists.
 
+
+#### Done — 2026-09-16, `fca1d2c`
+
+***A content-addressed file may not carry a timestamp, and finding that out cost
+one field.*** `sessions/snapshots.ts`'s posture was copied whole and then minus
+one: a snapshot is named by the node it is the state *at*, so two writes of the
+same node are two legitimate files and knowing which is newer is worth a
+`createdAt`. A summary is named by the hash of its inputs, and a timestamp inside
+it would mean **one key can hold two byte sequences** — which is precisely the
+equality §3.1's row 3 promises, that regeneration is byte-identical rather than
+merely equivalent. The field would have quietly turned that row back into a
+judgement. The filesystem's mtime answers *when*.
+
+***The in-progress link freezes for free***, arrived at rather than arranged for.
+Nothing marks a link complete inside its key, so when a growing link's unit list
+reaches a full span it is already the list the complete link would have had — and
+**the key it arrives at is the key it would have been given**. Folding
+completeness into the key would have derived every link twice and nothing would
+have said so.
+
+***"Shared" is not "below the fork", and the property found it rather than the
+plan.*** The window truncates whichever link is last on each line, so a line that
+has barely outgrown its window holds a **partial** link over indices a longer
+line covers in full: same indices, different unit lists, different keys —
+correctly so. **Sharing is a property of the inputs a link declares, not of where
+its turns sit.** The first oracle said otherwise and went red on the twelfth
+generated case.
+
+**The sharpest form of the claim is a file count.** Nineteen links on one line
+plus seventeen on the other is thirty-six; the directory holds **twenty-one**,
+because fifteen of them are one file each rather than two. *Shared, not copied*,
+asserted by counting — which is the one way to say it that a cache keyed on too
+little could not also satisfy.
+
+**The pair does its job**, and the mutation is §1.9's: deleting `summariser` from
+`unitKeyOf` and `linkKeyOf` leaves ten of eleven green and reddens exactly the
+converse arm. Run before the commit.
+
+*`span` is a default and not an answer*, said in the code: §1.3 narrows cadence to
+a procedure whose denominator sitting G supplies, and twenty is chosen to match
+the window so a link freezes as its turns leave it.
+
+**`ensureChain`'s only caller was the test until P8.1** — the `memoriesRoot` shape
+this phase exists to delete. Named in the commit rather than discovered later.
+
 ### P8.1 — The summary in the pipeline and in the record
 
 Summaries as blocks with reasons, costed like anything else in the block table;
@@ -938,6 +999,62 @@ step 1). Plus `turns/steps.test.ts` — ***a step that declared `transcript` is
 handed no blocks***, which is §1.5's structural half and the clause that
 compounds.
 
+
+#### Done — 2026-09-16, `843c50b`
+
+***The summariser declines the record it is entitled to***, which is the stage's
+result and not its plan. §1.3 grants the summariser the record and makes that the
+reason one step cannot also be the extractor; the step declares
+`reads: ['transcript']` instead. A turn's `request.calls[].blocks[].text` is *the
+prompt that produced the turn*, so summarising the record rather than the story
+would carry a hook's premise into every later prompt through the back door — and
+the narrower payload costs nothing, because a summary of a session is a summary
+of its story. **It also gives the new pseudo-source a reader on the day it
+lands**, which is the test [11 §4](../11-lorebooks-as-a-format.md) applies to a
+new field, applied to a new source.
+
+***`transcript` is the fifth member of `reads` and the first added to make a
+payload smaller.*** Every earlier member widened what a step could ask for. This
+one exists because `history` is **too wide to refuse with**. [06 §6] and
+[22 §3.1](../22-extensions.md) both carried the old union and both are corrected;
+so is `filterReads`' own comment, which said `reads` had *"exactly two
+pseudo-sources"* and was wrong when it was written (`cast` made three at P7.12).
+*The argument never depended on the count.*
+
+**`resolveStepRole` is extracted from `planCall` rather than restated.** The
+summariser has to know its resolved binding **before** the call, to look a link up
+by content address and usually not make one — and a second copy of [19 §5.1]'s
+layering would be a second answer to *which model is this*, which is how a session
+derives its chain under one model and reads it under another.
+
+**Links are emitted at `priority + index`**, which is `history`'s arithmetic and
+has to be: the trim order is lowest first and its tie-break is *later-listed
+first*, so a shared priority would drop the **newest** link and keep the oldest —
+the trade backwards. Both shipped packs position the slot at 8, under history's
+floor, so the chain occupies 8..26 against history's 10..29: the oldest
+summarised stretch goes first, and the stretch that ends where the window begins
+outranks the oldest verbatim turns.
+
+**An empty summary slot says which kind of empty it is** — lore's distinction, and
+it matters more here: *no chain computed* is waiting on the engine, and *a chain
+computed and empty* is **this session is not yet longer than its window**, which
+twenty more turns fixes.
+
+*`SummaryUnit` splits what is hashed from what is shown.* The first draft had one
+field doing both and the step had to `JSON.parse` a key input to build a prompt —
+**a prompt rewrite must never be able to invalidate a chain.**
+
+***§1.8's one line is paid.*** Marinara's `chat_summary` converts to
+`{ of: 'summary' }`; `agent_data` stays deferred, which is what keeps the review
+class legible — *not yet* and *never* are only distinguishable while both exist.
+
+**Two tests changed for a reason rather than to pass.** `runner.test.ts` read
+`calls[0].blocks` for the history window, and the turn's first call has not been
+the narration since the hook selector shipped — a `pre` step that makes one is
+what made that visible. `sessions.test.ts`'s absolute block count becomes 17 and
+gains an assertion naming the slot, because **an absolute count of a shipped
+object is a number that changes whenever anything ships** ([P7B.0]'s lesson).
+
 ### P8.2 — Memory books, and §1.1's decision built
 
 The storage answer implemented, `memoriesRoot()` resolved either way, the book
@@ -981,6 +1098,43 @@ memory book is an ordinary library object, and says it is not one*, in
 the answer or is deleted* is enforced by nobody otherwise, and P7's gate step 1
 is the worked example of a deliverable nothing noticed.
 
+
+#### Done — 2026-09-16, `a33f263`
+
+**§1.1's decision built, and its deciding argument is the one the section did not
+make.** Its two were about cost; what settles it is that a book reaches a session
+by being *found*, so the resolver answers *"the memory book for this user, this
+actor and this persona"* as a **query** — and only the library already has a table
+to ask. `memoryBooksOf` is that query: one pass over `list(lorebooks)`, filtered
+on the marking and the scope. `memoriesRoot` is deleted, [03 §5.1]'s line struck
+with a dated note, and a **repo-shape assertion** sits behind the deletion.
+
+**The scope is a record of named keys and not a tuple**, which is §1.2's whole
+constraint: adding `world` is adding a key to an open record, and a book written
+before it simply has none.
+
+***Two things landed differently from the plan, and both are recorded rather than
+quietly done.***
+
+**The export warning has no export path to be on.** [08 §2] asks to *"warn on any
+export path — this is the one place the reuse could bite"*, and **nothing in this
+build downloads a library object**; session export is [25 B12](../25-open-questions.md)
+and out of scope. A warning written against that path would have been
+unreachable — the deliverable-nothing-noticed shape this stage deleted a helper
+over. So it goes where a person meets the book: the object page, which is also
+the page they are on when they decide to copy it out by hand. *What is owed when
+an export path is built is that it read this marking.*
+
+**`acceptEffect`'s change has no test until the next stage**, because nothing
+writes the channel yet. Named here rather than discovered later.
+
+*`se.memory.written` is the build's first `escapes: true` channel*, and `book` is
+`ChannelDefinition.scope`'s sixth arm — the honest one, because a session plays
+with more than one character, so *what this turn wrote into which book* is a fact
+about a book where `entry` is the scope of the things written rather than of the
+place they went. It adds **not one line** to any replay reader, which is the
+dividend of the mechanism having been built a phase before its first producer.
+
 ### P8.3 — Extraction
 
 §1.3's pass, §1.4's discrete facts with origin refs and timestamps, and the
@@ -1020,6 +1174,48 @@ extraction is an escaped effect, and a locked entry is not rewritten*. The
 escaped arm's falsifying mutation is restoring `scope: 'session'`, which returns
 `abandonedBy` to counting zero — the exact state `sessions/store.ts` documents
 today.
+
+
+#### Done — 2026-09-16, `79f92c3`, in §5's cut form
+
+***The automatic extractor is deferred and manual capture is what shipped***,
+which is §5's named fallback cut taken deliberately rather than under pressure.
+What follows is what the writer that does exist produced.
+
+***The channel cannot accumulate, and that is the mechanism being right.***
+§1.9's *"appending the entry ids written this turn"* reads like a list that
+grows, and a first draft read the current value and appended to it — producing a
+list of one, every time. **`applyEffects` skips `scope: 'escaped'`**, which is the
+whole point of the scope, so the state such a list would accumulate into is never
+replayed and never readable. It should not be: `abandonedBy` counts **effects on
+the turns being left**, so a running total would make the newest turn's value the
+count for the whole line, and abandoning one turn would report everything the
+line ever wrote.
+
+***The write needed a turn, and `writeChannel` already answers how.*** A capture
+happens between turns and a past turn cannot acquire one ([03 §5.5]); that
+function appends *a turn with no model call and no tape*, because [03 §8.1] wants
+a change of state visible in the turn record and a turn is what the workbench
+shows. `undoTurn` and `divergenceTurn` write the same shape. The consequence falls
+out correctly: **rewinding past a capture counts it as still out in the world**,
+which is true.
+
+***`LoreEntry.locked` gets a writer and its reader is still owed.*** The field
+means *locked against automatic modification by agents*, and §P8.3 gives it a
+reader — *the extractor never rewrites a locked entry* — which the cut defers.
+Rather than manufacture one, **the case with the strongest claim to the field is
+written now**: a memory somebody typed is not a mis-extraction to be refined, it
+is the sentence they chose, so a hand-written memory is locked from the moment it
+is written. *The extractor inherits an obligation with subjects already on disk.*
+
+**The abandonment banner's client half closes §3.1's inverse instance** of the
+standing line — not configuration with no surface but **a record with no
+surface**. Harmless while nothing could write an escaped effect; P8's to close
+because P8 is what makes the count non-zero.
+
+**Verified by mutation**, the one §P8.3 names: restoring `scope: 'session'` in
+`acceptEffect` reddens exactly the two escaped arms and leaves the other four
+green.
 
 ### P8.4 — Scope, toggles and the association list
 
@@ -1073,6 +1269,50 @@ the advisory-leak refusal and the committed call's purpose. ***That arm is what
 makes [testing §1](03-testing.md)'s property a general rule rather than a fact
 about guidance***, which is §1.6's claim with the machinery it costs attached.
 
+
+#### Done — 2026-09-16, `cf93293`
+
+**§1.6's three pieces, which the section calls the expensive half and which are
+the reason the second consumer of [testing §1](03-testing.md)'s property is not
+free.** `BlockSource`'s lore arm gains `bookId` — the activation has carried it
+the whole time and the block dropped it. A candidate from a derived book is
+advisory **whatever slot positions it**, set where the book is known and carried
+through `collect.ts`'s lore case; before this, a memory entry and an authored one
+arriving through the same `{ of: 'lore' }` slot were indistinguishable to the
+firewall.
+
+***Row 7 gets the assertion §3.1 says it needs.*** *A memory block never reaches
+an effect-producing call* was satisfiable by a block that was never marked, so
+the test asserts the block **is** advisory and then that the call refuses it —
+with the purpose **derived** from a step that writes rather than named, and a
+prose-call control so the throw is about the purpose and not about the assembly.
+
+***The association filter produces a filtered copy of the book rather than
+filtering after the scan***, which is [08 §6]'s refuse-at-the-source argument one
+level down: the retriever charges its budget against what it scans and reports
+what it kept, so a book handed over whole would spend this session's tokens on
+another session's memories and then drop them. **That is the defect [P6B.1] found
+on the lore path**, and the reason it is worth not repeating.
+
+*A memory book with nothing left in it is still returned*, and a first draft
+filtered those out. `retrieval/blocks.ts` puts **every book in play** on the shelf
+report *"including one that activated nothing — which is the row somebody most
+needs"*.
+
+**The UI is a section of the Session panel rather than an eighth panel**, which is
+§0.3's second item and a debt as much as a placement: three became six, then
+seven, and **a stage that made it eight without saying so is how a column becomes
+a list.** Seven sections in one panel is the direction [P7B §1.4] wanted; *the
+consolidation it asked for is still owed.*
+
+*The gate test uses `TEST_PRESET` rather than a shipped pack*, because
+`tools/repo-shape.test.ts` holds [P7.0]'s exit condition that the engine imports
+no mode from anywhere in its source — and a test under `packages/server/src` is
+engine source.
+
+**Verified by mutation:** removing the advisory arm reddens exactly the row-7 test
+and leaves the four combinations green.
+
 ### P8.5 — The spoiler defences
 
 §1.5's extraction refusal over hidden content, and the session-creation warning
@@ -1104,6 +1344,39 @@ premise and an unfired entrance are absent from the second session's book*, with
 or the test passes over an extractor that extracts nothing. *That control is
 [P7.13](23-p7-implementation.md)'s lesson, where two of four lint fixtures are
 controls for the same reason.*
+
+#### Done — 2026-09-16, `8dcfced`, at its cheap end
+
+***What the cut leaves undone is named where it is deferred.*** This stage's
+obligation — *a premise and an unfired entrance are absent from the second
+session's book* — is a statement about an **extractor**, and §5's cut defers it.
+`memory/capture.test.ts` holds the refusal over the only writer this build has: a
+turn a hook fired on is **declined, with a reason**, which is §1.5's *a refusal
+with a reason rather than a filter*. Refusing the whole turn rather than the
+sentence is coarse on purpose — a filter that guessed which clause came from an
+entrance would be the *"filtering later"* [08 §6] rejects at a finer grain.
+
+**What did land whole is the cheap mitigation and §1.7.** Creating a session says
+which sessions have played that treatment, and one control turns both switches
+off — *which is also the "one obvious action rather than two toggles found in a
+drawer"* [08 §4]'s `[OPEN]` names. **After creation rather than before**, and that
+is a decision: nothing has been imported yet, because a session is created with no
+turns.
+
+***§1.7's rendering is an absence rather than a field***, and the argument is
+worth keeping: a written *this session was deleted* marking **would become a lie
+the moment the folder came back from trash**, where a rendering of an absence
+survives a restore for free.
+
+**`MemoryOrigin` is handed the sessions rather than fetching them**, and the first
+draft was not: a `useQuery` inside it took **forty-three** `LorebookView` tests
+down at once, because that component and everything under it are pure and their
+tests render them directly — which is what makes them cheap to test at all.
+
+*Two open records are read through `unknown` rather than through their declared
+type*, which is `readSummary`'s rule: `metadata` is **required** by the schema so
+the compiler believes it is always there, and it is absent from plenty of
+hand-built objects. Found by a fixture, which is the honest way to find it.
 
 ---
 
@@ -1218,6 +1491,54 @@ so that nobody reads a closed P8 as a verdict on summary quality. The long walk
 goes to [manual testing](05-manual-testing.md) as a sitting behind PLAYABLE,
 where it joins the pile the two-tier model exists to **drain** rather than the
 pile it exists to close.
+
+### 3.2 What was answered, and what the cut left unanswerable
+
+*Added 2026-09-16, when the phase's six stages landed under
+[§5](#5-the-honest-size-and-what-only-the-revisit-can-settle)'s fallback cut.*
+**§3's ten steps are not edited**, which is
+[manual testing §0](05-manual-testing.md)'s first honesty condition and what
+keeps a split from becoming a walk that edits the gate until it passes. This is
+the second table.
+
+***The headline is uncomfortable and belongs at the top: the cut removed two of
+the three criticals' subjects.*** C2 and C3 are both about the **extractor**, and
+§5 names the extractor as the right thing to cut. So the phase does **not** close
+on the list §3.1 derived; it closes on C1 plus a critical list that has been
+re-derived against what shipped, and **the two deferred rows travel with the
+deferred stage** rather than being marked walked.
+
+| Step | §3.1 said | What happened |
+|---|---|---|
+| **1a** A long session assembles with the chain in place | AUTO | **Done** — `routes/p8-gate.test.ts`, over a synthesised forty-five-turn path. Two links, their ranges asserted, their keys matched against the files on disk, and the blocks asserted **included** rather than merely recorded |
+| **1b** The workbench shows which links covered which turns | Standing | **Covered, not walked**, which is what §3.1 asked for: `BlockSource` has a `summary` arm carrying `linkKey` and `range`, and the gate test reads them off the record through the route the client reads. The *rendering* is still Standing |
+| **2** Fork at turn 300: the shared links are byte-identical | AUTO, the phase's central claim | **Done** — `sessions/summary-chain-property.test.ts`, both arms, with §1.9's falsifying mutation run before the commit. *Asserted by counting files*: nineteen links plus seventeen is thirty-six, and the directory holds twenty-one |
+| **3** Delete every summary and regenerate | AUTO for *works*, Standing for *the story is unchanged* | **Done** as the equality §3.1 promised, and it cost a field: a content-addressed file may not carry a `createdAt`. *The story-unchanged half is still Standing* |
+| **4** Session two recalls something from session one, named in the workbench | **critical — C1** | ***Not walked.*** The machinery is there and tested — `p8-gate-memory.test.ts`'s first four cases, plus the `bookId` that makes the origin reachable — but the sentence is *only a person can walk*, and nobody has. **Sitting N** |
+| **5** A different persona recalls nothing until the widening setting is on | AUTO | **Done** — the resolver half and the setting, in `p8-gate-memory.test.ts`. §3.1 said *the compounding half is in the resolver, not in the switch*, and that is where it is asserted |
+| **6a** A memory is edited by hand and the edit takes | Standing | Unchanged: P1's write path and P5's editor, transported |
+| **6b** …and survives the next extraction | **critical — C2** | ***Vacuous under the cut, and that is the honest word.*** Nothing rewrites an entry, so the field has no adversary. `LoreEntry.locked` gets a **writer** — a hand-written memory is locked from the moment it is written — so the extractor inherits the obligation with subjects on disk. **The row travels with the extractor** |
+| **7** A memory block never reaches an effect-producing call | AUTO, *and the row cannot fail for the wrong reason* | **Done, with the repair §3.1 demanded.** The block is asserted advisory **and** the call is asserted to refuse it, with the purpose derived from a step that writes and a prose-call control beside it. Mutation-verified |
+| **8a** The extractor is never handed hidden content | AUTO, *the clause that compounds* | **Done, and it is the part of §1.5 that survives the cut** — `transcript` exists, `steps.test.ts` asserts a step that declares it is handed no blocks, over a fixture carrying a premise in exactly the position `history` would have leaked |
+| **8b** No spoiler bleed into session two's book | **critical — C3** | ***Narrowed rather than walked.*** With manual capture as the only writer, a person cannot be bled into — they type what they remember. What remains is that they may press the button on a turn carrying entrance prose, and capture **refuses that turn with a reason**. The extraction half travels with the extractor |
+| **9** Creating a session in a treatment that already has one offers *start isolated* | AUTO | **Done** — `p8-gate-spoilers.test.ts`, with the control that a first session warns about nothing |
+| **10** Delete an origin session: §1.7's chosen behaviour happens | AUTO | **Done** — the memories stay, the later session still reads them, and the origin renders as an absence rather than a written marking |
+| **The standing line** | critical in part, six field rows | **Five of six have a surface**: `share`, `intake`, the tri-state list and the persona widening are all in the Session panel's Memories section, and the **inverse instance** — the abandoned-effect count the client typed away — is closed. *The sixth, the summariser's cadence, has no surface and is a constant in `summary-chain.ts` with the reason written beside it*: §1.3 makes it a measurement rather than a setting, and a control offered before the measurement would be a number somebody has to guess |
+
+**So the critical list this phase actually closes on is C1 alone**, and it is not
+walked. The phase **merges and stays open**, which is [P7](23-p7-implementation.md)'s
+precedent and [P7B](24-p7b-presets-and-prompts.md)'s: a merge is not the close,
+and a critical list lives in [manual testing](05-manual-testing.md) until somebody
+walks it.
+
+***And one thing the cut makes better rather than worse, said so it is not read
+as a consolation.*** §5's argument for cutting the extractor is that its **value
+is unevidenced and its failure mode is unforgivable**. What shipped instead is
+the affordance 08 §2.1 calls *nearly free* and §5 calls *authored by the only
+judge who cannot be wrong about what mattered* — so the books this build grows
+are grown by people. **When the extractor arrives it will meet a corpus of locked
+entries written by hand**, which is a better first adversary for `locked` than
+anything a test could have arranged.
 
 ---
 
