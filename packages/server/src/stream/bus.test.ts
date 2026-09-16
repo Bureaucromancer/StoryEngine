@@ -64,6 +64,9 @@ function collector(): Listener & { events: ProgressEvent[]; deltas: string[] } {
     deltas,
     onEvents: (_jobId, batch) => events.push(...batch),
     onDelta: (_jobId, text) => deltas.push(text),
+    // A rendition frame carries a whole record and is applied by upsert, so a
+    // listener that only collects text takes it and drops it — [P9.2].
+    onRendition: () => undefined,
   };
 }
 
@@ -169,6 +172,7 @@ describe('a broken subscriber breaks only itself', () => {
         throw new Error('this socket is in a state nobody measured');
       },
       onDelta: () => undefined,
+      onRendition: () => undefined,
     });
     const healthy = collector();
     bus.subscribe(sessionId, healthy);
@@ -195,6 +199,7 @@ describe('attaching during a delivery', () => {
     const first: Listener = {
       onEvents: () => bus.subscribe(sessionId, late),
       onDelta: () => undefined,
+      onRendition: () => undefined,
     };
     bus.subscribe(sessionId, first);
 

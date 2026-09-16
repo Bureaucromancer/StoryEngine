@@ -53,6 +53,9 @@ import { userOwner } from '../storage/layout.js';
 import { rememberThis } from '../memory/capture.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
+import { readRendition, readRenditions } from '../renditions/store.js';
+import { assetPath } from '../renditions/worker.js';
+import { readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -83,6 +86,12 @@ import type { Tape } from '../rng/rng.js';
  */
 
 const SessionParams = Type.Object({ sessionId: Type.String() });
+
+/** A rendition is addressed by its own id, which names its file — [P9.2]. */
+const RenditionParams = Type.Object({
+  sessionId: Type.String(),
+  renditionId: Type.String(),
+});
 
 /**
  * A channel write addresses the **map key**, not the channel id — [P7.1].
@@ -1643,6 +1652,97 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
       }
       return reply.send({ memory: session.memory ?? body });
+    },
+  );
+
+  /**
+   * ***Every rendition this session holds*** — [06 §10], [P9.2].
+   *
+   * **Off the session read and off the transcript read, deliberately**, which is
+   * `GET /sessions/:id/memory`'s argument one route up: a rendition's state
+   * changes after its turn is written, so folding it into either would make two
+   * reads that are cached differently disagree about whether a picture has
+   * arrived. The transcript is the story; this is what has been made of it.
+   *
+   * *A map keyed by id rather than a list*, because that is how the client
+   * applies a live `rendition` frame — an upsert into the same map — and two
+   * shapes for one thing is how a page and a socket come to disagree.
+   */
+  app.get(
+    '/sessions/:sessionId/renditions',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const all = await readRenditions(services.sessions.layout, account.handle, sessionId);
+      return reply.send({ renditions: [...all.values()] });
+    },
+  );
+
+  /**
+   * ***The pixels*** — [P9.2], and the shape `routes/library.ts` already
+   * promised this phase.
+   *
+   * That file's `GET /library/:kind/:id/media/:mediaId` says it in as many
+   * words: *"[P9] is the next consumer — a rendition's asset needs serving the
+   * same way, and `MediaSelection`'s two arms are already the one shape both go
+   * through."* So: `content-type` from the record, `etag` from the bytes' own
+   * digest, and the buffer. No `sendFile`, no range support, and nothing this
+   * build does not already do once.
+   *
+   * **The record is read to serve the bytes**, rather than the path being
+   * derived from the id alone. It costs one file read and buys the two headers —
+   * and it is the only thing that can tell an evicted rendition (`asset: null`,
+   * a **404** and a placeholder) from one that was never made.
+   */
+  app.get(
+    '/sessions/:sessionId/renditions/:renditionId/asset',
+    { schema: { params: RenditionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, renditionId } = request.params as {
+        sessionId: string;
+        renditionId: string;
+      };
+      const rendition = await readRendition(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        renditionId,
+      );
+      if (rendition?.asset == null) {
+        return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
+      }
+
+      const path = assetPath(services.sessions.layout, account.handle, sessionId, rendition);
+      if (path === null) {
+        return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
+      }
+      // The filesystem check the lexical rules cannot make, at the door where a
+      // path becomes I/O — `readMedia`'s rule, and this path came out of a file.
+      await services.sessions.layout.assertReal(path);
+      const bytes = await readFileBytes(path);
+      if (bytes === null) {
+        /**
+         * **A record that says `ready` and a file that is gone.** Which is not a
+         * bug to guard against but the state [25 E3] describes: somebody emptied
+         * `assets/`, and *"deleting one leaves `asset: null` and a picture that
+         * can be made again"*. A 404 is what the placeholder renders from, and
+         * the recipe on the record is what the retry runs.
+         */
+        return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
+      }
+
+      return await reply
+        .header('content-type', rendition.asset.mime)
+        .header('etag', rendition.asset.digest)
+        .send(Buffer.from(bytes));
     },
   );
 

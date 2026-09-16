@@ -336,7 +336,7 @@ export function render(context: RenderContext): {
           reused = { renditionId: already.renditionId, digest };
           held = 'place-unchanged';
         } else {
-          requests.push(request('background', prompt, digest, null, context));
+          requests.push(request('background', prompt, digest, null, await seedFor(host), context));
         }
       }
 
@@ -358,7 +358,9 @@ export function render(context: RenderContext): {
           } else {
             const prompt = assemble('illustration', context, input.cast ?? [], moment.subject);
             const digest = recipeDigest(context.image.binding, prompt, context.workflow);
-            requests.push(request('illustration', prompt, digest, moment.anchor, context));
+            requests.push(
+              request('illustration', prompt, digest, moment.anchor, await seedFor(host), context),
+            );
           }
         }
       }
@@ -405,6 +407,7 @@ function request(
   prompt: AssembledPrompt,
   digest: string,
   anchor: string | null,
+  seed: number,
   context: RenderContext,
 ): RenditionRequest {
   const scope: RenditionScope | null =
@@ -415,11 +418,31 @@ function request(
     scope,
     prompt,
     workflow: context.workflow,
+    seed,
     digest,
     // Always zero at 1.0 — [06 §10.4]'s judgement is [P9 §4]'s deferral, and
     // this is the field it will sort on when it arrives.
     ordering: 0,
   };
+}
+
+/**
+ * ***The sampling seed, drawn through the engine's RNG and put on the tape.***
+ *
+ * [19 §14]'s rule, and the reason it applies to a thing that takes no part in
+ * state reconstruction: the draw belongs to the **turn** that asked for the
+ * picture, the tape is where this build records draws, and *"an unrecorded draw
+ * does not fail here; it fails much later"*. A first draft had the worker call
+ * `randomInt` on the argument that a rendition cannot make a branch reconstruct
+ * wrong — which is true ([06 §10.2]) and was still the wrong conclusion, because
+ * an exemption argued from *this one cannot hurt* is how the rule stops being
+ * one. The lint rule is what caught it.
+ *
+ * *One site, two purposes*, so a turn that asks for both a backdrop and an
+ * illustration draws twice and the tape says which was which.
+ */
+async function seedFor(host: StepHost): Promise<number> {
+  return await host.random.at(SE_RENDER, 'seed').int(0, 2_147_483_647);
 }
 
 /**

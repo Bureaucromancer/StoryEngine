@@ -369,6 +369,17 @@ export interface ModeSurface {
 export function modeSurfaces(
   channels: Readonly<Record<string, ChannelState>>,
   modeId: string,
+  /**
+   * Which session these surfaces belong to — [P9.2].
+   *
+   * **Needed only by the backdrop**, and only since a backdrop can name a
+   * rendition: a library object is addressed by kind and id, and a rendition
+   * lives in a session directory. Nullable so a caller with no session in hand
+   * gets what this function always returned — a picture for the authored arm and
+   * nothing for the generated one, which is the state every build before [P9]
+   * was in.
+   */
+  sessionId: string | null = null,
 ): ModeSurface[] {
   const mode = modeById(modeId);
   if (mode === null) return [];
@@ -387,7 +398,7 @@ export function modeSurfaces(
     const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
     for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
       const value = channels[key]?.value ?? initialValue(definition.id);
-      const rendered = renderSurface(contribution.widget, value);
+      const rendered = renderSurface(contribution.widget, value, sessionId);
       // Nothing to show is not shown — the same answer `omitWhenEmpty` gives a
       // preset slot, and the one [10 §2.3] insists on for a backdrop: *"with
       // the backdrop off Play is the surface it was before, not a surface with
@@ -419,6 +430,7 @@ export function modeSurfaces(
 function renderSurface(
   widget: WidgetSpec,
   value: unknown,
+  sessionId: string | null,
 ): Pick<ModeSurface, 'text' | 'image' | 'on'> | null {
   switch (widget.kind) {
     case 'text':
@@ -428,7 +440,7 @@ function renderSurface(
       // an absence, which is the whole of why the control exists.
       return { on: value === true };
     case 'image': {
-      const url = mediaUrlFor(value);
+      const url = mediaUrlFor(value, sessionId);
       return url === null ? null : { image: { url, alt: widget.label } };
     }
   }
@@ -443,14 +455,34 @@ function renderSurface(
  * pointing at a rendition renders nothing here and renders a picture there,
  * with no change to this function's callers.
  */
-function mediaUrlFor(value: unknown): string | null {
+function mediaUrlFor(value: unknown, sessionId: string | null): string | null {
   if (typeof value !== 'object' || value === null) return null;
   const selection = value as {
     from?: unknown;
     kind?: unknown;
     objectId?: unknown;
     mediaId?: unknown;
+    renditionId?: unknown;
   };
+  if (selection.from === 'rendition') {
+    /**
+     * ***The gap this function's docstring promised would close, closed***
+     * ([P9.2]). *"A backdrop pointing at a rendition renders nothing here and
+     * renders a picture there, with no change to this function's callers"* — and
+     * that is what happened: the callers are unchanged and the arm is four
+     * lines.
+     *
+     * **The session id comes from the caller**, because a rendition lives in a
+     * session directory and this function used to need only a library address.
+     * That is the one signature change the backdrop costs, and it is why
+     * `modeSurfaces` takes one now.
+     */
+    if (sessionId === null || typeof selection.renditionId !== 'string') return null;
+    return (
+      `/api/sessions/${encodeURIComponent(sessionId)}` +
+      `/renditions/${encodeURIComponent(selection.renditionId)}/asset`
+    );
+  }
   if (selection.from !== 'authored') return null;
   if (
     typeof selection.kind !== 'string' ||

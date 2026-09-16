@@ -9,6 +9,8 @@ import {
   type GenerationChunk,
   type GenerationRequest,
   type GenerationResult,
+  type ImageRequest,
+  type ImageResult,
   type Provider,
   type ProviderCapabilities,
 } from './types.js';
@@ -104,6 +106,15 @@ export interface FakeProviderOptions {
   /** Replies, consumed in order. The last one repeats once they run out. */
   script?: ScriptedReply[];
   capabilities?: Partial<ProviderCapabilities>;
+  /**
+   * What `renderImage` answers with, in order — [P9.2].
+   *
+   * A second script rather than an arm on the first, because the two calls have
+   * nothing in common: a chat reply is text and a finish reason, and a picture
+   * is bytes and a seed. One list would mean every image test scripting past the
+   * text replies of the turn that produced it.
+   */
+  images?: ScriptedImage[];
 }
 
 /** A request exactly as it arrived, for a golden file to snapshot. */
@@ -113,6 +124,35 @@ export interface RecordedRequest {
   params: GenerationRequest['params'];
   schema: object | undefined;
   streamed: boolean;
+}
+
+/**
+ * One scripted picture — [P9.2].
+ *
+ * ***The refusing arm is the one to write first***, and [P9 §3.1] says so about
+ * the gate row it discharges: *"a provider that refuses is cheaper to script
+ * than one that succeeds, so this row is walkable **before** the endpoint exists
+ * and should be written first."* It also forces {@link RenditionError} to be a
+ * class rather than a string on day one.
+ */
+export interface ScriptedImage {
+  /** The pixels. A tiny stand-in when unset — the bytes are never inspected. */
+  bytes?: Uint8Array;
+  mime?: string;
+  /** What the endpoint says answered, when it is not what was asked for. */
+  answeredAs?: string;
+  /** Fail instead of answering. */
+  error?: { class: ErrorClass; message: string; detail?: string };
+  /** Milliseconds to wait — the seam that makes *while it is pending* mean anything. */
+  stallMs?: number;
+}
+
+/** An image request as it arrived. The seed is what a replay assertion reads. */
+export interface RecordedImageRequest {
+  modelId: string;
+  prompt: string;
+  seed: number;
+  workflow: Readonly<Record<string, string | number | boolean>>;
 }
 
 const DEFAULT_REPLY: Required<Pick<ScriptedReply, 'text' | 'chunks'>> = {
@@ -133,12 +173,66 @@ export class FakeProvider implements Provider {
    */
   readonly requests: RecordedRequest[] = [];
 
+  /**
+   * Every image request this provider received, in order — [P9.2].
+   *
+   * **A separate list from `requests`, and that separation is what two gate rows
+   * assert on.** Row 15 is *re-create an evicted rendition and **no text call is
+   * made***, and row 12 is *backdrop off, and no `image` call was made* — two
+   * claims about two different empty lists, which one combined log could not
+   * state.
+   */
+  readonly images: RecordedImageRequest[] = [];
+
   #script: ScriptedReply[];
+  #images: ScriptedImage[];
   #calls = 0;
+  #renders = 0;
 
   constructor(options: FakeProviderOptions = {}) {
     this.capabilities = capabilitiesFor('fake', options.capabilities ?? {});
     this.#script = options.script ?? [];
+    this.#images = options.images ?? [];
+  }
+
+  /**
+   * Pixels — [P9 §1.2]'s second arm, scripted.
+   *
+   * **Present unconditionally on the double, unlike a real adapter**, whose
+   * method is there only when `capabilities.rendersImages`. A test that wanted
+   * to exercise *this endpoint cannot make pictures* sets the capability false
+   * and asserts the caller checks — which is the real contract — rather than
+   * needing a second class with the method missing.
+   */
+  async renderImage(request: ImageRequest): Promise<ImageResult> {
+    this.images.push({
+      modelId: request.modelId,
+      prompt: request.prompt,
+      seed: request.seed,
+      workflow: request.workflow,
+    });
+
+    const scripted = this.#images[this.#renders] ?? this.#images.at(-1) ?? {};
+    this.#renders += 1;
+
+    await quiet(scripted.stallMs, request.signal);
+    if (scripted.error) {
+      throw new ProviderError(scripted.error.class, scripted.error.message, scripted.error.detail);
+    }
+
+    return {
+      // A one-pixel PNG's worth of nothing. The bytes are never inspected —
+      // what a rendition test asserts is that *some* bytes landed under the
+      // right name, which is the claim a real provider's output would also make.
+      bytes: scripted.bytes ?? new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      mime: scripted.mime ?? 'image/png',
+      modelId: scripted.answeredAs ?? request.modelId,
+      // Echoed rather than invented, which is the contract: the seed is the
+      // caller's, and an adapter that returned its own would be answering a
+      // question the record has to be able to state.
+      seed: request.seed,
+      cost: null,
+    };
   }
 
   /** Replaces the script mid-test — a retry that succeeds after a failure. */

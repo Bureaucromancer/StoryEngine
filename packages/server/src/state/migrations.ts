@@ -263,6 +263,79 @@ create index import_item_by_object on import_item(object_id);
 -- key that happened to be on the same columns.
 create index import_item_by_job on import_item(job_id, seq);
 `,
+
+  /**
+   * ***Rendition jobs — a second job shape beside the first, not a reuse of
+   * it*** ([P9 §0.1]'s finding 9, built at [P9.2]).
+   *
+   * §5 of that plan claimed jobs *"reuse the operational store's job
+   * vocabulary"*, and the audit found it wrong in the expensive direction:
+   * `job` is **turn-shaped all the way down** — `parent_turn_id`, `turn_id`,
+   * `commit_step`, and a partial unique index — and it exists to enforce
+   * [P2 §2.10]'s *only one turn may advance a session*.
+   *
+   * **That invariant is the one a rendition must not inherit.** Several may be
+   * in flight for one session, none blocks the turn, and none advances the head
+   * ([06 §10.2]) — so there is no `job_one_active_per_session` here, and its
+   * absence is the design rather than an omission. On the `job` table a second
+   * concurrent picture would be a constraint violation rather than a queue.
+   *
+   * *`STEPS[1]` set the precedent for exactly this shape of question*, when
+   * import needed a differently-shaped job and got sibling tables rather than a
+   * nullable column. The argument it wrote out applies here unchanged.
+   *
+   * ***The record is not in this table, and that is the other half.*** A
+   * rendition's prompt, seed and workflow parameters are never discarded
+   * ([06 §10.7]) and they travel and delete with the session ([03 §10.3]), so
+   * they live in `sessions/<id>/renditions/` where a person can read them. What
+   * is here is the **dispatch** — queued, running, finished — which exists only
+   * here and nowhere else, and that is [21 §5.1]'s own test for what belongs in
+   * this store.
+   */
+  `
+create table rendition_job (
+  id            text primary key,
+  session_id    text not null,
+  account       text not null,
+
+  -- The record this job is producing pixels for, and the turn it hangs off.
+  --
+  -- Not a foreign key: the record is a *file*, and a table that referenced it
+  -- would be a second claim about what exists — one that a person deleting a
+  -- session directory by hand could make wrong.
+  rendition_id  text not null,
+  turn_id       text not null,
+  purpose       text not null,
+
+  -- queued → running → done, or abandoned.
+  --
+  -- No 'failed', for the reason the turn job has none: a rendition that failed
+  -- is a *rendition* whose own record says so, with its class and its recipe
+  -- intact and a retry button in front of it. The job that produced it still
+  -- finished. 'abandoned' is the different fact — a job that could not finish at
+  -- all, which is what boot recovery finds and what [06 §10.2]'s placeholder is
+  -- then showing.
+  status        text not null,
+
+  -- Which try this is. A retry is a **new job** with a higher number rather than
+  -- a reset, so the store can say how many times a picture has been paid for.
+  attempt       integer not null default 1,
+
+  created_at    real not null,
+  updated_at    real not null,
+  finished_at   real,
+
+  -- A class, never a provider's words ([21 §1.4]): the server does not know the
+  -- reader's language, and the endpoint's own sentence goes to the log.
+  error         text
+) strict;
+
+-- One live job per rendition, which is the only uniqueness a rendition wants.
+-- It stops a double dispatch as a constraint rather than as a check-then-insert,
+-- for the reason \`job_one_active_per_session\` is an index rather than a query.
+create unique index rendition_job_by_rendition on rendition_job(rendition_id);
+create index rendition_job_by_session on rendition_job(session_id, created_at);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

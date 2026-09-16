@@ -641,9 +641,34 @@ the same way the rest of the library is.
 *What reads it today:* expression sprites, imported with the character
 ([P7.10] again — an actor arriving with a `sprites/` directory keeps every image
 as `role: "expression"` with the filename stem as its label, where before only
-`assets[0]` survived as the portrait). [P9](design/workplan/26-p9-implementation.md)
+`assets[0]` survived as the portrait). ~~[P9](design/workplan/26-p9-implementation.md)
 is the second consumer: a rendition's asset needs serving too, and
-`MediaSelection`'s two arms are already the one shape both go through.
+`MediaSelection`'s two arms are already the one shape both go through.~~
+***It is, as of 2026-09-16 — below.***
+
+### `GET /sessions/:sessionId/renditions`
+
+Every rendition this session holds, as `{ renditions: Rendition[] }` —
+[06 §10](design/06-modes-and-turn-pipeline.md),
+[21 §7](design/21-internal-contracts.md), [P9.2].
+
+**Off the session read and off the transcript read, deliberately**, which is
+`GET /sessions/:id/memory`'s argument: a rendition's state changes *after* its
+turn is written, so folding it into either would make two reads that are cached
+differently disagree about whether a picture has arrived.
+
+### `GET /sessions/:sessionId/renditions/:renditionId/asset`
+
+The pixels, in the shape `/library/:kind/:id/media/:mediaId` above already uses:
+`content-type` from the record, `etag` from the bytes' own digest, and the
+buffer. The client cache-busts with `?v=<digest>` as it does for media.
+
+**`404` for a rendition with no `asset`**, which is three different states and
+one answer: still pending, failed, or **evicted**. That last one is
+[25 E3](design/25-open-questions.md)'s whole point — *"deleting one leaves
+`asset: null` and a picture that can be made again"* — so a 404 here is what the
+client renders a regenerable placeholder from, rather than an `<img>` quietly
+failing.
 
 ---
 

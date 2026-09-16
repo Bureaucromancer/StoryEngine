@@ -538,8 +538,34 @@ interface ProviderCapabilities {
   /** Whether the provider reports token usage. When false, the record's
    *  `usage` is null and the budgeter's margin is the only signal. */
   reportsUsage: boolean
+  /** Whether this endpoint makes pictures. §7, [P9.2]. */
+  rendersImages: boolean
+  /** How many named subjects one picture can hold. [06 §10.3] */
+  maxNamedSubjects?: number
 }
 ```
+
+***The last two are the record answering a second endpoint*** — added
+2026-09-16 at [P9.2](workplan/26-p9-implementation.md), and they are also the
+evidence [P9 §1.2](workplan/26-p9-implementation.md) weighed when it decided that
+image providers go behind the **same** `Provider` interface as a second verb
+rather than beside it as a second kind: this record already straddled both shapes
+before either field existed, since `maxPromptChars` and `usefulPromptChars` are
+documented against CLIP's 77-token window and sit beside `supportsTools`.
+
+**`rendersImages` is false in the baseline and false for every known provider.**
+`openai-compatible` names a *chat* protocol, and whether the URL behind it also
+answers `/images/generations` is a fact about that endpoint — so it is set per
+connection, which is where this section already says a limit belongs. It is also
+what keeps the `image` role honest: [19 §5.1](19-tech-stack.md) leaves that role
+unset until a matching connection exists, and without this a person could bind it
+to their chat endpoint and find out one turn later.
+
+**`maxNamedSubjects` is undeclared rather than defaulted**, for the reason the two
+prompt caps are. [06 §10.3](06-modes-and-turn-pipeline.md) puts it here in as
+many words — *"a number that varies per endpoint is the definition of a
+capability"* — and notes that Aventuras caps at one while Marinara derives a
+limit that runs from one to sixteen depending on the backend.
 
 Defaults ship per known provider and are overridable **per connection**, because
 a limit is a property of that endpoint and connections are private production

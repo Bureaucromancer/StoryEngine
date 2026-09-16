@@ -3,6 +3,7 @@
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
+  generateImage,
   generateText,
   jsonSchema,
   NoObjectGeneratedError,
@@ -20,6 +21,8 @@ import {
   type GenerationChunk,
   type GenerationRequest,
   type GenerationResult,
+  type ImageRequest,
+  type ImageResult,
   type Provider,
   type ProviderCapabilities,
   type RenderedMessage,
@@ -58,6 +61,7 @@ export class OpenAICompatibleProvider implements Provider {
   readonly capabilities: ProviderCapabilities;
 
   readonly #model: (modelId: string) => Parameters<typeof generateText>[0]['model'];
+  readonly #imageModel: (modelId: string) => Parameters<typeof generateImage>[0]['model'];
 
   constructor(options: OpenAICompatibleOptions) {
     const { connection } = options;
@@ -103,6 +107,74 @@ export class OpenAICompatibleProvider implements Provider {
     });
 
     this.#model = (modelId: string) => client(modelId);
+    this.#imageModel = (modelId: string) => client.imageModel(modelId);
+  }
+
+  /**
+   * Pixels — [P9 §1.2]'s second arm, against the same endpoint as chat.
+   *
+   * ***The same package, the same `baseUrl` and the same credential path***,
+   * which is most of why §1.2 resolves as a second *verb* rather than a second
+   * provider kind: `@ai-sdk/openai-compatible` already exposes `imageModel`, so
+   * an endpoint that answers `POST /images/generations` needs no new connection
+   * vocabulary, no second adapter and no change to `canBuild`. What it needs is
+   * a person to say `rendersImages` on the connection, which is where
+   * `capabilities.ts` puts every other fact about an endpoint.
+   *
+   * ***The seed is passed through and echoed back.*** It arrives from the
+   * caller because [06 §10.7] makes it the load-bearing field of a recipe, and
+   * an adapter that invented its own would be answering the one question the
+   * record has to be able to state. An endpoint that ignores it produces a
+   * different picture on re-creation and the record still says what was asked
+   * for — which is the honest failure, and the one a workbench row makes
+   * visible.
+   *
+   * *`n: 1` and nothing else.* [06 §10.4]'s variations are a *product* feature
+   * built from siblings ([P9.3]), not from a batch parameter: two renditions
+   * with two seeds are two records a person can choose between, and a provider
+   * returning four images in one response would be one record with three
+   * pictures nobody can name.
+   */
+  async renderImage(request: ImageRequest): Promise<ImageResult> {
+    try {
+      const result = await generateImage({
+        model: this.#imageModel(request.modelId),
+        prompt: request.prompt,
+        n: 1,
+        seed: request.seed,
+        /**
+         * Whatever this endpoint was configured with, under the provider's own
+         * key — steps, sampler, guidance scale. Scalars only, which is
+         * {@link ImageRequest}'s rule and the recipe's: these are re-sent
+         * verbatim on re-creation and hashed into the reuse digest.
+         */
+        providerOptions: { [this.kind]: { ...request.workflow } },
+        ...(request.signal === undefined ? {} : { abortSignal: request.signal }),
+      });
+
+      const image = result.images[0];
+      if (image === undefined) {
+        // An endpoint that answered without a picture. A class rather than the
+        // SDK's sentence, per [21 §1.4], and `terminal` because retrying a
+        // request the endpoint accepted and answered emptily is not a retry.
+        throw new ProviderError('terminal', 'The endpoint returned no image.');
+      }
+
+      return {
+        bytes: image.uint8Array,
+        mime: image.mediaType,
+        modelId: request.modelId,
+        seed: request.seed,
+        // Image pricing is per-request and per-size rather than per-token, and
+        // no OpenAI-compatible image response carries it. `null` is the same
+        // refusal `#usage` makes for tokens: the record says nothing rather than
+        // inventing a number.
+        cost: null,
+      };
+    } catch (error) {
+      if (error instanceof ProviderError) throw error;
+      throw asProviderError(error);
+    }
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResult> {

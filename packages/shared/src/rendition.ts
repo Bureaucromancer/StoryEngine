@@ -245,11 +245,15 @@ export interface RenditionProvenance {
    * The sampling seed — §10.7's load-bearing field, and the one this type
    * exists for.
    *
-   * `null` when the provider neither took one nor reported one back, which is
-   * honest rather than convenient: *"preserved"* would otherwise quietly mean
-   * *"approximately re-creatable"*, and §10.7 says those are not the same
-   * promise. A workbench row showing `null` here is telling somebody something
-   * true about their endpoint.
+   * ***Known before the call rather than after it***, because the step draws it
+   * on the turn ([19 §14], {@link RenditionRequest.seed}) — so a `pending`
+   * record already states the seed its picture will be made with, and
+   * re-creation replays a value rather than asking for one.
+   *
+   * `null` only on a record written before this was true, or one hand-edited to
+   * drop it. That is honest rather than convenient: *"preserved"* would
+   * otherwise quietly mean *"approximately re-creatable"*, and §10.7 says those
+   * are not the same promise.
    */
   seed: number | null;
   /** Everything else the endpoint was asked for. Never discarded (§10.7). */
@@ -403,6 +407,25 @@ export interface RenditionRequest {
   scope: RenditionScope | null;
   prompt: AssembledPrompt;
   workflow: Readonly<Record<string, string | number | boolean>>;
+  /**
+   * ***The sampling seed, drawn on the turn*** — [19 §14], and the field that
+   * makes [06 §10.7]'s promise mechanical rather than remembered.
+   *
+   * **Drawn by the step through `StepHost.random`, not by the worker**, and
+   * [19 §14]'s rule is what decides it: *"every random draw comes from the
+   * single RNG service and is recorded, or replay and branching break
+   * silently."* The first draft had the worker call `randomInt` on the argument
+   * that a rendition takes no part in state reconstruction ([06 §10.2]) — which
+   * is true, and was still the wrong conclusion: the draw belongs to the turn
+   * that asked for the picture, the tape is the place this build records draws,
+   * and an exemption argued from *this one cannot hurt* is how the rule stops
+   * being a rule.
+   *
+   * *What it buys beyond compliance*: a turn's seed is on its tape, so the
+   * picture a turn asked for is reproducible from the turn, and re-creating an
+   * evicted rendition replays a value two records agree on.
+   */
+  seed: number;
   digest: string;
   ordering: number;
 }

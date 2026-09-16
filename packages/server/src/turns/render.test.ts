@@ -41,18 +41,18 @@ function recordingHost(answer: { subject: string; anchor?: string }): {
       } as StepCallResult);
     },
     /**
-     * *Present because `StepHost` has three verbs and unused because this step
-     * draws nothing.* A rendition's one source of variation is the sampling
-     * seed, and that is the **worker's** — chosen where the call is made, so it
-     * lands on `provenance` rather than on the turn's tape. A step that drew one
-     * would be putting the one value excluded from the digest into the turn's
-     * reproducible record.
+     * ***The seed comes from here***, which is [19 §14]'s rule and the reason
+     * the step draws it rather than the worker: *"every random draw comes from
+     * the single RNG service and is recorded."* A fixed draw makes the digest
+     * and the request assertions below deterministic, which is the same thing
+     * the tape buys a real turn.
      */
     random: {
       at: () => ({
         int: (min: number) => Promise.resolve(min),
         float: () => Promise.resolve(0.5),
         bool: () => Promise.resolve(false),
+        chance: () => Promise.resolve(false),
         pick: <T>(items: readonly T[]) => Promise.resolve(items[0]),
         shuffle: <T>(items: readonly T[]) => Promise.resolve([...items]),
       }),

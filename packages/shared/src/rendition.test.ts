@@ -168,6 +168,7 @@ describe('the step contract emits a list from the first commit', () => {
         scope: { anchor: 'the lantern guttered' },
         prompt: A_RENDITION.prompt,
         workflow: { steps: 24 },
+        seed: 918_273,
         digest: 'd-1',
         ordering: 0,
       },

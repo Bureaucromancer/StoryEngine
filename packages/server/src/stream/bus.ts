@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { Rendition } from '@storyengine/shared';
+
 import type { ProgressEvent } from '../state/jobs.js';
 
 /**
@@ -29,6 +31,25 @@ import type { ProgressEvent } from '../state/jobs.js';
 export interface Listener {
   onEvents(jobId: string, events: readonly ProgressEvent[]): void;
   onDelta(jobId: string, text: string): void;
+  /**
+   * A rendition's state changed — [06 §10.2], [P9.2].
+   *
+   * ***Not a `ProgressEvent`, and the store is what forces that.*** The `event`
+   * table foreign-keys to `job(id)`, so a rendition job — which is a row in a
+   * different table, by [P9 §0.1]'s finding 9 — has no id that table would
+   * accept. And even attached to the *turn's* job it would not reattach
+   * correctly: `resolveJobs` walks jobs from the cursor's anchor forward, so an
+   * illustration of a turn forty back would emit on a job the walk never reaches.
+   *
+   * **So this is an ephemeral frame, and exactness comes from the snapshot
+   * instead.** A progress event is sequenced inside the transaction that writes
+   * the draft it describes, which is what makes *snapshot plus cursor* exact. A
+   * rendition has no draft and no sequence — it has an **id and a state** — so a
+   * client that applies these by upsert converges on the same map whatever order
+   * they arrive in and however many it missed. `Snapshot.renditions` is what
+   * makes a late attach whole, which is why there is no second cursor.
+   */
+  onRendition(rendition: Rendition): void;
 }
 
 /** What `checkpoint()` needs to reach the bus without importing it. */
@@ -97,6 +118,19 @@ export class TurnStream implements EventSink {
     if (events.some((event) => event.key === 'turn.finished')) this.#live.delete(jobId);
     this.#each(sessionId, (listener) => {
       listener.onEvents(jobId, events);
+    });
+  }
+
+  /**
+   * Tells a session's watchers that a picture arrived, failed, or changed.
+   *
+   * Nothing is accumulated the way `#live` accumulates text: a rendition's whole
+   * state is the record, so a listener that missed three of these and then reads
+   * the fourth is in the same place as one that saw all four.
+   */
+  rendition(sessionId: string, rendition: Rendition): void {
+    this.#each(sessionId, (listener) => {
+      listener.onRendition(rendition);
     });
   }
 

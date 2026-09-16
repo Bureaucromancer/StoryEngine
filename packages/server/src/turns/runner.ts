@@ -56,7 +56,8 @@ import {
   type RenderReport,
 } from './render.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
-import { renditionIdFor } from '../renditions/store.js';
+import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
+import { renditionIdFor, writeRendition } from '../renditions/store.js';
 import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
@@ -151,6 +152,33 @@ export interface RunnerOptions {
   log?: Logger;
   /** P2.6's modes supply their own. */
   plan?: TurnPlan;
+  /**
+   * Queues a turn's pictures, after it has committed — [P9.2].
+   *
+   * ***A callback rather than a worker held here***, and the seam is the point:
+   * the runner's job ends when the turn is on disk, and everything after that is
+   * [06 §10.2]'s *"dispatched as their own jobs"*. A runner that owned the
+   * worker would be a runner whose shutdown had to drain pictures, which is
+   * exactly the coupling this phase exists to avoid.
+   *
+   * **Optional, so every existing test double stays a double.** Absent means the
+   * step never asked for anything — which is every turn of every session before
+   * this phase, and every test that is not about pictures.
+   */
+  dispatch?: (
+    account: string,
+    sessionId: string,
+    records: readonly Rendition[],
+    turnId: string,
+  ) => void;
+  /**
+   * The `image` binding to stamp on a record before its job runs.
+   *
+   * On the record **before** the call because the reuse digest already keys on
+   * it ([P9 §0.3]'s item 2): a record that learned its model from the answer
+   * would be one whose key could not be checked until after the money was spent.
+   */
+  imageBinding?: (account: string) => { connectionId: string; modelId: string } | null;
 }
 
 interface Live {
@@ -1664,6 +1692,87 @@ export class TurnRunner {
 
     // The lock is taken here and nowhere before it.
     await finaliseTurn(commit, job.id, draft);
+
+    /**
+     * ***Renditions, after the commit and awaited no further than the insert***
+     * — [06 §10.2], [P9.2].
+     *
+     * **After `finaliseTurn`, never before**, so that a client which receives
+     * `turn.finished` and immediately re-reads the session finds the turn there
+     * ([09 §3.3]) *and* finds the rendition pending beside it. Enqueuing first
+     * would let a fast provider land an asset on a turn the store has not
+     * appended.
+     *
+     * *Records first, then jobs.* The record is what a placeholder renders from
+     * and what the retry re-runs, so a job whose record did not land would be a
+     * spinner with nothing behind it. Written here rather than by the worker for
+     * the same reason: the recipe is known now and the worker may not start for
+     * seconds.
+     *
+     * **Nothing below this line can fail the turn**, which is the whole of
+     * §10.2 and the reason it is after the append rather than inside it.
+     */
+    if (renditions.report !== null && this.#options.dispatch !== undefined) {
+      await this.#recordRenditions(job, draft, renditions.report);
+    }
+  }
+
+  /**
+   * Writes a turn's rendition records and queues their jobs.
+   *
+   * Every failure here is swallowed: a full disk or a store that would not write
+   * costs a picture, and [06 §10.2] is explicit that it must never cost the turn
+   * the picture was of.
+   */
+  async #recordRenditions(job: Job, draft: Turn, report: RenderReport): Promise<void> {
+    const dispatch = this.#options.dispatch;
+    if (dispatch === undefined) return;
+
+    try {
+      const records: Rendition[] = [];
+      for (const [at, request] of report.requests.entries()) {
+        const record: Rendition = {
+          schema: RENDITION_SCHEMA,
+          id: renditionIdFor(draft.id, at),
+          sessionId: job.sessionId,
+          turnId: draft.id,
+          createdAt: new Date().toISOString(),
+          kind: request.kind,
+          purpose: request.purpose,
+          scope: request.scope,
+          state: 'pending',
+          prompt: request.prompt,
+          asset: null,
+          provenance: {
+            at: null,
+            // **The binding is on the record before the call**, because the
+            // digest already keys on it: a record that learned its model from
+            // the answer would be a record whose reuse key could not be checked
+            // until after the money was spent.
+            binding: this.#options.imageBinding?.(job.account) ?? null,
+            answeredAs: null,
+            // Drawn by the step on the turn and recorded on its tape ([19 §14]),
+            // so a `pending` record already states the seed its picture will be
+            // made with — which is what lets re-creation be a replay.
+            seed: request.seed,
+            workflow: request.workflow,
+          },
+          error: null,
+          digest: request.digest,
+          ordering: request.ordering,
+        };
+        records.push(record);
+        await writeRendition(
+          this.#options.commit.sessions.layout,
+          job.account,
+          job.sessionId,
+          record,
+        );
+      }
+      dispatch(job.account, job.sessionId, records, draft.id);
+    } catch {
+      // Swallowed on purpose — see above.
+    }
   }
 }
 
