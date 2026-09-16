@@ -1969,7 +1969,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         held,
       );
       services.renditions(account.handle, sessionId, [again], again.turnId);
-      return reply.send({ rendition: again });
+      // `202`, like the illustrate route one up and for the same reason: what
+      // comes back is the record set to `pending`, and the pixels arrive on the
+      // stream. A `200` would read as *here is your picture*.
+      return reply.code(202).send({ rendition: again });
     },
   );
 

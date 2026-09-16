@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Rendition } from '@storyengine/shared';
 
 import { FakeProvider } from '../providers/fake.js';
-import { readRenditions } from '../renditions/store.js';
+import { readRenditions, writeRendition } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -346,5 +346,91 @@ describe('Illustrate, pressed by hand', () => {
     // fire-and-forget by design ([P9.2]), so a test that walked away mid-write
     // would race its own `rm` rather than assert anything.
     await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+});
+
+describe('the recipe outlives the pixels', () => {
+  /**
+   * ***Gate steps 5 and 15, which only close together.***
+   *
+   * 5. *Set `asset` to null on both: the recipes remain, the placeholders render
+   *    as regenerable, and re-running either produces the same request.*
+   * 15. *Re-create an evicted rendition and **no text call is made**: the moment
+   *     is replayed from `prompt`, not asked for again.*
+   *
+   * ***§3.1 says why they are one test.*** Step 5's byte-comparison *"passes
+   * either way on the day it is written"* — an implementation that regenerates
+   * the moment produces the same string from the same scripted model — and only
+   * diverges a month later against a real endpoint, by which time the digest has
+   * quietly stopped matching itself. Step 15 asserts in the direction that
+   * cannot pass by luck: **on the call log**.
+   *
+   * ***And the claim it holds is structural rather than careful.***
+   * `recreateRendition` has no assembly and no role to resolve — the record
+   * already carries the fragments, the separator, the budget and the seed — so
+   * what the call log proves is that a code path **does not exist**, not that
+   * somebody remembered a flag. [06 §10.3] is emphatic that *"a second call is a
+   * second answer"*, and a re-creation that went through the step would break
+   * the recipe promise and the reuse key at once.
+   */
+  it('re-creates an evicted picture with no text call and the same request', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    expect(asked.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+
+    const [made] = await renditionsOf();
+    expect(made).toBeDefined();
+    if (made === undefined) return;
+    const before = { text: made.prompt.text, digest: made.digest, seed: made.provenance.seed };
+
+    /**
+     * **Eviction, performed rather than simulated.** [25 E3]'s policy is *"evict
+     * pixels, keep recipes, regenerate on demand"*, and nothing in this build
+     * evicts yet — so the row is walked by doing to the record exactly what an
+     * eviction policy would do to it, which is also the shape [P9 §1.4] says
+     * must stay cheap.
+     */
+    await writeRendition(server.services.sessions.layout, 'ned', sessionId, {
+      ...made,
+      asset: null,
+    });
+
+    const textCalls = fake.requests.length;
+    const images = fake.images.length;
+
+    const again = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/renditions/${made.id}/retry`,
+      payload: {},
+    });
+    expect(again.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.asset !== null);
+
+    // **Step 15.** Not one more text call — the moment was replayed off the
+    // record rather than asked for again.
+    expect(fake.requests).toHaveLength(textCalls);
+    // And the picture *was* remade, or the row above would pass for a build
+    // that did nothing at all.
+    expect(fake.images.length).toBe(images + 1);
+
+    // **Step 5.** The request the second run made is the first one's, down to
+    // the seed — which is the difference between *the same picture* and
+    // *another picture of the same thing*.
+    const sent = fake.images.at(-1);
+    expect(sent?.prompt).toBe(before.text);
+    expect(sent?.seed).toBe(before.seed);
+
+    const [remade] = await renditionsOf();
+    expect(remade?.digest).toBe(before.digest);
+    expect(remade?.prompt.text).toBe(before.text);
+    expect(remade?.provenance.seed).toBe(before.seed);
+    expect(remade?.asset).not.toBeNull();
   });
 });

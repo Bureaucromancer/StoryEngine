@@ -724,6 +724,10 @@ the budget and the seed, so there is no assembly on this path and no role to
 resolve — which is what makes re-creation a *replay* rather than a second
 answer.
 
+**`202` with the record set back to `pending`**, like the illustrate route above
+and for the same reason: the pixels arrive on the stream, and a `200` would read
+as *here is your picture*.
+
 ---
 
 ## Tags

@@ -202,6 +202,21 @@ and it is worth exactly as much as the criticism above and no more: **sorting a
 pile faster is not draining it.** The number to watch next quarter is still the
 forty-nine.
 
+***Updated 2026-09-16: fifteen sittings, still forty-nine results.*** [P7B](24-p7b-presets-and-prompts.md)'s
+gate arrived as **M**, [P8](25-p8-implementation.md)'s as **N** and
+[P9](26-p9-implementation.md)'s as **O**, every cell of all three blank. *The
+count of items is deliberately not re-derived, for the reason given three
+paragraphs up.*
+
+***And O is a new kind of row on this pile, which is worth one sentence rather
+than a section.*** Every other unwalked sitting is waiting for **an hour**. O is
+waiting for **a thing** — [R10](#3-standing-prerequisites), an endpoint that
+serves the `image` role — and no other outstanding prerequisite produces one. So
+a weekend that drained K, L, M and N would leave O untouched and P9 open. **That
+is not the model failing; it is the model reporting an errand**, which is what
+§0's criterion calls clause (iii) and what this file exists to make visible
+rather than to absorb.
+
 The walk so far has produced six findings in [playable log](21-playable-log.md) and eleven
 graded refinements in [refinements](22-walkthrough-refinements.md), and its sharpest
 result is one nobody asked for: sitting C ran eleven deliberate breakages,
@@ -264,6 +279,15 @@ sitting — K5–K8 are the short form of it, and what they cannot reach is exac
 what G is for; and I and J, which want a container and a two-hundred-turn
 session respectively.
 
+***Not on this list at all, and that is the point*** — added 2026-09-16. **O is
+[P9](26-p9-implementation.md)'s gate and it is the fourth item holding a phase
+open**, but it does not appear above because **it cannot be scheduled**: every
+row wants [R10](#3-standing-prerequisites), an endpoint that serves the `image`
+role, and no other outstanding prerequisite produces one — R2 is a chat endpoint,
+and K, L, M and N all queue on that. So the four sittings above could be walked
+in a weekend and leave O exactly where it is. *The list is what to walk next; O
+is what to **get** next*, and the errand is one endpoint.
+
 ---
 
 ## 2. How to write a result
@@ -314,7 +338,7 @@ not of the steps.
 | **R7** | **A full text editor and a file manager** on the machine running the server — not `fs`, not the IDE. | D18 | To hand. Trivial, and it is the point of the step. |
 | **R8** | **A Docker daemon, an unraid host with a registry credential.** | I | Partly to hand — the first install ran 2026-09-07 |
 | **R9** | **A session two hundred turns deep**, against a book of a few hundred entries. | J | **Only G has ever produced one.** Walk J in the same sitting as G, while one exists — recreating one on purpose is an afternoon, noticing you still have one is free. |
-| **R10** | **An endpoint that serves the `image` role**, with a key — hosted or local. **R2 is a chat endpoint and does not answer this**; no prerequisite here ever has. | [P9](26-p9-implementation.md)'s whole gate: twelve of its fifteen steps want pixels, and **both of its criticals are blocked on this and nothing else** ([P9 §3.1](26-p9-implementation.md)) | **Not to hand**, added 2026-09-15 by [P9 §0.2](26-p9-implementation.md)'s readiness audit and **the row that made this table ten** — which is why that document's own *"nine standing prerequisites"* is struck in two places rather than left to read as though the audit had not happened ([P9 §0.3](26-p9-implementation.md), 2026-09-16). *Second-longest lead item after R1 and the only one a whole phase's critical list waits on.* ***And it is its own errand***: K, L, M and N — the four sittings that hold a phase open — all queue on a **chat** endpoint, and none of them produces this one. It is also what settles [P9 §1.2](26-p9-implementation.md) — whether image providers go behind the same `Connection` vocabulary or beside it — which that document deliberately leaves open rather than deciding at a desk |
+| **R10** | **An endpoint that serves the `image` role**, with a key — hosted or local. **R2 is a chat endpoint and does not answer this**; no prerequisite here ever has. | [P9](26-p9-implementation.md)'s whole gate: twelve of its fifteen steps want pixels, and **both of its criticals are blocked on this and nothing else** ([P9 §3.1](26-p9-implementation.md)) | **Not to hand**, added 2026-09-15 by [P9 §0.2](26-p9-implementation.md)'s readiness audit and **the row that made this table ten** — which is why that document's own *"nine standing prerequisites"* is struck in two places rather than left to read as though the audit had not happened ([P9 §0.3](26-p9-implementation.md), 2026-09-16). *Second-longest lead item after R1 and the only one a whole phase's critical list waits on.* ***And it is its own errand***: K, L, M and N — the four sittings that hold a phase open — all queue on a **chat** endpoint, and none of them produces this one. ~~It is also what settles [P9 §1.2](26-p9-implementation.md) — whether image providers go behind the same `Connection` vocabulary or beside it — which that document deliberately leaves open rather than deciding at a desk.~~ ***That half was decided at a desk after all*** (2026-09-16, [P9 §1.2](26-p9-implementation.md)): the pinned SDK already exports `imageModel` and `generateImage`, so the fork had no second client on the other side of it and `Provider` grew a second **verb** rather than a second **kind**, with the reversal condition written down — an endpoint whose request is not prompt-plus-scalars. **What R10 still blocks is the gate**, which is the larger half: [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start) cannot start without it, and P9 is built and open behind it |
 
 ---
 
@@ -928,6 +952,46 @@ on summary quality. *The long walk is sitting G's, and it is as answerable in
 November.*
 
 
+### O — P9's critical list — *two rows, and the first sitting that cannot start*
+
+**The fifth critical list under [§0](#the-two-tier-gate)'s model, and the first
+one that is an errand before it is a sitting.** K, L, M and N are all *waiting for
+an hour*; this one is waiting for a **thing**. Both rows want
+[R10](#3-standing-prerequisites) — an endpoint that serves the `image` role — and
+no other outstanding prerequisite produces one: R2 is a chat endpoint, and the
+four sittings that hold a phase open all queue on that.
+
+***The phase is built and the list is unwalked, which is a state this file has
+not held before.*** [P9](26-p9-implementation.md) landed all six stages on
+2026-09-16 and [§3.2](26-p9-implementation.md) records thirteen of its fifteen
+rows discharged by test. What is left is the two rows where the claim is about
+**what it looks like** — and those are exactly the ones a test cannot reach.
+**So P9 stays open on a list nobody could have walked**, which is the difference
+§0 draws between a deferral and a block said as plainly as it can be: nobody
+decided these were not worth walking.
+
+*Cheap once R10 exists.* Neither row needs a long session, a second account or a
+particular mode: one session, two turns, one picture. The expensive part is the
+endpoint.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **O0** | **The install, and R10.** A connection whose endpoint answers image generation, saved with `rendersImages` set on it — [P2B](10-p2b-provider-configuration.md)'s per-connection capability override is where a person says so, because whether the URL behind `openai-compatible` also serves images is a fact about that endpoint. Bind the `image` role to it and the `fast` role to a chat model. Then open the Session panel's **Pictures** section and set *Illustrate the story* to **Every turn**. | R10 | |
+| **O1** | ***An image arrives and renders in place, and a reattached client finds it.* Only a person can walk it.** Take a turn; watch the **text** land and the turn finish, then watch the picture follow it seconds later. *The turn must be usable the whole time* — type the next one while the first picture is still being made. Then take another turn and **close the tab while it is generating**; reopen the session and check the finished picture is there. | P9 1, 2; **C1** | |
+| **O2** | ***The picture lands *in* the prose, at the sentence the moment call quoted.*** Read the paragraph. The image should sit **after the sentence it is of**, not underneath the message — and the workbench's **Pictures** section names the anchor it was given, so the two can be compared. Then **edit that message** so the quoted words are gone, and check the picture moves to the end and stays `ready`: *a miss is ordinary and must never be an error.* | P9 13, 14; **C2** | |
+| **O3** | **The remainder, cheap once O0 is up.** Press **Illustrate** on an old turn and check a **second** picture appears with the first still choosable; press **Set the scene** and check the backdrop stages behind the reading column without competing with the prose; turn *Illustrate the story* to **Never** and check Play looks like a text-only session. *All three are asserted by tests; what a person is here for is whether it looks like anything.* | P9 4, 12; §1.5's remainder | |
+| **O4** | **Desk work, and it is what closes the phase.** Write the results into [P9 §3.2](26-p9-implementation.md)'s table — never into the gate's own fifteen steps, which [§0](#the-two-tier-gate) forbids — then update §6's row here and P9's status line. **Route every `CORRECTION` into the document that owns the step.** | P9's close | |
+
+***What this list cannot reach, and it is not a gap in the list.*** Nothing here
+asks whether a generated image is any **good**.
+[testing §4.3](03-testing.md) forbids building a quality eval and
+[P9 §4](26-p9-implementation.md) names an image eval as the most tempting version
+of that mistake — so the gate answers *does it arrive, is it reproducible, does it
+cost what it should* and is silent on *is it worth having*. That second question
+is [work plan §0.4](01-work-plan.md)'s, it is about the feature rather than the
+build, and **a closed P9 is not a verdict on renditions.**
+
+
 ## 5. Already discharged, and by what
 
 Listed so the count is honest. **Nobody walks these.**
@@ -952,6 +1016,8 @@ Listed so the count is honest. **Nobody walks these.**
 | **P7 8** (the half that compounds) | **AUTO** | `mentions.test.ts` for the highlight set; `extract.test.ts`'s *an unresolved name* for **never creates** — no span, no effect, no model call, no cast channel in `writes`. ***The gate says `offers` and the stage shipped `never creates`***: [P7.7]'s Done cell defers the `proposed` span with its reason, and §3.1 had already named the structural clause as the one that compounds. |
 | **P7 7** | **Covered by P6, not by P7** | *Dead on one branch, alive on the other, in the panel.* **Not a deferral and not a walk — a step that was already answered before its own gate was written.** [P6 §3](18-p6-implementation.md) step 5 is the same check, covered at P6.3 through the replay and through the head, so it fails criterion (i) outright: it is P6's claim transported into P7's gate. What is genuinely new is the clause *"with no special case in the panel's code"*, which is a component test and a code read rather than a sitting. Routed here 2026-09-13. |
 | **P7 9b** | **AUTO** | `sessions.test.ts`'s *keeps what succeeded when a part fails*, against the scripted provider over `GENERATING_MODE`'s two setup parts — [00 §2.3]'s *8 of 10 valid sections applies 8 and re-asks for 2*. |
+| **P9 1, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15** | **AUTO** | Twelve of [P9](26-p9-implementation.md)'s fifteen, against a scripted provider — `routes/p9-gate.test.ts` (the turn does not wait; a refusal is a placeholder), `routes/p9-gate-selection.test.ts` (**the money row**: a place already rendered dispatches no job, asserted on a count; and the empty diff on branch and rewind), `routes/p9-gate-controls.test.ts` (no `image` binding, both settings off, the additive **Illustrate**, the anchor that is kept whether or not it still resolves, and **the recipe outliving its pixels** with no text call on re-creation), `renditions/assemble.test.ts` and `play/Rendition.test.tsx`. *The two the list keeps are C1 and C2, and they are [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start).* |
+| **P9 6** | **AUTO** | `workbench/turn/views.test.tsx` — two siblings of one turn made identical in every visible way **except** the seed, because that is the only shape in which *why did this one come out different* is a sharp question. The same file holds the dropped-fragment row, which is what makes a capped prompt legible rather than mysteriously short. |
 | **P3 1–11** | *Assertable, coverage unaudited* | Marked "assertable" by [P3 §4](15-p3-implementation.md), but **which of them a test actually asserts has never been checked.** They are in sitting D as browser checks because confirming one takes a minute and auditing eleven takes an afternoon — and a step believed covered is exactly what [P6B.1](20-p6b-playable.md) found four of. |
 
 ---
@@ -980,7 +1046,7 @@ a claim nobody made.*
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | K5–K8 answer what a walker's own turn can; G is the uncontrolled one. **CORRECTION, 2026-09-09:** this row read *"the fourth survived its first contact at A8"*. It did not. A8's session **resolved zero books** — [P6B.0](20-p6b-playable.md)'s defect — so that turn carried no retrieved blocks and none of the retriever's reason vocabulary. A8 evidenced hypothesis 1 and the static reasons; **hypothesis 4 has never been in contact with anything** |
 | **P7** | 10 (13 rows) | **1, 2b, 3, 4a, 5, 6a, 8, 9b** — §5 | **L, pending** | **Sitting L**, three steps and the desk work that closes the phase. **Merged into `main` 2026-09-13 at `589900e`, and open** — the first phase where §7's rule and P6A's *the merge is the close* disagree, and the first with a derived non-empty critical list for the rule to hold. **Buildable work done, 2026-09-13** ([P7 §3.2](23-p7-implementation.md)) — through P7.14, which finished Scene, built `surfaces`, closed row 2b's lint half and gave the last two configuration-without-a-surface instances a control. ~~Eight rows~~ **nine** answered by tests, two Standing (§10), and **three await a person** — **L1** author a small mode against the SDK with no `server`; **L2** Freeform played end to end; **L3** a wizard for a mode the engine knows nothing about. *P7 calls them C1–C3; they are relettered in sitting L because sitting C has a C1 already.* Each is one sitting against something the walker builds. *§3.2 is the second table [§0](#the-two-tier-gate)'s first honesty condition requires; the ten steps were not edited* |
 | **P8** | 10 (14 rows) | **1a, 1b, 2, 3, 5, 7, 8a, 9, 10** — landed 2026-09-16 | **merged 2026-09-16 at `4a6e377`, and open** | **Planned rather than sketched, 2026-09-13** ([P8 §3.1](25-p8-implementation.md)). Eight rows automatable, three Standing, and **three criticals — C1 cross-session recall named in the workbench, C2 a hand correction surviving the next extraction, C3 no spoiler bleed.** All three are *short-session* checks, which is unusually cheap for a critical list. **What the list cannot reach is the phase's own headline**: *the same session, four hundred turns long* is refused by clause (iii), because nothing here has ever played four hundred turns and a synthesised tree proves the chain rather than the summary. That walk is a sitting behind PLAYABLE, with **sitting G**. ***Re-audited 2026-09-15 after P7B and unchanged*** ([P8 §0.3](25-p8-implementation.md)): all ten findings of the first audit still hold, so the three criticals are still the three. *What did change is outside the gate* — the route-caller check now fails on a route with no caller, so the standing line's mechanical half runs on the commit rather than being read here. ***Built 2026-09-16 on §5's fallback cut and merged into `main` the same day at `4a6e377`*** — the chain, the pipeline, the books, **manual capture** and the toggles, with the **automatic extractor deferred** — and **the cut removed two of the three criticals' subjects**, which is the honest way to say it. C2 *(a correction survives the next extraction)* is **vacuous** while nothing rewrites an entry, and C3's extraction half has no extractor to bleed; **both travel with the stage** and arrive as rows when it does. So the list is **sitting N** with **one critical row**, C1, plus the cheap remainder and the desk work — *the shortest a phase has ever closed on*, and short because of a cut rather than because of the criterion. Nine of the fourteen rows are answered by named tests and are in §5. **Eight of the nine automatable rows landed**; the ninth, 1b, is *covered rather than walked* — `BlockSource` gained a `summary` arm so the block table has something to show, and the rendering is Standing. *The standing line's six field rows are five surfaced and one deliberately not*: the summariser's cadence is a constant with its reason beside it, because §1.3 makes it a measurement rather than a setting and a control offered before the measurement is a number somebody has to guess |
-| **P9** | 15 | **1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15** — when they land | not yet opened | **Planned rather than sketched, 2026-09-15** ([P9 §3.1](26-p9-implementation.md)). Thirteen rows automatable and **two criticals — C1 an image arriving and rendering in place, C2 the picture landing at its anchor inside the prose.** *Unusually short, and not because the phase is safe*: thirteen rows are about mechanism — a dispatch, a digest, a diff, a call log — and what is left for a person is the two where the claim is about what it looks like. **Both are blocked on R10**, which is why that row exists; a P9 that ships without one closes having proved every mechanism and looked at no picture. ***Re-audited 2026-09-16 after P8 and unchanged*** ([P9 §0.3](26-p9-implementation.md)): all ten findings of the first audit still hold, so the two criticals are still the two, and what P8 moved lands on the stages rather than on the gate — a content digest, a call counter, a pre-call role resolution and a worked example of the engine applying an effect. ***What the re-run sharpened is the errand, not the list***: the four sittings that hold a phase open — **K**, **L**, **M** and **N** — all want a **chat** endpoint, so none of them discharges R10, and the day that closes four phases leaves both of these criticals exactly where they are |
+| **P9** | 15 | **1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15** — landed 2026-09-16 | **built 2026-09-16 on branch `p9`, and open** | **Planned rather than sketched, 2026-09-15** ([P9 §3.1](26-p9-implementation.md)). Thirteen rows automatable and **two criticals — C1 an image arriving and rendering in place, C2 the picture landing at its anchor inside the prose.** *Unusually short, and not because the phase is safe*: thirteen rows are about mechanism — a dispatch, a digest, a diff, a call log — and what is left for a person is the two where the claim is about what it looks like. **Both are blocked on R10**, which is why that row exists; a P9 that ships without one closes having proved every mechanism and looked at no picture. ***Re-audited 2026-09-16 after P8 and unchanged*** ([P9 §0.3](26-p9-implementation.md)): all ten findings of the first audit still hold, so the two criticals are still the two, and what P8 moved lands on the stages rather than on the gate — a content digest, a call counter, a pre-call role resolution and a worked example of the engine applying an effect. ***What the re-run sharpened is the errand, not the list***: the four sittings that hold a phase open — **K**, **L**, **M** and **N** — all want a **chat** endpoint, so none of them discharges R10, and the day that closes four phases leaves both of these criticals exactly where they are. ***Built 2026-09-16 — all six stages, all thirteen AUTO rows discharged by test, and the two criticals never walked*** ([P9 §3.2](26-p9-implementation.md)). The list is **sitting O**, and it is the first in this file that is an errand before it is a sitting: K, L, M and N are waiting for an hour, and O is waiting for a thing. *What a built-and-open P9 proves is every claim about mechanism* — a turn that does not wait, a recipe that survives its pixels, a digest that matches a place, an empty diff on rewind, a text call that is not made on re-creation — *and no claim about what any of it looks like*, which is exactly the shape §3.1 predicted it would have |
 | **P10 … P11** | 10 / 10 | — | not yet opened | **20 person-walked steps still to arrive.** Each carries a step marked *only a person can walk*, and in each it is the phase's whole claim — as P7's C1 is, and as P8's C1 now is |
 | **P7B** | ~~12~~ **17** | **2, 3, 4, 7, 8, 9, 11, 16, 17** — §5 | **M, pending** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](24-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](28-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing. ***Written and green 2026-09-14, and it found an eighteenth, a nineteenth and a twentieth on its first run*** ([P7B §1.12](24-p7b-presets-and-prompts.md)) — which is the answer to the clause before it, arriving from a test rather than from a walk. ~~**The ten stages are all committed; the critical list is walked on the day the phase closes and nothing below records a walk**~~ ***Merged into `main` 2026-09-15 at `e7d6dee`, and open*** — the same split P7's row above records, for the same reason: §7's rule is that a phase closes when its critical list is walked, and P7B's is not. **Sitting M**, four criticals and a judgement sitting: **M1** the pack demo end to end; **M2** the mid-session switch against compare and a rewind; **M3** the hand edit under an open panel; **M4** the workbench saying which turn it is showing; **M5** several turns on a browser-authored pack, judged. Nine rows answered by tests and in §5, three walked-but-not-critical folded into **M6** because they want the same install, and **M7** is the desk work. *Every row of M wants a live endpoint, which no earlier critical list had to admit* |
 
@@ -1202,6 +1268,25 @@ that only grows. Their state today:
   already measures pairs against 4.5:1 and measures none of these — and a
   screenshot of `/` in the standing list, since the whole page is one document
   and a person looking at it is the instrument that found all three.
+
+- **A hand-enumerated fixture over a union is only as total as the hand** —
+  added 2026-09-16 at [P9.5](26-p9-implementation.md), which found it rather
+  than looked for it. `workbench/address.test.ts` asserts
+  `expect(address.label).not.toBe(source.kind)` over an `EVERY_ARM` array — the
+  check exists precisely to catch a `BlockSource` arm that shipped with no
+  label — and **it missed two**: `summary`, added at
+  [P8.1](25-p8-implementation.md), rendered in the workbench's Source column as
+  the bare word `summary` for a whole phase with the suite green over it, and
+  `schema` had been absent from the fixture since [P7.4]. Both labels and both
+  fixture rows landed at P9.5.
+
+  *This is the same class as the seed script and the request body above*: a
+  check pointed at a list that does not contain the thing. What would close it
+  is **a type-level exhaustiveness check** — `BlockSource` is free-to-move tier
+  with no runtime representation to iterate, so the mechanical form is a
+  `satisfies`-shaped assertion that fails to compile when an arm has no fixture,
+  rather than a longer array. Not built, and named here rather than in a commit
+  message because the next arm is when it matters.
 
 
 ---
