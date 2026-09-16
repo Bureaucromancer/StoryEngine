@@ -11,6 +11,7 @@ import type {
   Setup,
 } from '@storyengine/shared';
 
+import type { SessionMemoryConfig } from '../memory/config.js';
 import type { Binding } from '../providers/types.js';
 
 /**
@@ -247,6 +248,27 @@ export interface SessionFile {
    * difference between resuming and guessing.
    */
   lastSelectedChild?: Record<string, string>;
+
+  /**
+   * ***Whether this session shares memories and draws on them*** —
+   * [08 §4](../../../../docs/design/08-cross-session-memory.md),
+   * [08 §7](../../../../docs/design/08-cross-session-memory.md), [P8.4].
+   *
+   * Two switches and a tri-state list — see `memory/config.ts`, which carries
+   * the argument for each and the table of all four combinations.
+   *
+   * **On the session rather than on the book**, and that is 08 §1's requirement
+   * rather than a placement: *"Each session has two toggles"* and *"beyond
+   * those, manual association: a list of the account's sessions, each
+   * individually forceable on or off"*. A book is shared between sessions by
+   * construction, so a toggle on it would be one session deciding for the rest.
+   *
+   * Optional for the reason every field here is: every session written before
+   * this predates it, and absent reads as `DEFAULT_MEMORY_CONFIG` — both
+   * switches on, which is what those sessions had when the feature did not
+   * exist.
+   */
+  memory?: SessionMemoryConfig;
 
   /**
    * Set when the session is archived — [03 §10.3].

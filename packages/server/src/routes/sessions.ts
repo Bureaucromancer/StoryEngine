@@ -36,6 +36,7 @@ import {
   readTurns,
   readTurnById,
   setArchived,
+  setMemoryConfig,
   setName,
   undoTurn,
   writeChannel,
@@ -47,6 +48,8 @@ import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { rememberThis } from '../memory/capture.js';
+import type { SessionMemoryConfig } from '../memory/config.js';
+import { memoryPanel } from '../memory/panel.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -374,6 +377,26 @@ const LoreBody = Type.Object(
  * activates: a capture that quietly wrote one would produce a memory that
  * exists, is listed, is editable, and can never reach a prompt.
  */
+/**
+ * The two switches, the widening and the tri-state list — [08 §4], [08 §7].
+ *
+ * **Replaced whole**, per `setMemoryConfig`: a partial update has no way to say
+ * *remove this association*, and a deletion sentinel would be a second
+ * vocabulary for a map the client already holds entire.
+ */
+const MemoryBody = Type.Object(
+  {
+    share: Type.Boolean(),
+    intake: Type.Boolean(),
+    acrossPersonas: Type.Boolean(),
+    associations: Type.Record(
+      Type.String({ minLength: 1, maxLength: 200 }),
+      Type.Union([Type.Literal('always'), Type.Literal('never')]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const RememberBody = Type.Object(
   {
     turnId: Type.String({ minLength: 1, maxLength: 200 }),
@@ -1532,6 +1555,59 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // what cannot be remembered, which is a state rather than a mistake.
           return reply.code(409).send({ error: 'hidden-content', message: outcome.reason });
       }
+    },
+  );
+
+  /**
+   * ***Whether this session shares its memories and draws on them***, and what
+   * it would read if it did — [08 §4], [08 §7], [P8.4].
+   *
+   * Two routes on one path: the read builds the panel (the switches, the link to
+   * each book, and the account's other sessions with the same actors), and the
+   * write replaces the settings whole.
+   *
+   * **Off the session read deliberately.** `GET /sessions/:id` is fetched on
+   * every turn by every open tab, and the panel walks every session file the
+   * account owns — paying for that always, to serve a drawer somebody opens
+   * occasionally, is the wrong trade. See `memory/panel.ts`.
+   */
+  app.get(
+    '/sessions/:sessionId/memory',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const panel = await memoryPanel(
+        services.sessions,
+        services.library,
+        account.handle,
+        sessionId,
+      );
+      if (panel === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+      }
+      return reply.send(panel);
+    },
+  );
+
+  app.put(
+    '/sessions/:sessionId/memory',
+    { schema: { params: SessionParams, body: MemoryBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as SessionMemoryConfig;
+      const session = await setMemoryConfig(services.sessions, account.handle, sessionId, body);
+      if (session === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+      }
+      return reply.send({ memory: session.memory ?? body });
     },
   );
 

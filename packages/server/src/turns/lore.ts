@@ -3,6 +3,7 @@
 
 import {
   LOREBOOK_SCHEMA,
+  type LoreEntry,
   TREATMENT_SCHEMA,
   type Lorebook,
   type Treatment,
@@ -11,6 +12,7 @@ import {
 
 import { resolveRef } from '../library.js';
 import { memoryBooksOf } from '../memory/books.js';
+import { admits, readMemoryConfig, type SessionMemoryConfig } from '../memory/config.js';
 import type { LibraryContext } from '../library.js';
 
 /**
@@ -195,7 +197,10 @@ export interface ResolvedLore {
 export function resolveLore(
   library: LibraryContext,
   handle: string,
-  session: { treatment?: unknown; lore?: unknown; cast?: unknown } | null | undefined,
+  session:
+    | { id?: unknown; treatment?: unknown; lore?: unknown; cast?: unknown; memory?: unknown }
+    | null
+    | undefined,
 ): ResolvedLore {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
@@ -269,7 +274,7 @@ export function resolveLore(
    * list. *The reporting ships first deliberately*, so [P5.8]'s keyword tester
    * never has to answer *why is this book being scanned* with a blank.
    */
-  for (const found of memoryBooksFor(library, handle, session.cast)) {
+  for (const found of memoryBooksFor(library, handle, session)) {
     if (seen.has(found.path)) continue;
     seen.add(found.path);
     books.push({
@@ -324,8 +329,9 @@ export function resolveLore(
 function memoryBooksFor(
   library: LibraryContext,
   handle: string,
-  cast: unknown,
+  session: { id?: unknown; cast?: unknown; memory?: unknown },
 ): { book: Lorebook; id: string; contentHash: string; path: string }[] {
+  const cast = session.cast;
   if (typeof cast !== 'object' || cast === null) return [];
   const declared = cast as { persona?: unknown; actors?: unknown };
   const actors = Array.isArray(declared.actors)
@@ -333,18 +339,79 @@ function memoryBooksFor(
     : [];
   if (actors.length === 0) return [];
 
+  const config = readMemoryConfig(session);
+  const sessionId = typeof session.id === 'string' ? session.id : '';
+
+  /**
+   * ***Intake off does not mean no books*** — [08 §4]'s tri-state, and this is
+   * the clause it exists for. *"`'always'` pulls a session in even when
+   * `intake` is off"*, so a session that has switched intake off can still be
+   * told to read one particular earlier session. The book is admitted; what
+   * decides is which of its **entries** survive, below.
+   */
+  if (!config.intake && Object.values(config.associations).every((one) => one !== 'always')) {
+    return [];
+  }
+
   const persona = typeof declared.persona === 'string' ? declared.persona : null;
   const wanted = new Set(actors);
   return memoryBooksOf(library, handle)
-    .filter((one) => wanted.has(one.scope.actor) && one.scope.persona === persona)
+    .filter(
+      (one) =>
+        wanted.has(one.scope.actor) &&
+        // [08 §3]: per persona **by default**. Widening is a setting, and it
+        // widens the persona axis only — the user axis is the path.
+        (config.acrossPersonas || one.scope.persona === persona),
+    )
     .map((one) => ({
-      book: one.book,
+      book: admitted(one.book, config, sessionId),
       id: one.id,
       contentHash: one.contentHash,
       // The index row's own path, so the `seen` de-duplication above compares
       // the same thing for all three routes.
       path: one.path,
     }));
+  /**
+   * ***A book with nothing left in it is still returned***, and a first draft
+   * filtered those out. `retrieval/blocks.ts` puts **every book in play** on the
+   * shelf report *"including one that activated nothing — which is the row
+   * somebody most needs"*, because *this book is being scanned and contributed
+   * nothing* and *this book is not being scanned* are different problems with
+   * different repairs. Dropping an empty memory book would have made the second
+   * sentence the only one a memory book could ever produce — and [P5.8]'s tester
+   * would have had nothing to say about a session whose associations excluded
+   * everything.
+   */
+}
+
+/**
+ * The book as this session may read it — [08 §4]'s association list applied.
+ *
+ * ***A filtered copy rather than a filter downstream***, and the difference is
+ * [08 §6]'s *refuse at the source* argument applied one level down: the
+ * retriever scans what it is given, charges its budget against what it scans,
+ * and reports what it kept. A book handed over whole and filtered after the scan
+ * would spend another session's memories out of this one's token budget and then
+ * drop them — which is exactly the defect [P6B.1] found on the lore path and is
+ * the reason that bug is worth not repeating.
+ *
+ * *An entry with no recorded origin is governed by `intake`*, which is the
+ * honest default for a hand-written entry somebody added to a memory book
+ * themselves: it has no other session to be associated with.
+ */
+function admitted(book: Lorebook, config: SessionMemoryConfig, sessionId: string): Lorebook {
+  return {
+    ...book,
+    entries: book.entries.filter((entry) => admits(config, sessionId, originOf(entry))),
+  };
+}
+
+/** Which session wrote an entry, from the open record [P8 §1.4] puts it in. */
+function originOf(entry: LoreEntry): string | null {
+  const held = entry.metadata['se.memory'];
+  if (typeof held !== 'object' || held === null) return null;
+  const origin = (held as { sessionId?: unknown }).sessionId;
+  return typeof origin === 'string' && origin !== '' ? origin : null;
 }
 
 interface LoreWant {

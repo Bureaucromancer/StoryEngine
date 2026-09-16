@@ -14,6 +14,7 @@ import {
 } from '../sessions/store.js';
 import { acceptEffect } from '../turns/effects.js';
 import { ensureMemoryBook, type MemoryScope } from './books.js';
+import { readMemoryConfig } from './config.js';
 import { SE_MEMORY_WRITTEN } from './channel.js';
 
 /**
@@ -154,6 +155,24 @@ export async function rememberThis(
 
   const refusal = hiddenContentIn(subject);
   if (refusal !== null) return { kind: 'refused', reason: refusal };
+
+  /**
+   * ***`share` governs the write, which is what makes [08 §4]'s table real.***
+   *
+   * Two of its four rows are about a session that reads history without adding
+   * to it — *"an experiment. Learns from history without polluting it"* and *"a
+   * sealed alternate universe"* — and neither is expressible unless something
+   * actually refuses to write. Refused with the reason rather than silently
+   * ignored, for [00 §3.3]'s standing posture: a button that appeared to work
+   * and wrote nothing is the worst of the three available behaviours.
+   */
+  if (!readMemoryConfig(session).share) {
+    return {
+      kind: 'refused',
+      reason:
+        'This session is not sharing its memories. Turn sharing on in the Session panel to keep this one.',
+    };
+  }
 
   /**
    * **The cast is the authority on whose memory this may be**, and checking it

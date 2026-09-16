@@ -1400,6 +1400,54 @@ export function createBranchRef(
  * something has written the same channels since.
  */
 /**
+ * The two switches, the widening and the tri-state list — [08 §4], [08 §7].
+ *
+ * **`auto` is the absence of a choice and is sent as an absence**: the map holds
+ * only the sessions somebody has forced on or off, which is what makes *absent
+ * means governed by `intake`* the same statement on both sides of the wire.
+ */
+export interface MemoryConfig {
+  share: boolean;
+  intake: boolean;
+  acrossPersonas: boolean;
+  associations: Record<string, 'always' | 'never'>;
+}
+
+export interface MemoryBookLink {
+  actorId: string;
+  actorName: string;
+  /** Null until the first memory is written — books are created lazily. */
+  bookId: string | null;
+  entries: number;
+}
+
+export interface MemoryAssociationRow {
+  sessionId: string;
+  name: string;
+  association: 'auto' | 'always' | 'never';
+  /** What it comes to with `intake` applied — 08 §7's *visible rather than inferred*. */
+  effective: boolean;
+  shared: string[];
+}
+
+export interface MemoryPanel {
+  config: MemoryConfig;
+  books: MemoryBookLink[];
+  others: MemoryAssociationRow[];
+}
+
+export function readMemoryPanel(sessionId: string): Promise<MemoryPanel> {
+  return request('GET', `/api/sessions/${encodeURIComponent(sessionId)}/memory`);
+}
+
+export function setMemoryConfig(
+  sessionId: string,
+  config: MemoryConfig,
+): Promise<{ memory: MemoryConfig }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/memory`, config);
+}
+
+/**
  * ***Remember this*** — [08 §2.1], [P8.3]'s cut form.
  *
  * Every field is sent rather than derived server-side, which is the affordance:

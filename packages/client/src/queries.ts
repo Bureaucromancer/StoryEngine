@@ -26,6 +26,8 @@ import {
   removeSessionHook,
   deleteSession,
   renameSession,
+  readMemoryPanel,
+  setMemoryConfig,
   setSessionArchived,
   setSessionLore,
   setSessionPreset,
@@ -49,6 +51,8 @@ import {
   type ObjectImportNotes,
   type ObjectVersion,
   type PendingInput,
+  type MemoryConfig,
+  type MemoryPanel,
   type SessionSummary,
   type SetupInput,
   type TurnPreview,
@@ -568,6 +572,37 @@ export function useSetSessionArchived(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
+}
+
+/**
+ * ***The memory panel*** — [08 §7], [P8.4].
+ *
+ * **Its own key, and fetched only while the panel is open.** The read walks
+ * every session file the account owns; `enabled` keeps that off the page's
+ * first paint and off every turn, which is the same trade the route makes for
+ * the same reason.
+ */
+export function useMemoryPanel(sessionId: string, open: boolean): UseQueryResult<MemoryPanel> {
+  return useQuery({
+    queryKey: ['session-memory', sessionId],
+    queryFn: () => readMemoryPanel(sessionId),
+    enabled: open,
+  });
+}
+
+export function useSetMemoryConfig(
+  sessionId: string,
+): UseMutationResult<{ memory: MemoryConfig }, Error, MemoryConfig> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (config: MemoryConfig) => setMemoryConfig(sessionId, config),
+    onSuccess: () => {
+      // The panel, because `effective` is derived from what just changed; and
+      // the session, because the file did.
+      void client.invalidateQueries({ queryKey: ['session-memory', sessionId] });
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
 }

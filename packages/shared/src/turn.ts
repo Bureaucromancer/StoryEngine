@@ -150,7 +150,27 @@ export type BlockSource =
       sectionId?: string;
       field?: 'traits' | 'visual';
     }
-  | { kind: 'lore'; entryId: string; phase: 'before' | 'after' }
+  /**
+   * One lorebook entry the retriever activated.
+   *
+   * ***`bookId` since [P8.4], and its absence was a real gap rather than an
+   * omission.*** [P8 §1.6]: *"`retrieval/blocks.ts` builds the candidate with no
+   * **book id**, though the activation carries one — so even the demo's *the
+   * workbench names the entry and its origin* is unanswerable from the record."*
+   * Two books can hold entries with the same id (importing one source twice is
+   * the ordinary way there), so the entry id alone does not identify an entry;
+   * the block's own `id` has been namespaced by both since P5.6 and this is the
+   * same fact in the shape a reader can follow.
+   *
+   * **What it buys is a link.** A memory block can say which book it came from,
+   * and a book knows which session wrote it — which is how the workbench answers
+   * *the entry, its origin session and why it was retrieved*, the sentence
+   * [P8]'s demo turns on.
+   *
+   * Absent on every record written before P8.4, so a reader links when it is
+   * there and labels when it is not — `persona`'s rule for a session with none.
+   */
+  | { kind: 'lore'; entryId: string; phase: 'before' | 'after'; bookId?: string }
   /**
    * One half of one past turn — F36: `part` because a turn is **two** blocks,
    * the player's words as `user` and the model's as `assistant`. `turnId` is

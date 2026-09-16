@@ -193,6 +193,11 @@ describe('loreBlocks', () => {
       kind: 'lore',
       entryId: entry.id,
       phase: 'before',
+      // [P8.4]: the activation has carried the book id the whole time and the
+      // block dropped it, which is why *the workbench names the entry and its
+      // origin* was unanswerable from the record. Two books can hold entries
+      // with the same id, so the entry id alone never identified one.
+      bookId: 'book-1',
     });
   });
 

@@ -16,6 +16,7 @@ import { Button } from '../ui/Button.js';
 import { NumberField, SelectField } from '../ui/Field.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { MemorySection } from './MemoryPanel.js';
 
 /**
  * What this session is prompted with, and the two verbs it has never had —
@@ -232,6 +233,17 @@ export function SessionPanel(props: {
 
         {setArchived.isError ? <Alert tone="error">{setArchived.error.message}</Alert> : null}
         {remove.isError ? <Alert tone="error">{remove.error.message}</Alert> : null}
+
+        {/* ***Memories*** — [08 §7], [P8.4]. **A section of this panel rather
+            than an eighth panel in the column**, which is the one thing [P8 §0.3]
+            asks of this stage beyond the feature: the debt recorded in this
+            file's own docstring is that six became seven and *one Session panel,
+            not three* is further from done than when it was written. A stage
+            that made it eight without saying so is how a column becomes a list.
+            **It makes it seven sections in one panel instead**, which is the
+            direction §1.4 wanted — and the consolidation it asked for is still
+            owed. */}
+        <MemorySection sessionId={props.sessionId} />
       </div>
     </details>
   );

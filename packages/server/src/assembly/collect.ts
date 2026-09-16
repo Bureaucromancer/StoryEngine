@@ -777,6 +777,20 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             // and which are the two fields a lore block exists to carry.
             role: one.candidate.role,
             reason: one.candidate.reason,
+            /**
+             * ***And its advisory flag, which is the third arm of the union***
+             * — [08 §5], [P8 §1.6], [P8.4].
+             *
+             * `emit` forces the marker for two *slot sources* and otherwise
+             * inherits the positioning slot's, which is why nothing on the lore
+             * path could be advisory: a memory entry and an authored one arrive
+             * through the same `{ of: 'lore' }` slot. `retrieval/blocks.ts` sets
+             * it where the book is known, and this is the line that stops it
+             * being thrown away one function later. **A union, never a
+             * replacement**: a preset that marks its lore slot advisory keeps
+             * doing so for the authored entries too.
+             */
+            ...(one.candidate.advisory === true ? { advisory: true as const } : {}),
           })),
         );
     }
