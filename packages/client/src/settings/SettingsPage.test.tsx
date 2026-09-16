@@ -42,6 +42,8 @@ const patchPrefs = vi.fn();
 const readMyRoles = vi.fn();
 const setAccountPassword = vi.fn();
 
+const listMyConnections = vi.fn();
+
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
   api: {
@@ -53,6 +55,15 @@ vi.mock('../api.js', async (importOriginal) => ({
     patchPrefs: (...a: unknown[]) => patchPrefs(...a) as unknown,
     readMyRoles: (...a: unknown[]) => readMyRoles(...a) as unknown,
     writeMyBindings: vi.fn(),
+    // [P10.3]'s *your connections*. Mocked here for `listConnections`' reason —
+    // so this file keeps testing what it is about — and it must not be left
+    // out: an unmocked query rejects, `MyConnections` renders its `role=alert`,
+    // and every `findByRole('alert')` on this page finds two.
+    listMyConnections: (...a: unknown[]) => listMyConnections(...a) as unknown,
+    createMyConnection: vi.fn(),
+    updateMyConnection: vi.fn(),
+    deleteMyConnection: vi.fn(),
+    fetchMyModels: vi.fn(),
   },
   adminApi: {
     listAccounts: (...a: unknown[]) => listAccounts(...a) as unknown,
@@ -94,6 +105,7 @@ function account(role: 'admin' | 'user') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listMyConnections.mockResolvedValue({ connections: [] });
   readMe.mockResolvedValue({ account: account('user') });
   updateMe.mockResolvedValue({ account: account('user') });
   // The Preferences pane reads these on every render of this page. Empty is the
@@ -689,6 +701,66 @@ describe('the theme preference', () => {
     // Removed, not set to 'system' — the stylesheet's default arm is the media
     // query, and an unrecognised attribute would sit in front of it.
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
+});
+
+/**
+ * ***Your* connections, and the capability that decides whether it exists** —
+ * [10 §15.1](../../../../docs/design/10-ui-surfaces.md), [P10.3].
+ *
+ * The same *absent is absent* mechanism the administration half rests on, on a
+ * second subject and for a sharper reason: an admin without the panel is
+ * looking at a page that is not for them, and a person without
+ * `privateConnections` would be looking at a form whose **writes the resolver
+ * would ignore** — `resolveConnections` returns their files as `disabled`. A
+ * greyed form would promise something the loader has already decided against.
+ */
+describe('your own connections', () => {
+  it('is there for an account that may keep its own keys', async () => {
+    listMyConnections.mockResolvedValue({
+      connections: [
+        {
+          id: 'mine',
+          label: 'My own key',
+          provider: 'openai-compatible',
+          scope: 'user',
+          models: ['local-hi'],
+          hasKey: true,
+          shadowed: false,
+          contentHash: 'h1',
+        },
+      ],
+    });
+
+    renderPage('user');
+
+    expect(await screen.findByRole('heading', { name: 'Your connections' })).toBeTruthy();
+    expect(await screen.findByText('My own key')).toBeTruthy();
+  });
+
+  it('is absent without the capability, and nothing is asked for', async () => {
+    authState.mockResolvedValue({
+      setupRequired: false,
+      account: {
+        ...account('user'),
+        capabilities: { privateConnections: false, fileAccess: 'none', enableExtensions: false },
+      },
+      minPasswordLength: 8,
+      build: ALPHA,
+    });
+    readMe.mockResolvedValue({ account: account('user') });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('You');
+    expect(screen.queryByRole('heading', { name: 'Your connections' })).toBeNull();
+    // The mechanism rather than the symptom: the hook never mounts, so that
+    // browser issues no request there is nothing to refuse.
+    expect(listMyConnections).not.toHaveBeenCalled();
   });
 });
 

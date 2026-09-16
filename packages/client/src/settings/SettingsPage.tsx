@@ -7,9 +7,10 @@ import { AboutBuild } from '../about/AboutBuild.js';
 import { useAuthState } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { AdminAccounts } from './AdminAccounts.js';
-import { AdminConnections } from './AdminConnections.js';
+import { AdminConnections, MyConnections } from './Connections.js';
 import { AdminInstall } from './AdminInstall.js';
 import { MyRoles } from './MyRoles.js';
+import { NotificationPrefs } from './NotificationPrefs.js';
 import { Preferences } from './Preferences.js';
 import { UserSettings } from './UserSettings.js';
 
@@ -63,6 +64,24 @@ export function SettingsPage(): JSX.Element {
       <MyRoles />
 
       <Preferences />
+
+      {/*
+        After Preferences and still in the user half — [10 §15.1] and [09 §3.5],
+        whose *"one row per class in settings"* is what this section is. A fact
+        about one person's ears, so it sits with the theme rather than with the
+        install.
+      */}
+      <NotificationPrefs />
+
+      {/*
+        ***Absent when the capability is off***, which is this page's own
+        mechanism rather than a new one — [10 §15.1], [P10.3]. A person whose
+        `privateConnections` was withdrawn does not get a greyed form whose
+        writes the resolver would ignore, and their browser issues no request to
+        be refused. The route refuses too, for [09 §4.5]'s reason: a UI-level
+        check is a trivial bypass and is never the boundary.
+      */}
+      {account?.capabilities.privateConnections === true ? <MyConnections /> : null}
 
       {account?.role === 'admin' ? (
         <section className="flex flex-col gap-8" aria-labelledby="administration">

@@ -33,6 +33,7 @@ import type { NotificationList, NotificationView } from './types.js';
 
 const readNotifications = vi.fn();
 const markNotificationsRead = vi.fn();
+const readPrefs = vi.fn();
 const playChime = vi.fn();
 const showBrowserNotification = vi.fn();
 
@@ -48,10 +49,19 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: {
     readNotifications: (...a: unknown[]) => readNotifications(...a) as unknown,
     markNotificationsRead: (...a: unknown[]) => markNotificationsRead(...a) as unknown,
+    // The preference bag, because [P10.3] gave the delivery path four switches
+    // to read. An unmocked `usePrefs` rejects, and the hook then holds to
+    // *nobody has told us yet*, which it treats as muted — correct behaviour,
+    // and it would make every assertion below about the wrong thing.
+    readPrefs: (...a: unknown[]) => readPrefs(...a) as unknown,
   },
 }));
 
-vi.mock('./chime.js', () => ({ playChime: () => playChime(), resetChime: () => undefined }));
+vi.mock('./chime.js', () => ({
+  playChime: (one?: string) => playChime(one),
+  primeAudio: () => () => undefined,
+  resetChime: () => undefined,
+}));
 
 vi.mock('./browser.js', () => ({
   browserChannel: () => 'unsupported',
@@ -95,6 +105,7 @@ function Probe(): JSX.Element {
       <p data-testid="unread">{String(state.list.unread)}</p>
       <p data-testid="rows">{String(state.list.notifications.length)}</p>
       <p data-testid="toast">{state.toast === null ? 'none' : state.toast.id}</p>
+      <p data-testid="muted">{String(state.muted)}</p>
       <button
         type="button"
         data-testid="mark"
@@ -112,6 +123,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   push = null;
   readNotifications.mockResolvedValue({ notifications: [], unread: 0 });
+  // No stored preferences: every class is `sound` and nothing starts muted.
+  readPrefs.mockResolvedValue({ prefs: {} });
   markNotificationsRead.mockResolvedValue({ read: 0, unread: 0 });
   document.title = 'StoryEngine';
 });
@@ -125,16 +138,34 @@ function mount(): void {
   );
 }
 
+/**
+ * Mounts and waits for **both** the stream and the preferences.
+ *
+ * ***The second wait is load-bearing and is [P10.3]'s doing.*** Until prefs
+ * land the hook holds the mute *on*: *nobody has told us yet* is not the same
+ * as *not muted*, and playing the first notification out loud for somebody
+ * whose whole preference is that it should not is the failure that choice
+ * prevents. A test that raced it would assert silence and call it a bug.
+ */
+async function mounted(): Promise<void> {
+  mount();
+  await waitFor(() => {
+    expect(push).not.toBeNull();
+  });
+  await waitFor(() => {
+    expect(screen.getByTestId('muted').textContent).toBe('false');
+  });
+}
+
 describe('a notification arriving live', () => {
   it('sounds, toasts and offers it to the browser', async () => {
-    mount();
-    await waitFor(() => {
-      expect(push).not.toBeNull();
-    });
+    await mounted();
 
     act(() => push?.notification(one()));
 
-    expect(playChime).toHaveBeenCalledTimes(1);
+    // The class, not a generic chime — [10 §9]'s *tellable apart from another
+    // room*.
+    expect(playChime).toHaveBeenCalledWith('turn.complete');
     expect(showBrowserNotification).toHaveBeenCalledTimes(1);
     await waitFor(() => {
       expect(screen.getByTestId('toast').textContent).toBe('n-1');
@@ -142,10 +173,7 @@ describe('a notification arriving live', () => {
   });
 
   it('puts the unread count in the document title', async () => {
-    mount();
-    await waitFor(() => {
-      expect(push).not.toBeNull();
-    });
+    await mounted();
 
     act(() => push?.notification(one()));
 
@@ -165,10 +193,7 @@ describe('a snapshot', () => {
    * flaky network into a chime every three seconds.
    */
   it('fills the list without announcing anything', async () => {
-    mount();
-    await waitFor(() => {
-      expect(push).not.toBeNull();
-    });
+    await mounted();
 
     act(() => push?.snapshot({ notifications: [one(), one({ id: 'n-2' })], unread: 2 }));
 
@@ -180,10 +205,7 @@ describe('a snapshot', () => {
   });
 
   it('does not announce a row it has already carried', async () => {
-    mount();
-    await waitFor(() => {
-      expect(push).not.toBeNull();
-    });
+    await mounted();
 
     act(() => push?.snapshot({ notifications: [one()], unread: 1 }));
     // The same row again, as a reattach would send it.
@@ -199,10 +221,7 @@ describe('a fold', () => {
    * five arrivals are one notification — *one*, not *none*.
    */
   it('announces again when the count moves, and not when it repeats', async () => {
-    mount();
-    await waitFor(() => {
-      expect(push).not.toBeNull();
-    });
+    await mounted();
 
     act(() => push?.notification(one({ folded: 1 })));
     act(() => push?.notification(one({ folded: 3, updatedAt: 2_000 })));
@@ -225,10 +244,7 @@ describe('marking read', () => {
       }),
     );
 
-    mount();
-    await waitFor(() => {
-      expect(push).not.toBeNull();
-    });
+    await mounted();
     act(() => push?.notification(one()));
     await waitFor(() => {
       expect(document.title).toBe('(1) StoryEngine');

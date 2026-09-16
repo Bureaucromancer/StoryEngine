@@ -1040,8 +1040,29 @@ export function useRemoveAccount(): UseMutationResult<undefined, Error, string> 
  * state the table exists to show. A cache that only refreshed on a bindings
  * write would go on reporting a model that is gone.
  */
-export function useConnections(): UseQueryResult<{ connections: AdminConnection[] }> {
-  return useQuery({ queryKey: ['admin', 'connections'], queryFn: adminApi.listConnections });
+/**
+ * Which directory a connection surface is about — [10 §15.1], [P10.3].
+ *
+ * ***A parameter rather than a second set of hooks***, and the reason is the
+ * one `routes/connections.ts` gives for keeping both registrars in one module:
+ * the two scopes share a record shape, a stale check and an error vocabulary, so
+ * the easy mistake was never a second copy — it was one of them quietly reading
+ * the other's list. A parameter makes the scope appear at every call site.
+ */
+export type ConnectionScope = 'system' | 'mine';
+
+/** The cache key, which must differ or one list would answer for both. */
+function connectionsKey(scope: ConnectionScope): readonly string[] {
+  return scope === 'system' ? ['admin', 'connections'] : ['me', 'connections'];
+}
+
+export function useConnections(
+  scope: ConnectionScope = 'system',
+): UseQueryResult<{ connections: AdminConnection[] }> {
+  return useQuery({
+    queryKey: connectionsKey(scope),
+    queryFn: scope === 'system' ? adminApi.listConnections : api.listMyConnections,
+  });
 }
 
 export function useRoles(): UseQueryResult<{ roles: RoleRow[] }> {
@@ -1053,8 +1074,8 @@ export function useBindings(): UseQueryResult<BindingsState> {
 }
 
 /** Everything a write to this surface makes stale. */
-function invalidateProviderSurface(client: QueryClient): void {
-  void client.invalidateQueries({ queryKey: ['admin', 'connections'] });
+function invalidateProviderSurface(client: QueryClient, scope: ConnectionScope = 'system'): void {
+  void client.invalidateQueries({ queryKey: connectionsKey(scope) });
   void client.invalidateQueries({ queryKey: ['admin', 'bindings'] });
   void client.invalidateQueries({ queryKey: ['admin', 'roles'] });
   // The dead-end count asks whether `prose` resolves, so it moves when either
@@ -1111,7 +1132,9 @@ export function useWriteMyBindings(): UseMutationResult<
   });
 }
 
-export function useSaveConnection(): UseMutationResult<
+export function useSaveConnection(
+  scope: ConnectionScope = 'system',
+): UseMutationResult<
   { connection: AdminConnection },
   Error,
   ConnectionInput & { id?: string; contentHash?: string }
@@ -1126,22 +1149,27 @@ export function useSaveConnection(): UseMutationResult<
        * edit presents the hash it read, a create has nothing to be stale
        * against.
        */
-      return id === undefined || contentHash === undefined
-        ? adminApi.createConnection(rest)
-        : adminApi.updateConnection(id, { ...rest, contentHash });
+      if (id === undefined || contentHash === undefined) {
+        return scope === 'system' ? adminApi.createConnection(rest) : api.createMyConnection(rest);
+      }
+      return scope === 'system'
+        ? adminApi.updateConnection(id, { ...rest, contentHash })
+        : api.updateMyConnection(id, { ...rest, contentHash });
     },
     onSuccess: () => {
-      invalidateProviderSurface(client);
+      invalidateProviderSurface(client, scope);
     },
   });
 }
 
-export function useDeleteConnection(): UseMutationResult<undefined, Error, string> {
+export function useDeleteConnection(
+  scope: ConnectionScope = 'system',
+): UseMutationResult<undefined, Error, string> {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: adminApi.deleteConnection,
+    mutationFn: scope === 'system' ? adminApi.deleteConnection : api.deleteMyConnection,
     onSuccess: () => {
-      invalidateProviderSurface(client);
+      invalidateProviderSurface(client, scope);
     },
   });
 }
@@ -1183,11 +1211,22 @@ export function useWriteDefaultBindings(): UseMutationResult<
  * event: an admin who opens it, reads the number and cancels has made one
  * request and left no state behind.
  */
-export function useConnectionBindings(id: string | null): UseQueryResult<{ bindings: number }> {
+export function useConnectionBindings(
+  id: string | null,
+  /**
+   * ***Off for the personal scope, and the query is absent rather than
+   * disabled*** — [P10.3], `SettingsPage`'s *absent is absent*. There is no
+   * personal route for this count and deliberately so: [P2B §2.8]'s warning is
+   * about breaking **other people's** turns, which deleting your own does not
+   * do. A query left enabled would ask `/api/admin/…` from a non-admin's browser
+   * and be told 403 for a question nobody asked.
+   */
+  enabled = true,
+): UseQueryResult<{ bindings: number }> {
   return useQuery({
     queryKey: ['admin', 'connections', id, 'bindings'],
     queryFn: () => adminApi.connectionBindings(id ?? ''),
-    enabled: id !== null,
+    enabled: enabled && id !== null,
   });
 }
 
@@ -1198,12 +1237,12 @@ export function useConnectionBindings(id: string | null): UseQueryResult<{ bindi
  * It is also a `POST` that writes nothing, which is a shape worth naming: it
  * carries a key in the body, and a key does not belong in a URL.
  */
-export function useFetchModels(): UseMutationResult<
-  { models: string[] },
-  Error,
-  { baseUrl?: string; apiKey?: string }
-> {
-  return useMutation({ mutationFn: adminApi.fetchModels });
+export function useFetchModels(
+  scope: ConnectionScope = 'system',
+): UseMutationResult<{ models: string[] }, Error, { baseUrl?: string; apiKey?: string }> {
+  return useMutation({
+    mutationFn: scope === 'system' ? adminApi.fetchModels : api.fetchMyModels,
+  });
 }
 
 export function useAdminConfig(): UseQueryResult<ConfigView> {

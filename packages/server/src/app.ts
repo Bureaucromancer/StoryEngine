@@ -44,6 +44,7 @@ import { registerMeRoutes } from './routes/me.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerModeRoutes } from './routes/modes.js';
 import { registerTagRoutes } from './routes/tags.js';
+import { registerMyConnectionRoutes } from './routes/connections.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
@@ -957,6 +958,13 @@ export async function buildApp(
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
       registerNotificationRoutes(api, services);
+      /**
+       * ***Outside the `/api/admin` plugin, which is the whole point of it***
+       * — [10 §15.1], [P10.3]. `registerConnectionRoutes` is registered inside
+       * that prefix below and is the system scope; this is *your connections*,
+       * guarded by the `privateConnections` capability rather than by a role.
+       */
+      registerMyConnectionRoutes(api, services);
       registerModeRoutes(api);
       registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);

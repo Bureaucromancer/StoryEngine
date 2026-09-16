@@ -486,6 +486,32 @@ export const api = {
   markNotificationsRead: (ids: string[] = []): Promise<{ read: number; unread: number }> =>
     request('POST', '/api/me/notifications/read', { ids }),
 
+  /**
+   * ***Your* connections — [10 §15.1], [19 §5.1], [P10.3].**
+   *
+   * The admin twins live on `adminApi` and the shapes are identical, because
+   * they are the same thing in two directories: `AdminConnection` is what both
+   * scopes present and `scope: 'user' | 'system'` is the field that says which.
+   * A second response type would have been two names for one record.
+   */
+  listMyConnections: (): Promise<{ connections: AdminConnection[] }> =>
+    request('GET', '/api/me/connections'),
+
+  createMyConnection: (body: ConnectionInput): Promise<{ connection: AdminConnection }> =>
+    request('POST', '/api/me/connections', body),
+
+  updateMyConnection: (
+    id: string,
+    body: ConnectionInput & { contentHash: string },
+  ): Promise<{ connection: AdminConnection }> =>
+    request('PUT', `/api/me/connections/${encodeURIComponent(id)}`, body),
+
+  deleteMyConnection: (id: string): Promise<undefined> =>
+    request('DELETE', `/api/me/connections/${encodeURIComponent(id)}`),
+
+  fetchMyModels: (body: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
+    request('POST', '/api/me/connections/models', body),
+
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
   /** A shallow merge; `null` deletes. The response is the whole document. */

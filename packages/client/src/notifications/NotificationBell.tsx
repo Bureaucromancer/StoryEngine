@@ -80,6 +80,21 @@ export function NotificationBell(props: { state: NotificationsState }): JSX.Elem
               Notifications
             </h2>
             <div className="flex items-center gap-2">
+              {/* ***The mute for this sitting, where a person already is*** —
+                  [10 §9]'s global mute has a stored half in Settings and a live
+                  half here, because the moment somebody wants silence is the
+                  moment a sound just went off, and that is not a moment to send
+                  them to a settings page. It does not rewrite the preference. */}
+              <Button
+                type="button"
+                size="compact"
+                aria-pressed={props.state.muted}
+                onClick={() => {
+                  props.state.setMuted(!props.state.muted);
+                }}
+              >
+                {props.state.muted ? 'Unmute sounds' : 'Mute sounds'}
+              </Button>
               {list.unread > 0 ? (
                 <Button
                   type="button"

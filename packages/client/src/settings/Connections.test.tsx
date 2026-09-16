@@ -55,7 +55,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
-const { AdminConnections } = await import('./AdminConnections.js');
+const { AdminConnections } = await import('./Connections.js');
 
 function connection(over: Record<string, unknown> = {}) {
   return {

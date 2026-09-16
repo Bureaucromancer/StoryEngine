@@ -159,6 +159,30 @@ export async function readSystemConnectionEntries(layout: Layout): Promise<Conne
   return readEntriesIn(layout, layout.systemConnectionsRoot, 'system');
 }
 
+/**
+ * One person's own scope, files and all — [10 §15.1], [P10.3].
+ *
+ * ***The sibling above, and the asymmetry between them is the whole story of
+ * why this arrived eight phases later.*** `resolveConnections` has read this
+ * directory since P2A; what did not exist was a **writer**, deliberately, and
+ * `routes/connections.ts` states the line in its own docstring: *"this writes
+ * the system scope and only the system scope… a user's own `connections/` stays
+ * read by the resolver, hand-written by anyone who wants one, and reachable
+ * from nothing here."*
+ *
+ * **What changed is that the capability became real.** [09 §4.5] calls a
+ * UI-level check *"a trivial bypass"* and puts the enforcement in the loader,
+ * which is where `privateConnections` has been enforced since P3 — so a personal
+ * surface built before that would have been the bypass wearing a UI, and one
+ * built after is a form over a directory the resolver already respects.
+ */
+export async function readUserConnectionEntries(
+  layout: Layout,
+  handle: string,
+): Promise<ConnectionEntry[]> {
+  return readEntriesIn(layout, layout.userConnectionsRoot(handle), 'user');
+}
+
 async function readConnectionsIn(
   layout: Layout,
   root: string,

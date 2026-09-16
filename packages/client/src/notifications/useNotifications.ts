@@ -5,9 +5,11 @@ import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-q
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../api.js';
+import { usePrefs } from '../queries.js';
 import { showBrowserNotification } from './browser.js';
-import { playChime } from './chime.js';
+import { playChime, primeAudio } from './chime.js';
 import { summary } from './labels.js';
+import { deliveryFor, notificationPrefs } from './prefs.js';
 import { applyNotification, openNotificationStream } from './stream.js';
 import type { NotificationList, NotificationView } from './types.js';
 
@@ -56,6 +58,18 @@ export interface NotificationsState {
   toast: NotificationView | null;
   dismissToast: () => void;
   markRead: (ids?: string[]) => void;
+  /**
+   * Whether sound is silenced **for this page load** — [10 §9]'s global mute.
+   *
+   * *Not the stored preference*, which is the point of it being here: the
+   * stored one is the starting position (`notifications.muted`, plus
+   * `startMuted` for people who want silence by default), and this is what is
+   * true now. A mute toggled in the header must not require a round trip to
+   * take effect on the next notification, and un-muting for one sitting must
+   * not rewrite what somebody chose.
+   */
+  muted: boolean;
+  setMuted: (muted: boolean) => void;
 }
 
 /**
@@ -69,8 +83,38 @@ export interface NotificationsState {
 export function useNotifications(enabled: boolean): NotificationsState {
   const client = useQueryClient();
   const query = useNotificationList(enabled);
+  const prefsQuery = usePrefs();
   const [connected, setConnected] = useState(false);
   const [toast, setToast] = useState<NotificationView | null>(null);
+
+  const prefs = notificationPrefs(prefsQuery.data?.prefs);
+
+  /**
+   * The mute for this page load, seeded from the stored pair once prefs land.
+   *
+   * ***`null` until then, and that is not a third state to render*** — it is
+   * *nobody has told us yet*, and treating it as *not muted* would play the
+   * first notification out loud for somebody whose whole preference is that it
+   * should not. A notification arriving before prefs do is rare and the quiet
+   * answer is the safe one.
+   */
+  const [sessionMuted, setSessionMuted] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (prefsQuery.data === undefined) return;
+    setSessionMuted((held) => held ?? (prefs.muted || prefs.startMuted));
+  }, [prefsQuery.data, prefs.muted, prefs.startMuted]);
+  const muted = sessionMuted ?? true;
+
+  /**
+   * ***[10 §9]'s *prime the audio on first interaction*, attached once.*** Not
+   * inside `deliver`, which is where it would be too late: the unlock has to
+   * have happened **before** the first notification, and by then the only
+   * gesture that could have done it has already gone past.
+   */
+  useEffect(() => {
+    if (!enabled) return;
+    return primeAudio();
+  }, [enabled]);
 
   /**
    * ***What has already been announced, so a reconnect is silent.***
@@ -97,6 +141,19 @@ export function useNotifications(enabled: boolean): NotificationsState {
    */
   const foldedAt = useRef<Map<string, number>>(new Map());
 
+  /**
+   * ***The preferences are read through a ref rather than closed over.***
+   *
+   * `deliver` is handed to the stream in an effect that must not re-run: a new
+   * subscription on every preference change would tear down the socket and
+   * replay the snapshot, and the snapshot path deliberately announces nothing —
+   * so a person adjusting a setting would silence the next notification. The
+   * ref keeps the callback stable and the values current, which is the one
+   * thing a dependency array cannot do at once.
+   */
+  const live = useRef({ prefs, muted });
+  live.current = { prefs, muted };
+
   const deliver = useCallback((one: NotificationView) => {
     if (one.readAt !== null) return;
     const seen = foldedAt.current.get(one.id);
@@ -104,10 +161,18 @@ export function useNotifications(enabled: boolean): NotificationsState {
     announced.current.add(one.id);
     foldedAt.current.set(one.id, one.folded);
 
-    playChime();
-    setToast(one);
-    const said = summary(one);
-    showBrowserNotification({ title: said.title, body: said.body, tag: one.id });
+    /**
+     * **One decision, made once, and the three channels obey it** — `prefs.ts`'s
+     * `deliveryFor`. Three call sites each consulting the preferences would be
+     * three chances to disagree about what `off` means.
+     */
+    const how = deliveryFor(live.current.prefs, one.class, { muted: live.current.muted });
+    if (how.sound) playChime(one.class);
+    if (how.toast) setToast(one);
+    if (how.browser) {
+      const said = summary(one);
+      showBrowserNotification({ title: said.title, body: said.body, tag: one.id });
+    }
   }, []);
 
   useEffect(() => {
@@ -188,6 +253,8 @@ export function useNotifications(enabled: boolean): NotificationsState {
       setToast(null);
     }, []),
     markRead,
+    muted,
+    setMuted: setSessionMuted,
   };
 }
 
