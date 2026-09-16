@@ -1,9 +1,15 @@
 # 25 — P8 implementation plan
 
 **Status: ~~skeleton~~ ~~a plan~~ ~~*ready to start*, 2026-09-15 at `3287d67`~~
-*built on §5's fallback cut, 2026-09-16, and open.* Six stages are committed on
-`p8` and each carries a *Done* block in §2 naming its commit; **§3.2** is the
-gate's results table.**
+~~built on §5's fallback cut~~ merged into `main` 2026-09-16 at `4a6e377`, and
+open.** Six stages are committed and each carries a *Done* block in §2 naming its
+commit; **§3.2** is the gate's results table. **The merge is not the close** —
+[manual testing §7](05-manual-testing.md) says a phase closes when its critical
+list is walked, and P8's is [sitting N](05-manual-testing.md), which has one row
+and no result.
+
+*`main` as it stood immediately before the merge is the `pre-p8` branch*, so the
+tree without any of this is one checkout away.
 
 ***The cut was taken deliberately rather than under pressure***, which is the
 whole reason §5 named one: **the chain, the pipeline, the books, manual capture

@@ -1213,9 +1213,10 @@ routes whose only callers are their own tests, green in CI the whole time
 
 ~~**Skeleton: [P8](25-p8-implementation.md)**~~ ~~**Planned:
 [P8](25-p8-implementation.md)**~~ ~~***Ready to start:
-[P8](25-p8-implementation.md)***~~ ***Built on §5's fallback cut, 2026-09-16, and
-open*** — six stages on `p8`, each with a *Done* block naming its commit, and
-**§3.2** as the gate's results table.
+[P8](25-p8-implementation.md)***~~ ~~***Built on §5's fallback cut***~~
+***Merged into `main` 2026-09-16 at `4a6e377`, and open*** — six stages, each
+with a *Done* block naming its commit, and **§3.2** as the gate's results table.
+*`main` as it stood immediately before the merge is the `pre-p8` branch.*
 
 ***The cut was taken deliberately rather than under pressure***, which is why §5
 named one: the chain, the pipeline, the books, **manual capture** and the
