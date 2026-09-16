@@ -118,11 +118,20 @@ cheap is only true while P10.1 is unwritten.
 | `artifact.ready` | ❌ **nothing**. `grep -rn "artifact.ready"` over `packages/` returns zero, and [P9](26-p9-implementation.md) was the phase that was going to build it |
 | `turn.awaiting-input` | ❌ **nothing**, and its precondition did not arrive. [25 C5](../25-open-questions.md)'s suspending step does not exist: `turnFinished` accepts `'suspended'` and no step produces it, and `packages/sdk/src/steps.ts` has no suspend verb at all |
 
-***So §1.4's own rule, applied today, ships three classes rather than five.***
-That is a smaller P10.1 and a smaller P10.3 — **three preference rows, not five**
-— and it is the rule doing exactly what it was written to do. *The rule was also
-right to be a rule rather than a list*: a list written on 2026-08-31 would have
-had five rows and four phases of drift.
+***So §1.4's own rule, applied today, ships ~~three~~ **four** classes rather
+than five.*** That is a smaller P10.1 and a smaller P10.3 — ~~**three preference
+rows, not five**~~ **four preference rows, not five** — and it is the rule doing
+exactly what it was written to do. *The rule was also right to be a rule rather
+than a list*: a list written on 2026-08-31 would have had five rows and four
+phases of drift.
+
+***Corrected 2026-09-16 at [P10.1], and the correction is this section's own
+argument arriving one stage later.*** The scoring above counted producers **that
+existed when it was run**, and the row below then moved `artifact.ready`'s
+producer into P10.1 — so the count was true for about two hundred lines and false
+by the time the stage it was scoping had been built. Four classes ship, four
+preference rows are owed, and the rule is unchanged: *every class either has a
+producer or is not shipped*, and `artifact.ready` now has one.
 
 #### `artifact.ready` is P11's row 20 in the other direction
 
@@ -335,7 +344,10 @@ that will resume.
 class nothing emits is [work plan §2.3](01-work-plan.md)'s failure inverted: a surface
 for configuration that has no producer.
 
-***Scored 2026-09-16 (§0.1), and the rule answers three rather than four.***
+***Scored 2026-09-16 (§0.1), and the rule answers ~~three~~ **four** rather than
+five.*** *(The strikethrough is [P10.1]'s, same day: the scoring ran before this
+phase agreed to build `artifact.ready`'s producer, and building it is what made
+the fourth class shippable. §0.1 carries the full correction.)*
 
 - **`artifact.ready` did not get a producer at P9**, and the strikethrough above
   is the correction rather than the finding. [P9 §1.5](26-p9-implementation.md)
@@ -522,9 +534,11 @@ add once producers exist; per-user scoping by ownership, which
 [09 §4.3](../09-server-multiuser-deployment.md) already answers.
 
 ***The class decision is decidable now rather than at the stage*** — §0.1, and
-§5 asked for exactly this. **Three classes ship**: `turn.complete`, `turn.failed`
-and `system.notice`. `turn.awaiting-input` has no suspending step after four more
-phases and comes back with [25 C5](../25-open-questions.md).
+§5 asked for exactly this. ~~**Three classes ship**: `turn.complete`,
+`turn.failed` and `system.notice`.~~ **Four**, once this stage builds
+`artifact.ready`'s producer, which the paragraph below commits it to.
+`turn.awaiting-input` has no suspending step after four more phases and comes
+back with [25 C5](../25-open-questions.md).
 
 ***And this stage gains a producer it was not going to have.***
 `artifact.ready` was [P9](26-p9-implementation.md)'s and P9 did not emit it — for
@@ -540,6 +554,61 @@ two answer different questions.
 rendition that failed is not *ready*, and `interrupted` exists because a server
 can restart mid-job. The lean is to widen the class to *settled* with the outcome
 in the params.
+
+#### Done — 2026-09-16
+
+***The lean was taken, and the name was not.*** A failed picture is
+`artifact.ready` with `outcome: 'failed'` in the params, not a fifth class and
+not a rename — which is [09 §3.5](../09-server-multiuser-deployment.md)'s own
+reason for choosing `artifact.ready` over `rendition-ready`, *"precisely so its
+second instance would not require renaming it"*, applied to the second instance
+that actually arrived. **The callback into the worker is called `settled` and the
+class it feeds is called `artifact.ready`**, which is the distinction written
+into the two names rather than into a comment.
+
+***A test found a real defect in the first hour, and it is the one worth
+recording.*** `state/notifications.ts` resolved `actionable` from a per-class
+table, with `artifact.ready` marked `false` — [09 §3.5]'s own column — and the
+router overriding it for the failed arm. **The override could not reach the
+store**: the table won, and a failed picture landed with `actionable: false`.
+`router.test.ts` caught it on its first run. The fix is in the table rather than
+as a special case in `notify`, because the table was making a claim it does not
+have the information to make: what it actually encodes is **who decides**, and
+two of the four classes have an answer that is the occasion's rather than the
+class's. *This is §1.4's "decide per class" read one level down — the decision
+is per class, and for two of them the decision is `varies`.*
+
+***The presence interface got its implementation somewhere §1.3 did not
+predict, because the obvious place could not work.*** The first draft put
+`Presence` over `TurnStream`'s subscriber map, which is `sessionId ->
+Set<Listener>` — and **a listener carries no account**, deliberately: [09 §4.3]
+withholds sharing at 1.0, so anyone who can read a session stream is its owner
+and that bus has never needed to know who. So presence and delivery live together
+in `notifications/bus.ts`, which is the same registry read two ways: *connected*
+is holding a notification stream, and that stream is where a notification is
+delivered. **Viewing is counted rather than flagged** — two tabs on one session
+are two attachments, and a flag makes the second close wrong in a way that only
+shows for somebody who had two tabs open.
+
+**Three producers, at the three places that know**: the runner after
+`finaliseTurn` (both its paths, including the unstartable one, which is the path
+that most needs it because it leaves no prose at all); the rendition worker at
+its two settle points; and the settings save, where `pendingRestart` already
+computes the keys. ***And the runner tracks **why** it stopped***, because
+`aborted` is set by two different events — a step declaring `failure: 'abort'`
+and a person pressing **Stop** — and only one of them is news. A toast saying
+*your turn failed* about a turn somebody just cancelled is the app reporting
+their own act back to them as a problem.
+
+***What is deliberately not built here is the client***, which is P10.2's whole
+subject. The three routes are in `route-callers.test.ts`'s `OWED` map with that
+stage named, as three lines rather than one, because P10.2 pays them separately:
+the badge and the list come from the two JSON routes and the toast needs the
+stream.
+
+**Also landed, because a record's shape is not finally said in a workplan:**
+[21 §8](../21-internal-contracts.md) now carries `Notification`, which §5.1 above
+has been promising a durable home since P2.3 and which no document held.
 
 ### P10.2 — The two delivery channels 1.0 gets
 

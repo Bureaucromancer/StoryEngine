@@ -41,6 +41,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerModeRoutes } from './routes/modes.js';
 import { registerTagRoutes } from './routes/tags.js';
 import { registerSearchRoutes } from './routes/search.js';
@@ -63,6 +64,8 @@ import {
   type Reconciliation,
 } from './state/commit.js';
 import type { JobContext } from './state/jobs.js';
+import { NotificationBus } from './notifications/bus.js';
+import { route as routeNotification, type Occurrence } from './notifications/router.js';
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
@@ -119,6 +122,27 @@ export interface AppServices {
   jobs: JobContext;
   /** In-process fan-out for the session stream. */
   bus: TurnStream;
+  /**
+   * Who is here, and how a notification reaches them — [09 §3.1], [P10.1].
+   *
+   * **Beside `bus` rather than inside it**, because the two are keyed
+   * differently and deliberately: the session stream is keyed by *session* and
+   * its listeners are anonymous ([09 §4.3] withholds sharing, so anyone reading
+   * one is its owner), while a notification is addressed to a **person** and has
+   * to find them in a session they do not have open — or in none at all.
+   */
+  notifications: NotificationBus;
+  /**
+   * A producer's one call: *this happened*. Routing is not its business.
+   *
+   * ***The whole of [09 §3.1] compressed into a signature.*** *"If the client
+   * decides what to notify about, notifications only work while a client is
+   * connected"* — so the decision is server-side, and the way that is enforced
+   * is that a producer cannot express one: it hands over a fact, and
+   * [`route`](./notifications/router.js) decides against ownership and presence
+   * whether anybody is told.
+   */
+  notify: (occurrence: Occurrence) => void;
   /** Drives a reserved job to a committed turn. */
   runner: TurnRunner;
   /**
@@ -497,6 +521,30 @@ async function assembleWithState(
    * owns. A runner that held this would be a runner whose `drain()` had to wait
    * for pictures — which is the exact coupling §10.2 exists to refuse.
    */
+  /**
+   * ***The notification half of [09 §3]***, built before the producers so that
+   * every one of them can be handed the same door — [P10.1].
+   *
+   * `notify` closes over the store, the presence registry and the delivery bus,
+   * which is what lets a producer be handed one function rather than three
+   * services and a policy. The alternative — each producer calling `notify()` in
+   * `state/notifications.ts` directly — is how two of them end up disagreeing
+   * about whether somebody looking at a session should be told about it.
+   */
+  const notifications = new NotificationBus();
+  const notify = (occurrence: Occurrence): void => {
+    routeNotification(
+      {
+        db: state.db,
+        presence: notifications,
+        deliver: (account, notification) => {
+          notifications.deliver(account, notification);
+        },
+      },
+      occurrence,
+    );
+  };
+
   const renditions: RenditionWorkerContext = {
     db: state.db,
     layout,
@@ -538,6 +586,23 @@ async function assembleWithState(
     changed: (sessionId, rendition) => {
       bus.rendition(sessionId, rendition);
     },
+    /**
+     * ***The producer [P9 §1.5] owed and [P9.2] did not write*** — moved here by
+     * [P10]'s re-audit, and both ends live at once. The `rendition` frame above
+     * is how **pixels** reach an open page; this is how a **person** is told,
+     * and the two answer different questions — which is why a page showing the
+     * session gets the first and not the second.
+     */
+    settled: (account, sessionId, rendition) => {
+      notify({
+        kind: 'artifact.ready',
+        account,
+        sessionId,
+        turnId: rendition.turnId,
+        purpose: rendition.purpose,
+        outcome: rendition.state === 'ready' ? 'ready' : 'failed',
+      });
+    },
     select: async (account, sessionId, renditionId) => {
       await selectBackdrop(sessions, account, sessionId, renditionId, { kind: 'engine' });
     },
@@ -559,6 +624,7 @@ async function assembleWithState(
     accounts,
     config,
     dispatch,
+    notify,
   });
 
   return {
@@ -573,6 +639,8 @@ async function assembleWithState(
     sessions,
     jobs,
     bus,
+    notifications,
+    notify,
     runner,
     renditions: dispatch,
     commit,
@@ -888,6 +956,7 @@ export async function buildApp(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
+      registerNotificationRoutes(api, services);
       registerModeRoutes(api);
       registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);

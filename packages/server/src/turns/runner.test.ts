@@ -47,6 +47,7 @@ import {
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
+import type { Occurrence } from '../notifications/router.js';
 import { TurnRunner } from './runner.js';
 
 /**
@@ -134,11 +135,26 @@ function makeRunner(
       sessions: { ...DEFAULT_CONFIG.sessions, streamCoalesceMs: 0 },
     },
     ...(options.plan === undefined ? {} : { plan: options.plan }),
+    notify: (occurrence) => {
+      announced.push(occurrence);
+    },
   });
   // The runner's own logger seam, so a test reads what an operator would.
   logLines = [];
+  announced = [];
   runner.setLogger(recorder(logLines, {}));
 }
+
+/**
+ * What the runner told the notification router — [09 §3.5], [P10.1].
+ *
+ * The seam rather than the store, deliberately: what the runner is responsible
+ * for is *saying a turn ended and what it ended as*, and the routing beyond that
+ * belongs to `notifications/router.test.ts`. A test here that read the
+ * `notification` table would be asserting both, and would go red for a reason
+ * that is not this file's.
+ */
+let announced: Occurrence[] = [];
 
 /** Structured lines the runner emitted for the turn under test. */
 let logLines: Record<string, unknown>[] = [];
@@ -747,6 +763,84 @@ describe('what the provider did, and what it cost', () => {
     // `unbound` and `dangling` are told apart because the remedies differ.
     expect(turn.steps?.[0]).toMatchObject({ state: 'failed', error: { reason: 'unbound' } });
     expect(provider.requests).toHaveLength(0);
+  });
+});
+
+/**
+ * The producer end of [09 §3.5](../../../../docs/design/09-server-multiuser-deployment.md)
+ * — [P10.1].
+ *
+ * ***A producer reports a fact and never a decision***, which is [09 §3.1]'s
+ * rule at the only end that could break it: *"if the client decides what to
+ * notify about, notifications only work while a client is connected."* So what
+ * these assert is the **vocabulary** — that a committed turn says `complete`,
+ * that a failed one says `failed` and carries a class rather than an endpoint's
+ * sentence, and that a turn somebody stopped says nothing at all.
+ *
+ * **The falsifying mutation is announcing on `draft.status` alone.** Every
+ * assertion about a completion and a failure still passes; what goes red is the
+ * cancelled case, which is the only one of the three that needs a second fact.
+ */
+describe('a turn ending is news, and a turn you stopped is not', () => {
+  it('says a committed turn completed, with the session by name', async () => {
+    const { job } = await runTurn();
+
+    expect(announced).toHaveLength(1);
+    expect(announced[0]).toMatchObject({
+      kind: 'turn.complete',
+      account: ACCOUNT,
+      sessionId,
+      turnId: job.turnId,
+    });
+    // The name rather than the id — [09 §3.4] warns that params must carry
+    // everything the sentence needs, or a composer produces "New event in
+    // session 4f2a".
+    expect(announced[0]).toHaveProperty('sessionName');
+  });
+
+  /**
+   * ***A class, never a provider's words*** — [21 §1.4]. The endpoint's own
+   * sentence goes to the log; what crosses this seam is something a client can
+   * render in a language the server does not know.
+   */
+  it('says a failed turn failed, carrying the class and not the message', async () => {
+    makeRunner({
+      script: [{ stallMs: 5_000 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.status).toBe('failed');
+
+    expect(announced).toHaveLength(1);
+    expect(announced[0]).toMatchObject({ kind: 'turn.failed', account: ACCOUNT, sessionId });
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    // One of the vocabulary's own words, and short enough that it cannot be a
+    // sentence somebody pasted in.
+    expect(failure.error).toBe('terminal');
+  });
+
+  /**
+   * ***Nothing at all, and that is the judgement this stage makes.*** The
+   * person pressed **Stop**; a toast saying *your turn failed* reports their
+   * own act back to them as a problem. `aborted` alone cannot tell the two
+   * apart, which is why the runner tracks why it stopped.
+   */
+  it('says nothing about a turn somebody stopped', async () => {
+    makeRunner({ script: [{ text: 'a slow answer', chunks: 8, chunkDelayMs: 15 }] });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+
+    await until(
+      () => readEvents(commit, job.id).some((e) => e.key === 'call.streaming'),
+      'a chunk',
+    );
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    // The turn is on disk as `failed` — `cancellation` below asserts that — and
+    // nobody is told about it.
+    expect(announced).toEqual([]);
   });
 });
 

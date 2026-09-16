@@ -44,6 +44,29 @@ export interface RenditionWorkerContext {
   /** Told when a rendition's state changed, so the stream can say so. */
   changed?: (sessionId: string, rendition: Rendition) => void;
   /**
+   * Told when a rendition **stopped being pending**, so a person can be told —
+   * [09 §3.5]'s `artifact.ready`, [P10.1].
+   *
+   * ***Beside `changed` rather than derived from it, because the two answer
+   * different questions and one of them needs an account.*** `changed` says
+   * *this session's watchers should repaint*, and a session stream is scoped to
+   * a session, so it needs no handle. This says *somebody should be told*, and
+   * [09 §3.1] puts that decision on the server against a **person** — which is
+   * the account on the job and is not recoverable from a session id here.
+   *
+   * ***And it fires on a failure as well as on a success***, which is why it is
+   * called `settled` while the class it feeds is called `artifact.ready`.
+   * [09 §3.5] chose that name over `rendition-ready` *"precisely so its second
+   * instance would not require renaming it"*, and a picture that failed is the
+   * same subject in a different state: the outcome rides in the params, and
+   * [P10 §1.4]'s *decide the failure case before writing the table* is that
+   * decision made here rather than by a fifth class.
+   *
+   * *Nothing calls this for a backdrop that was reused* — [P9 §1.7]'s money
+   * row dispatches no job, so nothing settles, and there is no news.
+   */
+  settled?: (account: string, sessionId: string, rendition: Rendition) => void;
+  /**
    * Points the backdrop channel at a rendition that just became ready — [P9.3].
    *
    * ***A callback rather than a direct call***, because the write needs a
@@ -225,6 +248,7 @@ export async function runRendition(
       await context.select?.(job.account, job.sessionId, ready.id);
     }
     context.changed?.(job.sessionId, ready);
+    context.settled?.(job.account, job.sessionId, ready);
   } catch (error) {
     await fail(context, job, record, classOf(error));
   }
@@ -253,6 +277,7 @@ async function fail(
   }
   setRenditionJobStatus(context.db, job.id, 'done', reason);
   context.changed?.(job.sessionId, failed);
+  context.settled?.(job.account, job.sessionId, failed);
 }
 
 /**

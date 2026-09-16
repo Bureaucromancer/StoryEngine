@@ -2551,9 +2551,24 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const cursor = parseCursor(query.after ?? headerCursor(request));
 
       reply.hijack();
+
+      /**
+       * ***This is where *viewing* is answered from*** — [09 §3.1],
+       * [P10 §1.3], [P10.1].
+       *
+       * A socket open on this session is the strongest presence signal 1.0 has,
+       * and it is knowable only here: the session **store** could report *this
+       * person read this session*, which is a different fact and is true of a
+       * background poll. Held for exactly as long as the stream is, so the
+       * routing rule — *if you are looking at the session, you are not told
+       * about it* — is measured against something that closes when the tab does.
+       */
+      const watching = services.notifications.viewing(account.handle, session.id);
+
       const writer = new SseWriter(reply.raw, {
         keepaliveMs: services.config.sessions.streamKeepaliveMs,
         onClose: () => {
+          watching();
           attachment?.detach();
           services.streams.delete(release);
         },

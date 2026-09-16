@@ -1080,6 +1080,79 @@ the same line for the same reason.
 
 ---
 
+## 8. `Notification`
+
+*Added 2026-09-16, built at [P10.1](workplan/27-p10-implementation.md).*
+
+[09 §3.4](09-server-multiuser-deployment.md) names the fields a notification
+needs — class, server-side target, `actionable`, a `{ key, params }` summary, a
+dedupe key and a coalescing window — and says why they have to be right on the
+day the first producer ships: *"trivial to design in and unpleasant to add once
+producers exist."* What it does not give is the **record**, and §5.1 above has
+been promising this one a durable home since P2.3.
+
+**Admitted by §6's rule**: four producers are built against it and it is not a
+portable object — no `schema` field, no export, no import. It is a row in
+`state.sqlite`, which is exactly where §5.1's *"persist until seen is a
+durability claim"* puts it.
+
+```ts
+type NotificationClass =
+  | "turn.complete"        // a turn committed
+  | "turn.failed"          // a turn ended on a class the person did not choose
+  | "artifact.ready"       // a rendition settled — ready or failed, see below
+  | "system.notice"        // an install-level warning; no session, no turn
+
+interface Notification {
+  id: string
+  /** The **person**, resolved server-side from ownership — never from a request. */
+  account: string
+  class: NotificationClass
+  /** Whether there is something to do. Fixed per class, except where noted. */
+  actionable: boolean
+  /** What a `{ key, params }` summary is composed from. No English (19 §12.5). */
+  params: Record<string, string | number | boolean>
+  sessionId: string | null
+  turnId: string | null
+  /** What two of these count as one. Chosen by the producer. */
+  dedupeKey: string
+  /** How many arrivals this row stands for. One unless something coalesced. */
+  folded: number
+  createdAt: number
+  updatedAt: number
+  readAt: number | null
+}
+```
+
+**Four classes, not [09 §3.5](09-server-multiuser-deployment.md)'s six**, and the
+absences are decisions rather than omissions —
+[P10 §1.4](workplan/27-p10-implementation.md)'s *every class either has a
+producer or is not shipped*. `turn.awaiting-input` is conditional on
+[25 C5](25-open-questions.md)'s suspending step, which four phases did not
+produce; `message.received` arrives with Messages, which
+[24 §3.4](24-roadmap.md) leaves unscheduled.
+
+***`folded` is the field that makes the fold a fold rather than a replace.***
+[09 §3.4]'s example is *"five characters replying in a group chat is one
+notification, not five"*, and **a replace also yields one row** — so the count is
+what distinguishes *five people replied* from *somebody replied, and we told you
+about the last one*. The window runs from the last arrival rather than the first,
+so a trickle keeps folding instead of splitting at a boundary nobody chose; and
+nothing folds into a row whose `readAt` is set, because that person has already
+been told and the next arrival is news.
+
+***`actionable` is a property of the class except where the class cannot know.***
+Two of the four are constants — a completion never needs acting on and a failure
+always does — which is what stops two producers eventually disagreeing. The other
+two vary with the **occasion**: a `system.notice` varies with what the notice is
+about, and an `artifact.ready` varies with whether the picture arrived, because a
+failed one has a retry behind it. *`artifact.ready` carries its outcome in
+`params` rather than splitting into a fifth class*, which is
+[09 §3.5](09-server-multiuser-deployment.md)'s own reason for choosing that name
+over `rendition-ready`: so its second instance would not require renaming it.
+
+---
+
 ## 6. What is deliberately still absent
 
 | Structure | Why not here |

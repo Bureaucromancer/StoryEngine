@@ -5,6 +5,7 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 
 import { applyLiveConfig, type AppServices } from '../app.js';
+import { announceRestartPending } from '../notifications/notices.js';
 import {
   type Config,
   CONFIG_TIERS,
@@ -383,6 +384,21 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
     // against the document read at boot and refuses its own predecessor's work.
     services.configDocument = merged;
     const pending = applyLiveConfig(app, services, next);
+
+    /**
+     * ***`system.notice`'s producer, and it is the one [09 §3.4] was arguing
+     * about*** — [P10.1]. That section's case for a notification table separate
+     * from `event` is that *"several admin warnings are already specified with
+     * nowhere to be delivered"*, and this is the first of them: the keys are
+     * pending until somebody restarts, and the person who saved the setting is
+     * the person who then closes this tab.
+     *
+     * **Awaited rather than detached**, unlike the rendition dispatch: the read
+     * is the accounts file, it is already warm, and a save is not a path where
+     * milliseconds matter. Detaching would trade nothing for an unhandled
+     * rejection nobody would see.
+     */
+    await announceRestartPending({ accounts: services.accounts, notify: services.notify }, pending);
 
     return await reply.send({
       config: services.config,

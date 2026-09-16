@@ -15,7 +15,7 @@ import {
   renderedChannels,
   SE_CLOCK,
 } from '../sessions/channels.js';
-import { applyEffects } from '../sessions/store.js';
+import { applyEffects, readSession } from '../sessions/store.js';
 import type {
   ChannelEffect,
   ChannelState,
@@ -27,6 +27,7 @@ import type {
   TurnCost,
 } from '../sessions/types.js';
 import type { CastMember } from './cast.js';
+import type { Occurrence } from '../notifications/router.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
   callFinished,
@@ -178,6 +179,21 @@ export interface RunnerOptions {
     records: readonly Rendition[],
     turnId: string,
   ) => void;
+  /**
+   * Says a turn ended, so somebody can be told — [09 §3.5], [P10.1].
+   *
+   * ***A second callback beside `dispatch` rather than a field on it***, and
+   * the same seam for the same reason: what the runner knows is *this turn
+   * finished, or failed, and here is the class it failed with*. Whether that
+   * reaches a person, and through which channel, is
+   * [`notifications/router.ts`](../notifications/router.js)'s — which is
+   * [09 §3.1]'s rule that the server routes, applied to the producer end.
+   *
+   * **Optional, so every existing test double stays a double**, exactly as
+   * `dispatch` is. Absent means nobody is told, which is every turn of every
+   * test that is not about notifications.
+   */
+  notify?: (occurrence: Occurrence) => void;
 }
 
 interface Live {
@@ -379,6 +395,14 @@ export class TurnRunner {
     try {
       checkpoint(this.#options.commit, job.id, { turn: draft });
       await finaliseTurn(this.#options.commit, job.id, draft);
+      /**
+       * **This path notifies too, and it is the one that most needs to.** A
+       * turn that could not even be set up leaves a record saying so and no
+       * prose at all, so a person watching a session sees nothing happen. The
+       * class is `internal` because that is what the record says: `se.setup`
+       * failed with a reason nobody declared.
+       */
+      await this.#announce(job, 'internal');
     } catch (fatal) {
       // The store itself is gone — the kill case. Startup reconciliation is
       // what picks this up; there is nothing left to write it with.
@@ -672,6 +696,17 @@ export class TurnRunner {
     const contributed: Candidate[] = [];
 
     let aborted = false;
+    /**
+     * Why it stopped, when it did — for the notification and nothing else.
+     *
+     * ***`aborted` alone cannot answer the one question a notification has to
+     * ask***, because it is set by two different events: a step declaring
+     * `failure: 'abort'`, and a person pressing **Stop**. The first is news and
+     * the second is not — telling somebody *your turn failed* about a turn they
+     * just cancelled is the app arguing with them, which is the same judgement
+     * the store makes about folding into a notification that has been read.
+     */
+    let stoppedBy: StepFailureReason | null = null;
     /**
      * **The setup turn runs the mode's parts instead of its steps** — [06 §7.3],
      * [P7.4].
@@ -1509,6 +1544,7 @@ export class TurnRunner {
         // Cancellation overrides the declared mode: a user's stop is not a warn.
         if (definition.failure === 'abort' || reason === 'cancelled') {
           aborted = true;
+          stoppedBy = reason;
           break;
         }
       }
@@ -1743,6 +1779,68 @@ export class TurnRunner {
      */
     if (renditions.report !== null && this.#options.dispatch !== undefined) {
       await this.#recordRenditions(job, draft, renditions.report);
+    }
+
+    /**
+     * ***And the person is told, last of all*** — [09 §3.5], [P10.1].
+     *
+     * **After the renditions are recorded rather than before**, so that a
+     * notification whose `turnId` a client follows finds the pictures pending
+     * beside the turn — the same ordering argument `#recordRenditions` makes
+     * against `finaliseTurn`, one layer out.
+     */
+    await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null);
+  }
+
+  /**
+   * Tells the router a turn ended.
+   *
+   * ***A cancelled turn is not news and produces nothing.*** The person
+   * pressed **Stop** and the turn stopping is what they asked for; a toast
+   * saying *your turn failed* is the app reporting their own act back to them
+   * as a problem. Every other stop is a class they did not choose, so it is a
+   * `turn.failed` carrying that class — [21 §1.4]'s rule, so what crosses is
+   * `rate-limit` and never an endpoint's sentence.
+   *
+   * ***The session's name is read here rather than passed in, and that is
+   * [09 §3.4]'s warning obeyed.*** A `{ key, params }` summary composed later
+   * from whatever happened to be in scope produces *"New event in session
+   * 4f2a"*; the params have to carry everything the sentence needs, and a
+   * session id is not a name. One file read on a path that has just written
+   * several is not worth avoiding.
+   *
+   * **Nothing here can fail the turn.** It runs after `finaliseTurn`, and it
+   * swallows, for `#recordRenditions`' reason: a store that would not answer
+   * costs a notification, and must never cost the turn it was about.
+   */
+  async #announce(job: Job, failure: StepFailureReason | null): Promise<void> {
+    const notify = this.#options.notify;
+    if (notify === undefined) return;
+    if (failure === 'cancelled') return;
+
+    try {
+      const session = await readSession(this.#options.commit.sessions, job.account, job.sessionId);
+      const sessionName = session?.name ?? '';
+      notify(
+        failure === null
+          ? {
+              kind: 'turn.complete',
+              account: job.account,
+              sessionId: job.sessionId,
+              turnId: job.turnId,
+              sessionName,
+            }
+          : {
+              kind: 'turn.failed',
+              account: job.account,
+              sessionId: job.sessionId,
+              turnId: job.turnId,
+              sessionName,
+              error: failure,
+            },
+      );
+    } catch {
+      // See above: a notification is never worth a turn.
     }
   }
 
