@@ -8,6 +8,7 @@ import { validate } from '@storyengine/sdk';
 import { modes } from './index.js';
 import {
   BACKDROP_CHANNEL,
+  BACKDROP_ON_CHANNEL,
   CLOCK_CHANNEL,
   EXPRESSION_CHANNEL,
   LOCATION_CHANNEL,
@@ -216,7 +217,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares its five channels, and owns every one of them', () => {
+  it('declares its six channels, and owns every one of them', () => {
     // **Was "registering the mode is what enables it", asserted through the
     // engine's channel lookup** — which this package can no longer reach, and
     // should not: that a registered mode's declared channels become resolvable
@@ -231,6 +232,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(SCENE.channels).toEqual([
       CLOCK_CHANNEL,
       BACKDROP_CHANNEL,
+      BACKDROP_ON_CHANNEL,
       STAGING_CHANNEL,
       EXPRESSION_CHANNEL,
       LOCATION_CHANNEL,
@@ -240,6 +242,22 @@ describe('what Scene declares, and what the engine does with it', () => {
     // here for the reason `se.clock`'s is — nothing in the engine names it yet,
     // and [P9] will name it from the other side.
     expect(BACKDROP_CHANNEL.id).toBe('se.backdrop');
+    /**
+     * ***And its switch, declared at [P9.4] — Scene's rather than the
+     * engine's.***
+     *
+     * `se.illustrate` is package-owned because every mode can want a picture of
+     * a turn; this one turns on a generator that writes `se.backdrop`, and a
+     * mode with no backdrop channel has nowhere to put the result. A
+     * package-owned switch would appear in Freeform offering a control with no
+     * mechanism behind it — which is the case where *"a control that is on the
+     * screen either way"* stops being honest and starts being a lie.
+     */
+    expect(BACKDROP_ON_CHANNEL.id).toBe('se.backdrop.on');
+    expect(BACKDROP_ON_CHANNEL.update).toBe('user-only');
+    // Off, like `se.staging` and for its reason: an image is the player's own
+    // machine, and the control being visible is what makes the default honest.
+    expect(BACKDROP_ON_CHANNEL.init).toEqual({ kind: 'literal', value: false });
     // The three [P7.12] added, which are the rest of §7.2's sentence.
     expect(STAGING_CHANNEL.id).toBe('se.staging');
     expect(EXPRESSION_CHANNEL.id).toBe('se.expression');

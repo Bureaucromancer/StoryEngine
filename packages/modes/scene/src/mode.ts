@@ -247,6 +247,44 @@ export const BACKDROP_CHANNEL: ChannelDefinition = {
  * *`user-only`, because the person whose GPU it is decides.* A model turning its
  * own staging on would be the narrator deciding to spend somebody's machine.
  */
+/**
+ * ***Whether this scene stages a backdrop at all*** — [06 §10.6], [10 §2.3],
+ * declared at [P9.4](../../../../docs/design/workplan/26-p9-implementation.md).
+ *
+ * ***Scene's rather than the engine's, and that is the one place the backdrop
+ * half of P9 is genuinely mode-shaped.*** `se.illustrate` is engine-owned
+ * because every mode can want a picture of a turn; this one turns on a generator
+ * that writes {@link BACKDROP_CHANNEL}, and a mode with no backdrop channel has
+ * nowhere to put the result. A package-owned switch would appear in Freeform
+ * offering a control with no mechanism behind it, which is worse than no
+ * control.
+ *
+ * **Off, or on — and there is no per-turn setting to offer** ([06 §10.6]).
+ * *On* means when the place changes: a backdrop that regenerated every turn is
+ * the failure mode rather than the thorough option, and the digest that makes
+ * that true is [P9 §1.7]'s.
+ *
+ * *Off by default, for the third time in this file and the same reason
+ * `STAGING_CHANNEL` below gives*: staging costs a model call per turn and a
+ * backdrop costs an image, which on a self-hosted build is the player's own
+ * machine. **The control is on the screen either way**, which is what makes a
+ * default of off honest rather than a feature nobody finds.
+ *
+ * *`user-only`, because the person whose GPU it is decides* — and because a
+ * model that could switch this on would be choosing to spend money mid-scene.
+ */
+export const BACKDROP_ON_CHANNEL: ChannelDefinition = {
+  id: 'se.backdrop.on',
+  owner: SCENE_ID,
+  version: 1,
+  scope: 'session',
+  update: 'user-only',
+  visibility: 'player',
+  schema: { type: 'boolean' },
+  init: { kind: 'literal', value: false },
+  budget: null,
+};
+
 export const STAGING_CHANNEL: ChannelDefinition = {
   id: 'se.staging',
   owner: SCENE_ID,
@@ -412,6 +450,7 @@ export const SCENE: ModeDefinition = {
   channels: [
     CLOCK_CHANNEL,
     BACKDROP_CHANNEL,
+    BACKDROP_ON_CHANNEL,
     STAGING_CHANNEL,
     EXPRESSION_CHANNEL,
     LOCATION_CHANNEL,

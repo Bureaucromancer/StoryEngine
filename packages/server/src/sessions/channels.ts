@@ -780,6 +780,60 @@ export function channelSurfaces(
  * promise the section actually makes — *visible in the turn record* — because a
  * turn is the thing the workbench shows.
  */
+/**
+ * Channel state as text, for something that is not a surface — [P9.1].
+ *
+ * ***The same rendering {@link channelSurfaces} does, without the surface
+ * question.*** A HUD asks *which of these is a short labelled value worth a
+ * strip above the story*, and skips a channel with no `surface`, a hidden one,
+ * and anything whose widget is not text. A rendition asks *what does this
+ * session know about where it is*, and the answers it wants are mostly channels
+ * the HUD would skip: `se.backdrop` has no `surface` at all, and a mode may
+ * track weather without putting it on screen.
+ *
+ * **So the filter here is `render` and nothing else.** A channel with no
+ * template has no textual form — that is what declaring one is for — and a
+ * channel that has one has already had an author decide how it reads. Reusing
+ * the author's sentence is also what keeps a prompt fragment and a HUD row from
+ * describing the same state two ways.
+ *
+ * ***Hidden channels are included, and that is not a leak.*** `visibility` is
+ * about what a **player** is shown ([06 §4]), and an image prompt is not a
+ * surface: it goes to an endpoint and is recorded in the turn, where the
+ * workbench shows it to the person whose session it is. A backdrop that ignored
+ * a hidden weather channel would be a picture of a day the story is not having.
+ *
+ * Ordered by channel id so the list is stable, because a prompt built from it is
+ * hashed and an order that varied would make one place look like two.
+ */
+export function renderedChannels(
+  channels: Readonly<Record<string, ChannelState>>,
+): { id: string; text: string }[] {
+  const out: { id: string; text: string }[] = [];
+
+  for (const definition of registeredChannels()) {
+    if (definition.render === undefined) continue;
+
+    // Every key the channel owns, for `channelSurfaces`' reason: a per-actor
+    // channel has one value per actor, and a prompt built from the unscoped key
+    // alone would describe an empty scene.
+    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+      const rendered = renderChannelValue(
+        definition.render,
+        channels[key]?.value ?? initialValue(definition.id),
+      );
+      // A template that will not compile is the author's mistake, answered the
+      // way the collector and the HUD answer it: skip the value rather than
+      // fail the turn over a label.
+      if (!rendered.ok || rendered.text.trim() === '') continue;
+      out.push({ id: key, text: rendered.text.trim() });
+    }
+  }
+
+  return out.sort((left, right) => left.id.localeCompare(right.id));
+}
+
 export function divergenceTurn(
   sessionId: string,
   headTurnId: string | null,

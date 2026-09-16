@@ -9,6 +9,7 @@ import { CONCLUDED_CHANNEL, GOAL_CHANNEL, GOAL_CURSOR_CHANNEL } from './sessions
 import { HOOK_CHANNEL, HOOK_PACING_CHANNEL } from './sessions/hooks.js';
 import { MEMORY_WRITTEN_CHANNEL } from './memory/channel.js';
 import { SUGGEST_CHANNEL } from './turns/suggest.js';
+import { ILLUSTRATE_CHANNEL } from './turns/render.js';
 import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 
 /**
@@ -143,6 +144,17 @@ export async function installBuiltIns(): Promise<void> {
    * prose and nothing else, so there is nothing mode-shaped to route it through.
    */
   registerChannel(SUGGEST_CHANNEL);
+  /**
+   * ***Whether this session illustrates*** — [06 §10.6], [P9.1], [P9.4].
+   *
+   * `storyengine.renditions` is a package for the six above it's reason: every
+   * mode can want a picture of a turn, none of them owns the idea, and the step
+   * that reads this is engine-owned. **The backdrop's own switch is not here** —
+   * it is Scene's, declared beside the `se.backdrop` channel it turns on,
+   * because a mode with nowhere to put a backdrop would be offering a control
+   * with no mechanism behind it.
+   */
+  registerChannel(ILLUSTRATE_CHANNEL);
   /**
    * ***What this turn wrote into a memory book, and will not be able to
    * un-write*** — [07 §7], [P8 §1.9], [P8.2].

@@ -189,6 +189,43 @@ export interface CastEntry {
   /** The object kind that carries the media, for addressing it. Actors today. */
   kind: string;
   media: readonly { id: string; role: string; label?: string }[];
+  /**
+   * ***What somebody looks like, structured*** — [04 §3]'s `VisualDescriptors`,
+   * added at [P9.1](../../../docs/design/workplan/26-p9-implementation.md).
+   *
+   * **The field this type was missing for the one consumer it was built to
+   * serve.** [P7.12] added `CastEntry` so a step could do *expression selection*
+   * and handed over ids, names and a media manifest; [06 §10.3] asks a rendition
+   * step for *"present actors' `VisualDescriptors` and their `reference`
+   * media"*, and only the second half was here. A step that had to fetch the
+   * other half itself would be a step doing I/O, which is the thing `StepHost`
+   * has no verb for.
+   *
+   * ***It is also the field that makes §10.3's first assembler rule
+   * mechanical.*** *"A character's name never appears in an image prompt — the
+   * image model does not know who Elena is; it knows what a woman with cropped
+   * grey hair looks like."* [04 §3] says the structured field exists *precisely
+   * so the substitution is mechanical*, and it only is if the substitute is on
+   * the same record as the name. Aventuras states that rule **to the model**,
+   * which is the wrong place for it and the clearest vindication the structured
+   * field has had.
+   *
+   * *Prose `appearance` is deliberately not here.* It is a section, it is for
+   * the narrator, and handing a paragraph to an image model is the failure
+   * §10.3 opens by describing.
+   *
+   * Absent when the card has none, which is every card imported from a format
+   * that had no such field — most of them.
+   */
+  visual?: {
+    face?: string;
+    hair?: string;
+    eyes?: string;
+    build?: string;
+    clothing?: string;
+    accessories?: string;
+    distinguishing?: string;
+  };
 }
 
 export interface StepInput {

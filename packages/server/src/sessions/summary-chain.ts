@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { createHash } from 'node:crypto';
-
 import type { Binding } from '../providers/types.js';
+import { digest } from './digest.js';
 
 /**
  * The rolling summary, keyed — [07 §5.1](../../../../docs/design/07-branching.md),
@@ -181,24 +180,20 @@ export interface SummaryLink {
 }
 
 /**
- * A digest over an ordered list of parts, each length-prefixed.
+ * ***Moved to `sessions/digest.ts` at [P9.1], and re-exported here.***
  *
- * **The prefix is not decoration.** A bare concatenation makes `H("ab", "c")`
- * and `H("a", "bc")` the same digest, which over a list of unit keys means two
- * different chains can collide — and a collision in a *cache key* is not a
- * crash, it is a session quietly reading another line's summary. Fixed-width hex
- * keys would make that unreachable for the unit list alone; the prefix makes it
- * unreachable for the prompt and the parameter blob too, which are arbitrary
- * strings a mode author writes.
+ * It was private to this module while the summary chain was the only thing in
+ * the build that keyed on content. [P9 §1.7]'s backdrop reuse key is the second
+ * subject, and a helper two subsystems need is not this one's to keep — the
+ * alternative P9 would have had is a second hand-rolled encoding beside it,
+ * which is how two answers to *what is this keyed on* come to exist.
+ *
+ * Re-exported rather than relocated-and-rewired so that this module's callers
+ * and `summary-chain-property.test.ts` do not move: the chain's keying is
+ * unchanged, and the move is about where the bytes are counted rather than about
+ * what they are counted over.
  */
-function digest(parts: readonly string[]): string {
-  const hash = createHash('sha256');
-  for (const part of parts) {
-    hash.update(`${String(part.length)}:`);
-    hash.update(part);
-  }
-  return hash.digest('hex');
-}
+export { digest };
 
 /**
  * The resolved summariser's identity — [P8 §1.9]'s third bullet.

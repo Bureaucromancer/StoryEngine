@@ -87,6 +87,35 @@ export function sessionAssetsRoot(layout: Layout, handle: string, sessionId: str
 }
 
 /**
+ * A rendition's id, from the turn it hangs off and its ordinal under that turn.
+ *
+ * ***Derived rather than minted, and the commit protocol is why.*** The runner's
+ * `write()` builds the checkpoint draft and **runs several times per turn** —
+ * once at the start, once per coalescing window during a stream, once at the
+ * end — and each of those writes `Turn.renditions.requested`. A `uuidv7()` there
+ * would name three different files for one picture, and the last checkpoint to
+ * land would win a race against the job that was already filling the first.
+ *
+ * So the id is a function of facts the turn already has. Two checkpoints of one
+ * turn produce the same ids by construction, which is the same property
+ * `SubmitRequest.turnId` buys for the turn itself: *"allocated at reservation,
+ * because step 2 cannot be idempotent without it."*
+ *
+ * **The ordinal, not a hash of the recipe.** A digest would make two identical
+ * illustrations of one turn the same file, and [06 §10.7] is explicit that
+ * *"illustrating an old turn adds; it does not overwrite"* — regenerating until
+ * it is right is the thing renditions exist to allow, and two runs of one recipe
+ * with different seeds are two pictures.
+ *
+ * A manual **Illustrate** of an old turn takes the next free ordinal, which is
+ * how one scheme serves both and why the store can enumerate a turn's siblings
+ * without an index.
+ */
+export function renditionIdFor(turnId: string, ordinal: number): string {
+  return `${turnId}.${String(ordinal)}`;
+}
+
+/**
  * The path an id would have, or null when the id cannot be one.
  *
  * `summaries.ts`' guard and its reason, which applies harder here: a rendition

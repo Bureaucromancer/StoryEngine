@@ -8,7 +8,13 @@ import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { randomOver } from '../rng/random.js';
 import { Rng, type Tape } from '../rng/rng.js';
-import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
+import {
+  advance,
+  MINUTES_PER_TURN,
+  readClock,
+  renderedChannels,
+  SE_CLOCK,
+} from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
 import type {
   ChannelEffect,
@@ -42,6 +48,15 @@ import { gatherAssemblyInputs } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
 import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
+import {
+  readBackdropOn,
+  readIllustration,
+  render,
+  RENDER_STEP,
+  type RenderReport,
+} from './render.js';
+import { capabilitiesFor } from '../providers/capabilities.js';
+import { renditionIdFor } from '../renditions/store.js';
 import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
@@ -425,6 +440,19 @@ export class TurnRunner {
      */
     const summaries: { report: SummariseReport | null } = { report: null };
     /**
+     * What the rendition step asked for — [06 §10], [P9.1]. The sixth cell, and
+     * **up here with the other five for the reason the paragraph above gives**:
+     * `write()` closes over it to build the checkpoint draft and runs before the
+     * plan is assembled, so a declaration further down is a temporal dead zone
+     * the compiler is happy with and the first turn is not.
+     *
+     * *What lands on the record is a report and never the records.* A rendition
+     * is dispatched after the turn commits and then moves `pending → ready`,
+     * which an append-only line cannot express — so `Turn.renditions` keeps what
+     * this turn **asked for** and `sessions/<id>/renditions/` keeps the rest.
+     */
+    const renditions: { report: RenderReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -478,6 +506,29 @@ export class TurnRunner {
        */
       if (suggested.report !== null && suggested.report.actions.length > 0) {
         draft.suggestions = [...suggested.report.actions];
+      }
+      /**
+       * **What the turn asked for, and never the renditions themselves** —
+       * [06 §10], [P9.1].
+       *
+       * *The ids are allocated here rather than by the step*, which is the one
+       * place this differs from the four cells above: a rendition is a **file**
+       * with a name, and the name has to exist before the record is written and
+       * before the job that fills it is enqueued. A step that minted them would
+       * be a step deciding what a path is called.
+       *
+       * **Absent rather than empty when the step did not run** — every session
+       * with nothing switched on, and every turn before this phase. It never
+       * means *it ran and asked for nothing*, which is what `held` says, and
+       * which is the distinction every optional field on this record draws.
+       */
+      if (renditions.report !== null) {
+        const report = renditions.report;
+        draft.renditions = {
+          requested: report.requests.map((_, at) => renditionIdFor(draft.id, at)),
+          ...(report.reused === undefined ? {} : { reused: report.reused }),
+          ...(report.held === undefined ? {} : { held: report.held }),
+        };
       }
       // Only once something was assembled — [P3.0], and the record's own
       // docstring: *absent* means this never happened, and an empty `request`
@@ -860,7 +911,132 @@ export class TurnRunner {
         }
       : withJudge;
 
-    for (const { definition, run } of withSuggest.steps) {
+    /**
+     * ***The rendition step, appended last*** — [06 §10.3], [P9.1], and the
+     * sixth engine-owned one.
+     *
+     * **Last among the `post` steps, and the ordering is the one the steps
+     * want.** A `post` stage runs in declaration order, and this reads the
+     * turn's finished prose and the state the turn has already moved — so
+     * anything that could still change either belongs in front of it. The judge
+     * can conclude a goal and the mention pass can move a hook; a picture of a
+     * turn should be a picture of the turn as it ended.
+     *
+     * ***Three gates, and each of them keeps a step out of the plan rather than
+     * idling it*** — `wantsSummary`'s arrangement, and the paragraph above the
+     * suggester says why: *"a step outcome that means this feature exists rather
+     * than anything about the turn"* is noise on every turn of every session.
+     *
+     * *Nothing wanted, no step.* A session with illustration off and no backdrop
+     * has nothing for this to decide.
+     *
+     * *No `image` binding, no step.* [19 §5.1] leaves `image` **unset** on every
+     * install until a matching connection exists, *"because there is no sensible
+     * text-model fallback for it"* — so without this gate every turn of every
+     * session in the build would log a failed step to discover what the binding
+     * already says. It is [P2B]'s dangling posture applied to a step: visible,
+     * named, and never a turn that fails obscurely. **And it is what buys the
+     * honest `fast` role**, which is the first non-`prose` role any step in this
+     * build has asked for ([25 C15] is why the other three settled).
+     *
+     * *A setup turn, no step.* There is no prose to be a picture of.
+     */
+    const wantsIllustration = payload.setup !== true && readIllustration(running) === 'each-turn';
+    const wantsBackdrop = payload.setup !== true && readBackdropOn(running);
+    const renderRoles =
+      wantsIllustration || wantsBackdrop
+        ? {
+            image: resolveStepRole(
+              {
+                bindings,
+                defaults,
+                usable,
+                ...(inputs.session?.roles === undefined
+                  ? {}
+                  : { sessionRoles: inputs.session.roles }),
+                ...(inputs.session?.stepRoles === undefined
+                  ? {}
+                  : { stepRoles: inputs.session.stepRoles }),
+                cast,
+              },
+              RENDER_STEP,
+              'image',
+              undefined,
+            ),
+            /**
+             * *Resolved even when only a backdrop is wanted*, because the step
+             * is one step: the background branch makes no `fast` call, and a
+             * gate that let it into the plan without a resolvable `fast` role
+             * would fail the moment somebody turned illustration on mid-session.
+             */
+            moment: resolveStepRole(
+              {
+                bindings,
+                defaults,
+                usable,
+                ...(inputs.session?.roles === undefined
+                  ? {}
+                  : { sessionRoles: inputs.session.roles }),
+                ...(inputs.session?.stepRoles === undefined
+                  ? {}
+                  : { stepRoles: inputs.session.stepRoles }),
+                cast,
+              },
+              RENDER_STEP,
+              RENDER_STEP.role ?? 'fast',
+              undefined,
+            ),
+          }
+        : null;
+
+    const withRender: TurnPlan =
+      renderRoles?.image.ok === true && renderRoles.moment.ok
+        ? {
+            steps: [
+              ...withSuggest.steps,
+              render({
+                illustration: wantsIllustration ? 'each-turn' : 'off',
+                backdrop: wantsBackdrop,
+                image: {
+                  binding: {
+                    connectionId: renderRoles.image.connection.id,
+                    modelId: renderRoles.image.modelId,
+                  },
+                  capabilities: capabilitiesFor(
+                    renderRoles.image.connection.provider,
+                    renderRoles.image.connection.capabilities ?? {},
+                  ),
+                },
+                tone: toneOf(inputs.lore.treatment?.treatment),
+                channels: renderedChannels(running),
+                /**
+                 * **Empty at 1.0, and a field rather than a later migration.**
+                 * What an endpoint wants beyond a prompt is per-connection
+                 * production configuration, and [P2B] keeps that on the
+                 * connection rather than in a session. The seed is deliberately
+                 * absent: it is the worker's, because it is the one value that
+                 * must not be part of *what picture is this*.
+                 */
+                workflow: {},
+                /**
+                 * *A thunk, which is `ExtractContext.subjects`' shape and its
+                 * reason*: the digest is not known until the fragments are
+                 * assembled, which happens inside the step. **Always null until
+                 * [P9.3]**, so this build dispatches every backdrop — the lookup
+                 * arrives with the store that can answer it, and wiring a reuse
+                 * check to a function that cannot look anything up would be a
+                 * counter that reads zero for the wrong reason.
+                 */
+                reusable: () => null,
+                report: (report) => {
+                  renditions.report = report;
+                },
+              }),
+            ],
+          }
+        : withSuggest;
+
+    for (const { definition, run } of withRender.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath: history.length,
         stages: new Set<string>(),
@@ -1714,6 +1890,47 @@ function castTerms(
 }
 
 /**
+ * The treatment's tone as one line of an image prompt — [06 §10.3]'s fourth
+ * fragment, [P9.1].
+ *
+ * ***Style, and not the whole of `TreatmentTone`.*** That object carries
+ * `genres`, `moods`, `pov`, `tense`, `contentRating` and `styleNotes`, and only
+ * the first two and the last describe how a picture should look: point of view
+ * and tense are facts about **prose**, and handing *"second person, past tense"*
+ * to an image model is the category error §10.3 opens by describing one size
+ * larger.
+ *
+ * *`contentRating` is deliberately not read either.* [04 §6.2] makes it
+ * advisory — *"nothing in the engine gates on it… because enforcement here would
+ * be a promise that cannot be kept"* — and a rating spliced into an image prompt
+ * would be exactly that promise, made to a model that cannot keep it.
+ *
+ * Returns null rather than an empty string when there is nothing to say, so the
+ * fragment is **absent** rather than blank: a blank fragment would occupy a rank
+ * and contribute a separator.
+ */
+function toneOf(treatment: unknown): string | null {
+  if (!isRecord(treatment)) return null;
+  const tone = treatment['tone'];
+  if (!isRecord(tone)) return null;
+
+  // Read through `unknown` rather than through a declared shape, which is
+  // `readSummary`'s rule and `originOf`'s: a treatment reaches here out of a
+  // library file, and a `Treatment` annotation would make the checks below look
+  // redundant to the compiler while doing the only work that matters.
+  const words = [...listOfStrings(tone['genres']), ...listOfStrings(tone['moods'])];
+  if (typeof tone['styleNotes'] === 'string') words.push(tone['styleNotes']);
+
+  const kept = words.map((word) => word.trim()).filter((word) => word !== '');
+  return kept.length === 0 ? null : kept.join(', ');
+}
+
+/** The strings in an unknown array, and nothing else in it. */
+function listOfStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : [];
+}
+
+/**
  * The cast as a step sees it — [P7.12], and the manifest rather than the bytes.
  *
  * *Deliberately not the `Actor`.* A card is prose, sections, provenance and
@@ -1739,5 +1956,14 @@ function castEntries(cast: {
       role: one.role,
       ...(one.label === undefined ? {} : { label: one.label }),
     })),
+    /**
+     * **Structured appearance, and absent when the card has none** — [P9.1].
+     *
+     * `null` on the card and absent here are the same fact stated in the two
+     * vocabularies this boundary joins: a portable schema says *the field exists
+     * and holds nothing*, and a step payload says *you were not handed one*. The
+     * conditional spread is what keeps them from becoming three states.
+     */
+    ...(member.actor.profile.visual === null ? {} : { visual: member.actor.profile.visual }),
   }));
 }
