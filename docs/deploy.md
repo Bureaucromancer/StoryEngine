@@ -172,6 +172,24 @@ promise between alpha builds — [21](design/21-internal-contracts.md) licenses 
 storage tier to change without migration for as long as nothing leaves the
 install, and nothing does ([P6A §1.7](design/workplan/19-p6a-alpha-1.md)).
 
+## The source
+
+Every page carries a **Source** link in its footer, and it resolves to the tag
+this build was cut at rather than to a branch — AGPL §13 obliges an offer of the
+source for the version you are actually running, which is a different thing from
+the newest source ([09 §7](design/09-server-multiuser-deployment.md)).
+
+The link comes from the build, not from this program: `tools/write-build-info.mjs`
+writes the `origin` remote of whatever repository the build was cut from. **If
+you fork this and ship your own image, your image links to your source**, with
+no code change and nothing to remember. A build made from a clone with no remote
+carries no link, which is honest — it cannot say where its source is.
+
+Settings → About states the licence boundary in the same words for everybody:
+the program and anything that imports its SDK are AGPL-3.0; **what you write is
+yours**. Actors, treatments, lorebooks, presets, sessions and packages are data
+this program produced, not derivative works of it.
+
 ## Channels
 
 Every tagged build is pushed under two tags: its version, which never moves,

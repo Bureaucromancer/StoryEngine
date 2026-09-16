@@ -77,6 +77,14 @@ export interface Account {
 export interface BuildInfo {
   version: string;
   commit: string;
+  /**
+   * Where this build's source is — AGPL §13, [09 §7], [P10.5].
+   *
+   * *Optional, because a build can honestly not know*: a clone with no remote,
+   * an export, a tarball. Absent shows no link rather than pointing somebody at
+   * somebody else's repository.
+   */
+  source?: string;
 }
 
 export interface AuthState {

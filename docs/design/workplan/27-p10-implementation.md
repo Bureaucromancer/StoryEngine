@@ -927,6 +927,47 @@ does not.
 
 *Ends at:* the demo.
 
+#### Done — 2026-09-16
+
+***The place was cut and the content was the question, and the answer is that
+the **build** carries it.*** [09 §7] names the case that makes a §13 link more
+than a constant: *"a link to `main` is not strictly compliant when the operator
+is running a patched build — and the patched-build case is exactly the one §13
+exists for."* So `BuildInfo` grows a `source` field, written by
+`tools/write-build-info.mjs` from the `origin` remote of whatever repository the
+build was cut from. **A fork that ships its own image ships its own link**, with
+no code change and nothing to remember — which is what a hardcoded constant
+could never have done, and it is the whole reason this is three lines in a build
+script rather than one in a component.
+
+***And it resolves to a tag rather than a branch.***
+[releases §2](04-repo-and-releases.md) keeps tags immutable and release branches
+forever *"directly to serve an obligation we already have"*: a branch answers
+*where do I fix this?* and a tag answers *what precisely is the user running?*,
+and §13 asks the second.
+
+**Three absences that are each the honest answer**, rather than a fallback to
+somebody else's repository: no remote, no link; an unidentified build, no link;
+a scheme that is not `http(s)`, dropped at the parse. *The last one matters more
+than it sounds* — `build-info.json` is a file a hand edit reaches, and this
+becomes an anchor's `href` on every page of a signed-in surface.
+
+***The other half of [09 §7] went to the About block, and the split is that
+section's own.*** The **offer** must be *"visible to every logged-in user, not
+buried in an admin screen"*, which the footer is; the **licence boundary** is a
+paragraph somebody reads once, which is what an About block is for. Both halves
+in the same words, for every account, because §7 calls saying them plainly *"the
+cheapest available defence against the misreading that copyleft is creeping into
+people's stories"* — and the person who needs that sentence is whoever wrote a
+character, which is everybody.
+
+**Nothing here waits on publication.** §13 attaches on distribution
+([releases §0](04-repo-and-releases.md)) and this repository is private, so the
+obligation has not fired — but the *mechanism* is what a later phase would
+otherwise have to invent under time pressure, and it is cheaper now: a private
+build links to a private repository, which is correct and harmless, and the day
+the repository is public the link already works.
+
 ---
 
 ## 3. Verification — the P10 exit gate
