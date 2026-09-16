@@ -55,6 +55,16 @@ import { hashPassword, verifyPassword } from './secrets.js';
  * own provider keys* that adds nothing is not a small version of the real
  * thing, it is a false front.
  *
+ * ***`enableExtensions` has an owner since [P10.3], and it is not a phase*** —
+ * 2026-09-16. [P10 §1.5]'s fork is closed: **1.0 needs extensions *loaded*, not
+ * *installed***, the first-party reference extension ships inside the image the
+ * way a built-in mode does, and acquiring one from outside is
+ * [24 §3.2](../../../../docs/design/24-roadmap.md)'s. So this field stays and
+ * stays inert on purpose — it is specified ([22 §7]), it costs a boolean, and
+ * the settings surface says what it is rather than rendering it as though it
+ * were live. *What changed is that the sentence below stopped being a dangling
+ * owner written into code*: the deferral now has a row somebody can find.
+ *
  * ~~**`fileAccess` and `enableExtensions` still gate nothing**~~ **`fileAccess`
  * gates the import sweep, since P4.4** ([10 §4.2.2](../../../../docs/design/10-ui-surfaces.md)).
  * `routes/import.ts` refuses `POST /api/import/sweep` when it reads `none`, so

@@ -2318,6 +2318,25 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const account = await requireAccount(request, reply);
       if (!account) return;
 
+      /**
+       * ***[09 §6.4]'s *"refuse new turns"*, and this is the only door it has
+       * to be refused at*** — [P10.3]. A restart drains by waiting for the
+       * turns in flight, which is pointless if one can be started while it
+       * waits: the drain would never end, or it would end by aborting a turn
+       * that began **after** somebody pressed the button.
+       *
+       * **503 with `retry-after`**, which is the honest pair: the server is
+       * temporarily unable and will be back — that is the whole premise of a
+       * supervised restart — and a client that reconnects is doing the right
+       * thing rather than retrying into a wall.
+       */
+      if (services.draining) {
+        return await reply.code(503).header('retry-after', '10').send({
+          error: 'restarting',
+          message: 'This server is restarting. Your next turn will go through once it is back.',
+        });
+      }
+
       const { sessionId } = request.params as { sessionId: string };
       const body = request.body as {
         idempotencyKey: string;

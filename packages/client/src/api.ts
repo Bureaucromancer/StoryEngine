@@ -2029,7 +2029,34 @@ export const adminApi = {
   notices: (): Promise<{
     pendingRestart: string[];
     canRestart: boolean;
+    /** How `canRestart` was decided, so the surface can say why not. */
+    supervision: 'systemd' | 'declared' | 'none';
+    /** What a restart would interrupt. **Counts, never contents** — [09 §4.5]. */
+    interrupts: { mine: number; others: number };
+    /** True while a restart is draining. */
+    draining: boolean;
+    /**
+     * The daily update check, and the connectivity signal it pays for —
+     * [09 §6.5]. Read from the server's cache; nothing here triggers one.
+     */
+    updates: {
+      state: 'disabled' | 'unknown' | 'current' | 'behind' | 'unreachable';
+      latest: string | null;
+      checkedAt: number | null;
+      online: boolean | null;
+      /** Whether any connection points somewhere the internet is needed for. */
+      needsInternet: boolean;
+    };
     /** The same build the auth state carries — the admin shell's copy of it. */
     build: BuildInfo | null;
   }> => request('GET', '/api/admin/notices'),
+
+  /**
+   * *Restart now* — [09 §6.4], [P10.3].
+   *
+   * **202, and it is the last thing this process says.** The drain runs behind
+   * the response and then the process exits; the client's own reconnection is
+   * what makes the result a brief *reconnecting* rather than a manual refresh.
+   */
+  restart: (): Promise<{ draining: boolean }> => request('POST', '/api/admin/restart'),
 };

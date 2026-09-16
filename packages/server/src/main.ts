@@ -255,6 +255,23 @@ async function main(): Promise<void> {
     });
   }
 
+  /**
+   * ***The one caller that owns the process wires the exit*** — [09 §6.4],
+   * [P10.3]. `buildServices` leaves this null, so every test harness and every
+   * embedding of the app answers *this build cannot restart itself* rather than
+   * ending the test runner.
+   *
+   * **The same `shutdown` a signal takes**, deliberately: a restart and a
+   * `SIGTERM` must leave the data directory in the same state, and two exit
+   * paths is how one of them stops closing the stores. What differs is only
+   * *who asked* — `restart.ts` has already drained the turns by the time this
+   * runs, so `disposeServices`' own `drain()` finds nothing left to abort.
+   */
+  services.exit = () => {
+    app.log.info({ event: 'restart.exiting' }, 'Drained; exiting for a supervisor to restart');
+    void shutdown();
+  };
+
   async function shutdown(): Promise<void> {
     app.log.info('Shutting down.');
     await app.close();

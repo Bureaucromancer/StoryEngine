@@ -719,6 +719,111 @@ a personal surface predating the `privateConnections` check would have been
 [09 §4.5](../09-server-multiuser-deployment.md)'s *"trivial bypass, wearing a
 UI"*, and the check has been real since P3.
 
+#### Done — 2026-09-16, in two commits
+
+***Six bullets, and the interesting half is that four of them were waiting on a
+blocker rather than on a decision.*** What this stage mostly did was build
+blockers.
+
+**The preference rows: four, and the list is mechanical.** §1.4's rule is about
+**surfaces** — a row for a class nothing emits is
+[work plan §2.3](01-work-plan.md)'s failure inverted — so the rows come from
+`NOTIFYING_CLASSES`, which `prefs.test.ts` checks against the server's own union
+in both directions. A fifth class cannot arrive with no row, and a row cannot
+outlive its class.
+
+***And [10 §9](../10-ui-surfaces.md) asked for three things this plan did not
+mention, all of which were right.*** **Distinct sounds per class** — *"tellable
+apart from another room, which is the entire point of having a sound rather than
+a toast"* — so the contour carries it, rising for finished and falling for
+failed, because a change of waveform does not survive a laptop speaker two rooms
+away. **A global mute and a start-muted preference**, Marinara's, which is for a
+shared room and fails exactly once if you have to remember it. And ***prime the
+audio on first interaction***, which that section calls *"a well-known trap that
+presents as 'sounds work sometimes'"* — the failure is not silence, it is a
+person who clicked something hearing it and a person who opened a tab and waited
+not, which is unreportable.
+
+***A tension worth recording rather than resolving.*** [10 §9] says *"suppress
+what is already visible… the sound is still wanted; the toast is not"*, and
+[P10.1]'s router suppresses the **whole notification** for a session you are
+watching. Both are right about their own subject: §9's case is a *message*
+arriving in a chat you are reading, where the sound tells you across the room;
+[09 §3.1] and this phase's §1.3 put routing server-side, where the only honest
+unit is the notification. **Messages is unscheduled** ([24 §3.4]), so nothing at
+1.0 produces §9's case — and when it does, the split it needs is a per-channel
+decision in the router rather than a client-side override. Recorded here because
+the next person to read §9 will notice the same thing.
+
+**Your connections.** [19 §5.1]'s *"anyone who wants their own key overrides a
+role without the admin's involvement"*, which until now meant writing a JSON
+file by hand into a directory the UI never mentioned.
+`routes/connections.ts` grew a second registrar rather than a second module and
+the client grew a second panel over one form, for the same reason both times:
+what the scopes share is a record shape, a stale check and an error vocabulary,
+so the failure to design against was never a second copy — it was one surface
+quietly reading the other's directory. ***The personal routes are the first
+entries on `connections.test.ts`'s exemption table that carry a key***, so the
+old argument (*this route handles ids, never credentials*) was unavailable and a
+third probe kind was needed: the capability.
+
+***§1.6: *Restart now* is built, and the detection is mostly *ask*.*** That is
+the finding rather than a shortcut — **nothing inside a container can see its own
+restart policy**, and every heuristic people reach for (PID 1, `/.dockerenv`, a
+cgroup path) detects *being in a container*, which is a different question whose
+false positive is precisely §6.4's trap: a `docker run` with no policy. So
+`SE_SUPERVISED` is set beside the `restart:` line in `compose.yaml` and in the
+unraid template — §1.2's *one documented environment variable* on a second
+subject — and systemd's own `INVOCATION_ID` is the one honest detection.
+**Default-deny**, because a wrong *no* costs one manual restart and a wrong *yes*
+costs the server.
+
+*And "drain" meant writing one*, because `runner.drain()` aborts. The sequence is
+**stop accepting** (a 503 with `retry-after` at the submission route, which is
+the only door), then `settle()`, then — after thirty seconds — the abort, which
+commits what is left as failed turns rather than losing them. `restart.test.ts`
+drives a real turn through a slow provider and asserts the exit does not happen
+while it runs, which is the claim the whole stage rests on.
+
+***§1.7: the check moved, and the section's own prediction is why.*** Two config
+keys had shipped ahead of it and `CONFIG_TIERS` had been saying `'unread'` about
+both for four phases — *"not shipping dark as a decision; shipping dark by
+default"*. Both are `'applied'` now.
+
+***What §6.5 did not have to distinguish, and this build does.*** A failed check
+is two things: **a transport failure**, where nothing answered, and **an HTTP
+answer this build cannot use** — a 404, an empty feed, no release for the
+channel. Only the first is a connectivity signal; the second *proves the internet
+works*. **That is this project's present state rather than a hypothetical**: the
+repository is private and [releases §4](04-repo-and-releases.md) says `latest`
+*"names nothing"* until a release is cut, so the default channel's feed answers
+404. A check that conflated them would tell every alpha operator their server was
+offline. And §6.5's conditionality is built the way it is written: an all-local
+install is told nothing, because *"a fully local setup is a legitimate,
+fully-functional deployment and its operator chose it deliberately"*.
+
+**Not built, and named rather than left:** §6.5's *"better use"* — an engine that
+says *"this server appears to have no internet access"* instead of surfacing a
+raw connection error when a turn fails against a remote provider. It is genuinely
+the more valuable half and it belongs where a provider failure becomes a
+`StepFailureReason`, which is `turns/calls.ts` rather than a settings surface.
+**Owed to [P11.3](28-p11-implementation.md)**, whose subject is the error
+vocabulary, and the signal it needs now exists.
+
+***§1.5 and §1.8 are closed, which is the part that had cost two sweeps.***
+§1.8's system-library bullet is **struck** in [10 §15.3](../10-ui-surfaces.md):
+it offered two ways out and nothing in four phases argued for changing 1.0's
+position on admin write, so the bullet goes and the argument stays beside it
+struck rather than deleted. §1.5's fork is closed by a distinction it was
+missing — ***1.0 needs extensions **loaded**, not **installed***. The dice
+reference extension the work plan keeps at 1.0 is first-party and ships inside
+the image the way a built-in mode does; acquiring one from outside is a
+subsystem no 1.0 goal requires, and it is now a row in
+[24 §3.2](../24-roadmap.md) rather than an owner-shaped hole. **The three
+artefacts that presuppose it all stay** — the capability, the quota key, the
+manifest — because each is cheap, specified, and *visibly* inert, which is what
+`'unread'` and that docstring are for.
+
 ### P10.4 — The account gallery
 
 §1.9, as [12 §8](../12-account-gallery.md) specifies it, including the

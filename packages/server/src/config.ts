@@ -393,9 +393,23 @@ export const LIVE_APPLIERS = {
   // holds rather than copying a number out of.
   'history.keepPerObject': 'applied',
 
-  // The update check is P11's.
-  'updates.checkEnabled': 'unread',
-  'updates.channel': 'unread',
+  /**
+   * ~~The update check is P11's.~~ ***Built at [P10.3]***, which is
+   * [P10 §1.7](../../../docs/design/workplan/27-p10-implementation.md)'s lean
+   * taken — *"move the check"* rather than ship a surface reading a source that
+   * is always unknown.
+   *
+   * ***These two rows are why that section exists***: the settings for the check
+   * shipped ahead of the check, which is not *shipping dark* as a decision but
+   * **shipping dark by default**. They were `unread` for four phases and this
+   * table is what made that visible rather than remembered.
+   *
+   * *Both are genuinely live*: `checkEnabled` is read at the top of every check,
+   * so turning it off stops the next one without a restart, and `channel` is
+   * read when the feed is filtered — a change applies to the next daily run.
+   */
+  'updates.checkEnabled': 'applied',
+  'updates.channel': 'applied',
 } as const satisfies Record<string, LiveApplier>;
 
 export function applierOf(key: string): LiveApplier | null {

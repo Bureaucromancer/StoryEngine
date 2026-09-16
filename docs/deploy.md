@@ -82,6 +82,20 @@ directory, which is empty on a first run:
 | `SE_PORT`         | `server.port`       | `8080`           |
 | `SE_CLIENT_ROOT`  | `server.clientRoot` | `/app/client`    |
 
+**And one more that is not a setting at all**: `SE_SUPERVISED`. It says that
+something will start this server again if it stops — `compose.yaml`'s
+`restart: unless-stopped`, unraid's autostart, a systemd unit — which is what
+lets the settings page offer **Restart now** instead of explaining that
+StoryEngine does not restart itself. Nothing inside a container can work this
+out for itself: a container is told nothing about its own restart policy, and
+every test that looks like it would work (PID 1, `/.dockerenv`, a cgroup path)
+is equally true of a `docker run` with no policy at all — which is exactly the
+case where the button would leave you with no server. So it is set beside the
+restart policy rather than baked into the image, and it is defaulted off: a
+wrong *no* costs you one manual restart, a wrong *yes* costs you the server.
+A systemd unit needs nothing, because systemd sets `INVOCATION_ID` itself and
+that is read.
+
 Everything else is `config.json` in the volume, or the settings page. **The file
 wins over the environment**, because the file is what the settings page writes:
 changing a value in the UI and finding a variable had outranked it would be a bug
@@ -94,6 +108,24 @@ Put a reverse proxy in front if you want TLS, and then set `server.trustProxy`
 and `server.cookieSecure` in `config.json` — both default to off, and
 `cookieSecure` without TLS in front makes signing in fail silently, because a
 `Secure` cookie is never sent back over plain HTTP.
+
+## Updates
+
+StoryEngine checks once a day whether there is a newer build on your channel,
+and shows the answer in **Settings → About**. It is a plain fetch of the public
+release feed and nothing else: no install id, no usage counts, no configuration,
+nothing anonymised. Turn it off with `updates.checkEnabled` in the settings form
+and no request is made at all.
+
+The same request doubles as a connectivity check, because a server that cannot
+reach the release feed usually cannot reach a remote model provider either. That
+warning only appears when one of your connections actually points at a remote
+provider — a fully local setup (Ollama, llama.cpp, a box on your LAN) is a
+perfectly good deployment and is not told its server is broken for failing to
+reach something it never needed.
+
+An HTTP answer of any kind counts as *the internet works*, including a refusal.
+Only a connection that goes nowhere is read as offline.
 
 ## Notifications, and the one thing plain HTTP costs you
 

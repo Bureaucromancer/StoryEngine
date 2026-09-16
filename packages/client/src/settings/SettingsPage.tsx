@@ -4,6 +4,7 @@
 import type { JSX } from 'react';
 
 import { AboutBuild } from '../about/AboutBuild.js';
+import { UpdateBadge } from '../about/UpdateBadge.js';
 import { useAuthState } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { AdminAccounts } from './AdminAccounts.js';
@@ -51,6 +52,13 @@ export function SettingsPage(): JSX.Element {
           is `auth/state`'s rather than the admin route's — so *absent is
           absent* below is untouched by a version on the page. */}
       <AboutBuild build={auth.data?.build} />
+      {/*
+        Beneath the build it is about, and **admin-only** — [09 §6.5]: a regular
+        user cannot fix the server's networking, and a warning they can only be
+        alarmed by is noise. It reads `admin/notices`, so it sits outside the
+        `AboutBuild` block above, which is deliberately everyone's.
+      */}
+      <UpdateBadge isAdmin={account?.role === 'admin'} />
 
       <UserSettings />
 

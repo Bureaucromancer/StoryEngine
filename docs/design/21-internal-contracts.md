@@ -671,6 +671,25 @@ that decided differently, because *a hidden difference between artifacts is a
 support burden shaped like a security feature*. The same variable tightens the
 bind from a container and loosens it on bare metal.
 
+**And one variable that is deliberately not in that table** — `SE_SUPERVISED`,
+added at [P10.3](workplan/27-p10-implementation.md):
+
+| Variable | What it says |
+|---|---|
+| `SE_SUPERVISED` | Something will start this process again if it exits, so *Restart now* may be offered ([09 §6.4](09-server-multiuser-deployment.md)) |
+
+***It is not a config key and that is the whole reason it is listed
+separately.*** A `config.json` travels with a data directory to a machine where
+it is false, and a settings page that offered to edit it would be offering to
+edit a fact about the environment. It is also not something this process can
+detect: nothing inside a container can see its own restart policy, and every
+heuristic that looks like it can — PID 1, `/.dockerenv`, a cgroup path — is
+equally true of a `docker run` with no policy at all, which is exactly the
+deployment §6.4 is warning about. So it is set **beside the restart policy**, in
+`compose.yaml` and in the unraid template, and systemd's own `INVOCATION_ID` is
+read as the one honest detection. Default-deny: a wrong *no* costs a manual
+restart, a wrong *yes* costs the server.
+
 **Precedence is defaults, then the environment, then the file** — and `--data`
 above all three. The file outranking a variable is the part worth stating: the
 file is what the settings page writes, so an operator who changed a value in the

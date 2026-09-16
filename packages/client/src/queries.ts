@@ -1277,6 +1277,16 @@ export function useWriteConfig(): UseMutationResult<
 export function useNotices(enabled: boolean): UseQueryResult<{
   pendingRestart: string[];
   canRestart: boolean;
+  supervision: 'systemd' | 'declared' | 'none';
+  interrupts: { mine: number; others: number };
+  draining: boolean;
+  updates: {
+    state: 'disabled' | 'unknown' | 'current' | 'behind' | 'unreachable';
+    latest: string | null;
+    checkedAt: number | null;
+    online: boolean | null;
+    needsInternet: boolean;
+  };
 }> {
   return useQuery({
     queryKey: ['admin', 'notices'],
@@ -1284,4 +1294,16 @@ export function useNotices(enabled: boolean): UseQueryResult<{
     enabled,
     refetchInterval: 30_000,
   });
+}
+
+/**
+ * Asks the server to restart itself — [09 §6.4], [P10.3].
+ *
+ * ***No `onSuccess` invalidation, and that is not an omission.*** The answer is
+ * the last thing this process sends: the drain runs behind it and then the
+ * process exits, so a refetch would race a socket that is closing. What updates
+ * the surface is the reconnection — the page comes back and asks again.
+ */
+export function useRestart(): UseMutationResult<{ draining: boolean }, Error, void> {
+  return useMutation({ mutationFn: () => adminApi.restart() });
 }

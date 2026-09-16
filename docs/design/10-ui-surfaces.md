@@ -2603,11 +2603,29 @@ account ones:
 
 - **System connections** ([09 §4.5](09-server-multiuser-deployment.md)) — the
   household's shared keys, and the default role bindings everyone inherits.
-- **The system library** ([09 §4.3](09-server-multiuser-deployment.md)) — a scope
-  an admin administers, explicitly **not** an account and with no system login.
+- ~~**The system library** ([09 §4.3](09-server-multiuser-deployment.md)) — a scope
+  an admin administers, explicitly **not** an account and with no system login.~~
+  **Struck 2026-09-16 at [P10.3](workplan/27-p10-implementation.md), which is the
+  closure the paragraph at the end of §15.5 asked for.** It offered the two ways
+  out — *either the bullet goes or 1.0's position on admin write changes* — and
+  nothing in four phases argued for the second: §4.2 makes the scope
+  never-writable, [09 §4.3](09-server-multiuser-deployment.md) withholds admin
+  write at 1.0 deliberately, and §15.4 says a panel with no action does not
+  belong. So there is no *administering* to surface, and the sentence promising
+  it was the only thing making it look scheduled. *Struck rather than deleted
+  because the bullet is the argument*: what an admin cannot do here, and why, is
+  worth a reader finding.
 - **Extensions**: install is admin-only, enable is per-user
   ([22 §7](22-extensions.md)). Both halves of that live in their respective
-  halves of this surface.
+  halves of this surface. ***Neither half ships at 1.0*** — [P10.3](workplan/27-p10-implementation.md),
+  2026-09-16, and the reason is the distinction §15.5's blocker was missing:
+  **1.0 needs extensions to be *loaded*, not *installed*.** The dice reference
+  extension ([24 §4.4](24-roadmap.md)) that the
+  [work plan](workplan/01-work-plan.md) keeps at 1.0 is **first-party** and
+  ships inside the image the way a built-in mode does, so it needs no acquiring
+  step at all. Acquiring an extension from outside the install is a subsystem —
+  fetch, verify, unpack, register, quota — that no 1.0 goal requires, and it is
+  [24 §3](24-roadmap.md)'s now rather than a phase's.
 - **Restart, and server notices** ([09 §6.3](09-server-multiuser-deployment.md)) —
   including the two things restart must not do naively.
 - **Connectivity and bind state** ([09 §6.5](09-server-multiuser-deployment.md)),
@@ -2660,16 +2678,38 @@ bullet in §15.1 waits with it, because a personal-connection surface that
 predates the `privateConnections` check is the trivial bypass
 [09 §4.5](09-server-multiuser-deployment.md) warns about, wearing a UI.
 
-**What genuinely remains at P10**, and not by default — each has a named
+~~**What genuinely remains at P10**, and not by default — each has a named
 blocker: the extensions panel (installation does not exist); *Restart now*
 (supervisor detection and drain, [09 §6.4](09-server-multiuser-deployment.md));
 connectivity state (its producer is P11's update check); and the notification
 preference rows [09 §3.5](09-server-multiuser-deployment.md) asks for (no class
-has a producer, and the router is P10's).
+has a producer, and the router is P10's).~~
 
-**And §15.3's system-library bullet has no owner, which is a defect in this
+***All four settled at [P10](workplan/27-p10-implementation.md)***, 2026-09-16,
+and three of them by building the blocker rather than the surface:
+
+- **The notification preference rows** ship — four of them, one per class with a
+  producer, [P10.1] having built the router and [P10.2] the two delivery
+  channels.
+- ***Restart now*** ships, with the supervisor detection and the drain §6.4
+  demands. Where nothing would bring the process back it is not offered and the
+  route refuses it, which is the same sentence this section used to carry as the
+  only answer.
+- **Connectivity state** ships, because the update check moved into P10 rather
+  than waiting for P11 — *"its producer is P11's"* was the dependency in the
+  wrong order, and two config keys had already shipped ahead of it.
+- **The extensions panel does not**, and that is the fork above closed: 1.0 needs
+  extensions *loaded*, not *installed*, and acquiring one from outside the
+  install is [24 §3](24-roadmap.md)'s.
+
+~~**And §15.3's system-library bullet has no owner, which is a defect in this
 section rather than a scheduling question.** §4.2 makes that scope
 never-writable and [09 §4.3](09-server-multiuser-deployment.md) withholds admin
 write at 1.0 deliberately, so there is no *action* an admin takes there — and
 §15.4 says a panel without one does not belong. Either the bullet goes or 1.0's
-position on admin write changes; it should not sit here looking scheduled.
+position on admin write changes; it should not sit here looking scheduled.~~
+
+***The bullet went*** — [P10.3], 2026-09-16, and it is struck in §15.3 above
+rather than deleted, because the argument is worth a reader finding. Two audits
+passed over this and routed it rather than closing it; what it cost each time
+was a sweep, and what it cost to close is a paragraph.

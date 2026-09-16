@@ -2,15 +2,23 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, type JSX } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import { BuildFooter } from './about/BuildFooter.js';
 import { NotificationBell } from './notifications/NotificationBell.js';
 import { NotificationToast } from './notifications/NotificationToast.js';
 import { useNotifications } from './notifications/useNotifications.js';
-import { useAuthState, useLogout, useNotices, usePatchPrefs, usePrefs } from './queries.js';
+import {
+  useAuthState,
+  useLogout,
+  useNotices,
+  usePatchPrefs,
+  usePrefs,
+  useRestart,
+} from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
+import { Dialog } from './ui/Dialog.js';
 import { useTheme } from './ui/useTheme.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
 import { useToggleChord } from './workbench/useToggleChord.js';
@@ -236,33 +244,153 @@ function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.El
 }
 /**
  * What is waiting for a restart — [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md),
- * [P2A §2.6](../../../docs/design/workplan/09-p2a-configuration-surface.md).
+ * [09 §6.4](../../../docs/design/09-server-multiuser-deployment.md),
+ * [P2A §2.6](../../../docs/design/workplan/09-p2a-configuration-surface.md),
+ * [P10.3].
  *
  * **Named changes rather than "restart required"**, because a bare notice
  * invites people to restart and hope — and the list is computed per request
  * from the config this process started with, so undoing a change clears it
  * rather than leaving a banner nobody can dismiss.
  *
- * **And it says the server will not restart itself.** [09 §6.4] is explicit that
- * under no supervisor a restart control leaves the administrator with no server
- * and possibly no shell, so it needs supervisor detection and a drain, neither
- * of which exists. A notice that invites *"so how do I restart it?"* is a worse
- * answer than one that says.
+ * ***And since [P10.3] it offers to do it, where something would bring the
+ * process back.*** ~~It says the server will not restart itself.~~ [09 §6.4]'s
+ * two preconditions are built — supervisor detection and a drain — so the
+ * sentence that stood here is now the **unsupervised** arm rather than the only
+ * arm. A bare `node server.js` still reads exactly as it did, which is the
+ * point: what §6.4 forbids is offering the control where it is a trap, not
+ * offering it at all.
+ *
+ * **In the banner rather than on the settings page**, because the banner is
+ * where a person *learns* a restart is pending — [09 §6.3] puts it on every page
+ * precisely because the person who needs to know is often not the one looking at
+ * the form, and sending them to a form to act on it would undo that.
  *
  * The query is disabled for a non-admin, so their browser never asks — the same
  * absent-rather-than-disabled mechanism the settings page uses.
  */
 function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const notices = useNotices(isAdmin);
+  const restart = useRestart();
+  const [confirming, setConfirming] = useState(false);
+
   const pending = notices.data?.pendingRestart ?? [];
   if (!isAdmin || pending.length === 0) return null;
 
+  const draining = notices.data?.draining === true || restart.isSuccess;
+  const canRestart = notices.data?.canRestart === true;
+  const interrupts = notices.data?.interrupts ?? { mine: 0, others: 0 };
+
   return (
     <div role="status" className="border-b border-warn-line bg-warn-surface px-6 py-2 text-sm">
-      <p className="mx-auto max-w-4xl text-warn-ink">
-        Waiting for a restart: <strong>{pending.join(', ')}</strong>. StoryEngine does not restart
-        itself — stop and start the server however you run it, and these will take effect.
-      </p>
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+        <p className="text-warn-ink">
+          {draining
+            ? drainingNotice(pending.join(', '))
+            : canRestart
+              ? supervisedNotice(pending.join(', '))
+              : unsupervisedNotice(pending.join(', '))}
+        </p>
+        {canRestart && !draining ? (
+          <Button
+            type="button"
+            size="compact"
+            onClick={() => {
+              setConfirming(true);
+            }}
+          >
+            Restart now
+          </Button>
+        ) : null}
+      </div>
+
+      {confirming ? (
+        <Dialog
+          role="alertdialog"
+          labelledBy="confirm-restart"
+          onDismiss={() => {
+            setConfirming(false);
+          }}
+        >
+          <h2 id="confirm-restart" className="text-subsection text-ink">
+            Restart this server?
+          </h2>
+          {/* ***[09 §6.4]'s own sentence***: *"because this is multi-user, the
+              confirmation must say what it is about to interrupt"*. Counts,
+              never contents — who is mid-turn is a different feature. */}
+          <p className="text-sm text-ink-muted">{interruptNotice(interrupts.others)}</p>
+          {interrupts.mine > 0 ? (
+            <p className="text-sm text-ink-muted">{ownTurnNotice(interrupts.mine)}</p>
+          ) : null}
+          <p className="text-sm text-ink-muted">
+            Turns already running are given up to thirty seconds to finish. Anything still going
+            after that is recorded as a failed turn rather than lost.
+          </p>
+          {restart.isError ? (
+            <p role="alert" className="text-sm text-danger-ink">
+              {restart.error.message}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              size="compact"
+              onClick={() => {
+                setConfirming(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="compact"
+              disabled={restart.isPending}
+              onClick={() => {
+                restart.mutate(undefined, {
+                  onSuccess: () => {
+                    setConfirming(false);
+                  },
+                });
+              }}
+            >
+              Restart now
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * The four sentences, whole.
+ *
+ * *One string each with the values substituted in* — the rule
+ * `AdminConnections` states and the lint rule enforces: a sentence assembled
+ * from fragments cannot be translated at all, and these are exactly the shapes
+ * that invite it (a list with a clause after it, a count with a noun).
+ */
+function supervisedNotice(keys: string): string {
+  return `Waiting for a restart: ${keys}. Restarting now will apply them.`;
+}
+
+function unsupervisedNotice(keys: string): string {
+  return `Waiting for a restart: ${keys}. StoryEngine does not restart itself — stop and start the server however you run it, and these will take effect.`;
+}
+
+function drainingNotice(keys: string): string {
+  return `Restarting to apply: ${keys}. Waiting for turns in flight to finish; this page will reconnect on its own.`;
+}
+
+function interruptNotice(others: number): string {
+  if (others === 0) return 'Nobody else has a turn running.';
+  if (others === 1) return '1 other person has a turn running, and it may be interrupted.';
+  return `${String(others)} other people have turns running, and they may be interrupted.`;
+}
+
+function ownTurnNotice(mine: number): string {
+  return mine === 1
+    ? 'One of your own turns is running.'
+    : `${String(mine)} of your own turns are running.`;
 }

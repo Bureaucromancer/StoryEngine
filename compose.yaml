@@ -48,6 +48,14 @@ services:
       # SE_COOKIE_SECURE is not a variable: cookie hardening is a config-file
       # key, because it is not needed before the config file can be read.
       SE_PORT: '8080'
+      # Beside `restart:` above and not in the image, which is the point of it:
+      # nothing inside a container can see its own restart policy, and every
+      # heuristic that looks like it can (PID 1, /.dockerenv, a cgroup path) is
+      # also true of a `docker run` with no policy at all — the exact case
+      # 09 §6.4 warns about. This says the policy on the line above exists, so
+      # the settings surface may offer Restart now. Take it out if you take the
+      # restart policy out.
+      SE_SUPERVISED: '1'
 
 volumes:
   storyengine-data:

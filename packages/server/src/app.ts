@@ -62,6 +62,7 @@ import {
   reconcile,
   reconcileSession,
   type CommitContext,
+  type Logger,
   type Reconciliation,
 } from './state/commit.js';
 import type { JobContext } from './state/jobs.js';
@@ -72,6 +73,8 @@ import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { listDirectoryNames, readFileBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
+import { supervisionOf, type Supervision } from './supervision.js';
+import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
@@ -250,6 +253,44 @@ export interface AppServices {
    */
   configDocument: Record<string, unknown>;
   library: LibraryContext;
+  /**
+   * Whether something will start this process again — [09 §6.4], [P10.3].
+   *
+   * Read once at boot, for the reason `setupToken` is: the answer is a fact
+   * about how the process was started and cannot change under it.
+   */
+  supervision: Supervision;
+  /**
+   * Ends the process, when something is going to bring it back.
+   *
+   * ***A seam rather than a call to `process.exit`***, and for the reason every
+   * other seam in this file exists: a test that exercised *Restart now* would
+   * otherwise end the test runner. `main.ts` wires it; everything else leaves it
+   * null, and the route answers `unavailable` — which is the honest answer for a
+   * build that embeds the app rather than running it.
+   */
+  exit: (() => void) | null;
+  /**
+   * Set while a restart is draining — [09 §6.4]'s *"refuse new turns"*.
+   *
+   * **Assigned into these services rather than held in the restart module**,
+   * because the thing that has to read it is the submission route, and a module
+   * holding process-global state would be a second source of truth for *is this
+   * server leaving*.
+   */
+  draining: boolean;
+  /**
+   * What the last update check found — [09 §6.5], [P10.3].
+   *
+   * ***Assigned into rather than recomputed per request***, which is the whole
+   * of §6.5's *"daily, cached, never on page load"*: the notices route reads
+   * this field, and the only thing that writes it is the timer below. A route
+   * that checked on demand would make the traffic pattern a request per
+   * navigation, which *looks* like telemetry whatever it carries.
+   */
+  updates: UpdateStatus;
+  /** Stops the daily check. Called by `disposeServices`. */
+  stopUpdateCheck: () => void;
   /**
    * Client preferences, per user ([25 B13]).
    *
@@ -654,6 +695,14 @@ async function assembleWithState(
     maturation,
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
+    supervision: supervisionOf(process.env),
+    // Wired by `main.ts`, which is the only caller that owns the process.
+    exit: null,
+    draining: false,
+    updates: UNCHECKED,
+    // Replaced by `startUpdateCheck`, which `buildApp` runs once a logger
+    // exists. A build that never starts one disposes cleanly.
+    stopUpdateCheck: () => undefined,
     build,
     sessionKey: await loadOrCreateSessionKey(layout),
     /**
@@ -694,11 +743,54 @@ async function assembleWithState(
  * silently dropped the maturation timer and the operational store from two of
  * the three, and each omission surfaced as a locked file rather than as a leak.
  */
+/**
+ * Runs the update check on a timer, and answers with the stopper.
+ *
+ * ***Both timers are `unref`ed***, which is the rule every other timer in this
+ * codebase follows: a release-feed check must never be the reason a process
+ * stays alive, and least of all one that has been asked to restart.
+ */
+function startUpdateCheck(services: AppServices, log: Logger): void {
+  let stopped = false;
+
+  const run = (): void => {
+    void checkForUpdate(services)
+      .then((status) => {
+        if (stopped) return;
+        services.updates = status;
+        // `info` rather than `warn` even for `unreachable`: a fully local
+        // install reaching no release feed is a legitimate deployment
+        // ([09 §6.5]), and a warning would be this program's opinion about
+        // somebody's network.
+        log.info(
+          { event: 'updates.checked', state: status.state, latest: status.latest },
+          'Update check',
+        );
+      })
+      .catch(() => undefined);
+  };
+
+  const first = setTimeout(run, FIRST_CHECK_DELAY_MS);
+  first.unref();
+  const repeat = setInterval(run, CHECK_INTERVAL_MS);
+  repeat.unref();
+
+  services.stopUpdateCheck = () => {
+    stopped = true;
+    clearTimeout(first);
+    clearInterval(repeat);
+  };
+}
+
+/** See {@link startUpdateCheck} — long enough that a restart loop is not traffic. */
+const FIRST_CHECK_DELAY_MS = 60_000;
+
 export async function disposeServices(services: AppServices): Promise<void> {
   // **Runs first, and waits.** A detached turn touching a closed
   // `DatabaseSync` is the failure that surfaces on Windows as `EBUSY` on a
   // file the caller never named, two layers from where it was caused.
   await services.runner.drain();
+  services.stopUpdateCheck();
   for (const close of services.streams) close();
   services.streams.clear();
   services.maturation.stop();
@@ -857,6 +949,23 @@ export async function buildApp(
    * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
    * to every other way this goes wrong.
    */
+  /**
+   * ***The daily update check*** — [09 §6.5], [P10.3].
+   *
+   * **Here rather than in `buildServices`**, for `reconcile`'s reason one line
+   * up: it needs a logger, and it must not be started by a caller that only
+   * wants the services (a migration, a CLI action) — those would each open a
+   * socket to a release feed nobody asked about.
+   *
+   * *The first run is delayed rather than immediate*, and the delay is the
+   * honest half of §6.5's *"never on page load"*: a check that fired at boot
+   * would fire on every container restart, which for somebody debugging a
+   * deployment is a request every few seconds. A minute is long enough that a
+   * restart loop does not become a traffic pattern, and short enough that an
+   * operator who just turned the setting on sees an answer while still looking.
+   */
+  startUpdateCheck(services, app.log);
+
   const stranded = reconcileRenditionJobs(services.state.db);
   if (stranded.interrupted.length > 0) {
     app.log.info(
