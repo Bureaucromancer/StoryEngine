@@ -3,7 +3,7 @@
 
 import { NO_LORE_REPORT, type ModelCall } from '@storyengine/shared';
 
-import type { TurnPreview, TurnRecord } from '../api.js';
+import type { Rendition, TurnPreview, TurnRecord } from '../api.js';
 
 /**
  * Turn records for the workbench's tests — **test-only, and never promoted**.
@@ -386,4 +386,78 @@ export function legacyTurn(): TurnRecord {
     request: { calls: [call] },
     // P2 wrote steps; the absence here is only to keep the fixture small.
   };
+}
+
+/**
+ * Two pictures of one turn, differing only in the seed — [P9.5].
+ *
+ * ***Written to be the gate row rather than to be pretty.*** Row 6 is *"two
+ * renditions of one turn carry different seeds, and the workbench says so —
+ * **why did this one come out different** is answerable without guessing"*, and
+ * the only way for that question to be sharp is for everything else to be
+ * identical: same recipe digest, same fragments, same binding. So these two
+ * share a digest, which is exactly what a **regenerate** produces.
+ *
+ * The second carries a **dropped** fragment, because a prompt shown without
+ * what the capper took out is a prompt that was never sent. Test-only and never
+ * promoted, like everything else in this file.
+ */
+export function renditionPair(): Rendition[] {
+  const base: Rendition = {
+    schema: 'storyengine.rendition/1',
+    id: 't-10.0',
+    sessionId: SESSION_ID,
+    turnId: 't-10',
+    createdAt: '2026-09-16T10:00:00.000Z',
+    kind: 'image',
+    purpose: 'illustration',
+    scope: { anchor: 'The air was thick' },
+    state: 'ready',
+    prompt: {
+      fragments: [
+        { id: 'moment', text: 'a lantern on a wet quay', rank: 100, required: true },
+        { id: 'actors', text: 'a tall woman, cropped grey hair', rank: 80 },
+        { id: 'tone', text: 'rain-soaked, low light', rank: 60 },
+      ],
+      separator: ', ',
+      budget: { maxChars: 200, usefulChars: 120 },
+      text: 'a lantern on a wet quay, a tall woman, cropped grey hair, rain-soaked, low light',
+      kept: ['moment', 'actors', 'tone'],
+      dropped: [],
+      overCap: false,
+    },
+    asset: { path: 'assets/t-10.0.png', mime: 'image/png', bytes: 1024, digest: 'sha256:pixels-a' },
+    provenance: {
+      at: '2026-09-16T10:00:04.000Z',
+      binding: { connectionId: 'c-1', modelId: 'a-picture-model' },
+      answeredAs: 'a-picture-model',
+      seed: 481_516,
+      workflow: {},
+    },
+    error: null,
+    digest: 'sha256:recipe-one',
+    ordering: 0,
+  };
+
+  return [
+    base,
+    {
+      ...base,
+      id: 't-10.1',
+      ordering: 1,
+      prompt: {
+        ...base.prompt,
+        kept: ['moment', 'actors'],
+        dropped: [{ id: 'tone', rank: 60, reason: 'over-useful-cap' }],
+        overCap: true,
+      },
+      asset: {
+        path: 'assets/t-10.1.png',
+        mime: 'image/png',
+        bytes: 1024,
+        digest: 'sha256:pixels-b',
+      },
+      provenance: { ...base.provenance, seed: 2342 },
+    },
+  ];
 }

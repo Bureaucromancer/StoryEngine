@@ -25,6 +25,26 @@ const EVERY_ARM: BlockSource[] = [
   { kind: 'actor', actorId: 'a-2', contentHash: 'sha256:y' },
   { kind: 'lore', entryId: 'e-1', phase: 'before' },
   { kind: 'history', turnId: 't-1', range: [0, 0], part: 'input' },
+  /**
+   * ***The two arms this fixture was missing***, added at [P9.5] with the
+   * labels they should always have had.
+   *
+   * `summary` shipped at [P8.1] and `schema` at [P7.4], and neither was ever
+   * listed here — so the assertion below, whose entire job is to catch a raw
+   * kind leaking into the Source column, never looked at either. A summary
+   * block rendered as the bare word `summary` for a whole phase with the suite
+   * green over it.
+   *
+   * **Which is the argument for the shape of this list rather than for one
+   * more line in it.** A hand-enumerated fixture over a union the compiler
+   * could enumerate is only as total as the hand; what makes this one honest is
+   * that `BlockSource` is a *free-to-move tier* union with no runtime
+   * representation to iterate, so the alternative is a type-level exhaustiveness
+   * check. That is worth writing the next time an arm is added — and this
+   * comment is where the next person finds out it is owed.
+   */
+  { kind: 'summary', linkKey: 'sha256:s', range: [0, 3] },
+  { kind: 'schema' },
   {
     kind: 'samples',
     owner: { kind: 'actor', id: 'a-3', contentHash: 'sha256:z' },

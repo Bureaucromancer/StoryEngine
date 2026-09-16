@@ -56,6 +56,24 @@ const SOURCE_LABELS: Record<string, string> = {
   actor: 'Actor',
   lore: 'Lore',
   history: 'History',
+  /**
+   * ***A link of the rolling summary*** — [08 §5], [P8.1], labelled at [P9.5].
+   *
+   * **The arm shipped without a label and nothing caught it**, which is the
+   * hole this line closes twice over. `address.test.ts`'s
+   * `expect(address.label).not.toBe(source.kind)` exists to catch exactly this
+   * — a block rendering in the Source column as the bare word `summary` — and
+   * it never saw it, because the arm was missing from that test's `EVERY_ARM`
+   * fixture as well. A fixture that enumerates the vocabulary by hand is only
+   * as total as the hand, so both are edited together and the fixture is the
+   * half that keeps this from happening to the next arm.
+   *
+   * *"Earlier turns"* rather than *"Summary"*, because what the reader is
+   * looking at **is** the earlier turns — compressed, and standing in for them
+   * in the window. `History` above is the uncompressed form of the same thing,
+   * and the two labels read as the pair they are.
+   */
+  summary: 'Earlier turns',
   samples: 'Writing sample',
   channel: 'Channel',
   treatment: 'Treatment',

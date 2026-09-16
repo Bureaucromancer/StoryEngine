@@ -517,6 +517,24 @@ when the turn commits, and the two are never on screen at once.
   messages. Multiple calls for `per-actor` dispatch and for steps.
 - **The effects** — proposed channel changes, which applied, which failed
   validation, which were overridden by an engine-computed rule.
+- ***The pictures*** — one section per rendition of this turn, added
+  2026-09-16 at [P9.5](workplan/26-p9-implementation.md): the **seed**, the
+  model the recipe was keyed on beside the one that answered, the reuse digest,
+  the anchor it was told to sit beside, and the ranked fragments with whatever
+  the capper dropped struck through rather than absent.
+
+  **This is the section [06 §10.7](06-modes-and-turn-pipeline.md)'s permanent
+  recipe exists for.** [P9 §1.3] decides a standing question — an on-demand
+  picture of an *old* turn assembles from that turn's **recorded** state — on
+  the explicit grounds that the surprise is mitigated *by disclosure rather than
+  by a setting*, and this is the disclosure. A phase that kept the recipe and
+  never showed it would have paid the storage and taken none of the argument.
+
+  *The seed is the row that would otherwise be missing*, and it is the one that
+  answers **why did this one come out different**: two siblings of one turn can
+  share a digest, a prompt and a model, and differ only here. *What the capper
+  dropped is the other*: a prompt shown without it is a prompt that was never
+  sent.
 - **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
   cost extra" is a number rather than a documentation note. This is displaying a
   field the record already holds. **Aggregate spend tracking is post-1.0**
