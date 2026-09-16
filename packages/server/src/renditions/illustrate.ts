@@ -54,9 +54,15 @@ import { requestRendition } from './manual.js';
  * absent is the *token accounting* — a hand-pressed illustration spends a `fast`
  * call that no turn's figures include. Making it a turn would put the call on a
  * tape and put a node with no prose in somebody's transcript, which is a worse
- * trade for a story than a missing line in a cost total. **[25 E4]'s budget is
- * where this is properly answered**, and §10.6 already says this section has no
- * budget.
+ * trade for a story than a missing line in a cost total.
+ *
+ * ***Aggregate spend tracking is where this is properly answered, and it is
+ * post-1.0*** — [24 §3], which [10 §3] states and `CostSummary`'s docstring
+ * repeats: *"per-turn only; aggregate tracking is post-1.0 by design."* §10.6
+ * already says [06 §10] has no budget of its own, so there is nothing in this
+ * phase for the figure to be missing **from**; what a later aggregate has to
+ * know is that a rendition's text call exists outside the turn totals, which is
+ * why it is written here rather than left to be rediscovered.
  */
 
 export interface IllustrateContext {

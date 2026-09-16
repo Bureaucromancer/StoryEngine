@@ -811,6 +811,36 @@ a delivery-policy question and therefore P10's — the summary's `{ key, params 
 has to distinguish the two purposes so P10 *can* decide, which is the only part
 that is this phase's to get right.
 
+---
+
+#### Not discharged, and the producer moved — recorded 2026-09-16 by [P10 §0.1](27-p10-implementation.md)
+
+***This phase emitted no `artifact.ready` at all***, and the word appears nowhere
+in `packages/`. The reason is [P9.2](#p92--jobs-that-never-block-and-the-surfaces-that-follow-from-that)'s
+and it is structural rather than an oversight: the `event` table **foreign-keys
+to `job(id)`** and `resolveJobs` walks forward from the cursor's anchor, so a
+rendition `ProgressEvent` would need a `job` row a rendition must not have. What
+shipped instead is a whole-record `rendition` SSE frame, applied by upsert, which
+is what kept `attachToSession` synchronous.
+
+**That decision stands and this section's obligation still went unmet**, which
+are two different sentences and both are true. A **transport** for pixels
+reaching an open page and a **class** telling a person something finished are
+different things; P9.2 chose the first well and the second was never written.
+
+***So the producer joins the router at [P10.1](27-p10-implementation.md).***
+That is where it was always going to be delivered from, it is cheap there — a
+`Rendition` already carries the purpose, turn, session, state and error a
+`{ key, params }` summary needs — and P10 §1.4 has taken it explicitly rather
+than inheriting it by silence. **The retrofit risk this section named is real and
+it landed one phase later than it says.**
+
+*One thing this section did not anticipate, and P10 §0.1 raises it:* a rendition
+that **failed** is not *ready*, and `RenditionError`'s `interrupted` exists
+because a server can restart mid-job. Widening the class to *settled* is P10's
+call, and it is the same instinct that named it `artifact.ready` in the first
+place.
+
 ### 1.6 Three fields whose absence would force a schema change later
 
 [06 §10.5](../06-modes-and-turn-pipeline.md) records the first two. `kind` is a
@@ -1401,7 +1431,16 @@ illustration's `fast` call is on no turn's tape, because there is no turn. The
 provenance survives on the rendition — binding, seed, fragments as sent — and
 what is absent is the token accounting. Making it a turn would put a node with no
 prose in somebody's transcript, which is a worse trade for a story than a missing
-line in a cost total. [25 E4]'s budget is where it is properly answered.
+line in a cost total.
+
+~~[25 E4]'s budget is where it is properly answered.~~ ***Miscited, and corrected
+2026-09-16 by [P11 §0.2](28-p11-implementation.md)'s re-audit.*** [25 E4] is
+*session import from other platforms*; there is no budget question in
+[25](../25-open-questions.md) at all. **Aggregate spend tracking is post-1.0**
+([24 §3](../24-roadmap.md)), which [10 §3](../10-ui-surfaces.md) and
+`CostSummary`'s docstring both already said — so the correct reading is that
+nothing in 1.0 totals this, and the note's job is to make sure whatever does
+knows the call is out there.
 
 ***And a bug the stage found in its own predecessor***: `imageBinding` on the
 runner options resolved the `image` role a **second** time, in a different

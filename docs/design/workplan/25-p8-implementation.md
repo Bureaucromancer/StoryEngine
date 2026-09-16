@@ -1546,6 +1546,19 @@ are grown by people. **When the extractor arrives it will meet a corpus of locke
 entries written by hand**, which is a better first adversary for `locked` than
 anything a test could have arranged.
 
+***"When the extractor arrives" names no arrival, and that was found on
+2026-09-16*** by [P11 §0.2](28-p11-implementation.md)'s re-audit, which carries it
+as **row 20** and [manual testing §10.1](05-manual-testing.md) as its second
+worked instance of a dangling owner. P10 and P11 are the only phases after this
+one and the word appears in neither. **The cut was right and the sentence above
+is still right; what is missing is a destination**, and this document is not the
+one that can supply it.
+
+*What that costs, said here because it is this phase's gate:* C2 and C3 travel
+with the extractor (§3.2), so **two of three criticals cannot be walked by
+anybody** until some phase owns it. [Sitting N](05-manual-testing.md) is one row
+for that reason rather than because the criterion was generous.
+
 ---
 
 ## 4. Out of scope, deliberately

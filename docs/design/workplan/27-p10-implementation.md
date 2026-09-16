@@ -1,9 +1,25 @@
 # 27 — P10 implementation plan
 
-**Status: skeleton.** Drafted 2026-08-29 alongside
+**Status: skeleton, re-audited 2026-09-16 at `fee56da`.** Drafted 2026-08-29
+alongside
 [P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
 [P9](26-p9-implementation.md) and [P11](28-p11-implementation.md); to be
-revisited before the phase starts. [P7 §0](23-p7-implementation.md) says what a
+revisited before the phase starts.
+
+***The re-audit is §5's own instruction carried out, and its answer changes a
+stage.*** §0 below closes by saying what this phase *cannot yet know* — how many
+notification-worthy things there will be — *"because the classes come from P7's
+hooks and goals, P8's memory and P9's `artifact.ready`, three phases whose
+surfaces do not exist."* **All three exist now**, and §5 names re-reading them
+*"before writing the router rather than after"* as the revisit's cheapest move.
+§0.1 is that read.
+
+**What it found:** §1.4's five classes are **three** with producers, not four.
+`turn.awaiting-input` never got its suspending step, and ***`artifact.ready` was
+[P9](26-p9-implementation.md)'s to build and P9 did not build it*** — for a
+structural reason that is correct and that this phase has to absorb. So the
+producer joins the router in P10.1, and the retrofit risk P9 §1.5 named lands
+here. [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. Format follows [P1](07-p1-implementation.md);
 citation convention as [P4](16-p4-implementation.md)'s.
 
@@ -74,6 +90,160 @@ and both of those already exist and already have surfaces.
 will be, because the classes come from P7's hooks and goals, P8's memory and
 P9's `artifact.ready` — three phases whose surfaces do not exist. §1.4 is
 written to survive that, which is why it is a rule rather than a list.
+
+### 0.1 Re-audited 2026-09-16 at `fee56da`, after P7, P7B, P8 and P9
+
+***The bullets above were written on 2026-08-31 and four phases have shipped
+since*** — [P7](23-p7-implementation.md), [P7B](24-p7b-presets-and-prompts.md),
+[P8](25-p8-implementation.md) and [P9](26-p9-implementation.md), the last three
+merged between 2026-09-15 and 2026-09-16. That makes this the stalest plan in the
+corpus, and it is stale in precisely the place it predicted: **the paragraph
+directly above says what this phase cannot yet know, and it can now be known.**
+
+**This section is [§5](#5-the-honest-size-and-what-only-the-revisit-can-settle)'s
+instruction rather than an initiative of its own.** *"The revisit's cheapest move
+is to re-read those three plans' gates for things a person should be told about,
+and to do it before writing the router rather than after."* Run early, because
+cheap is only true while P10.1 is unwritten.
+
+#### §1.4 re-scored: two of five classes have no producer
+
+[09 §3.5](../09-server-multiuser-deployment.md)'s five, against the tree:
+
+| Class | Producer today |
+|---|---|
+| `turn.complete` | ✅ `turnFinished` in `state/events.ts` |
+| `turn.failed` | ✅ the same |
+| `system.notice` | ✅ **in substance** — `pendingRestart` is computed per request, and *no usable connection* is a state `resolveConnections` already reaches. What is missing is the class, not the knowledge |
+| `artifact.ready` | ❌ **nothing**. `grep -rn "artifact.ready"` over `packages/` returns zero, and [P9](26-p9-implementation.md) was the phase that was going to build it |
+| `turn.awaiting-input` | ❌ **nothing**, and its precondition did not arrive. [25 C5](../25-open-questions.md)'s suspending step does not exist: `turnFinished` accepts `'suspended'` and no step produces it, and `packages/sdk/src/steps.ts` has no suspend verb at all |
+
+***So §1.4's own rule, applied today, ships three classes rather than five.***
+That is a smaller P10.1 and a smaller P10.3 — **three preference rows, not five**
+— and it is the rule doing exactly what it was written to do. *The rule was also
+right to be a rule rather than a list*: a list written on 2026-08-31 would have
+had five rows and four phases of drift.
+
+#### `artifact.ready` is P11's row 20 in the other direction
+
+**[P9 §1.5](26-p9-implementation.md) is unusually specific about what it owed
+this phase**, and it is worth quoting because the specificity is what makes the
+gap legible: the event *"carries its class, its target user resolved
+**server-side**, `actionable: false`, a renderable summary as `{ key, params }`
+rather than English prose, and a dedupe key"*, and — the sentence that matters —
+***"Getting the schema right is the retrofit risk; the delivery is additive."***
+
+**P9 shipped and emitted none of it.** [P9.2](26-p9-implementation.md) built a
+whole-record `rendition` SSE frame and argued **against** a `ProgressEvent` in
+terms this section has no quarrel with: the `event` table foreign-keys to
+`job(id)` and `resolveJobs` walks forward from the cursor's anchor, so a
+rendition event would need a `job` row it must not have, and making one would
+have put a picture inside the turn-progress machinery it was built to stay out
+of. *The structural argument is correct. The obligation is undischarged.*
+
+***Which leaves each document pointing at the other*** — §1.4 here says the
+producer arrives at P9; P9 §1.5 says the router arrives at P10 — and that is the
+shape [P11 §0.2](28-p11-implementation.md)'s row 20 and
+[manual testing §10.1](05-manual-testing.md) are both about. **The difference,
+and it is the whole reason this is a correction rather than a finding: both ends
+are still live.** P9 is merged and open; P10 is unbuilt. So this resolves rather
+than dangles — **P10.1 takes the producer with the router** — and the resolution
+is cheap, because a `Rendition` already carries the purpose, the turn, the
+session, the state and the error a `{ key, params }` summary needs, and
+`stream/bus.ts` already fans out per session. *What P9 could not do was choose a
+transport; what it did not do was emit a class. Those are separable, and the
+second one is a morning.*
+
+#### And the reverse problem §5 warns about has exactly one instance
+
+§5 says the rule *"does nothing about the reverse problem — P7, P8 and P9 each
+producing something notification-worthy and no class existing for it."* Read
+against all three, there is **one**, and P9 created it: **a rendition that
+failed.**
+
+[09 §3.5](../09-server-multiuser-deployment.md) defines `artifact.ready` as
+*"an async artefact attached to a turn has **completed**"*. A failure is not a
+completion — and P9 ships `RenditionError` with five values, one of which is
+`interrupted`, which exists *because a server restarted mid-job*. So somebody who
+closes the tab with a picture pending has no way to learn it will never arrive;
+the retry button is on a placeholder they have to go and look at.
+
+**A decision for P10.1, named here so the router is not written before it is
+taken:** widen the class to *settled* and put the outcome in the params, or add
+a sibling. *The first is likelier right* — [09 §3.5](../09-server-multiuser-deployment.md)
+chose the name `artifact.ready` over `rendition-ready` precisely so a second
+instance would not require renaming it, and the same instinct argues against a
+second class for the same artefact in a different state.
+
+**Nothing from P7 or P8 joins it.** A hook firing and a goal concluding are story
+events inside a turn the person is watching; P8's manual capture is synchronous
+and user-initiated. Both are correctly out, and saying so is the half of this
+check that stops it being re-run.
+
+#### Two halves discharged, and both by a phase that was not P10
+
+- **P10.5 is down to the §13 source link** — and [P6A](19-p6a-alpha-1.md) left a
+  **marked slot** for it rather than a gap: `about/BuildFooter.tsx` says *"The
+  AGPL §13 source link, when publication brings it ([09 §7]), goes here"* and
+  `about/AboutBuild.tsx` names it too. The version and commit have been embedded
+  and shown since alpha.2, which that stage already records.
+- **P10.3's *your connections* is half built.** `PUT /api/me/bindings` landed at
+  [P7.3](23-p7-implementation.md) — `providers/bindings.ts` dates it 2026-09-12 —
+  so the role-bindings bullet of [10 §15.1](../10-ui-surfaces.md) is done. **The
+  personal connection list is not**: `/me/` serves `password`, `prefs`, `roles`
+  and `bindings`, and nothing else. So what is left is one of the two halves this
+  stage's own paragraph lists, which is worth knowing before it is sized.
+
+#### Three of the four unsurfaced config keys are this phase's
+
+[P11 §0.2](28-p11-implementation.md) found `config.ts`'s `CONFIG_TIERS` marks a
+key **`'unread'`** when nothing consumes it, and `config.test.ts` fails when a key
+is missing from the table. **Three of the four are P10's**, which is a sharper
+statement of [§3](#3-verification--the-p10-exit-gate)'s *"this phase is the
+line's last large debtor"* than the prose had:
+
+- `updates.checkEnabled` and `updates.channel` — **§1.7's *ships dark*, made
+  observable.** That section poses a choice between moving the update check here
+  and shipping a surface that reads a source that is always *unknown*. The
+  settings for it already shipped, ahead of any producer, which is the second
+  option happening by default rather than by decision. *It strengthens §1.7's
+  own lean* — move the check — because the alternative is already partly built
+  and is exactly what that section calls *"a panel that cannot be tested by
+  looking at it"*.
+- `limits.extensionStorageQuotaMb` — §1.5's third artefact. The capability
+  (`enableExtensions`, four phases gating nothing), the quota, and the panel are
+  three pieces of a subsystem with **no installer**, which is that section's fork
+  restated in inventory.
+
+*The fourth is P11.7's `trash.retentionDays`*, so this instrument says the same
+thing §3 does: the unsurfaced remainder is mostly here.
+
+#### Unchanged, checked so nobody re-checks
+
+**§1.5 holds exactly as written.** `auth/accounts.ts`'s docstring still reads
+*"`enableExtensions` still gates nothing"*, and there is still no
+`packages/server/src/extensions/`. The fork — build installation, or defer the
+panel with an owner — is untouched and is still this phase's to settle.
+
+**§1.8's system-library bullet is still open**, four phases and two audits later.
+[P11 §0.1](28-p11-implementation.md)'s negative half recorded it as adopted into
+P10.3; nothing has closed it. §5's third bullet calls *a defect with no owner at
+the revisit one that ships*, and it now has a date attached to how long it has
+been sitting.
+
+**mDNS is unbuilt** — no `mdns`, no `bonjour`, no `storyengine.local` anywhere in
+the server. P10.0 is what it says it is.
+
+#### What this section does not do
+
+- **It does not decide §1.5's fork or close §1.8's bullet.** Both are named as
+  the revisit's, and a re-audit that quietly decided them would be doing the
+  thing §1.8 exists to prevent — a decision made by accident rather than in the
+  plan.
+- **It does not write the class list.** §1.4's rule produces it; this establishes
+  what the rule currently answers, which is what §5 asked for and no more.
+- **It does not re-open P9.** P9.2's transport decision stands; what moves is a
+  producer P9 never wrote, into the phase that was always going to route it.
 
 ---
 
@@ -154,7 +324,7 @@ less — [work plan §0.3](01-work-plan.md) records the cost of a seam with no d
 
 [09 §3.5](../09-server-multiuser-deployment.md) lists five 1.0 classes.
 `turn.complete`, `turn.failed` and `system.notice` have producers today;
-`artifact.ready` gets one at [P9](26-p9-implementation.md);
+~~`artifact.ready` gets one at [P9](26-p9-implementation.md)~~;
 `turn.awaiting-input` has one only if [25 C5](../25-open-questions.md)'s
 suspending step exists, which [P3 §1.6](15-p3-implementation.md) notes arrives
 early in a different shape — *park, publish, resume-on-intent* — and warns that
@@ -164,6 +334,28 @@ that will resume.
 **Decide per class, and say so in the preference rows.** A preference row for a
 class nothing emits is [work plan §2.3](01-work-plan.md)'s failure inverted: a surface
 for configuration that has no producer.
+
+***Scored 2026-09-16 (§0.1), and the rule answers three rather than four.***
+
+- **`artifact.ready` did not get a producer at P9**, and the strikethrough above
+  is the correction rather than the finding. [P9 §1.5](26-p9-implementation.md)
+  specified the event in full and called its schema *"the retrofit risk"*;
+  [P9.2](26-p9-implementation.md) then built a whole-record `rendition` SSE frame
+  and argued against a `ProgressEvent` — correctly, because the `event` table
+  foreign-keys to `job(id)`. **So the producer is this phase's too**, and P10.1
+  gains it. It is small: a `Rendition` already carries the purpose, turn,
+  session, state and error a `{ key, params }` summary needs.
+- **`turn.awaiting-input`'s condition resolved to *no*.** Four phases later
+  nothing suspends — no step in `packages/sdk/src/steps.ts` can, and
+  `turnFinished` accepts `'suspended'` with nobody passing it. **The class is
+  not shipped**, which is this section's rule rather than an exception to it, and
+  it comes back with [25 C5](../25-open-questions.md).
+- **And one thing the five do not cover**: a rendition that **failed**. The class
+  is defined as *completed*, and P9 ships an `interrupted` error because a server
+  can restart mid-job. §0.1 argues for widening `artifact.ready` to *settled*
+  with the outcome in the params rather than adding a sibling — the same instinct
+  that named it `artifact.ready` instead of `rendition-ready`. **Decide it before
+  the router, not after.**
 
 ### 1.5 The extensions panel needs installation, and nothing installs
 
@@ -191,6 +383,14 @@ has sat there for four phases saying *no phase list*, which is true and is
 nobody's to fix. The fork above is unchanged and stays this phase's to settle;
 what the sweep adds is that the field waiting on it is already in every
 account.
+
+***Confirmed again 2026-09-16 (§0.1), with a third artefact.*** Nothing moved
+across four phases: the docstring still says it, and there is still no
+`packages/server/src/extensions/`. What the re-audit adds is that
+**`limits.extensionStorageQuotaMb` is marked `'unread'`** in `CONFIG_TIERS` — so
+the capability, the quota **and** the panel are three pieces of a subsystem with
+no installer, and the fork below now has an inventory rather than a single
+example.
 
 *And note the standing `[OPEN]` it drags along*
 ([09 §6.4](../09-server-multiuser-deployment.md)): whether install and uninstall
@@ -223,6 +423,15 @@ that is always *unknown* and let P11 light it up. **Lean: move the check.** The
 alternative ships a panel that cannot be tested by looking at it, which is the
 class of thing this repository has already been burned by twice.
 
+***The lean is stronger than it was, because the second option has started
+happening by itself*** — 2026-09-16, §0.1. `config.ts`'s `CONFIG_TIERS` marks
+**`updates.checkEnabled` and `updates.channel` as `'unread'`**, the tier that
+means *nothing consumes this*. The settings for the check shipped ahead of the
+check. That is not *shipping dark* as a decision; it is **shipping dark by
+default**, which is the version this section exists to prevent — and it is now
+mechanically visible rather than predicted, because `config.test.ts` fails when a
+key is missing from that table.
+
 ### 1.8 §15.3's system-library bullet has no owner, and that is a defect to close
 
 [10 §15.5](../10-ui-surfaces.md) says so in its own voice: the scope is
@@ -232,6 +441,14 @@ no action does not belong. **Either the bullet goes or 1.0's position on admin
 write changes**, and this phase is where it stops sitting there looking
 scheduled. It is a documentation edit, not a build, and it belongs in the plan
 so it does not get built by accident.
+
+***Still open on 2026-09-16, and now with a duration attached*** (§0.1). Two
+audits have passed over it — [P11 §0.1](28-p11-implementation.md)'s negative half
+recorded it as adopted into P10.3, which is a routing rather than a closure — and
+four phases have shipped. §5's third bullet says *a defect with no owner at the
+revisit is one that ships*; this one has an owner and is still sitting there,
+which is the milder failure and the same outcome. **It costs a paragraph and it
+has cost two sweeps.**
 
 ### 1.9 The gallery's obligations are enumerated; take them as written
 
@@ -304,6 +521,26 @@ group chat is one notification, not five*, trivial to design in and unpleasant t
 add once producers exist; per-user scoping by ownership, which
 [09 §4.3](../09-server-multiuser-deployment.md) already answers.
 
+***The class decision is decidable now rather than at the stage*** — §0.1, and
+§5 asked for exactly this. **Three classes ship**: `turn.complete`, `turn.failed`
+and `system.notice`. `turn.awaiting-input` has no suspending step after four more
+phases and comes back with [25 C5](../25-open-questions.md).
+
+***And this stage gains a producer it was not going to have.***
+`artifact.ready` was [P9](26-p9-implementation.md)'s and P9 did not emit it — for
+a structural reason §0.1 accepts — so **the producer comes with the router**.
+That is the one piece of construction this stage did not expect, and it is small:
+a `Rendition` carries the purpose, the turn, the session, the state and the error
+that a `{ key, params }` summary needs, and `stream/bus.ts` already fans out per
+session. What it is **not** is a second transport — P9's `rendition` SSE frame is
+how the *picture* reaches an open page; this is how a *person* is told, and the
+two answer different questions.
+
+**Decide the failure case before writing the table, not after** (§0.1): a
+rendition that failed is not *ready*, and `interrupted` exists because a server
+can restart mid-job. The lean is to widen the class to *settled* with the outcome
+in the params.
+
 ### P10.2 — The two delivery channels 1.0 gets
 
 In-app — sound, toast, unread badge, document title — which covers the
@@ -319,8 +556,10 @@ reached. Say it where someone will read it.
 
 ### P10.3 — The remainder of [10 §15](../10-ui-surfaces.md)
 
-The notification preference rows, one per shipped class; §1.6's *Restart now*
-with supervisor detection and drain; §1.7's connectivity state; §1.5's
+The notification preference rows, one per shipped class — **three of them, not
+five**, per §1.4's re-scoring (§0.1); §1.6's *Restart now* with supervisor
+detection and drain; §1.7's connectivity state, **whose two settings already
+ship unread**, so this row either lights them or removes them; §1.5's
 extensions panel or its named deferral; §1.8's bullet closed one way or the
 other.
 
@@ -329,11 +568,21 @@ connections, personal bindings and the personal-versus-system view — which
 [P2B §2.7](10-p2b-provider-configuration.md) sent to *"the phase after, or at
 P10 with the rest of §15.1"*, [P6B §5](20-p6b-playable.md) calls P10's, and
 this list never carried until 2026-09-11. The enforcement half landed at P2A
-and the fallback display at P2B, so what is left is the writer for
-`users/<handle>/bindings.json`, the second column of the role table, and a
+and the fallback display at P2B, so what is left is ~~the writer for
+`users/<handle>/bindings.json`, the second column of the role table, and~~ a
 user's own connection list — the same form the admin has, scoped to the path
-that is the owner. *The role-binding editor itself is P7.3's on branch `p7`;
-this is the per-user half of it.*
+that is the owner. ~~*The role-binding editor itself is P7.3's on branch `p7`;
+this is the per-user half of it.*~~
+
+***Half of this landed at [P7.3](23-p7-implementation.md) and the strikethroughs
+are it*** — 2026-09-16, §0.1. `PUT /api/me/bindings` shipped on 2026-09-12, which
+`providers/bindings.ts` dates in its own docstring and calls
+[10 §15.1](../10-ui-surfaces.md)'s *role bindings* bullet. **What is left is the
+personal connection list alone**: `/me/` serves `password`, `prefs`, `roles` and
+`bindings`, and nothing else. *The sequencing that section describes is why* —
+a personal surface predating the `privateConnections` check would have been
+[09 §4.5](../09-server-multiuser-deployment.md)'s *"trivial bypass, wearing a
+UI"*, and the check has been real since P3.
 
 ### P10.4 — The account gallery
 
@@ -377,6 +626,16 @@ of Settings ([10 §15.1](../10-ui-surfaces.md)) — and the §13 source link, wh
 is what is left here. If §1.7 moved the update check here, its badge lands on
 that About block rather than in a notification class.
 
+***And the slot for it is already cut*** — 2026-09-16, §0.1.
+`about/BuildFooter.tsx` carries the line *"The AGPL §13 source link, when
+publication brings it ([09 §7]), goes here"*, and `about/AboutBuild.tsx` names it
+too. So this stage is **one link into a marked place**, not a surface — which is
+[P6A](19-p6a-alpha-1.md) leaving the phase it deferred to something better than a
+gap. *The condition in that comment is the scheduling*: §13 attaches on
+publication, which is [P11.9](28-p11-implementation.md)'s audience half, so the
+link's **content** depends on a phase after this one even though its **place**
+does not.
+
 *Ends at:* the demo.
 
 ---
@@ -397,7 +656,10 @@ Sketch; expand on revisit.
 4. Five events inside the coalescing window arrive as one notification.
 5. A completion sound fires with the tab backgrounded, and the class can be
    turned off in preferences — and every row in that list corresponds to
-   something that actually emits (§1.4).
+   something that actually emits (§1.4). ***Three rows as of 2026-09-16***
+   (§0.1), and the number is the assertion: a fourth means somebody shipped a
+   class without a producer, and a second means `artifact.ready`'s producer did
+   not come with the router.
 6. *Restart now* is disabled with a reason under a bare process, and under a
    supervisor it drains in-flight turns and names how many other users it is
    about to interrupt.
@@ -414,6 +676,16 @@ Sketch; expand on revisit.
 configuration that has no surface.** This phase is the line's last large debtor —
 if anything shipped since P1 still needs a text editor to configure, this is
 where it is found and fixed, not P11.
+
+***And the debt is now countable*** — 2026-09-16, §0.1. `config.ts`'s
+`CONFIG_TIERS` marks a key **`'unread'`** when nothing consumes it, and
+`config.test.ts` fails when a key is missing from the table — so *the line's last
+large debtor* is a number rather than a characterisation. **Three of the four are
+this phase's**: `updates.checkEnabled` and `updates.channel` (§1.7),
+`limits.extensionStorageQuotaMb` (§1.5). The fourth is
+[P11.7](28-p11-implementation.md)'s. **This gate should read that table reaching
+one**, which is a check a person can run in a second and which the prose above
+could only gesture at.
 
 ---
 
@@ -482,6 +754,29 @@ P9 each producing something notification-worthy and no class existing for it.
 a person should be told about**, and to do it before writing the router rather
 than after.
 
+***Run 2026-09-16, and it was cheap — §0.1.*** All three have shipped, so the
+read is against a tree. **Three answers:**
+
+- **The rule fires twice.** `turn.awaiting-input` has no suspending step after
+  four phases, and `artifact.ready` has no producer at all — so three classes
+  ship rather than five, and both absences are the rule working rather than
+  failing.
+- **The reverse problem has one instance**, and it is a *state* rather than an
+  event nobody classed: a rendition that **failed**. Nothing from P7 or P8 joins
+  it — a hook firing and a goal concluding happen inside a turn the person is
+  watching, and manual capture is synchronous.
+- **And a third thing this bullet did not anticipate**: the phase whose producer
+  was assumed did not write it. `artifact.ready` was P9's, P9.2 went another way
+  for a structural reason that is right, and **the producer therefore joins the
+  router**. So P10.1 is larger than it looks for the reason this section gives
+  *and* for one it does not — though the increment is a morning, not a stage.
+
+***What this makes the section's advice worth, since it is the point of writing
+it down:*** the read cost an hour and it moved a producer between phases, sized
+two stages down and one up, and turned a five-row preference list into three.
+**Doing it at the stage would have found the same things after the table was
+written**, which is the outcome the sentence above was trying to prevent.
+
 **Three things only the revisit can settle:**
 
 - **Whether 1.0 ships push at all** (§1.3's *no presence signal*). The router
@@ -499,4 +794,8 @@ than after.
   question with no owner, which is what this bullet was really recording.
 - **Whether §1.8's system-library bullet found an owner.** It is recorded here
   as a defect to close, which is the right place for it — but a defect with no
-  owner at the revisit is one that ships.
+  owner at the revisit is one that ships. ***Checked 2026-09-16 (§0.1): it has an
+  owner — P10.3 — and is still open after two audits and four phases.*** That is
+  the milder failure than the one this bullet feared and it has the same ending,
+  so the thing to watch is not whether it is owned but whether anybody spends the
+  paragraph.
