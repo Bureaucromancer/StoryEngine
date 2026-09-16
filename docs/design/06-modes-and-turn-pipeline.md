@@ -2035,9 +2035,24 @@ absence as an empty state to fill. An unset `image` role says so plainly rather
 than failing a turn ([19 §5.1](19-tech-stack.md)); an unwanted backdrop leaves
 the surface exactly as it was.
 
-**[OPEN]** Whether an on-demand rendition of an *old* turn assembles from that
+~~**[OPEN]** Whether an on-demand rendition of an *old* turn assembles from that
 turn's recorded state or from the present. Recorded state is more correct and
-more surprising; the turn record makes either possible.
+more surprising; the turn record makes either possible.~~
+
+***Decided 2026-09-16 at [P9.4](workplan/26-p9-implementation.md): recorded
+state.*** Three things decide it, and the paragraph below is the second of them.
+
+- *It is decidable now in a way it was not when the question was written.* P3
+  shipped the record reader and P6 shipped reconstruction at a node, so **that
+  turn's state** is one argument to `gatherAssemblyInputs` rather than a research
+  project.
+- **Backgrounds make it one-sided rather than finely balanced**, which is the
+  paragraph this one was written above.
+- *The surprise is mitigated by disclosure rather than by a setting*: the
+  assembled fragments are on the rendition's own record and the workbench shows
+  them beside the turn they were assembled at, so *why does this picture show the
+  tavern* is answerable rather than mysterious. A second setting for it would be
+  configuration nobody could form an opinion about.
 
 **Backgrounds are evidence on that question rather than a second instance of
 it.** A backdrop's entire subject is where you were standing, so present state is

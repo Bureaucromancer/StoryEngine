@@ -381,9 +381,12 @@ describe('what Scene declares, and what the engine does with it', () => {
    * surface pointing at somebody else's channel is what `channelInPlay` refuses
    * on the server; catching it here is catching it at the declaration.
    */
-  it('contributes three surfaces, each over a channel it owns', () => {
+  it('contributes four surfaces, each over a channel it owns', () => {
     const owned = new Set(SCENE.channels.map((channel) => channel.id));
-    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel']);
+    // The fourth is the backdrop's own switch, added at [P9.4] — beside the
+    // staging toggle rather than over the picture, because a control floating
+    // on a backdrop is a control competing with the thing it controls.
+    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel', 'panel']);
     for (const contribution of SCENE.surfaces) {
       expect(owned.has(contribution.channelId)).toBe(true);
       // Authored content travelling with the mode, like a preset's prose — so a
@@ -402,6 +405,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(byChannel.get('se.staging')?.widget.kind).toBe('toggle');
     expect(byChannel.get('se.backdrop')?.widget.kind).toBe('image');
     expect(byChannel.get('se.expression')?.widget.kind).toBe('image');
+    // [06 §10.6]: two states and not three — *on* means when the place changes,
+    // and a backdrop that regenerated every turn is the failure mode rather than
+    // the thorough setting.
+    expect(byChannel.get('se.backdrop.on')?.widget.kind).toBe('toggle');
     // `se.location` declares `surface` on the channel, which is the shorthand
     // for the HUD case — restating it here would contribute it twice.
     expect(byChannel.has('se.location')).toBe(false);

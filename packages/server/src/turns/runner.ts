@@ -55,6 +55,7 @@ import {
   RENDER_STEP,
   type RenderReport,
 } from './render.js';
+import { toneOf } from '../renditions/assemble.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
 import {
@@ -177,14 +178,6 @@ export interface RunnerOptions {
     records: readonly Rendition[],
     turnId: string,
   ) => void;
-  /**
-   * The `image` binding to stamp on a record before its job runs.
-   *
-   * On the record **before** the call because the reuse digest already keys on
-   * it ([P9 §0.3]'s item 2): a record that learned its model from the answer
-   * would be one whose key could not be checked until after the money was spent.
-   */
-  imageBinding?: (account: string) => { connectionId: string; modelId: string } | null;
 }
 
 interface Live {
@@ -975,7 +968,9 @@ export class TurnRunner {
      *
      * *A setup turn, no step.* There is no prose to be a picture of.
      */
-    const wantsIllustration = payload.setup !== true && readIllustration(running) === 'each-turn';
+    const wantsIllustration =
+      payload.setup !== true &&
+      readIllustration(running, mode.definition.renditions?.illustration) === 'each-turn';
     const wantsBackdrop = payload.setup !== true && readBackdropOn(running);
     /**
      * What this session has already made, for the reuse lookup — [P9 §1.7].
@@ -1782,8 +1777,10 @@ export class TurnRunner {
             // **The binding is on the record before the call**, because the
             // digest already keys on it: a record that learned its model from
             // the answer would be a record whose reuse key could not be checked
-            // until after the money was spent.
-            binding: this.#options.imageBinding?.(job.account) ?? null,
+            // until after the money was spent. It comes off the report rather
+            // than out of a second resolution, so the record and the key cannot
+            // name different models.
+            binding: report.binding,
             answeredAs: null,
             // Drawn by the step on the turn and recorded on its tape ([19 §14]),
             // so a `pending` record already states the seed its picture will be
@@ -2033,47 +2030,6 @@ function castTerms(
 }
 
 /**
- * The treatment's tone as one line of an image prompt — [06 §10.3]'s fourth
- * fragment, [P9.1].
- *
- * ***Style, and not the whole of `TreatmentTone`.*** That object carries
- * `genres`, `moods`, `pov`, `tense`, `contentRating` and `styleNotes`, and only
- * the first two and the last describe how a picture should look: point of view
- * and tense are facts about **prose**, and handing *"second person, past tense"*
- * to an image model is the category error §10.3 opens by describing one size
- * larger.
- *
- * *`contentRating` is deliberately not read either.* [04 §6.2] makes it
- * advisory — *"nothing in the engine gates on it… because enforcement here would
- * be a promise that cannot be kept"* — and a rating spliced into an image prompt
- * would be exactly that promise, made to a model that cannot keep it.
- *
- * Returns null rather than an empty string when there is nothing to say, so the
- * fragment is **absent** rather than blank: a blank fragment would occupy a rank
- * and contribute a separator.
- */
-function toneOf(treatment: unknown): string | null {
-  if (!isRecord(treatment)) return null;
-  const tone = treatment['tone'];
-  if (!isRecord(tone)) return null;
-
-  // Read through `unknown` rather than through a declared shape, which is
-  // `readSummary`'s rule and `originOf`'s: a treatment reaches here out of a
-  // library file, and a `Treatment` annotation would make the checks below look
-  // redundant to the compiler while doing the only work that matters.
-  const words = [...listOfStrings(tone['genres']), ...listOfStrings(tone['moods'])];
-  if (typeof tone['styleNotes'] === 'string') words.push(tone['styleNotes']);
-
-  const kept = words.map((word) => word.trim()).filter((word) => word !== '');
-  return kept.length === 0 ? null : kept.join(', ');
-}
-
-/** The strings in an unknown array, and nothing else in it. */
-function listOfStrings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : [];
-}
-
-/**
  * The cast as a step sees it — [P7.12], and the manifest rather than the bytes.
  *
  * *Deliberately not the `Actor`.* A card is prose, sections, provenance and
@@ -2085,7 +2041,7 @@ function listOfStrings(value: unknown): string[] {
  * a mode staging a scene has no reason to leave the player's own character out
  * of it.
  */
-function castEntries(cast: {
+export function castEntries(cast: {
   persona: CastMember | null;
   actors: readonly CastMember[];
 }): CastEntry[] {

@@ -496,7 +496,51 @@ export const SCENE: ModeDefinition = {
       channelId: STAGING_CHANNEL.id,
       widget: { kind: 'toggle', label: 'Show the scene' },
     },
+    /**
+     * ***The backdrop's own control*** — [06 §10.6], [10 §2.3], added at
+     * [P9.4](../../../../docs/design/workplan/26-p9-implementation.md).
+     *
+     * **A toggle, and there is no per-turn setting to offer**: *on* means when
+     * the place changes, and a backdrop that regenerated every turn is the
+     * failure mode rather than the thorough option. That is the whole of why
+     * this control has two states where `se.illustrate` has three.
+     *
+     * *In the panel beside `Show the scene`*, which is where a setting lives —
+     * the `stage` region above is where the **picture** goes, and a switch
+     * floating over a backdrop would be a control competing with the thing it
+     * controls.
+     *
+     * **Visible with the backdrop off**, which is the sentence two paragraphs up
+     * applied to this feature: with it off Play is the surface it was before,
+     * and the one thing that shows is the control, *because a control you cannot
+     * find is a feature that does not exist*.
+     */
+    {
+      region: 'panel',
+      channelId: BACKDROP_ON_CHANNEL.id,
+      widget: { kind: 'toggle', label: 'Stage a backdrop' },
+    },
   ],
+  /**
+   * ***What Scene wants of pictures before anybody says otherwise*** —
+   * [06 §10.6]'s *"per mode defaults, since Scene wants illustration far more
+   * than a text-only Freeform does"*, [P9.4].
+   *
+   * **`on-demand` rather than `each-turn`, and that is the honest reading of
+   * what a default may decide.** §10.6 asks for per-mode defaults and this is a
+   * mode that stages scenes — but *each turn* spends money on every turn of
+   * every session, and a **default** that does that is a build deciding to spend
+   * somebody's machine on their behalf. `on-demand` is the setting that says
+   * *the **Illustrate** action works and nothing runs on its own*, which is the
+   * most a default can honestly claim.
+   *
+   * **A creation-time default, not a runtime source.** The session's
+   * `se.illustrate` channel is the one thing that decides at runtime; this is
+   * what gets written into it when a session is made — the rung [04 §6.1b]
+   * leaves open below *a Treatment proposes, a Setup overrides, and the running
+   * session owns it*.
+   */
+  renditions: { illustration: 'on-demand' },
   setup: { kind: 'none' },
 };
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { Rendition } from '@storyengine/shared';
+
 import type { SseFrame } from './sse.js';
 
 /**
@@ -100,6 +102,25 @@ export interface PlayState {
    * stage was asked to decide.
    */
   live: LiveTurn | null;
+  /**
+   * Every rendition this stream has announced, keyed by id — [P9.2], [P9.4].
+   *
+   * ***A map because the frame carries the whole record.*** A rendition frame
+   * has no `id:` line and takes no part in the backlog, which is what
+   * `stream/sse.ts` traded for keeping `attachToSession` synchronous: *"it
+   * carries the **whole record**, so a client applies it by upsert and converges
+   * on the same map whatever it missed."* Upsert is the client's half of that
+   * bargain, and it is one line because the key is on the record.
+   *
+   * **Why the reducer holds it at all**, when `useRenditions` already reads the
+   * set: a rendition's state moves **after** its turn has finished, and
+   * `PlayPage`'s invalidation effect is keyed on the `running → finished`
+   * *transition* — a later frame leaves `status` at `'finished'` and invalidates
+   * nothing. Folding the record here fixes that without a refetch at all, which
+   * is better than the invalidate this stage set out to add: the frame already
+   * holds everything the surface renders.
+   */
+  renditions: Readonly<Record<string, Rendition>>;
   /** A failure class, never a message: the server sends classes ([01 §2]). */
   error: string | null;
 }
@@ -111,6 +132,7 @@ export const INITIAL: PlayState = {
   seen: {},
   status: 'idle',
   live: null,
+  renditions: {},
   error: null,
 };
 
@@ -166,6 +188,8 @@ export function reduce(state: PlayState, action: PlayAction): PlayState {
       return applyProgress(state, frame);
     case 'delta':
       return applyDelta(state, frame.data);
+    case 'rendition':
+      return applyRendition(state, frame.data);
     case 'overflow':
       /**
        * The server gave up on a slow client and said where to resume. Not an
@@ -401,6 +425,36 @@ function numberOr<T extends number | null>(value: unknown, fallback: T): number 
 
 function paramsOf(data: Record<string, unknown>): Record<string, unknown> {
   return isRecord(data['params']) ? data['params'] : {};
+}
+
+/**
+ * A rendition arriving, in whatever state it arrived in — [P9.2].
+ *
+ * ***Upsert, not append***, and the difference matters on a reconnect: the
+ * `pending` frame and the `ready` frame that follows it are the **same** record
+ * under the same id, so a list would grow a duplicate where a map converges.
+ * That convergence is the whole reason the frame carries the record rather than
+ * a progress key, so the client is where it has to be honoured.
+ *
+ * ***The guard checks the fields that decide rendering and trusts the rest.***
+ * Every other reader here reconstructs from primitives because the events are a
+ * *feed* — differently shaped from the record, per `LiveStep`'s docstring. A
+ * rendition frame is the record, so rebuilding it field by field would be
+ * writing `Rendition` twice and letting the two drift. What is checked is what
+ * a wrong answer would break silently: the key it is filed under, the turn it
+ * hangs on, and the two closed vocabularies the view switches on.
+ */
+function applyRendition(state: PlayState, data: unknown): PlayState {
+  if (!isRecord(data)) return state;
+  const id = data['id'];
+  const turnId = data['turnId'];
+  if (typeof id !== 'string' || typeof turnId !== 'string') return state;
+  if (data['state'] !== 'pending' && data['state'] !== 'ready' && data['state'] !== 'failed') {
+    return state;
+  }
+  if (data['purpose'] !== 'illustration' && data['purpose'] !== 'background') return state;
+
+  return { ...state, renditions: { ...state.renditions, [id]: data as unknown as Rendition } };
 }
 
 function applyDelta(state: PlayState, data: unknown): PlayState {

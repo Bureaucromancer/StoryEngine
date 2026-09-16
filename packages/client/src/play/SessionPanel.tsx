@@ -17,6 +17,7 @@ import { NumberField, SelectField } from '../ui/Field.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
 import { MemorySection } from './MemoryPanel.js';
+import { RenditionSection } from './Rendition.js';
 
 /**
  * What this session is prompted with, and the two verbs it has never had —
@@ -260,6 +261,12 @@ export function SessionPanel(props: {
             direction §1.4 wanted — and the consolidation it asked for is still
             owed. */}
         <MemorySection sessionId={props.sessionId} />
+
+        {/* ***Pictures*** — [06 §10.6], [P9.4]. The eighth section rather than
+            the eighth panel, for the reason the seventh gave: the consolidation
+            §1.4 asked for is still owed, and every stage that adds to the column
+            instead of to this panel makes it further owed. */}
+        <RenditionSection sessionId={props.sessionId} renditions={session.data?.renditions} />
       </div>
     </details>
   );

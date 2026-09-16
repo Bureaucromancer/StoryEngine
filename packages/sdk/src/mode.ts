@@ -70,6 +70,33 @@ export interface ModeDefinition {
    */
   inputs: readonly string[];
   surfaces: readonly SurfaceContribution[];
+  /**
+   * ***What this mode wants of renditions before anybody says otherwise*** —
+   * [06 §10.6]'s *"per mode defaults, since Scene wants illustration far more
+   * than a text-only Freeform does"*, added at
+   * [P9.4](../../../docs/design/workplan/26-p9-implementation.md).
+   *
+   * **A creation-time default, not a runtime source.** The session's
+   * `se.illustrate` channel is the one thing that decides at runtime; this is
+   * what is written into it when a session is made. That is the rung
+   * [04 §6.1b] leaves open below *"a Treatment proposes, a Setup overrides, and
+   * the running session owns it"*.
+   *
+   * ***Here rather than in the channel's `init`***, and the difference is not
+   * cosmetic: `init` is per **channel** and this is per **mode**, so two modes
+   * declaring `se.illustrate` with different initial values would be the
+   * configuration problem `registerChannel`'s last-write-wins rule is resigned
+   * to rather than a design. The channel is package-owned and has one `init`;
+   * what varies is which mode is being played.
+   *
+   * **The backdrop is deliberately absent from this field.** Its switch is the
+   * declaring mode's own channel ([P9.4]), because a mode with no backdrop
+   * channel has nowhere to put the result — so *whether this mode stages one*
+   * is already answered by whether it declares one.
+   *
+   * Absent means off, which is every mode that says nothing.
+   */
+  renditions?: { illustration?: 'off' | 'on-demand' | 'each-turn' };
   setup: SetupSchema;
 }
 

@@ -270,18 +270,16 @@ const OWED = new Map<string, string>([
     'DELETE /api/sessions/:p/refs/:p',
     'The same, for removing one: 07 §6 says promoting a swipe is creating a ref and that deleting one later deletes a name, and nothing can. P7B §1.12.',
   ],
-  [
-    'GET /api/sessions/:p/renditions',
-    'P9.4. P9.2 builds the record, the job and the read; the transcript that renders a picture in place is the stage after it, and this is the read it will make. Owed rather than exempt because a rendition nobody can see is the feature not shipping.',
-  ],
-  [
-    'PUT /api/sessions/:p/turns/:p/rendition',
-    "P9.4. P9.3 builds accumulation and the pointer; the sibling picker that writes it is the surface stage. 06 §10.7's *the user picks which is shown* is the sentence this route exists for, and until there is a control it is a route nobody can reach.",
-  ],
-  [
-    'GET /api/sessions/:p/renditions/:p/asset',
-    "P9.4. The bytes have a *server-side* caller already — `mode-registry.ts`'s `mediaUrlFor` builds this URL for a backdrop surface — which this check cannot see, because it scans client source. The client `<img>` for an inline illustration arrives with the transcript surface.",
-  ],
+  /**
+   * ***The three rendition routes were owed here and were paid at [P9.4].***
+   *
+   * They are gone from this map rather than annotated, which is the shape of the
+   * debt being discharged: `api.ts` now names all three — `readRenditions`,
+   * `selectRendition` and `renditionAssetUrl` — so the scan reaches them and a
+   * line saying *a surface is owed* would be a claim that had stopped being
+   * true. The fourth, `POST …/turns/:p/illustrate`, arrived with its caller and
+   * was never owed.
+   */
 ]);
 
 describe('every route the server serves has a caller', () => {

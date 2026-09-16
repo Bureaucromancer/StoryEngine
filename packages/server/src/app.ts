@@ -52,6 +52,7 @@ import { capabilitiesFor } from './providers/capabilities.js';
 import { resolveConnections } from './providers/connections.js';
 import { dispatchRenditions, type RenditionWorkerContext } from './renditions/worker.js';
 import { reconcileRenditionJobs } from './renditions/jobs.js';
+import type { Rendition } from '@storyengine/shared';
 import { selectBackdrop } from './renditions/backdrop.js';
 import { installBuiltIns } from './mode-loader.js';
 import { assertModesRunnable } from './mode-registry.js';
@@ -120,6 +121,20 @@ export interface AppServices {
   bus: TurnStream;
   /** Drives a reserved job to a committed turn. */
   runner: TurnRunner;
+  /**
+   * Queues pictures — [06 §10.2], [P9.2].
+   *
+   * **On the services rather than on the runner**, because a hand-pressed
+   * **Illustrate** has no turn running and no job to hang off: the runner
+   * dispatches what a turn asked for, and a route dispatches what a person did.
+   * One dispatcher, two callers, and neither owns the other.
+   */
+  renditions: (
+    account: string,
+    sessionId: string,
+    records: readonly Rendition[],
+    turnId: string,
+  ) => void;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -528,16 +543,22 @@ async function assembleWithState(
     },
   };
 
+  const dispatch = (
+    account: string,
+    sessionId: string,
+    records: readonly Rendition[],
+    turnId: string,
+  ): void => {
+    dispatchRenditions(renditions, account, sessionId, records, turnId);
+  };
+
   const runner = new TurnRunner({
     commit,
     bus,
     providers,
     accounts,
     config,
-    dispatch: (account, sessionId, records, turnId) => {
-      dispatchRenditions(renditions, account, sessionId, records, turnId);
-    },
-    imageBinding: () => null,
+    dispatch,
   });
 
   return {
@@ -553,6 +574,7 @@ async function assembleWithState(
     jobs,
     bus,
     runner,
+    renditions: dispatch,
     commit,
     providers,
     streams: new Set<() => void>(),

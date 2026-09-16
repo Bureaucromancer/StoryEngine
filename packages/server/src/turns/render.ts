@@ -77,11 +77,29 @@ export const SE_BACKDROP_ON = 'se.backdrop.on';
  * `readSuggesting`'s rule and `readPacing`'s fourth rung: **the channel is what
  * says what unspecified means**, and a restated `?? 'off'` here would be a
  * second statement of it that could disagree.
+ *
+ * ***`byMode` is the per-mode default, and it is read here rather than written
+ * at creation.*** §10.6 asks for per-mode defaults — *"Scene wants illustration
+ * far more than Messages does"* — and the obvious implementation, seeding
+ * `session.channels` when the session is made, is **wrong in a way the suite
+ * catches loudly**: a value in that map with no effect behind it is exactly what
+ * [P6.0b]'s reconciliation calls a **hand edit**, so the next turn folds it into
+ * a user-attributed divergence turn and every *writes no turn* assertion in the
+ * build goes red. The map is derived from the effect log; a default is not a
+ * change anybody made, so it does not belong in it.
+ *
+ * **Which leaves the channel's own `init` as the only honest home for a
+ * default** — and `ILLUSTRATE_CHANNEL` is owned by a package rather than by a
+ * mode, so it cannot hold a different one per mode. The fallback is therefore a
+ * parameter: the caller knows which mode is playing, the channel still says what
+ * unspecified means for a mode that declares nothing, and a person who turns the
+ * feature off writes a real effect that wins over both.
  */
 export function readIllustration(
   channels: Readonly<Record<string, { value: unknown }>>,
+  byMode?: 'off' | 'on-demand' | 'each-turn',
 ): 'off' | 'on-demand' | 'each-turn' {
-  const value = channels[SE_ILLUSTRATE]?.value ?? initialValue(SE_ILLUSTRATE);
+  const value = channels[SE_ILLUSTRATE]?.value ?? byMode ?? initialValue(SE_ILLUSTRATE);
   return value === 'on-demand' || value === 'each-turn' ? value : 'off';
 }
 
@@ -208,6 +226,18 @@ export const RENDER_STEP: StepDefinition = {
  */
 export interface RenderReport {
   requests: readonly RenditionRequest[];
+  /**
+   * The resolved `image` binding these recipes were keyed on — [P9 §0.3]'s
+   * item 2.
+   *
+   * ***On the report rather than resolved a second time at record creation.***
+   * The digest already keys on this binding, so a record that learned its model
+   * from anywhere else could name a model the key does not: `recordRenditions`
+   * runs in a different method from the gate that resolved the role, and the
+   * only way to be sure the two agree is for one of them to hand the answer to
+   * the other.
+   */
+  binding: { connectionId: string; modelId: string };
   /** A backdrop resolved to one already paid for — [P9 §1.7]'s money row. */
   reused?: { renditionId: string; digest: string };
   /** Why nothing was asked for. Absent when something was. */
@@ -367,6 +397,7 @@ export function render(context: RenderContext): {
 
       context.report({
         requests,
+        binding: context.image.binding,
         ...(reused === undefined ? {} : { reused }),
         ...(requests.length === 0 && held !== undefined ? { held } : {}),
       });
@@ -445,27 +476,49 @@ async function seedFor(host: StepHost): Promise<number> {
   return await host.random.at(SE_RENDER, 'seed').int(0, 2_147_483_647);
 }
 
-/**
- * **Read defensively, because a refusal is a normal answer here** —
- * `readActions`' rule, and `suggest.ts` states it: the step is `warn`, so the
- * worst available outcome is a turn with no picture, which is the state every
- * turn before this phase was in.
- */
+/** The turn's side of {@link momentCall} — the host makes it, this reads it. */
 async function askForMoment(
   host: StepHost,
   prose: string,
   capabilities: ProviderCapabilities,
 ): Promise<{ subject: string; anchor: string | null }> {
+  return readMoment((await host.call(momentCall(prose, capabilities))).object);
+}
+
+/**
+ * The moment call, as a request rather than as a dispatch — [P9.4].
+ *
+ * ***Exported so the hand-pressed **Illustrate** is the same call and not a
+ * second one.*** [06 §10.6] says the manual action is *"the same step invoked by
+ * hand"*, and the only way to mean that when one caller is inside a turn and the
+ * other is a route is for the *request* to be the shared thing: `host.call`
+ * makes this one on the turn, `performCall` makes it from `renditions/illustrate.ts`,
+ * and neither can drift on the prompt, the schema or the budget.
+ *
+ * `capabilities` is the **image** provider's, which is what makes the budget
+ * honest: what the model is told to write within is the room the assembler will
+ * actually have, not the room the text model has.
+ */
+export function momentCall(
+  prose: string,
+  capabilities: ProviderCapabilities,
+): { candidates: Candidate[]; schema: typeof MOMENT_SCHEMA } {
   const budget = capabilities.usefulPromptChars ?? capabilities.maxPromptChars ?? null;
-  const result = await host.call({
+  return {
     candidates: [
       block('se.render.task', 'system', MOMENT_PROMPT(budget)),
       block('se.render.turn', 'user', prose),
     ],
     schema: MOMENT_SCHEMA,
-  });
+  };
+}
 
-  const object = result.object;
+/**
+ * **Read defensively, because a refusal is a normal answer here** —
+ * `readActions`' rule: the step is `warn`, so the worst available outcome is a
+ * turn with no picture, which is the state every turn before this phase was in.
+ */
+export function readMoment(object: unknown): { subject: string; anchor: string | null } {
   if (typeof object !== 'object' || object === null) return { subject: '', anchor: null };
   const answer = object as { subject?: unknown; anchor?: unknown };
   const subject = typeof answer.subject === 'string' ? answer.subject.trim() : '';

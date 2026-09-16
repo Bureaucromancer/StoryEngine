@@ -304,3 +304,48 @@ function pushChannels(
     fragments.push({ id: 'channels', text: rest.join(', '), rank: otherRank });
   }
 }
+
+/**
+ * The treatment's tone as one line of an image prompt — [06 §10.3]'s fourth
+ * fragment, [P9.1].
+ *
+ * ***Style, and not the whole of `TreatmentTone`.*** That object carries
+ * `genres`, `moods`, `pov`, `tense`, `contentRating` and `styleNotes`, and only
+ * the first two and the last describe how a picture should look: point of view
+ * and tense are facts about **prose**, and handing *"second person, past tense"*
+ * to an image model is the category error §10.3 opens by describing one size
+ * larger.
+ *
+ * *`contentRating` is deliberately not read either.* [04 §6.2] makes it
+ * advisory — *"nothing in the engine gates on it… because enforcement here would
+ * be a promise that cannot be kept"* — and a rating spliced into an image prompt
+ * would be exactly that promise, made to a model that cannot keep it.
+ *
+ * Returns null rather than an empty string when there is nothing to say, so the
+ * fragment is **absent** rather than blank: a blank fragment would occupy a rank
+ * and contribute a separator.
+ */
+export function toneOf(treatment: unknown): string | null {
+  if (!isRecord(treatment)) return null;
+  const tone = treatment['tone'];
+  if (!isRecord(tone)) return null;
+
+  // Read through `unknown` rather than through a declared shape, which is
+  // `readSummary`'s rule and `originOf`'s: a treatment reaches here out of a
+  // library file, and a `Treatment` annotation would make the checks below look
+  // redundant to the compiler while doing the only work that matters.
+  const words = [...listOfStrings(tone['genres']), ...listOfStrings(tone['moods'])];
+  if (typeof tone['styleNotes'] === 'string') words.push(tone['styleNotes']);
+
+  const kept = words.map((word) => word.trim()).filter((word) => word !== '');
+  return kept.length === 0 ? null : kept.join(', ');
+}
+
+/** The strings in an unknown array, and nothing else in it. */
+function listOfStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
