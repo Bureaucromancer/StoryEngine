@@ -6,7 +6,7 @@ import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, createSession, listModes, listSessions, type PublicMode } from '../api.js';
-import { useCreateObject, useLibrary } from '../queries.js';
+import { useCreateObject, useLibrary, useSetMemoryConfig } from '../queries.js';
 import { parseList } from '../search-lists.js';
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
@@ -151,6 +151,11 @@ export function SessionsPage(): React.JSX.Element {
    * send, which `answersFor` drops.
    */
   const [setup, setSetup] = useState<Record<string, unknown>>({});
+  /** The session just created, when its treatment has been played before — [08 §6]. */
+  const [replaying, setReplaying] = useState<{
+    sessionId: string;
+    others: { sessionId: string; name: string }[];
+  } | null>(null);
 
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: listSessions });
   const modes = useQuery({ queryKey: ['modes'], queryFn: listModes });
@@ -245,16 +250,45 @@ export function SessionsPage(): React.JSX.Element {
         // one of them belongs on the wire.
         ...spreadSetup(answersFor(chosen, setup)),
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       setName('');
       setTreatment('');
       setPreset('');
       setPersona('');
       setLore([]);
       setSetup({});
+      /**
+       * ***Replaying a treatment you have played*** — [08 §6], [P8.5].
+       *
+       * Spoiler bleed is the failure *"most likely to make someone turn the
+       * whole feature off"*, and 08 §6's cheapest mitigation is this one:
+       * **warn at session creation when a new session's treatment matches an
+       * existing one, and offer to start isolated.**
+       *
+       * *Nothing has been imported yet*, which is why a notice beside the new
+       * session is the same protection as a modal in front of the button: a
+       * session is created with no turns, so intake has had no occasion to
+       * import anything until somebody plays one.
+       */
+      setReplaying(
+        created.sharesTreatmentWith === undefined || created.sharesTreatmentWith.length === 0
+          ? null
+          : { sessionId: created.session.id, others: created.sharesTreatmentWith },
+      );
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
+
+  /**
+   * ***One obvious action, which is what [08 §4]'s `[OPEN]` asks for.***
+   *
+   * That paragraph leaves `share: true` by default open — *"every throwaway
+   * session contributes"* — with the mitigation that **isolating a session must
+   * be one obvious action rather than two toggles found in a drawer**. This is
+   * the action: both switches off, in one press, at the one moment somebody
+   * knows they are replaying something.
+   */
+  const isolate = useSetMemoryConfig(replaying?.sessionId ?? '');
 
   return (
     // A `div`, not a landmark — the shell owns the routed app's one `<main>`
@@ -264,6 +298,43 @@ export function SessionsPage(): React.JSX.Element {
     // the story column's ([10 §1.2]).
     <div className={`${page.tooling} flex flex-col gap-4`}>
       <h1 className="text-section text-ink">Sessions</h1>
+
+      {replaying === null ? null : (
+        <AlertNote>
+          <div className="flex flex-col gap-2">
+            <span>
+              {`You have played this treatment before — ${replaying.others.map((one) => one.name).join(', ')}. Memories from ${replaying.others.length === 1 ? 'it' : 'them'} can reach this session, twists included.`}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                disabled={isolate.isPending}
+                onClick={() => {
+                  isolate.mutate(
+                    { share: false, intake: false, acrossPersonas: false, associations: {} },
+                    {
+                      onSuccess: () => {
+                        setReplaying(null);
+                      },
+                    },
+                  );
+                }}
+              >
+                Start isolated
+              </Button>
+              <Button
+                type="button"
+                variant="quiet"
+                onClick={() => {
+                  setReplaying(null);
+                }}
+              >
+                Keep memories on
+              </Button>
+            </div>
+          </div>
+        </AlertNote>
+      )}
 
       <form
         className="flex flex-col gap-3"

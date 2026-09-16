@@ -408,7 +408,12 @@ function admitted(book: Lorebook, config: SessionMemoryConfig, sessionId: string
 
 /** Which session wrote an entry, from the open record [P8 §1.4] puts it in. */
 function originOf(entry: LoreEntry): string | null {
-  const held = entry.metadata['se.memory'];
+  // Read through `unknown`, `readSummary`'s rule: `metadata` is *required* by
+  // the schema so the compiler believes it is always there, and it is absent
+  // from a hand-built object — which [03 §5.1] supports getting data in as.
+  const metadata = (entry as { metadata?: unknown }).metadata;
+  if (typeof metadata !== 'object' || metadata === null) return null;
+  const held = (metadata as Record<string, unknown>)['se.memory'];
   if (typeof held !== 'object' || held === null) return null;
   const origin = (held as { sessionId?: unknown }).sessionId;
   return typeof origin === 'string' && origin !== '' ? origin : null;

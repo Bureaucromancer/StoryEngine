@@ -20,6 +20,9 @@ import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
 import { SectionTitle } from '../ui/Text.js';
+import { useQuery } from '@tanstack/react-query';
+
+import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
 import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
@@ -196,7 +199,7 @@ function ObjectView(props: {
        * The block is not demoted out of sight: [10 §5] wants the disk layout
        * legible, and a heading is what turns a lead paragraph into a section.
        */}
-      <ObjectBody object={object} kind={kind} search={props.search} />
+      <ObjectBody object={object} kind={kind} search={props.search} locale={locale} />
 
       <SectionTitle as="h2" className="mb-2 mt-8">
         Storage
@@ -283,11 +286,13 @@ function ObjectBody(props: {
   object: LibraryObject;
   kind: LibraryKind;
   search: ObjectSearch;
+  /** The reader's, for a memory's origin date — [19 §12.6]. */
+  locale: string | undefined;
 }): JSX.Element {
   const { object, search } = props;
 
   if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
-    return <LorebookBody object={object} search={search} />;
+    return <LorebookBody object={object} search={search} locale={props.locale} />;
   }
   return <ByField schemaId={object.schema} value={object.object} />;
 }
@@ -299,14 +304,34 @@ function ObjectBody(props: {
  * per object view for a kind that has no book page to put the answer on would
  * be traffic for a question nobody asked.
  */
-function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): JSX.Element {
+function LorebookBody(props: {
+  object: LibraryObject;
+  search: ObjectSearch;
+  locale: string | undefined;
+}): JSX.Element {
   const { object, search } = props;
   const notes = useObjectImportNotes(object.id);
+  /**
+   * ***The account's sessions, so a memory can name where it came from*** —
+   * [08 §2], [P8.5].
+   *
+   * **Read here rather than in the view**, which is pure and tested without a
+   * query client. The same key `SessionsPage` holds, so this is a cache hit for
+   * anybody who has looked at their sessions; and `enabled` keeps an authored
+   * book from fetching a list it has no use for.
+   */
+  const sessions = useQuery({
+    queryKey: ['sessions'],
+    queryFn: listSessions,
+    enabled: provenanceSourceOf(object) === 'session',
+  });
 
   return (
     <LorebookView
       book={object.object as unknown as Lorebook}
       focused={search.entry ?? null}
+      {...(sessions.data === undefined ? {} : { sessions: sessions.data.sessions })}
+      {...(props.locale === undefined ? {} : { locale: props.locale })}
       linkToEntry={(entryId, children) => (
         /**
          * **Every link on this page is built here**, which is the same

@@ -21,6 +21,7 @@ import {
 
 import { formatCount } from '../format.js';
 import { Badge } from '../ui/Badge.js';
+import { MemoryOrigin } from './MemoryOrigin.js';
 import { Button } from '../ui/Button.js';
 import { table } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
@@ -116,8 +117,20 @@ export function LorebookView({
   linkToEntry,
   editEntry,
   importNotes,
+  sessions,
+  locale,
 }: {
   book: Lorebook;
+  /**
+   * The account's sessions, for a memory entry's origin — [P8.5].
+   *
+   * **Threaded rather than fetched**, because this component and everything
+   * under it are pure and their tests render them with no query client. Absent
+   * is a real state: the origin renders without a name rather than claiming the
+   * session is gone.
+   */
+  sessions?: readonly { id: string; name: string }[];
+  locale?: string;
   /** The entry `?entry=` names, or null. Unknown ids simply match nothing. */
   focused?: string | null;
   linkToEntry?: EntryLink;
@@ -274,6 +287,8 @@ export function LorebookView({
                     query={query}
                     activeKey={key}
                     scanner={scanner ? scannerSpans(book, entry) : undefined}
+                    sessions={sessions}
+                    locale={locale}
                     focused={entry.id === (focused ?? null)}
                     importNotes={notesForEntry(importNotes ?? [], entry.name)}
                     linkToEntry={linkToEntry}
@@ -672,6 +687,9 @@ function EntryUnit(props: {
    * makes {@link Marked} fall back to marking the search query instead.
    */
   scanner: { start: number; end: number }[] | undefined;
+  /** The account's sessions and the reader's locale, for a memory's origin — [P8.5]. */
+  sessions: readonly { id: string; name: string }[] | undefined;
+  locale: string | undefined;
   importNotes: ObjectImportNotes['notes'];
   // Required and nullable rather than optional: `exactOptionalPropertyTypes`
   // makes those different, and the caller forwards a value that may be absent.
@@ -799,6 +817,11 @@ function EntryUnit(props: {
           <Marked text={entry.description} query={query} />
         </Fine>
       )}
+
+      {/* ***Where this memory came from*** — [08 §2], [P8.5]. Renders nothing
+          for an ordinary entry, which is every entry in an authored book: the
+          origin lives in `metadata`, and only a memory has one. */}
+      <MemoryOrigin entry={entry} sessions={props.sessions} locale={props.locale} />
 
       {entry.content === '' ? (
         <Note>This entry has no content.</Note>

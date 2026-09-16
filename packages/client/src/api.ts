@@ -941,7 +941,17 @@ export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
   return request('GET', '/api/sessions');
 }
 
-export function createSession(input: NewSession): Promise<{ session: SessionSummary }> {
+export function createSession(input: NewSession): Promise<{
+  session: SessionSummary;
+  /**
+   * ***Other sessions already played under this treatment*** — [08 §6], [P8.5].
+   *
+   * Absent when there are none, which is the ordinary case. Present means
+   * *replaying a story you have played*, which 08 §6 names as the sharp failure:
+   * intake will happily import what happened last time, twists included.
+   */
+  sharesTreatmentWith?: { sessionId: string; name: string }[];
+}> {
   // Only what was chosen: the route's optional fields mean *unset*, and sending
   // an empty list would be a session that has decided to retrieve nothing,
   // which is a different claim from one that was never asked.

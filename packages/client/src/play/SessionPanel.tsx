@@ -226,9 +226,25 @@ export function SessionPanel(props: {
           )}
         </div>
 
+        {/* ***The sentence [03 §10.3] asks for*** — [P8 §1.7]'s third item, and
+            the only new surface in it. That section's *what deletion does not
+            do* is explicit: *"it does not reach into other sessions to remove
+            what this one wrote. A session that promoted an actor to the library,
+            or wrote a cross-session memory, leaves those behind — **and the
+            delete confirmation should say so when it applies**."*
+
+            **Not a question**, which is [P8 §1.7]'s finding: [08 §8]'s lean was
+            *ask, defaulting to keep*, and the premise it rested on argues the
+            other way. A delete is a move until the retention window closes, so
+            asking somebody to decide the fate of forty memory entries at the
+            moment they tidy up is demanding a decision about a **reversible**
+            act. Retention is P11's, and so is the only moment the question is
+            real. */}
         <Fine>
           Archiving hides it from the list and changes nothing else. Deleting moves the whole folder
-          to trash, where it stays for the retention window.
+          to trash, where it stays for the retention window. Anything this session wrote outside
+          itself stays where it was put — memories it saved remain in the characters’ books, and an
+          actor it promoted to the library stays in the library.
         </Fine>
 
         {setArchived.isError ? <Alert tone="error">{setArchived.error.message}</Alert> : null}
