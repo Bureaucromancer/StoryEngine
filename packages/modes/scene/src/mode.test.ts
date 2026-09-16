@@ -8,6 +8,7 @@ import { validate } from '@storyengine/sdk';
 import { modes } from './index.js';
 import {
   BACKDROP_CHANNEL,
+  BACKDROP_ON_CHANNEL,
   CLOCK_CHANNEL,
   EXPRESSION_CHANNEL,
   LOCATION_CHANNEL,
@@ -216,7 +217,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares its five channels, and owns every one of them', () => {
+  it('declares its six channels, and owns every one of them', () => {
     // **Was "registering the mode is what enables it", asserted through the
     // engine's channel lookup** — which this package can no longer reach, and
     // should not: that a registered mode's declared channels become resolvable
@@ -231,6 +232,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(SCENE.channels).toEqual([
       CLOCK_CHANNEL,
       BACKDROP_CHANNEL,
+      BACKDROP_ON_CHANNEL,
       STAGING_CHANNEL,
       EXPRESSION_CHANNEL,
       LOCATION_CHANNEL,
@@ -240,6 +242,36 @@ describe('what Scene declares, and what the engine does with it', () => {
     // here for the reason `se.clock`'s is — nothing in the engine names it yet,
     // and [P9] will name it from the other side.
     expect(BACKDROP_CHANNEL.id).toBe('se.backdrop');
+    /**
+     * ***And its switch, declared at [P9.4] — Scene's rather than the
+     * engine's.***
+     *
+     * `se.illustrate` is package-owned because every mode can want a picture of
+     * a turn; this one turns on a generator that writes `se.backdrop`, and a
+     * mode with no backdrop channel has nowhere to put the result. A
+     * package-owned switch would appear in Freeform offering a control with no
+     * mechanism behind it — which is the case where *"a control that is on the
+     * screen either way"* stops being honest and starts being a lie.
+     */
+    expect(BACKDROP_ON_CHANNEL.id).toBe('se.backdrop.on');
+    expect(BACKDROP_ON_CHANNEL.update).toBe('user-only');
+    // Off, like `se.staging` and for its reason: an image is the player's own
+    // machine, and the control being visible is what makes the default honest.
+    expect(BACKDROP_ON_CHANNEL.init).toEqual({ kind: 'literal', value: false });
+    /**
+     * ***And neither backdrop channel escapes*** — [P9 §0.3]'s amendment to
+     * [P9 §1.7], asserted here because this is where the declaration is.
+     *
+     * `ChannelDefinition` gained `escapes?: boolean` at [P8.2], and an effect
+     * whose channel declares it is written with `scope: 'escaped'` — a scope
+     * `applyEffects`, `undoTurn` and `reconstructAlong` all **skip**, because an
+     * escaped effect is one a session cannot take back. A backdrop selection
+     * declared that way would be correct on the turn it was written and would
+     * silently fail to return on rewind, which is the one way [P9]'s *the diff
+     * is empty* check can be satisfied and still be wrong.
+     */
+    expect(BACKDROP_CHANNEL.escapes).toBeUndefined();
+    expect(BACKDROP_ON_CHANNEL.escapes).toBeUndefined();
     // The three [P7.12] added, which are the rest of §7.2's sentence.
     expect(STAGING_CHANNEL.id).toBe('se.staging');
     expect(EXPRESSION_CHANNEL.id).toBe('se.expression');
@@ -349,9 +381,12 @@ describe('what Scene declares, and what the engine does with it', () => {
    * surface pointing at somebody else's channel is what `channelInPlay` refuses
    * on the server; catching it here is catching it at the declaration.
    */
-  it('contributes three surfaces, each over a channel it owns', () => {
+  it('contributes four surfaces, each over a channel it owns', () => {
     const owned = new Set(SCENE.channels.map((channel) => channel.id));
-    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel']);
+    // The fourth is the backdrop's own switch, added at [P9.4] — beside the
+    // staging toggle rather than over the picture, because a control floating
+    // on a backdrop is a control competing with the thing it controls.
+    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel', 'panel']);
     for (const contribution of SCENE.surfaces) {
       expect(owned.has(contribution.channelId)).toBe(true);
       // Authored content travelling with the mode, like a preset's prose — so a
@@ -370,6 +405,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(byChannel.get('se.staging')?.widget.kind).toBe('toggle');
     expect(byChannel.get('se.backdrop')?.widget.kind).toBe('image');
     expect(byChannel.get('se.expression')?.widget.kind).toBe('image');
+    // [06 §10.6]: two states and not three — *on* means when the place changes,
+    // and a backdrop that regenerated every turn is the failure mode rather than
+    // the thorough setting.
+    expect(byChannel.get('se.backdrop.on')?.widget.kind).toBe('toggle');
     // `se.location` declares `surface` on the channel, which is the shorthand
     // for the HUD case — restating it here would contribute it twice.
     expect(byChannel.has('se.location')).toBe(false);

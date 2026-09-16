@@ -37,6 +37,7 @@ import {
   readTurnById,
   setArchived,
   setMemoryConfig,
+  setRenditionSelection,
   setName,
   undoTurn,
   writeChannel,
@@ -53,6 +54,11 @@ import { userOwner } from '../storage/layout.js';
 import { rememberThis } from '../memory/capture.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
+import { readRendition, readRenditions } from '../renditions/store.js';
+import { recreateRendition } from '../renditions/manual.js';
+import { illustrateTurn } from '../renditions/illustrate.js';
+import { assetPath } from '../renditions/worker.js';
+import { readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -63,6 +69,7 @@ import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
+import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
 import { PathEscapeError } from '../storage/paths.js';
 import type { Tape } from '../rng/rng.js';
 
@@ -83,6 +90,25 @@ import type { Tape } from '../rng/rng.js';
  */
 
 const SessionParams = Type.Object({ sessionId: Type.String() });
+
+/** A rendition is addressed by its own id, which names its file — [P9.2]. */
+const RenditionParams = Type.Object({
+  sessionId: Type.String(),
+  renditionId: Type.String(),
+});
+
+/** Choosing among a turn's siblings — [P9.3]. */
+const TurnRenditionParams = Type.Object({
+  sessionId: Type.String(),
+  turnId: Type.String(),
+});
+
+const SelectRenditionBody = Type.Object({ renditionId: Type.String({ minLength: 1 }) });
+
+/** **Illustrate** and **Set the scene** — [06 §10.6], [P9.4]. */
+const IllustrateBody = Type.Object({
+  purpose: Type.Optional(Type.Union([Type.Literal('illustration'), Type.Literal('background')])),
+});
 
 /**
  * A channel write addresses the **map key**, not the channel id — [P7.1].
@@ -1102,6 +1128,30 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * offers themselves travel on their turns, not here.
        */
       suggesting: readSuggesting(session.channels),
+      /**
+       * ***Whether this session makes pictures*** — [06 §10.6], [P9.4].
+       *
+       * `suggesting` one line up is the precedent and the argument is the same
+       * one: [work plan §2.3] forbids configuration with no surface, and a
+       * channel a client cannot read is a setting nobody finds. **Derived
+       * rather than the raw channel**, because `readIllustration` is where
+       * *absent means the declaration* is stated, and a client re-deriving it
+       * from a bare value would be a second statement that could disagree.
+       *
+       * `backdrop` is **absent** for a mode that declares no `se.backdrop.on`,
+       * which is the same three words `dials` uses for a mode with no
+       * difficulty: nothing to render rather than a control that does nothing.
+       * Scene declares it; Freeform does not.
+       */
+      renditions: {
+        illustration: readIllustration(
+          session.channels,
+          modeById(modeId)?.definition.renditions?.illustration,
+        ),
+        ...(SE_BACKDROP_ON in session.channels
+          ? { backdrop: readBackdropOn(session.channels) }
+          : {}),
+      },
     });
   });
 
@@ -1643,6 +1693,286 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
       }
       return reply.send({ memory: session.memory ?? body });
+    },
+  );
+
+  /**
+   * ***Every rendition this session holds*** — [06 §10], [P9.2].
+   *
+   * **Off the session read and off the transcript read, deliberately**, which is
+   * `GET /sessions/:id/memory`'s argument one route up: a rendition's state
+   * changes after its turn is written, so folding it into either would make two
+   * reads that are cached differently disagree about whether a picture has
+   * arrived. The transcript is the story; this is what has been made of it.
+   *
+   * *A map keyed by id rather than a list*, because that is how the client
+   * applies a live `rendition` frame — an upsert into the same map — and two
+   * shapes for one thing is how a page and a socket come to disagree.
+   *
+   * ***And the selection rides with them*** ([06 §10.7], [P9.4]). Which sibling
+   * a turn shows is a pointer on the mutable half, and the alternative — a
+   * second read of the session for one field — would put the set and the choice
+   * on two cache entries that expire independently: the reader would then watch
+   * a picture they did not choose for as long as the stale half survived.
+   * `PUT …/turns/:turnId/rendition` writes it; this is the only reader.
+   */
+  app.get(
+    '/sessions/:sessionId/renditions',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const all = await readRenditions(services.sessions.layout, account.handle, sessionId);
+      const session = await readSession(services.sessions, account.handle, sessionId);
+      return reply.send({
+        renditions: [...all.values()],
+        selection: session?.renditionSelection ?? {},
+      });
+    },
+  );
+
+  /**
+   * ***The pixels*** — [P9.2], and the shape `routes/library.ts` already
+   * promised this phase.
+   *
+   * That file's `GET /library/:kind/:id/media/:mediaId` says it in as many
+   * words: *"[P9] is the next consumer — a rendition's asset needs serving the
+   * same way, and `MediaSelection`'s two arms are already the one shape both go
+   * through."* So: `content-type` from the record, `etag` from the bytes' own
+   * digest, and the buffer. No `sendFile`, no range support, and nothing this
+   * build does not already do once.
+   *
+   * **The record is read to serve the bytes**, rather than the path being
+   * derived from the id alone. It costs one file read and buys the two headers —
+   * and it is the only thing that can tell an evicted rendition (`asset: null`,
+   * a **404** and a placeholder) from one that was never made.
+   */
+  app.get(
+    '/sessions/:sessionId/renditions/:renditionId/asset',
+    { schema: { params: RenditionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, renditionId } = request.params as {
+        sessionId: string;
+        renditionId: string;
+      };
+      const rendition = await readRendition(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        renditionId,
+      );
+      if (rendition?.asset == null) {
+        return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
+      }
+
+      const path = assetPath(services.sessions.layout, account.handle, sessionId, rendition);
+      if (path === null) {
+        return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
+      }
+      // The filesystem check the lexical rules cannot make, at the door where a
+      // path becomes I/O — `readMedia`'s rule, and this path came out of a file.
+      await services.sessions.layout.assertReal(path);
+      const bytes = await readFileBytes(path);
+      if (bytes === null) {
+        /**
+         * **A record that says `ready` and a file that is gone.** Which is not a
+         * bug to guard against but the state [25 E3] describes: somebody emptied
+         * `assets/`, and *"deleting one leaves `asset: null` and a picture that
+         * can be made again"*. A 404 is what the placeholder renders from, and
+         * the recipe on the record is what the retry runs.
+         */
+        return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
+      }
+
+      return await reply
+        .header('content-type', rendition.asset.mime)
+        .header('etag', rendition.asset.digest)
+        .send(Buffer.from(bytes));
+    },
+  );
+
+  /**
+   * ***Which rendition of a turn is shown*** — [06 §10.7], [P9.3].
+   *
+   * **A pointer write and nothing else.** Every sibling stays on disk with its
+   * own recipe, which is §10.7's first policy — *"regeneration must never be a
+   * destructive act on something the user liked"* — and switching back is
+   * another write of this route.
+   *
+   * *Illustrations only.* Which **backdrop** is showing is channel state
+   * ([06 §10.1a]), because it has to rewind and branch, and it moves through
+   * `PUT /sessions/:id/channels/se.backdrop` like any other engine-computed
+   * value. Two questions that read alike and have different lifetimes.
+   */
+  app.put(
+    '/sessions/:sessionId/turns/:turnId/rendition',
+    { schema: { params: TurnRenditionParams, body: SelectRenditionBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const { renditionId } = request.body as { renditionId: string };
+
+      // The rendition has to exist and has to be this turn's: a pointer to
+      // somebody else's picture would render one turn's moment under another's
+      // prose, which is a worse outcome than a 404.
+      const rendition = await readRendition(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        renditionId,
+      );
+      if (rendition?.turnId !== turnId) {
+        return reply
+          .code(404)
+          .send({ error: 'no-rendition', message: 'No such rendition on that turn.' });
+      }
+
+      const session = await setRenditionSelection(
+        services.sessions,
+        account.handle,
+        sessionId,
+        turnId,
+        renditionId,
+      );
+      if (session === null) {
+        return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+      }
+      return reply.send({ selected: renditionId });
+    },
+  );
+
+  /**
+   * ***Make a picture of this turn, now*** — [06 §10.6], [P9.4].
+   *
+   * ***One route and two verbs***, because they are one act under two purposes:
+   * **Illustrate** is `purpose: 'illustration'` and **Set the scene** is
+   * `'background'`, and §10.6 puts them on the same page as the same gesture
+   * pointed at different subjects. Two routes would be two copies of the gather,
+   * the resolution and the dispatch, differing in one string.
+   *
+   * ***Additive, never replacing*** — [06 §10.7]. The record is named
+   * `<turnId>.<next free ordinal>`, so a turn that already has a picture gains a
+   * sibling rather than losing one, and *"regeneration must never be a
+   * destructive act on something the user liked"* is true because the name is
+   * different rather than because something checked.
+   *
+   * **202 rather than 200**, which is the shape the submit route already uses
+   * and for the same reason: what comes back is a `pending` record, the pixels
+   * arrive on the stream, and a route that waited for them would be [06 §10.2]'s
+   * failure — *"a story that stalls on either is unusable"* — moved from the
+   * turn to a button.
+   *
+   * *A refusal is a 200 with a reason*, not an error: **nothing is bound to the
+   * image role** is the ordinary state of every install ([19 §5.1]), and it is
+   * an answer to *can you make a picture* rather than a failed request.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/illustrate',
+    { schema: { params: TurnRenditionParams, body: IllustrateBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const { purpose } = request.body as { purpose?: 'illustration' | 'background' };
+
+      /**
+       * **The client's disconnect cancels the moment call.** Fastify raises this
+       * when the socket closes, and a call nobody is waiting for is money spent
+       * on an answer that reaches nothing — the same judgement `performCall`'s
+       * idle timeout makes about an endpoint that has stopped talking.
+       */
+      const controller = new AbortController();
+      request.raw.on('close', () => {
+        controller.abort();
+      });
+
+      const made = await illustrateTurn(
+        {
+          sessions: services.sessions,
+          accounts: services.accounts,
+          providers: services.providers,
+          config: services.config,
+        },
+        {
+          handle: account.handle,
+          sessionId,
+          turnId,
+          purpose: purpose ?? 'illustration',
+          signal: controller.signal,
+        },
+      );
+
+      if ('held' in made) {
+        if (made.held === 'no-turn') {
+          return reply.code(404).send({ error: 'no-turn', message: 'No such turn.' });
+        }
+        return reply.send({ held: made.held });
+      }
+
+      services.renditions(account.handle, sessionId, [made.rendition], turnId);
+      return reply.code(202).send({ rendition: made.rendition });
+    },
+  );
+
+  /**
+   * ***Run this recipe again*** — [25 E3], [06 §10.2], [P9.4].
+   *
+   * ***Gate step 15, and it is structural rather than careful.*** *"Re-create an
+   * evicted rendition and **no text call is made**: the moment is replayed from
+   * `prompt`, not asked for again."* There is no assembly on this path and no
+   * role to resolve — the record already holds the fragments, the separator, the
+   * budget and the seed — so the assertion is about a code path that **does not
+   * exist** rather than about a flag somebody remembered to check.
+   *
+   * It is also the retry button [06 §10.2] promises: *"a failed rendition is a
+   * placeholder with a retry button, never a failed turn."* Same route, because
+   * they are the same act — a record with no pixels, run again.
+   */
+  app.post(
+    '/sessions/:sessionId/renditions/:renditionId/retry',
+    { schema: { params: RenditionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, renditionId } = request.params as {
+        sessionId: string;
+        renditionId: string;
+      };
+      const held = await readRendition(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        renditionId,
+      );
+      if (held === null) {
+        return reply.code(404).send({ error: 'no-rendition', message: 'No such rendition.' });
+      }
+
+      const again = await recreateRendition(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        held,
+      );
+      services.renditions(account.handle, sessionId, [again], again.turnId);
+      // `202`, like the illustrate route one up and for the same reason: what
+      // comes back is the record set to `pending`, and the pixels arrive on the
+      // stream. A `200` would read as *here is your picture*.
+      return reply.code(202).send({ rendition: again });
     },
   );
 

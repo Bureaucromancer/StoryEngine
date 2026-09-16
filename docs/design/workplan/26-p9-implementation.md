@@ -1,8 +1,17 @@
 # 26 — P9 implementation plan
 
-**Status: ~~skeleton~~ ~~a plan, audited 2026-09-15 at `2fb75e5`~~ built out
+**Status: ~~skeleton~~ ~~a plan, audited 2026-09-15 at `2fb75e5`~~ ~~built out
 against the tree, re-audited 2026-09-16 at `bf88153` — and deliberately not
-opened.** Drafted 2026-08-29 alongside [P7](23-p7-implementation.md),
+opened~~ built, 2026-09-16, on branch `p9` — and it does not close.** All six
+stages landed (`fae4de7`, `bf27efa`, `18b5b8f`, `5819843`, `49f43c2`,
+`041882e`), and §3.2 records thirteen of the gate's fifteen rows discharged by
+test. **The two criticals were never walked**: C1 and C2 both need an endpoint
+that serves the `image` role, which is
+[R10](05-manual-testing.md) and is not to hand — so they are carried as
+**sitting O** and this phase stays open behind them. *A block is an errand, not
+a judgement*, and the errand is one endpoint.
+
+Drafted 2026-08-29 alongside [P7](23-p7-implementation.md),
 [P8](25-p8-implementation.md), [P10](27-p10-implementation.md) and
 [P11](28-p11-implementation.md). [P7 §0](23-p7-implementation.md) says what a
 skeleton this far out is for. §0.1 is the readiness audit that turns this one
@@ -195,9 +204,19 @@ did — **a thing this phase assumed it would build that is already built**, and
    §1.1 says it *"exists in the layout with nothing writing to it"*. Half right:
    [03 §5](../03-data-model.md)'s tree draws it, and `storage/layout.ts` has
    **no accessor for it** — fifteen methods, and the only `assetsRoot` is
-   object-scoped, `(owner, schemaId, slug)`. So P9.0 adds the accessor rather
-   than starting to write to one that is waiting. Small, and it is the
+   object-scoped, `(owner, schemaId, slug)`. ~~So P9.0 adds the accessor rather
+   than starting to write to one that is waiting.~~ Small, and it is the
    difference between *a path exists* and *a path is drawn in a document*.
+
+   ***Corrected 2026-09-16 at [P9.0](#p90--the-contract): the conclusion was
+   wrong and the observation was right.*** `Layout` was never how a session
+   subdirectory is added — `snapshots.ts` and `summaries.ts` both derive their
+   own with `resolveWithin(layout.sessionRoot(…), '<dir>')` and add no method,
+   and every one of the seventeen is account- or install-scoped. So P9 adds
+   **no accessor at all**: the finding's real content is that a path drawn in a
+   document is enforced by nobody, and the remedy is code that uses it, not a
+   method that names it. §0.3's item 1, which is written about this conclusion,
+   is right about the rule and moot about the fork.
 9. ***§5's "P9.2 is smaller than it looks" is wrong, and in the expensive
    direction.*** That section says jobs *"reuse the operational store's job
    vocabulary, which has existed since P2 and by then will have carried imports
@@ -341,6 +360,15 @@ original.
    [21](../21-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
    **What it may not do is add a dangling accessor and call it an exit
    condition**, which is the form the obligation currently takes.
+
+   ***Resolved 2026-09-16, and neither arm of the fork was taken.*** P9.0 added
+   no accessor, because there was never one to add: `renditions/store.ts`
+   derives its two roots the way `summaries.ts` derives its one. The rule this
+   item is built on held exactly as stated — a path helper with no caller is the
+   same defect twice — and the stage satisfied it by not creating the helper.
+   P9.0's repo-shape arm asserts the **tier** instead, which is the claim that
+   actually needed one: a rendition is in no `PORTABLE_SCHEMAS` entry and emits
+   no JSON Schema, checked by `emit-schemas` producing no diff.
 
    *Finding 8's count is stale too, in the direction that makes the point:*
    `storage/layout.ts` declares **seventeen** methods. It declared eighteen at
@@ -567,6 +595,51 @@ this phase — so the lean still holds, but it is no longer a decision that can 
 left indefinitely. **P9 owes P11 an answer rather than a lean**: what a rendition
 contributes to an exported session, and whether the recipe travels with it.
 
+---
+
+#### Decided 2026-09-16 at [P9.0](#p90--the-contract) — three answers, and one fork that dissolved
+
+***The tier, and the answer P9 owes P11.*** `Rendition` is **internal tier**,
+plain TypeScript in `packages/shared/src/rendition.ts` beside `turn.ts` — and
+the answer to *when does it graduate* was already written, in `turn.ts`'s own
+header: no `schema` field on the portable side, no `$id`, no entry in
+`PORTABLE_SCHEMAS`, no emitted JSON Schema, and ***"session export
+([25 B12](../25-open-questions.md)) is the event that ends this freedom"***. A
+rendition hangs off a turn, so it graduates **when the turn record does**, at the
+export freeze, and not before. That is a real answer rather than a lean, and it
+costs P11 nothing to collect: the recipe travels exactly when the turn it hangs
+on travels. `emit-schemas` produces no diff, which is the tier claim checked by
+the build rather than asserted in prose.
+
+***The provenance finding is resolved rather than inherited.***
+`RenditionProvenance` is a **new type**, not a widening of
+`GeneratedFieldProvenance` — and the reason is sharper than *the two `seed`s mean
+different things*. The existing one is **portable**: it is carried by five
+emitted schemas, so growing it would push a sampling seed and a workflow blob
+into every exported actor card, which is a portable-shape change made to serve an
+internal record. The new type's `seed` is `number | null` and means the sampling
+seed only.
+
+***And a third thing was wrong that this section did not predict.*** Two more
+fields were mistyped in the specification above: `AssembledPrompt.budget` in
+`number | undefined`, where an `undefined` in a persisted shape is a field JSON
+round-trips away, so `null` is the only honest absence on disk; and `prompt` as
+`AssembledPrompt | null`, where a rendition with no recipe is a rendition that
+cannot be re-created — which is the one promise
+[06 §10.7](../06-modes-and-turn-pipeline.md) makes. `prompt` is never null.
+
+***The `Layout` fork dissolved rather than resolving.*** Neither arm of *the
+accessor arrives with the first resolver, or in P9.2 with the first writer* was
+taken, because **`Layout` was never how a session subdirectory is added**:
+`snapshots.ts` and `summaries.ts` both derive their own with
+`resolveWithin(layout.sessionRoot(…), '<dir>')` and add no `Layout` method —
+*that* is the established way, and the seventeen accessors are all
+**account**-scoped or install-scoped. So P9 adds **no accessor at all**, nothing
+dangles, and [P8.2](25-p8-implementation.md)'s rule is honoured by not creating
+the thing it forbids rather than by timing it. §0.1's finding 8 and §0.3's item 1
+are corrected to say so, and P9.0's repo-shape arm asserts the **tier** instead,
+which is the claim that actually needed one.
+
 ### 1.2 The provider layer speaks chat, and no image endpoint does
 
 `image` is one of the eight model roles ([19 §5.1](../19-tech-stack.md)) and is
@@ -601,11 +674,56 @@ re-derive them:
   either the seam [19 §5.5](../19-tech-stack.md) promised or the first sign of
   the half-lie a forced fit produces.
 
-***This is the one decision this document deliberately does not make***, and
+~~***This is the one decision this document deliberately does not make***, and
 §0.2 says why: it wants **one real image endpoint in hand**, not another
-paragraph. The considerations above are complete; what is missing is the thing
+paragraph.~~ The considerations above are complete; what is missing is the thing
 that turns a lean into a decision, and inventing one at a desk is exactly how §5
 says the answer gets made by accident.
+
+---
+
+#### Decided 2026-09-16 at [P9.2](#p92--jobs-that-never-block-and-the-surfaces-that-follow-from-that) — a second **verb**, not a second **kind**
+
+***Taken under this section's own warning, and the warning is why the reversal
+condition is written down rather than left to judgement.*** `Provider` grows one
+optional arm:
+
+```ts
+renderImage?(request: ImageRequest): Promise<ImageResult>;
+```
+
+beside `generate` and `stream`, with `ProviderCapabilities.rendersImages` saying
+whether it is there. One provider kind, one capability record, one connection,
+one binding — which is precisely what [19 §5.5](../19-tech-stack.md) means when
+it says the chat bet is reversible *at a single seam*: this is a second method on
+the seam, not a second seam.
+
+**What made it decidable at a desk after all** is that the question turned out to
+be smaller than it reads. The pinned SDK already carries the other half:
+`@ai-sdk/openai-compatible@3.0.30` exports `imageModel`, `ImageModelId` and
+`ImageModelOptions`, and `ai@7.0.66` drives them through `generateImage`. So the
+adapter is the **same package**, the same `baseUrl` and the same credential path
+as chat, and the fork this section poses — *reuse the connection machinery or
+build a second client* — has no second client on the other side of it. There was
+less to decide than the paragraph above assumed.
+
+***What would reverse it, stated so a later phase does not have to re-derive the
+lean.*** **An endpoint whose request is not prompt-plus-scalars.** `ImageRequest`
+is `{ modelId, prompt, seed, workflow }` and `workflow` is a flat record of
+strings, numbers and booleans — which covers every OpenAI-compatible image API
+and a good deal else. A ComfyUI-style endpoint takes a **graph**, and a graph is
+not a scalar bag: it has nodes, edges and typed sockets, and squeezing one
+through `workflow` is exactly the half-lie the last bullet above predicts a
+forced fit produces. **That is the day `Provider` gets a second kind**, and the
+evidence will be a `workflow` field with JSON strings in it.
+
+*The other three bullets are honoured rather than traded away.* The connection,
+credential and five-layer override machinery is reused whole (`resolveStepRole`
+resolves `image` exactly as it resolves `prose`); the capability record gains one
+boolean and one optional number rather than a second record; and `image`
+unbound remains [P2B](10-p2b-provider-configuration.md)'s dangling posture —
+gate row 8 asserts it, and the step is kept **out of the plan** rather than
+failing a turn.
 
 ### 1.3 Old turns: recorded state or present state
 
@@ -627,6 +745,30 @@ later is a bug nobody has to have explained. Worth noting because it is
 evidence rather than restatement: an argument that looks finely balanced on
 illustrations is one-sided on the other purpose, and the field they share should
 not be decided twice.
+
+---
+
+#### Decided 2026-09-16 at [P9.4](#p94--controls) — recorded state, and the lean cost nothing to take
+
+***The lean held, and building it turned out to be one argument rather than a
+branch.*** `renditions/illustrate.ts` calls `gatherAssemblyInputs` with
+`parentTurnId: <the turn being illustrated>`, which is the gather's own way of
+saying *the state after this turn*: `walkPath` ends the path there and
+`reconstructAlong` folds it. There is no second code path for *the present* and
+no setting to choose between them, because the gather already had the answer and
+the two would have been the same call with a different argument.
+
+**The mitigation shipped with it**, which is what makes this a decision rather
+than a preference: the assembled fragments are on the rendition's own record and
+`workbench/turn/RenditionList.tsx` shows them beside the turn they were assembled
+at ([P9.5](#p95--the-workbench-over-renditions)). *Why does this picture show the
+tavern* is answerable from the panel. A phase that decided for the more
+surprising answer and did not build the disclosure would have taken the surprise
+and skipped the argument for it.
+
+**[06 §10.6](../06-modes-and-turn-pipeline.md)'s `[OPEN]` is struck** with the
+date and the three reasons, and both purposes read the same field — which is
+that section's own condition: *whatever is decided, it is decided once.*
 
 ### 1.4 Eviction is a later decision, and that is only true if the hook ships
 
@@ -900,6 +1042,35 @@ names. ***If that leaves this stage with no storage arm at all, it has exactly
 the right number***: P9.0's subject is a type and a record, and the path is P9.2's
 the moment there are bytes to put under it.
 
+#### Done — 2026-09-16, `fae4de7`
+
+***Three of the record's fields were typed wrong in this document, and the type
+system found all three at once.*** §1.1 specified `provenance.seed` as
+`string | number | null` and `AssembledPrompt.budget` in
+`number | undefined`; the store specified `prompt: AssembledPrompt | null`. The
+seed is a **sampling** seed and nothing else — the `string` arm was inherited
+from `GeneratedFieldProvenance`, whose `seed` means a prompt, which is the exact
+confusion §1.1 spends a section warning about — and an `undefined` in a
+persisted shape is a field that JSON round-trips away, so `null` is the only
+honest absence on disk. **`prompt` is never null**: a rendition with no recipe is
+a rendition that cannot be re-created, which is [06 §10.7]'s one promise.
+Corrected in `06 §10.4a`'s neighbourhood with the date, because this document is
+not where a record's shape is finally said.
+
+***The `Layout` fork §1.1 poses dissolves rather than resolves.*** Neither arm
+was taken because `Layout` was never how a session subdirectory is added:
+`snapshots.ts` and `summaries.ts` both derive their own with
+`resolveWithin(layout.sessionRoot(…), '<dir>')` and add no method — *that* is the
+established way. So P9 adds **no accessor at all**, nothing dangles, and
+[P8.2]'s rule against a caller-less path helper is honoured by not creating the
+thing it forbids rather than by timing it. §0.3's item 1 and finding 8 are both
+corrected to say so.
+
+**A write failure throws here, unlike a snapshot's or a summary's.** Those return
+`false` because losing one costs a recompute; losing a rendition record costs the
+**recipe**, which §10.7 says is never discarded. One line, and it is the
+difference between a derived cache and an authoritative store.
+
 ### P9.1 — The step, and the prompt
 
 An ordinary `post`-stage step ([06 §10.3](../06-modes-and-turn-pipeline.md)),
@@ -987,6 +1158,32 @@ is written and diverges a month later. Plus `prompt-caps.test.ts` gaining its
 first production caller's golden files, and the anchor's miss path: an anchor
 that does not resolve records the miss and leaves the rendition `ready`.
 
+#### Done — 2026-09-16, `bf27efa`
+
+***`prompt-caps.ts` has a caller two phases after it was written***, which is
+§0.1's finding 6 collected. Reading that module's docstring first was the right
+first act: it already states the property this stage would have had to argue for
+— *the cap is an input to generation, not a guillotine at send* — so the work
+was ranking and calling.
+
+***The randomness rule caught a real design error rather than a style slip.***
+The first build had the **worker** draw the sampling seed, on the argument that
+renditions take no part in reconstruction and so owe the tape nothing. The lint
+rule refused it, and the refusal was right for a reason the argument missed: a
+seed drawn after the record is written is a seed the `pending` record cannot
+state, so *re-creating* an evicted picture could never be a replay of the same
+number. The **step** draws it through `host.random.at(SE_RENDER, 'seed')`, it
+rides on the request to `provenance.seed`, and the worker reads it off the
+record. [19 §14]'s tape turned out to be exactly the right place for it.
+
+***The backdrop's ranking had to be narrowed, and the narrowing exposed a gap
+worth naming.*** Including all rendered channel state made Scene's clock part of
+the recipe — `Day 1, 09:15` — so the digest changed every turn and §1.7's reuse
+key never matched. Narrowed to **place and tone**, with the argument written
+where the code is. What the corpus does not have is any way to say *which
+channels describe a place rather than a moment*; a mode-declared hint is the
+obvious answer and is not this phase's.
+
 ### P9.2 — Jobs that never block, and the surfaces that follow from that
 
 Renditions dispatched as their own jobs, arriving over the event stream and
@@ -1014,6 +1211,30 @@ completes while a rendition is pending, and a failed rendition leaves the turn
 `complete`*. The falsifying mutation is making the rendition a step of the turn
 rather than a job beside it: every assertion about pixels still passes, and this
 one goes red, which is the whole of §10.2's claim.
+
+#### Done — 2026-09-16, `18b5b8f`
+
+***The one-active-per-session index is the invariant a rendition must not
+inherit***, which §0.1's finding 9 predicted and the migration confirms:
+`job_one_active_per_session` would make two pictures at once a constraint
+violation rather than a queue, and a picture beside a turn impossible. A sibling
+table, following `STEPS[1]`'s import precedent, with no `parent_turn_id`, no
+`commit_step` and no such index.
+
+***A rendition must not be a `ProgressEvent`, and the reason is a foreign key.***
+The `event` table references `job(id)` and `resolveJobs` walks forward from the
+cursor's anchor, so an event for a rendition would need a `job` row it must not
+have. It travels as an **ephemeral whole-record frame** instead — no `id:` line,
+applied by upsert — which keeps `attachToSession` synchronous, the one thing
+`stream/attach.ts` has a test to stop anybody changing.
+
+***§1.2 is decided under this plan's own warning***: `Provider` grows a second
+optional arm, `renderImage?`, rather than a second provider *kind*. What would
+reverse it is written beside it — an endpoint whose request is not
+prompt-plus-scalars. The pinned SDK made it concretely buildable rather than
+theoretical: `@ai-sdk/openai-compatible@3.0.30` exports `imageModel` and
+`ai@7.0.66` exports `generateImage`, so the adapter is the same package, the
+same `baseUrl` and the same credential path as chat.
 
 ### P9.3 — Accumulation, selection, and the permanent recipe
 
@@ -1070,6 +1291,25 @@ the code written to make rewind work on backdrops is empty. *If this stage finds
 itself writing branch-aware code, §1.7 says the split was implemented
 backwards — so the test is the one that notices.*
 
+#### Done — 2026-09-16, `5819843`
+
+***The selection is an ordinary effect, and `escapes` is the trap that was not
+there when §1.7 was written.*** `ChannelDefinition.escapes` arrived at
+[P8.2](25-p8-implementation.md), and an effect whose channel declares it is
+written with `scope: 'escaped'` — a scope `applyEffects`, `undoTurn` and
+`reconstructAlong` all **skip**. A backdrop declared that way would be correct on
+the turn it was written and would silently fail to return on rewind: gate step 11
+failing in the single manner an *empty diff* cannot look for, because nothing was
+written and that is the bug. `BACKDROP_CHANNEL` declares no `escapes` and must
+not gain one.
+
+***The empty diff is asserted as source text over four named modules*** —
+`channels.ts`, `segments.ts`, `snapshots.ts` and `turns/effects.ts` — and
+`sessions/store.ts` is **excluded with its reason written**: it holds
+`setRenditionSelection`, and a pointer into the mutable half is not
+reconstruction. An exclusion list with no argument attached is how an empty-diff
+assertion becomes decorative.
+
 ### P9.4 — Controls
 
 Per session: off, on-demand only, or each turn that has a moment worth one
@@ -1123,6 +1363,44 @@ route these controls need has a client caller or a written exemption in
 [P2B](10-p2b-provider-configuration.md)'s existing surface, and the other three
 are what P9.4 owes.*
 
+#### Done — 2026-09-16, `49f43c2`
+
+***A per-mode default cannot be written into `session.channels` at creation, and
+the suite said so in twenty-odd voices.*** The first build seeded it there, which
+reads as the obvious place for [04 §6.1b]'s *a Treatment proposes, a Setup
+overrides, and the running session owns it*. But a value in that map with no
+effect behind it is exactly what [P6.0b]'s reconciliation calls a **hand edit**:
+the next turn folded it into a user-attributed divergence turn, and every *writes
+no turn* assertion in the build went red at once. The map is derived from the
+effect log; **a default is not a change anybody made**. `readIllustration` takes
+the mode's default as a fallback parameter instead — the channel still says what
+unspecified means for a mode that declares nothing, and a person who turns the
+feature off writes a real effect that beats both.
+
+***"The same step invoked by hand" is made literally true, through
+`turns/preview.ts`'s seam.*** A preview is a route-driven read that assembles
+through `gatherAssemblyInputs` and stops at `planCall`; `renditions/illustrate.ts`
+is a route-driven **act** that assembles through the same gather and goes one
+step further, to `performCall`. Neither mints a job nor writes a turn, and
+neither can disagree with the runner about what was in play, because all three
+read one gather. §1.3's `[OPEN]` falls out of it in one argument —
+`parentTurnId: turnId` **is** recorded state — and [06 §10.6]'s marker is struck
+with the date.
+
+***The one honest cost, stated rather than discovered later***: a hand-pressed
+illustration's `fast` call is on no turn's tape, because there is no turn. The
+provenance survives on the rendition — binding, seed, fragments as sent — and
+what is absent is the token accounting. Making it a turn would put a node with no
+prose in somebody's transcript, which is a worse trade for a story than a missing
+line in a cost total. [25 E4]'s budget is where it is properly answered.
+
+***And a bug the stage found in its own predecessor***: `imageBinding` on the
+runner options resolved the `image` role a **second** time, in a different
+method from the gate that resolved it first — and `app.ts` passed `() => null`,
+so every record's `provenance.binding` was null while its digest named a model.
+The binding rides on the step's report now, so the record and the reuse key
+cannot name different models.
+
 ### P9.5 — The workbench over renditions
 
 Deferred here by name from [P3 §5](15-p3-implementation.md). Renditions are
@@ -1141,6 +1419,22 @@ its seed, its model and what the capper dropped*. The row that must not be
 missing is the dropped-fragment one: `CappedPrompt` already records it
 (§0.1's finding 6) and a workbench that showed the prompt without it would be
 showing a prompt that was never sent.
+
+#### Done — 2026-09-16, `041882e`
+
+***And it fixed a live defect in P8's arm, which is why this stage touches
+`address.ts` at all.*** [P8.1](25-p8-implementation.md) gave `BlockSource` a
+`summary` arm and nobody gave it a **label**, so a summary block rendered in the
+workbench's Source column as the bare word `summary` — the exact thing
+`address.test.ts`'s `expect(address.label).not.toBe(source.kind)` exists to
+catch. It never saw it, because the arm was missing from that test's `EVERY_ARM`
+fixture too; `schema` was missing from the fixture as well. Both labels and both
+fixture rows landed here, and the comment says what the shape really argues for:
+**a hand-enumerated fixture over a union the compiler cannot iterate is only as
+total as the hand**, and a type-level exhaustiveness check is owed the next time
+an arm lands. *This is the third instance of the pattern this document keeps
+finding — a check that would have caught something, pointed at a list that did
+not contain it.*
 
 ---
 
@@ -1268,6 +1562,49 @@ image eval as the most tempting version of that mistake. So the gate answers
 *does it arrive, is it reproducible, does it cost what it should* and is silent
 on *is it worth having*, which is [work plan §0.4](01-work-plan.md)'s question
 and §5's first bullet. **A closed P9 is not a verdict on renditions.**
+
+### 3.2 What was answered — recorded 2026-09-16
+
+*The results table [manual testing §0](05-manual-testing.md) asks for, in
+[P8 §3.2](25-p8-implementation.md)'s shape. **The fifteen steps above are not
+edited**; this is the second table, which is that model's first honesty
+condition and the whole reason there are two.*
+
+| Step | Discharged by | Result |
+|---|---|---|
+| **1** Turn completes on text, picture pending, session usable | `routes/p9-gate.test.ts` | ✅ — and the second turn is taken while the first picture is still being made, which is the half a `pending` assertion alone would not reach |
+| **2** Arrives over the stream; close the tab and reattach | — | **C1, blocked on R10. Never walked.** The frame and the upsert are built and the reducer folds them; what is unproven is a person watching it |
+| **3** A failed rendition is a placeholder with a retry; turn `complete` | `routes/p9-gate.test.ts` | ✅ — written first, per §3.1, and it is what forced the error to be a **class** rather than a provider's sentence |
+| **4** Illustrate an old turn: a second rendition, first still selectable | `routes/p9-gate-controls.test.ts` | ✅ — asserted on the **names** (`<turnId>.0`, `<turnId>.1`), because additive-not-replacing is true by the id being different rather than by a check |
+| **5** `asset: null` on both: recipes remain, placeholders regenerate | `routes/p9-gate-controls.test.ts`, `routes/p9-gate-selection.test.ts`, `play/Rendition.test.tsx` | ✅ — the eviction is **performed rather than simulated**: the record is written with `asset: null` and re-run, and the prompt, the digest and the seed come back identical. The client half is [P9 §1.4]'s contingency, which is what makes eviction a later decision rather than a migration |
+| **6** Two renditions carry different seeds and the workbench says so | `workbench/turn/views.test.tsx` | ✅ — the fixture makes the two siblings identical in every visible way **except** the seed, or the question is not sharp |
+| **7** A prompt over the cap drops its lowest-ranked fragment and says which | `renditions/assemble.test.ts`, `workbench/turn/views.test.tsx` | ✅ — and the dropped fragment is **struck rather than hidden** in the panel, which is the half that makes a capped prompt legible |
+| **8** With no `image` binding, the controls say so plainly | `routes/p9-gate-controls.test.ts` | ✅ — both halves: the turn is untouched and no `fast` call is made either, because the step is kept **out of the plan** rather than idled |
+| **9** Branch a turn with renditions: inherited, nothing replayed | `routes/p9-gate-selection.test.ts` | ✅ — the assertion is a **diff**, over four named reconstruction modules, with `store.ts`'s exclusion argued rather than listed |
+| **10** Walk back into a place: first backdrop returns, **no job dispatched** | `routes/p9-gate-selection.test.ts` | ✅ — the money row, asserted on a **count** rather than an absence |
+| **11** Rewind past the doorway; branch and both in their own room | `routes/p9-gate-selection.test.ts`, `modes/scene/src/mode.test.ts` | ✅ — and the `escapes` trap that was not there when §1.7 was written is asserted on the mode side, where the declaration lives |
+| **12** Backdrop off: pixel-identical to text-only, no `image` call | `routes/p9-gate-controls.test.ts` | ✅ **in part** — the call-log half is discharged. *Pixel-identical* is what a person checks and is carried by C2 |
+| **13** An illustration renders **at its anchor**, inside the prose | `play/Rendition.test.tsx` **in part** | **C2, blocked on R10. Never walked.** The offset, the split and the fallback are asserted; *the picture is where the sentence is* is not a thing an assertion says |
+| **14** Edit the message so the quote is gone: image at the end, still `ready` | `routes/p9-gate-controls.test.ts`, `play/Rendition.test.tsx` | ✅ — the row that stops the natural implementation from throwing, on both sides of the wire |
+| **15** Re-create an evicted rendition and **no text call is made** | `routes/p9-gate-controls.test.ts` | ✅ — asserted **on the call log**, in the same test as step 5 and for §3.1's reason: step 5's byte-comparison passes either way against a scripted model. And it is **structural** — there is no assembly on that path and no role to resolve, so the claim is about a code path that does not exist rather than a flag |
+| **The standing line** — no configuration without a surface | `route-callers.test.ts`, `play/SessionPanel.tsx`, `modes/scene` | ✅ — the three settings have controls, the two bindings sit on P2B's surface, and the three rendition routes left `route-callers.test.ts`'s OWED map |
+
+***Thirteen AUTO rows discharged; two criticals blocked and never walked.*** The
+distinction §3.1 draws is the one this table keeps: **a deferral is a judgement
+and a block is an errand**. C1 and C2 are not deferred — nobody decided they were
+not worth walking — they are waiting on
+[R10](05-manual-testing.md), an endpoint that serves the `image` role, which no
+other outstanding sitting produces. They are carried as
+**[sitting O](05-manual-testing.md)** and this phase **does not close** until
+somebody walks them.
+
+***What that leaves true and what it leaves unproven, plainly.*** Every claim
+this phase makes about *mechanism* is asserted: a turn that does not wait, a
+recipe that survives its pixels, a digest that matches a place, a diff that is
+empty, a call that is not made. What is unproven is every claim about *what it
+looks like* — that a picture arrives in a browser, and that it lands beside the
+sentence it is of. A phase whose gate proved every mechanism and looked at no
+picture is exactly what §3.1 warned this would be, and it is what it is.
 
 ---
 

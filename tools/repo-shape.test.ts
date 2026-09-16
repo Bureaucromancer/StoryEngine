@@ -532,6 +532,54 @@ describe('the storage layout keeps no root the library owns', () => {
   });
 });
 
+/**
+ * **The tier claim, held mechanically** — [P9.0], and it is the other half of
+ * the sentence `turn.ts` has been carrying alone.
+ *
+ * [P9 §1.1] leans *internal rather than portable* for `Rendition` and then says
+ * the lean can no longer be left indefinitely, because export ships at 1.0. P9.0
+ * answers it: a rendition is internal tier, and it graduates to `schema/` **when
+ * the turn record does** and not before. That is a claim about a build, and
+ * until this arm nothing in the repository could tell whether it was still true.
+ *
+ * ***What would break it is one line, and it would look like tidying.*** Moving
+ * `rendition.ts` under `schema/`, or adding it to `PORTABLE_SCHEMAS`, emits a
+ * seventh JSON Schema and makes a stored rendition a compatibility surface —
+ * which is the reverse of the decision, arrived at by a rename. `emit-schemas`
+ * clears stale artefacts and rewrites the directory, so the extra file would
+ * simply appear and `invariants.test.ts` would keep passing, because every one
+ * of its counts is derived from `PORTABLE_SCHEMAS` rather than fixed.
+ *
+ * *Here rather than in `packages/shared` for this file's standing reason*: the
+ * subject is the arrangement of the repository — which directory a type lives in
+ * and what the build emits — rather than anything the type does.
+ */
+describe('a rendition is internal tier, and stays there until the export freeze', () => {
+  const RENDITION = join(ROOT, 'packages/shared/src/rendition.ts');
+  const SCHEMAS = join(ROOT, 'packages/shared/schemas');
+
+  it('declares the type outside `schema/`, where portable means something', () => {
+    expect(existsSync(RENDITION)).toBe(true);
+    // A control, so a moved or renamed file cannot read as a clean run.
+    expect(codeOf(RENDITION)).toContain('export interface Rendition');
+    expect(existsSync(join(ROOT, 'packages/shared/src/schema/rendition.ts'))).toBe(false);
+  });
+
+  it('is in no registry, so nothing emits it', () => {
+    const registry = codeOf(join(ROOT, 'packages/shared/src/schema/registry.ts'));
+    expect(registry).not.toContain('Rendition');
+    expect(registry).not.toContain('rendition');
+  });
+
+  it('leaves the emitted set at the six portable kinds', () => {
+    // `emit-schemas` writes one file per `PORTABLE_SCHEMAS` entry and clears the
+    // directory first, so a seventh file here is a type that became portable.
+    const emitted = readdirSync(SCHEMAS).filter((name) => name.endsWith('.json'));
+    expect(emitted).toHaveLength(6);
+    expect(emitted.some((name) => name.includes('rendition'))).toBe(false);
+  });
+});
+
 /** A file's source with its comments removed — `the engine names no mode`'s rule. */
 function codeOf(path: string): string {
   return readFileSync(path, 'utf8')

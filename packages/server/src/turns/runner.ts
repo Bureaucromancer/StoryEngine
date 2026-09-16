@@ -8,7 +8,13 @@ import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { randomOver } from '../rng/random.js';
 import { Rng, type Tape } from '../rng/rng.js';
-import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
+import {
+  advance,
+  MINUTES_PER_TURN,
+  readClock,
+  renderedChannels,
+  SE_CLOCK,
+} from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
 import type {
   ChannelEffect,
@@ -42,6 +48,23 @@ import { gatherAssemblyInputs } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
 import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
+import {
+  readBackdropOn,
+  readIllustration,
+  render,
+  RENDER_STEP,
+  type RenderReport,
+} from './render.js';
+import { toneOf } from '../renditions/assemble.js';
+import { capabilitiesFor } from '../providers/capabilities.js';
+import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
+import {
+  readRenditions,
+  renditionIdFor,
+  reusableBackdrop,
+  writeRendition,
+} from '../renditions/store.js';
+import { selectedBackdrop } from '../renditions/backdrop.js';
 import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
@@ -136,6 +159,25 @@ export interface RunnerOptions {
   log?: Logger;
   /** P2.6's modes supply their own. */
   plan?: TurnPlan;
+  /**
+   * Queues a turn's pictures, after it has committed — [P9.2].
+   *
+   * ***A callback rather than a worker held here***, and the seam is the point:
+   * the runner's job ends when the turn is on disk, and everything after that is
+   * [06 §10.2]'s *"dispatched as their own jobs"*. A runner that owned the
+   * worker would be a runner whose shutdown had to drain pictures, which is
+   * exactly the coupling this phase exists to avoid.
+   *
+   * **Optional, so every existing test double stays a double.** Absent means the
+   * step never asked for anything — which is every turn of every session before
+   * this phase, and every test that is not about pictures.
+   */
+  dispatch?: (
+    account: string,
+    sessionId: string,
+    records: readonly Rendition[],
+    turnId: string,
+  ) => void;
 }
 
 interface Live {
@@ -425,6 +467,19 @@ export class TurnRunner {
      */
     const summaries: { report: SummariseReport | null } = { report: null };
     /**
+     * What the rendition step asked for — [06 §10], [P9.1]. The sixth cell, and
+     * **up here with the other five for the reason the paragraph above gives**:
+     * `write()` closes over it to build the checkpoint draft and runs before the
+     * plan is assembled, so a declaration further down is a temporal dead zone
+     * the compiler is happy with and the first turn is not.
+     *
+     * *What lands on the record is a report and never the records.* A rendition
+     * is dispatched after the turn commits and then moves `pending → ready`,
+     * which an append-only line cannot express — so `Turn.renditions` keeps what
+     * this turn **asked for** and `sessions/<id>/renditions/` keeps the rest.
+     */
+    const renditions: { report: RenderReport | null } = { report: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -478,6 +533,29 @@ export class TurnRunner {
        */
       if (suggested.report !== null && suggested.report.actions.length > 0) {
         draft.suggestions = [...suggested.report.actions];
+      }
+      /**
+       * **What the turn asked for, and never the renditions themselves** —
+       * [06 §10], [P9.1].
+       *
+       * *The ids are allocated here rather than by the step*, which is the one
+       * place this differs from the four cells above: a rendition is a **file**
+       * with a name, and the name has to exist before the record is written and
+       * before the job that fills it is enqueued. A step that minted them would
+       * be a step deciding what a path is called.
+       *
+       * **Absent rather than empty when the step did not run** — every session
+       * with nothing switched on, and every turn before this phase. It never
+       * means *it ran and asked for nothing*, which is what `held` says, and
+       * which is the distinction every optional field on this record draws.
+       */
+      if (renditions.report !== null) {
+        const report = renditions.report;
+        draft.renditions = {
+          requested: report.requests.map((_, at) => renditionIdFor(draft.id, at)),
+          ...(report.reused === undefined ? {} : { reused: report.reused }),
+          ...(report.held === undefined ? {} : { held: report.held }),
+        };
       }
       // Only once something was assembled — [P3.0], and the record's own
       // docstring: *absent* means this never happened, and an empty `request`
@@ -860,7 +938,162 @@ export class TurnRunner {
         }
       : withJudge;
 
-    for (const { definition, run } of withSuggest.steps) {
+    /**
+     * ***The rendition step, appended last*** — [06 §10.3], [P9.1], and the
+     * sixth engine-owned one.
+     *
+     * **Last among the `post` steps, and the ordering is the one the steps
+     * want.** A `post` stage runs in declaration order, and this reads the
+     * turn's finished prose and the state the turn has already moved — so
+     * anything that could still change either belongs in front of it. The judge
+     * can conclude a goal and the mention pass can move a hook; a picture of a
+     * turn should be a picture of the turn as it ended.
+     *
+     * ***Three gates, and each of them keeps a step out of the plan rather than
+     * idling it*** — `wantsSummary`'s arrangement, and the paragraph above the
+     * suggester says why: *"a step outcome that means this feature exists rather
+     * than anything about the turn"* is noise on every turn of every session.
+     *
+     * *Nothing wanted, no step.* A session with illustration off and no backdrop
+     * has nothing for this to decide.
+     *
+     * *No `image` binding, no step.* [19 §5.1] leaves `image` **unset** on every
+     * install until a matching connection exists, *"because there is no sensible
+     * text-model fallback for it"* — so without this gate every turn of every
+     * session in the build would log a failed step to discover what the binding
+     * already says. It is [P2B]'s dangling posture applied to a step: visible,
+     * named, and never a turn that fails obscurely. **And it is what buys the
+     * honest `fast` role**, which is the first non-`prose` role any step in this
+     * build has asked for ([25 C15] is why the other three settled).
+     *
+     * *A setup turn, no step.* There is no prose to be a picture of.
+     */
+    const wantsIllustration =
+      payload.setup !== true &&
+      readIllustration(running, mode.definition.renditions?.illustration) === 'each-turn';
+    const wantsBackdrop = payload.setup !== true && readBackdropOn(running);
+    /**
+     * What this session has already made, for the reuse lookup — [P9 §1.7].
+     *
+     * **One directory read, and only when something might ask.** A session with
+     * no backdrop never pays for it; one with a backdrop pays once per turn
+     * rather than once per candidate. `listSummaries` sets the economics and
+     * P8's property test exercised them at four hundred files.
+     */
+    const renditionsHeld = wantsBackdrop
+      ? await readRenditions(commit.sessions.layout, job.account, job.sessionId)
+      : new Map();
+    const renderRoles =
+      wantsIllustration || wantsBackdrop
+        ? {
+            image: resolveStepRole(
+              {
+                bindings,
+                defaults,
+                usable,
+                ...(inputs.session?.roles === undefined
+                  ? {}
+                  : { sessionRoles: inputs.session.roles }),
+                ...(inputs.session?.stepRoles === undefined
+                  ? {}
+                  : { stepRoles: inputs.session.stepRoles }),
+                cast,
+              },
+              RENDER_STEP,
+              'image',
+              undefined,
+            ),
+            /**
+             * *Resolved even when only a backdrop is wanted*, because the step
+             * is one step: the background branch makes no `fast` call, and a
+             * gate that let it into the plan without a resolvable `fast` role
+             * would fail the moment somebody turned illustration on mid-session.
+             */
+            moment: resolveStepRole(
+              {
+                bindings,
+                defaults,
+                usable,
+                ...(inputs.session?.roles === undefined
+                  ? {}
+                  : { sessionRoles: inputs.session.roles }),
+                ...(inputs.session?.stepRoles === undefined
+                  ? {}
+                  : { stepRoles: inputs.session.stepRoles }),
+                cast,
+              },
+              RENDER_STEP,
+              RENDER_STEP.role ?? 'fast',
+              undefined,
+            ),
+          }
+        : null;
+
+    const withRender: TurnPlan =
+      renderRoles?.image.ok === true && renderRoles.moment.ok
+        ? {
+            steps: [
+              ...withSuggest.steps,
+              render({
+                illustration: wantsIllustration ? 'each-turn' : 'off',
+                backdrop: wantsBackdrop,
+                image: {
+                  binding: {
+                    connectionId: renderRoles.image.connection.id,
+                    modelId: renderRoles.image.modelId,
+                  },
+                  capabilities: capabilitiesFor(
+                    renderRoles.image.connection.provider,
+                    renderRoles.image.connection.capabilities ?? {},
+                  ),
+                },
+                tone: toneOf(inputs.lore.treatment?.treatment),
+                channels: renderedChannels(running),
+                /**
+                 * **Empty at 1.0, and a field rather than a later migration.**
+                 * What an endpoint wants beyond a prompt is per-connection
+                 * production configuration, and [P2B] keeps that on the
+                 * connection rather than in a session. The seed is deliberately
+                 * absent: it is the worker's, because it is the one value that
+                 * must not be part of *what picture is this*.
+                 */
+                workflow: {},
+                /**
+                 * ***A place already rendered dispatches no job*** — [06 §10.1a],
+                 * [P9 §1.7], [P9.3].
+                 *
+                 * *A thunk, which is `ExtractContext.subjects`' shape and its
+                 * reason*: the digest is not known until the fragments are
+                 * assembled, which happens inside the step, so a context built
+                 * eagerly would have to guess.
+                 *
+                 * **Resolved to the currently selected sibling rather than the
+                 * oldest**, which is §10.1a's own clause and the difference
+                 * between *a* backdrop for the tavern and *the* one you picked
+                 * for it: a manual regenerate adds a sibling and selects it, so
+                 * a digest with three renditions behind it has to answer with
+                 * the one a person chose.
+                 *
+                 * *Read from the set the gather already walked*, so returning to
+                 * a place costs a lookup rather than a directory read per turn.
+                 */
+                reusable: (digest: string) => {
+                  const already = reusableBackdrop(
+                    renditionsHeld,
+                    digest,
+                    selectedBackdrop(running),
+                  );
+                  return already === null ? null : { renditionId: already.id };
+                },
+                report: (report) => {
+                  renditions.report = report;
+                },
+              }),
+            ],
+          }
+        : withSuggest;
+
+    for (const { definition, run } of withRender.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath: history.length,
         stages: new Set<string>(),
@@ -1488,6 +1721,89 @@ export class TurnRunner {
 
     // The lock is taken here and nowhere before it.
     await finaliseTurn(commit, job.id, draft);
+
+    /**
+     * ***Renditions, after the commit and awaited no further than the insert***
+     * — [06 §10.2], [P9.2].
+     *
+     * **After `finaliseTurn`, never before**, so that a client which receives
+     * `turn.finished` and immediately re-reads the session finds the turn there
+     * ([09 §3.3]) *and* finds the rendition pending beside it. Enqueuing first
+     * would let a fast provider land an asset on a turn the store has not
+     * appended.
+     *
+     * *Records first, then jobs.* The record is what a placeholder renders from
+     * and what the retry re-runs, so a job whose record did not land would be a
+     * spinner with nothing behind it. Written here rather than by the worker for
+     * the same reason: the recipe is known now and the worker may not start for
+     * seconds.
+     *
+     * **Nothing below this line can fail the turn**, which is the whole of
+     * §10.2 and the reason it is after the append rather than inside it.
+     */
+    if (renditions.report !== null && this.#options.dispatch !== undefined) {
+      await this.#recordRenditions(job, draft, renditions.report);
+    }
+  }
+
+  /**
+   * Writes a turn's rendition records and queues their jobs.
+   *
+   * Every failure here is swallowed: a full disk or a store that would not write
+   * costs a picture, and [06 §10.2] is explicit that it must never cost the turn
+   * the picture was of.
+   */
+  async #recordRenditions(job: Job, draft: Turn, report: RenderReport): Promise<void> {
+    const dispatch = this.#options.dispatch;
+    if (dispatch === undefined) return;
+
+    try {
+      const records: Rendition[] = [];
+      for (const [at, request] of report.requests.entries()) {
+        const record: Rendition = {
+          schema: RENDITION_SCHEMA,
+          id: renditionIdFor(draft.id, at),
+          sessionId: job.sessionId,
+          turnId: draft.id,
+          createdAt: new Date().toISOString(),
+          kind: request.kind,
+          purpose: request.purpose,
+          scope: request.scope,
+          state: 'pending',
+          prompt: request.prompt,
+          asset: null,
+          provenance: {
+            at: null,
+            // **The binding is on the record before the call**, because the
+            // digest already keys on it: a record that learned its model from
+            // the answer would be a record whose reuse key could not be checked
+            // until after the money was spent. It comes off the report rather
+            // than out of a second resolution, so the record and the key cannot
+            // name different models.
+            binding: report.binding,
+            answeredAs: null,
+            // Drawn by the step on the turn and recorded on its tape ([19 §14]),
+            // so a `pending` record already states the seed its picture will be
+            // made with — which is what lets re-creation be a replay.
+            seed: request.seed,
+            workflow: request.workflow,
+          },
+          error: null,
+          digest: request.digest,
+          ordering: request.ordering,
+        };
+        records.push(record);
+        await writeRendition(
+          this.#options.commit.sessions.layout,
+          job.account,
+          job.sessionId,
+          record,
+        );
+      }
+      dispatch(job.account, job.sessionId, records, draft.id);
+    } catch {
+      // Swallowed on purpose — see above.
+    }
   }
 }
 
@@ -1725,7 +2041,7 @@ function castTerms(
  * a mode staging a scene has no reason to leave the player's own character out
  * of it.
  */
-function castEntries(cast: {
+export function castEntries(cast: {
   persona: CastMember | null;
   actors: readonly CastMember[];
 }): CastEntry[] {
@@ -1739,5 +2055,14 @@ function castEntries(cast: {
       role: one.role,
       ...(one.label === undefined ? {} : { label: one.label }),
     })),
+    /**
+     * **Structured appearance, and absent when the card has none** — [P9.1].
+     *
+     * `null` on the card and absent here are the same fact stated in the two
+     * vocabularies this boundary joins: a portable schema says *the field exists
+     * and holds nothing*, and a step payload says *you were not handed one*. The
+     * conditional spread is what keeps them from becoming three states.
+     */
+    ...(member.actor.profile.visual === null ? {} : { visual: member.actor.profile.visual }),
   }));
 }

@@ -27,6 +27,11 @@ import {
   deleteSession,
   renameSession,
   readMemoryPanel,
+  illustrateTurn,
+  readRenditions,
+  retryRendition,
+  selectRendition,
+  type Rendition,
   setMemoryConfig,
   setSessionArchived,
   setSessionLore,
@@ -589,6 +594,103 @@ export function useMemoryPanel(sessionId: string, open: boolean): UseQueryResult
     queryKey: ['session-memory', sessionId],
     queryFn: () => readMemoryPanel(sessionId),
     enabled: open,
+  });
+}
+
+/**
+ * Every rendition a session holds, keyed by id — [P9.4].
+ *
+ * ***A map rather than a list***, because that is how a live `rendition` frame
+ * is applied: an upsert into the same map. Two shapes for one thing is how a
+ * page and a socket come to disagree about whether a picture has arrived.
+ *
+ * *Its own key rather than folding into `['transcript']`*, for the reason the
+ * memory panel has its own: a rendition's state changes **after** its turn is
+ * written, so two reads cached together would have to be invalidated together
+ * and the transcript would refetch every time a picture landed.
+ */
+export interface RenditionSet {
+  byId: Map<string, Rendition>;
+  /**
+   * Which sibling each turn shows, keyed by turn id — [06 §10.7].
+   *
+   * Carried here rather than read off the session because it is answered by the
+   * same route: the set and the choice on two cache entries would expire
+   * independently, and the reader would watch a picture they did not choose for
+   * as long as the stale half survived.
+   */
+  selection: Readonly<Record<string, string>>;
+}
+
+export function useRenditions(sessionId: string): UseQueryResult<RenditionSet> {
+  return useQuery({
+    queryKey: renditionsKey(sessionId),
+    queryFn: async () => {
+      const { renditions, selection } = await readRenditions(sessionId);
+      return { byId: new Map(renditions.map((one) => [one.id, one])), selection };
+    },
+  });
+}
+
+/**
+ * The key two subtrees spell, so it is a function.
+ *
+ * `previewKey` and `liveKey` are functions for the reason this one is: *"two
+ * components spelling the same key by hand is how a cache splits."* The stream
+ * reducer upserts into this cache and the transcript reads it.
+ */
+export function renditionsKey(sessionId: string): readonly unknown[] {
+  return ['session-renditions', sessionId];
+}
+
+export function useRetryRendition(
+  sessionId: string,
+): UseMutationResult<{ rendition: Rendition }, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (renditionId: string) => retryRendition(sessionId, renditionId),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: renditionsKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * **Illustrate** / **Set the scene** — [06 §10.6], [P9.4].
+ *
+ * *One mutation for both*, because they are one route and one act; the purpose
+ * is the argument. Invalidating the set is what puts the `pending` record on the
+ * screen — the pixels arrive on the stream afterwards and need no second read.
+ */
+export function useIllustrateTurn(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof illustrateTurn>>,
+  Error,
+  { turnId: string; purpose: 'illustration' | 'background' }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ turnId, purpose }: { turnId: string; purpose: 'illustration' | 'background' }) =>
+      illustrateTurn(sessionId, turnId, purpose),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: renditionsKey(sessionId) });
+    },
+  });
+}
+
+export function useSelectRendition(
+  sessionId: string,
+): UseMutationResult<{ selected: string }, Error, { turnId: string; renditionId: string }> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ turnId, renditionId }: { turnId: string; renditionId: string }) =>
+      selectRendition(sessionId, turnId, renditionId),
+    onSuccess: () => {
+      // The selection travels with the set, so this is the one key to refresh —
+      // the pictures did not change, only which of them is showing.
+      void client.invalidateQueries({ queryKey: renditionsKey(sessionId) });
+    },
   });
 }
 

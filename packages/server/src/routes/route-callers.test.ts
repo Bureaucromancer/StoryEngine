@@ -270,6 +270,16 @@ const OWED = new Map<string, string>([
     'DELETE /api/sessions/:p/refs/:p',
     'The same, for removing one: 07 §6 says promoting a swipe is creating a ref and that deleting one later deletes a name, and nothing can. P7B §1.12.',
   ],
+  /**
+   * ***The three rendition routes were owed here and were paid at [P9.4].***
+   *
+   * They are gone from this map rather than annotated, which is the shape of the
+   * debt being discharged: `api.ts` now names all three — `readRenditions`,
+   * `selectRendition` and `renditionAssetUrl` — so the scan reaches them and a
+   * line saying *a surface is owed* would be a claim that had stopped being
+   * true. The fourth, `POST …/turns/:p/illustrate`, arrived with its caller and
+   * was never owed.
+   */
 ]);
 
 describe('every route the server serves has a caller', () => {

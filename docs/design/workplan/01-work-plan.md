@@ -1283,7 +1283,8 @@ satisfiable by a bug without it.
 ### P9 — Renditions
 
 ~~**Skeleton: [P9](26-p9-implementation.md)**~~ ~~*A plan, audited
-2026-09-15*~~ ***A plan built out against the tree: [P9](26-p9-implementation.md)***,
+2026-09-15*~~ ~~*A plan built out against the tree*~~ ***Built, 2026-09-16, on
+branch `p9` — and open***: [P9](26-p9-implementation.md),
 re-audited 2026-09-16 at `bf88153` — and its first stage is a contract rather
 than a feature: `Rendition` is specified in
 [06 §10.1](../06-modes-and-turn-pipeline.md) and appears in no schema document at
@@ -1320,6 +1321,31 @@ R10, an **image** endpoint that no other outstanding sitting produces: the four
 that hold a phase open — K for P6B, L for P7, M for P7B, N for P8 — all want a
 **chat** one. A P9 opened before that errand starts can be built in full and
 cannot be closed.
+
+***That is exactly what happened*** (2026-09-16). All six stages landed —
+`fae4de7`, `bf27efa`, `18b5b8f`, `5819843`, `49f43c2`, `041882e` — and
+[§3.2](26-p9-implementation.md) records **thirteen of the gate's fifteen rows
+discharged by test**. The two criticals were **never walked**, which is the form
+this project keeps rather than a shortfall to tidy: they are carried as
+**sitting O** with R10 named as their blocker, and the phase stays open behind
+them. **A block is an errand, not a judgement**, and this errand is one endpoint.
+
+*What is proven and what is not, plainly*: every claim about **mechanism** — a
+turn that does not wait, a recipe that survives its pixels, a digest that matches
+a place, an empty diff on rewind, a text call that is not made on re-creation —
+is asserted. Every claim about **what it looks like** is not. §0.4's question,
+*are renditions worth 1.0 at all*, is therefore no easier to answer than it was;
+what has changed is that the code exists to answer it with.
+
+***Three decisions the phase closed on its way through***, all recorded in the
+plan rather than in commit messages: `Rendition` is **internal tier** and
+graduates when the turn record does, at the export freeze (§1.1, which is the
+answer P9 owed P11); `Provider` grows a second **verb** rather than a second
+**kind**, with the reversal condition written beside it — an endpoint whose
+request is not prompt-plus-scalars (§1.2, taken under that section's own warning);
+and an on-demand picture of an old turn assembles from that turn's **recorded**
+state, disclosed through the workbench rather than through a setting (§1.3, which
+strikes [06 §10.6](../06-modes-and-turn-pipeline.md)'s `[OPEN]`).
 
 Per-turn and on-demand illustration ([06 §10](../06-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.

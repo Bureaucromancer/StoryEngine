@@ -730,7 +730,7 @@ export const api = {
  * the wire), and widening the client's claim is its own decision for the
  * surface that needs it — not a side effect of the record move.
  */
-export type { Turn as TurnRecord } from '@storyengine/shared';
+export type { Turn as TurnRecord, Rendition as RenditionRecord } from '@storyengine/shared';
 
 /**
  * The preview's answer, re-exported for the same reason: the meter and the
@@ -1207,6 +1207,14 @@ export function readSession(sessionId: string): Promise<{
   /** Whether this session asks for suggested actions ([R11]). */
   suggesting?: boolean;
   /**
+   * Whether this session makes pictures — [06 §10.6], [P9.4].
+   *
+   * `backdrop` is absent for a mode that declares no backdrop channel, which is
+   * `dials`' rule for a mode with no difficulty: nothing to render rather than a
+   * control that does nothing.
+   */
+  renditions?: { illustration: IllustrationMode; backdrop?: boolean };
+  /**
    * What this session's mode put where — [06 §9], [P7.11].
    *
    * Rendered by the server down to the value, like `hud` beside it: what
@@ -1455,6 +1463,82 @@ export function setMemoryConfig(
   config: MemoryConfig,
 ): Promise<{ memory: MemoryConfig }> {
   return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/memory`, config);
+}
+
+/**
+ * Renditions — [06 §10](../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [P9.4].
+ *
+ * `Rendition` is re-exported from `@storyengine/shared` rather than redeclared,
+ * which is the rule this file already follows for `Turn`: a record the server
+ * writes and the client reads is one shape, and two declarations of it drift on
+ * the first field somebody adds.
+ */
+export type { Rendition, IllustrationMode } from '@storyengine/shared';
+import type { IllustrationMode, Rendition as RenditionRecord } from '@storyengine/shared';
+
+export function readRenditions(
+  sessionId: string,
+): Promise<{ renditions: RenditionRecord[]; selection: Record<string, string> }> {
+  return request('GET', `/api/sessions/${encodeURIComponent(sessionId)}/renditions`);
+}
+
+/**
+ * Where a rendition's pixels are.
+ *
+ * ***`?v=<digest>` is the cache-buster***, which is `avatarUrl`'s and
+ * `mediaUrl`'s convention: the bytes are immutable under an id and the digest is
+ * what changes when a retry produces different ones. `route-callers.test.ts`
+ * strips the query string, so this helper is what credits the route.
+ */
+export function renditionAssetUrl(sessionId: string, renditionId: string, digest: string): string {
+  return (
+    `/api/sessions/${encodeURIComponent(sessionId)}` +
+    `/renditions/${encodeURIComponent(renditionId)}/asset?v=${encodeURIComponent(digest)}`
+  );
+}
+
+/** Runs a recipe again — the retry, and the re-creation of an evicted picture. */
+export function retryRendition(
+  sessionId: string,
+  renditionId: string,
+): Promise<{ rendition: RenditionRecord }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/renditions/${encodeURIComponent(renditionId)}/retry`,
+  );
+}
+
+/**
+ * ***Illustrate*** this turn, or ***Set the scene*** for it — [06 §10.6].
+ *
+ * One call and two verbs, because they are one act under two purposes. A
+ * refusal comes back as `{ held }` with a 200: **nothing is bound to the image
+ * role** is the ordinary state of an install, not a failed request.
+ */
+export function illustrateTurn(
+  sessionId: string,
+  turnId: string,
+  purpose: 'illustration' | 'background',
+): Promise<{ rendition?: RenditionRecord; held?: 'no-binding' | 'no-moment' }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/illustrate`,
+    { purpose },
+  );
+}
+
+/** Chooses which of a turn's renditions is shown — [06 §10.7]. */
+export function selectRendition(
+  sessionId: string,
+  turnId: string,
+  renditionId: string,
+): Promise<{ selected: string }> {
+  return request(
+    'PUT',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/rendition`,
+    { renditionId },
+  );
 }
 
 /**

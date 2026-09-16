@@ -12,6 +12,7 @@ import {
   divergenceTurn,
   legacyTurn,
   pendingPreview,
+  renditionPair,
   richTurn,
   unmeasurablePreview,
 } from '../turn-fixtures.js';
@@ -349,5 +350,79 @@ describe('the turn about to be taken', () => {
     // And no block table: a list of blocks nothing has ruled on would be a
     // second assembly shape for a state that already has an honest answer.
     expect(screen.queryByRole('table')).toBeNull();
+  });
+});
+
+/**
+ * ***Gate row 6, and the row that would otherwise be missing*** —
+ * [P9 §3](../../../../../docs/design/workplan/26-p9-implementation.md), [P9.5].
+ *
+ * 6. *Two renditions of one turn carry different seeds, and the workbench says
+ *    so — **why did this one come out different** is answerable without
+ *    guessing.*
+ *
+ * The fixture makes the two siblings identical in every visible way except the
+ * seed, which is what makes the question sharp: a panel that showed the prompt
+ * and the model and not the seed would answer it **wrong** rather than not
+ * answer it, because the two prompts are the same string.
+ */
+describe('the pictures a turn was the subject of', () => {
+  it('names the seed each one was made with', () => {
+    render(<TurnSubject turn={richTurn()} locale="en" renditions={renditionPair()} />);
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText('481,516')).toBeTruthy();
+    expect(within(pictures).getByText('2,342')).toBeTruthy();
+  });
+
+  /**
+   * ***A prompt shown without what the capper dropped is a prompt that was
+   * never sent.*** `providers/prompt-caps.ts` exists because *"the cap is an
+   * input to generation, not a guillotine at send"*, and the evidence it worked
+   * is the fragment that is struck rather than absent.
+   */
+  it('keeps a dropped fragment visible with the reason it went', () => {
+    render(<TurnSubject turn={richTurn()} locale="en" renditions={renditionPair()} />);
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    const dropped = within(pictures)
+      .getAllByText('rain-soaked, low light')
+      .find((node) => node.className.includes('line-through'));
+    expect(dropped, 'the dropped fragment is struck, not hidden').toBeTruthy();
+    expect(within(pictures).getByText(/past where this endpoint stops reading/)).toBeTruthy();
+  });
+
+  /**
+   * *The model the recipe was keyed on, and the one that answered*, which are
+   * two facts: `binding` is what the digest hashes and is on the record before
+   * the call; `answeredAs` is what came back. A gateway serving something else
+   * is the disagreement this pair exists to make visible.
+   */
+  it('shows the anchor and the model that answered', () => {
+    render(<TurnSubject turn={richTurn()} locale="en" renditions={renditionPair()} />);
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getAllByText('a-picture-model').length).toBe(4);
+    expect(within(pictures).getAllByText('The air was thick').length).toBe(2);
+  });
+
+  /**
+   * ***Absent and empty are different claims*** — [03 §8], which this whole
+   * panel is built on. A turn from before this phase renders no section at all;
+   * a turn whose step ran and asked for nothing says **why**, and a backdrop
+   * resolved to one already made writes no record, so the report is the only
+   * thing that could say so.
+   */
+  it('renders nothing for a turn from before pictures existed', () => {
+    render(<TurnSubject turn={richTurn()} locale="en" />);
+    expect(screen.queryByRole('region', { name: 'Pictures' })).toBeNull();
+  });
+
+  it('says why nothing was made when the step asked for nothing', () => {
+    const turn = { ...richTurn(), renditions: { requested: [], held: 'no-moment' as const } };
+    render(<TurnSubject turn={turn} locale="en" />);
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText(/no moment worth a picture/)).toBeTruthy();
   });
 });

@@ -1,0 +1,345 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import type { Rendition } from '@storyengine/shared';
+
+import { FakeProvider } from '../providers/fake.js';
+import { readRenditions } from '../renditions/store.js';
+import { Layout } from '../storage/layout.js';
+import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+
+/**
+ * ***Gate steps 1 and 3*** —
+ * [P9 §3](../../../../docs/design/workplan/26-p9-implementation.md), [P9.2].
+ *
+ * 1. *A turn completes on text with an image still pending, and the session is
+ *    fully usable while it resolves.*
+ * 3. *A failed rendition is a placeholder with a retry, and the turn is
+ *    `complete` rather than `failed`.*
+ *
+ * ***The falsifying mutation is named here because it is the whole point of the
+ * file.*** Make the rendition a **step** of the turn rather than a job beside
+ * it, and every assertion about pixels still passes — the record lands, the
+ * bytes land, the workbench shows them — while these go red. That is [06 §10.2]'s
+ * claim in the only form a test can hold it: *"the turn completes on text…
+ * this is not an optimisation, it is the only workable design."*
+ *
+ * ***Step 3 is written first, and [P9 §3.1] says why***: *"a provider that
+ * refuses is cheaper to script than one that succeeds, so this row is walkable
+ * **before** the endpoint exists and should be written first."* It also forces
+ * the error to be a **class** on day one rather than whatever sentence an
+ * endpoint happened to send.
+ *
+ * *What this file cannot reach is C1*, which is a person watching a picture
+ * arrive in a browser they closed and reopened. That is blocked on
+ * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s R10 and recorded as blocked rather
+ * than walked.
+ */
+
+const PASSWORD = 'correct horse battery';
+const CHAT = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a09';
+const IMAGE = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a10';
+
+/** What the scripted `fast` model answers when asked what the picture is of. */
+const MOMENT = JSON.stringify({ subject: 'a lantern on a wet quay', anchor: 'The road went on' });
+
+let dataDir: string;
+let server: TestServer;
+let sessionId: string;
+let fake: FakeProvider;
+
+/**
+ * One double behind both connections.
+ *
+ * *The same instance for chat and for images*, so a single `requests` log and a
+ * single `images` log answer **both** of the questions the gate rows ask — *was
+ * a text call made* and *was an image call made* — without a test having to
+ * know which provider object served which.
+ */
+function makeFake(images: FakeProvider['images'] extends never ? never : object[]): FakeProvider {
+  return new FakeProvider({
+    script: [{ text: MOMENT, object: JSON.parse(MOMENT) as unknown }],
+    images,
+    capabilities: { rendersImages: true, supportsStructuredOutput: true },
+  });
+}
+
+async function boot(images: object[]): Promise<void> {
+  dataDir = await mkdtemp(join(tmpdir(), 'se-p9-gate-'));
+  fake = makeFake(images);
+  counter = 0;
+  head = null;
+  server = await makeTestServer({ dataDir, providers: () => fake });
+  await setUpAdmin(server, 'ned', PASSWORD);
+
+  const connections = new Layout(dataDir).userConnectionsRoot('ned');
+  await mkdir(connections, { recursive: true });
+  await writeFile(
+    join(connections, 'chat.json'),
+    JSON.stringify({
+      id: CHAT,
+      label: 'The double',
+      provider: 'openai-compatible',
+      models: ['fake-hi'],
+    }),
+  );
+  await writeFile(
+    join(connections, 'image.json'),
+    JSON.stringify({
+      id: IMAGE,
+      label: 'The picture double',
+      provider: 'openai-compatible',
+      models: ['fake-image'],
+      /**
+       * **The capability a person sets, set here.** `capabilities.ts` ships no
+       * invented numbers and `rendersImages` is false for every known provider,
+       * because whether the URL behind `openai-compatible` also answers
+       * `/images/generations` is a fact about *that endpoint*. A connection is
+       * where somebody who knows says so, and this is a test saying so.
+       */
+      capabilities: { rendersImages: true },
+    }),
+  );
+  await writeFile(
+    join(dataDir, 'users', 'ned', 'bindings.json'),
+    JSON.stringify({
+      prose: { connectionId: CHAT, modelId: 'fake-hi' },
+      fast: { connectionId: CHAT, modelId: 'fake-hi' },
+      image: { connectionId: IMAGE, modelId: 'fake-image' },
+    }),
+  );
+
+  const created = await server.request({
+    method: 'POST',
+    url: '/api/sessions',
+    payload: { name: 'The harbour' },
+  });
+  sessionId = created.body.session.id;
+
+  // Illustration on. Off is the default, for the reason `se.illustrate`'s
+  // docstring gives: an image is somebody's own machine.
+  await server.request({
+    method: 'PUT',
+    url: `/api/sessions/${sessionId}/channels/se.illustrate`,
+    payload: { value: 'each-turn' },
+  });
+
+  /**
+   * **The head after the switch, not before it.** A channel write is an
+   * *effect*, and an effect is carried by a turn — `writeChannel`'s *turn with
+   * no model call and no tape*. So turning illustration on moves the head, and a
+   * submission composed against `null` is stale by one.
+   */
+  const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+  head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
+}
+
+afterEach(async () => {
+  // Tolerated for `p6-gate.test.ts`'s reason: a test that failed early left its
+  // server holding the sqlite handles, and the cleanup error would bury the real
+  // failure under a second one.
+  await server.dispose().catch(() => undefined);
+  await rm(dataDir, { recursive: true, force: true });
+});
+
+let counter = 0;
+let head: string | null = null;
+
+async function takeATurn(): Promise<{ turnId: string; status: string }> {
+  const submitted = await server.request({
+    method: 'POST',
+    url: `/api/sessions/${sessionId}/turns`,
+    payload: {
+      idempotencyKey: `k-${String(counter++)}`,
+      headTurnId: head,
+      input: { text: 'Look around.' },
+    },
+  });
+  expect(submitted.status).toBe(202);
+
+  const jobId = (submitted.body as { jobId: string }).jobId;
+  const before = head;
+  // A predicate, not an assertion block: `eventually` polls a boolean and only
+  // reports failure once the deadline passes.
+  await eventually(async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
+    return now !== null && now !== before;
+  });
+
+  const transcript = await server.request({
+    method: 'GET',
+    url: `/api/sessions/${sessionId}/turns`,
+  });
+  const turns = (transcript.body as { turns: { id: string; status: string }[] }).turns;
+  const last = turns.at(-1);
+  expect(last).toBeDefined();
+  expect(jobId).toBeTruthy();
+  head = last?.id ?? null;
+  return { turnId: last?.id ?? '', status: last?.status ?? '' };
+}
+
+async function renditionsOf(): Promise<Rendition[]> {
+  const all = await readRenditions(server.services.sessions.layout, 'ned', sessionId);
+  return [...all.values()];
+}
+
+describe('a turn completes on text while its picture is still being made', () => {
+  beforeEach(async () => {
+    // A provider that takes its time, so *pending* is a state the turn can be
+    // observed in rather than a race the test hopes to win.
+    await boot([{ stallMs: 50 }]);
+  });
+
+  it('commits the turn and leaves the rendition pending beside it', async () => {
+    const turn = await takeATurn();
+
+    /**
+     * **Gate row 1.** The turn is `complete` and the head has moved — and the
+     * picture has not arrived. If a rendition were a step of the turn, the turn
+     * would not have committed until the provider's stall elapsed, and this
+     * assertion would be a coin flip rather than a claim.
+     */
+    expect(turn.status).toBe('complete');
+
+    const pending = await renditionsOf();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.state).toBe('pending');
+    // The recipe is on the record before the pixels exist, which is what makes
+    // an interrupted job a placeholder with a retry rather than a dead end.
+    expect(pending[0]?.prompt.text).toContain('a lantern on a wet quay');
+    expect(pending[0]?.provenance.seed).toBeTypeOf('number');
+  });
+
+  it('is fully usable while the picture resolves', async () => {
+    await takeATurn();
+
+    // The session reads, the transcript reads, and a second turn can be taken —
+    // none of which is true if the rendition holds the session's one active job.
+    const second = await takeATurn();
+    expect(second.status).toBe('complete');
+  });
+
+  it('lands the picture on the record afterwards', async () => {
+    await takeATurn();
+
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+
+    const [ready] = await renditionsOf();
+    expect(ready?.asset?.mime).toBe('image/png');
+    expect(ready?.asset?.digest).toMatch(/^sha256:/);
+    // The seed the step drew on the turn, echoed by the endpoint and recorded —
+    // [06 §10.7]'s load-bearing field, end to end. A *number* rather than a
+    // fixed value, because the draw is the engine's RNG and the point is that it
+    // survives to the record rather than what it happened to be.
+    expect(ready?.provenance.seed).toBeTypeOf('number');
+    expect(ready?.provenance.at).not.toBeNull();
+  });
+
+  it('serves the bytes with the record’s own type and digest', async () => {
+    await takeATurn();
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+
+    const [ready] = await renditionsOf();
+    const asset = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(ready?.id ?? '')}/asset`,
+    });
+
+    // `routes/library.ts`'s shape, which its own comment promised this phase.
+    expect(asset.status).toBe(200);
+    expect(asset.headers['content-type']).toBe('image/png');
+    expect(asset.headers['etag']).toBe(ready?.asset?.digest);
+  });
+});
+
+describe('a failed rendition is a placeholder, never a failed turn', () => {
+  beforeEach(async () => {
+    // [P9 §3.1]: cheaper to script than a success, and written first.
+    await boot([{ error: { class: 'terminal', message: 'the endpoint said no' } }]);
+  });
+
+  it('leaves the turn complete and the record failed', async () => {
+    const turn = await takeATurn();
+    expect(turn.status).toBe('complete');
+
+    await eventually(async () => (await renditionsOf())[0]?.state === 'failed');
+
+    const [failed] = await renditionsOf();
+    /**
+     * **A class, never the endpoint's sentence** — [21 §1.4]. The provider said
+     * *"the endpoint said no"*; what reaches the record is `terminal`, because
+     * the server does not know the reader's language and the provider's own
+     * words go to the log.
+     */
+    expect(failed?.error).toBe('terminal');
+    expect(failed?.state).toBe('failed');
+  });
+
+  it('keeps the whole recipe, so the retry has something to run', async () => {
+    await takeATurn();
+    await eventually(async () => (await renditionsOf())[0]?.state === 'failed');
+
+    const [failed] = await renditionsOf();
+    expect(failed?.asset).toBeNull();
+    // [06 §10.7]: *the recipe outlives the pixels*, and a failure is the first
+    // place that has to be true.
+    expect(failed?.prompt.fragments.length).toBeGreaterThan(0);
+    expect(failed?.provenance.seed).toBeTypeOf('number');
+    expect(failed?.digest).toBeTruthy();
+  });
+
+  it('404s the asset rather than serving a broken image', async () => {
+    await takeATurn();
+    await eventually(async () => (await renditionsOf())[0]?.state === 'failed');
+
+    const [failed] = await renditionsOf();
+    const asset = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(failed?.id ?? '')}/asset`,
+    });
+
+    // Which is what the placeholder renders from. [10 §2.3]: *"the temptation
+    // this feature brings is a placeholder where the picture would go"* — and a
+    // 404 is how the client knows to render one deliberately rather than by an
+    // `<img>` failing.
+    expect(asset.status).toBe(404);
+  });
+});
+
+describe('with nothing bound to the image role', () => {
+  beforeEach(async () => {
+    await boot([{}]);
+    await writeFile(
+      join(dataDir, 'users', 'ned', 'bindings.json'),
+      JSON.stringify({
+        prose: { connectionId: CHAT, modelId: 'fake-hi' },
+        fast: { connectionId: CHAT, modelId: 'fake-hi' },
+      }),
+    );
+  });
+
+  it('takes the turn and asks for nothing, rather than failing obscurely', async () => {
+    /**
+     * ***The dangling posture, applied to a step*** — [P2B], [19 §5.1]. That
+     * section leaves `image` unset on every install *"because there is no
+     * sensible text-model fallback for it"*, so without the runner's gate every
+     * turn of every session would log a failed step to discover what the binding
+     * already says.
+     *
+     * **Asserted on the call log as well as on the record**, because *no picture
+     * was made* and *no money was spent finding out* are different claims and
+     * only the second one is about a bill.
+     */
+    const turn = await takeATurn();
+
+    expect(turn.status).toBe('complete');
+    expect(await renditionsOf()).toEqual([]);
+    expect(fake.images).toEqual([]);
+  });
+});

@@ -43,6 +43,17 @@ export const CONSERVATIVE_CAPABILITIES: ProviderCapabilities = {
   mergeSameRole: 'preferred',
   systemMessage: 'supported',
   reportsUsage: false,
+  /**
+   * **False, and left false for every known provider** — [P9 §1.2].
+   *
+   * `openai-compatible` names a *chat* protocol, and whether the URL behind it
+   * also answers `/images/generations` is a fact about that endpoint rather than
+   * about the protocol. Claiming otherwise here would make `image` look bindable
+   * on every install and fail one turn later, which is the exact shape [P2B]'s
+   * dangling posture exists to prevent. A connection is where somebody who knows
+   * says so.
+   */
+  rendersImages: false,
 };
 
 /**

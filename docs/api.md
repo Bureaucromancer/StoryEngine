@@ -641,9 +641,92 @@ the same way the rest of the library is.
 *What reads it today:* expression sprites, imported with the character
 ([P7.10] again — an actor arriving with a `sprites/` directory keeps every image
 as `role: "expression"` with the filename stem as its label, where before only
-`assets[0]` survived as the portrait). [P9](design/workplan/26-p9-implementation.md)
+`assets[0]` survived as the portrait). ~~[P9](design/workplan/26-p9-implementation.md)
 is the second consumer: a rendition's asset needs serving too, and
-`MediaSelection`'s two arms are already the one shape both go through.
+`MediaSelection`'s two arms are already the one shape both go through.~~
+***It is, as of 2026-09-16 — below.***
+
+### `GET /sessions/:sessionId/renditions`
+
+Every rendition this session holds, as
+`{ renditions: Rendition[], selection: Record<turnId, renditionId> }` —
+[06 §10](design/06-modes-and-turn-pipeline.md),
+[21 §7](design/21-internal-contracts.md), [P9.2], [P9.4].
+
+**Off the session read and off the transcript read, deliberately**, which is
+`GET /sessions/:id/memory`'s argument: a rendition's state changes *after* its
+turn is written, so folding it into either would make two reads that are cached
+differently disagree about whether a picture has arrived.
+
+**`selection` rides with them** ([06 §10.7], added [P9.4]). Which sibling a turn
+shows is a pointer on the session file, and answering it from a second read would
+put the set and the choice on two cache entries that expire independently — the
+reader would then watch a picture they did not choose for as long as the stale
+half survived.
+
+### `GET /sessions/:sessionId/renditions/:renditionId/asset`
+
+The pixels, in the shape `/library/:kind/:id/media/:mediaId` above already uses:
+`content-type` from the record, `etag` from the bytes' own digest, and the
+buffer. The client cache-busts with `?v=<digest>` as it does for media.
+
+**`404` for a rendition with no `asset`**, which is three different states and
+one answer: still pending, failed, or **evicted**. That last one is
+[25 E3](design/25-open-questions.md)'s whole point — *"deleting one leaves
+`asset: null` and a picture that can be made again"* — so a 404 here is what the
+client renders a regenerable placeholder from, rather than an `<img>` quietly
+failing.
+
+### `POST /sessions/:sessionId/turns/:turnId/illustrate`
+
+**Illustrate** this turn, or **Set the scene** for it —
+[06 §10.6](design/06-modes-and-turn-pipeline.md), [P9.4]. Body:
+`{ purpose?: "illustration" | "background" }`, defaulting to `illustration`.
+
+**One route and two verbs**, because they are one act under two purposes: two
+routes would be two copies of the gather, the resolution and the dispatch,
+differing in one string.
+
+**`202` with the `pending` record.** The pixels arrive on the session stream as a
+`rendition` frame; a route that waited for them would be
+[06 §10.2](design/06-modes-and-turn-pipeline.md)'s failure — *"a story that
+stalls on either is unusable"* — moved from the turn to a button.
+
+**A refusal is a `200` with a class, not a `4xx`.** `{ held: "no-binding" }` when
+nothing is bound to the `image` role, which is the ordinary state of every
+install ([19 §5.1](design/19-tech-stack.md)), and `{ held: "no-moment" }` when
+the turn has no prose or the moment call declined. Both are answers to *can you
+make a picture*, not failed requests. A turn that does not exist is a `404`.
+
+**It assembles from the turn's recorded state**, not from the head —
+[06 §10.6]'s standing `[OPEN]`, decided at [P9.4] and disclosed through the
+rendition's own prompt listing rather than through a setting.
+
+### `PUT /sessions/:sessionId/turns/:turnId/rendition`
+
+Which of a turn's siblings is shown — [06 §10.7], [P9.3]. Body:
+`{ renditionId }`, and the rendition has to be that turn's or the answer is a
+`404`: a pointer to another turn's picture would render one moment under
+another's prose.
+
+*Illustrations only.* Which **backdrop** is showing is channel state
+([06 §10.1a]) because it has to rewind and branch, and it moves through
+`PUT /sessions/:id/channels/se.backdrop` like any other engine-computed value.
+
+### `POST /sessions/:sessionId/renditions/:renditionId/retry`
+
+Runs a recipe again — the retry on a failed picture and the re-creation of an
+evicted one, which are the same act: a record with no pixels, run again
+([25 E3](design/25-open-questions.md), [P9.4]).
+
+**No text call is made.** The record already holds the fragments, the separator,
+the budget and the seed, so there is no assembly on this path and no role to
+resolve — which is what makes re-creation a *replay* rather than a second
+answer.
+
+**`202` with the record set back to `pending`**, like the illustrate route above
+and for the same reason: the pixels arrive on the stream, and a `200` would read
+as *here is your picture*.
 
 ---
 

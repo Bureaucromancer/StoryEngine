@@ -538,8 +538,34 @@ interface ProviderCapabilities {
   /** Whether the provider reports token usage. When false, the record's
    *  `usage` is null and the budgeter's margin is the only signal. */
   reportsUsage: boolean
+  /** Whether this endpoint makes pictures. §7, [P9.2]. */
+  rendersImages: boolean
+  /** How many named subjects one picture can hold. [06 §10.3] */
+  maxNamedSubjects?: number
 }
 ```
+
+***The last two are the record answering a second endpoint*** — added
+2026-09-16 at [P9.2](workplan/26-p9-implementation.md), and they are also the
+evidence [P9 §1.2](workplan/26-p9-implementation.md) weighed when it decided that
+image providers go behind the **same** `Provider` interface as a second verb
+rather than beside it as a second kind: this record already straddled both shapes
+before either field existed, since `maxPromptChars` and `usefulPromptChars` are
+documented against CLIP's 77-token window and sit beside `supportsTools`.
+
+**`rendersImages` is false in the baseline and false for every known provider.**
+`openai-compatible` names a *chat* protocol, and whether the URL behind it also
+answers `/images/generations` is a fact about that endpoint — so it is set per
+connection, which is where this section already says a limit belongs. It is also
+what keeps the `image` role honest: [19 §5.1](19-tech-stack.md) leaves that role
+unset until a matching connection exists, and without this a person could bind it
+to their chat endpoint and find out one turn later.
+
+**`maxNamedSubjects` is undeclared rather than defaulted**, for the reason the two
+prompt caps are. [06 §10.3](06-modes-and-turn-pipeline.md) puts it here in as
+many words — *"a number that varies per endpoint is the definition of a
+capability"* — and notes that Aventuras caps at one while Marinara derives a
+limit that runs from one to sixteen depending on the backend.
 
 Defaults ship per known provider and are overridable **per connection**, because
 a limit is a property of that endpoint and connections are private production
@@ -871,6 +897,186 @@ this is a second database rather than four more tables:
 The `full` fsync is affordable only because streaming deltas **coalesce** into
 checkpoints ([P2 §2.10](workplan/08-p2-implementation.md)); a durable transaction
 per token would make this the wrong trade.
+
+---
+
+## 7. `Rendition`
+
+*Added 2026-09-16, built at [P9.0](workplan/26-p9-implementation.md).*
+
+[06 §10.1](06-modes-and-turn-pipeline.md) gives the interface and was **the only
+place in the corpus that had it**: not in [04](04-schemas.md), which owns
+portable objects; not here, which owns internal ones; not in
+[03](03-data-model.md), which owns what is on disk. Six phases of design referred
+to the type and none wrote it down — the same shape of gap
+[P2B §1](workplan/10-p2b-provider-configuration.md) found for the missing
+fallback layer, and the reason P9's first stage is a contract rather than a
+feature.
+
+**Admitted by §6's own rule**: something is built against it and it never leaves
+the install. So §6's table gains no row — the rule is the admission.
+
+```ts
+interface Rendition {
+  schema: "storyengine.rendition/1"
+  id: string
+  sessionId: string
+  turnId: string
+  createdAt: string
+  kind: "image" | "video" | "speech"        // how it is made. One value ever written
+  purpose: "illustration" | "background"    // what it is for. Both built
+  scope: { messageId?: string; anchor?: string } | null
+  state: "pending" | "ready" | "failed"
+  /** Never null once the record exists — see below. */
+  prompt: AssembledPrompt
+  /** Null while pending, and null once evicted. §10.7 */
+  asset: RenditionAsset | null
+  provenance: RenditionProvenance
+  /** A class, never the endpoint's words. §1.4's rule. */
+  error: "transient" | "retryable" | "terminal" | "interrupted" | "no-binding" | null
+  /** The reuse key: the fragments as sent, plus the resolved binding. */
+  digest: string
+  /** What the count judgement will sort on. Always 0 at 1.0. */
+  ordering: number
+  /** The anchor did not occur in the message. Absent means it did. */
+  anchorResolved?: false
+}
+```
+
+**Three fields of [06 §10.1]'s sketch are typed differently here, and each is a
+correction rather than a preference.**
+
+***`provenance` is not `GeneratedFieldProvenance`.*** That type ships in
+`schema/common.ts` and cannot carry the recipe: its `seed` is documented *"the
+input the generation ran from"* — a prompt string — where §10.7 means the
+**sampling seed**, which it calls *"the load-bearing field here, and the one an
+implementation is most likely to drop as uninteresting"*; and it has no field for
+workflow parameters at all. The two readings of `seed` are one word apart, so an
+implementation that reused the type would satisfy it, pass review, and ship a
+rendition that cannot be reproduced. **And widening it would be the worse
+repair**: it is portable, reachable from five emitted schemas through
+`GeneratedMap`, so a sampling seed added to it travels inside every exported
+actor card — production settings crossing into shareable content, which is the
+line [00 §3.2](00-stance.md) draws.
+
+```ts
+interface RenditionProvenance {
+  at: string | null                                            // null while pending
+  binding: { connectionId: string; modelId: string } | null    // the id, never the connection
+  answeredAs: string | null
+  /** The sampling seed. A **number**, which is what makes it unmixable with the other reading. */
+  seed: number | null
+  /** Scalars only: these are re-sent verbatim and hashed, and a nested object needs canonicalising. */
+  workflow: Readonly<Record<string, string | number | boolean>>
+}
+```
+
+***`asset` is not an `AssetRef`.*** Three things are wrong with that type here,
+and the first is the one that would have been lived with: `MediaRole` has eight
+members and **none of them is `illustration`**, so a picture of a moment filed
+under it would carry a role that is either a duplicate of `purpose` or a lie. It
+also carries no `mime`, which is the one thing the asset route must answer with;
+and it is portable, so widening `MediaRole` for an internal record is a published
+-schema change bought with nothing. What is kept rather than inherited is its one
+genuinely good rule — a relative path that never escapes its folder.
+
+```ts
+interface RenditionAsset {
+  path: string        // relative to sessions/<id>/assets/
+  mime: string
+  bytes: number
+  digest: string      // sha256:<hex> over the bytes. The etag.
+}
+```
+
+***`prompt` is never null***, where §10.1 has it nullable. A `pending` rendition
+whose prompt were null would be a record that cannot be re-run, so *the recipe
+outlives the pixels* would be false during exactly the window in which the pixels
+do not exist — which is the window an interrupted job leaves a record in. The
+record is written after assembly and before dispatch, so there is no moment at
+which the field is empty.
+
+`AssembledPrompt` is the type [06 §10.1] names and nothing defined — one
+occurrence in the whole corpus, the line that names it. It is `CappedPrompt`
+([19 §5.3](19-tech-stack.md), and `providers/prompt-caps.ts` since P2) **plus the
+input the cap ran over plus the separator**:
+
+```ts
+interface AssembledPrompt {
+  /** Every fragment offered, ranked. Includes the ones `dropped` names. */
+  fragments: { id: string; text: string; rank: number; required?: boolean }[]
+  separator: string
+  budget: { maxChars: number | null; usefulChars: number | null }
+  text: string                     // as sent
+  kept: string[]                   // fragment ids, in kept order
+  dropped: { id: string; rank: number; reason: "over-hard-cap" | "over-useful-cap" }[]
+  overCap: boolean
+}
+```
+
+**`fragments` is the field that makes the phase's central property expressible**,
+and the one an implementation would drop as a duplicate of `text`. It is not:
+`CappedPrompt.kept` is a list of *ids*, so a record storing only the outcome could
+name what it dropped and never reproduce the input. [06 §10.3] requires the
+moment — the one fragment with an author — to be *"written once… and **replayed**
+on re-creation, never asked for again"*, and [25 E3](25-open-questions.md) gives
+the consequence: *"re-creating an evicted rendition makes no text call at all."*
+The property, stated where the shape is: **`capPrompt(fragments, budget,
+separator).text === text`, for every rendition, forever.**
+
+*`budget` is `number | null` where `PromptBudget` is `number | undefined`,
+because this is a stored record and `undefined` does not survive JSON. One
+conversion each way, in one function, so the encodings cannot drift.*
+
+### 7.1 Where it lives, and when that changes
+
+**Internal tier, in `packages/shared/src/rendition.ts` beside the turn record**,
+and governed by that module's own sentence: *"Session export ([25 B12]) is the
+event that ends this freedom — the day a stored turn becomes a portable artefact,
+these graduate to `schema/` and the registry, and not before."* A rendition hangs
+off a turn and travels with the session directory, so it is that sentence's case
+rather than a new one.
+
+**Which is P9's answer to P11, and it owed one.**
+[P9 §1.1](workplan/26-p9-implementation.md) leans internal and then says the lean
+cannot be left indefinitely because export ships at 1.0. The answer: **the recipe
+travels and the pixels do not** — `prompt` and `provenance` are bytes and an
+`asset` is megabytes, which is §10.7's own arithmetic — and a rendition graduates
+*with* the turn record, by one migration. Anything else makes exporting a turn and
+exporting its pictures two events.
+
+*The `schema` tag is not a contradiction of the tier.* It marks the **file**, so
+a reader can tell a rendition from whatever else is in that directory — the
+discipline `Snapshot` and `SummaryLink` already follow, and a different thing
+from a `$id` in a published registry. `tools/repo-shape.test.ts` holds the tier
+claim mechanically: the type is outside `schema/`, absent from the registry, and
+the emitted set stays at six.
+
+### 7.2 What the turn record keeps
+
+A turn keeps **what it asked for** and never the records:
+
+```ts
+interface RenditionReport {
+  requested: string[]                                   // ids, in the order the step emitted them
+  reused?: { renditionId: string; digest: string }       // a backdrop resolved rather than paid for
+  held?: "place-unchanged" | "no-moment" | "no-binding"  // why nothing was asked for
+}
+```
+
+**The split is forced rather than argued**, and it is the one place a rendition
+differs from every other thing a step produces. `turns/suggest.ts` names the fork
+at [P7.9](workplan/23-p7-implementation.md) — *"turn segments are append-only and
+never rewritten, so suggestions generated after a turn commits cannot be added to
+its record"* — and takes the on-the-turn arm because a suggestion is produced
+*during* the turn. A rendition is the one thing in this build produced *after*,
+and its `state` then moves `pending → ready`, which a line that is never rewritten
+cannot express. So the report is on the turn and the record is beside it.
+
+*`held` is what keeps the empty list a real answer* ([06 §10.4]): a quiet turn and
+a session with renditions off are different facts, and `Turn.renditions` being
+absent altogether says the second. The hook selector's `nothing-eligible` draws
+the same line for the same reason.
 
 ---
 

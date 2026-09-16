@@ -48,6 +48,12 @@ import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
+import { capabilitiesFor } from './providers/capabilities.js';
+import { resolveConnections } from './providers/connections.js';
+import { dispatchRenditions, type RenditionWorkerContext } from './renditions/worker.js';
+import { reconcileRenditionJobs } from './renditions/jobs.js';
+import type { Rendition } from '@storyengine/shared';
+import { selectBackdrop } from './renditions/backdrop.js';
 import { installBuiltIns } from './mode-loader.js';
 import { assertModesRunnable } from './mode-registry.js';
 import {
@@ -115,6 +121,20 @@ export interface AppServices {
   bus: TurnStream;
   /** Drives a reserved job to a committed turn. */
   runner: TurnRunner;
+  /**
+   * Queues pictures — [06 §10.2], [P9.2].
+   *
+   * **On the services rather than on the runner**, because a hand-pressed
+   * **Illustrate** has no turn running and no job to hang off: the runner
+   * dispatches what a turn asked for, and a route dispatches what a person did.
+   * One dispatcher, two callers, and neither owns the other.
+   */
+  renditions: (
+    account: string,
+    sessionId: string,
+    records: readonly Rendition[],
+    turnId: string,
+  ) => void;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -468,7 +488,78 @@ async function assembleWithState(
    * lines in between rather than of the code, and the failure it buys is a
    * temporal-dead-zone throw at startup.
    */
-  const runner = new TurnRunner({ commit, bus, providers, accounts, config });
+  /**
+   * ***The rendition worker, beside the turn runner rather than inside it*** —
+   * [06 §10.2], [P9.2].
+   *
+   * A picture is dispatched after a turn has committed and outlives the runner's
+   * interest in it, so the seam is a callback the runner calls and nothing it
+   * owns. A runner that held this would be a runner whose `drain()` had to wait
+   * for pictures — which is the exact coupling §10.2 exists to refuse.
+   */
+  const renditions: RenditionWorkerContext = {
+    db: state.db,
+    layout,
+    providers,
+    /**
+     * The connection the `image` role resolves to, for this account.
+     *
+     * *Resolved per job rather than held*, because a person can rebind the role
+     * between a turn committing and its picture being made — and the digest
+     * already keys on the binding, so a job that used a stale one would write a
+     * record whose reuse key names a model that did not answer.
+     */
+    connectionFor: async (account: string) => {
+      // The account's capabilities, read now rather than held — `gather.ts`'s
+      // rule: *"a queued turn must not run with more authority than a live one
+      // whose capability had been revoked."* A picture is a queued turn's
+      // afterthought and is held to the same line.
+      const held = await accounts.find(account);
+      const { usable } = await resolveConnections(
+        layout,
+        account,
+        held?.capabilities ?? { privateConnections: false },
+      );
+      /**
+       * **The first usable connection that says it makes pictures.**
+       *
+       * Not `resolveRole('image')`, and the difference is deliberate at this
+       * stage: the full five-layer resolution needs a session's overrides, and a
+       * job carries an account rather than a session's role table. What this
+       * answers is *can this account make a picture at all*, which is the
+       * question the worker's `no-binding` arm asks. **[P9.4] replaces it with
+       * the session-aware binding**, where the overrides are in hand.
+       */
+      return (
+        usable.find((one) => capabilitiesFor(one.provider, one.capabilities ?? {}).rendersImages) ??
+        null
+      );
+    },
+    changed: (sessionId, rendition) => {
+      bus.rendition(sessionId, rendition);
+    },
+    select: async (account, sessionId, renditionId) => {
+      await selectBackdrop(sessions, account, sessionId, renditionId, { kind: 'engine' });
+    },
+  };
+
+  const dispatch = (
+    account: string,
+    sessionId: string,
+    records: readonly Rendition[],
+    turnId: string,
+  ): void => {
+    dispatchRenditions(renditions, account, sessionId, records, turnId);
+  };
+
+  const runner = new TurnRunner({
+    commit,
+    bus,
+    providers,
+    accounts,
+    config,
+    dispatch,
+  });
 
   return {
     config,
@@ -483,6 +574,7 @@ async function assembleWithState(
     jobs,
     bus,
     runner,
+    renditions: dispatch,
     commit,
     providers,
     streams: new Set<() => void>(),
@@ -682,6 +774,27 @@ export async function buildApp(
    * lifecycle is written nowhere.
    */
   services.reconciliation = await reconcile(services.commit);
+
+  /**
+   * ***And the pictures that were being made when the process died*** — [P9.2].
+   *
+   * **Abandoned rather than resumed**, which is `state/commit.ts`'s own rule —
+   * *"recovery resumes finalisation, never generation"* — and a provider call
+   * that died with the process cannot be picked up mid-flight.
+   *
+   * *What makes that acceptable here and not there is the placeholder.* An
+   * interrupted turn has to become a failed turn because there is nothing else
+   * honest to be; an interrupted rendition becomes a record with `asset: null`,
+   * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
+   * to every other way this goes wrong.
+   */
+  const stranded = reconcileRenditionJobs(services.state.db);
+  if (stranded.interrupted.length > 0) {
+    app.log.info(
+      { event: 'renditions.reconciled', count: stranded.interrupted.length },
+      'Marked in-flight renditions as interrupted',
+    );
+  }
 
   /**
    * And the turns that have no job to resume from — [P2 §2.10]'s

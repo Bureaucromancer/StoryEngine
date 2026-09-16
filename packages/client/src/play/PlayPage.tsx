@@ -6,6 +6,7 @@ import { control, page } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
+import type { TextSpan } from '@storyengine/shared';
 
 import {
   cancelTurn,
@@ -16,6 +17,7 @@ import {
   submitTurn,
   undoTurn,
   type ModeSurface,
+  type RenditionRecord,
   type TurnRecord,
 } from '../api.js';
 import {
@@ -24,7 +26,12 @@ import {
   useAuthState,
   usePreview,
   useRefreshPreview,
+  useIllustrateTurn,
+  useRenditions,
+  useRetryRendition,
+  useSelectRendition,
   useSession,
+  type RenditionSet,
   useTranscript,
 } from '../queries.js';
 import { AlertNote } from '../ui/Alert.js';
@@ -43,9 +50,11 @@ import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
 import { SessionPanel } from './SessionPanel.js';
+import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
+import { Fine } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
 
@@ -58,6 +67,19 @@ import { useTurnStream } from './useTurnStream.js';
  * just finished.
  */
 const PREVIEW_DEBOUNCE_MS = 400;
+
+/**
+ * A refusal in the reader's own language — [21 §1.4]'s rule, [P9.4].
+ *
+ * The class is what crossed the wire and the sentence is written here, which is
+ * the same split `Rendition.tsx`'s `reasonOf` makes for a failed picture: the
+ * server does not know the reader's language, so what travels is something a
+ * client can render.
+ */
+const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = {
+  'no-binding': 'Nothing is set up to make pictures yet.',
+  'no-moment': 'There was nothing here worth a picture.',
+};
 
 /**
  * The play surface — a deliberately thin chat view
@@ -101,6 +123,35 @@ export function PlayPage({
   const transcript = useTranscript(sessionId);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
+
+  /**
+   * ***The pictures, read once here and threaded down*** — the rule
+   * `surfaces` and `cast` already follow, and the one [P8.5] paid for
+   * breaking: a `useQuery` in a leaf took down forty-three `LorebookView`
+   * tests, and a query per turn would be one per message here.
+   *
+   * **Two sources, and the live one wins.** The query is the set as it stood
+   * when the page loaded; the stream's map is every record announced since.
+   * Overlaying rather than invalidating is what the whole-record frame bought
+   * ([P9.2]) — a picture that finishes long after its turn did appears without
+   * a refetch, which the `running → finished` invalidation effect below
+   * structurally cannot deliver.
+   */
+  const renditions = useRenditions(sessionId);
+  const retryRendition = useRetryRendition(sessionId);
+  const selectRendition = useSelectRendition(sessionId);
+  const illustrate = useIllustrateTurn(sessionId);
+  /**
+   * Why the last request made nothing, when it made nothing.
+   *
+   * ***A 200 with a reason is an answer, not an error***, which is what the
+   * route's own docstring says and why this is not read off `illustrate.error`:
+   * **nothing is bound to the image role** is the ordinary state of every
+   * install ([19 §5.1]), and rendering it through the error path would make a
+   * setting somebody has not done yet look like a fault.
+   */
+  const held = illustrate.data?.held;
+  const picturesByTurn = renditionsByTurn(sessionId, renditions.data, state.renditions);
 
   const running = state.status === 'running';
 
@@ -472,6 +523,35 @@ export function PlayPage({
         className="flex flex-col gap-2"
       />
 
+      {/* ***Set the scene*** — [06 §10.6], [P9.4]. *"The manual counterpart is
+          **Set the scene**, which regenerates the backdrop for where you are
+          now."* So it hangs off the head rather than off a message, which is the
+          difference between it and **Illustrate** and the reason it is here
+          rather than in the transcript.
+
+          **Only for a mode that has a stage.** `renditions.backdrop` is absent
+          when the mode declares no backdrop channel, which is `dials`' rule for
+          a mode with no difficulty: nothing to render rather than a control that
+          does nothing. */}
+      {session.data?.renditions?.backdrop === undefined ||
+      session.data.session.headTurnId === null ? null : (
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            disabled={running || illustrate.isPending}
+            onClick={() => {
+              illustrate.mutate({
+                turnId: session.data?.session.headTurnId ?? '',
+                purpose: 'background',
+              });
+            }}
+          >
+            Set the scene
+          </Button>
+          {held === undefined ? null : <Fine>{HELD_WORDS[held]}</Fine>}
+        </div>
+      )}
+
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
@@ -479,6 +559,18 @@ export function PlayPage({
             sessionId={sessionId}
             surfaces={session.data?.surfaces}
             cast={session.data?.cast ?? []}
+            renditions={picturesByTurn.get(turn.id) ?? []}
+            selectedRenditionId={renditions.data?.selection[turn.id]}
+            onRetryRendition={(renditionId) => {
+              retryRendition.mutate(renditionId);
+            }}
+            onSelectRendition={(renditionId) => {
+              selectRendition.mutate({ turnId: turn.id, renditionId });
+            }}
+            illustrating={session.data?.renditions?.illustration !== 'off'}
+            onIllustrate={(turnId) => {
+              illustrate.mutate({ turnId, purpose: 'illustration' });
+            }}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
             busy={
@@ -659,6 +751,187 @@ export function PlayPage({
  * one-shot like the composer's box, and closing it forgets it, so a note typed
  * and then hidden cannot ride along with a later plain Redo.
  */
+/**
+ * A turn's prose with its pictures where they belong —
+ * [06 §10.4a](../../../../docs/design/06-modes-and-turn-pipeline.md), [P9.4].
+ *
+ * ***Inline is meant literally*** ([10 §12.1]): *"an illustration renders at its
+ * anchor, the sentence it is of, and falls to the end of the message when the
+ * anchor no longer resolves."*
+ *
+ * **Which means the prose is split rather than the picture appended**, and the
+ * spans have to be split with it: `MentionOverlay` takes offsets into the text
+ * it is given, so a second half rendered with the whole turn's spans would draw
+ * every mark at the wrong place. Rebasing them here is the cost of putting a
+ * picture inside a paragraph, and it is why this is a component rather than two
+ * lines in `TurnView`.
+ *
+ * ***A miss is ordinary and costs nothing*** — §10.4a. An anchor that does not
+ * resolve returns no offset, the prose renders whole, and the picture goes
+ * underneath, which is where it would have gone before the field existed.
+ */
+function IllustratedProse({
+  sessionId,
+  text,
+  spans,
+  renditions,
+  selectedId,
+  onRetry,
+  onSelect,
+  busy,
+}: {
+  sessionId: string;
+  text: string;
+  spans: readonly TextSpan[];
+  renditions: readonly RenditionRecord[];
+  /** Which sibling this turn shows, when a person has chosen one — [06 §10.7]. */
+  selectedId: string | undefined;
+  onRetry: (renditionId: string) => void;
+  onSelect: (renditionId: string) => void;
+  busy: boolean;
+}): React.JSX.Element {
+  /**
+   * **Illustrations only.** A backdrop belongs behind the reading column
+   * ([10 §2.3]) and reaches it through the `stage` region, not through the
+   * prose — §12.1 is explicit that the reading view shows *"the illustrations,
+   * and **not** the backdrop"*.
+   */
+  const pictures = renditions.filter((one) => one.purpose === 'illustration');
+  if (pictures.length === 0) {
+    return (
+      <MentionOverlay
+        text={text}
+        spans={spans}
+        className="whitespace-pre-wrap text-story text-ink"
+      />
+    );
+  }
+
+  /**
+   * ***One picture shows and the siblings wait behind the chooser.***
+   *
+   * [06 §10.7] is why there can be several — *"illustrating an old turn adds;
+   * it does not overwrite"* — and [10 §12.1] is why only one renders: the
+   * reading view is prose with an illustration in it, not a contact sheet.
+   *
+   * **The newest, absent a choice.** Somebody who presses *Illustrate* again is
+   * asking to see the new one; the old one is still there under the chooser,
+   * which is the non-destructive half of the same policy. A stored selection
+   * always wins, including when it names an older sibling.
+   */
+  const chosen = pictures.find((one) => one.id === selectedId);
+  const shown = chosen ?? pictures[pictures.length - 1];
+  if (shown === undefined) {
+    return (
+      <MentionOverlay
+        text={text}
+        spans={spans}
+        className="whitespace-pre-wrap text-story text-ink"
+      />
+    );
+  }
+
+  const chooser = (
+    <RenditionChooser renditions={pictures} selectedId={shown.id} onSelect={onSelect} busy={busy} />
+  );
+  const picture = (
+    <RenditionView sessionId={sessionId} rendition={shown} onRetry={onRetry} busy={busy} />
+  );
+
+  const at = anchorOffset(text, shown.scope?.anchor);
+  if (at === null) {
+    /**
+     * ***A miss is ordinary and costs nothing*** — §10.4a. The anchor did not
+     * resolve, or there never was one, so the prose renders whole and the
+     * picture goes underneath, which is where it would have gone before the
+     * field existed.
+     */
+    return (
+      <>
+        <MentionOverlay
+          text={text}
+          spans={spans}
+          className="whitespace-pre-wrap text-story text-ink"
+        />
+        {picture}
+        {chooser}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <MentionOverlay
+        text={text.slice(0, at)}
+        spans={spans.filter((span) => span.end <= at)}
+        className="whitespace-pre-wrap text-story text-ink"
+      />
+      {picture}
+      {chooser}
+      <MentionOverlay
+        text={text.slice(at)}
+        /**
+         * **Rebased, because `MentionOverlay` indexes the text it is handed.** A
+         * second half rendered with the whole turn's spans would draw every mark
+         * at the wrong place, which is the cost of putting a picture inside a
+         * paragraph and the reason this is a component rather than two lines in
+         * `TurnView`. A span straddling the split is dropped rather than halved:
+         * half a mark is a worse overlay than none.
+         */
+        spans={spans
+          .filter((span) => span.start >= at)
+          .map((span) => ({ ...span, start: span.start - at, end: span.end - at }))}
+        className="whitespace-pre-wrap text-story text-ink"
+      />
+    </>
+  );
+}
+
+/**
+ * A session's pictures, grouped by the turn they hang on — [P9.4].
+ *
+ * ***Two sources and the live one wins.*** The query is the set as it stood
+ * when the page loaded; the reducer's map is every record the stream has
+ * announced since, and a rendition frame carries the **whole** record, so the
+ * overlay is an upsert rather than a merge of fields.
+ *
+ * *Filtered by session*, because the reducer's map outlives a change of
+ * `sessionId` — `useTurnStream` reopens the socket without resetting the
+ * reducer, exactly as `text` and `seen` already survive it. An id from another
+ * session could never match a turn in this one, so this guard buys clarity
+ * rather than correctness; it costs one comparison and removes the need to
+ * reason about that every time somebody reads this.
+ *
+ * *Sorted by `ordering` then id*, which is the order they were made in: the
+ * chooser numbers them from this, and a set that reordered itself between
+ * renders would renumber under the reader's cursor.
+ */
+function renditionsByTurn(
+  sessionId: string,
+  loaded: RenditionSet | undefined,
+  live: Readonly<Record<string, RenditionRecord>>,
+): Map<string, RenditionRecord[]> {
+  const merged = new Map(loaded?.byId ?? []);
+  for (const one of Object.values(live)) {
+    if (one.sessionId === sessionId) merged.set(one.id, one);
+  }
+
+  const byTurn = new Map<string, RenditionRecord[]>();
+  for (const one of merged.values()) {
+    const held = byTurn.get(one.turnId);
+    if (held === undefined) byTurn.set(one.turnId, [one]);
+    else held.push(one);
+  }
+  for (const held of byTurn.values()) {
+    held.sort((left, right) =>
+      left.ordering === right.ordering
+        ? left.id.localeCompare(right.id)
+        : left.ordering - right.ordering,
+    );
+  }
+  return byTurn;
+}
+
 function TurnView({
   turn,
   siblings,
@@ -671,6 +944,12 @@ function TurnView({
   sessionId,
   surfaces,
   cast,
+  renditions,
+  selectedRenditionId,
+  onRetryRendition,
+  onSelectRendition,
+  illustrating,
+  onIllustrate,
 }: {
   turn: TurnRecord;
   siblings: string[];
@@ -685,6 +964,15 @@ function TurnView({
   onUndo: (turn: TurnRecord) => void;
   onGoToSibling: (turnId: string) => void;
   onName: (turnId: string, name: string) => void;
+  /** This turn's pictures, read once by the page — `surfaces`' rule. */
+  renditions: readonly RenditionRecord[];
+  /** Which of them is showing, when a person has chosen — [06 §10.7]. */
+  selectedRenditionId: string | undefined;
+  onRetryRendition: (renditionId: string) => void;
+  onSelectRendition: (renditionId: string) => void;
+  /** Whether this session makes pictures at all — [06 §10.6]. */
+  illustrating: boolean;
+  onIllustrate: (turnId: string) => void;
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
   // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
@@ -719,10 +1007,15 @@ function TurnView({
           same characters the model wrote, which is what makes the marks
           subtractable rather than baked in. */}
       {turn.output === undefined ? null : (
-        <MentionOverlay
+        <IllustratedProse
+          sessionId={sessionId}
           text={turn.output.text}
           spans={(turn.spans ?? []).filter((span) => span.field === 'output')}
-          className="whitespace-pre-wrap text-story text-ink"
+          renditions={renditions}
+          selectedId={selectedRenditionId}
+          onRetry={onRetryRendition}
+          onSelect={onSelectRendition}
+          busy={busy}
         />
       )}
       {/* **A mode's own decoration on the message** — [06 §9]'s third region,
@@ -794,6 +1087,27 @@ function TurnView({
         >
           Continue from here
         </Button>
+        {/* ***Illustrate*** — [06 §10.6], [P9.4]. *"A manual **Illustrate**
+            action on any message in the history, which is the same step invoked
+            by hand — additive, never replacing."* Beside the other per-message
+            gestures for `RememberThis`' reason: it is a thing you do to one
+            message, on the message.
+
+            **Hidden when the session makes no pictures**, rather than disabled.
+            A disabled button says *this is for you and not now*; off is a
+            setting somebody chose, and the place that explains it is the control
+            they chose it with. */}
+        {illustrating && turn.output !== undefined ? (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              onIllustrate(turn.id);
+            }}
+          >
+            Illustrate
+          </Button>
+        ) : null}
         {/* ***Remember this*** — [08 §2.1], [P8.3]'s cut form. Beside the other
             per-message gestures because that is what it is: a thing you do to
             one message, on the message. */}

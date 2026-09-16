@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { Rendition } from '@storyengine/shared';
+
 import type { Turn } from '../sessions/types.js';
 import {
   activeJob,
@@ -65,7 +67,25 @@ export interface Snapshot {
 export type StreamFrame =
   | { kind: 'snapshot'; snapshot: Snapshot }
   | { kind: 'progress'; jobId: string; event: ProgressEvent }
-  | { kind: 'delta'; jobId: string; text: string };
+  | { kind: 'delta'; jobId: string; text: string }
+  /**
+   * A picture arrived, failed, or changed — [P9.2].
+   *
+   * ***Deliberately not in the snapshot, and the synchronous rule above is
+   * why.*** A rendition record is a file, and reading one is an `await` — which
+   * this function structurally cannot contain, because the absence of an await
+   * between subscribe and snapshot is the whole argument that a reattach has no
+   * hole.
+   *
+   * **So the current set is delivered as frames instead, right after attaching,
+   * and that is exact rather than approximate.** A rendition frame carries the
+   * whole record and a client applies it by **upsert**, so order does not matter
+   * and duplicates are no-ops: anything that changed while the set was being
+   * read arrives a second time as a live frame and lands on the same value.
+   * That is the property `progress` cannot have — an event is a delta against a
+   * draft — and it is why this kind needs neither a sequence nor a cursor.
+   */
+  | { kind: 'rendition'; rendition: Rendition };
 
 export interface Attachment {
   snapshot: Snapshot;
@@ -118,6 +138,11 @@ export function attachToSession(
     },
     onDelta: (jobId, text) => {
       const frame: StreamFrame = { kind: 'delta', jobId, text };
+      if (live) deliver(frame);
+      else buffered.push(frame);
+    },
+    onRendition: (rendition) => {
+      const frame: StreamFrame = { kind: 'rendition', rendition };
       if (live) deliver(frame);
       else buffered.push(frame);
     },

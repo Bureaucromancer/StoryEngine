@@ -11,6 +11,7 @@ import {
   usePatchPrefs,
   usePrefs,
   usePreview,
+  useRenditions,
   useTranscript,
 } from '../queries.js';
 import { Button } from '../ui/Button.js';
@@ -359,6 +360,20 @@ function TurnOrPreview({
   const liveTurn = useLiveTurn(sessionId);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
+  /**
+   * ***This session's pictures, read once here*** — [P9.5].
+   *
+   * *The same cache entry Play reads*, which is why the key is a function
+   * (`renditionsKey`): the panel is Play's sibling in the shell and a second
+   * spelling of the key would split the cache, so a picture arriving on the
+   * stream would refresh one mount and not the other.
+   *
+   * Filtered to the subject turn below rather than fetched per turn, for the
+   * reason the transcript is: the panel can be pointed at any turn on the path
+   * and a request per selection would be a fetch on every keystroke of the
+   * picker.
+   */
+  const renditions = useRenditions(sessionId);
 
   /**
    * **A turn being taken outranks both** — [P3.5]. While the server is working
@@ -457,7 +472,14 @@ function TurnOrPreview({
           </Link>
         </p>
       )}
-      <TurnSubject turn={subject} locale={locale} sessionId={sessionId} />
+      <TurnSubject
+        turn={subject}
+        locale={locale}
+        sessionId={sessionId}
+        renditions={[...(renditions.data?.byId.values() ?? [])]
+          .filter((one) => one.turnId === subject.id)
+          .sort((left, right) => left.ordering - right.ordering)}
+      />
     </>
   );
 }

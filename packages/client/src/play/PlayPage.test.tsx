@@ -43,6 +43,7 @@ const undoTurn = vi.fn();
 const createBranchRef = vi.fn();
 const previewTurn = vi.fn();
 const setSessionLore = vi.fn();
+const readRenditions = vi.fn();
 const listLibrary = vi.fn();
 const patchPrefs = vi.fn();
 let prefsStore: Record<string, unknown> = {};
@@ -75,6 +76,9 @@ vi.mock('../api.js', async (importOriginal) => {
     // library for its options and writes the session's selection. Real here
     // would be two fetches into jsdom on every test in the file.
     setSessionLore: (...a: unknown[]) => setSessionLore(...a) as unknown,
+    // Since [P9.4] the page reads the session's pictures, which is one more
+    // fetch into jsdom on every test in the file if it is left real.
+    readRenditions: (...a: unknown[]) => readRenditions(...a) as unknown,
     api: {
       ...actual.api,
       listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
@@ -165,6 +169,7 @@ beforeEach(() => {
   previewTurn.mockResolvedValue(previewOf(100));
   setSessionLore.mockResolvedValue({ session: SESSION });
   listLibrary.mockResolvedValue({ objects: [] });
+  readRenditions.mockResolvedValue({ renditions: [], selection: {} });
 });
 
 function renderPage() {

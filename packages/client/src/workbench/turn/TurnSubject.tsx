@@ -3,11 +3,12 @@
 
 import type { JSX } from 'react';
 
-import type { TurnRecord } from '../../api.js';
+import type { Rendition, TurnRecord } from '../../api.js';
 import { Note } from '../../ui/Text.js';
 import { CallView } from './CallView.js';
 import { CostSummary } from './CostSummary.js';
 import { EffectList } from './EffectList.js';
+import { RenditionList } from './RenditionList.js';
 import { StepList } from './StepList.js';
 
 /**
@@ -28,11 +29,22 @@ export function TurnSubject({
   turn,
   locale,
   sessionId,
+  renditions = [],
 }: {
   turn: TurnRecord;
   locale: string | undefined;
   /** Whose pack these blocks came from — [P7B.4]. Absent where there is no session. */
   sessionId?: string;
+  /**
+   * The pictures made of this turn — [P9.5].
+   *
+   * *A prop with a default rather than a query here*, which is the panel's own
+   * rule and the compare view's convenience: a rendition's record lives beside
+   * the turn rather than in it ([03 §5.5] makes that unavoidable), so the one
+   * reader that has a session id fetches them and everything else renders the
+   * turn without.
+   */
+  renditions?: readonly Rendition[];
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-4">
@@ -60,6 +72,16 @@ export function TurnSubject({
         ))
       )}
       <EffectList effects={turn.effects} />
+      {/* ***What was made of this turn, and what it was made from*** — [P9.5].
+          After the effects because a picture is produced *from* the turn as it
+          ended, which is the same order the runner puts the step in: the
+          judgement can conclude a goal and the mention pass can move a hook,
+          and a picture of a turn should be a picture of the turn as it ended. */}
+      <RenditionList
+        renditions={renditions}
+        {...(turn.renditions === undefined ? {} : { report: turn.renditions })}
+        locale={locale}
+      />
       {turn.steps === undefined ? null : <StepList steps={turn.steps} locale={locale} />}
       {turn.cost === undefined ? null : <CostSummary cost={turn.cost} locale={locale} />}
     </div>

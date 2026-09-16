@@ -102,6 +102,24 @@ export class SseWriter {
           true,
         );
         return;
+      case 'rendition':
+        /**
+         * **No `id:` line either, and for a different reason than `delta`'s.**
+         *
+         * A delta has no id because nothing could answer *everything after
+         * this*. A rendition frame has none because it does not need one: it
+         * carries the **whole record**, so a client applies it by upsert and
+         * converges on the same map whatever it missed. Exactness comes from
+         * re-reading the set on attach rather than from a backlog, which is what
+         * [P9.2] trades for keeping `attachToSession` synchronous.
+         *
+         * **Durable rather than droppable**, unlike a delta: a dropped delta
+         * costs a repaint that the next checkpoint fixes, and a dropped
+         * rendition frame is a picture that never appears until the page is
+         * reloaded.
+         */
+        this.#write(`event: rendition\ndata: ${JSON.stringify(frame.rendition)}\n\n`, false);
+        return;
     }
   }
 

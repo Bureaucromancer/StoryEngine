@@ -2,7 +2,17 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { constants } from 'node:fs';
-import { access, appendFile, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
+import {
+  access,
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /**
@@ -77,6 +87,27 @@ export async function statFile(path: string): Promise<FileFacts | null> {
 export async function appendLine(path: string, line: string): Promise<void> {
   await ensureDirectory(dirname(path));
   await appendFile(path, line, 'utf8');
+}
+
+/**
+ * Writes bytes, replacing whatever was there — [P9.2].
+ *
+ * **Not atomic, and for a different reason than `appendLine`'s.** That one
+ * declines the temp-then-rename dance because it would turn an O(1) append into
+ * an O(n) copy; this one declines it because the file is
+ * [03 §5.5](../../../../docs/design/03-data-model.md)'s *"one directory here
+ * whose contents are **deliberately disposable**"*. A torn rendition asset is a
+ * picture that fails to decode, which is the state an evicted one is already in
+ * and which the record's recipe answers: the placeholder renders, the retry
+ * runs, and nothing irreplaceable was involved.
+ *
+ * *The path is already resolved by the caller*, per this module's standing rule:
+ * containment is `resolveWithin`'s job and re-checking it here would be a second
+ * answer to a question already answered.
+ */
+export async function writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
+  await ensureDirectory(dirname(path));
+  await writeFile(path, bytes);
 }
 
 export async function fileExists(path: string): Promise<boolean> {
