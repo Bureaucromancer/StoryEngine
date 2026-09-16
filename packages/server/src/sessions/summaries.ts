@@ -9,10 +9,10 @@ import {
   planChain,
   SUMMARY_SCHEMA,
   type SummaryLink,
+  type SummarisableTurn,
   type SummaryPolicy,
   type SummaryUnit,
 } from './summary-chain.js';
-import type { Turn } from './types.js';
 
 /**
  * The summary store — [07 §5](../../../../docs/design/07-branching.md), [P8.0].
@@ -203,7 +203,7 @@ export async function ensureChain(
   layout: Layout,
   handle: string,
   sessionId: string,
-  path: readonly Turn[],
+  path: readonly SummarisableTurn[],
   summariser: Summariser,
   policy: SummaryPolicy,
 ): Promise<ChainResult> {

@@ -106,7 +106,7 @@ function scriptedSummariser(identity: string): Summariser & { calls: number } {
     calls: 0,
     run(input) {
       this.calls += 1;
-      const said = input.units.map((unit) => unit.text).join(' ');
+      const said = input.units.map((unit) => `${unit.said}|${unit.replied}`).join(' ');
       return Promise.resolve(`[${identity}] ${input.previous ?? '-'} :: ${said}`);
     },
   };

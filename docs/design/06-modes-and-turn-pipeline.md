@@ -582,8 +582,14 @@ interface StepDefinition {
   /** `cast` added at P7.12 — who is in the scene and what pictures travel with
    *  them, the manifest and never the bytes. A mode's expression selection
    *  could not see an actor's expression set at all, and being handed the cast
-   *  without declaring it would have been the back door §2 refuses. */
-  reads: (ChannelId | "history" | "output" | "cast")[]
+   *  without declaring it would have been the back door §2 refuses.
+   *  `transcript` added at P8.1 — what was said and what came back, and nothing
+   *  about how either was produced. `history` hands over whole `Turn`s, and a
+   *  `Turn` carries every block's text: a hook's premise, an unfired entrance's
+   *  finished prose, a hidden channel's rendered value. [08 §6] asks that memory
+   *  never be extracted from those and that the refusal happen *at the source*,
+   *  which against a payload of whole turns is not expressible. */
+  reads: (ChannelId | "history" | "output" | "cast" | "transcript")[]
   writes: ChannelId[]
   contributes?: "blocks" | "effects" | "messages"
   callKind: string                // what a preset's `appliesTo` filters on — [04 §8.2]

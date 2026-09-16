@@ -942,11 +942,21 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 16 since the goal slot ([06 §7.3.3]'s *always injected*,
-    // [P7.6]), 15 from the second lore slot ([P6B.1], the phase every
-    // `after_char` entry was being dropped for), 14 from the previous-attempt
-    // slot ([06 §5.1]), 13 from the writing-samples slot ([04 §3.1]) before it.
-    expect(created.body.session.preset.blocks).toHaveLength(16);
+    // gains a block — 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
+    // from the goal slot ([06 §7.3.3]'s *always injected*, [P7.6]), 15 from the
+    // second lore slot ([P6B.1], the phase every `after_char` entry was being
+    // dropped for), 14 from the previous-attempt slot ([06 §5.1]), 13 from the
+    // writing-samples slot ([04 §3.1]) before it.
+    //
+    // *The count is the weaker half and is kept for the history it carries.*
+    // What this test is actually for is that a session **copies** the pack, and
+    // an absolute count of a shipped object is a number that changes whenever
+    // anything ships — the lesson [P7B.0]'s scan-count assertion learned. So the
+    // block below names the slot instead, which is the claim that survives.
+    expect(created.body.session.preset.blocks).toHaveLength(17);
+    expect(created.body.session.preset.blocks.map((block: { id: string }) => block.id)).toContain(
+      'se.summary',
+    );
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 

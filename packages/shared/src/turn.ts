@@ -225,6 +225,29 @@ export type BlockSource =
   | { kind: 'attempt'; turnId: string | null }
   /** What the player just did — the turn that is happening, not history. */
   | { kind: 'input' }
+  /**
+   * One link of the summary chain — [07 §5.1], [P8.1].
+   *
+   * `linkKey` is the content address: the hash of the previous link's key, the
+   * keys of the units it covers, and the resolved summariser. It is the
+   * identity, and it is *why* the block table can say anything at all about a
+   * summary — a chain keyed on its inputs is a chain whose links can be named,
+   * where a mutated running total would have had nothing to name.
+   *
+   * `range` is the inclusive span of **path indices counted from the root**,
+   * which is a meaningful thing to record only because
+   * `sessions/summary-chain.ts` anchors boundaries there: on a head-relative
+   * scheme the same numbers would mean something different on every turn. This
+   * is what [P8]'s gate step 1 means by *which summary links covered which
+   * turns*.
+   *
+   * *Indices rather than turn ids, which is a real limit.* A reader who wants
+   * to click through to the turns has to walk the path to resolve them. The
+   * alternative is a list of up to twenty ids on every summary block of every
+   * turn record, which is a persisted-shape cost paid on every turn for a
+   * navigation affordance no surface asks for yet.
+   */
+  | { kind: 'summary'; linkKey: string; range: [number, number] }
   // The two a slot can never name, because no preset positions them.
   /**
    * A block the preset authored, rather than a slot it positioned.

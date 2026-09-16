@@ -394,6 +394,18 @@
                         "type": "string"
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "summary",
+                        "type": "string"
+                      }
+                    }
                   }
                 ]
               },

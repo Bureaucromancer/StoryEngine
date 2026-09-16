@@ -4,7 +4,6 @@
 import { createHash } from 'node:crypto';
 
 import type { Binding } from '../providers/types.js';
-import type { Turn } from './types.js';
 
 /**
  * The rolling summary, keyed — [07 §5.1](../../../../docs/design/07-branching.md),
@@ -93,13 +92,46 @@ export interface SummaryPolicy {
 
 export const DEFAULT_SUMMARY_POLICY: SummaryPolicy = { span: 20, window: 20 };
 
-/** One turn, as the chain addresses it. */
+/**
+ * What the chain needs of a turn: a node to point at, and what was said.
+ *
+ * ***Narrower than `Turn`, and that is a refusal rather than a convenience.***
+ * [P8 §1.3] grants the summariser the record — the two want different payloads,
+ * which is why one step cannot be both summariser and extractor — and **this
+ * declines the grant.** A turn's `request.calls[].blocks[].text` is *the prompt
+ * that produced the turn*, and summarising the prompt rather than the story
+ * would carry a hook's premise into every later prompt through the back door.
+ * So the summariser step declares `reads: ['transcript']` and not `history`,
+ * which also gives that pseudo-source a reader on the day it lands — [11 §4]'s
+ * test for a new field, applied to a new source.
+ *
+ * `Turn` satisfies this structurally, so the store and the property test can
+ * pass real records while the step passes the projection.
+ */
+export interface SummarisableTurn {
+  id: string;
+  input?: { text: string };
+  output?: { text: string };
+}
+
+/**
+ * One turn, as the chain addresses it.
+ *
+ * ***What is hashed and what is shown are separate fields, deliberately.***
+ * {@link unitTextOf} is a canonical, unambiguous encoding built for a digest;
+ * `said` and `replied` are the words a summariser is handed. A first draft had
+ * one field doing both, and the step had to `JSON.parse` a key input to build a
+ * prompt — which is the coupling worth avoiding by name, because **a prompt
+ * rewrite must never be able to invalidate a chain.**
+ */
 export interface SummaryUnit {
   key: string;
   /** Display and navigation. **Never** part of any key — see the header. */
   turnId: string;
-  /** What `f_unit` produced. The turn's own words, in Play. */
-  text: string;
+  /** What the player did. Empty when the turn carried no input. */
+  said: string;
+  /** What came back. Empty on a turn that failed or was suspended. */
+  replied: string;
 }
 
 /**
@@ -203,12 +235,12 @@ export function summariserKey(binding: Binding, prompt: string, params: unknown)
  * A failed or suspended turn has no output and contributes its input alone,
  * which is the honest reading: something was said and nothing came back.
  */
-export function unitTextOf(turn: Turn): string {
+export function unitTextOf(turn: SummarisableTurn): string {
   return JSON.stringify({ i: turn.input?.text ?? '', o: turn.output?.text ?? '' });
 }
 
 /** `H(SUMMARISER + content(t))`. **Content, never the turn id** — see the header. */
-export function unitKeyOf(summariser: string, turn: Turn): string {
+export function unitKeyOf(summariser: string, turn: SummarisableTurn): string {
   return digest(['unit', summariser, unitTextOf(turn)]);
 }
 
@@ -244,7 +276,7 @@ export function linkKeyOf(
  * Nothing inside the window is covered, per {@link SummaryPolicy}.
  */
 export function planChain(
-  path: readonly Turn[],
+  path: readonly SummarisableTurn[],
   summariser: string,
   policy: SummaryPolicy,
 ): PlannedLink[] {
@@ -263,7 +295,12 @@ export function planChain(
       // is derived from `path.length` above, so a hole here would mean the array
       // changed underneath the loop — a miss is the right answer either way.
       if (turn === undefined) continue;
-      units.push({ key: unitKeyOf(summariser, turn), turnId: turn.id, text: unitTextOf(turn) });
+      units.push({
+        key: unitKeyOf(summariser, turn),
+        turnId: turn.id,
+        said: turn.input?.text ?? '',
+        replied: turn.output?.text ?? '',
+      });
     }
 
     const key = linkKeyOf(

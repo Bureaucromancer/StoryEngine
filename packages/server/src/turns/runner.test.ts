@@ -2420,7 +2420,12 @@ describe('the history the runner hands the collector', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const blocks = written.at(-1)?.turn.request?.calls[0]?.blocks ?? [];
+    // **Across every call, not `calls[0]`** — corrected at [P8.1], which added a
+    // `pre` step that makes one. The turn's first call has not been the
+    // narration since the hook selector shipped; it was only ever this
+    // fixture's, and a summariser in the plan is what made the difference
+    // visible. What the test means is *the history blocks this turn sent*.
+    const blocks = (written.at(-1)?.turn.request?.calls ?? []).flatMap((call) => call.blocks ?? []);
     const fromHistory = blocks.filter((block) => block.source.kind === 'history');
     const turnIds = new Set(
       fromHistory.map((block) => (block.source.kind === 'history' ? block.source.turnId : '')),

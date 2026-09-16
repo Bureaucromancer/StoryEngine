@@ -19,6 +19,7 @@ import { DIALS_PRESET, TEST_PRESET } from '../test-mode.js';
 import { resolveLevel } from '../sessions/dials.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
+import type { SummaryLink } from '../sessions/summary-chain.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
@@ -1693,5 +1694,78 @@ describe('the difficulty and directedness slots', () => {
     );
 
     expect(collected.candidates).toHaveLength(0);
+  });
+});
+
+/**
+ * The summary slot — [07 §5.1](../../../../docs/design/07-branching.md), [P8.1].
+ *
+ * The integration lives in `routes/p8-gate.test.ts`, which plays a real turn
+ * over a forty-five-turn path. What is here is the two claims the collector owns
+ * on its own and a gate test could only observe indirectly: **what an empty slot
+ * says**, and **which link the budgeter sacrifices first**.
+ */
+describe('the story above the window', () => {
+  const link = (key: string, from: number, to: number): SummaryLink => ({
+    schema: 'storyengine.summary/1',
+    key,
+    summariser: 's',
+    previousKey: null,
+    unitKeys: [],
+    turnIds: [],
+    from,
+    to,
+    text: `what happened between ${String(from)} and ${String(to)}`,
+  });
+
+  const slot = block({ kind: 'slot', id: 'se.summary', source: { of: 'summary' }, priority: 8 });
+
+  it('emits one candidate per link, oldest first', () => {
+    const { candidates } = collectCandidates(
+      context({ preset: preset([slot]), summary: [link('a', 0, 19), link('b', 20, 24)] }),
+    );
+
+    expect(candidates.map((one) => one.id)).toEqual(['se.summary.a', 'se.summary.b']);
+    expect(candidates.map((one) => one.source)).toEqual([
+      { kind: 'summary', linkKey: 'a', range: [0, 19] },
+      { kind: 'summary', linkKey: 'b', range: [20, 24] },
+    ]);
+  });
+
+  /**
+   * ***`priority + index`, which is `history`'s arithmetic and has to be.***
+   * `assemble` drops *lowest priority first*, and within one priority it drops
+   * *later-listed* first — so a chain at one shared number would give up the
+   * **newest** link and keep the oldest, which is the trade backwards. Offsetting
+   * by position makes the distant past go before the recent past.
+   */
+  it('ranks a later link above an earlier one, so the distant past goes first', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([slot]),
+        summary: [link('a', 0, 19), link('b', 20, 39), link('c', 40, 44)],
+      }),
+    );
+
+    expect(candidates.map((one) => one.priority)).toEqual([8, 9, 10]);
+  });
+
+  /**
+   * **Lore's distinction, for lore's reason, and it matters more here.** A caller
+   * that computed no chain is *waiting on the engine*; a chain that was computed
+   * and is empty says **this session is not yet longer than its window**, which
+   * is a state twenty more turns fixes. Collapsing them would send an author
+   * looking for a missing phase.
+   */
+  it('tells a session with no chain from one that is not long enough to have one', () => {
+    const none = collectCandidates(context({ preset: preset([slot]) }));
+    expect(none.notFilled).toEqual([
+      { blockId: 'se.summary', source: 'summary', reason: 'no-producer' },
+    ]);
+
+    const empty = collectCandidates(context({ preset: preset([slot]), summary: [] }));
+    expect(empty.notFilled).toEqual([
+      { blockId: 'se.summary', source: 'summary', reason: 'empty-source' },
+    ]);
   });
 });

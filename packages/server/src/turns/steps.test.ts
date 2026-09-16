@@ -146,6 +146,86 @@ describe('a step is handed only what it declared', () => {
     expect(read).not.toHaveProperty(SE_CLOCK);
   });
 
+  /**
+   * ***A step that declared `transcript` is handed no blocks*** — [P8 §1.5],
+   * [P8.1], and the clause that compounds.
+   *
+   * [08 §6](../../../../docs/design/08-cross-session-memory.md) asks that memory
+   * never be extracted from hidden content and that the refusal happen **at the
+   * source**, *"rather than filtering them later"*, because by then *"the
+   * extraction has already written the sentence down."* Against `history` that
+   * was not expressible: the payload is whole `Turn`s and a `Turn` carries
+   * `request.calls[].blocks[].text`, so a hook's premise, an unfired entrance's
+   * finished prose and a hidden channel's rendered value all arrive verbatim
+   * inside the record a step declared `history` to get.
+   *
+   * **The fixture's turn carries a premise in exactly that position**, so this
+   * fails the moment `transcript` becomes a slice rather than a projection. The
+   * first arm is the refusal; the second is its control — a projection that
+   * carried nothing would pass the first for the wrong reason.
+   */
+  it('hands a transcript what was said, and nothing the prompt contained', () => {
+    const withPremise: Turn = {
+      ...historyTurn(),
+      request: {
+        calls: [
+          {
+            id: 'c0',
+            stepId: 'se.narrate',
+            role: 'prose',
+            purpose: 'prose',
+            resolved: { connectionId: 'c', modelId: 'm' },
+            blocks: [
+              {
+                id: 'se.hook.premise',
+                source: { kind: 'step', stepId: 'se.hooks' },
+                reason: 'the hook',
+                role: 'system',
+                text: 'The ferryman is her brother, which she does not know.',
+                tokens: 12,
+                included: true,
+              },
+            ],
+            messages: [],
+            params: {},
+            usage: null,
+            cost: null,
+            wallMs: 12,
+            finishReason: null,
+            outcome: 'ok',
+            error: null,
+            retries: 0,
+          },
+        ],
+      },
+    };
+    const path = { ...everything, history: [withPremise] };
+
+    const narrow = filterReads(step({ reads: ['transcript'] }), path);
+    expect(narrow.history).toBeUndefined();
+    expect(JSON.stringify(narrow)).not.toContain('her brother');
+
+    // The control: it does carry the story, or the arm above is satisfied by a
+    // filter that hands over nothing at all.
+    expect(narrow.transcript).toEqual([
+      {
+        turnId: 't0',
+        input: { actorId: null, kind: 'do', text: 'She waited.' },
+        output: { text: 'The rain kept on.' },
+      },
+    ]);
+    // And `raw` goes with the record: a step entitled to the resolved text has
+    // no claim on the text before mention resolution.
+    expect(JSON.stringify(narrow.transcript)).not.toContain('raw');
+
+    // A step that asked for neither gets neither; one that asked for `history`
+    // still gets the whole record, which is what the extractor must not declare.
+    expect(filterReads(step(), path).transcript).toBeUndefined();
+    expect(JSON.stringify(filterReads(step({ reads: ['history'] }), path))).toContain(
+      'her brother',
+    );
+  });
+
   it('never hands over guidance, whatever a step declares', () => {
     // The omission is the design: `reads` cannot name guidance, so a step that
     // could receive it would have to be handed it as an ungated extra — and a
@@ -198,6 +278,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     cast: true,
     channels: true,
     history: true,
+    transcript: true,
     output: true,
   };
 
@@ -217,32 +298,35 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     // in the payload — a `Turn` is the deepest object that crosses this seam,
     // with an effect's `unknown` values and a tape inside it, and `unknown` is
     // where a non-clonable value would hide.
-    const input = filterReads(step({ reads: ['history', 'output', 'cast', SE_CLOCK] }), {
-      turnId: 't',
-      sessionId: 's',
-      parentTurnId: null,
-      input: { actorId: null, kind: 'do', text: 'She waited.', raw: 'She waited.' },
-      // A readonly array, which is where a frozen input would cross badly — and
-      // the shape a mode with a widened `select` hands every step ([P7.3]).
-      speakers: ['actor-vera'],
-      // A frozen record, which is what a session's stored answers are by the
-      // time they reach a step — and the shape a structured clone has to survive.
-      setup: Object.freeze({ premise: 'A city that does not sleep.', dice: true }),
-      // Readonly twice over — the array and each entry's `media` — which is the
-      // shape the runner builds and the one a frozen payload crosses badly in
-      // ([P7.12]).
-      cast: [
-        {
-          actorId: 'actor-vera',
-          name: 'Vera',
-          kind: 'actors',
-          media: [{ id: 'm-1', role: 'expression', label: 'neutral' }],
-        },
-      ],
-      channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
-      history: [historyTurn()],
-      output: { text: 'The rain did not let up.' },
-    });
+    const input = filterReads(
+      step({ reads: ['history', 'transcript', 'output', 'cast', SE_CLOCK] }),
+      {
+        turnId: 't',
+        sessionId: 's',
+        parentTurnId: null,
+        input: { actorId: null, kind: 'do', text: 'She waited.', raw: 'She waited.' },
+        // A readonly array, which is where a frozen input would cross badly — and
+        // the shape a mode with a widened `select` hands every step ([P7.3]).
+        speakers: ['actor-vera'],
+        // A frozen record, which is what a session's stored answers are by the
+        // time they reach a step — and the shape a structured clone has to survive.
+        setup: Object.freeze({ premise: 'A city that does not sleep.', dice: true }),
+        // Readonly twice over — the array and each entry's `media` — which is the
+        // shape the runner builds and the one a frozen payload crosses badly in
+        // ([P7.12]).
+        cast: [
+          {
+            actorId: 'actor-vera',
+            name: 'Vera',
+            kind: 'actors',
+            media: [{ id: 'm-1', role: 'expression', label: 'neutral' }],
+          },
+        ],
+        channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+        history: [historyTurn()],
+        output: { text: 'The rain did not let up.' },
+      },
+    );
 
     // The seam's width, from the type rather than from a hand-kept list.
     expect(Object.keys(input).sort()).toEqual(Object.keys(EVERY_INPUT_MEMBER).sort());
