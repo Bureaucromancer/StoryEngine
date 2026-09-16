@@ -1399,6 +1399,22 @@ export function createBranchRef(
  * Undo a turn's effects — [§1.4]. Refused, with the branch offered, when
  * something has written the same channels since.
  */
+/**
+ * ***Remember this*** — [08 §2.1], [P8.3]'s cut form.
+ *
+ * Every field is sent rather than derived server-side, which is the affordance:
+ * the text is whatever the person left in the box, and the keywords are what
+ * they decided the memory should fire on. The route checks the actor against the
+ * session's cast and the turn against the session, so what a client can get
+ * wrong is refused rather than trusted.
+ */
+export function rememberThis(
+  sessionId: string,
+  memory: { turnId: string; actorId: string; text: string; keys: string[] },
+): Promise<{ bookId: string; entryId: string }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/remember`, memory);
+}
+
 export function undoTurn(sessionId: string, turnId: string): Promise<{ session: SessionSummary }> {
   return request(
     'POST',
@@ -1488,11 +1504,33 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
  * is the path to it. `resume` follows what was last selected forward, which is
  * how *back* and then *forward* returns where you were instead of guessing.
  */
+/**
+ * What moving the head leaves behind — [07 §7]'s honesty banner, [P6.3],
+ * [P8.3].
+ *
+ * ***The route has sent this since P6.3 and this file typed it away***, which is
+ * [P8 §3.1]'s *inverse instance* of the standing line: not configuration with no
+ * surface, but **a record with no surface**. It was harmless while nothing could
+ * write an escaped effect — `acceptEffect` hard-coded `'session'`, so the count
+ * was structurally zero — and it is P8's to close because P8 is what makes the
+ * count non-zero.
+ *
+ * `turns` is how many nodes the old line had that the new one does not;
+ * `escapedEffects` is how many of the things on them cannot be un-written. The
+ * second is the one worth a sentence, and [07 §7] says which sentence: *"a small
+ * honesty feature that avoids a confusing class of bug reports"* — the report
+ * being *"I abandoned that line and Vera still remembers it."*
+ */
+export interface Abandoned {
+  turns: number;
+  escapedEffects: number;
+}
+
 export function moveHead(
   sessionId: string,
   turnId: string,
   resume?: boolean,
-): Promise<{ session: SessionSummary }> {
+): Promise<{ session: SessionSummary; abandoned: Abandoned }> {
   return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/head`, {
     turnId,
     ...(resume === undefined ? {} : { resume }),

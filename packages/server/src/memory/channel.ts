@@ -73,8 +73,16 @@ export const MEMORY_WRITTEN_CHANNEL: ChannelDefinition = {
     type: 'object',
     properties: {
       /**
-       * Appended to, never replaced: a line that wrote twice wrote twice, and
-       * the count the banner reports is a count of entries rather than of turns.
+       * ***What this turn wrote, and never a running total.***
+       *
+       * The obvious reading of *"appending the entry ids written this turn"* is
+       * a list that grows, and it cannot be one: `applyEffects` **skips
+       * `scope: 'escaped'`**, so the state such a list would accumulate into is
+       * never replayed and never readable. That is the mechanism being right
+       * rather than a limit to work around — `abandonedBy` counts **effects on
+       * the turns being left**, so a running total would make the newest turn's
+       * value the count for the whole line, and abandoning one turn would report
+       * everything the line had ever written.
        */
       entryIds: { type: 'array', items: { type: 'string' } },
     },

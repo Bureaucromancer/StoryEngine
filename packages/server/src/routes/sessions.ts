@@ -46,6 +46,7 @@ import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
+import { rememberThis } from '../memory/capture.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -357,6 +358,31 @@ const LoreBody = Type.Object(
   {
     treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
     lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 }),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * ***Remember this*** — [08 §2.1], [P8.3]'s cut form.
+ *
+ * **Four fields and none of them optional**, which is the honest shape for an
+ * affordance whose whole claim is that the person pressing it knows what
+ * mattered. The client prefills every one of them from the message and the
+ * session; what lands is whatever they left in the boxes.
+ *
+ * `keys` is required rather than defaulted because an entry with no keys never
+ * activates: a capture that quietly wrote one would produce a memory that
+ * exists, is listed, is editable, and can never reach a prompt.
+ */
+const RememberBody = Type.Object(
+  {
+    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+    actorId: Type.String({ minLength: 1, maxLength: 200 }),
+    text: Type.String({ minLength: 1, maxLength: 4000 }),
+    keys: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), {
+      minItems: 1,
+      maxItems: 32,
+    }),
   },
   { additionalProperties: false },
 );
@@ -1440,6 +1466,72 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         session = await setArchived(services.sessions, account.handle, sessionId, body.archived);
       }
       return reply.send({ session });
+    },
+  );
+
+  /**
+   * ***A memory, written by the only judge who cannot be wrong about what
+   * mattered*** — [08 §2.1](../../../../docs/design/08-cross-session-memory.md),
+   * [P8 §5], [P8.3]'s cut form.
+   *
+   * **On the session rather than on the library**, because what it takes is a
+   * session's answer to *whose memory* and *from which turn*: the actor has to
+   * be in this session's cast, the persona comes from it, and the turn has to be
+   * on it. A library route would have had to be handed all three and trust them.
+   *
+   * *The refusals are outcomes rather than exceptions*, which is what lets the
+   * hidden-content one carry a sentence: [P8.5]'s remainder is **a refusal with
+   * a reason rather than a filter**, and a 409 with an empty body would be a
+   * filter with a status code.
+   */
+  app.post(
+    '/sessions/:sessionId/remember',
+    { schema: { params: SessionParams, body: RememberBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as {
+        turnId: string;
+        actorId: string;
+        text: string;
+        keys: string[];
+      };
+
+      const outcome = await rememberThis(
+        services.sessions,
+        services.library,
+        account.handle,
+        sessionId,
+        body,
+      );
+
+      switch (outcome.kind) {
+        case 'captured':
+          return reply.code(201).send({ bookId: outcome.bookId, entryId: outcome.entryId });
+        case 'no-session':
+          return reply.code(404).send({ error: 'no-session', message: 'No such session.' });
+        case 'no-turn':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+        case 'not-in-cast':
+          return reply.code(400).send({
+            error: 'not-in-cast',
+            message: 'That character is not in this session’s cast.',
+          });
+        case 'empty':
+          return reply.code(400).send({
+            error: 'empty',
+            message: 'A memory needs something to say and at least one keyword to fire on.',
+          });
+        case 'refused':
+          // 409 rather than 400: the request is well formed and the *turn* is
+          // what cannot be remembered, which is a state rather than a mistake.
+          return reply.code(409).send({ error: 'hidden-content', message: outcome.reason });
+      }
     },
   );
 
