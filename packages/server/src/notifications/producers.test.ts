@@ -209,7 +209,7 @@ describe('a turn that ran through a whole server', () => {
       JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error])),
     );
     console.log('NOTIFS', JSON.stringify(held().map((n) => [n.class, n.params])));
-    await eventually(() => held().some((one) => one.class === 'artifact.ready'));
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
 
     const picture = held().find((one) => one.class === 'artifact.ready');
     expect(picture?.params['outcome']).toBe('ready');
@@ -234,7 +234,7 @@ describe('a turn that ran through a whole server', () => {
       const all = await renditionsOf();
       return all.length > 0 && all.every((one) => one.state === 'failed');
     });
-    await eventually(() => held().some((one) => one.class === 'artifact.ready'));
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
 
     const picture = held().find((one) => one.class === 'artifact.ready');
     expect(picture?.params['outcome']).toBe('failed');

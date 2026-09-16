@@ -271,27 +271,17 @@ const OWED = new Map<string, string>([
     'The same, for removing one: 07 §6 says promoting a swipe is creating a ref and that deleting one later deletes a name, and nothing can. P7B §1.12.',
   ],
   /**
-   * ***The three notification routes, owed by the stage that comes next.***
+   * ***The three notification routes were owed here for one stage and were paid
+   * at [P10.2].***
    *
-   * [P10.1] builds the router, the store and the producers; [P10.2] builds the
-   * two delivery channels 1.0 gets — the in-app one (sound, toast, unread badge,
-   * document title) and the browser Notification API — and every one of those
-   * reads one of these. Written as three lines rather than one because
-   * [P10.2] pays them separately: the badge and the list come from the first
-   * two, and the toast needs the stream.
+   * [P10.1] built the router, the store and the producers and stopped at the
+   * server edge; [P10.2] built the two delivery channels — `api.ts` now names
+   * all three addresses, so the scan reaches them. **One stage, which is the
+   * shortest a debt in this map has ever been outstanding**, and it is worth
+   * saying because it is what the map is for: a line written with a stage's name
+   * on it is a promise somebody can check, and the check is this test going
+   * green without it.
    */
-  [
-    'GET /api/me/notifications',
-    'P10.2. The unread badge and the notification list read this; P10.1 built the store and the producers and deliberately stopped at the server edge.',
-  ],
-  [
-    'POST /api/me/notifications/read',
-    'P10.2. Mark-one-read and Mark all read, which are affordances on a surface that does not exist until the channel does.',
-  ],
-  [
-    'GET /api/me/notifications/stream',
-    'P10.2. The live half: a toast and a sound happen when something arrives rather than when a page is next loaded, which needs an EventSource on this address.',
-  ],
   /**
    * ***The three rendition routes were owed here and were paid at [P9.4].***
    *

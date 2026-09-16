@@ -785,7 +785,16 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
   it('says a committed turn completed, with the session by name', async () => {
     const { job } = await runTurn();
 
-    expect(announced).toHaveLength(1);
+    /**
+     * ***Waited for rather than assumed, and the reason is the ordering this
+     * stage chose.*** `#announce` runs **after** `finaliseTurn`, which is what
+     * marks the job committed — and `runTurn` returns on exactly that. So the
+     * notification is genuinely still in flight when the turn is on disk, which
+     * is correct (nothing below the commit may delay a turn) and makes a bare
+     * assertion here a race. *Measured: it passed alone and failed under the
+     * full suite's load, which is the worst way to find this out.*
+     */
+    await until(() => announced.length === 1, 'the turn to be announced');
     expect(announced[0]).toMatchObject({
       kind: 'turn.complete',
       account: ACCOUNT,
@@ -812,7 +821,7 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
     const { turn } = await runTurn();
     expect(turn.status).toBe('failed');
 
-    expect(announced).toHaveLength(1);
+    await until(() => announced.length === 1, 'the failure to be announced');
     expect(announced[0]).toMatchObject({ kind: 'turn.failed', account: ACCOUNT, sessionId });
     const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
     // One of the vocabulary's own words, and short enough that it cannot be a
@@ -838,9 +847,28 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
     runner.cancel(job.id);
     await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
 
-    // The turn is on disk as `failed` — `cancellation` below asserts that — and
-    // nobody is told about it.
-    expect(announced).toEqual([]);
+    /**
+     * ***An absence needs a window, and this one is bought with a second turn
+     * rather than with a sleep*** — which is this file's standing rule, *"no
+     * sleeps anywhere: the store is the clock"*.
+     *
+     * `#announce` runs after `finaliseTurn`, so reading `announced` the instant
+     * the cancelled job commits would prove only that nothing was announced
+     * **synchronously** — weaker than the claim, and green on a build that
+     * announced cancellations a tick later. So a second, ordinary turn follows
+     * it: when *its* completion has been announced, anything the cancelled turn
+     * was going to say has had its turn too, because both take the same path and
+     * the cancelled one started first.
+     */
+    // **The same runner**, deliberately: `makeRunner` clears `announced`, which
+    // would throw away the very thing this is checking for.
+    await runNextTurn();
+    await until(() => announced.length > 0, 'the next turn to be announced');
+
+    // Exactly one, and it is the *second* turn's. A cancellation that announced
+    // itself would appear ahead of it.
+    expect(announced.map((one) => one.kind)).toEqual(['turn.complete']);
+    expect(announced[0]).not.toMatchObject({ turnId: job.turnId });
   });
 });
 

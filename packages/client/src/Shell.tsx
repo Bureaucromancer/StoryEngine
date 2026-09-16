@@ -5,6 +5,9 @@ import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, type JSX } from 'react';
 
 import { BuildFooter } from './about/BuildFooter.js';
+import { NotificationBell } from './notifications/NotificationBell.js';
+import { NotificationToast } from './notifications/NotificationToast.js';
+import { useNotifications } from './notifications/useNotifications.js';
 import { useAuthState, useLogout, useNotices, usePatchPrefs, usePrefs } from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
@@ -22,6 +25,19 @@ export function Shell(): JSX.Element {
   // reaches every other surface — and so signing in applies your theme before
   // you go looking for where to set it.
   useTheme();
+
+  /**
+   * ***Mounted once, here, and that is the whole reason it is a shell
+   * concern*** — [09 §3.6], [P10.2]. Four surfaces render one fact (a sound, a
+   * toast, the unread badge, the tab title), and a second mount would open a
+   * second stream and chime twice. The shell is the only component that is
+   * always present and present only once.
+   *
+   * *Disabled when signed out*, which is the same absent-rather-than-disabled
+   * mechanism `RestartBanner` uses for a non-admin: a signed-out browser never
+   * opens the stream, rather than opening one that answers 401 and retries.
+   */
+  const notifications = useNotifications(account !== null);
 
   /**
    * The workbench's open state — a preference from this stage on ([P3.1a]),
@@ -107,6 +123,7 @@ export function Shell(): JSX.Element {
               >
                 Workbench
               </Button>
+              <NotificationBell state={notifications} />
               {/* One entry, which is all [P2A §3] asks for. */}
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
                 Settings
@@ -165,6 +182,9 @@ export function Shell(): JSX.Element {
           document would scroll again ([P3.−1]). Under the dock as a whole, so
           an open Workbench does not cover it. */}
       <BuildFooter build={auth.data?.build} />
+      {/* Fixed-position and last in the tree, so it sits over the dock rather
+          than under it, and takes no part in the height-managed column. */}
+      {account === null ? null : <NotificationToast state={notifications} />}
     </div>
   );
 }

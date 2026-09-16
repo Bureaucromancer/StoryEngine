@@ -623,6 +623,72 @@ when no browser is open.
 context, and channel 2's availability therefore depends on how the install is
 reached. Say it where someone will read it.
 
+#### Done — 2026-09-16
+
+***"Documentation, not code" was half right, and the half it missed is the one
+§3.6 spends a paragraph on.*** The caveat is in
+[`docs/deploy.md`](../../deploy.md) with the three-row table, which is the
+documentation this line asked for. But §3.6's own first obligation is *"say so
+where the user chooses… a greyed toggle with no reason is the worst version of
+this"* — and that is code: `browser.ts` distinguishes **four** states rather than
+a boolean, because *unsupported*, *insecure context*, *not yet asked* and
+*refused* need four different sentences and only one of them is a control. **The
+order of the checks carries the finding**: a browser on plain HTTP reports
+`permission: 'default'`, which reads as askable and then refuses the prompt, so
+`isSecureContext` is read first or the surface promises something it cannot do.
+
+***One hook for four channels, because they are four renderings of one fact.***
+Sound, toast, badge and title split across four components would each hold their
+own copy of *what has arrived*, and the way that fails is a badge showing two
+while the title shows three. So `useNotifications` is mounted once, in the shell,
+and the query cache is the state the stream writes into — `usePatchPrefs`' shape
+on a second subject.
+
+***The subtle half is that **arriving** and **being told** are different
+things.*** A notification on the stream's **snapshot** is recorded as announced
+without announcing it: what is on a snapshot was already true before this tab
+attached, and on a flaky LAN the stream reattaches every three seconds — so
+without that, one finished turn becomes a chime every three seconds until the
+network settles, after which a person reasonably concludes notifications are
+broken. **But a fold is news again, once**: *your picture is ready* and *three
+pictures are ready* are different facts, so the memory is a count per id rather
+than a set of ids, and [09 §3.4]'s coalescing would be pointless if the second
+one were silent.
+
+***The transport was extracted rather than copied.*** `play/stream.ts` was
+written when the session stream was the only one; [09 §3.1] describes two, and
+the second has the same retry problem at a different address. So the `fetch`
+loop, the refusal arms and the backpressure moved to `sse/connect.ts`, and
+`openTurnStream` became a twenty-line caller of it — **with its own test file
+unchanged**, which is what makes the move a refactor rather than a rewrite. On
+the server the same seam appears as `SseWriter.emit`, beside the typed `send`:
+the session stream's frame union stays closed, and a per-account stream's frames
+are not in it.
+
+***The sound is synthesised.*** Two oscillators and an envelope, because an
+audio asset would be a binary in a text repository, would need a licence line
+([19 §10](../19-tech-stack.md)), and would have to be fetched over a LAN from the
+server that is busy making the turn it announces.
+
+***And a mechanical instrument came with it***, which is the part that outlives
+the stage: `labels.test.ts` greps the server's `NotificationClass` union against
+the client's sentence table, both directions. It is
+`library/note-labels.test.ts` on a second subject and it exists for that file's
+reason — that table had drifted by twenty-four keys with nothing saying so,
+because the fallback renders an unlabelled key as itself, which is right for a
+version skew and silent for a build shipped against itself.
+
+**The three routes [P10.1] left in `OWED` are paid**, which is one stage
+outstanding — the shortest that map has carried a debt.
+
+*A test race this stage caused and fixed, worth the line because it is the
+ordering [P10.1] chose.* `#announce` runs **after** `finaliseTurn`, which is what
+marks a job committed — so a test that read the collector the instant the turn
+was on disk passed alone and failed under the full suite. The turn is
+deliberately not delayed by the notification; the test waits instead, and the
+one that asserts an *absence* buys its window with a second turn rather than with
+a sleep, which is `runner.test.ts`'s standing rule.
+
 ### P10.3 — The remainder of [10 §15](../10-ui-surfaces.md)
 
 The notification preference rows, one per shipped class — **three of them, not

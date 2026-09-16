@@ -95,6 +95,34 @@ and `server.cookieSecure` in `config.json` — both default to off, and
 `cookieSecure` without TLS in front makes signing in fail silently, because a
 `Secure` cookie is never sent back over plain HTTP.
 
+## Notifications, and the one thing plain HTTP costs you
+
+StoryEngine tells you when a turn finishes, when one fails, when a picture is
+ready, and when a saved setting needs a restart. Four of those reach you in the
+page itself — a chime, a toast, the unread count on **Notifications** in the
+header, and the same count in the browser tab's title — and all four work
+however you reach the install.
+
+**Browser notifications — the kind your operating system shows when the tab is
+in the background — need a secure context, and a LAN address over plain HTTP is
+not one.** This is a browser rule rather than a setting: `http://localhost:8080`
+counts as trustworthy and `http://192.168.1.50:8080` does not, so on the default
+install the browser refuses the permission prompt no matter what the page asks
+for ([09 §3.6](design/09-server-multiuser-deployment.md)).
+
+| How you reach it | What you get |
+| --- | --- |
+| The server box itself, over `localhost` | Everything |
+| **A LAN address over plain HTTP — the default** | Chime, toast, unread badge, tab title. No background notifications |
+| HTTPS through a reverse proxy, or Tailscale | Everything |
+
+The notification list says which of these you are in, in one sentence, rather
+than showing a switch that would not work. If you want the background ones, the
+reverse proxy above is the fix — and Tailscale gets HTTPS more or less for free.
+
+Nothing is lost either way: a notification is stored until you read it, so the
+count is there when you come back even if the browser was closed.
+
 ## What this build is
 
 The running server reports its version and commit on the startup line, on

@@ -10,6 +10,8 @@ import {
   type TurnPreview,
 } from '@storyengine/shared';
 
+import type { NotificationList } from './notifications/types.js';
+
 /**
  * The client's side of docs/api.md — plain `fetch`, one wrapper.
  *
@@ -461,6 +463,28 @@ export const api = {
     minted: string[];
     skipped: { name: string; reason: string }[];
   }> => request('POST', '/api/tags/adopt'),
+
+  /**
+   * What this person has been told — [09 §3.1], [P10.1], [P10.2].
+   *
+   * **One call for the list and the count**, because a badge and a list rendered
+   * from two round trips are a badge and a list assembled from two different
+   * moments — `/me/roles`' reasoning, on a smaller pane.
+   */
+  readNotifications: (options: { unread?: boolean } = {}): Promise<NotificationList> =>
+    request(
+      'GET',
+      // Two whole literals rather than one interpolated address, which is what
+      // `route-callers.test.ts` can read: its scan matches a quoted `/api/…`
+      // with no whitespace in it, so a `${cond ? a : b}` inside the template is
+      // an address no check can see. Measured — this arrived as one template
+      // and the route reported as having no caller.
+      options.unread === true ? '/api/me/notifications?unread=true' : '/api/me/notifications',
+    ),
+
+  /** Empty `ids` means all of them — the **Mark all read** affordance, in one request. */
+  markNotificationsRead: (ids: string[] = []): Promise<{ read: number; unread: number }> =>
+    request('POST', '/api/me/notifications/read', { ids }),
 
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
