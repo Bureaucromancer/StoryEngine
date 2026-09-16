@@ -223,6 +223,21 @@ describe('a turn completes on text while its picture is still being made', () =>
     // none of which is true if the rendition holds the session's one active job.
     const second = await takeATurn();
     expect(second.status).toBe('complete');
+
+    /**
+     * **Settled before the teardown, which is this file's own design biting the
+     * test that asserts it.** A rendition job is fire-and-forget ([P9.2]) — the
+     * property the two turns above exist to prove — so leaving one in flight
+     * means `afterEach`'s `rm` races the worker's asset write and the run dies
+     * on `ENOTEMPTY` rather than on an assertion. *Found 2026-09-16, when the
+     * race was lost for the first time under a loaded machine.*
+     *
+     * `p9-gate-controls.test.ts` carries the same wait for the same reason. It
+     * is not a weakening of the claim: the assertions above have already passed
+     * by the time this runs, and what it waits for is the **worker** finishing,
+     * not the turn.
+     */
+    await eventually(async () => (await renditionsOf()).every((one) => one.state !== 'pending'));
   });
 
   it('lands the picture on the record afterwards', async () => {
