@@ -868,8 +868,14 @@ says *"this server appears to have no internet access"* instead of surfacing a
 raw connection error when a turn fails against a remote provider. It is genuinely
 the more valuable half and it belongs where a provider failure becomes a
 `StepFailureReason`, which is `turns/calls.ts` rather than a settings surface.
-**Owed to [P11.3](28-p11-implementation.md)**, whose subject is the error
-vocabulary, and the signal it needs now exists.
+~~**Owed to [P11.3](28-p11-implementation.md)**, whose subject is the error
+vocabulary, and the signal it needs now exists.~~ **Owed to
+[P11.6](28-p11-implementation.md)** — corrected 2026-09-17, on the re-audit. The
+stage number was wrong and the routing was right: P11.3 is *the assistant*, and
+the stage whose third clause is *better failures* is **P11.6**, which its own
+*Depends on* had already made conditional on this paragraph — *"if P10 takes the
+check, this stage is the error messages alone"*. P10 took the check, so that arm
+is the live one, and this is the debt that lands in it.
 
 ***§1.5 and §1.8 are closed, which is the part that had cost two sweeps.***
 §1.8's system-library bullet is **struck** in [10 §15.3](../10-ui-surfaces.md):

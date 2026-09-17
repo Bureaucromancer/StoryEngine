@@ -465,6 +465,124 @@ same limit §0.1 named for the first instrument and which keeps P11.0 a stage.
 
 ---
 
+### 0.3 Re-audited 2026-09-17 at `f0b19ba`, after P10
+
+***The second re-run against a phase that happened, and the first one where an
+instrument closed a row rather than counting one.*** §0.2 ran against three
+phases that had shipped since the register was written; this runs against
+[P10](27-p10-implementation.md), which is the phase this register spent more rows
+routing to than any other — row 11 was **P10's own fork to settle**, and rows 6,
+18 and 19 are the whole of the OWED map it inherited.
+
+#### The instruments, and one of them is now evidence for itself
+
+**`route-callers.test.ts`'s OWED map holds four**, and they are §0.2's four
+*exactly*: `GET /api/search`, `PUT /api/sessions/:p/roles`, and `PATCH` and
+`DELETE` on `…/refs/:refId` — rows 6, 18 and 19, unmoved.
+
+***What is worth recording is that it did not hold four the whole time.*** P10
+served **seven** new addresses — the three notification routes at
+[P10.1](27-p10-implementation.md), and two gallery and two avatar routes at
+[P10.4](27-p10-implementation.md) — and **not one of them is owed now**. The
+notification three were written into OWED as they were built, with `P10.2` named
+beside them, and left it one stage later when P10.2 built the channels; the
+gallery and avatar four never entered it at all, because their surface shipped in
+the same stage as the routes. **That is the shortest a debt has ever been
+outstanding in that map, and it is the first time the map has been used the way
+it was designed to be used** — as a place to write down a promise *while making
+it*, rather than as a place a later sweep discovers one.
+
+**`CONFIG_TIERS`'s `'unread'` count is two**, down from four. `updates.checkEnabled`
+and `updates.channel` are `applied`; `limits.extensionStorageQuotaMb` stays
+`'unread'` **deliberately**, beside a roadmap row, and `trash.retentionDays` is
+[P11.7](#p117--trash-retention-and-restore-and-the-accessibility-audit)'s.
+*Two of the four keys this table was counting were paid by a phase deciding to
+take a stage it had leaned toward, which is exactly the use §0.2 predicted for
+it*: the count is what made the lean an argument rather than a preference.
+
+#### Row 11 is discharged, and it is the first row closed by a decision
+
+**Extension installation** — the row this register routed to *"P10's own fork, at
+its revisit"* — is closed, and **not by being built**.
+[P10.3](27-p10-implementation.md) took the deferral arm on a distinction four
+audits had passed over: ***1.0 needs extensions **loaded**, not **installed***.
+The first-party reference extension the [work plan](01-work-plan.md) keeps at 1.0
+([24 §4.4](../24-roadmap.md)) ships inside the image the way a built-in mode
+does, so it needs no acquiring step at all; *acquiring one from outside* is a
+subsystem — fetch, verify, unpack, register, quota — that no 1.0 goal requires.
+It is now a row in [24 §3.2](../24-roadmap.md) rather than an owner-shaped hole,
+and the three artefacts that presuppose it all stay, visibly inert.
+
+***That is the first row in this register to close by somebody deciding***, and
+it is worth separating from the six that closed by being built. §1.1's whole
+argument is that *"a list without owners never ends"* — and a list where the only
+way off is construction is a list that ends by the work being done, which is a
+weaker claim than it sounds. **A row that leaves because a phase read it and said
+*not at 1.0, and here is where it lives instead* is the register working at its
+cheapest.**
+
+#### One stage shrank to exactly its named remainder
+
+**[P11.6](#p116--update-check-about-badge-and-better-failures) is now the error
+messages alone**, which is the arm its own *Depends on* named: *"if P10 takes the
+check, this stage is the error messages alone."* P10 took the check, the About
+badge and the conditionality — including a distinction §1.6 did not have to draw
+and this document should now carry: ***a failed check is two things and only one
+is about the network.*** Nothing answering is a connectivity signal; **an HTTP
+answer this build cannot use proves the internet works**. That is not
+hypothetical — the repository is private and
+[releases §4](04-repo-and-releases.md) says `latest` names nothing until a
+release is cut, so the default channel's feed answers 404, and a check that
+conflated the two would tell every alpha operator their server was offline.
+
+*This is the first conditional stage in this document to resolve*, and it
+resolved to the smaller arm, which is what a *Depends on* line is for.
+
+**One correction came with the resolution.** [P10.3](27-p10-implementation.md)
+names the half it did not build — *an engine that says "this server appears to
+have no internet access" instead of surfacing a raw connection error*, which
+belongs in `turns/calls.ts` where a provider failure becomes a
+`StepFailureReason` — and owed it to **P11.3**, which is *the assistant*. The
+routing was right and the number was wrong; it is struck and corrected there, and
+it lands here. *Worth noting because it is the failure mode a cross-reference has
+and prose does not*: the sentence describing the debt was accurate enough that
+four readings of it never checked the number beside it.
+
+#### The new row, and it arrived by being unblocked rather than by being found
+
+| # | The commitment, and where it is committed | What is built | The artifact, and the check | Routed to |
+|---|---|---|---|---|
+| 21 | **The sign-in gallery's type-to-filter, folding the by-name link into it** — [12 §7](../12-account-gallery.md), [polish §7](06-polish.md) | The gallery, at [P10.4](27-p10-implementation.md): tiles, a drawn face for every account, and a separate *Sign in by name* button | One text affordance where there are now two — a filter over the listing the screen already fetched, where a typed handle matching no tile **is** the by-name case. **Check:** the screen has one text entry rather than a box beside a link | **Unowned.** [polish §7](06-polish.md) holds the design and says *"blocked on the gallery existing"*; **the gallery exists as of 2026-09-17** |
+
+***The way it arrived is the point rather than the row.*** Rows 14 and 20 are
+phases saying *this is not mine*; rows 18 and 19 were found by a test. **This one
+was written down, correctly, with its blocker named — and the blocker cleared.**
+Nothing in this repository notices that: there is no instrument that watches a
+deferral's condition and says when it fires, and
+[manual testing §10.1](05-manual-testing.md) is a whole section about the shape.
+*It is a small row and it is here because the mechanism that would have found it
+does not exist.*
+
+#### Row 20 is unchanged, and carrying it a third time would be a decision by default
+
+**[P8](25-p8-implementation.md)'s automatic extractor.** P10 has now shipped and
+the word appears in its document **zero** times, which was the state §0.2
+recorded as a prediction and is now a fact about a built phase. **P11 is the only
+phase left.** This document mentions the extractor seventeen times and schedules
+it in none of them — every mention is this register describing the hole.
+
+***So the honest statement is that a third carry is a decision, and it should be
+made rather than arrived at.*** Either P11 takes it, or **1.0 ships with memory
+books that only a person fills** — which is a defensible product and is *not* what
+[08 §2](../08-cross-session-memory.md) describes. §5's revisit is where that is
+settled, and [§1.8](#18-this-phase-grew-by-three-and-the-growth-should-be-sized-rather-than-absorbed)
+is where the size of taking it would land. **What this section refuses to do is
+record it unowned a third time and move on**, which is exactly what
+[manual testing §10.1](05-manual-testing.md) names as the failure this whole
+register exists against.
+
+---
+
 ## 1. Decisions this plan has to make
 
 ### 1.1 A hardening phase is a list, and a list without owners never ends
