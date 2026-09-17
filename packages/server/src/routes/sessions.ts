@@ -297,7 +297,26 @@ const CreateBody = Type.Object(
 );
 
 const ListQuery = Type.Object({ archived: Type.Optional(Type.String()) });
-const TurnsQuery = Type.Object({ limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,4}$' })) });
+/**
+ * `?from=<turnId>` walks to that node instead of to the head —
+ * [10 §12.1](../../../../docs/design/10-ui-surfaces.md),
+ * [P11.1](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * ***The reading view's *"any node, not just the head"*, and it is one
+ * parameter rather than a route.*** §12.1 says the two surfaces *"read the same
+ * turn records and share nothing else"* — which is a statement about what they
+ * render, not about how they fetch. A second route would be a second place for
+ * the walk, the limit and the sibling map to drift, over a difference that is
+ * one argument to `walkPath`.
+ *
+ * *A string, because Fastify's validator runs with `coerceTypes: false`* and a
+ * querystring value arrives as text — the same rule `search.ts` states for its
+ * own `limit`.
+ */
+const TurnsQuery = Type.Object({
+  limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,4}$' })),
+  from: Type.Optional(Type.String({ maxLength: 200 })),
+});
 const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 200 })) });
 
 /**
@@ -2003,11 +2022,26 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const byId = await readTurns(services.sessions, account.handle, session.id);
+      const query = request.query as { limit?: string; from?: string };
+      /**
+       * ***A node this session does not have is a 404 rather than an empty
+       * path*** — [P11.1].
+       *
+       * `walkPath` answers `[]` for an id it cannot find, which is
+       * indistinguishable from *a session with no turns yet* and would render
+       * as a blank reading view with nothing wrong. A pasted or stale link is
+       * exactly how somebody arrives here with a bad id, so it is worth the one
+       * check to say which.
+       */
+      if (query.from !== undefined && !byId.has(query.from)) {
+        return reply
+          .code(404)
+          .send({ error: 'not-found', message: 'That session has no such turn.' });
+      }
       // The path from the head, oldest first — not every turn in the file. A
       // session is a tree that P2 happens to use linearly, and a transcript is
       // one walk of it ([03 §5.5]).
-      const path = walkPath(byId, session.headTurnId);
-      const query = request.query as { limit?: string };
+      const path = walkPath(byId, query.from ?? session.headTurnId);
       /**
        * Floored as well as capped.
        *

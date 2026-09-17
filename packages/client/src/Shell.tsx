@@ -215,11 +215,20 @@ function SurfaceNav(): JSX.Element {
     <nav aria-label="Surfaces" className="flex items-center gap-1">
       <SurfaceLink to="/play" label="Play" />
       <SurfaceLink to="/library" label="Library" />
+      {/*
+        ***Search is a surface, not a box in a corner*** —
+        [10 §14.5](../../../docs/design/10-ui-surfaces.md), [P11.1]. §14.1 gives
+        it two scopes — within a session and across all of them — and a box
+        pinned to one screen can only ever mean the first. §5's named failure is
+        *a search box per kind*, and the way to avoid it is one surface with a
+        scope rather than a prohibition on searching from where you stand.
+      */}
+      <SurfaceLink to="/search" label="Search" />
     </nav>
   );
 }
 
-function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.Element {
+function SurfaceLink(props: { to: '/play' | '/library' | '/search'; label: string }): JSX.Element {
   return (
     <Link
       to={props.to}

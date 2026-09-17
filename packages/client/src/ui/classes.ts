@@ -53,7 +53,7 @@ export const link = {
   back: 'text-sm text-ink-subtle underline hover:text-ink',
   /**
    * An anchor *inside* rendered prose — the changelog's links on home, and the
-   * reading view's when [P11.1] brings it.
+   * reading view's since [P11.1] brought it.
    *
    * **It is `inline` without the size, and that is the whole difference.**
    * `inline` carries `text-sm` because it is used under a heading and beside a

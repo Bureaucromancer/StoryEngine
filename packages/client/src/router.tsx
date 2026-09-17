@@ -6,6 +6,8 @@ import type { JSX } from 'react';
 
 import { parseKinds, parseList } from './search-lists.js';
 import { ComparePage } from './compare/ComparePage.js';
+import { ReadingPage } from './reading/ReadingPage.js';
+import { SearchPage } from './search/SearchPage.js';
 import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
 import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
 import { HomePage } from './home/HomePage.js';
@@ -336,6 +338,49 @@ const compareRoute = createRoute({
   },
 });
 
+/**
+ * ***The reading view*** — [10 §12](../../../docs/design/10-ui-surfaces.md),
+ * [P11.1](../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * `?from=` is how *"any node, not just the head"* is addressed, and it is a
+ * **search param rather than a path segment** for the reason `compareRoute`
+ * gives about its pair: the session is the thing being read and the node is
+ * which reading of it, so `/read/abc` with no node is the ordinary case and
+ * stays a clean URL. It also makes a search hit's link one parameter rather
+ * than a second route shape.
+ */
+const readingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/read/$sessionId',
+  validateSearch: (search: Record<string, unknown>): { from?: string } =>
+    typeof search['from'] === 'string' ? { from: search['from'] } : {},
+  component: function Reading() {
+    const { sessionId } = readingRoute.useParams();
+    const { from } = readingRoute.useSearch();
+    return <ReadingPage sessionId={sessionId} {...(from === undefined ? {} : { from })} />;
+  },
+});
+
+/**
+ * ***Searching your own story*** — [10 §14](../../../docs/design/10-ui-surfaces.md),
+ * [P11.1](../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * **One surface, not one per kind** — §14.5's rule verbatim. The query is in the
+ * URL so a result set is a thing you can send somebody or come back to, which is
+ * the same argument [P3 §7.2] makes for `/compare` being a route rather than a
+ * panel: a comparison nobody can point at later is a worse comparison.
+ */
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/search',
+  validateSearch: (search: Record<string, unknown>): { q?: string } =>
+    typeof search['q'] === 'string' ? { q: search['q'] } : {},
+  component: function Search() {
+    const { q } = searchRoute.useSearch();
+    return <SearchPage query={q ?? ''} />;
+  },
+});
+
 const actorEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/actors/$id/edit',
@@ -483,6 +528,8 @@ const routeTree = rootRoute.addChildren([
   sessionsRoute,
   playRoute,
   compareRoute,
+  readingRoute,
+  searchRoute,
   settingsRoute,
 ]);
 

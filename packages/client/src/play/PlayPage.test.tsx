@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -105,6 +106,36 @@ vi.mock('./stream.js', () => ({
     return { close };
   },
 }));
+
+/**
+ * ***`Link` only, and the rest of the router left alone*** — [P11.1].
+ *
+ * This file mounts the page **without a router**, which is the whole shape of
+ * the suite: forty-two tests that assert about a transcript, a composer and a
+ * stream, none of which is about navigation. `useNavigate` tolerates that with a
+ * warning; `<Link>` throws, and [P11.1] added one — the way into the reading
+ * view, which [10 §12.1] wants *"openable at any time on any session"* and so
+ * renders unconditionally rather than behind a state these fixtures happen not
+ * to reach. (`MemoryPanel` has carried a `<Link>` since P8.4 and never tripped
+ * this, because its fixtures have no memory books.)
+ *
+ * **A plain anchor rather than a router**, because the alternative is driving
+ * the real router to `/play/$sessionId` and rewriting every assertion around it
+ * — a large change to prove something no test here is about. The anchor keeps
+ * the address assertable, which is the only thing a link on this page is
+ * checked for.
+ */
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-router')>();
+  return {
+    ...actual,
+    Link: (props: { to?: string; children?: ReactNode; className?: string }) => (
+      <a href={props.to ?? '#'} className={props.className}>
+        {props.children}
+      </a>
+    ),
+  };
+});
 
 const { PlayPage } = await import('./PlayPage.js');
 

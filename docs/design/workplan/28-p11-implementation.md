@@ -1289,6 +1289,81 @@ adding a *helpful* line two phases later. Plus `route-callers.test.ts` losing it
 `GET /api/search` row — which is the mechanical half, and the one that says the
 surface is reachable rather than merely written.
 
+#### Done — 2026-09-17
+
+**`route-callers.test.ts` lost its `GET /api/search` row**, which is the
+mechanical half of this stage and the one that says the surface is *reachable*
+rather than merely written. ***Nine phases outstanding, the longest a debt in
+that map has ever stood*** — and it stood for a reason the map is the wrong
+instrument to see: the route worked, its tests passed, and what was missing was
+somebody to ask it.
+
+***The fence is a directory scan, and it caught something before it was
+finished.*** [§1.4](#14-the-reading-view-is-cheap-which-is-why-it-is-at-risk)
+asked for *no cost, no token count, no model id, no block table anywhere in the
+reading route's subtree*, and [`fence.test.ts`](../../../packages/client/src/reading/fence.test.ts)
+is that as seven patterns over `packages/client/src/reading/`. **Its first run
+failed on the reading view's own model**, which was called `ReadingBlock` — a
+name that reads naturally and collides head-on with the workbench's *blocks*,
+the assembled prompt fragments [10 §12.1](../10-ui-surfaces.md) forbids this view
+from showing. The type is `Passage` now. *A word that means two things across the
+boundary a design rests on is how the boundary gets crossed by accident*, and the
+test refused the name before a person did.
+
+***Two things the plan did not know it was asking for.***
+
+- **Turn hits had no snippet.** [10 §14.1](../10-ui-surfaces.md) asks for
+  *"results as a list of turns with a snippet"* and `searchTurns` returned a turn
+  id. At six hundred turns that difference **is** the feature: a list of nine
+  dates is a list of nine things to open, which is the scrolling §14 exists to
+  prevent wearing a different shape. §14.5 makes the identical complaint about
+  lore entries in so many words — *"close to useless at book scale"* — and that
+  half was paid at [P5.2](17-p5-implementation.md) while this one was not, by
+  nobody's decision.
+- **The transcript route walked from the head and only the head.** §12.1's
+  *"any node, not just the head"* is the bullet that makes this more than a print
+  button, and it is one argument to `walkPath`. It is `?from=` on the route that
+  already exists rather than a second route: *what differs between the two
+  surfaces is what they render*, and a second fetch path would be a second place
+  for the walk, the limit and the sibling map to drift. **A node the session does
+  not have is a 404** — `walkPath` answers `[]` for an unknown id, which is
+  indistinguishable from an empty session and would render as a blank page with
+  nothing wrong.
+
+***The print stylesheet is in `index.css` rather than on the route***, which is
+the decision worth recording. §12.2 makes the browser's own print-to-PDF the
+whole of the PDF story — *"shipping a PDF renderer would be real weight… for an
+outcome the platform already gives away"* — so it has to be good rather than
+present, and the chrome that would otherwise print is the **Shell's**: the
+header, the navigation and the build footer are mounted around every page. A
+reading view that hid its own controls would have solved the smaller half.
+Landmarks rather than class names, so nothing has to be remembered when one of
+them is restyled.
+
+***And one coupling cost, paid rather than hidden.*** The way into the reading
+view is a `<Link>` on the session panel, because §12.1 wants it *"openable at any
+time on any session"* and so it renders unconditionally. Two component suites
+mount that panel **without a router** — forty-two tests and eight — and `<Link>`
+throws where `useNavigate` merely warns. *`MemoryPanel` has carried one since
+P8.4 and never tripped it*, because its fixtures have no memory books; this is
+the same latent coupling with a fixture that reaches it. Both files now replace
+`Link` with an anchor, which is all either asserts about a link anyway. **The
+alternative was driving the real router to `/play/$sessionId` in both and
+rewriting every assertion around it**, which is a large change to prove something
+no test there is about.
+
+**The lorebook half is its own serialiser and that is deliberate.**
+[10 §5.3](../10-ui-surfaces.md) is §12's argument on a second subject and shares
+its *formats*, not its model: a session is a path through a tree and a book is a
+collection with folders, and one serialiser over both would have a branch in
+every function. [11 §3](../11-lorebooks-as-a-format.md)'s rule — *"raw is a claim
+about the words, not about the layout; the reading view may re-arrange, and it
+may not re-word"* — is asserted in both directions, and the *may not re-word*
+half is the one a Markdown serialiser's instinct violates: **escaping somebody's
+corpus is re-wording it under another name.** §5.3's *"no JavaScript in the
+output"* fence is held structurally rather than by discipline — a function that
+returns a string has nowhere to put a handler.
+
 ### P11.2 — Editors are not dumb forms, across every editor
 
 [10 §11](../10-ui-surfaces.md) applied where P1's prototype editor, P2A's forms,

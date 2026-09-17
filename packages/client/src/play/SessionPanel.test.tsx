@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +42,27 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: { listLibrary: () => Promise.resolve({ objects: [] }) },
 }));
 
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
+/**
+ * ***`Link` joins `useNavigate` here, and it had to*** — [P11.1].
+ *
+ * This file mounts the panel **without a router**, so the module is replaced
+ * rather than partially mocked — which works exactly as long as the panel uses
+ * nothing else from it. [P11.1] added the way into the reading view, which
+ * [10 §12.1] wants *"openable at any time on any session"* and which therefore
+ * renders unconditionally, and the panel stopped rendering at all.
+ *
+ * *An anchor is the whole of what the replacement needs to be*: nothing here
+ * asserts about navigation, and a link's address is the one thing about it a
+ * test on this surface would ever check.
+ */
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigate,
+  Link: (props: { to?: string; children?: ReactNode; className?: string }) => (
+    <a href={props.to ?? '#'} className={props.className}>
+      {props.children}
+    </a>
+  ),
+}));
 
 const { SessionPanel } = await import('./SessionPanel.js');
 

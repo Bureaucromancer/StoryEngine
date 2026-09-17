@@ -1501,8 +1501,21 @@ export function writeSessionChannel(
  */
 export function readTranscript(
   sessionId: string,
+  options: { limit?: number; from?: string } = {},
 ): Promise<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
-  return request('GET', `/api/sessions/${sessionId}/turns`);
+  /**
+   * ***`from` walks to a node that is not the head*** — [10 §12.1], [P11.1].
+   *
+   * The reading view's *"any node, not just the head"*, asking the transcript's
+   * own route rather than a second one: what differs between the two surfaces
+   * is what they render, and a second fetch path would be a second place for
+   * the walk and the sibling map to drift.
+   */
+  const query = new URLSearchParams();
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+  if (options.from !== undefined) query.set('from', options.from);
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+  return request('GET', `/api/sessions/${sessionId}/turns${suffix}`);
 }
 
 /**
@@ -2116,3 +2129,40 @@ export const adminApi = {
    */
   restart: (): Promise<{ draining: boolean }> => request('POST', '/api/admin/restart'),
 };
+
+/**
+ * ***One query, three kinds of hit*** —
+ * [10 §14.5](../../../docs/design/10-ui-surfaces.md),
+ * [P11.1](../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * The route has served this since P2 and nothing called it, which is the entry
+ * `route-callers.test.ts` has carried in its `OWED` map. This is the call, and
+ * the shape is the route's response verbatim rather than a narrowing: a turn hit
+ * carries `onPath` and `headTurnId` because [07 §7] requires a branch hit to say
+ * where it lives, and dropping either here would make that impossible on the
+ * surface rather than merely absent.
+ */
+export interface SearchResults {
+  objects: { id: string; schema: string; name: string; slug: string; source: string }[];
+  turns: {
+    turnId: string;
+    sessionId: string;
+    sessionName: string;
+    snippet: string;
+    onPath: boolean;
+    headTurnId: string | null;
+  }[];
+  entries: {
+    entryId: string;
+    entryName: string | null;
+    objectId: string;
+    objectName: string;
+    slug: string;
+    source: string;
+    snippet: string;
+  }[];
+}
+
+export function searchEverything(query: string): Promise<SearchResults> {
+  return request('GET', `/api/search?q=${encodeURIComponent(query)}`);
+}

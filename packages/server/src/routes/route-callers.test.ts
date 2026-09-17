@@ -254,10 +254,19 @@ const EXEMPT = new Map<string, string>([
  * some document also makes rather than a note only this file remembers.
  */
 const OWED = new Map<string, string>([
-  [
-    'GET /api/search',
-    "P11.1. Search and the reading view are read-surfaces over the same data and share a print story, which is a better grouping than 'shipped route with no caller' — P7B §1.11, decided 2026-09-14.",
-  ],
+  /**
+   * ***`GET /api/search` was owed here from P2 to [P11.1] and is paid.***
+   *
+   * Nine phases, which is the longest a debt in this map has ever stood — and
+   * it stood for a reason this map is the wrong instrument to see: the route
+   * worked, its tests passed, and the only thing missing was somebody to ask
+   * it. **It is gone rather than annotated**, which is the shape of a debt
+   * being discharged: `api.ts` names the address now, so the scan reaches it
+   * and a line saying *a surface is owed* would have stopped being true.
+   *
+   * *Discharged by building the surface rather than by editing the map*, which
+   * is the only way out this map is meant to have.
+   */
   [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
 import {
@@ -11,6 +11,7 @@ import {
   useSetSessionArchived,
   useSetSessionPreset,
 } from '../queries.js';
+import { link } from '../ui/classes.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { NumberField, SelectField } from '../ui/Field.js';
@@ -176,6 +177,23 @@ export function SessionPanel(props: {
         {setPreset.isError ? <Alert tone="error">{setPreset.error.message}</Alert> : null}
 
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
+          {/*
+            ***The way into the reading view*** —
+            [10 §12](../../../../docs/design/10-ui-surfaces.md), [P11.1].
+            §12.1 wants it *"openable at any time on any session, including one
+            still in progress"*, so it sits with the session's own verbs rather
+            than behind a finished state — and it is a link rather than a button
+            because it is a place, addressable and sendable, which is the same
+            argument [P3 §7.2] makes for `/compare`.
+          */}
+          <Link
+            to="/read/$sessionId"
+            params={{ sessionId: props.sessionId }}
+            search={{}}
+            className={link.action}
+          >
+            Read it as a story
+          </Link>
           <Button
             type="button"
             onClick={() => {

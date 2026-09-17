@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link } from '@tanstack/react-router';
-import { type JSX, type ReactNode } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 
 import type { Lorebook } from '@storyengine/shared';
 
@@ -16,6 +16,7 @@ import {
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject, useObjectImportNotes } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
 import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
@@ -24,6 +25,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
+import { bookToMarkdown } from './book-document.js';
 import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
@@ -326,59 +328,128 @@ function LorebookBody(props: {
     enabled: provenanceSourceOf(object) === 'session',
   });
 
+  const book = object.object as unknown as Lorebook;
+
   return (
-    <LorebookView
-      book={object.object as unknown as Lorebook}
-      focused={search.entry ?? null}
-      {...(sessions.data === undefined ? {} : { sessions: sessions.data.sessions })}
-      {...(props.locale === undefined ? {} : { locale: props.locale })}
-      linkToEntry={(entryId, children) => (
+    <>
+      {/*
+        ***Print, and copy as Markdown*** —
+        [10 §5.3](../../../../docs/design/10-ui-surfaces.md), [P11.1].
+        *"A setting should be readable as a setting, without the machinery"* —
+        §12's argument on its second subject, and the same two formats for §12.2's
+        reasons. **Not an export target**: §5.3 is explicit that it never sits
+        beside the object export in a menu, because sitting there implies a round
+        trip and there is none.
+      */}
+      <BookDocumentControls book={book} />
+      <LorebookView
+        book={book}
+        focused={search.entry ?? null}
+        {...(sessions.data === undefined ? {} : { sessions: sessions.data.sessions })}
+        {...(props.locale === undefined ? {} : { locale: props.locale })}
+        linkToEntry={(entryId, children) => (
+          /**
+           * **Every link on this page is built here**, which is the same
+           * discipline that keeps the panel from reintroducing F19 one level
+           * up: the address of a copy is `?source=&slug=`, and an entry link
+           * that dropped them would send somebody from the shadowed copy they
+           * are reading to the winner. So the current search is spread and only
+           * `entry` is added.
+           */
+          <Link
+            to="/library/$kind/$id"
+            params={{ kind: 'lorebooks', id: object.id }}
+            search={{ ...search, entry: entryId }}
+            className={link.object}
+          >
+            {children}
+          </Link>
+        )}
+        importNotes={notes.data?.notes ?? []}
         /**
-         * **Every link on this page is built here**, which is the same
-         * discipline that keeps the panel from reintroducing F19 one level
-         * up: the address of a copy is `?source=&slug=`, and an entry link
-         * that dropped them would send somebody from the shadowed copy they
-         * are reading to the winner. So the current search is spread and only
-         * `entry` is added.
+         * **Offered only where the object can actually be written**, through the
+         * same `mutable` predicate the strip's Edit and Delete go through — a
+         * system book and a shadowed copy are both readable and neither is
+         * writable, and an *Edit* on the losing copy of a duplicated id would open
+         * the editor over the winner (F19 with the stakes raised).
+         *
+         * Spread rather than passed as `undefined`, because
+         * `exactOptionalPropertyTypes` makes *absent* and *present and undefined*
+         * two different things.
          */
-        <Link
-          to="/library/$kind/$id"
-          params={{ kind: 'lorebooks', id: object.id }}
-          search={{ ...search, entry: entryId }}
-          className={link.object}
-        >
-          {children}
-        </Link>
-      )}
-      importNotes={notes.data?.notes ?? []}
-      /**
-       * **Offered only where the object can actually be written**, through the
-       * same `mutable` predicate the strip's Edit and Delete go through — a
-       * system book and a shadowed copy are both readable and neither is
-       * writable, and an *Edit* on the losing copy of a duplicated id would open
-       * the editor over the winner (F19 with the stakes raised).
-       *
-       * Spread rather than passed as `undefined`, because
-       * `exactOptionalPropertyTypes` makes *absent* and *present and undefined*
-       * two different things.
-       */
-      {...(mutable(object)
-        ? {
-            editEntry: (entryId: string, children: ReactNode) => (
-              <Link
-                to="/library/lorebooks/$id/edit"
-                params={{ id: object.id }}
-                search={{ entry: entryId }}
-                className={link.inline}
-              >
-                {children}
-              </Link>
-            ),
-          }
-        : {})}
-    />
+        {...(mutable(object)
+          ? {
+              editEntry: (entryId: string, children: ReactNode) => (
+                <Link
+                  to="/library/lorebooks/$id/edit"
+                  params={{ id: object.id }}
+                  search={{ entry: entryId }}
+                  className={link.inline}
+                >
+                  {children}
+                </Link>
+              ),
+            }
+          : {})}
+      />
+    </>
   );
 }
+
+/**
+ * ***Two buttons, and no third format*** — [10 §5.3], [P11.1].
+ *
+ * §5.3's fence is *"no JavaScript in the output"*, and the way this file keeps
+ * it is structural rather than disciplined: **Print** hands the page to the
+ * browser, which is HTML plus the print stylesheet and nothing else, and
+ * **Copy as Markdown** produces a string. Neither has anywhere to put a handler.
+ *
+ * *Copying is the half that can fail*, on the deployment this project is for: a
+ * LAN install over plain HTTP is not a secure context and `navigator.clipboard`
+ * is absent there. Saying so is better than a button that appears to work.
+ */
+function BookDocumentControls(props: { book: Lorebook }): JSX.Element {
+  const [said, setSaid] = useState<string | null>(null);
+  return (
+    <div className="flex flex-wrap items-center gap-2 print:hidden">
+      <Button
+        type="button"
+        onClick={() => {
+          globalThis.print();
+        }}
+      >
+        Print
+      </Button>
+      <Button
+        type="button"
+        onClick={() => {
+          const clipboard = navigator.clipboard as Clipboard | undefined;
+          if (clipboard === undefined) {
+            setSaid(NO_CLIPBOARD);
+            return;
+          }
+          void clipboard
+            .writeText(bookToMarkdown(props.book))
+            .then(() => {
+              setSaid('Copied.');
+            })
+            .catch(() => {
+              setSaid(NO_CLIPBOARD);
+            });
+        }}
+      >
+        Copy as Markdown
+      </Button>
+      {said === null ? null : (
+        <span role="status" className="text-sm text-ink-subtle">
+          {said}
+        </span>
+      )}
+    </div>
+  );
+}
+
+const NO_CLIPBOARD = 'This browser would not copy. Select the text and copy it yourself.';
 
 /**
  * The page's critical controls, held against the bottom of the scrollport

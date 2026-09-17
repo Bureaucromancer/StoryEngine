@@ -39,6 +39,26 @@ export interface TurnHit {
   sessionName: string;
   segment: string;
   offset: number;
+  /**
+   * ***The matched text, which is what makes a hit worth returning*** —
+   * [10 §14.1](../../../../docs/design/10-ui-surfaces.md),
+   * [P11.1](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * §14.1 asks for *"results as a list of turns with a snippet"* and this index
+   * returned a turn id. **At six hundred turns the difference is the whole
+   * feature**: a list of nine dates is a list of nine things to open, which is
+   * the scrolling §14 exists to prevent wearing a different shape. §14.5 makes
+   * the same complaint about lore entries in so many words — *"close to
+   * useless at book scale"* — and that half was paid at P5.2 while this one was
+   * not.
+   *
+   * *No markers around the match.* `lore_entry_fts` passes empty strings for
+   * `snippet`'s open and close arguments and this does the same, because the
+   * text goes into a React child rather than into `innerHTML`: a marker would
+   * have to be parsed back out, and parsing markers out of prose that may
+   * legitimately contain them is how an excerpt starts lying about the story.
+   */
+  snippet: string;
 }
 
 /**
@@ -174,8 +194,12 @@ export function searchTurns(
 
   const rows = db
     .prepare(
+      // The FTS table is named rather than aliased, for `query.ts`'s reason:
+      // neither `match` nor `snippet`'s first argument resolves through an
+      // alias.
       `select turn.turn_id, turn.session_id, turn.segment, turn.offset,
-              session.name as session_name
+              session.name as session_name,
+              snippet(turn_fts, -1, '', '', '…', 20) as snippet
          from turn_fts
          join turn on turn.turn_id = turn_fts.turn_id
          join session on session.session_id = turn.session_id
@@ -188,6 +212,7 @@ export function searchTurns(
     segment: string;
     offset: number;
     session_name: string;
+    snippet: string;
   }[];
 
   return rows.map((row) => ({
@@ -196,6 +221,7 @@ export function searchTurns(
     sessionName: row.session_name,
     segment: row.segment,
     offset: row.offset,
+    snippet: row.snippet,
   }));
 }
 
