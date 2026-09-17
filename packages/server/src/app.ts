@@ -53,7 +53,11 @@ import { createCaptureRecorder, type CaptureRecorder } from './providers/capture
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
 import { capabilitiesFor } from './providers/capabilities.js';
 import { resolveConnections } from './providers/connections.js';
-import { dispatchRenditions, type RenditionWorkerContext } from './renditions/worker.js';
+import {
+  dispatchRenditions,
+  drainRenditions,
+  type RenditionWorkerContext,
+} from './renditions/worker.js';
 import { reconcileRenditionJobs } from './renditions/jobs.js';
 import type { Rendition } from '@storyengine/shared';
 import { selectBackdrop } from './renditions/backdrop.js';
@@ -164,6 +168,17 @@ export interface AppServices {
     records: readonly Rendition[],
     turnId: string,
   ) => void;
+  /**
+   * Waits for every picture still being made — [P9.2]'s detached dispatch, given
+   * the shutdown wait it never had.
+   *
+   * **On the services beside `renditions` rather than inside it**, because the
+   * two are the same seam from opposite ends: `renditions` says *make this and
+   * do not wait*, and this says *and now, once, wait*. `disposeServices` is the
+   * only caller and the only one that should be — anything else waiting on a
+   * picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra steps.
+   */
+  drainRenditions: () => Promise<void>;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -610,6 +625,14 @@ async function assembleWithState(
     layout,
     providers,
     /**
+     * **The pictures still being made**, so `disposeServices` can wait for them.
+     * See the field's own note in `renditions/worker.ts`: the dispatch is
+     * detached by design and was untracked by omission, and a job writing into a
+     * closed `DatabaseSync` is the failure that argument was already made about
+     * one layer up.
+     */
+    inFlight: new Set(),
+    /**
      * The connection the `image` role resolves to, for this account.
      *
      * *Resolved per job rather than held*, because a person can rebind the role
@@ -727,6 +750,7 @@ async function assembleWithState(
     notify,
     runner,
     renditions: dispatch,
+    drainRenditions: () => drainRenditions(renditions),
     commit,
     providers,
     streams: new Set<() => void>(),
@@ -834,6 +858,15 @@ export async function disposeServices(services: AppServices): Promise<void> {
   // `DatabaseSync` is the failure that surfaces on Windows as `EBUSY` on a
   // file the caller never named, two layers from where it was caused.
   await services.runner.drain();
+  /**
+   * **After the runner and before the handles close**, which is the only order
+   * that works: a turn finalising during `drain()` dispatches its pictures on
+   * the way out, so waiting for renditions first would wait for a set that is
+   * about to grow — and every arm of `runRendition` writes through `db` and
+   * `layout`, so waiting after `index.close()` would be waiting for writes into
+   * a closed handle rather than preventing them.
+   */
+  await services.drainRenditions();
   services.stopUpdateCheck();
   for (const close of services.streams) close();
   services.streams.clear();

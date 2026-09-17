@@ -1464,15 +1464,26 @@ work**, and the phase does not close until they have results — which is
 when *beta* may be said.
 
 ***What it does not have is named rather than absorbed***, which is the part of
-this row worth reading twice. Four things a 1.0 commitment asks for are **not
-built**: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
-[10 §11.2c](../10-ui-surfaces.md)'s entry travel, the assistant's docs lorebook,
-and the **Playwright journeys the gate's own row 8 assumed and no stage was asked
-to build**. Three are features with an argument beside them; the fourth is
-infrastructure. All four are in
-[manual testing §10](05-manual-testing.md) with no owner, because *giving a false
-owner would stop anybody looking* — and the person walking R4 meets them as known
-absences rather than as discoveries.
+this row worth reading twice. ~~Four~~ **Three** things a 1.0 commitment asks for
+are **not built**: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
+[10 §11.2c](../10-ui-surfaces.md)'s entry travel, and the assistant's docs
+lorebook. ~~and the **Playwright journeys the gate's own row 8 assumed and no
+stage was asked to build**~~. ~~Three are features with an argument beside them;
+the fourth is infrastructure.~~ **All three are features with an argument beside
+them**, and they are in [manual testing §10](05-manual-testing.md) with no owner,
+because *giving a false owner would stop anybody looking* — and the person walking
+R4 meets them as known absences rather than as discoveries.
+
+***The fourth was the Playwright suite, and it was built on 2026-09-17***, the
+day the record named it. **It is worth a sentence because of how it went**: three
+of the four were features, each with a reason it could wait; the fourth was
+infrastructure the gate had simply assumed, which is not a thing a reader can
+weigh — so rather than ask R4's reader to adjudicate it, the suite was written.
+**Walking the seven journeys found three of them had been read wrong**, the
+sharpest being that *branch* is **Redo** and not a second send — and a second send
+posts the same one turn, so a suite written to the wrong reading would have been
+green while protecting the wrong claim. [testing §3.5](03-testing.md) records all
+three.
 
 ~~**Skeleton: [P11](28-p11-implementation.md)**~~ ~~***A register,
 re-audited 2026-09-16 at `2f3f5d9`***~~ ***A register with a costed stage list,

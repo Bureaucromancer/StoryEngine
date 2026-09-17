@@ -56,6 +56,21 @@ export function ImportSession(): JSX.Element {
         ref={picker}
         type="file"
         accept="application/json,.json"
+        /**
+         * ***Hidden from everyone, not just from sight.*** This was `sr-only`,
+         * which hides a thing visually and leaves it in the accessibility tree
+         * — so the page offered two controls for one act, the button below and
+         * a bare *Choose File* with no label, and only the second of them told
+         * you nothing about what it loads. Found by the Playwright tier's own
+         * page snapshot, which is the sort of thing only a whole-page reading
+         * catches.
+         *
+         * `aria-hidden` with `tabIndex={-1}`, together: hiding a focusable
+         * element from the tree while leaving it in the tab order is the worse
+         * bug, a stop on the keyboard path that announces nothing at all.
+         */
+        aria-hidden="true"
+        tabIndex={-1}
         className="sr-only"
         onChange={(event) => {
           const file = event.target.files?.[0];

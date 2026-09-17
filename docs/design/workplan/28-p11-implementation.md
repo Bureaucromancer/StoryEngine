@@ -18,9 +18,19 @@ the whole reason there are two tables.
 ***Four things a 1.0 commitment asks for are not built, and they are named rather
 than absorbed***: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
 [10 §11.2c](../10-ui-surfaces.md)'s entry travel, the assistant's docs lorebook,
-and **row 8's Playwright suite, which this gate assumed and no stage was asked to
-build**. Three are features with an argument; the fourth is infrastructure, and it
-is the one to argue about.
+and ~~**row 8's Playwright suite, which this gate assumed and no stage was asked
+to build**~~. Three are features with an argument; the fourth was infrastructure,
+and it was the one to argue about.
+
+***~~Four~~ Three, since 2026-09-17: row 8 was built.*** Writing this record is
+what found it, and what the record then said about it — *"the question this
+document most wants them to arrive at deliberately"* — was answered by building
+the thing rather than by arguing about whether beta could be declared without it.
+The suite is `e2e/`, CI runs it as the `journeys` job, and
+[§3.2](#32-what-was-answered--recorded-2026-09-17)'s row 8 carries what walking
+the seven journeys turned up. **The other three stand**, and they are features
+with arguments beside them, which is the shape this paragraph could not claim
+while a fourth thing sat in it with no argument at all.
 
 ***What the fleshing out did, in one line: every one of the stages now
 names what it depends on, what it ends at, and the check that says it is done***
@@ -2814,12 +2824,21 @@ list. Rows 3, 8, 10 and 11 are **asserted by name** below. Row 9's container hal
 is blocked on a daemon, which clause (iii) makes a deferral rather than a check.
 
 ***And one row the criterion cannot rescue.*** Row 8 — *the Playwright journeys
-pass against the fake provider, on CI, on every merge* — **has no suite to run.**
-There are no journeys, there is no harness, and no stage of this phase was asked
-to build one. That is not a walk anybody can do and not a test anybody can name;
-it is a gap, it is [§3.2](#32-what-was-answered--recorded-2026-09-17)'s honest
-entry, and it is recorded here so that C4's reader meets it as a known absence
-rather than as a discovery.
+pass against the fake provider, on CI, on every merge* — ~~**has no suite to
+run.** There are no journeys, there is no harness, and no stage of this phase was
+asked to build one.~~ That is not a walk anybody can do and not a test anybody can
+name; it is a gap, it is
+[§3.2](#32-what-was-answered--recorded-2026-09-17)'s honest entry, and it is
+recorded here so that C4's reader meets it as a known absence rather than as a
+discovery.
+
+***Built the same day this was written*** (2026-09-17), which makes the paragraph
+above a record of where the work came from rather than a standing absence. **The
+criterion never had to rescue it**: a row asking for journeys *on CI, on every
+merge* is not a person's walk at all, and the reason it sat in this section is
+that a check nobody can run is not a check — which is a different failure from
+the one §0's three clauses sort for. Row 8 leaves the critical list because it is
+now green, not because the criterion was re-read.
 
 ### 3.2 What was answered — recorded 2026-09-17
 
@@ -2837,7 +2856,7 @@ and the whole reason there are two.*
 | **5** Four pacing levels produce different sessions | `sessions/hooks.test.ts`, both modes' `mode.test.ts` | ✅ **in part** — that each level *has prose*, that the pack ships four, and that the top of the dial carries no compliance language. Whether they **read** differently is [sitting G](05-manual-testing.md)'s, and until [P11.5] there was nothing to read |
 | **6** The app in the test French | `i18n/catalogue.test.ts`, `i18n/useLocale.test.tsx` | ✅ **in part** — the per-key fallback, the orphan check, and an account's locale reaching a module-level table through a lazily-loaded chunk. **Layout is [sitting Q](05-manual-testing.md)'s**, because no test can see a clipped label |
 | **7** Restorable within the window, gone after it | `storage/trash.test.ts`, `settings/Trash.tsx`'s route tests | ✅ **in part** — the suffix reader, the sweep and the restore. *Gone after the window* is a clock, which the standing list holds |
-| **8** Playwright journeys on CI | — | ❌ **Nothing.** No suite, no harness, no stage asked to build one. Named in §3.1 rather than left for row 12's reader to find |
+| **8** Playwright journeys on CI | `e2e/journeys.spec.ts`, `ci.yml`'s `journeys` job | ✅ — **built after this table first said ❌**, which is the one row here whose entry changed by the work being done rather than by the wording being fixed. One test, the seven journeys in [testing §3.5](03-testing.md)'s order, against a built server serving a built client and an OpenAI-compatible double over HTTP. **Three of the seven were read wrong until walked** — §3.5 records which and why |
 | **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
 | **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
 | **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it |
@@ -2860,11 +2879,22 @@ gaps, and the docs lorebook is [P11.3]'s. *A phase claiming feature completeness
 has to answer for them at C4*, which is why they are here rather than only in
 their stages' Done blocks.
 
-**And row 8 is the one to argue about.** Three of the four unbuilt things above
-are features with an argument beside them; a browser test suite is
-**infrastructure the gate assumed and no stage was asked for**. Whether beta can
-be declared without it is C4's reader's call and not this document's — but it is
-the question this record most wants them to arrive at deliberately.
+**And row 8 was the one to argue about** — ~~*"whether beta can be declared
+without it is C4's reader's call and not this document's"*~~. Three of the four
+unbuilt things above are features with an argument beside them; a browser test
+suite was **infrastructure the gate assumed and no stage was asked for**, which
+is a different kind of absence and not one a reader should have to adjudicate.
+
+***So it was built instead*** (2026-09-17), and the argument is withdrawn rather
+than won. **What it cost is the interesting number**: a day's work, against four
+phases of a gate row that had been carried unbuilt. **What it found is the better
+one** — three of the seven journeys said something other than what they had been
+read as saying, and the sharpest of the three is that *branch* had been read as
+*a second send*, which posts the same one turn and continues the line instead of
+splitting it. A suite written to that reading would have been green and would
+have protected the wrong claim, which is the argument for walking a list of
+journeys rather than reciting it, and the argument this row was making all along
+without anybody able to act on it.
 
 ---
 

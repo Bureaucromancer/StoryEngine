@@ -450,9 +450,16 @@ export default tseslint.config(
   // ---------------------------------------------------------------------
   // Tooling and config files: linted, but not type-aware. They are not in
   // any package tsconfig and do not need to be.
+  //
+  // `e2e/` joins them at P11's row 8 and for their reason rather than by
+  // resemblance: the browser tier is not shipped, nothing shipped imports it,
+  // and `tsconfig.tools.json` is what typechecks it. Type-aware linting would
+  // need it inside the project service's graph, which would mean referencing it
+  // from the root `tsconfig.json` — and that file's own comment says what is
+  // referenced there gets built, which a Playwright spec has no business being.
   // ---------------------------------------------------------------------
   {
-    files: ['*.{js,ts}', 'tools/**/*.ts'],
+    files: ['*.{js,ts}', 'tools/**/*.ts', 'e2e/**/*.ts', 'e2e/*.mjs'],
     extends: [tseslint.configs.recommended],
     languageOptions: {
       globals: globals.node,

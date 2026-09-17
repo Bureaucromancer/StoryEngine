@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    // **A project of its own, for one reason: this code runs in two places.**
+    // A `.spec.ts` here is a Node process driving a browser, and the bodies
+    // handed to `page.evaluate` are serialised and run *inside the page* — so
+    // `document` and the browser's `fetch` are in scope there and nowhere else
+    // in this file. `tsconfig.tools.json` cannot carry that, because adding
+    // `DOM` to it would hand `document` to every script under `tools/`, where
+    // it is always a mistake and would typecheck clean.
+    //
+    // The cost is that both libs are visible in both halves, which no tsconfig
+    // can separate — `page.evaluate` is a function boundary, not a file one.
+    // That is a real gap and a small one: a Node global reached from inside an
+    // evaluated body fails at the first run with `ReferenceError`, which is the
+    // loudest failure this tier has.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

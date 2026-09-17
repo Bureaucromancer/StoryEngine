@@ -4,6 +4,11 @@
 # The per-PR tier from docs/design/workplan/03-testing.md §6: format, typecheck,
 # lint, build, test. It has one job — to be fast enough that it is never skipped.
 #
+# Literally two jobs since P11, and the pun above is worth keeping rather than
+# rewriting: `journeys` is the browser tier (§3.5) and it exists *beside* `check`
+# precisely so that the sentence stays true of `check`. What it costs — a
+# Chromium download and a build — is what it is kept out of the fast job for.
+#
 # It runs on ubuntu and Windows, from P2.0 (docs/design/workplan/08-p2-implementation.md
 # §3, F17). The paths, the layout and the watcher are the code most likely to be
 # wrong on a platform the CI never ran, and F4 — an `ignored` predicate that
@@ -127,3 +132,59 @@ jobs:
       # citation convention could then rot in five hundred places unseen.
       - name: Every documentation link resolves and is labelled with its target
         run: pnpm test:docs
+
+  # ***The browser tier*** — docs/design/workplan/03-testing.md §3.5,
+  # docs/design/workplan/28-p11-implementation.md's row 8.
+  #
+  # **A second job rather than more steps on `check`**, for three reasons that
+  # each independently decide it. It needs a browser, which is a download and an
+  # apt install that the other steps have no use for. It is ubuntu-only, and
+  # `check` is a matrix — folding it in would either run Chromium on Windows for
+  # a platform question that belongs to manual sitting H, or make the matrix
+  # legs asymmetric, which is worse than a second job. And it is the slowest
+  # thing here by an order of magnitude at the point it first fails, so a red
+  # journey should not be sitting behind a typecheck that already passed.
+  #
+  # **`--with-deps`** because a GitHub runner has the libraries a desktop has and
+  # not the ones a headless Chromium wants; without it the first launch fails
+  # naming a shared object, which is a confusing way to learn this.
+  #
+  # **Only `chromium`.** §3.5 asks for a handful of journeys, not a matrix, and
+  # installing three browsers to run one is three minutes spent per push on
+  # coverage nothing asked for.
+  journeys:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: The browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      # `pnpm test:e2e` builds first, deliberately and not as a convenience: the
+      # suite serves `packages/client/dist` and runs `packages/server/dist`, so
+      # against a stale tree it would report on an artifact nobody is proposing
+      # to merge. On a cold runner the build is required; on a developer's
+      # machine it is the difference between a real result and a confusing one.
+      - name: The seven journeys, in a browser
+        run: pnpm test:e2e
+
+      # The trace of the failure, which is the entire reason `trace:
+      # 'retain-on-failure'` is set in the config — a journey that goes red on a
+      # machine nobody can open is otherwise a one-line message about a selector.
+      # `if: failure()` because a passing run writes nothing worth keeping.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-trace
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
