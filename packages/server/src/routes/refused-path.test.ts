@@ -179,8 +179,9 @@ describe('a refused path', () => {
 
     await rebuild(server.services.index.db, server.services.layout);
 
-    const afterRebuild = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(afterRebuild.body.objects).toHaveLength(0);
+    // The user's own: the shelf carries what the app ships, and the claim is
+    // that the refused folder produced no object of theirs.
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(0);
     expect(await refusals()).toEqual(['con']);
 
     /**
@@ -214,8 +215,7 @@ describe('a refused path', () => {
       await watcher.stop();
     }
 
-    const afterWatch = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(afterWatch.body.objects).toHaveLength(0);
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(0);
     expect(await refusals()).toEqual(['con']);
   });
 });

@@ -658,6 +658,53 @@ describe('the extractor cannot eat a correction', () => {
  * positive assertion — that the panel renders `PlayPage` — is the half that
  * cannot be satisfied by avoiding a word.
  */
+/**
+ * ***The help book the assistant reads*** —
+ * [06 §7.4](../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11.3](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * §7.4: *"Ship the documentation as a built-in lorebook and attach it to the
+ * assistant. Keyword activation plus the budgeter already do the work."* **Two
+ * halves in two packages**, and the thing joining them is an id written out
+ * twice — the server ships the book under it, and the client's session creation
+ * names it in `lore`.
+ *
+ * ***A literal in two files is exactly what an instrument is for.*** They cannot
+ * import each other: the client does not depend on the server, deliberately and
+ * by the boundary graph. So nothing but a reader like this can notice the day
+ * one of them changes — and what that day produces is an assistant that answers
+ * every question with no documentation at all, silently, because a `lore` link
+ * naming nothing resolves to nothing rather than failing.
+ *
+ * *The corpus's own health is `docs-lorebook.test.ts`'s*; this is only the seam.
+ */
+describe('the assistant reads the book the server ships', () => {
+  const SHIPPED = join(ROOT, 'packages', 'server', 'src', 'docs-lorebook.ts');
+  const SESSION = join(ROOT, 'packages', 'client', 'src', 'assistant', 'session.ts');
+
+  /** The one `DOCS_LOREBOOK_ID = '…'` a file declares. */
+  function declaredId(file: string): string {
+    const found = /DOCS_LOREBOOK_ID = '([0-9a-f-]+)'/.exec(readFileSync(file, 'utf8'));
+    expect(found, `${file.slice(ROOT.length)} declares no DOCS_LOREBOOK_ID`).not.toBeNull();
+    return found?.[1] ?? '';
+  }
+
+  it('agrees with the client about which book that is', () => {
+    expect(declaredId(SESSION)).toBe(declaredId(SHIPPED));
+  });
+
+  /**
+   * **Selected, because nothing else would activate it.** No lorebook is active
+   * that has not been selected for the session — a book's own `scope` is read by
+   * nothing — so this line is the whole of §7.4's *attach it to the assistant*,
+   * and a session created without it is an assistant with no documentation.
+   */
+  it('selects it for the session it creates', () => {
+    const session = readFileSync(SESSION, 'utf8');
+    expect(session).toMatch(/lore: \[DOCS_LOREBOOK_ID\]/);
+  });
+});
+
 describe('the assistant, which must not be a second chat', () => {
   const PANEL = join(ROOT, 'packages', 'client', 'src', 'assistant');
 

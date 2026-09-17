@@ -652,7 +652,8 @@ describe('a hand edit is not eaten by a stale save', () => {
     });
 
     expect(removed.status).toBe(412);
-    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(listed.body.objects).toHaveLength(1);
+    // Still there, and it is the user's own book the claim is about — the shelf
+    // also carries what the app ships.
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(1);
   });
 });

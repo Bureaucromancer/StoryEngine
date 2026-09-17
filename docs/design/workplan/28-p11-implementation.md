@@ -32,11 +32,11 @@ the seven journeys turned up. **The other three stood**, and they are features
 with arguments beside them, which is the shape this paragraph could not claim
 while a fourth thing sat in it with no argument at all.
 
-***One, by the end of the same day: [10 §11.2c]'s entry travel and
-[10 §11.2b]'s image slots are built too.*** Both records are [P11.2]'s Done block
-below. **What remains unbuilt for beta is the assistant's docs lorebook**, which
-is not a decision waiting on a reader either: it is a corpus somebody has to
-write.
+***None, by the end of the same day: [10 §11.2c]'s entry travel,
+[10 §11.2b]'s image slots and the docs lorebook are all built.*** The first two
+are [P11.2]'s Done block below and the third is [P11.3]'s. **The list this
+paragraph existed to keep is empty**, which is what a list of named absences is
+for — and none of the four closed by being argued about.
 
 ***What the fleshing out did, in one line: every one of the stages now
 names what it depends on, what it ends at, and the check that says it is done***
@@ -1710,17 +1710,44 @@ rather than taking a turn, which is `Suggestions`' rule beside them.
 
 ---
 
-***What §7.4 asks for and this does not have: the docs lorebook.*** *"Docs
+***What §7.4 asks for and this did not have: the docs lorebook.*** *"Docs
 retrieval needs no new machinery. Ship the documentation as a built-in lorebook
 and attach it to the assistant. Keyword activation plus the budgeter already do
-the work."* **The machinery is here and the corpus is not**: the pack positions a
-`lore` slot, the retriever runs, and no book is attached. That is a corpus
+the work."* ~~**The machinery is here and the corpus is not**: the pack positions
+a `lore` slot, the retriever runs, and no book is attached.~~ That was a corpus
 problem — turning a design corpus into keyed entries somebody would want
 retrieved — rather than a mechanism one, and shipping an empty book to close the
 row would have been the placeholder shape this phase has refused at every stage.
-*It is the one thing between this assistant and the one §7.4 describes*, and it
-is filed against [§3](#3-verification--the-p11-exit-gate)'s row 4 rather than
-here.
+*It was the one thing between this assistant and the one §7.4 describes.*
+
+***Written 2026-09-17***, and *"needs no new machinery"* turned out to be exactly
+true: `docs-lorebook.ts` ships twenty-five keyed entries in eleven folders,
+`system-library.ts` materialises it beside the assistant card under the same four
+rules, and the attaching is **one line** — `lore: [DOCS_LOREBOOK_ID]` on the
+session the panel creates. No route, no retriever, no slot.
+
+***What the entries are is the part that took the time.*** The design corpus is
+reasoning about decisions; an entry here is an answer to a question somebody
+types at three in the morning — *why does my lorebook entry never fire*, *which
+model answers*, *what does scan depth count* — and the keys are the words they
+would use **including the wrong ones**, because a key that only matches the
+correct term only helps somebody who did not need help.
+
+***Three settings on the book are the whole of "the budgeter already does the
+work".*** `scanDepth: 4`, because a follow-up question names none of the original
+words; `entryLimit: 4` and a token budget, so documentation cannot eat the
+conversation it is helping with; and `recursiveScanning: false`, because these
+entries cross-reference each other constantly and one question would otherwise
+pull in half the book.
+
+***And a corpus needs an instrument, because a type cannot check one.***
+`docs-lorebook.test.ts` refuses an entry with no keys, an entry filed in a folder
+that does not exist, a folder holding nothing, a book whose own gates are shut,
+and **two entries claiming the same key** — which is the defect that is invisible
+and expensive, because both fire on the same question and the budgeter then drops
+one by a priority nobody set. It found one on its first run: *restore* meant both
+the trash and a backup. `repo-shape.test.ts` holds the other seam, the id written
+out in two packages that cannot import each other.
 
 ### P11.4 — Scene's remainder, and impersonation
 
@@ -2859,7 +2886,7 @@ because **they are what closes the phase** rather than because they are hard.
 |---|---|---|
 | **C1** [§0.1]'s list is empty, item by item, with each named check green — gate row 1 | Clause (i): it is the phase's own claim about its own list, and nothing else in this gate can falsify it. Clause (ii): it is what row 12's reader is entitled to assume. **The `'unread'` tier reaching zero is part of it** | Nothing — a desk and the test output |
 | **C2** A real session reads end to end as prose, prints to a clean PDF, and copies as Markdown that pastes — gate row 2, minus the two hundred turns | Clause (i): [P11.1]'s claim, and the three outputs are three different renderers. Clause (ii): a reading view that loses a swipe or a speaker is a thing people would find after being told the phase shipped. *Two hundred turns is [sitting G](05-manual-testing.md)'s* — a length, which §0 says is not criticality | Nothing — any session with a few branches, a browser |
-| **C3** The assistant answers a question about the user's own library — gate row 4, the half a grep cannot reach | Clause (i): [P11.3]'s claim, and the grep answers *not a second chat* rather than *it works*. Clause (ii): it is the feature whose absent half — the docs lorebook — is most likely to be discovered by somebody else first | **R2**, a live endpoint |
+| **C3** The assistant answers a question about the user's own library — gate row 4, the half a grep cannot reach | Clause (i): [P11.3]'s claim, and the grep answers *not a second chat* rather than *it works*. Clause (ii): it is the feature whose absent half — ~~the docs lorebook~~ — was most likely to be discovered by somebody else first, ***and that half was written on 2026-09-17***, so what C3 now walks is whether the answers are any good rather than whether there are any | **R2**, a live endpoint |
 | **C4** Read the 1.0 design documents and say, capability by capability, whether it exists and works — gate row 12 | Clause (i) in its strongest form: it **is** the beta claim rather than a check on one. Clause (ii): everything | An afternoon, and the corpus |
 | **C5** Row 13's question is answered in writing — gate row 13 | Clause (i): the gate says *what must not happen is row 12 being walked by somebody who does not know the question was open*. **It is answered**: [P11.12] took the extractor, so C5 is recording that rather than deciding it, and [sitting N](05-manual-testing.md) stops being one row | Nothing — and C4 must not run before it |
 
@@ -2898,7 +2925,7 @@ and the whole reason there are two.*
 | **1** [§0.1]'s list, item by item | every stage's own obligation | **C1. Desk work, not yet done.** Each stage's Done block names its check and each check is green; what nobody has done is the item-by-item read across them, which is the row |
 | **2** A two-hundred-turn session reads, prints, copies | `reading/prose.test.ts`, `reading/fence.test.ts`, `ReadingPage.test.tsx`, `library/book-document.ts` | ✅ **in part** — the passage model, the attribution, the Markdown and the print stylesheet, plus the fence that refuses workbench machinery in the reading directory. **C2** is a person's eyes on a real one; two hundred turns is G's |
 | **3** Every editor offers assist, provenance and history | `editor/contract.test.tsx`, `library/entry-defaults.test.ts` | ✅ — over `LIBRARY_KINDS` rather than over the editors somebody remembered, which is the obligation's own wording, plus one round trip driven end to end. The closed-section invariant is `groupSummary`'s and predates this phase |
-| **4** The assistant answers, proposes a diff, and is not a second chat | `tools/repo-shape.test.ts`, `modes/assistant/mode.test.ts`, `assistant/assistant.test.ts` | ✅ **in part** — *not a second chat* is asserted from both sides, the proposal reader and the ambient context are asserted, and **the docs lorebook does not exist**, which is [P11.3]'s recorded gap. **C3** is the half a grep cannot reach |
+| **4** The assistant answers, proposes a diff, and is not a second chat | `tools/repo-shape.test.ts`, `modes/assistant/mode.test.ts`, `assistant/assistant.test.ts` | ✅ **in part** — *not a second chat* is asserted from both sides, the proposal reader and the ambient context are asserted, and ~~**the docs lorebook does not exist**~~ — **written 2026-09-17**, twenty-five keyed entries shipped beside the card and attached by the session's own `lore` links, with `docs-lorebook.test.ts` holding the corpus and `repo-shape.test.ts` the two-package seam. **C3** is the half a grep cannot reach |
 | **5** Four pacing levels produce different sessions | `sessions/hooks.test.ts`, both modes' `mode.test.ts` | ✅ **in part** — that each level *has prose*, that the pack ships four, and that the top of the dial carries no compliance language. Whether they **read** differently is [sitting G](05-manual-testing.md)'s, and until [P11.5] there was nothing to read |
 | **6** The app in the test French | `i18n/catalogue.test.ts`, `i18n/useLocale.test.tsx` | ✅ **in part** — the per-key fallback, the orphan check, and an account's locale reaching a module-level table through a lazily-loaded chunk. **Layout is [sitting Q](05-manual-testing.md)'s**, because no test can see a clipped label |
 | **7** Restorable within the window, gone after it | `storage/trash.test.ts`, `settings/Trash.tsx`'s route tests | ✅ **in part** — the suffix reader, the sweep and the restore. *Gone after the window* is a clock, which the standing list holds |
@@ -2925,12 +2952,24 @@ gaps, and the docs lorebook is [P11.3]'s. *A phase claiming feature completeness
 has to answer for them at C4*, which is why they are here rather than only in
 their stages' Done blocks.
 
-***Entry travel and image slots were both built on 2026-09-17***, so that list is
-empty — and with row 8 they are the second and third things this record named
-that then got made rather than argued about. Each took hours; each was being
-carried because nobody had written down that it was missing, which is the case
-for writing a record at all. **The docs lorebook stands**, and it is not waiting
-on a decision either: it is a corpus somebody has to write.
+***All three were built on 2026-09-17***, so that list is empty — entry travel,
+image slots and the docs lorebook, and with row 8 they are the four things this
+record named that then got made rather than argued about. Each took hours; each
+was being carried because nobody had written down that it was missing, **which is
+the case for writing a record at all** and is the only general claim this
+document makes about its own form.
+
+***Image slots is the one that most argues for the exercise.*** It had been
+carried as *a stage of work*, and what it actually was is a **container that did
+not exist**: `EmbeddedMedia` names bytes a container carries, a lorebook's
+container is a folder, and nothing had ever written into one. So §11.2b was not
+unbuilt, it was **unreachable** — and the difference is invisible from a plan and
+obvious from an afternoon.
+
+***The docs lorebook is the one that argues the other way.*** Its row said the
+machinery was there and only a corpus was missing, and that was exactly right:
+the attaching is one line. What it cost was writing twenty-five answers, which is
+work a plan cannot shorten and a record was right to refuse to fake.
 
 ***Image slots is the one that most argues for the exercise.*** It had been
 carried as *a stage of work*, and what it actually was is a **container that did

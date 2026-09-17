@@ -4,8 +4,11 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PRESET_SCHEMA, slugify } from '@storyengine/shared';
+import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, PRESET_SCHEMA, slugify } from '@storyengine/shared';
 
+import { ASSISTANT_CARD } from './assistant-card.js';
+import { DOCS_LOREBOOK } from './docs-lorebook.js';
+import { listObjects } from './index-db/query.js';
 import { registeredModes } from './mode-registry.js';
 import { SYSTEM_OWNER } from './storage/layout.js';
 import { materialiseModePresets } from './system-library.js';
@@ -153,5 +156,52 @@ describe('a materialised pack behaves like every other system object', () => {
       url: `/api/library/presets/${String(one?.id)}`,
     });
     expect(removed.status).toBeGreaterThanOrEqual(400);
+  });
+});
+
+/**
+ * ***The two objects that are not packs*** — [06 §7.4], [P11.3], and the docs
+ * lorebook that closed [P11]'s last named absence.
+ *
+ * §7.4 says both in one breath: *"the default assistant card ships as an
+ * ordinary actor in the library, editable and replaceable like any other"* and
+ * *"ship the documentation as a built-in lorebook and attach it to the
+ * assistant."* **Ordinary is the load-bearing word**, and what makes it true is
+ * that they go through the same four rules the packs do — which is what these
+ * assert, because the way a shipped object stops being ordinary is by acquiring
+ * a special case that nobody notices until a release overwrites somebody's work.
+ */
+describe('the assistant card and the help book ship like everything else', () => {
+  it('lands on the shelf, as an actor and a lorebook', async () => {
+    const { services } = await start();
+
+    const actors = listObjects(services.index.db, {
+      owners: [SYSTEM_OWNER],
+      schemaId: ACTOR_SCHEMA,
+    });
+    expect(actors.map((row) => row.id)).toContain(ASSISTANT_CARD.id);
+
+    const books = listObjects(services.index.db, {
+      owners: [SYSTEM_OWNER],
+      schemaId: LOREBOOK_SCHEMA,
+    });
+    expect(books.map((row) => row.id)).toContain(DOCS_LOREBOOK.id);
+  });
+
+  it('is on disk as the entries it was written with', async () => {
+    const { services } = await start();
+    const path = services.layout.objectFile(
+      SYSTEM_OWNER,
+      LOREBOOK_SCHEMA,
+      slugify(DOCS_LOREBOOK.name),
+    );
+    const stored = JSON.parse(await readFile(path, 'utf8')) as {
+      id: string;
+      entries: { id: string }[];
+    };
+    expect(stored.id).toBe(DOCS_LOREBOOK.id);
+    // The whole corpus, not a manifest of it — a book shipped with its entries
+    // stripped would index, list, and answer nothing.
+    expect(stored.entries).toHaveLength(DOCS_LOREBOOK.entries.length);
   });
 });

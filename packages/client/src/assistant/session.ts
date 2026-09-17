@@ -35,6 +35,18 @@ export const ASSISTANT_MODE_ID = 'storyengine.assistant';
 /** The shipped card's id — `assistant-card.ts`, and stable for the same reason. */
 export const ASSISTANT_CARD_ID = '0199c000-0000-7000-8000-00000000a552';
 
+/**
+ * ***The shipped help book's id*** — `docs-lorebook.ts`,
+ * [06 §7.4](../../../../docs/design/06-modes-and-turn-pipeline.md).
+ *
+ * §7.4: *"Ship the documentation as a built-in lorebook and attach it to the
+ * assistant. Keyword activation plus the budgeter already do the work."*
+ * **This is the attaching**, and it is one line of an ordinary session's
+ * ordinary `lore` links — which is the whole of what *needs no new machinery*
+ * turned out to mean.
+ */
+export const DOCS_LOREBOOK_ID = '0199c000-0000-7000-8000-00000000d0c5';
+
 /** The live assistant session, or null when there has never been one. */
 export function assistantSessionIn(sessions: readonly SessionSummary[]): SessionSummary | null {
   return (
@@ -71,6 +83,21 @@ export function useAssistantSession(enabled: boolean): {
          * declares the mode expects.
          */
         cast: { persona: null, actors: [ASSISTANT_CARD_ID] },
+        /**
+         * ***The help book, selected for this session*** — [06 §7.4].
+         *
+         * **Selected rather than global**, because no lorebook is active that
+         * has not been selected for the session: a book's own `scope` is read by
+         * nothing, and this line is the only reason the assistant can retrieve
+         * anything at all.
+         *
+         * *Only on a session this makes.* An assistant session somebody started
+         * before this shipped does not get it retroactively, and adding it to
+         * one would be reaching into a session's own configuration behind their
+         * back — the book is in the library, and attaching it is a control on
+         * the session panel like it is for any other book.
+         */
+        lore: [DOCS_LOREBOOK_ID],
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['sessions'] });

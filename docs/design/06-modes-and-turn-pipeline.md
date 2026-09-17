@@ -1225,6 +1225,25 @@ per user ([09 §4.3](09-server-multiuser-deployment.md)).
 lorebook and attach it to the assistant. Keyword activation plus the budgeter
 already do the work ([03 §3](03-data-model.md)).
 
+**Built at P11** ([P11.3](workplan/28-p11-implementation.md)), and *needs no new
+machinery* was exactly true: the book ships beside the assistant card under the
+same rules as any other shipped object, and the attaching is **one line** — the
+book's id in the `lore` links of the session the panel creates. No route, no
+retriever, no slot.
+
+*What the entries are is the part that takes the time.* The design corpus is
+reasoning about decisions; an entry in the shipped book is an answer to a
+question somebody types at three in the morning, and the keys are the words they
+would use **including the wrong ones**, because a key that only matches the
+correct term only helps somebody who did not need help.
+
+*Three settings on the book are the whole of "the budgeter already does the
+work":* a scan depth deep enough that a follow-up naming none of the original
+words still retrieves; an entry limit and a token budget, so documentation cannot
+eat the conversation it is helping with; and recursion **off**, because these
+entries cross-reference each other constantly and one question would otherwise
+pull in half the book.
+
 #### Propose, then apply
 
 Every mutation is a reviewable diff, not a silent write. Marinara has this

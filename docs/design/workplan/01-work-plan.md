@@ -1464,11 +1464,12 @@ work**, and the phase does not close until they have results — which is
 when *beta* may be said.
 
 ***What it does not have is named rather than absorbed***, which is the part of
-this row worth reading twice. ~~Four~~ ~~**Three**~~ ~~**Two**~~ **One** thing a
-1.0 commitment asks for is **not built**: the assistant's docs lorebook.
-~~[10 §11.2c](../10-ui-surfaces.md)'s entry travel~~ and
-~~[10 §11.2b](../10-ui-surfaces.md)'s image slots~~ were both built on
-2026-09-17, hours after being written down as missing. ~~and the **Playwright journeys the gate's own row 8 assumed and no
+this row worth reading twice. ~~Four~~ ~~**Three**~~ ~~**Two**~~ ~~**One**~~
+**None**. All four — ~~[10 §11.2c](../10-ui-surfaces.md)'s entry travel~~,
+~~[10 §11.2b](../10-ui-surfaces.md)'s image slots~~, ~~the assistant's docs
+lorebook~~ and ~~the Playwright suite~~ — were built on 2026-09-17, hours after
+being written down as missing. **Writing them down is what closed them**, which
+is the one general claim this row makes about the form of a phase record. ~~and the **Playwright journeys the gate's own row 8 assumed and no
 stage was asked to build**~~. ~~Three are features with an argument beside them;
 the fourth is infrastructure.~~ **All three are features with an argument beside
 them**, and they are in [manual testing §10](05-manual-testing.md) with no owner,

@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newLorebook } from '@storyengine/shared';
 
 import { rebuild } from '../index-db/rebuild.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * A link out of the data root, through the real routes — F1.
@@ -99,8 +99,9 @@ describe('a link out of the data root', () => {
     const result = await rebuild(server.services.index.db, server.services.layout);
     expect(result.scanned).toBe(before.scanned);
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(listed.body.objects).toHaveLength(0);
+    // Nothing of the *user's*: the shelf still carries what the app ships, and
+    // the claim is that the escaping object is not among them.
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(0);
 
     // And it is not reachable by id either — there is no row to reach.
     const read = await server.request({ method: 'GET', url: `/api/library/lorebooks/${book.id}` });

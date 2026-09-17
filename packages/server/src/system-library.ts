@@ -3,9 +3,10 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { ACTOR_SCHEMA, PRESET_SCHEMA, slugify } from '@storyengine/shared';
+import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, PRESET_SCHEMA, slugify } from '@storyengine/shared';
 
 import { ASSISTANT_CARD } from './assistant-card.js';
+import { DOCS_LOREBOOK } from './docs-lorebook.js';
 
 import { ingestFile } from './index-db/ingest.js';
 import { encodeObject } from './library.js';
@@ -154,6 +155,34 @@ export async function materialiseModePresets(
     );
     const written = await put(db, layout, path, bytes);
     done.push({ modeId: '', id: ASSISTANT_CARD.id, slug, path, written });
+  }
+
+  /**
+   * ***And the book the assistant reads*** — [06 §7.4], and the gap
+   * [P11.3](../../../docs/design/workplan/28-p11-implementation.md) recorded.
+   *
+   * §7.4: *"Docs retrieval needs no new machinery. Ship the documentation as a
+   * built-in lorebook and attach it to the assistant."* **This is the shipping
+   * half**; the attaching half is the assistant session naming it in its `lore`
+   * links, which is the ordinary way any session gets a book.
+   *
+   * *Through the same four rules as everything else here*, which is what keeps
+   * it an ordinary lorebook: a fixed id, an atomic write, no sweep, and silence
+   * on a restart that changed nothing. `modeId` is the empty string for the
+   * assistant card's reason — no mode owns it, and the assistant reads it
+   * rather than declaring it.
+   */
+  {
+    const slug = slugify(DOCS_LOREBOOK.name);
+    const { path, bytes } = await encodeObject(
+      layout,
+      SYSTEM_OWNER,
+      LOREBOOK_SCHEMA,
+      slug,
+      DOCS_LOREBOOK,
+    );
+    const written = await put(db, layout, path, bytes);
+    done.push({ modeId: '', id: DOCS_LOREBOOK.id, slug, path, written });
   }
 
   return done;
