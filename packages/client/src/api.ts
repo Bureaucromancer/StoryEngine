@@ -2186,3 +2186,42 @@ export function impersonateAs(sessionId: string, actorId?: string): Promise<{ te
     actorId === undefined ? {} : { actorId },
   );
 }
+
+/**
+ * ***Who points at this object*** —
+ * [03 §10.1](../../../docs/design/03-data-model.md),
+ * [10 §5.2](../../../docs/design/10-ui-surfaces.md), [P11.7].
+ *
+ * One call for the *Used by* panel and for the delete confirmation's counts,
+ * which [P4 §6.6] recorded as one debt: separate answers could disagree about
+ * what a reference is.
+ */
+export interface Usage {
+  fromKind: string;
+  fromId: string;
+  fromName: string;
+}
+
+export function readUsedBy(kind: string, id: string): Promise<{ usedBy: Usage[] }> {
+  return request('GET', `/api/library/${kind}/${encodeURIComponent(id)}/links`);
+}
+
+/**
+ * ***What is in your trash*** — [03 §10.2], [P11.7]. Delete has been a move
+ * since P4.4 and nothing could look in the drawer until this stage.
+ */
+export interface TrashEntry {
+  id: string;
+  kind: string;
+  name: string;
+  deletedAt: number;
+  expiresAt: number | null;
+}
+
+export function readTrash(): Promise<{ entries: TrashEntry[]; retentionDays: number }> {
+  return request('GET', '/api/me/trash');
+}
+
+export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
+  return request('POST', '/api/me/trash/restore', { id });
+}

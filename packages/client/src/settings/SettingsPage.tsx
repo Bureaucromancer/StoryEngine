@@ -12,6 +12,7 @@ import { AdminConnections, MyConnections } from './Connections.js';
 import { AdminInstall } from './AdminInstall.js';
 import { MyRoles } from './MyRoles.js';
 import { NotificationPrefs } from './NotificationPrefs.js';
+import { Trash } from './Trash.js';
 import { Preferences } from './Preferences.js';
 import { UserSettings } from './UserSettings.js';
 
@@ -90,6 +91,15 @@ export function SettingsPage(): JSX.Element {
         check is a trivial bypass and is never the boundary.
       */}
       {account?.capabilities.privateConnections === true ? <MyConnections /> : null}
+
+      {/*
+        ***The drawer delete has been filling since P4.4*** —
+        [03 §10.2](../../../../docs/design/03-data-model.md), [P11.7]. In the
+        user half and for every account, because a person's trash is their own:
+        it holds their sessions and their objects, and an admin reading it would
+        be reading somebody's deleted stories.
+      */}
+      <Trash />
 
       {account?.role === 'admin' ? (
         <section className="flex flex-col gap-8" aria-labelledby="administration">

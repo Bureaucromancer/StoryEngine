@@ -53,7 +53,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * parsed"* — a missing table reported to the user as a mistake in their own
  * typing, on every search, forever.
  */
-export const INDEX_SCHEMA_VERSION = 7;
+export const INDEX_SCHEMA_VERSION = 8;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -264,6 +264,42 @@ create table file_error (
 ) strict;
 
 create index file_error_by_owner on file_error(owner, schema_id);
+
+-- ── What points at what ──────────────────────────────────────────────────────
+--
+-- [03 §10.1](../../../../docs/design/03-data-model.md)'s reference counts and
+-- [10 §5.2](../../../../docs/design/10-ui-surfaces.md)'s *Used by* panel, which
+-- [P4 §6.6](../../../../docs/design/workplan/16-p4-implementation.md) recorded
+-- as **one** debt — *"whichever phase builds that panel pays both"* — and which
+-- [P11.7](../../../../docs/design/workplan/28-p11-implementation.md) pays.
+--
+-- **Derived, like every table here.** A reference is a field in a file on disk;
+-- this is that field, denormalised so *who points at me* is a query rather than
+-- a scan of every session and every object the account owns. Deleting this
+-- database costs a rescan and nothing else.
+--
+-- **Keyed by the pointing thing rather than by the pointed-at one**, which is
+-- what makes maintenance a delete-and-reinsert per file: a session that drops a
+-- lorebook has one row fewer, and the producer does not have to know which row
+-- it was. The index on \`to_id\` is what makes the read direction fast, and it is
+-- the direction every consumer actually asks in.
+--
+-- \`from_name\` is denormalised on purpose. A *Used by* panel naming twelve
+-- sessions has to render twelve names, and a session's name lives in a
+-- different table from an object's — so the alternative is two joins and a
+-- union for a panel, or one string per row. The staleness window is one write:
+-- a rename re-ingests the file that holds the name.
+create table object_link (
+  -- \`session\`, or the schema id of the object doing the pointing.
+  from_kind   text not null,
+  from_id     text not null,
+  from_name   text not null,
+  owner       text not null,
+  to_id       text not null,
+  primary key (from_kind, from_id, to_id)
+) strict;
+
+create index object_link_to on object_link(to_id, owner);
 `;
 
 /** Drops everything this module owns, leaving a database it can recreate into. */
@@ -277,6 +313,7 @@ function dropAll(db: DatabaseSync): void {
     'drop table if exists turn',
     'drop table if exists session',
     'drop table if exists file_error',
+    'drop table if exists object_link',
   ]) {
     db.exec(statement);
   }

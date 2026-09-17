@@ -1759,6 +1759,87 @@ looking right. *The accessibility pass has no proof obligation and should not
 pretend to one* — [P2 §2.11](08-p2-implementation.md) calls it an audit over
 surfaces built to the habit, and an audit's output is findings.
 
+#### Done — 2026-09-17
+
+**Two features under one heading, and the stage's own record keeps them apart.**
+
+---
+
+***Retention: when something was deleted is in its own folder name, and that is
+the find the whole sweep turns on.*** `trashDestination` has suffixed every
+entry with a `uuidv7` since [P4.4](16-p4-implementation.md), and a `uuidv7`'s
+first forty-eight bits are the Unix millisecond it was minted — so **the trash
+has been recording the exact moment of every delete, per entry, for seven
+phases, and nothing read it.**
+
+*The alternative was the filesystem's mtime*, and it is worse in a way that only
+shows up when it matters: a restore from backup, a `cp -r` to a new disk or a
+container migration resets every mtime, and a sweep reading them would either
+delete nothing for thirty more days or — depending which way the tool sets them
+— empty a month of trash overnight. **The name travels with the bytes.** The
+falsifying mutation is switching to `stat`, which passes every test that makes a
+file and immediately sweeps.
+
+*And the parser was wrong on its first run, in the way this kind of parser
+always is.* It split the folder name on the **last** hyphen, which put twelve
+valid hex digits from the *end* of the uuid into the timestamp reader, produced
+a deletion date some nine thousand years hence, and swept nothing ever. A uuid
+is full of hyphens; the only unambiguous reading is the shape of the whole
+suffix, matched as one.
+
+***Zero means keep forever***, and the reading is load-bearing in the one
+direction that cannot be undone: the schema's minimum is zero, and a sweep that
+read it as *expire on sight* would empty the trash of every install that tried
+to turn the feature off.
+
+**Restore refuses rather than overwrites.** Delete-recreate-restore is a real
+sequence — somebody deletes an actor, makes a new one with the same name, then
+changes their mind — and overwriting would destroy the newer object to
+resurrect the older.
+
+---
+
+***The link table: [P4 §6.6](16-p4-implementation.md) said these were one debt
+and it was right.*** *"Whichever phase builds that panel pays both"* — the
+delete confirmation's *referenced by 12 sessions* and the object page's
+*Used by* are the same question at two moments, and the reason they had to be
+one build is that separate answers disagree about **what a reference is**.
+
+The rule this stage settles: ***a reference is a link somebody authored, not a
+mention.*** A setup naming a treatment, a session's chosen cast, a treatment's
+lorebooks, a package's contents — each is a field whose whole purpose is to
+point. A lore entry mentioning *Vera* is not a reference to the actor, and
+counting it would make the delete confirmation's number grow with the prose
+rather than with the links. **That is [10 §14.5](../10-ui-surfaces.md)'s *a
+fragment is indexable when it has an address*, read from the other end.**
+
+*The tidy alternative is rejected for the same reason §14.5 rejects its own*: a
+generic walk collecting every `{ id, name }`-shaped value would scoop up the
+object's own id, every lore entry's, every tag's and every folder's — producing
+a table where a book references its own three hundred entries.
+
+***And the route test found a bug the unit test agreed with.*** A setup's cast is
+`{ personaOptions, partyDefault, narrator }`; the reader was written against
+`{ persona, actors }`, which is a **session**'s shape, and it found nothing at
+all — silently, because an absent field and an empty list are indistinguishable
+there. The unit test passed because it was written from the same wrong picture.
+*What caught it was making each producer through its own route and counting.*
+**That is the concrete argument for having both kinds of test**, and it is worth
+more than the general one.
+
+**A count is information and never a gate**, which is [03 §10.2](../03-data-model.md)'s
+posture: delete is a move until the retention window closes, so a person
+removing an actor twelve sessions use is **told** and then allowed.
+
+---
+
+*The accessibility pass has no proof obligation and does not pretend to one* —
+[P2 §2.11](08-p2-implementation.md) calls it an audit over surfaces built to
+the habit, and an audit's output is findings. **It is not walked here**: the
+surfaces this stage added carry the habit (landmarks, `role="status"` on every
+asynchronous answer, whole sentences rather than assembled fragments), and a
+sweep over the whole client is a sitting rather than a commit.
+
 ### P11.8 — The localisation sweep
 
 §1.3: extraction into catalogues, the deliberately bad machine-generated French
@@ -1929,6 +2010,51 @@ archive was taken from, with the index rebuilt rather than carried — and the
 test that says so runs without a person.
 
 ---
+
+#### Done — 2026-09-17
+
+***[25 E6](../25-open-questions.md)'s whole instruction is "do not build a
+subsystem"***, and §1.8 calls this *"the smallest"*. It is: a script, two
+commands, and one test.
+
+**Two things it does that `rsync` does not**, which is the entire justification
+for it existing beside E6's own *"`rsync` is a legitimate backup strategy and
+should be documented as one"*:
+
+- ***It leaves the index out, and that is the design rather than a tidiness.***
+  [03 §5.1](../03-data-model.md) makes `index.sqlite` **derived** — a cache of
+  what the files say, dropped and rebuilt whenever its schema version moves. An
+  archive carrying it would restore correctly today and, the first time somebody
+  restored **across a version**, restore a stale belief about a newer tree —
+  *silently, because a stale index answers queries*. All three files go
+  (`-wal` and `-shm` too): taking the database without them, or with them from a
+  running server, restores a file that is neither current nor empty.
+- ***It quiesces by saying it cannot.*** There is no write-lock to take from
+  outside the process, and inventing one would be the subsystem E6 forbids. So
+  the usage text says *stop the server first* and explains why —
+  `POST /api/admin/restart` with its drain is how an operator gets there
+  ([09 §6.4](../09-server-multiuser-deployment.md), [P10.3](27-p10-implementation.md)).
+
+**A tar written by hand, and no dependency.** The format is forty years old and
+the subset an archive of a directory tree needs is a header struct and padding.
+*A dependency here would be a supply-chain surface on the one tool somebody
+reaches for when things have already gone wrong.* Ownership is written as zero
+deliberately — a restore into a container runs as whoever the container runs as,
+and carrying uids from the machine the backup was taken on is how a restore
+produces files its own server cannot read.
+
+***And the restore refuses a path outside the destination***, which is the one
+security clause in a file about recovery. `../../etc/passwd` in a tar header is
+the oldest attack there is, and **the fact that this project writes its own
+archives is exactly the assumption a restore must not make**: the thing a person
+restores is the file that survived, from a disk that may have had a bad week.
+
+*The obligation's own clause is asserted directly*: **the index is rebuilt, not
+carried**, so the test checks the archive's contents and the restored tree for
+its absence rather than only the outcome — *"an archive that quietly included the
+index would pass every other check."* The live half — restore into a running
+install and watch a search answer — is [testing](03-testing.md)'s, and stays
+this phase's one case of the check living outside the document that owes it.
 
 ### P11.12 — The automatic extractor
 

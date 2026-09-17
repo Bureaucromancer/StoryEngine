@@ -13,6 +13,7 @@ import {
 
 import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
+import { usedBy } from '../index-db/links.js';
 import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
@@ -22,6 +23,7 @@ import {
   LibraryError,
   list,
   read,
+  readableOwners,
   readCardPixels,
   readMedia,
   remove,
@@ -281,6 +283,44 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         respondToLibraryError(error, reply);
         return;
       }
+    },
+  );
+
+  /**
+   * ***Who points at this*** —
+   * [03 §10.1](../../../../docs/design/03-data-model.md),
+   * [10 §5.2](../../../../docs/design/10-ui-surfaces.md),
+   * [P11.7](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **One route for two surfaces**, which is [P4 §6.6]'s *"whichever phase
+   * builds that panel pays both"* kept: the object page's *Used by* and the
+   * delete confirmation's *referenced by 12 sessions, 3 treatments and 1
+   * package* are the same question at two moments, and separate answers could
+   * disagree about what a reference is.
+   *
+   * **A route rather than a field on the object read**, because the panel is
+   * read once per object view and the object read is on the hot path of every
+   * editor save — and because a count that is a fact about the *index* has no
+   * business in the payload whose etag is the file's content hash.
+   *
+   * *Not an existence check*: an id nothing points at answers with an empty
+   * list rather than a 404, which is what makes *used by nothing* renderable.
+   */
+  app.get(
+    '/library/:kind/:id/links',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const owners = readableOwners(account.handle).map((owner) =>
+        owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
+      );
+      const used = usedBy(services.index.db, (request.params as { id: string }).id, owners);
+      return reply.send({ usedBy: used });
     },
   );
 

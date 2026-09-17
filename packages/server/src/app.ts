@@ -32,6 +32,7 @@ import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
+import { startTrashSweep, type TrashSweep } from './storage/trash.js';
 import { rebuild } from './index-db/rebuild.js';
 import { materialiseModePresets } from './system-library.js';
 import { LibraryWatcher } from './index-db/watcher.js';
@@ -195,6 +196,8 @@ export interface AppServices {
    * forever.
    */
   maturation: Maturation;
+  /** The retention sweep — [03 §10.2], [P11.7]. */
+  trash: TrashSweep;
   sessionKey: string;
   /**
    * The first-run setup token, or null when nothing needs one — F10,
@@ -473,6 +476,21 @@ async function assembleWithState(
 
   const config = structuredClone(options.config);
 
+  /**
+   * ***The retention sweep*** — [03 §10.2], [P11.7].
+   *
+   * Beside `startMaturation` because they are the same kind of thing: periodic
+   * housekeeping over something a request path moved and nobody is coming back
+   * for. **Both closures rather than values** — the account list changes while
+   * the server runs, and `trash.retentionDays` is tiered `live`, so a number
+   * captured here would be the one from boot forever.
+   */
+  const trash = startTrashSweep(
+    layout,
+    async () => (await accounts.list()).map((one) => one.handle),
+    () => config.trash.retentionDays,
+  );
+
   const sessions: SessionContext = {
     layout,
     index: index.db,
@@ -708,6 +726,7 @@ async function assembleWithState(
     accounts,
     watcher,
     maturation,
+    trash,
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
     supervision: supervisionOf(process.env),
@@ -810,6 +829,7 @@ export async function disposeServices(services: AppServices): Promise<void> {
   for (const close of services.streams) close();
   services.streams.clear();
   services.maturation.stop();
+  services.trash.stop();
   await services.watcher?.stop();
   services.index.close();
   services.state.close();

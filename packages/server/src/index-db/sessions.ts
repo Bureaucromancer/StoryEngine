@@ -6,6 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { TurnLocation } from '../sessions/segments.js';
 import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
+import { clearLinks, writeLinks } from './links.js';
 
 /**
  * Sessions and turns in the index — [19 §7.1](../../../../docs/design/19-tech-stack.md),
@@ -91,6 +92,29 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
     session.archivedAt === undefined ? 0 : 1,
     session.updatedAt,
   );
+
+  /**
+   * ***What this session uses*** — [03 §10.1], [10 §5.2], [P11.7].
+   *
+   * The cast it plays with and the lorebooks it selected, which is what
+   * *referenced by 12 sessions* counts. **Its pack is not in the list**, and
+   * that is a fact about the record rather than an omission: a session's preset
+   * is **embedded**, not referenced — [P7B.2] made it the session's own copy so
+   * that editing one does not reach into a library object — so there is nothing
+   * pointed at to count.
+   *
+   * *An archived session still counts*, on [03 §10.3]'s rule that archiving
+   * hides from a list rather than removing: telling somebody an actor is unused
+   * when four archived sessions are built on them is the same lie a search that
+   * skipped archives would tell.
+   */
+  writeLinks(db, { kind: 'session', id: session.id, name: session.name, owner }, [
+    ...(session.cast?.persona === null || session.cast?.persona === undefined
+      ? []
+      : [session.cast.persona]),
+    ...(session.cast?.actors ?? []),
+    ...(session.lore ?? []),
+  ]);
 }
 
 /**
@@ -134,6 +158,9 @@ export function removeSessionRows(db: DatabaseSync, sessionId: string): void {
     db.prepare('delete from turn_fts where session_id = ?').run(sessionId);
     db.prepare('delete from turn where session_id = ?').run(sessionId);
     db.prepare('delete from session where session_id = ?').run(sessionId);
+    // And what it pointed at — [P11.7]. A deleted session is not a user of
+    // anything, and the count a delete confirmation shows is about now.
+    clearLinks(db, 'session', sessionId);
   });
 }
 

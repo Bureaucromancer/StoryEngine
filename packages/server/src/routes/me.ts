@@ -18,6 +18,7 @@ import {
 } from '../providers/bindings.js';
 import { presentConnection, resolveConnections } from '../providers/connections.js';
 import { presentRoleRow, roleTable } from '../providers/roles.js';
+import { listTrash, restoreFromTrash } from '../storage/trash.js';
 
 /**
  * What a signed-in person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -93,6 +94,8 @@ const PasswordChange = Type.Object(
  * comment explaining that they are bounds and not validation lives too.
  */
 const PrefsPatch = Type.Object({}, { additionalProperties: true });
+/** `kind/slug-uuid`, bounded so a malformed one is refused by the validator. */
+const TrashAddress = Type.Object({ id: Type.String({ minLength: 3, maxLength: 300 }) });
 
 /**
  * A binding is a connection and one of its models — [19 §5.1], and **nothing
@@ -269,6 +272,76 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
 
     await deleteAvatar(services.layout, account.handle);
     return await reply.code(204).send();
+  });
+
+  /**
+   * ***What is in your trash, and how long it has*** —
+   * [03 §10.2](../../../../docs/design/03-data-model.md),
+   * [P11.7](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **Under `/me` rather than `/library`**, because the trash holds sessions as
+   * well as library objects — [03 §10.3] puts `trash/sessions/` beside the
+   * kinds — and a route under `/library` would have had to answer about
+   * something that is not a library object, which is how a surface acquires a
+   * special case it never sheds.
+   *
+   * *Per account and never cross-account*: the trash is inside the user's own
+   * root, so this route cannot answer about anybody else's without being asked
+   * to, and it is not.
+   */
+  app.get('/me/trash', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const entries = await listTrash(
+      services.layout,
+      account.handle,
+      services.config.trash.retentionDays,
+    );
+    return reply.send({ entries, retentionDays: services.config.trash.retentionDays });
+  });
+
+  /**
+   * ***Put it back*** — [03 §10.2]'s other half, and the reason delete is a
+   * move at all.
+   *
+   * **`POST` with the address in the body**, because a trash id is
+   * `kind/slug-uuid` and a path segment carrying a slash is a fight with every
+   * router and proxy between here and the browser for no gain.
+   */
+  app.post('/me/trash/restore', { schema: { body: TrashAddress } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const { id } = request.body as { id: string };
+    let restored;
+    try {
+      restored = await restoreFromTrash(services.layout, account.handle, id);
+    } catch {
+      // `splitTrashId` throws for an address that is not one, which is a
+      // malformed request rather than a server fault.
+      return reply
+        .code(400)
+        .send({ error: 'invalid', message: 'That is not an address in the trash.' });
+    }
+
+    if (!restored.ok) {
+      return reply.code(restored.reason === 'not-found' ? 404 : 409).send({
+        error: restored.reason,
+        message:
+          restored.reason === 'not-found'
+            ? 'That is no longer in the trash.'
+            : 'Something with that name is already there.',
+      });
+    }
+    /**
+     * ***The index catches up by itself, and this says why nothing is done
+     * here.*** A restore is a move into the library tree, which the watcher
+     * sees; an install with the watcher off gets it at the next rebuild. Making
+     * this route ingest the folder would be a second producer for the one thing
+     * [P1]'s gate holds to a single answer.
+     */
+    return reply.send({ restored: true });
   });
 
   app.get('/me/prefs', async (request, reply) => {

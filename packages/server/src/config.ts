@@ -450,8 +450,19 @@ export const LIVE_APPLIERS = {
   // its next call rather than at the next restart.
   'limits.providerTimeoutMs': 'applied',
 
-  // The maturation sweep does not read it; trash retention is not implemented.
-  'trash.retentionDays': 'unread',
+  /**
+   * ~~The maturation sweep does not read it; trash retention is not
+   * implemented.~~ ***Read by `startTrashSweep` since [P11.7]***, which is what
+   * took it out of `unread` — and the sentence above is kept because it is
+   * seven phases of the standing line in one clause: the setting, the window
+   * and the folder all shipped, and a thirty-day default had never expired
+   * anything.
+   *
+   * **Read per pass rather than captured**, so a change reaches the next sweep
+   * rather than the next restart — which is what `live` is supposed to mean,
+   * and the mistake `watcher.ts` records about `history.keepPerObject`.
+   */
+  'trash.retentionDays': 'applied',
 
   // Read per write through the shared `LibraryContext`, which the watcher now
   // holds rather than copying a number out of.

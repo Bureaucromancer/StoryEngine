@@ -3,6 +3,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useUsedBy, usedByLine } from './UsedBy.js';
 import { useState, type JSX } from 'react';
 
 import { api, type LibraryKind } from '../api.js';
@@ -112,6 +113,16 @@ export function DeleteObject(props: {
               : 'Move to trash?'}
           </span>
           {/*
+            ***What this object is used by, before the click*** —
+            [03 §10.1](../../../../docs/design/03-data-model.md), [P11.7].
+            §10.1 asks for it here by name — *referenced by 12 sessions, 3
+            treatments and 1 package* — and [03 §10.2]'s posture is why it is a
+            sentence rather than a refusal: delete is a **move** until the
+            retention window closes, so the count informs a decision it must not
+            make.
+          */}
+          <ReferenceCount kind={props.kind} id={props.id} />
+          {/*
            * Delete first and Cancel last, so the button that answers the
            * question is not the pixels the question was asked from: the first
            * Delete sat at the strip's end, and after the click that place holds
@@ -148,4 +159,19 @@ export function DeleteObject(props: {
       )}
     </span>
   );
+}
+
+/**
+ * The count, or nothing at all.
+ *
+ * ***Nothing while it loads***, and that is a judgement rather than an
+ * omission: this sits in a confirmation somebody is mid-decision in, and a
+ * spinner beside *Move to trash?* is a reason to hesitate about the wrong
+ * thing. If the answer arrives it arrives; if the index is slow the delete is
+ * still the reversible act it was.
+ */
+function ReferenceCount(props: { kind: string; id: string }): JSX.Element | null {
+  const usage = useUsedBy(props.kind, props.id);
+  const line = usage === undefined ? null : usedByLine(usage);
+  return line === null ? null : <span className="text-warn-ink">{line}</span>;
 }

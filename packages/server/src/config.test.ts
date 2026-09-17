@@ -183,14 +183,28 @@ describe('the tier table is the source', () => {
    *
    * **The standing example moved at P4.1**, because the old one stopped being
    * one: the upload route arrived and `limits.maxUploadMb` is now read per
-   * request. `trash.retentionDays` takes its place — tiered `live` because a
+   * request. ~~`trash.retentionDays` takes its place — tiered `live` because a
    * retention window is a thing an operator changes and expects to matter,
-   * unread because nothing prunes on it yet. That the exemplar had to move is
+   * unread because nothing prunes on it yet.~~ That the exemplar had to move is
    * the table working: a key stops being an example of dishonesty by becoming
    * honest.
+   *
+   * ***And it moved again at [P11.7]***, which built the retention sweep — so
+   * `limits.extensionStorageQuotaMb` takes the seat, tiered `live` because a
+   * quota is a thing an operator changes and expects to matter, unread because
+   * nothing installs an extension yet ([24 §3.2](../../../docs/design/24-roadmap.md)).
+   *
+   * **Twice now, and the pattern is the finding rather than either move.** The
+   * exemplar of *stored and not read* keeps becoming read, which means this
+   * check has never once failed by a key going the other way — nothing has ever
+   * quietly stopped being consumed. *What it is actually holding is that the
+   * table stays capable of saying `unread` at all*: a row of nothing but
+   * `applied` would pass the two checks above while telling the settings
+   * surface there is nothing to warn about, and the surface exists partly to
+   * warn.
    */
   it('admits that some live keys are stored and not read', () => {
-    expect(applierOf('trash.retentionDays')).toBe('unread');
+    expect(applierOf('limits.extensionStorageQuotaMb')).toBe('unread');
     expect(applierOf('log.level')).toBe('applied');
   });
 

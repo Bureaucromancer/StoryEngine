@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "tsc -b && pnpm --filter @storyengine/shared emit-schemas && pnpm --filter @storyengine/client build",
+    "backup": "node tools/backup.mjs",
     "build:identify": "node tools/write-build-info.mjs",
     "dev": "pnpm run dev:deps && pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
     "dev:client": "pnpm --filter @storyengine/client run dev",

@@ -271,3 +271,34 @@ tag in this repository is `p1` and phase tags are a habit here. It builds the
 image, passing the tag and the commit, and `tools/write-build-info.mjs` refuses
 if the tag and `package.json` disagree. So the three places a version is written
 agree, or the release stops.
+
+## Backing up
+
+**The data directory is the whole of it, and `rsync` is a legitimate strategy** —
+[25 E6](design/25-open-questions.md). Everything StoryEngine keeps is files under
+the data directory: cards, lorebooks, sessions, turns, connections and accounts.
+
+**Stop the server first.** There is no way to quiesce writes from outside the
+process, and a copy taken mid-write catches a half-written session — which is a
+corrupt story rather than a corrupt cache. `POST /api/admin/restart` drains the
+turns in flight and refuses new ones, which is the supported way to get there.
+
+**Leave `index.sqlite` out.** It is derived from the files
+([03 §5.1](design/03-data-model.md)) and it carries a schema version — an archive
+containing it restores a *stale belief about a newer tree* the first time it is
+restored across an upgrade, silently, because a stale index still answers
+queries. The server rebuilds it on the next start.
+
+```sh
+# The whole directory, without the derived index.
+rsync -a --exclude 'index.sqlite*' /path/to/data/ /path/to/backup/
+
+# Or the bundled command, which excludes it for you.
+pnpm backup create /path/to/data backup.tar.gz
+pnpm backup restore backup.tar.gz /path/to/data
+```
+
+**An untested restore is not a backup.** Restore into a clean directory, start
+the server, and **run a search** — a search answering is the only observable
+proof the index was rebuilt rather than carried.
+

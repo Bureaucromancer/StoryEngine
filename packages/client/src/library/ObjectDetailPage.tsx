@@ -26,6 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
 import { bookToMarkdown } from './book-document.js';
+import { UsedByPanel } from './UsedBy.js';
 import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
@@ -229,6 +230,19 @@ function ObjectView(props: {
           <code className="break-all text-xs">{object.contentHash}</code>
         </MetadataRow>
       </dl>
+
+      {/*
+        ***Used by*** — [10 §5.2](../../../../docs/design/10-ui-surfaces.md),
+        [P11.7]. **Above *As stored* rather than below it**, because §5.2 is
+        about the object's place in somebody's library and *As stored* is about
+        its bytes: a reader scrolling to find out whether an actor matters
+        should not have to pass the JSON to get there.
+
+        *Renders nothing for an object nothing points at*, which is the honest
+        empty state — a heading over an empty list is a question the page asked
+        itself.
+      */}
+      <UsedByPanel kind={kind} id={object.id} />
 
       <AsStored value={object.object} />
 
