@@ -1,10 +1,25 @@
 # 27 — P10 implementation plan
 
-**Status: skeleton, re-audited 2026-09-16 at `fee56da`.** Drafted 2026-08-29
+**Status: built on branch `p10`, 2026-09-16 to 2026-09-17. Open — sitting P is
+unwalked.** ~~Skeleton, re-audited 2026-09-16 at `fee56da`.~~ Drafted 2026-08-29
 alongside
 [P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
 [P9](26-p9-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts.
+
+***All six stages landed, and three of them were not the shape this document
+predicted*** — recorded 2026-09-17, with [§3.2](#32-what-was-answered--recorded-2026-09-17)
+as the results table [manual testing §0](05-manual-testing.md) requires and
+[§3.1](#31-the-critical-list-and-what-a-test-answers) as the critical list.
+**§1.7's update check moved into this phase** and turned two `unread` config keys
+`applied`; **§1.5's fork closed as a deferral** with a row in
+[24 §3.2](../24-roadmap.md) rather than as a build, on a distinction it was
+missing — *1.0 needs extensions loaded, not installed*; and **the §13 source link
+turned out to need the build to carry its URL**, because a constant cannot be
+right for a fork and the patched-build case is the one §13 exists for. *The phase
+does not close on the merge*: four criticals are unwalked and three of them are
+errands, which [§3.1](#31-the-critical-list-and-what-a-test-answers) states
+rather than absorbs.
 
 ***The re-audit is §5's own instruction carried out, and its answer changes a
 stage.*** §0 below closes by saying what this phase *cannot yet know* — how many
@@ -1059,9 +1074,82 @@ where it is found and fixed, not P11.
 large debtor* is a number rather than a characterisation. **Three of the four are
 this phase's**: `updates.checkEnabled` and `updates.channel` (§1.7),
 `limits.extensionStorageQuotaMb` (§1.5). The fourth is
-[P11.7](28-p11-implementation.md)'s. **This gate should read that table reaching
-one**, which is a check a person can run in a second and which the prose above
-could only gesture at.
+[P11.7](28-p11-implementation.md)'s. ~~**This gate should read that table reaching
+one**~~ — **it reaches two**, 2026-09-17, and the difference is §1.5's fork
+closing as a *deferral* rather than as a build: the update check's two keys are
+`applied`, and `limits.extensionStorageQuotaMb` **stays `unread` on purpose**,
+beside [24 §3.2](../24-roadmap.md)'s row for extension installation. *That is the
+tier doing its job rather than the debt going unpaid* — a key that is stored, not
+read, and visibly so, which is what the annotation exists to say.
+
+### 3.1 The critical list, and what a test answers
+
+*Planned to [§0](05-manual-testing.md)'s criterion rather than sketched — the
+sixth phase to do so, and the first whose gate is mostly about **deployment**,
+which changes what the criterion returns.*
+
+***Four criticals, and three of them are blocked on a thing rather than an
+hour.*** That is unusual and it is a property of the subject: this phase's claim
+is *"the install is reachable, and safe, for someone who is not the
+developer"*, and every clause of it is about a machine that is not this one.
+
+| Row | Why it is critical | Blocked on |
+|---|---|---|
+| **C1** A completion sound with the tab backgrounded | Clause (i): the feature that motivated the whole of [09 §3] is *the completion-sound case*, and whether it fires in a backgrounded tab is a browser's answer rather than a test's. Clause (ii): every later delivery channel is built on this one working | Nothing — a browser and a turn |
+| **C2** *Restart now* under a supervisor | Clause (i): [09 §6.4] says the control *"is honest or it is a trap"*, and the trap is the half a test cannot reach — `restart.test.ts` proves the refusal and the drain in-process, and what nobody has watched is the process coming **back** | **R11**, a supervised install |
+| **C3** `storyengine.local` from a second machine | Clause (i): the bytes are asserted exactly and what is unproven is that a neighbour hears them. Clause (ii): it is the arrival story every later install instruction assumes | **R5**, a second machine |
+| **C4** A household member, from the URL alone | Clause (i), and it **is** the phase's claim rather than a check on it. The gate's own step 10 says so: *"the phase's whole claim is about that person"* | **R4**, a non-author for an hour |
+
+***What the criterion excludes, and it is most of the gate.*** Steps 1 and 2 are
+[P6A](19-p6a-alpha-1.md)'s claims living in P10's gate — clause (i) — and belong
+to [sitting I](05-manual-testing.md), which already holds them. Steps 3, 4, 7 and
+the standing line are **asserted by name** below. Step 8's composition is
+asserted and its *resolves* half is blocked on publication, which is
+[P11.9](28-p11-implementation.md)'s.
+
+***And the one this phase was asked to decide and did not.*** [P10.0] carries
+the container first-run question — a one-time host `chown` against a container
+that takes its volume and drops to `PUID`/`PGID` — and says it is *"this phase's
+to decide against a second install, not the first."* **There has been no second
+install**, so it is carried into sitting P rather than decided at a desk, which
+is the honest handling of a question whose whole point was that it is answered by
+watching somebody.
+
+### 3.2 What was answered — recorded 2026-09-17
+
+*The results table [manual testing §0](05-manual-testing.md) asks for, in
+[P9 §3.2](26-p9-implementation.md)'s shape. **The ten steps above are not
+edited**; this is the second table, which is that model's first honesty condition
+and the whole reason there are two.*
+
+| Step | Discharged by | Result |
+|---|---|---|
+| **1** Fresh container: reachable, token, setup gate | — | **Not this phase's.** [P6A](19-p6a-alpha-1.md)'s claim in P10's gate — criterion (i) — and it is [sitting I](05-manual-testing.md) rows 1–6, one `PASS` and three `PART` from the first install |
+| **2** One environment variable, two artifacts | `config.test.ts` | ✅ **in part** — that the variable maps a key, is documented, and is refused by name when wrong. *Two artifacts* is I's, for step 1's reason |
+| **3** A's turn notifies A and nothing addressed to B | `notifications/router.test.ts`, `routes/notifications.test.ts` | ✅ — the phase's named CI claim, and asserted **twice on purpose**: once where the account is an argument, once where it comes from a session cookie and there is no other way to name one |
+| **4** Five events inside the window arrive as one | `state/notifications.test.ts` | ✅ — and on `folded` rather than on the row count, because *a replace also yields one row*. That is the assertion that separates *five people replied* from *somebody replied, and we told you about the last one* |
+| **5** A sound with the tab backgrounded; every row has a producer | `notifications/prefs.test.ts`, `notifications/labels.test.ts` **in part** | **C1. Never walked.** The row count is mechanical in **both directions** — the rows are generated from `NOTIFYING_CLASSES`, which is checked against the server's own union — so a class with no row and a row with no class each fail a test. *What no test reaches is whether a sound happens in a tab nobody is looking at* |
+| **6** *Restart now* refused bare; drains and names who it interrupts | `restart.test.ts`, `supervision.test.ts` | ✅ **in part** — the refusal, the 503 at the submission door, the drain waiting on a real turn through a slow provider, and the counts split mine-from-others. **C2** is the half where the process comes back |
+| **7** [12 §8]'s three tests | `routes/gallery.test.ts`, `auth/Gallery.test.tsx`, `auth/tile.test.ts` | ✅ — all three by the names that section gives them, plus the one it did not ask for: *a tile never authenticates*, which is [12 §9]'s refusal and the thing this feature is most likely to be quietly "improved" into |
+| **8** About shows a real version and commit; the source link resolves | `build-info.test.ts`, `about/BuildFooter.test.tsx` | ✅ **in part** — the composition is asserted, including the tag rather than a branch and the three absences. *Resolves* needs a public repository, which is [P11.9]'s, and **an identified build**, which needs a release build |
+| **9** `storyengine.local` from a second machine | `mdns/packet.test.ts`, `mdns/responder.test.ts` **in part** | **C3, blocked on R5. Never walked.** Every byte that would reach a neighbour is asserted — the cache-flush bit, the unicast bit, compression pointers, pointer loops, every malformed shape answering `null`. What is between the bytes and the neighbour is a socket |
+| **10** A household member, from the URL alone | — | **C4, blocked on R4. Never walked**, and it is the phase's whole claim rather than a check on it |
+| **The standing line** — no configuration without a surface | `config.test.ts`, `route-callers.test.ts` | ✅ **as stated, at two rather than one** — `updates.*` became `applied` when §1.7's check moved here; `limits.extensionStorageQuotaMb` stays `unread` beside its roadmap row, and `trash.retentionDays` is [P11.7]'s. **Four routes joined `OWED` and left it one stage later**, which is the shortest that map has carried a debt |
+
+***Seven rows discharged in whole or in part; four criticals, three of them
+errands.*** The distinction [§0](05-manual-testing.md) draws holds here as it did
+at P9: **a deferral is a judgement and a block is an errand**. Nobody decided C2,
+C3 or C4 were not worth walking.
+
+***What that leaves true and what it leaves unproven, plainly.*** Every claim
+this phase makes about **who is told what** is asserted, and it is the one that
+would be worst to get wrong: a household server that notified the wrong person,
+published an account list it should not have, or served a portrait somebody had
+hidden. What is unproven is every claim about **reaching the install** — a sound
+in a tab nobody is watching, a process that comes back, a name a neighbour
+resolves, and a person who has never seen it getting in. *That is the same shape
+P9's gate had and for the same structural reason*: the mechanisms are in this
+repository and the audience is not.
 
 ---
 

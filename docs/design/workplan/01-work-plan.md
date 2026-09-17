@@ -1382,11 +1382,38 @@ subsystem that spends money on its own from spending it per turn.
 
 ### P10 — Multi-user, notifications, deployment
 
-**Skeleton: [P10](27-p10-implementation.md)**, ***re-audited 2026-09-16 at
-`fee56da`***, which gives a remainder phase the
-spine it does not have by default: *this is the phase that makes the install
-reachable, and safe, for someone who is not the developer.* Anything here off
-that line gets checked against P11 before it is built.
+~~**Skeleton: [P10](27-p10-implementation.md)**~~ ~~***re-audited 2026-09-16 at
+`fee56da`***~~ ***Built on branch `p10`, 2026-09-16 to 2026-09-17, and open***,
+on the spine that document gives a remainder phase because it does not have one
+by default: *this is the phase that makes the install reachable, and safe, for
+someone who is not the developer.* Anything here off that line gets checked
+against P11 before it is built.
+
+***All six stages landed and the phase does not close on them*** —
+[P10 §3.2](27-p10-implementation.md) records seven gate rows discharged and
+[§3.1](27-p10-implementation.md) four criticals, **three of which are errands**:
+a supervised install, a second machine, and a non-author for an hour
+([sitting P](05-manual-testing.md)). *This is the most blocked rows any critical
+list has carried, and unlike P9's they are not one errand* — so the sitting does
+not become walkable when any single one arrives.
+
+***What a built P10 proves is who is told what***, which is the half that would
+be worst to get wrong on a household server: a turn notifying its own account and
+nothing addressed to anybody else, five arrivals folding into one notification
+that knows it is five, an unauthenticated account listing held to three fields by
+a test, a hidden account absent from the sign-in grid and still able to sign in by
+handle. **What is unproven is reaching it.**
+
+***Three things were not the shape the plan predicted, and each is worth a
+line.*** **The update check moved into this phase** — [P10 §1.7] called the lean
+and the two config keys it needed had already shipped `unread`, which that section
+names as *shipping dark by default*. **The extensions fork closed as a deferral**
+rather than as a build, on a distinction four audits had missed: *1.0 needs
+extensions **loaded**, not **installed***, and the first-party reference extension
+ships inside the image the way a built-in mode does — so acquiring one from
+outside is [24 §3.2](../24-roadmap.md)'s. And **the §13 source link needed the
+build to carry its URL**: a constant is right for this repository and wrong for
+every fork, and the patched-build case is the one §13 exists for.
 
 ***The re-audit was that document's own instruction, and it moved a producer
 between phases.*** [P10 §5](27-p10-implementation.md) names *re-reading P7's, P8's
