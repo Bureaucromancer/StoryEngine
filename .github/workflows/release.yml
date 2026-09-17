@@ -178,6 +178,8 @@ jobs:
             build/app/node_modules/@storyengine/mode-scene
           pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
             build/app/node_modules/@storyengine/mode-freeform
+          pnpm --filter @storyengine/mode-assistant --legacy deploy --prod \
+            build/app/node_modules/@storyengine/mode-assistant
           cp -r packages/client/dist build/app/client
 
       - name: The archive

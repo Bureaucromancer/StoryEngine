@@ -48,7 +48,7 @@ import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
 import { ModeRegion } from './ModeRegion.js';
-import { Suggestions } from './Suggestions.js';
+import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
@@ -103,10 +103,30 @@ const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = labels('play.rend
 export function PlayPage({
   sessionId,
   block,
+  starters,
 }: {
   sessionId: string;
   /** A block of this session's pack to open the settings panel on — [P7B.4]. */
   block?: string;
+  /**
+   * ***Labelled entry points for a session nobody has typed into yet*** —
+   * [06 §7.4]'s *starter prompts*, [10 §7],
+   * [P11.3](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * Marinara's suggestion chips: *"cheap, and the main thing standing between a
+   * blank assistant box and people actually using it."*
+   *
+   * **A prop on the play surface rather than a thing the assistant panel
+   * renders**, and that is [06 §7.4]'s claim applied to one more affordance: the
+   * assistant is a session, so an affordance it wants belongs to *sessions* and
+   * arrives here. A story mode that wanted openers on an empty session would
+   * pass this and get the same control.
+   *
+   * *They fill the box rather than taking a turn*, which is `Suggestions`'
+   * rule one component down and the same argument: a chip that submitted would
+   * make the app's suggestion and the person's decision one gesture.
+   */
+  starters?: readonly string[];
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const { state, dispatch } = useTurnStream(sessionId);
@@ -726,6 +746,13 @@ export function PlayPage({
             beside the thing they fill; the toggle rides with them because it is
             the control that explains an empty row, which is the argument
             [10 §10.1] makes for the pacing dial one panel over. */}
+        {/* **Only while there is nothing to talk about yet.** A starter beside
+            a conversation in progress is an offer to start over, which is not
+            what it is for — and the session's own suggestions take the row from
+            the first turn onward. */}
+        {starters === undefined || (transcript.data?.turns.length ?? 0) > 0 ? null : (
+          <Starters actions={starters} disabled={running} onPick={setDraft} />
+        )}
         <Suggestions
           sessionId={sessionId}
           actions={transcript.data?.turns.at(-1)?.suggestions ?? []}

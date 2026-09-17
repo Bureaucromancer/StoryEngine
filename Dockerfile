@@ -96,6 +96,8 @@ RUN pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
     /app/node_modules/@storyengine/mode-scene
 RUN pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
     /app/node_modules/@storyengine/mode-freeform
+RUN pnpm --filter @storyengine/mode-assistant --legacy deploy --prod \
+    /app/node_modules/@storyengine/mode-assistant
 
 # The client is a separate package and not a dependency of the server, so it is
 # copied rather than deployed. `SE_CLIENT_ROOT` below points at it.

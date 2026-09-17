@@ -957,6 +957,18 @@ export interface NewSession {
    */
   mode?: string;
   /**
+   * ***Who is in it*** — [P11.3], and it is deliberately not the control the
+   * `persona` docstring above refuses.
+   *
+   * That paragraph argues against a *surface* for `cast.actors`, because it
+   * becomes channel state at P7 and a form built against the old shape would be
+   * built twice. This is not a form: it is how the assistant panel puts the
+   * shipped assistant card into the session it creates, with no person choosing
+   * anything. The route has taken the field since P2; the client type had no
+   * caller until there was one.
+   */
+  cast?: { persona: string | null; actors: string[] };
+  /**
    * The mode's wizard, answered — [06 §7.3], [P7.4].
    *
    * Keyed by the field ids the mode declares. The server checks it against a

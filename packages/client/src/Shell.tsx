@@ -23,6 +23,7 @@ import { useTheme } from './ui/useTheme.js';
 import { useLocale } from './i18n/useLocale.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
 import { useToggleChord } from './workbench/useToggleChord.js';
+import { AssistantPanel } from './assistant/AssistantPanel.js';
 import { Workbench } from './workbench/Workbench.js';
 
 /** The signed-in frame: a header with the account and sign-out, and the page. */
@@ -38,6 +39,22 @@ export function Shell(): JSX.Element {
   // locale decides which catalogue the label tables read through, and the
   // shell is the only component that is always present and present once.
   useLocale(account?.locale);
+
+  /**
+   * ***The assistant's open state, and it is `useState` where the workbench's is
+   * a preference*** — [10 §7], [P11.3].
+   *
+   * The workbench is a **mode of working**: somebody debugging their preset
+   * wants it open on the next page and after a reload, which is what [P3 §1.2]
+   * spends a preference on. The assistant is something you **summon** — §7's own
+   * word — for a question, and a panel that reopened itself every morning would
+   * be an assistant that had decided it lived there. *A smaller mechanism for a
+   * smaller claim, rather than the same one for symmetry.*
+   */
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const closeAssistant = useCallback(() => {
+    setAssistantOpen(false);
+  }, []);
 
   /**
    * ***Mounted once, here, and that is the whole reason it is a shell
@@ -136,6 +153,20 @@ export function Shell(): JSX.Element {
               >
                 Workbench
               </Button>
+              {/* ***Summonable from anywhere*** — [10 §7], [P11.3]. A button
+                  beside the workbench's and for the same reason its own comment
+                  gives: the panel is not a place, so it is not a nav entry. */}
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  setAssistantOpen((was) => !was);
+                }}
+                aria-expanded={assistantOpen}
+                title="Ask the assistant"
+              >
+                Assistant
+              </Button>
               <NotificationBell state={notifications} />
               {/* One entry, which is all [P2A §3] asks for. */}
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
@@ -187,6 +218,11 @@ export function Shell(): JSX.Element {
           <Outlet />
         </main>
         {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
+        {/* After the workbench in source order, so with both open the assistant
+            is the outermost panel — it is the thing you summoned last and the
+            thing you dismiss first. Closed is unmounted for the dock's reason:
+            no queries run and the landmark is absent rather than lurking. */}
+        {account === null || !assistantOpen ? null : <AssistantPanel onClose={closeAssistant} />}
       </div>
       {/* Last in the column and outside `<main>`, for the banner's reason: a
           footer that scrolls away with the page is a footer on some pages. The

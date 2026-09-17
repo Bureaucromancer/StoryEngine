@@ -3,7 +3,9 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { PRESET_SCHEMA, slugify } from '@storyengine/shared';
+import { ACTOR_SCHEMA, PRESET_SCHEMA, slugify } from '@storyengine/shared';
+
+import { ASSISTANT_CARD } from './assistant-card.js';
 
 import { ingestFile } from './index-db/ingest.js';
 import { encodeObject } from './library.js';
@@ -116,19 +118,62 @@ export async function materialiseModePresets(
     const slug = slugify(mode.definition.id);
 
     const { path, bytes } = await encodeObject(layout, SYSTEM_OWNER, PRESET_SCHEMA, slug, preset);
-
-    // Read-then-compare rather than write-then-hope: see §4 of the header.
-    // `readFileBytes` answers null for absent, which is the first-start case.
-    const existing = await readFileBytes(path);
-    const unchanged = existing !== null && Buffer.from(existing).equals(Buffer.from(bytes));
-
-    if (!unchanged) {
-      await writeAtomic(path, bytes);
-      await ingestFile(db, layout, path);
+    if (await put(db, layout, path, bytes)) {
+      done.push({ modeId: mode.definition.id, id: preset.id, slug, path, written: true });
+    } else {
+      done.push({ modeId: mode.definition.id, id: preset.id, slug, path, written: false });
     }
+  }
 
-    done.push({ modeId: mode.definition.id, id: preset.id, slug, path, written: !unchanged });
+  /**
+   * ***And one object that is not a pack*** — [06 §7.4], [P11.3].
+   *
+   * §7.4: *"The default assistant card ships as an ordinary actor in the
+   * library, editable and replaceable like any other."* It goes through the same
+   * four rules as a pack, for the same four reasons, which is what *ordinary*
+   * means — a fixed id, an atomic write, no sweep, and silence on a restart that
+   * changed nothing.
+   *
+   * *It is listed here rather than declared by the mode*, because §7.4's own
+   * split puts personality on the card and capability in the mode. A card
+   * shipped inside the mode package would be the two halves back in one file.
+   *
+   * **The `modeId` it reports is the empty string, and that is the honest
+   * value**: no mode owns this object. A reader that wanted to group by mode
+   * would be asking a question about the wrong thing, and inventing an id here
+   * to make a column line up would be the answer that is wrong quietly.
+   */
+  {
+    const slug = slugify(ASSISTANT_CARD.name);
+    const { path, bytes } = await encodeObject(
+      layout,
+      SYSTEM_OWNER,
+      ACTOR_SCHEMA,
+      slug,
+      ASSISTANT_CARD,
+    );
+    const written = await put(db, layout, path, bytes);
+    done.push({ modeId: '', id: ASSISTANT_CARD.id, slug, path, written });
   }
 
   return done;
+}
+
+/**
+ * Writes one shipped object if its bytes differ, and says whether it did.
+ *
+ * Read-then-compare rather than write-then-hope: see §4 of the header.
+ * `readFileBytes` answers null for absent, which is the first-start case.
+ */
+async function put(
+  db: DatabaseSync,
+  layout: Layout,
+  path: string,
+  bytes: Uint8Array,
+): Promise<boolean> {
+  const existing = await readFileBytes(path);
+  if (existing !== null && Buffer.from(existing).equals(Buffer.from(bytes))) return false;
+  await writeAtomic(path, bytes);
+  await ingestFile(db, layout, path);
+  return true;
 }

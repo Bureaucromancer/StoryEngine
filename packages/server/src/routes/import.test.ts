@@ -211,8 +211,7 @@ describe('uploading the things people actually upload', () => {
     expect(response.status).toBe(201);
     expect(response.body.item.disposition).toBe('converted');
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(listed.body.objects).toHaveLength(1);
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(1);
   });
 
   it('carries the scenario off a card into a treatment, as a sweep does', async () => {
@@ -220,8 +219,7 @@ describe('uploading the things people actually upload', () => {
     // is not silently lost — the reason one candidate returns a list.
     await uploadBytes('Vera.png', card());
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/treatments' });
-    expect(listed.body.objects).toHaveLength(1);
+    expect((await ownObjects(server, 'treatments')).objects).toHaveLength(1);
   });
 
   it('still refuses a picture with no character in it, and says which', async () => {
@@ -284,8 +282,7 @@ describe('uploading the things people actually upload', () => {
 
     expect(response.body.item.disposition).toBe('unrecognised');
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
-    expect(listed.body.objects).toHaveLength(0);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(0);
   });
 
   it('does not double the library when the same card is uploaded twice', async () => {
@@ -294,8 +291,7 @@ describe('uploading the things people actually upload', () => {
     await uploadBytes('Vera.png', card());
     await uploadBytes('Vera.png', card());
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
-    expect(listed.body.objects).toHaveLength(1);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(1);
   });
 });
 

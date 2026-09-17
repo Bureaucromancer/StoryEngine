@@ -1560,6 +1560,96 @@ satisfy every behavioural test and fail this one. *Plus the ambient-context
 block appearing in the turn record*, which is what makes the disclosure real
 rather than promised.
 
+#### Done — 2026-09-17
+
+***"It is a session, in a mode, with an actor card. That is the whole design."***
+[06 §7.4](../06-modes-and-turn-pipeline.md) says it in one sentence and the
+interesting thing about this stage is how much of it turned out to be literally
+true: `packages/modes/assistant` is a mode package with one dependency, and
+`AssistantPanel.tsx` renders **`PlayPage`**. Everything in §7.4's table of what
+*applies unchanged* — streaming, reconnection, the turn record and the workbench,
+rewrite and reroll, the guidance box, branching, notifications, per-user
+ownership — is there because it is the same component, not because it was
+re-implemented carefully.
+
+***The proof obligation is that sentence inverted, and it is mechanical.*** §7.4:
+*"If building the assistant requires a parallel chat implementation, something in
+the mode contract is wrong."* `tools/repo-shape.test.ts` holds it from both
+sides: the panel **imports and renders** the play surface, and its directory
+contains no `<textarea`, no `submitTurn`, no stream and no `EventSource`. *That
+is a claim about code shape rather than behaviour, which is why the obligation
+named this file rather than a component test* — a passing assistant built the
+wrong way would satisfy every behavioural test and fail this one.
+
+***Ambient context is a channel with a budget, and that is the whole
+implementation of "disclosed".*** §7.4 asks for two things in two sentences:
+*"That context is a block the client contributes, and it must be visible in the
+turn record like any other block."* A `user-only` channel with a non-null budget
+**is** a block the client contributes: the pack positions it, the assembler
+renders it, the workbench lists it in the block table beside everything else.
+**`budget: null` would have been the unsettling version** — an assistant that
+knew what was on your screen and never said so — and it would have looked like a
+smaller declaration rather than a different feature. [10 §7](../10-ui-surfaces.md)
+asks for the other half, *"on screen, not just in the turn record"*, and that is
+the line at the top of the panel.
+
+*The context is derived from the **address** rather than pushed by each page*,
+because the address is already the app's statement of where you are and is
+maintained whether or not anybody is thinking about the assistant. The cost is
+written down: what it can say is what the URL says.
+
+***Propose, then apply, through the ordinary channel path.*** §7.4: *"Every
+mutation is a reviewable diff, not a silent write… an assistant quietly
+rewriting your own work is the fastest way to stop trusting it."* A `post` step
+writes `se.assistant.proposal` as a `model-proposed` effect — so a proposal is on
+the turn, in the workbench, reversible by branching — and the panel reads it back
+off the transcript it was already reading. **Nothing in the mode package can
+reach a file**, which its single dependency makes structural. Applying is an
+ordinary library write the **person** makes, carrying `GeneratedFieldProvenance`
+exactly as [P11.2]'s field assist does, which is what §7.4 asks for by name:
+*"so 'the assistant wrote this bit' stays answerable later."*
+
+**Two refusals inside that are worth naming.** The proposal is applied against
+*the object as it stands now*, not against what the model was shown, because
+minutes may have passed and the honest question is whether you want this change
+to the file you have. And **a dotted path the object does not have is not
+created** — inventing structure because a model named it would be the silent
+write arriving through the one door that stayed open.
+
+***The card ships from the server and names no mode***, which is the test of
+whether §7.4's *capabilities belong to the mode, personality to the card* split
+is real. `assistant-card.ts` is an ordinary actor in the system library, beside
+the packs and under the same four rules; pointing a story session at it produces
+a strange but working character, which is §7.4's own *"point it at a roleplay
+character for fun and it still works"* read in the other direction.
+
+*It cost eight test edits, and they were improvements.* The shipped card made
+`actors` non-empty for the first time, so assertions reading *the library is
+empty* and *`objects[0]` is the one I imported* stopped holding — and both were
+always saying something slightly wrong. `ownObjects` already existed for exactly
+this and now says what those tests meant: **the user's** library.
+
+***Starter prompts are a `PlayPage` prop, not an assistant component.*** §7.4
+calls them *"the main thing standing between a blank assistant box and people
+actually using it"*, and the same reasoning that makes the assistant a session
+makes this an affordance of **sessions**: a story mode that wanted openers on an
+empty session would pass the prop and get the same control. They fill the box
+rather than taking a turn, which is `Suggestions`' rule beside them.
+
+---
+
+***What §7.4 asks for and this does not have: the docs lorebook.*** *"Docs
+retrieval needs no new machinery. Ship the documentation as a built-in lorebook
+and attach it to the assistant. Keyword activation plus the budgeter already do
+the work."* **The machinery is here and the corpus is not**: the pack positions a
+`lore` slot, the retriever runs, and no book is attached. That is a corpus
+problem — turning a design corpus into keyed entries somebody would want
+retrieved — rather than a mechanism one, and shipping an empty book to close the
+row would have been the placeholder shape this phase has refused at every stage.
+*It is the one thing between this assistant and the one §7.4 describes*, and it
+is filed against [§3](#3-verification--the-p11-exit-gate)'s row 4 rather than
+here.
+
 ### P11.4 — Scene's remainder, and impersonation
 
 [06 §3.1](../06-modes-and-turn-pipeline.md)'s impersonation, which

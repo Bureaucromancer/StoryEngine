@@ -634,3 +634,109 @@ describe('the extractor cannot eat a correction', () => {
     expect(code).not.toContain('locked');
   });
 });
+
+/**
+ * ***The assistant is not a second chat implementation*** —
+ * [06 §7.4](../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11 §3](../docs/design/workplan/28-p11-implementation.md)'s row 4,
+ * [P11.3](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * §7.4 states the whole design in one sentence — *"it is a session, in a mode,
+ * with an actor card"* — and then states the test of it in another: ***"If
+ * building the assistant requires a parallel chat implementation, something in
+ * the mode contract is wrong."***
+ *
+ * ***That is a claim about code shape, not about behaviour***, which is why the
+ * stage's proof obligation names this file rather than a component test: **a
+ * passing assistant built the wrong way would satisfy every behavioural test and
+ * fail this one.** The gate says so too, in row 4.
+ *
+ * *What it cannot catch*, said plainly: a copy that used different words. A
+ * hand-rolled composer built on `input` rather than `textarea`, or a stream read
+ * with a bare `EventSource`, would slip through. The names below are the ones
+ * somebody reaches for when they are doing the thing this forbids, and the
+ * positive assertion — that the panel renders `PlayPage` — is the half that
+ * cannot be satisfied by avoiding a word.
+ */
+describe('the assistant, which must not be a second chat', () => {
+  const PANEL = join(ROOT, 'packages', 'client', 'src', 'assistant');
+
+  function surfaceFiles(): string[] {
+    return readdirSync(PANEL)
+      .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
+      .map((name) => join(PANEL, name));
+  }
+
+  it('finds the surface, so an empty read cannot pass', () => {
+    expect(surfaceFiles().length).toBeGreaterThan(2);
+  });
+
+  /**
+   * ***The positive half.*** The panel renders the play surface, which is the
+   * strongest available statement that nothing was rebuilt: everything in
+   * §7.4's table of *applies unchanged* — streaming, reconnection, the turn
+   * record, rewrite and reroll, the guidance box, branching — is there because
+   * it is literally the same component.
+   */
+  it('renders the play surface rather than one of its own', () => {
+    const panel = readFileSync(join(PANEL, 'AssistantPanel.tsx'), 'utf8');
+    expect(panel).toMatch(/from '\.\.\/play\/PlayPage\.js'/);
+    expect(panel).toContain('<PlayPage');
+  });
+
+  /**
+   * ***The negative half.*** No composer, no submission, no stream. Each of
+   * these is a thing the play surface already does, and a second one here would
+   * be the parallel implementation — arriving, as it always would, as a small
+   * convenience rather than as a decision.
+   */
+  it('has no composer, no turn submission and no stream of its own', () => {
+    for (const file of surfaceFiles()) {
+      const code = codeOf(file);
+      const where = file.slice(ROOT.length);
+      expect(code, where).not.toContain('<textarea');
+      expect(code, where).not.toContain('submitTurn');
+      expect(code, where).not.toContain('openTurnStream');
+      expect(code, where).not.toContain('useTurnStream');
+      expect(code, where).not.toContain('EventSource');
+    }
+  });
+
+  /**
+   * ***The mode package resolves the SDK and nothing else***, which is the
+   * other side of the same claim: an assistant that needed the server would be
+   * an assistant the mode contract could not express, and
+   * [19 §10](../docs/design/19-tech-stack.md)'s boundary is what would have to
+   * bend to let it.
+   */
+  it('is a mode package with one dependency', () => {
+    const manifest = JSON.parse(
+      readFileSync(join(ROOT, 'packages', 'modes', 'assistant', 'package.json'), 'utf8'),
+    ) as { dependencies?: Record<string, string> };
+    expect(Object.keys(manifest.dependencies ?? {})).toEqual(['@storyengine/sdk']);
+  });
+
+  /**
+   * ***And the server does not know it exists.*** `mode-loader.ts` names the
+   * package on its list of built-ins — which every mode is on — and nothing
+   * else in `packages/server` names the mode. A `switch` on this id would be
+   * [06 §2]'s back door, and the assistant is the mode most likely to tempt one
+   * because it is the mode the app itself wants something from.
+   */
+  it('is not named anywhere in the server but the loader’s list', () => {
+    const named: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+          if (readFileSync(path, 'utf8').includes('storyengine.assistant')) {
+            named.push(path.slice(ROOT.length));
+          }
+        }
+      }
+    };
+    walk(join(ROOT, 'packages', 'server', 'src'));
+    expect(named).toEqual([]);
+  });
+});
