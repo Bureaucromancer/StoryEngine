@@ -484,6 +484,103 @@ export const SCENE_PRESET: Preset = {
     maxTokens: 800,
   },
   modelHint: null,
+  /**
+   * ***What the dial should mean to the model*** —
+   * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+   * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * §6.1's split: *"Level → cadence, cooldown and patience is engine code; the
+   * level's prose is the prompt pack's."* The numbers are in
+   * `sessions/hooks.ts` and are not a pack's to set — their effect is that a
+   * step does not run, which is invisible in the record by construction. These
+   * are the other half, and until [P11.5] there was nowhere to put them: the
+   * selector asked the identical question at every setting and the dial changed
+   * only how often it asked.
+   *
+   * ***`aggressive` is written carefully, because §6.1 names the way it goes
+   * wrong.*** *"`aggressive` must not reach railroading… The dial changes how
+   * often a hook is **considered**. Guidance stays advisory at every setting and
+   * none of them makes the narrator comply — otherwise the top of the dial is
+   * not brisk pacing, it is the directedness [§7.3.2] spends a section
+   * refusing."* So the top level says **say yes more readily**, never *insist*,
+   * and it keeps the one refusal the bottom level has: *not over the top of what
+   * the player is doing.* A pack is free to write it differently; this one
+   * thinks a dial that overruns the player is a broken dial at any setting.
+   *
+   * ***Two fragments each, so the ranking is real rather than decorative.***
+   * [19 §5.3]'s cap drops the lowest `priority` first, and a level with one
+   * fragment either survives whole or vanishes whole. The high one is the
+   * disposition; the low one is the caveat that makes it safe — which is the
+   * right thing to lose first if something must be lost, because a prompt
+   * without the caveat is still the same dial.
+   *
+   * *`rank` mirrors `PACING_LEVELS` rather than sorting by frequency*, so the
+   * order here is the order the dial presents. `manual-only` is last because it
+   * is the **off** position and not the quietest setting: nothing reaches this
+   * question under it except a hook somebody committed by hand.
+   *
+   * **Near-identical prose ships in Freeform's pack and that is correct**, not
+   * duplication to be factored out: a mode is a package, a pack is its words,
+   * and a shared constant would be one mode importing another's opinion.
+   */
+  pacingLevels: [
+    {
+      id: 'sparse',
+      label: 'Sparse',
+      rank: 0,
+      fragments: [
+        {
+          text: 'Beats are rare in this story. Answer null unless the scene has reached a natural seam — an arrival, a departure, a question answered, a silence somebody has to break.',
+          priority: 100,
+        },
+        {
+          text: 'A beat that has to interrupt something is not the right beat yet, and waiting costs nothing.',
+          priority: 60,
+        },
+      ],
+    },
+    {
+      id: 'normal',
+      label: 'Normal',
+      rank: 1,
+      fragments: [
+        {
+          text: 'Introduce a beat when one follows from what just happened. A workable opening is enough; a perfect one is not required.',
+          priority: 100,
+        },
+        {
+          text: 'If nothing here connects to what the player just did, answer null and let the scene keep its own shape.',
+          priority: 60,
+        },
+      ],
+    },
+    {
+      id: 'aggressive',
+      label: 'Brisk',
+      rank: 2,
+      fragments: [
+        {
+          text: 'This story wants to move. Say yes to a workable opening rather than holding out for a better one, and treat a lull as an opening in itself.',
+          priority: 100,
+        },
+        {
+          text: 'Still not over the top of what the player is doing: if they are mid-action or mid-sentence, the beat can wait a turn.',
+          priority: 60,
+        },
+      ],
+    },
+    {
+      id: 'manual-only',
+      label: 'Only when asked',
+      rank: 3,
+      fragments: [
+        {
+          text: 'Nothing reaches this question unless somebody asked for it by hand, so the only thing left to judge is whether this is a place it can land at all.',
+          priority: 100,
+        },
+      ],
+    },
+  ],
   variables: [],
   tags: [],
   provenance: {

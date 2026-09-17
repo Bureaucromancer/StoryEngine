@@ -236,3 +236,55 @@ describe('what this mode declares that Scene could not', () => {
     }
   });
 });
+
+/**
+ * ***The pacing dial has words at every setting*** —
+ * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * §6.1 splits the dial in two — *"Level → cadence, cooldown and patience is
+ * engine code; the level's prose is the prompt pack's"* — and for four phases
+ * only the engine half existed. **A pack missing a level is the failure that
+ * looks like nothing**: `pacingLevel` returns null, the selector omits the
+ * block, and the setting silently goes back to meaning only a cadence. There is
+ * no screen on which that is visible, which is why it is a test.
+ */
+describe('the pacing prose this pack ships', () => {
+  const ids = (FREEFORM_PRESET.pacingLevels ?? []).map((level) => level.id);
+
+  it('has a level for every setting the dial offers', () => {
+    expect(ids.sort()).toEqual(['aggressive', 'manual-only', 'normal', 'sparse']);
+  });
+
+  it('says something at each of them', () => {
+    for (const level of FREEFORM_PRESET.pacingLevels ?? []) {
+      expect(level.fragments.length, level.id).toBeGreaterThan(0);
+      for (const fragment of level.fragments)
+        expect(fragment.text.length, level.id).toBeGreaterThan(20);
+    }
+  });
+
+  /**
+   * ***`aggressive` must not reach railroading***, which is §6.1's own sentence
+   * and the one way this prose can do real harm: *"The dial changes how often a
+   * hook is **considered**. Guidance stays advisory at every setting and none of
+   * them makes the narrator comply — otherwise the top of the dial is not brisk
+   * pacing, it is the directedness [§7.3.2] spends a section refusing."*
+   *
+   * *A word list is a crude check and is the honest one available.* It cannot
+   * read prose, so it watches for the vocabulary somebody reaches for when they
+   * are writing an instruction rather than a disposition — and it is here
+   * because the top of this dial is precisely where a later edit will be
+   * tempted.
+   */
+  it('never tells the narrator to comply, at the top of the dial', () => {
+    const brisk = (FREEFORM_PRESET.pacingLevels ?? []).find((level) => level.id === 'aggressive');
+    const text = (brisk?.fragments ?? []).map((fragment) => fragment.text).join(' ');
+    expect(text.length).toBeGreaterThan(0);
+    for (const word of ['must ', 'always ', 'insist', 'ignore the player', 'regardless']) {
+      expect(text.toLowerCase(), word).not.toContain(word);
+    }
+    // And the refusal it *should* carry: the player is still mid-something.
+    expect(text.toLowerCase()).toContain('player');
+  });
+});

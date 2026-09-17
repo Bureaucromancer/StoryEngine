@@ -793,6 +793,55 @@
         }
       }
     },
+    "pacingLevels": {
+      "type": "array",
+      "items": {
+        "title": "DifficultyLevel",
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "rank",
+          "fragments"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "number"
+          },
+          "fragments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "text",
+                "priority"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "patternProperties": {
+              "^(.*)$": {}
+            }
+          }
+        }
+      }
+    },
     "variables": {
       "type": "array",
       "items": {

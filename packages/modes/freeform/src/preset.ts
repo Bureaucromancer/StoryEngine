@@ -719,6 +719,97 @@ export const FREEFORM_PRESET: Preset = {
       ],
     },
   ],
+  /**
+   * ***What the hook dial should mean to the model*** —
+   * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+   * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **The same shape as the two lists above and deliberately not a third dial.**
+   * [23 §5.4] is explicit: a frequency dial stays a *separate channel* from
+   * difficulty, *"because folding* how often *into* how hard *rebuilds exactly
+   * the conflation [06 §7.3.2] exists to prevent"*. What these three lists share
+   * is a data shape — a named level with ranked fragments — and nothing else:
+   * `se.hook.pacing` is its own channel, resolved by `sessions/hooks.ts`, and
+   * `dials.ts` still reads two axes.
+   *
+   * §6.1's split is why the prose is here at all: *"Level → cadence, cooldown
+   * and patience is engine code; the level's prose is the prompt pack's."* Until
+   * [P11.5] there was nowhere to put the second half, so the selector asked the
+   * identical question at every setting.
+   *
+   * ***`aggressive` keeps §6.1's refusal*** — *"`aggressive` must not reach
+   * railroading… The dial changes how often a hook is **considered**… none of
+   * them makes the narrator comply"* — so the top of the dial says *say yes more
+   * readily*, never *insist*, and keeps the clause about not running over what
+   * the player is doing. *That is the same floor `harsh` carries above, one
+   * control along.*
+   *
+   * **Near-identical prose ships in Scene's pack and that is correct**, not
+   * duplication waiting to be factored out: a mode is a package and a pack is
+   * its words, so a shared constant would be one mode importing another's
+   * opinion — the dependency [P2 §2.4]'s *"relocates behind the SDK unchanged"*
+   * refuses. *They are not quite the same words either*: Scene is a scene and
+   * can say *the scene has reached a seam*; this is an ongoing story with no
+   * such edge, so its quietest level reaches for the story's own drift instead.
+   */
+  pacingLevels: [
+    {
+      id: 'sparse',
+      label: 'Sparse',
+      rank: 0,
+      fragments: [
+        {
+          text: 'Beats are rare in this story. Answer null unless one of them follows plainly from where the story has drifted — a thread the player picked up, a place they went back to, a question they left open.',
+          priority: 100,
+        },
+        {
+          text: 'A beat that has to interrupt something is not the right beat yet, and waiting costs nothing.',
+          priority: 60,
+        },
+      ],
+    },
+    {
+      id: 'normal',
+      label: 'Normal',
+      rank: 1,
+      fragments: [
+        {
+          text: 'Introduce a beat when one follows from what just happened. A workable opening is enough; a perfect one is not required.',
+          priority: 100,
+        },
+        {
+          text: 'If nothing here connects to what the player just did, answer null and let the story keep its own shape.',
+          priority: 60,
+        },
+      ],
+    },
+    {
+      id: 'aggressive',
+      label: 'Brisk',
+      rank: 2,
+      fragments: [
+        {
+          text: 'This story wants to move. Say yes to a workable opening rather than holding out for a better one, and treat a lull as an opening in itself.',
+          priority: 100,
+        },
+        {
+          text: 'Still not over the top of what the player is doing: if they are mid-action or mid-sentence, the beat can wait a turn.',
+          priority: 60,
+        },
+      ],
+    },
+    {
+      id: 'manual-only',
+      label: 'Only when asked',
+      rank: 3,
+      fragments: [
+        {
+          text: 'Nothing reaches this question unless somebody asked for it by hand, so the only thing left to judge is whether this is a place it can land at all.',
+          priority: 100,
+        },
+      ],
+    },
+  ],
   variables: [],
   tags: [],
   provenance: {

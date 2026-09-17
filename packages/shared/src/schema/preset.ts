@@ -546,6 +546,45 @@ export const Preset = Type.Object(
      */
     directednessLevels: Type.Optional(Type.Array(DifficultyLevel)),
 
+    /**
+     * ***How the hook dial should read to a model*** — [06 §6.1], added at
+     * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
+     *
+     * §6.1's split, in its own words: ***"Level → cadence, cooldown and patience
+     * is engine code; the level's prose is the prompt pack's."*** The numbers
+     * live in `sessions/hooks.ts` and belong there — *"their effect is that a
+     * step does not run, which is invisible in the turn record by construction,
+     * and letting a portable preset set internal scheduling inverts the
+     * dependency the step contract exists to keep one-way"*. The prose is the
+     * half that transfers, and until this field there was **nowhere for it to
+     * go**: the declaration existed, the dial existed, the selector's prompt
+     * said the same thing at every setting.
+     *
+     * ***The same shape as the two above, and that is not laziness.*** A named
+     * level with ranked fragments, resolved against a dial, replaceable by
+     * whoever ships the pack — the argument [06 §7.3.1] makes for difficulty
+     * transfers whole, and a third literal shape for the same idea would be
+     * three things for an author to learn.
+     *
+     * ***But it is emphatically not a third dial axis***, and the separation is
+     * load-bearing rather than filing. [23 §5.4] states it directly: a frequency
+     * dial stays a **separate channel** from difficulty, *"because folding* how
+     * often *into* how hard *rebuilds exactly the conflation 06 §7.3.2 exists to
+     * prevent"*. So `DialAxis` does not grow an arm, `dials.ts` still reads
+     * neither this field nor that channel, and `resolveDials` still loops over
+     * two. What is shared here is a **data shape**, and nothing else.
+     *
+     * *The ids are `PACING_LEVELS`* — `sparse`, `normal`, `aggressive`,
+     * `manual-only` — because the dial's own enum is what a level is selected
+     * by. A pack that ships a level for a name the channel does not have is
+     * shipping prose nothing can select, which the engine treats as absent.
+     *
+     * **Omitted means the selector asks its question with no pacing prose at
+     * all**, which is exactly what every session did before this field and is
+     * the honest reading of a pack that has not thought about it.
+     */
+    pacingLevels: Type.Optional(Type.Array(DifficultyLevel)),
+
     variables: Type.Array(PresetVariable),
 
     tags: Type.Array(Type.String()),

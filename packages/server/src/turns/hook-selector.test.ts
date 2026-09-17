@@ -120,6 +120,7 @@ async function select(options: {
   known?: string[];
   answer?: Partial<StepCallResult>;
   pacing?: HookPacing;
+  pacingProse?: string | null;
 }) {
   // A holder rather than a bare `let`, for the reason the runner's `inFlight` is
   // one: it is assigned from inside a closure the type checker cannot follow,
@@ -133,6 +134,7 @@ async function select(options: {
       persona: null,
     },
     pacing: options.pacing ?? 'aggressive',
+    pacingProse: options.pacingProse ?? null,
     report: (given) => {
       held.report = given;
     },
@@ -828,5 +830,81 @@ describe('the five answers are five answers', () => {
     // no two the same. A merged pair is what makes a correctly-quiet session
     // indistinguishable from a broken one.
     expect(new Set(verdicts).size).toBe(5);
+  });
+});
+
+/**
+ * ***The dial says something to the model, and not only to the clock*** —
+ * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * §6.1's split — *"Level → cadence, cooldown and patience is engine code; the
+ * level's prose is the prompt pack's"* — had only one half built for four
+ * phases. The dial changed **how often** the question was asked and never
+ * **what** was asked, so `sparse` and `aggressive` put the identical prompt to
+ * the model and differed in a cadence the model could not see.
+ *
+ * *The falsifying mutation is the state it was in*: drop the block and every
+ * other test in this file still passes, because the selector's answer is a hook
+ * id and the prose does not change its shape.
+ */
+describe('the pacing prose the pack ships', () => {
+  const PROSE = 'Beats are rare in this story.';
+
+  function blocks(asked: StepCallRequest[]): string[] {
+    return (asked[0]?.candidates ?? []).map((candidate) => candidate.id);
+  }
+
+  it('reaches the call when the pack has some', async () => {
+    const run = await select({ pool: pooled(hook()), pacingProse: PROSE });
+    expect(blocks(run.host.asked)).toContain('se.hooks.select.pacing');
+    const carried = (run.host.asked[0]?.candidates ?? []).find(
+      (candidate) => candidate.id === 'se.hooks.select.pacing',
+    );
+    expect(carried?.text).toBe(PROSE);
+  });
+
+  /**
+   * ***Absent rather than empty***, which is the difference between *the pack
+   * has nothing to say here* and *the pack tried and failed*. A reader of the
+   * turn record can tell those apart only if one of them is not there.
+   */
+  it('is not in the call at all when the pack ships none', async () => {
+    const run = await select({ pool: pooled(hook()) });
+    expect(blocks(run.host.asked)).not.toContain('se.hooks.select.pacing');
+    expect(blocks(run.host.asked)).toContain('se.hooks.select.task');
+  });
+
+  /**
+   * *After the task and before the pool.* The task is what makes the schema
+   * answerable; the prose is a disposition to bring to it, and a disposition
+   * read after the premises is a disposition read **about** the premises.
+   */
+  it('sits between the question and the premises', async () => {
+    const run = await select({ pool: pooled(hook()), pacingProse: PROSE });
+    const order = blocks(run.host.asked);
+    expect(order.indexOf('se.hooks.select.pacing')).toBeGreaterThan(
+      order.indexOf('se.hooks.select.task'),
+    );
+    expect(order.indexOf('se.hooks.select.pacing')).toBeLessThan(
+      order.indexOf('se.hooks.select.pool'),
+    );
+  });
+
+  /**
+   * **A held turn carries no prose because it carries no call**, which is the
+   * property the gate has and this must not cost: *"that costs nothing, because
+   * stage 1 is deliberately model-free"*. A pacing block assembled before the
+   * gate would make `sparse` the setting that does the most work.
+   */
+  it('costs nothing on a turn the gate holds', async () => {
+    const run = await select({
+      pool: pooled(hook()),
+      channels: { [channelKey(SE_HOOK_PACING, null)]: { value: 'manual-only' } },
+      pacing: 'manual-only',
+      pacingProse: PROSE,
+    });
+    expect(run.report.selection.verdict).toBe('held');
+    expect(run.host.asked).toHaveLength(0);
   });
 });

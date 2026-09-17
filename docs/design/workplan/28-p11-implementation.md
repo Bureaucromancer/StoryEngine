@@ -1610,6 +1610,70 @@ supposed to be ejected by §1.1; this one is kept because the rule's own purpose
 that nothing ends by someone getting tired — is served by a sitting with a
 recorded outcome, which is the same thing a check buys.*
 
+#### Half done — 2026-09-17: the part that was never tuning
+
+***The third row of the table above was not a tuning item and this stage said
+so***: *"A pack block that does not exist cannot be worded better by playing; it
+has to be written first, and writing it is a small build inside a stage that says
+it is not a build stage. Naming it here is the point — otherwise the stage
+arrives, discovers a missing block, and either grows silently or drops the half
+of §1.7 that is about **wording**."* It arrived, the block was missing, and this
+is it written rather than either of those two outcomes.
+
+**What was actually broken is worth stating plainly, because it had been true
+since [P7.5](23-p7-implementation.md).** [06 §6.1](../06-modes-and-turn-pipeline.md)
+splits the dial in two — *"Level → cadence, cooldown and patience is engine code;
+the level's prose is the prompt pack's"* — and only the engine half existed. So
+**`sparse` and `aggressive` put the identical question to the model** and
+differed only in a cadence the model could not see. Four levels producing
+recognisably different sessions, which is this stage's *Ends at*, was not
+something play could have discovered: there was nothing to discover.
+
+***`Preset.pacingLevels`, and it is not a third dial.*** The shape is the one
+[06 §7.3.1](../06-modes-and-turn-pipeline.md) gave difficulty and
+[P7.8](23-p7-implementation.md) gave directedness — a named level with ranked
+fragments, selected by a dial, replaceable by whoever ships the pack — because
+that argument transfers whole and a third literal shape for one idea is a third
+thing for an author to learn. **What does not transfer is the axis.**
+[23 §5.4](../23-randomizers.md) is explicit that a frequency dial stays a
+*separate channel* from difficulty, *"because folding* how often *into* how
+hard *rebuilds exactly the conflation [06 §7.3.2] exists to prevent"* — so
+`DialAxis` did not grow an arm, `dials.ts` still reads two, and
+`dials.test.ts`'s *three dials and not two* still passes unchanged. **One sort
+crosses the line and nothing else**: `levelFragments`, which is a fact about the
+data shape rather than about either control.
+
+*`hook-selector.ts`'s own guess is corrected in place rather than quietly
+replaced*, because it was wrong in an instructive direction: it said the prose
+*"arrives as an ordinary block when the pack grows one"*, and an ordinary
+`PresetBlock` cannot vary by level — one template, one `appliesTo` — so a pack
+would have shipped four blocks with nothing to choose among them. The half that
+held is the record: it reaches the call as `se.hooks.select.pacing`, an ordinary
+block in `request.calls`, visible in the workbench like any other.
+
+***No floor, where a difficulty dial has one***, and this is the decision most
+likely to be re-litigated. `resolveLevel` falls back to the pack's gentlest
+entry because a session runs at **a** difficulty whether or not anybody chose
+one. Pacing is not like that: `manual-only` is a real setting meaning *no
+judgement at all*, and a pack that ships three levels and not the fourth has said
+something about the fourth. Putting `sparse`'s words on an `aggressive` session
+would leave the prose arguing with the cadence, which is worse than silence.
+
+**Both built-in packs ship all four, and `mode.test.ts` in each refuses a pack
+that does not** — a missing level is the failure that looks like nothing: the
+resolver returns null, the block is omitted, and the setting silently goes back
+to meaning only a cadence. *The same test watches the top of the dial for
+compliance language*, which is §6.1's own warning — *"`aggressive` must not reach
+railroading… none of them makes the narrator comply"* — and is a crude check
+kept because the top of the dial is exactly where a later edit will be tempted.
+
+***What is still owed is the stage's actual subject, and it has not moved.***
+Four numbers, one constant, and the wording of what is now four levels of real
+prose, all of which want a live endpoint and hours of play. That is
+[sitting G](05-manual-testing.md), walked with PLAYABLE's fourth hypothesis, and
+this stage's *"honest answer to §1.1's rule"* stands: no proof obligation, a
+written result instead. **What changed is that the sitting is now possible.**
+
 ### P11.6 — Update check, About badge, and better failures
 
 §1.6, if P10 did not take it; the conditional connectivity warning, admin-only;

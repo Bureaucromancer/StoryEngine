@@ -2,10 +2,18 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ChannelDefinition } from '@storyengine/sdk';
-import type { HookPacing, HookRefusal, PlotHook, Ref } from '@storyengine/shared';
+import type {
+  DifficultyLevel,
+  HookPacing,
+  HookRefusal,
+  PlotHook,
+  Preset,
+  Ref,
+} from '@storyengine/shared';
 
 import { introducedOn, isTerminal, readParty, readStatus } from './cast.js';
 import { channelKey, initialValue } from './channels.js';
+import { levelFragments } from './dials.js';
 import type { PooledHook, Turn } from './types.js';
 
 /**
@@ -694,4 +702,69 @@ function firedOn(path: readonly Turn[]): Map<string, string> {
     }
   }
   return when;
+}
+
+/**
+ * ***The level's prose, from the pack*** — [06 §6.1], [P11.5].
+ *
+ * §6.1 in as many words: ***"Level → cadence, cooldown and patience is engine
+ * code; the level's prose is the prompt pack's."*** Everything above this
+ * function is the first half; this is the seam to the second. Until
+ * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md) there was
+ * no second half at all — the dial changed *how often* the selector asked and
+ * never *what it asked*, so `sparse` and `aggressive` put the identical question
+ * to the model and differed only in a cadence the model could not see.
+ *
+ * ***Why this lives beside `readPacing` and not in `dials.ts`.*** That module
+ * opens by saying what it is not: *"a third dial that is deliberately not
+ * here… nothing here reads it, nothing here writes it, and `dials.test.ts`
+ * asserts the three are three."* [23 §5.4] is the reason — folding *how often*
+ * into *how hard* rebuilds the conflation [06 §7.3.2] exists to prevent. **What
+ * crosses the line is one sort and nothing else**: {@link levelFragments} orders
+ * a level's fragments by priority, which is a fact about `DifficultyLevel` the
+ * shape rather than about either dial, and a second copy of it here would be a
+ * second opinion about what *"lower is dropped first"* means.
+ *
+ * *One string rather than a list*, because the selector's call takes candidate
+ * blocks and one block is what an author positioned: the ranking still decides
+ * the order, and [19 §5.3]'s cap cuts from the end of the prompt rather than
+ * from inside this. A pack that wants two blocks can write two levels' worth of
+ * fragments and will get them in rank order.
+ *
+ * *`Pick<Preset, 'pacingLevels'>` rather than `Preset`*, because that is all
+ * either function reads and a narrower parameter is a narrower claim: it also
+ * means a test can hand these four levels rather than a whole pack, which is the
+ * difference between testing the resolution and testing Scene.
+ */
+export function pacingProse(
+  preset: Pick<Preset, 'pacingLevels'>,
+  pacing: HookPacing,
+): string | null {
+  const level = pacingLevel(preset, pacing);
+  if (level === null) return null;
+  const text = levelFragments(level)
+    .map((fragment) => fragment.text)
+    .join('\n')
+    .trim();
+  return text === '' ? null : text;
+}
+
+/**
+ * The level a pack ships for this setting, or null.
+ *
+ * ***No floor, where `resolveLevel` has one***, and the difference is the
+ * difference between the two controls. A difficulty dial with no level selected
+ * falls to the pack's gentlest entry because *some* difficulty is always in
+ * play — the session is running at **a** difficulty whether or not anybody
+ * chose. Pacing is not like that: `manual-only` is a real setting that means
+ * *no judgement at all*, and a pack that ships prose for three levels and not
+ * the fourth has said something about the fourth. Falling back to the gentlest
+ * would put `sparse`'s words on an `aggressive` session, which is worse than
+ * putting none.
+ */
+export function pacingLevel(
+  preset: Pick<Preset, 'pacingLevels'>,
+  pacing: HookPacing,
+): DifficultyLevel | null {
+  return preset.pacingLevels?.find((level) => level.id === pacing) ?? null;
 }

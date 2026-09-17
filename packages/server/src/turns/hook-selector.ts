@@ -169,6 +169,19 @@ export interface HookSelectorContext {
   /** Everything stage one needs, resolved by the caller. */
   filter: Omit<FilterContext, 'channels' | 'path'>;
   pacing: HookPacing;
+  /**
+   * ***What this setting should mean to the model, in the pack's words*** —
+   * [06 §6.1], [P11.5]. Null when the pack ships no prose for it, which is what
+   * every pack did before that stage.
+   *
+   * **Resolved by the caller rather than read here**, which is this file's
+   * standing arrangement for everything it needs out of a session: `pool`,
+   * `filter` and `pacing` all arrive resolved, because the selector is a step
+   * and a step does not go shopping. It also keeps the pack-reading in one
+   * place — the runner already holds the preset, and a second reader would be a
+   * second opinion about which level is in play.
+   */
+  pacingProse: string | null;
   report: (report: HookSelectorReport) => void;
 }
 
@@ -285,6 +298,7 @@ export function hookSelector(context: HookSelectorContext): {
         offered,
         input.output?.text ?? lastOutput(path),
         committed.length > 0,
+        context.pacingProse,
         host,
       );
       if (chosen === null) {
@@ -437,12 +451,35 @@ async function judge(
   eligible: readonly PlotHook[],
   recent: string,
   committed: boolean,
+  pacingProse: string | null,
   host: Parameters<StepImplementation>[1],
 ): Promise<PlotHook | null> {
   const ids = eligible.map((hook) => hook.id);
   const result = await host.call({
     candidates: [
       block('se.hooks.select.task', 'system', committed ? COMMITTED_TASK : TASK),
+      /**
+       * ***The dial, in the pack's words, after the question and before the
+       * pool*** — [06 §6.1], [P11.5].
+       *
+       * **After the task**, because the task is what makes the schema
+       * answerable and the pacing prose is a disposition to bring to it; **before
+       * the pool**, because a disposition read after the premises is a
+       * disposition read about the premises. *Omitted entirely when the pack
+       * ships none*, rather than emitted empty: `se.hooks.select.pacing` absent
+       * from a turn record says the pack has nothing to say here, and a block
+       * with an empty string says the pack tried and failed.
+       *
+       * ***And it is still not a commitment.*** §6.1: *"`aggressive` must not
+       * reach railroading… The dial changes how often a hook is considered.
+       * Guidance stays advisory at every setting and none of them makes the
+       * narrator comply."* This block is read by the **selector**, which answers
+       * with a hook id or null — it cannot make the narrator do anything,
+       * because the narrator never sees it. A pack that wrote *always fire* here
+       * would get a selector that says yes more often and guidance that is as
+       * advisory as it ever was.
+       */
+      ...(pacingProse === null ? [] : [block('se.hooks.select.pacing', 'system', pacingProse)]),
       block('se.hooks.select.pool', 'system', poolText(eligible)),
       ...(recent.length === 0 ? [] : [block('se.hooks.select.recent', 'user', recent)]),
     ],
@@ -470,8 +507,19 @@ async function judge(
  * This is neither: it is the question that makes the call's **schema**
  * answerable, the same class of thing as [P7.4]'s `schemaInstruction`, and a
  * pack able to edit it could make the answer not parse. The pacing prose it
- * refers to is still the pack's, and arrives as an ordinary block when the pack
- * grows one.
+ * refers to is still the pack's, and ~~arrives as an ordinary block when the
+ * pack grows one~~ ***arrived 2026-09-17 at [P11.5], and not quite in that
+ * shape.***
+ *
+ * *The correction is worth the two lines because the guess was wrong in an
+ * instructive direction.* An ordinary `PresetBlock` cannot vary by level — it is
+ * one template with one `appliesTo` — so a pack would have had to ship four
+ * blocks with nothing to choose among them. What the prose needed was the shape
+ * [06 §7.3.1] already gave difficulty and [P7.8] gave directedness: a **named
+ * level with ranked fragments**, selected by the dial. So `Preset.pacingLevels`
+ * is that, `sessions/hooks.ts` resolves it, and it reaches this call as
+ * `se.hooks.select.pacing` below — an ordinary block in the record, which is the
+ * half of the guess that held.
  */
 /**
  * The question a **commitment** asks, which is not the one below it.

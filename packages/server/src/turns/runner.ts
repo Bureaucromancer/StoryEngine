@@ -77,7 +77,7 @@ import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } fro
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
-import { readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
+import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
@@ -816,6 +816,12 @@ export class TurnRunner {
       inputs.goals.current.completion.kind === 'narrative';
 
     const selects = payload.setup !== true && inputs.hooks.pool.length > 0;
+    const pacing = readPacing(running, {
+      ...(isRecord(inputs.session?.setup) ? { setup: inputs.session.setup } : {}),
+      ...(isRecord(inputs.lore.treatment?.treatment)
+        ? { treatment: inputs.lore.treatment.treatment }
+        : {}),
+    });
     const plan: TurnPlan = selects
       ? {
           steps: [
@@ -826,12 +832,15 @@ export class TurnRunner {
                 activeBooks: new Set(inputs.lore.books.map((book) => book.id)),
                 persona: cast.persona?.actor.id ?? null,
               },
-              pacing: readPacing(running, {
-                ...(isRecord(inputs.session?.setup) ? { setup: inputs.session.setup } : {}),
-                ...(isRecord(inputs.lore.treatment?.treatment)
-                  ? { treatment: inputs.lore.treatment.treatment }
-                  : {}),
-              }),
+              pacing: pacing,
+              /**
+               * ***The dial's prose, resolved here because the preset is
+               * here*** — [06 §6.1], [P11.5]. The selector takes everything
+               * resolved, for the reason its own docstring gives: a step does
+               * not go shopping, and the runner is the one place holding the
+               * pack, the channels and the authored rungs at once.
+               */
+              pacingProse: pacingProse(inputs.preset, pacing),
               report: (report) => {
                 hooks.report = report;
               },
