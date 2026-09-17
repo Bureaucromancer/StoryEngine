@@ -14,6 +14,7 @@ import {
 import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
 import { usedBy } from '../index-db/links.js';
+import { exportPackage } from '../packaging/export.js';
 import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
@@ -283,6 +284,46 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         respondToLibraryError(error, reply);
         return;
       }
+    },
+  );
+
+  /**
+   * ***A package, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
+   *
+   * **`.sepack` is this stage's rather than a stage of its own**, and §1.9's
+   * argument was not scheduling: an envelope is one of [18 §3]'s four
+   * consequences — free while the format is written, expensive afterwards — and
+   * a second one written later is two formats forever.
+   *
+   * *`missing` travels in a header rather than in the body*, because the body is
+   * the file: a person downloading a bundle gets the bundle, and a stale
+   * reference is something the **surface** tells them about. A field inside the
+   * document would be a note to the importer about the exporter's library.
+   */
+  app.get(
+    '/library/packages/:id/export',
+    { schema: { params: Type.Object({ id: Type.String({ minLength: 1 }) }) } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const result = exportPackage(
+        { library: services.library, build: services.build },
+        account.handle,
+        (request.params as { id: string }).id,
+      );
+      if (result === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'That package is not there.' });
+      }
+
+      return reply
+        .header('content-type', 'application/json; charset=utf-8')
+        .header('x-storyengine-missing', String(result.missing.length))
+        .header(
+          'content-disposition',
+          `attachment; filename="${packFileName(result.exported.manifest.name)}"`,
+        )
+        .send(result.exported);
     },
   );
 
@@ -808,4 +849,20 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
    */
   const unhandled: never = error.code;
   throw new Error(`unhandled library error code: ${String(unhandled)}`);
+}
+
+/**
+ * A `.sepack` filename — [P11.10], and `fileNameFor`'s rules in `sessions.ts`.
+ *
+ * ASCII only, because `content-disposition` is latin-1 by specification; the
+ * extension is the one [04 §9] names and the one an importer will look for.
+ */
+function packFileName(name: string): string {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[^\p{ASCII}]/gu, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return `${slug === '' ? 'package' : slug}.sepack.json`;
 }

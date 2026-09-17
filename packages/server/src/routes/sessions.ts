@@ -67,6 +67,7 @@ import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
+import { exportSession } from '../sessions/export.js';
 import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
@@ -2168,6 +2169,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
+   * ***A session, whole, for another install*** — [25 B12], [10 §12.3],
+   * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **`GET`, because it reads and changes nothing** — which is the opposite of
+   * the route below it and for the opposite reason: this costs a few file reads
+   * and is the one thing on this surface a person might reasonably want to
+   * bookmark or `curl`.
+   *
+   * ***A file rather than a payload.*** `content-disposition` names it after the
+   * session, because the thing somebody does with an export is put it somewhere
+   * — and a browser that rendered it as JSON in a tab would have made them
+   * copy it out by hand.
+   */
+  app.get(
+    '/sessions/:sessionId/export',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await readMine(services, request, reply);
+      if (!session) return;
+
+      const exported = await exportSession(
+        { sessions: services.sessions, build: services.build },
+        account.handle,
+        session.id,
+      );
+      if (exported === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'That session is not there.' });
+      }
+
+      return reply
+        .header('content-type', 'application/json; charset=utf-8')
+        .header('content-disposition', `attachment; filename="${fileNameFor(session.name)}"`)
+        .send(exported);
+    },
+  );
+
+  /**
    * ***A draft of your own next message*** —
    * [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
    * [P11.4](../../../../docs/design/workplan/28-p11-implementation.md).
@@ -2933,4 +2974,24 @@ async function sessionsInTreatment(
     if (other?.treatment === treatment) found.push({ sessionId: row.sessionId, name: row.name });
   }
   return found;
+}
+
+/**
+ * A filename a person can find again — [P11.10].
+ *
+ * ***ASCII and nothing else***, which is a fact about `content-disposition`
+ * rather than about names: the header is latin-1 by specification, and a
+ * session called *Дождливый город* would arrive as mojibake or as a header
+ * some proxy refuses. The date makes two exports of one session distinguishable
+ * in a downloads folder, which is where they land.
+ */
+function fileNameFor(name: string): string {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[^\p{ASCII}]/gu, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  const day = new Date().toISOString().slice(0, 10);
+  return `${slug === '' ? 'session' : slug}-${day}.session.json`;
 }

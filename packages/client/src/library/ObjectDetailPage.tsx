@@ -244,6 +244,23 @@ function ObjectView(props: {
       */}
       <UsedByPanel kind={kind} id={object.id} />
 
+      {/*
+        ***A bundle that travels*** — [04 §9](../../../../docs/design/04-schemas.md),
+        [P11 §1.9], [P11.10]. [P7B.6](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
+        shipped the package editor with *"the honest limit"* written beside it —
+        *the editor lands able to make and describe a bundle and not to send
+        one* — and this is the send. **A plain anchor, because it is a file.**
+      */}
+      {kind === 'packages' ? (
+        <a
+          href={`/api/library/packages/${encodeURIComponent(object.id)}/export`}
+          className={link.inline}
+          download
+        >
+          Export this package
+        </a>
+      ) : null}
+
       <AsStored value={object.object} />
 
       <Controls>

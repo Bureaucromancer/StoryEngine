@@ -18,9 +18,28 @@ import type { GenerationParams } from './schema/preset.js';
  * compatibility event, because a turn record never crosses an install
  * boundary. They live in this package only so the client can stop re-declaring
  * them ([P3.0] — the workbench is the first surface that needs more of them
- * than a chat view does). **Session export ([25 B12]) is the event that ends
+ * than a chat view does). ~~**Session export ([25 B12]) is the event that ends
  * this freedom**: the day a stored turn becomes a portable artefact, these
- * graduate to `schema/` and the registry, and not before.
+ * graduate to `schema/` and the registry, and not before.~~
+ *
+ * ***That day was 2026-09-17, at [P11.10](../../../docs/design/workplan/28-p11-implementation.md).***
+ * `session-export.ts` publishes these records, so **a change here is now a
+ * compatibility event** rather than a refactor: an install that exported a
+ * session is a file another install reads. What the freeze actually obliges is
+ * [18 §3](../../../docs/design/18-session-import.md)'s four consequences, and
+ * the first is the one a change would violate without anybody noticing —
+ * ***`input`, `output`, `request`, `cost` and `steps` stay optional***, because
+ * that is what lets a turn which never ran a model exist, and ours always have
+ * them.
+ *
+ * **They did not graduate to `schema/` and the registry, and that is a
+ * decision.** The sentence above assumed *portable* and *validated on import*
+ * were one thing; [18 §3] is the argument that they are not. A registry entry
+ * would mean validating a foreign turn against **our** shape — and consequences
+ * 1 and 2 are both about tolerating shapes we did not write, so the registry
+ * would enforce exactly what the format exists not to enforce. *The freeze is a
+ * promise not to tighten, which a schema cannot express and a test can*:
+ * `export.test.ts` holds the three, and this docstring holds the reason.
  *
  * ~~**`spans` is the one field of [03 §8] still absent**~~ — **present since
  * [P7.7]**, which built the `extract` step it was fenced to. It is an overlay of
@@ -929,6 +948,30 @@ export interface Turn {
   status: 'complete' | 'failed' | 'suspended';
   input?: { actorId: string | null; kind: string; text: string; raw: string };
   output?: { text: string; reasoning?: string };
+  /**
+   * ***Where this turn came from, when it came from somewhere else*** —
+   * [18 §3](../../../docs/design/18-session-import.md)'s second consequence,
+   * [P11.10](../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **Added before the freeze, which is the last moment it is an edit.**
+   * [04 §1](../../../docs/design/04-schemas.md) puts this record in the *free to
+   * move* tier **because nothing exports it**, and [P11.10] ends that — so
+   * afterwards this would be a migration of the record this project has the
+   * most of. [18 §3] asks for it in as many words: *"a foreign message
+   * identifier must have somewhere to go… and the absent case is not an edge,
+   * it is the most widely deployed source of the three."*
+   *
+   * ***`source` is free text and deliberately not a union.*** The three surveyed
+   * sources are SillyTavern, Marinara and Aventuras, and the fourth is whatever
+   * somebody writes an importer for next. A closed union would make this field
+   * useless to exactly the importer nobody has written yet, which is the one it
+   * exists for.
+   *
+   * ***It round-trips whether or not this build understands it.*** A turn
+   * exported from an install that knows a source this one does not is carried
+   * through unchanged — which is the difference between a format and a dialect.
+   */
+  foreign?: { source: string; id: string };
   request?: TurnRequest;
   cost?: TurnCost;
   steps?: StepOutcome[];

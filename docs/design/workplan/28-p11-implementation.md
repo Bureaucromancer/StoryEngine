@@ -1981,6 +1981,64 @@ included — **not the path**, which is the consequence most likely to be lost b
 a serialiser written against `walkPath(head)` — and the turn record **and the
 rendition record** are declared frozen.
 
+#### Done — 2026-09-17
+
+***The event that ends two records' freedom to move, and it happened without a
+migration.*** `turn.ts` has said since P3.0 that *"session export is the event
+that ends this freedom: the day a stored turn becomes a portable artefact, these
+graduate to `schema/` and the registry"*, and
+[P9 §1.1](26-p9-implementation.md) attached `Rendition` to the same event.
+**The event arrived; the graduation did not, and that is a decision.**
+
+The old sentence assumed *portable* and *validated on import* were one thing.
+[18 §3](../18-session-import.md) is the argument that they are not: **a registry
+entry would validate a foreign record against our shape**, and consequences 1 and
+2 are both about tolerating shapes we did not write — so the registry would
+enforce exactly what the format exists not to enforce. *The freeze is a promise
+not to tighten, which a schema cannot express and a test can.* Both docstrings
+now carry the correction rather than the prediction.
+
+***The obligation's first clause is the one a serialiser violates without
+deciding to***, and it is where the round-trip test starts: every read surface in
+this build calls `walkPath(head)`, so reaching for the obvious function produces
+an export that is **correct against every linear session and lossy against every
+real one** — and every fixture in this repository is linear. §1.8 predicted
+exactly that (*"no fixture this build produces would catch it unless the fixture
+branches — so the fixture branches"*), and the fixture branches.
+
+**All three of [18 §3]'s checkable consequences are asserted**: siblings by a
+count over a branched fixture, a turn with five absent fields surviving
+unchanged, and a foreign identifier from a source this build has never heard of
+carried through. *The last is what makes this a format rather than a dialect.*
+
+***The fourth consequence is the one that costs more by waiting, and it is
+paid.*** `Session.origin` has been specified in [03 §8](../03-data-model.md)
+since it was written and never implemented; `Turn.foreign` is [18 §3]'s place for
+a foreign message id. **Both are optional**, because every session this build has
+ever written has neither — a record that made them mandatory would refuse to
+load every session on every existing install, which is what a *free to move*
+tier is supposed to make impossible and what freezing it makes permanent.
+
+---
+
+***And `.sepack` is here, which is [§1.9](#19-sepack-is-p1110p1110--session-export-and-the-format-it-freezess-and-the-reason-is-that-it-is-not-a-second-format)'s
+decision built.*** [P7B.6](24-p7b-presets-and-prompts.md) shipped the package
+editor with the honest limit written beside it — *"the editor lands able to make
+and describe a bundle and not to send one"* — and this is the send.
+
+**The contents are resolved rather than carried by reference**, which is the
+whole of what makes it a bundle rather than a bookmark: a `.sepack` naming twelve
+ids is useless on the install it was sent to. *And an id that no longer resolves
+is **reported**, not dropped*: a package outlives an object it names, and both
+obvious answers are worse — dropping exports a package that quietly is not the
+one somebody made, refusing makes a stale reference unfixable except by
+hand-editing a file.
+
+*Neither export carries pixels.* An asset is content-addressed bytes and inlining
+them would be a hundred megabytes of base64 for a feature whose value is the
+story — which is [P9 §1.1]'s *"the recipe travels and the pixels do not"*,
+arriving unchanged at the stage it was written for.
+
 ### P11.11 — Backup and restore
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:

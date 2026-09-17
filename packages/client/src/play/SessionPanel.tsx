@@ -194,6 +194,19 @@ export function SessionPanel(props: {
           >
             Read it as a story
           </Link>
+          {/*
+            ***The other direction*** — [10 §12.3](../../../../docs/design/10-ui-surfaces.md),
+            [25 B12](../../../../docs/design/25-open-questions.md), [P11.10].
+            The reading view is *for a person to read* and this is *for another
+            install to load*; §12.3's table exists so the two are not conflated,
+            and putting them beside each other is the place that conflation
+            would otherwise happen. **A plain anchor, because it is a file**: a
+            `fetch` would have to rebuild the download the browser already does,
+            and the route sends a `content-disposition`.
+          */}
+          <a href={`/api/sessions/${props.sessionId}/export`} className={link.inline} download>
+            Export this session
+          </a>
           <Button
             type="button"
             onClick={() => {

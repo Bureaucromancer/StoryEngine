@@ -32,6 +32,16 @@
  * `schema/` **when the turn record does**, by the same migration. Anything else
  * makes exporting a turn and exporting its pictures two events.
  *
+ * ***The event happened on 2026-09-17, at [P11.10](../../../docs/design/workplan/28-p11-implementation.md),
+ * and the migration did not.*** `session-export.ts` carries a session's
+ * renditions, so this record is published and **a change to it is now a
+ * compatibility event**. Neither record graduated to `schema/`, for the reason
+ * `turn.ts` sets out: a registry entry would validate a foreign record against
+ * *our* shape, and the format's whole obligation is to tolerate shapes we did
+ * not write. *The prediction held in every part except which direction the
+ * answer went*, and the part that mattered — that the two graduate together —
+ * is exactly what happened: one envelope, one event, both records.
+ *
  * *There is a `schema` tag on {@link Rendition} and it is not a contradiction.*
  * It marks the **file on disk**, so a reader can tell a rendition from whatever
  * else ends up in that directory — the discipline `Snapshot` and `SummaryLink`

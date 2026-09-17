@@ -51,6 +51,8 @@ export type {
   TurnRequest,
 } from '@storyengine/shared';
 
+import type { Provenance } from '@storyengine/shared';
+
 /**
  * `session.json` — metadata, cast, the lore links, named branch refs, and the
  * head channel snapshot.
@@ -76,6 +78,25 @@ export interface SessionFile {
   updatedAt: string;
   /** Null before the first turn. */
   headTurnId: string | null;
+  /**
+   * ***Where this session came from*** —
+   * [03 §8](../../../../docs/design/03-data-model.md)'s `origin: Provenance`,
+   * [18 §4.1](../../../../docs/design/18-session-import.md),
+   * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **Specified since 03 §8 and unimplemented until the freeze.** [18 §4.1]
+   * calls it *"the one item in this document that costs more by waiting"*, and
+   * the arithmetic is exact: [04 §1] puts this record in the *free to move* tier
+   * **because nothing exports it**, and [P11.10] ends that. Adding it now is an
+   * edit; adding it afterwards is a migration of a frozen portable format.
+   *
+   * ***Optional, because every session this build has ever written has none.***
+   * A record that made it mandatory would refuse to load every session on every
+   * existing install — which is what a *free to move* tier is supposed to make
+   * impossible and what freezing it makes permanent. Absent means *made here*,
+   * and `stampImported` fills it for a session that was not.
+   */
+  origin?: Provenance;
   /** State at `headTurnId`. Derived. Hand-editing it writes an effect. */
   channels: Record<string, ChannelState>;
   /**

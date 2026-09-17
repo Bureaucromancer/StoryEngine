@@ -29,6 +29,11 @@ export * from './turn.js';
  * two from having different opinions.
  */
 export * from './remedy.js';
+/**
+ * The interchange format, and the event that freezes two records —
+ * [25 B12](../../../docs/design/25-open-questions.md), [P11.10].
+ */
+export * from './session-export.js';
 // The tag registry — internal tier, beside the turn record and for the same
 // reason: it decorates names inside one install and never crosses a boundary
 // ([05](../../../docs/design/05-tagging.md)).
