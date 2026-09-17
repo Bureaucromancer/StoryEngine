@@ -112,7 +112,7 @@ function Pair({
     }
   }
   if (left.data === undefined || right.data === undefined) {
-    return <p className="text-sm text-ink-subtle">Reading both turns…</p>;
+    return <Note>Reading both turns…</Note>;
   }
 
   return <Comparison before={left.data.turn} after={right.data.turn} locale={locale} />;

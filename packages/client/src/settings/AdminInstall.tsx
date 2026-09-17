@@ -9,6 +9,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { page } from '../ui/classes.js';
 import { useAdminConfig, useWriteConfig } from '../queries.js';
+import { Fine, Note } from '../ui/Text.js';
 
 /**
  * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md).
@@ -79,7 +80,7 @@ export function AdminInstall(): JSX.Element {
     contentHash: string;
   } | null>(null);
 
-  if (view.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (view.isPending) return <Note>Loading…</Note>;
   if (view.isError) return <p role="alert">The configuration could not be read.</p>;
 
   const config = draft ?? view.data.config;
@@ -99,10 +100,10 @@ export function AdminInstall(): JSX.Element {
       <h3 id="install" className="text-subsection text-ink">
         This install
       </h3>
-      <p className="text-xs text-ink-faint">
+      <Fine>
         Read from <code>{view.data.path}</code>. You can edit that file directly instead; this form
         will notice if you do.
-      </p>
+      </Fine>
 
       {/*
        * The fields in a `max-w-md` block and the form at the column's width,
@@ -178,7 +179,7 @@ export function AdminInstall(): JSX.Element {
              * Without this the form would tell somebody a change had taken when
              * it had only been stored.
              */
-            <p className="text-xs text-ink-faint">{unreadNotice(unread)}</p>
+            <Fine>{unreadNotice(unread)}</Fine>
           ) : null}
         </div>
 

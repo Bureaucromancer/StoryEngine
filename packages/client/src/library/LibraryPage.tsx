@@ -28,6 +28,7 @@ import {
 import { matches } from './search.js';
 import { folderRows, insideClosedFolder } from '../tags/folders.js';
 import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -109,7 +110,7 @@ export function LibraryPage(): JSX.Element {
 
       <MakeSomething kinds={kinds} />
 
-      {library.isPending ? <p className="text-ink-subtle">Loading the library…</p> : null}
+      {library.isPending ? <Note>Loading the library…</Note> : null}
       {library.isError ? (
         <p role="alert" className="text-danger-ink">
           {library.error.message}
@@ -343,7 +344,7 @@ function ObjectTable(props: {
 
   if (props.objects.length === 0) {
     return (
-      <p className="text-ink-subtle">
+      <Note>
         {/*
          * **The empty state finally knows the word "import"** ([P4 §2], P4.4),
          * and since P5.0 it is the panel's rather than the page's — because
@@ -358,7 +359,7 @@ function ObjectTable(props: {
             // not of these.
             'There is nothing of these kinds in the library yet. An import may bring some.'
           : emptyMessage(props.kind)}
-      </p>
+      </Note>
     );
   }
 
@@ -483,11 +484,11 @@ function ObjectTable(props: {
        * above this, because they are the way out of it.
        */}
       {shown.length === 0 ? (
-        <p className="text-ink-subtle">
+        <Note>
           {query === ''
             ? 'Nothing on this shelf matches these filters.'
             : 'Nothing on this shelf matches that search.'}
-        </p>
+        </Note>
       ) : (
         /* The wrapper six other tables in this client already have
            (`IndexRowTable`, `BlockTable`, the history panel…): a shelf with a

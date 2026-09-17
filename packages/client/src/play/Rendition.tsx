@@ -11,6 +11,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { SelectField } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * A picture, where the picture goes —
@@ -246,7 +247,7 @@ export function RenditionSection(props: {
 
   return (
     <details className="rounded-panel border border-line">
-      <summary className="cursor-pointer px-3 py-2 text-sm text-ink">Pictures</summary>
+      <summary className={`${disclosure.titled} px-3 py-2 text-sm`}>Pictures</summary>
 
       <div className="flex flex-col gap-4 border-t border-line p-3">
         <Note>

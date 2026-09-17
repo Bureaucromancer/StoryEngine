@@ -22,7 +22,7 @@ import { formatCount } from '../format.js';
 import { Badge } from '../ui/Badge.js';
 import { MemoryOrigin } from './MemoryOrigin.js';
 import { Button } from '../ui/Button.js';
-import { table } from '../ui/classes.js';
+import { disclosure, table } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
@@ -480,11 +480,11 @@ function BookHeader({ book }: { book: Lorebook }): JSX.Element {
         <p className="whitespace-pre-wrap text-ink">{book.description}</p>
       )}
 
-      <p className="text-sm text-ink-subtle">
+      <Note>
         {off === 0
           ? `${formatCount(book.entries.length)} entries`
           : `${formatCount(book.entries.length)} entries, ${formatCount(off)} off`}
-      </p>
+      </Note>
 
       {book.tags.length === 0 ? null : (
         <div className="flex flex-wrap gap-2">
@@ -897,9 +897,7 @@ function EntryUnit(props: {
       />
 
       <details>
-        <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink">
-          As configured
-        </summary>
+        <summary className={`${disclosure.quiet} text-xs`}>As configured</summary>
         <div className="mt-2">
           {/*
            * `h4`, because these groups sit inside the entry whose name is the

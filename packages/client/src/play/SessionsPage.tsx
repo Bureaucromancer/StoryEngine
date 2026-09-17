@@ -12,8 +12,8 @@ import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { SelectorBar, selectionHref } from '../ui/SelectorBar.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
-import { link, page } from '../ui/classes.js';
-import { Fine } from '../ui/Text.js';
+import { control, disclosure, link, page } from '../ui/classes.js';
+import { Fine, Note, PageTitle } from '../ui/Text.js';
 import { ImportSession } from './ImportSession.js';
 import { RenameSession } from './RenameSession.js';
 import { SetupFields } from './SetupFields.js';
@@ -299,7 +299,7 @@ export function SessionsPage(): React.JSX.Element {
     // list-plus-form management page is tooling, and the reading measure is
     // the story column's ([10 §1.2]).
     <div className={`${page.tooling} flex flex-col gap-4`}>
-      <h1 className="text-section text-ink">Sessions</h1>
+      <PageTitle>Sessions</PageTitle>
 
       {replaying === null ? null : (
         <AlertNote>
@@ -360,7 +360,7 @@ export function SessionsPage(): React.JSX.Element {
           <label className="flex-1">
             <span className="sr-only">Name for the new session, if you have one</span>
             <input
-              className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
+              className={control}
               value={name}
               placeholder="Name it now, or later"
               onChange={(event) => {
@@ -380,7 +380,7 @@ export function SessionsPage(): React.JSX.Element {
         <ImportSession />
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
-          <summary className="cursor-pointer text-sm text-ink-subtle">
+          <summary className={`${disclosure.quiet} text-sm`}>
             {setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
           </summary>
 
@@ -542,7 +542,7 @@ export function SessionsPage(): React.JSX.Element {
       {sessions.data !== undefined && sessions.data.sessions.length > 0 && listed.length === 0 ? (
         // Distinct from having no sessions, the Library's shelf-versus-filter
         // rule: the answer here is widening the bar, not starting one.
-        <p className="text-ink-subtle">No sessions of this kind.</p>
+        <Note>No sessions of this kind.</Note>
       ) : null}
 
       <ul className="flex flex-col gap-2" aria-label="Sessions">

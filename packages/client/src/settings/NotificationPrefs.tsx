@@ -15,6 +15,7 @@ import {
 } from '../notifications/prefs.js';
 import { usePatchPrefs, usePrefs } from '../queries.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
+import { Fine, Note } from '../ui/Text.js';
 
 /**
  * **One row per notification class** —
@@ -86,7 +87,7 @@ export function NotificationPrefs(): JSX.Element {
   const prefs = usePrefs();
   const patch = usePatchPrefs();
 
-  if (prefs.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (prefs.isPending) return <Note>Loading…</Note>;
   if (prefs.isError) return <p role="alert">Your preferences could not be read.</p>;
 
   const held = notificationPrefs(prefs.data.prefs);
@@ -159,10 +160,10 @@ function SecureContextNote(): JSX.Element | null {
   if (browserChannel() !== 'insecure-context') return null;
 
   return (
-    <p className="text-xs text-ink-faint">
+    <Fine>
       Your browser will not show notifications outside this tab, because StoryEngine is reached over
       plain HTTP and that is not a secure context. The sounds and toasts above are unaffected.
       Reaching it over HTTPS — a reverse proxy, or Tailscale — turns the rest on.
-    </p>
+    </Fine>
   );
 }

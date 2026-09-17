@@ -29,15 +29,47 @@ import type { ComponentProps, JSX } from 'react';
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'dangerOutline' | 'quiet';
 export type ButtonSize = 'default' | 'compact' | 'tiny';
 
-const BASE = 'rounded-control font-medium disabled:cursor-not-allowed';
+/**
+ * ***The focus ring belongs here, and its absence was visible in a straight
+ * line.*** `ui/classes.ts`'s `control` has carried
+ * `focus-visible:outline-2 focus-visible:outline-focus` since the appearance
+ * layer landed, and so do the gallery tile, the context meter and the
+ * workbench's resize handle — but not the button, not the nav and not the
+ * links. So tabbing across the shell header changed focus treatment control by
+ * control: a designed ring in `--color-focus` on anything you type into, and
+ * whatever the user agent draws on everything you press. On the dark theme the
+ * accent is a *light* fill, and the UA ring over it was never measured against
+ * anything.
+ */
+const BASE =
+  'rounded-control font-medium focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-not-allowed';
 
+/**
+ * ***Three of these had no disabled state, and one dimmed with the mechanism
+ * `classes.ts` refuses by name.***
+ *
+ * The consolidation that created this component existed because *"the variant
+ * the settings surface used had neither a hover nor a disabled state, so a
+ * button that could not be pressed looked exactly like one that could"*. Two
+ * variants added afterwards — `quiet` and `dangerOutline` — arrived without
+ * one, which is the same defect growing back on the file that was written to
+ * remove it.
+ *
+ * `danger` had one and it was `disabled:opacity-40`, which `control`'s own
+ * docstring rejects in as many words: *"it dims text and border together and
+ * can push either below the contrast floor, which is how a fix for this becomes
+ * the previous bug."* Named tokens instead, so `contrast.test.ts` can measure
+ * what a disabled Delete actually looks like.
+ */
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-accent text-on-accent hover:bg-accent-hover disabled:bg-accent-muted',
   secondary:
     'border border-line-strong text-ink-muted hover:bg-surface-muted disabled:text-ink-faint',
-  danger: 'bg-danger text-on-danger hover:bg-danger-ink disabled:opacity-40',
-  dangerOutline: 'border border-danger-line text-danger-ink hover:bg-danger-surface',
-  quiet: 'text-ink-subtle underline hover:text-ink',
+  danger:
+    'bg-danger text-on-danger hover:bg-danger-ink disabled:bg-danger-muted disabled:text-ink-faint',
+  dangerOutline:
+    'border border-danger-line text-danger-ink hover:bg-danger-surface disabled:border-line disabled:text-ink-faint',
+  quiet: 'text-ink-subtle underline hover:text-ink disabled:text-ink-faint disabled:no-underline',
 };
 
 const SIZE: Record<ButtonSize, string> = {

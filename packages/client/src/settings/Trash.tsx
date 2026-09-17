@@ -51,7 +51,7 @@ export function Trash(): JSX.Element {
         </p>
       ) : null}
 
-      {trash.isPending ? <p className="text-ink-subtle">Loading…</p> : null}
+      {trash.isPending ? <Note>Loading…</Note> : null}
 
       {!trash.isPending && entries.length === 0 ? <Note>Nothing has been deleted.</Note> : null}
 

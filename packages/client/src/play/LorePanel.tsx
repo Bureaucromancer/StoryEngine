@@ -8,6 +8,7 @@ import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * What this session retrieves from, and the control that changes it —
@@ -90,7 +91,7 @@ export function LorePanel(props: { sessionId: string }): JSX.Element {
       }}
       className="rounded-control border border-line bg-surface px-3 py-2"
     >
-      <summary className="cursor-pointer text-sm text-ink-subtle">
+      <summary className={`${disclosure.quiet} text-sm`}>
         {attachedLine(saved.lore.length, saved.treatment !== null)}
       </summary>
 

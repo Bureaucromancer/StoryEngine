@@ -60,7 +60,7 @@ export interface DialogProps {
  */
 const SIZE: Record<'default' | 'wide' | 'large', string> = {
   default:
-    'max-h-full w-full max-w-md overflow-y-auto rounded-panel border border-line bg-surface p-6',
+    'flex max-h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',
   wide: 'flex max-h-full w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',
   large:
     'flex max-h-full w-full max-w-3xl flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',

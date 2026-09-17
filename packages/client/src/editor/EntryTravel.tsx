@@ -9,7 +9,7 @@ import type { Lorebook } from '@storyengine/shared';
 import { api } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
-import { Fine, SubsectionTitle } from '../ui/Text.js';
+import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 import {
   mergeEntries,
   readableAsEntries,
@@ -282,17 +282,17 @@ function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JS
         </Button>
       </div>
 
-      <p className="text-ink-subtle">
+      <Note>
         {`${String(props.report.entries.length)} ${REVIEW['arrived'] ?? ''}`}
         {props.report.foldersAdded.length === 0
           ? ''
           : `, ${String(props.report.foldersAdded.length)} ${REVIEW['folders'] ?? ''}`}
         {'.'}
-      </p>
+      </Note>
 
       {renamed.length === 0 ? null : (
         <div>
-          <p className="text-ink-subtle">{REVIEW['renamed']}</p>
+          <Note>{REVIEW['renamed']}</Note>
           <ul className="list-inside list-disc text-ink">
             {renamed.map((one) => (
               <li key={one.entry.id}>{`${one.wasNamed ?? ''} → ${one.entry.name}`}</li>
@@ -303,7 +303,7 @@ function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JS
 
       {collided.length === 0 ? null : (
         <div>
-          <p className="text-ink-subtle">{REVIEW['collided']}</p>
+          <Note>{REVIEW['collided']}</Note>
           <ul className="list-inside list-disc text-ink">
             {collided.map((one) => (
               <li key={one.entry.id}>{one.entry.name}</li>
@@ -314,7 +314,7 @@ function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JS
 
       {props.report.dangling.length === 0 ? null : (
         <div>
-          <p className="text-ink-subtle">{REVIEW['dangling']}</p>
+          <Note>{REVIEW['dangling']}</Note>
           <ul className="list-inside list-disc text-ink">
             {props.report.dangling.map((one) => (
               <li key={one.entry.id}>{`${one.entry.name} — ${one.actorIds.join(', ')}`}</li>
@@ -325,7 +325,7 @@ function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JS
 
       {props.report.differences.length === 0 ? null : (
         <div>
-          <p className="text-ink-subtle">{REVIEW['differences']}</p>
+          <Note>{REVIEW['differences']}</Note>
           <ul className="list-inside list-disc text-ink">
             {props.report.differences.map((one) => (
               <li key={one.field}>{`${one.field}: ${one.from} → ${one.to}`}</li>

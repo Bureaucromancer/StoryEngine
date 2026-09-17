@@ -18,7 +18,7 @@
  * are a different feature with a different home, and conflating them produces
  * the accumulating meta-instruction this box exists to prevent.
  */
-import { control } from '../ui/classes.js';
+import { control, disclosure } from '../ui/classes.js';
 
 export function GuidanceBox({
   value,
@@ -31,9 +31,7 @@ export function GuidanceBox({
 }): React.JSX.Element {
   return (
     <details className="text-sm">
-      <summary className="cursor-pointer text-ink-muted hover:text-ink">
-        Guidance for this turn
-      </summary>
+      <summary className={disclosure.quiet}>Guidance for this turn</summary>
       <label className="mt-2 block">
         <span className="sr-only">Guidance for this turn</span>
         <textarea

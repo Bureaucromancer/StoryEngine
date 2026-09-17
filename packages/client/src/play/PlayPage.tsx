@@ -57,7 +57,7 @@ import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
-import { Fine } from '../ui/Text.js';
+import { Fine, SectionTitle } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
 
@@ -565,9 +565,9 @@ export function PlayPage({
           have the not-yet-loaded frame assert the session is untitled when
           nobody yet knows whether it is.
         */}
-        <h1 className="text-section text-ink">
+        <SectionTitle as="h1">
           {session.data === undefined ? 'Session' : sessionLabel(session.data.session.name)}
-        </h1>
+        </SectionTitle>
         {session.data === undefined ? null : (
           <RenameSession sessionId={sessionId} name={session.data.session.name} />
         )}

@@ -20,7 +20,7 @@ import { Button } from '../ui/Button.js';
 import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
-import { SectionTitle } from '../ui/Text.js';
+import { Note, SectionTitle } from '../ui/Text.js';
 import { useQuery } from '@tanstack/react-query';
 
 import { listSessions } from '../api.js';
@@ -89,7 +89,7 @@ function ObjectDetail(props: {
   if (query.isPending) {
     return (
       <>
-        <p className="text-ink-subtle">Loading…</p>
+        <Note>Loading…</Note>
         <Controls />
       </>
     );

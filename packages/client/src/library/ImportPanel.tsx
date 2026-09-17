@@ -10,7 +10,7 @@ import { api, type ImportReport } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { control } from '../ui/classes.js';
+import { control, disclosure } from '../ui/classes.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 import { sentence } from './note-labels.js';
 import { labels } from '../i18n/catalogue.js';
@@ -384,9 +384,7 @@ export function ImportPanel(): JSX.Element {
           }
         }}
       >
-        <summary className="cursor-pointer text-sm text-ink-muted hover:text-ink">
-          Add to your library
-        </summary>
+        <summary className={`${disclosure.quiet} text-sm`}>Add to your library</summary>
 
         {/*
           One column, not a row. The dock is 280–640px ([P3.1a]'s bounds), so
@@ -716,9 +714,7 @@ function Report(props: { report: ImportReport }): JSX.Element {
           <li key={item.source} className="border-t border-line pt-2">
             {/* Relative to the folder that was swept, never absolute ([21 §4.1.1]). */}
             <code className="block break-all text-xs text-ink">{item.source}</code>
-            <p className="text-ink-subtle">
-              {DISPOSITION_LABELS[item.disposition] ?? item.disposition}
-            </p>
+            <Note>{DISPOSITION_LABELS[item.disposition] ?? item.disposition}</Note>
             {item.notes.map((note, index) => (
               <p key={index} className={note.level === 'warn' ? 'text-ink' : 'text-ink-subtle'}>
                 {sentence(note)}
@@ -772,7 +768,7 @@ function Preview(props: {
 
       <div className="flex flex-col gap-1 text-sm">
         <code className="block break-all text-xs text-ink">{preview.source}</code>
-        <p className="text-ink-subtle">{summary(preview)}</p>
+        <Note>{summary(preview)}</Note>
       </div>
 
       {preset !== null && preset.blocks.length > 0 ? (
@@ -818,7 +814,7 @@ function Preview(props: {
         a proxy password to whoever was handed the file ([04 §8.4.4]).
       */}
       {preset !== null && preset.compatKeys.length > 0 ? (
-        <p className="text-sm text-ink-subtle">{compatLabel(preset.compatKeys)}</p>
+        <Note>{compatLabel(preset.compatKeys)}</Note>
       ) : null}
 
       {preview.notes.length > 0 || preview.advisories.length > 0 ? (

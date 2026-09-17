@@ -15,6 +15,7 @@ import { TagChip } from '../ui/TagChip.js';
 import { TAG_SWATCH_STYLES, tagClassFor } from '../ui/tag-colors.js';
 
 import { labels } from '../i18n/catalogue.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * The tag manager — [05 §5](../../../../docs/design/05-tagging.md).
@@ -152,10 +153,10 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         </div>
       </div>
 
-      <p className="text-sm text-ink-subtle">
+      <Note>
         A tag works whether or not it is listed here. This is where it gets a colour, a place in the
         order, and the two behaviours below — nothing here decides which tags you may use.
-      </p>
+      </Note>
 
       {write.isError ? (
         <Alert tone="error" role="alert">
@@ -189,7 +190,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         </Alert>
       )}
 
-      {registry.isPending ? <p className="text-ink-subtle">Loading the tags…</p> : null}
+      {registry.isPending ? <Note>Loading the tags…</Note> : null}
 
       {/*
        * **Nothing between loading and loaded.** An earlier spelling of this
@@ -198,9 +199,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
        * — which reads as *you have no tags* for as long as the request takes.
        */}
       {registry.isPending ? null : tags.length === 0 ? (
-        <p className="text-ink-subtle">
-          No tag has been given a colour yet. Anything already in use is listed below.
-        </p>
+        <Note>No tag has been given a colour yet. Anything already in use is listed below.</Note>
       ) : (
         <table className={table.root}>
           <thead>

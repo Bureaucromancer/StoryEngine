@@ -8,6 +8,7 @@ import { useMyRoles, useWriteMyBindings } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { SelectField } from '../ui/Field.js';
 import { roleLabel, roleModel, roleSource } from './roleWords.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * Which model does which job, for you — [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
@@ -53,7 +54,7 @@ export function MyRoles(): JSX.Element {
    */
   const [collided, setCollided] = useState(false);
 
-  if (roles.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (roles.isPending) return <Note>Loading…</Note>;
   if (roles.isError) return <p role="alert">Your model settings could not be read.</p>;
 
   const data = roles.data;
@@ -91,10 +92,10 @@ export function MyRoles(): JSX.Element {
         Which models your stories use
       </h2>
 
-      <p className="text-sm text-ink-subtle">
+      <Note>
         Every job falls back to what this install has set. Choose one here and it applies to your
         stories only.
-      </p>
+      </Note>
 
       {collided ? (
         <Alert tone="warning" role="status">

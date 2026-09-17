@@ -12,6 +12,7 @@ import type { Draft } from './book-form.js';
 import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { SchemaFields } from './SchemaFields.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * An editor that is entirely the schema's shape — [P7B.3], [P7B.6].
@@ -140,7 +141,7 @@ export function SimpleEditorLoader(props: { kind: SimpleKind; id: string }): JSX
 function SimpleEditorBody(props: { kind: SimpleKind; id: string }): JSX.Element {
   const base = useEditorBase(props.kind.kind, props.id);
 
-  if (base.isPending) return <p className="text-ink-subtle">Loading…</p>;
+  if (base.isPending) return <Note>Loading…</Note>;
   if (base.isError) {
     const missing = base.error instanceof ApiError && base.error.status === 404;
     return (
@@ -215,7 +216,7 @@ function SimpleEditor(props: {
       header={
         <header className="mb-6">
           <h1 className="text-title text-ink">{editor.heading}</h1>
-          <p className="text-sm text-ink-subtle">{props.kind.blurb}</p>
+          <Note>{props.kind.blurb}</Note>
         </header>
       }
     >

@@ -6,7 +6,7 @@ import type { JSX } from 'react';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { Dialog } from '../ui/Dialog.js';
-import { SubsectionTitle } from '../ui/Text.js';
+import { Note, SubsectionTitle } from '../ui/Text.js';
 
 /**
  * The stale-hash dialog — the only defence the hot-reload thesis has against
@@ -56,15 +56,15 @@ export function ConflictDialog(props: {
   // one step out: the markup the trap attaches to was also spelled three times.
   return (
     <Dialog role="alertdialog" labelledBy="conflict-title" onDismiss={onCancel}>
-      <SubsectionTitle id="conflict-title" as="h2" className="mb-2">
+      <SubsectionTitle id="conflict-title" as="h2">
         {props.title}
       </SubsectionTitle>
-      <p className="mb-4 text-sm text-ink-subtle">
+      <Note>
         Something else wrote to this object since it was loaded — another tab, or a text editor
         working on the file. Saving now would overwrite that change, so it was refused.
-      </p>
+      </Note>
       {props.copyError !== null ? (
-        <Alert tone="error" role="alert" className="mb-3">
+        <Alert tone="error" role="alert">
           {props.copyError}
         </Alert>
       ) : null}

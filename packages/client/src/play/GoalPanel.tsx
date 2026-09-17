@@ -10,6 +10,7 @@ import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * What this session is trying to do, and what happens when it gets there —
@@ -49,7 +50,7 @@ export function GoalPanel(props: { sessionId: string }): JSX.Element | null {
 
   return (
     <details className="rounded-control border border-line bg-surface px-3 py-2">
-      <summary className="cursor-pointer text-sm text-ink-subtle">
+      <summary className={`${disclosure.quiet} text-sm`}>
         {summaryLine(rows, current, concluded)}
       </summary>
 

@@ -54,7 +54,21 @@ export function MentionOverlay(props: {
           runs of it. */}
       {runs.map((run, at) =>
         run.hit ? (
-          <mark key={at} className="rounded-control bg-provenance-surface text-provenance-ink">
+          /**
+           * ***The highlight pair, which is what it is for.*** This was
+           * `provenance`, and `provenance` has a meaning: `Badge`'s own header
+           * spends a paragraph on it — *"System" and "Hand edit on disk" say
+           * **this was not authored here**"*. A name the player typed a second
+           * ago is the opposite of that.
+           *
+           * `index.css` invented `highlight` for exactly this shape and says
+           * so: amber *"is spoken for twice over — `warn` and `provenance`"*,
+           * and the blue is there so *"a marked word is obviously the thing you
+           * typed rather than a badge that grew inside a sentence."* Three
+           * components draw marks through `runsFor`; the other two already
+           * spend this pair, and this was the odd reading.
+           */
+          <mark key={at} className="rounded-control bg-highlight-surface text-highlight-ink">
             {run.text}
           </mark>
         ) : (

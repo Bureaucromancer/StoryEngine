@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 import { usePatchPrefs, usePrefs } from '../queries.js';
 import { SelectField } from '../ui/Field.js';
 import { themeFromPrefs, themePatch, applyTheme, type ThemeChoice } from '../ui/theme.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * Preferences — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -44,7 +45,7 @@ export function Preferences(): JSX.Element {
   const prefs = usePrefs();
   const patch = usePatchPrefs();
 
-  if (prefs.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (prefs.isPending) return <Note>Loading…</Note>;
   if (prefs.isError) return <p role="alert">Your preferences could not be read.</p>;
 
   const theme = themeFromPrefs(prefs.data.prefs);

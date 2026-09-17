@@ -94,7 +94,7 @@ export function PresetEditorPage(): JSX.Element {
 function EditorLoader(props: { id: string }): JSX.Element {
   const base = useEditorBase('presets', props.id);
 
-  if (base.isPending) return <p className="text-ink-subtle">Loading…</p>;
+  if (base.isPending) return <Note>Loading…</Note>;
   if (base.isError) {
     const missing = base.error instanceof ApiError && base.error.status === 404;
     return (
@@ -149,7 +149,7 @@ export function NewPresetPage(): JSX.Element {
   return (
     <div className={page.tooling}>
       {shipped.isPending ? (
-        <p className="text-ink-subtle">Loading…</p>
+        <Note>Loading…</Note>
       ) : (
         <NewFromSeed
           seed={
@@ -207,9 +207,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       header={
         <header className="mb-6">
           <h1 className="text-title text-ink">{editor.heading}</h1>
-          <p className="text-sm text-ink-subtle">
-            The prompt pack a session is assembled from. A session copies it at creation.
-          </p>
+          <Note>The prompt pack a session is assembled from. A session copies it at creation.</Note>
         </header>
       }
     >

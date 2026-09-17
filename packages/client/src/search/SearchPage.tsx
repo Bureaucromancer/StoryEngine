@@ -8,7 +8,7 @@ import { useState, type JSX } from 'react';
 import { searchEverything, type SearchResults } from '../api.js';
 import { Button } from '../ui/Button.js';
 import { link, page } from '../ui/classes.js';
-import { Note, SectionTitle } from '../ui/Text.js';
+import { Note, PageTitle } from '../ui/Text.js';
 
 /**
  * ***Find the moment*** — [10 §14](../../../../docs/design/10-ui-surfaces.md),
@@ -47,7 +47,7 @@ export function SearchPage(props: { query: string }): JSX.Element {
 
   return (
     <main className={page.tooling}>
-      <SectionTitle id="search">Search</SectionTitle>
+      <PageTitle id="search">Search</PageTitle>
       <form
         className="flex flex-wrap gap-2"
         onSubmit={(event) => {
@@ -80,9 +80,7 @@ export function SearchPage(props: { query: string }): JSX.Element {
         </Note>
       ) : null}
 
-      {results.isPending && props.query.trim() !== '' ? (
-        <p className="text-ink-subtle">Searching…</p>
-      ) : null}
+      {results.isPending && props.query.trim() !== '' ? <Note>Searching…</Note> : null}
 
       {results.data === undefined ? null : (
         <Results data={results.data} onPathOnly={onPathOnly} onWiden={setOnPathOnly} />
@@ -127,7 +125,7 @@ function Results(props: {
           </label>
         )}
         {turns.length === 0 ? (
-          <p className="text-sm text-ink-subtle">No turns matched.</p>
+          <Note>No turns matched.</Note>
         ) : (
           <ul className="flex flex-col gap-2">
             {turns.map((hit) => (
@@ -151,7 +149,7 @@ function Results(props: {
           In your library
         </h3>
         {props.data.objects.length === 0 ? (
-          <p className="text-sm text-ink-subtle">Nothing in the library matched.</p>
+          <Note>Nothing in the library matched.</Note>
         ) : (
           <ul className="flex flex-col gap-2">
             {props.data.objects.map((hit) => (
@@ -170,7 +168,7 @@ function Results(props: {
           In your lorebooks
         </h3>
         {props.data.entries.length === 0 ? (
-          <p className="text-sm text-ink-subtle">No lore entries matched.</p>
+          <Note>No lore entries matched.</Note>
         ) : (
           <ul className="flex flex-col gap-2">
             {props.data.entries.map((hit) => (

@@ -11,6 +11,7 @@ import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
 import { hookState, hookWords } from './hookWords.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * The hook panel — [10 §10.1](../../../../docs/design/10-ui-surfaces.md),
@@ -61,7 +62,7 @@ export function HookPanel(props: { sessionId: string }): JSX.Element | null {
 
   return (
     <details className="rounded-control border border-line bg-surface px-3 py-2">
-      <summary className="cursor-pointer text-sm text-ink-subtle">{waitingLine(rows)}</summary>
+      <summary className={`${disclosure.quiet} text-sm`}>{waitingLine(rows)}</summary>
 
       <div className="mt-3 flex flex-col gap-3">
         {rows.length === 0 ? null : (

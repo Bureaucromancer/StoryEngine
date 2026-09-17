@@ -99,7 +99,7 @@ export function LorebookEditorPage(): JSX.Element {
 function EditorLoader(props: { id: string }): JSX.Element {
   const base = useEditorBase('lorebooks', props.id);
 
-  if (base.isPending) return <p className="text-ink-subtle">Loading the lorebook…</p>;
+  if (base.isPending) return <Note>Loading the lorebook…</Note>;
   if (base.isError) {
     const missing = base.error instanceof ApiError && base.error.status === 404;
     return (
@@ -358,9 +358,9 @@ function Editor(props: EditorProps): JSX.Element {
       header={
         <header className="mb-6">
           <h1 className="text-title text-ink">{editor.heading}</h1>
-          <p className="text-sm text-ink-subtle">
+          <Note>
             {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
-          </p>
+          </Note>
         </header>
       }
     >

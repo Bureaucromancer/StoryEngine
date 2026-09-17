@@ -7,6 +7,7 @@ import { usePatchPrefs, usePrefs } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { Panel } from '../ui/Panel.js';
 import { Note } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * The object's bytes, behind a fold — [polish §2](../../../../docs/design/workplan/06-polish.md)'s
@@ -82,7 +83,7 @@ export function AsStored({
           }
         }}
       >
-        <summary className="cursor-pointer text-ink-muted hover:text-ink">As stored</summary>
+        <summary className={disclosure.quiet}>As stored</summary>
         <div className="mt-2 flex flex-col gap-2">
           {caption === undefined ? null : <Note>{caption}</Note>}
           <div className="flex items-center gap-2">

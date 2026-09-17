@@ -7,6 +7,7 @@ import { ApiError } from '../api.js';
 import { useLogin, useSetup } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { control, fieldLabel } from '../ui/classes.js';
 
 /**
  * Login and first-run setup ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)).
@@ -23,10 +24,18 @@ import { Button } from '../ui/Button.js';
  * layer landed — the two had drifted, and the field primitive was the one with
  * the deliberate size.
  */
-const INPUT_CLASS =
-  'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus';
+/**
+ * ***Both of these were the shared recipes, re-typed.*** `control` and
+ * `fieldLabel` in `ui/classes.ts` are the same strings — except that `control`
+ * also carries the `disabled:` variants, which this copy had quietly dropped,
+ * so a disabled field on the sign-in screen looked exactly like a live one.
+ * That is the drift `classes.ts` was written to end, and its own docstring is
+ * the argument: *"A class list copied is a class list that drifts."* The margin
+ * stays here, because position is not appearance and the recipe carries none.
+ */
+const INPUT_CLASS = control;
 
-const LABEL_CLASS = 'mb-1 block text-sm font-medium text-ink-muted';
+const LABEL_CLASS = `${fieldLabel} mb-1`;
 
 /**
  * The handle becomes a directory name, so the server validates it hard

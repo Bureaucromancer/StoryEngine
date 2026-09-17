@@ -37,7 +37,8 @@
 
 export const link = {
   /** Inside prose, or under a heading. */
-  inline: 'text-sm text-ink-subtle underline hover:text-ink',
+  inline:
+    'text-sm text-ink-subtle underline hover:text-ink focus-visible:outline-2 focus-visible:outline-focus',
   /**
    * A link that is the primary action on its surface — "Edit" on an object
    * page. It is a navigation, so it must stay an `<a>`: a `<Button>` here would
@@ -46,11 +47,12 @@ export const link = {
    * therefore borrows the button's look rather than the button.
    */
   action:
-    'rounded-control bg-accent px-3 py-1 text-sm font-medium text-on-accent hover:bg-accent-hover',
+    'rounded-control bg-accent px-3 py-1 text-sm font-medium text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-focus',
   /** The object name in a library row — the primary target in its line. */
-  object: 'font-medium text-ink underline decoration-line-strong hover:decoration-ink-subtle',
+  object:
+    'font-medium text-ink underline decoration-line-strong hover:decoration-ink-subtle focus-visible:outline-2 focus-visible:outline-focus',
   /** Back to the surface above this one. */
-  back: 'text-sm text-ink-subtle underline hover:text-ink',
+  back: 'text-sm text-ink-subtle underline hover:text-ink focus-visible:outline-2 focus-visible:outline-focus',
   /**
    * An anchor *inside* rendered prose — the changelog's links on home, and the
    * reading view's since [P11.1] brought it.
@@ -68,7 +70,8 @@ export const link = {
    * which is backwards. The underline carries the affordance and the decoration
    * colour carries the hover, which is `object`'s arrangement one step quieter.
    */
-  prose: 'text-ink underline decoration-line-strong hover:decoration-ink-subtle',
+  prose:
+    'text-ink underline decoration-line-strong hover:decoration-ink-subtle focus-visible:outline-2 focus-visible:outline-focus',
 } as const;
 
 /**
@@ -101,9 +104,32 @@ export const link = {
 export const reveal = 'opacity-0 transition-opacity [@media(hover:none)]:opacity-100';
 
 export const navLink = {
-  base: 'rounded-control px-3 py-1 text-sm',
+  base: 'rounded-control px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-focus',
   idle: 'text-ink-muted hover:bg-surface-muted',
   active: 'bg-accent text-on-accent',
+} as const;
+
+/**
+ * ***A disclosure's summary, in two registers rather than seven spellings.***
+ *
+ * There are fourteen `<summary>` elements in this client and they were written
+ * seven ways — `text-sm text-ink-subtle`, `text-ink-muted hover:text-ink`,
+ * `px-3 py-2 text-sm text-ink`, `text-xs text-ink-muted hover:text-ink`, a bare
+ * `cursor-pointer`, and two more. **Half of them had no hover at all**, which
+ * is the part that is not cosmetic: a fold that does not respond to a pointer
+ * does not read as a thing you can open, and the play column stacks *seven* of
+ * them between the heading and the transcript.
+ *
+ * Two registers, because there genuinely are two: a fold that is a quiet aside
+ * inside a panel, and a fold that titles its own region. Size and padding stay
+ * at the call site — they are the type step and the layout, and neither belongs
+ * to a rule about disclosures.
+ */
+export const disclosure = {
+  /** A quiet aside: Guidance, Lore, the session's own state. */
+  quiet: 'cursor-pointer text-ink-muted hover:text-ink',
+  /** A fold that names the region it opens: Pictures, Memories, a field group. */
+  titled: 'cursor-pointer text-ink hover:text-ink-muted',
 } as const;
 
 export const table = {

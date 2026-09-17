@@ -17,6 +17,7 @@ import {
 import { Button } from '../ui/Button.js';
 import { panel } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
+import { Fine, Note } from '../ui/Text.js';
 
 /**
  * Accounts — [10 §15.2](../../../../docs/design/10-ui-surfaces.md).
@@ -33,7 +34,7 @@ export function AdminAccounts(): JSX.Element {
   const accounts = useAdminAccounts();
   const [confirming, setConfirming] = useState<string | null>(null);
 
-  if (accounts.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (accounts.isPending) return <Note>Loading…</Note>;
   if (accounts.isError) return <p role="alert">The account list could not be read.</p>;
 
   const rows = accounts.data.accounts;
@@ -103,7 +104,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <p className="font-medium">{row.displayName}</p>
-          <p className="text-xs text-ink-faint">{row.handle}</p>
+          <Fine>{row.handle}</Fine>
         </div>
         <div className="flex items-center gap-2">
           <SelectField

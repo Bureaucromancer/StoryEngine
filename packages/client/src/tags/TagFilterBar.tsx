@@ -142,7 +142,13 @@ function order(
  */
 function chipClass(state: 'neutral' | TagFilterState, swatch: string | null): string {
   const base = 'rounded-control px-2 py-0.5 text-xs font-medium';
-  if (state === 'selected') return `${base} outline-2 outline-focus ${tagClassFor(swatch)}`;
+  // **`outline-accent`, not `outline-focus`.** Selection and keyboard focus were
+  // drawn with the same mark in the same colour, so a chip you had chosen and a
+  // chip your keyboard was resting on were indistinguishable — and both are on
+  // this bar at once the moment anybody tabs through it. The accent is the
+  // colour of a choice everywhere else in the app; `--color-focus` means *the
+  // keyboard is here*, and should mean only that.
+  if (state === 'selected') return `${base} outline-2 outline-accent ${tagClassFor(swatch)}`;
   if (state === 'excluded') {
     return `${base} line-through opacity-60 outline-2 outline-danger ${tagClassFor(swatch)}`;
   }

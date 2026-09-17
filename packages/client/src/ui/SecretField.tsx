@@ -3,6 +3,8 @@
 
 import { useId, type JSX } from 'react';
 
+import { control, fieldLabel } from './classes.js';
+
 /**
  * A masked input — a password, or an API key.
  *
@@ -60,7 +62,7 @@ export function SecretField(props: SecretFieldProps): JSX.Element {
 
   return (
     <div>
-      <label htmlFor={controlId} className="mb-1 block text-sm font-medium text-ink-muted">
+      <label htmlFor={controlId} className={`${fieldLabel} mb-1`}>
         {props.label}
       </label>
       {/* No assist slot. See the header — this is the whole reason for the file. */}
@@ -68,7 +70,7 @@ export function SecretField(props: SecretFieldProps): JSX.Element {
         id={controlId}
         type="password"
         autoComplete={props.autoComplete ?? 'off'}
-        className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
+        className={control}
         value={props.value}
         onChange={(event) => {
           props.onChange(event.target.value);

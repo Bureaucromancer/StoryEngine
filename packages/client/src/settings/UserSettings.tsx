@@ -19,6 +19,7 @@ import { SecretField } from '../ui/SecretField.js';
 import { drawnTile } from '../auth/tile.js';
 
 import { TRANSLATIONS } from '../i18n/locales.js';
+import { Fine, Note } from '../ui/Text.js';
 
 /**
  * What a person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -124,7 +125,7 @@ export function UserSettings(): JSX.Element {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordDone, setPasswordDone] = useState(false);
 
-  if (me.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (me.isPending) return <Note>Loading…</Note>;
   if (!account) return <p role="alert">Your account could not be read.</p>;
 
   // `null` means untouched, so the field shows what the server has until the
@@ -262,10 +263,10 @@ export function UserSettings(): JSX.Element {
            * strip held to the foot of the form: what a click does not do is
            * read before the click, and nothing sits under the strip.
            */}
-          <p className="text-xs text-ink-faint">
+          <Fine>
             Changing your password does not sign out other browsers you are already signed in on.
             Those sessions last until they expire.
-          </p>
+          </Fine>
         </div>
         <div className={page.actions}>
           <Button type="submit" variant="primary" size="compact">
@@ -381,9 +382,9 @@ function AvatarField(props: { account: Account }): JSX.Element {
             event.target.value = '';
           }}
         />
-        <p className="text-xs text-ink-faint">
+        <Fine>
           A PNG, JPEG or WebP under 2 MB. Without one you get the coloured initials beside this.
-        </p>
+        </Fine>
         {upload.isError ? (
           <p role="alert" className="text-sm text-danger-ink">
             {upload.error.message}

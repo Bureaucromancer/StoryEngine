@@ -12,6 +12,7 @@ import { Gallery } from './auth/Gallery.js';
 import { queryClient, useAuthState } from './queries.js';
 import { Button } from './ui/Button.js';
 import { router } from './router.js';
+import { Note } from './ui/Text.js';
 
 /**
  * The gate before the app: `GET /api/auth/state` decides between first-run
@@ -33,7 +34,7 @@ function Gate(): JSX.Element {
     return (
       <Frame build={undefined}>
         <main className="mx-auto w-full max-w-sm flex-1 p-8 text-center">
-          <p className="text-ink-subtle">Loading…</p>
+          <Note>Loading…</Note>
         </main>
       </Frame>
     );

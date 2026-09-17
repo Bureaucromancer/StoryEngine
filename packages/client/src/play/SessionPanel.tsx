@@ -11,7 +11,7 @@ import {
   useSetSessionArchived,
   useSetSessionPreset,
 } from '../queries.js';
-import { link } from '../ui/classes.js';
+import { disclosure, link } from '../ui/classes.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { NumberField, SelectField } from '../ui/Field.js';
@@ -112,7 +112,7 @@ export function SessionPanel(props: {
       }}
       className="rounded-control border border-line bg-surface px-3 py-2"
     >
-      <summary className="cursor-pointer text-sm text-ink-subtle">
+      <summary className={`${disclosure.quiet} text-sm`}>
         {typeof pack?.['name'] === 'string' && pack['name'] !== ''
           ? `Prompted with ${pack['name']}`
           : 'How this session is prompted'}

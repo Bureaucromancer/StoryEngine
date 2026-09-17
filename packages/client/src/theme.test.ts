@@ -183,3 +183,87 @@ describe('controls that hide until you look at them', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * ***The appearance layer, spelled once — checked, because it has grown back
+ * twice already.***
+ *
+ * [polish §6] landed `ui/` to end *"338 `className` lines across 20 files, 174
+ * distinct class strings"* and *"three incompatible spellings of the primary
+ * button"*. By this pass `control` had four spellings again, three of them
+ * missing the `disabled:` variants — so a disabled field looked exactly like a
+ * live one, which is the *precise* symptom that work removed — and `Note` and
+ * `Fine` had been re-typed at more than fifty call sites.
+ *
+ * None of that is a thing review catches. Every copy is correct on the day it
+ * is written; the cost arrives later, when the original changes and the copies
+ * do not. So the rule is mechanical, and it is deliberately narrow: it forbids
+ * *re-typing these particular strings*, not writing class lists.
+ */
+describe('the appearance layer is spelled once', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  function offenders(pattern: RegExp, allowed: string): string[] {
+    return sources(ROOT)
+      .filter((path) => !path.endsWith(allowed))
+      .filter((path) => pattern.test(readFileSync(path, 'utf8')))
+      .map((path) => path.slice(ROOT.length));
+  }
+
+  it('states the text control in one place', () => {
+    // The tell is the opening of the recipe. Three copies had dropped the
+    // `disabled:` half off the end, so matching the whole string would have
+    // found none of them.
+    expect(
+      offenders(
+        /w-full rounded-control border border-line-strong bg-surface/,
+        join('ui', 'classes.ts'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('states the supporting-prose steps in one place', () => {
+    // `Note` and `Fine` render `<p>`; a `<span>` or a `<dt>` wanting the same
+    // shade is a different element and is left alone, which is why this is
+    // anchored on the tag rather than on the class list.
+    expect(
+      offenders(/<p className="text-sm text-ink-(?:subtle|faint)">/, join('ui', 'Text.tsx')),
+    ).toEqual([]);
+    expect(offenders(/<p className="text-xs text-ink-faint">/, join('ui', 'Text.tsx'))).toEqual([]);
+  });
+
+  it('gives every button variant a disabled state, and none of them an opacity', () => {
+    // `classes.ts` refuses `disabled:opacity-*` by name: *"it dims text and
+    // border together and can push either below the contrast floor, which is
+    // how a fix for this becomes the previous bug."* `danger` was doing it.
+    const button = readFileSync(join(ROOT, 'ui/Button.tsx'), 'utf8');
+    const variants = button.slice(button.indexOf('const VARIANT'), button.indexOf('const SIZE'));
+    expect(variants).not.toMatch(/disabled:opacity-/);
+    for (const name of ['primary', 'secondary', 'danger', 'dangerOutline', 'quiet']) {
+      const line = new RegExp(`${name}:[^,]*disabled:`, 's');
+      expect(variants, `${name} has no disabled state`).toMatch(line);
+    }
+  });
+
+  it('draws focus on a button the way it draws focus on a field', () => {
+    // Anchored on the declaration rather than the file: the first version of
+    // this matched the docstring above `BASE`, which explains the ring at
+    // length — so it passed green against a button that had lost it. A test
+    // that reads a comment is a test of the comment.
+    expect(readFileSync(join(ROOT, 'ui/Button.tsx'), 'utf8')).toMatch(
+      /const BASE =\s*'[^']*focus-visible:outline-focus/,
+    );
+    expect(readFileSync(join(ROOT, 'ui/classes.ts'), 'utf8')).toMatch(
+      /base: 'rounded-control[^']*focus-visible:outline-focus/,
+    );
+  });
+});

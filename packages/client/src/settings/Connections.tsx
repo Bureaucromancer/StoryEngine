@@ -26,8 +26,9 @@ import {
 } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { control, panel } from '../ui/classes.js';
+import { control, disclosure, panel } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
+import { Fine, Note } from '../ui/Text.js';
 
 /**
  * System connections and the install's role bindings —
@@ -165,7 +166,7 @@ function ConnectionsPanel({
   const [editing, setEditing] = useState<AdminConnection | 'new' | null>(null);
   const [confirming, setConfirming] = useState<AdminConnection | null>(null);
 
-  if (connections.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (connections.isPending) return <Note>Loading…</Note>;
   if (connections.isError) return <p role="alert">The connections could not be read.</p>;
 
   const rows = connections.data.connections;
@@ -180,7 +181,7 @@ function ConnectionsPanel({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-ink-subtle">{empty}</p>
+        <Note>{empty}</Note>
       ) : (
         <ul className="flex flex-col gap-3">
           {rows.map((row) => (
@@ -191,7 +192,7 @@ function ConnectionsPanel({
               <div className="flex items-baseline justify-between gap-4">
                 <div>
                   <p className="font-medium">{row.label}</p>
-                  <p className="text-xs text-ink-faint">{row.provider}</p>
+                  <Fine>{row.provider}</Fine>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -468,7 +469,7 @@ function ConnectionForm({
          */}
         {offered.length === 0 ? null : (
           <div className="flex flex-col gap-2">
-            <p className="text-xs text-ink-faint">{offeredCount(offered.length)}</p>
+            <Fine>{offeredCount(offered.length)}</Fine>
             <ul className="flex flex-col gap-1">
               {offered.map((model) => (
                 <li key={model}>
@@ -507,9 +508,7 @@ function ConnectionForm({
       </div>
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-ink-muted hover:text-ink">
-          What this endpoint can do
-        </summary>
+        <summary className={disclosure.quiet}>What this endpoint can do</summary>
         <div className="mt-2 flex flex-col gap-4">
           {/**
            * **Behind a disclosure because the defaults are usually right**, and
@@ -815,7 +814,7 @@ function RoleTable(): JSX.Element {
   const write = useWriteBindings();
   const [conflict, setConflict] = useState<BindingConflict | null>(null);
 
-  if (roles.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (roles.isPending) return <Note>Loading…</Note>;
   if (roles.isError) return <p role="alert">The role table could not be read.</p>;
 
   const choices = modelChoices(connections.data?.connections ?? []);

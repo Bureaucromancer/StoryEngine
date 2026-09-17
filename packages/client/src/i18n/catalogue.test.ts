@@ -93,6 +93,7 @@ const EXEMPT: Record<string, string> = {
   'ui/Panel.tsx:VARIANT': 'Tailwind classes.',
   'ui/classes.ts:link': 'Tailwind classes — the file is nothing else.',
   'ui/classes.ts:navLink': 'Tailwind classes.',
+  'ui/classes.ts:disclosure': 'Tailwind classes — the two registers a fold is drawn in.',
   'ui/classes.ts:table': 'Tailwind classes.',
   'ui/classes.ts:page': 'Tailwind classes.',
   'workbench/turn/labels.ts:OUTCOME_TONES': 'A call outcome to a `BadgeTone`, which is a colour.',

@@ -20,7 +20,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { page } from '../ui/classes.js';
 import { CheckboxField, Field } from '../ui/Field.js';
-import { SubsectionTitle } from '../ui/Text.js';
+import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 import { TagInput } from '../tags/TagInput.js';
 import { blankFor, isRequiredField } from '../library/fields.js';
 import { EditorFrame } from './EditorFrame.js';
@@ -64,7 +64,7 @@ function EditorLoader(props: { id: string }): JSX.Element {
   const base = useEditorBase('actors', props.id);
 
   if (base.isPending) {
-    return <p className="text-ink-subtle">Loading the actor…</p>;
+    return <Note>Loading the actor…</Note>;
   }
   if (base.isError) {
     const missing = base.error instanceof ApiError && base.error.status === 404;
@@ -218,9 +218,9 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
             )}
             <div>
               <h1 className="text-title text-ink">{editor.heading}</h1>
-              <p className="text-sm text-ink-subtle">
+              <Note>
                 The card image travels with the file; this editor shows it and does not replace it.
-              </p>
+              </Note>
             </div>
           </header>
         </>
@@ -329,11 +329,11 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         */}
       <section className="flex flex-col gap-3">
         <SubsectionTitle as="h2">Writing samples</SubsectionTitle>
-        <p className="text-xs text-ink-faint">
+        <Fine>
           Prose in this character&rsquo;s voice, offered to the model as an example to write like —
           not a description of how they sound. Each one is budgeted like any other block, and the
           lowest priority is dropped first when a prompt runs long.
-        </p>
+        </Fine>
 
         {form.samples.length === 0 ? (
           <p className="text-sm text-ink-muted">None yet.</p>

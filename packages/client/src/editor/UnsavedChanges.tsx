@@ -6,7 +6,7 @@ import { useCallback, type JSX } from 'react';
 
 import { Button } from '../ui/Button.js';
 import { Dialog } from '../ui/Dialog.js';
-import { SubsectionTitle } from '../ui/Text.js';
+import { Note, SubsectionTitle } from '../ui/Text.js';
 
 /**
  * Leaving an editor with unsaved changes — [10 §11.6](../../../../docs/design/10-ui-surfaces.md).
@@ -69,13 +69,13 @@ export function UnsavedChangesGuard(props: {
     // something is about to go wrong rather than because anybody opened it, and
     // its message has to be announced with it.
     <Dialog role="alertdialog" labelledBy="unsaved-title" onDismiss={reset}>
-      <SubsectionTitle id="unsaved-title" as="h2" className="mb-2">
+      <SubsectionTitle id="unsaved-title" as="h2">
         {props.heading}
       </SubsectionTitle>
-      <p className="mb-4 text-sm text-ink-subtle">
+      <Note>
         Nothing is written until you save, so leaving now discards these edits — and because they
         were never saved, there is no version in the history to bring them back from.
-      </p>
+      </Note>
       <div className="flex flex-col gap-2">
         {/*
           Staying is first, primary and focused, and dismissing with Escape is

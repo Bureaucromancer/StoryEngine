@@ -13,7 +13,7 @@ import {
 import { useLibrary, useRenditions, useSession, type RenditionSet } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { page } from '../ui/classes.js';
-import { Note, SectionTitle } from '../ui/Text.js';
+import { Note, PageTitle } from '../ui/Text.js';
 import { anchorOffset } from '../play/Rendition.js';
 import { attribution, passages, toMarkdown, toPlainText } from './prose.js';
 
@@ -70,11 +70,20 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
 
   return (
     <main className={page.reading}>
+      {/* ***One heading, for the screen and the page.*** It used to be two — a
+          `SectionTitle` inside the controls row, and a second `<h1>` spelled
+          `hidden text-title print:block` underneath it, because the row it sat
+          in is `print:hidden` and took the title with it. Two elements holding
+          one string is how they come to disagree; lifting the title out of the
+          row is all it took to need only one, and it moves to the page-title
+          step at the same time — this is the name of the surface, and every
+          other top-level page in the client says its own name at `text-title`. */}
+      <PageTitle id="reading">{title}</PageTitle>
+
       {/* **Hidden when printing**, which is most of what a print stylesheet is
           for: a page of controls is not part of the story, and the browser's
           own print-to-PDF is the whole of §12.2's PDF story. */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <SectionTitle id="reading">{title}</SectionTitle>
         <div className="ms-auto flex flex-wrap gap-2">
           <CopyButton label="Copy as Markdown" text={() => toMarkdown(read, { title })} />
           <CopyButton label="Copy as text" text={() => toPlainText(read, { title })} />
@@ -89,19 +98,13 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
         </div>
       </div>
 
-      {/* The heading again, for the printed page, where the row above is gone.
-          `text-title` rather than the raw `text-2xl` it used to spell: the token
-          resolves to the same size today, and spelling the step means the
-          printed title follows the scale the next time the scale moves. */}
-      <h1 className="hidden text-title print:block">{title}</h1>
-
       {props.from === undefined ? null : (
         <Note>
           This is the story as it stood at one point in it, rather than the line you are on now.
         </Note>
       )}
 
-      {transcript.isPending ? <p className="text-ink-subtle">Loading…</p> : null}
+      {transcript.isPending ? <Note>Loading…</Note> : null}
 
       {!transcript.isPending && read.length === 0 ? (
         <Note>Nothing has been written in this session yet.</Note>

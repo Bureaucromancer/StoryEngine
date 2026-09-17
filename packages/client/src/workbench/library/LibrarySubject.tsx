@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 import { ApiError, type LibraryKind, type ObjectAddress } from '../../api.js';
 import { useAuthState, useIndexRows, useLibraryObject, useObjectHistory } from '../../queries.js';
 import { ObjectSubject } from './ObjectSubject.js';
+import { Note } from '../../ui/Text.js';
 
 /**
  * The fetching half of the library subject, the way `PlaySubject` is for the
@@ -36,7 +37,7 @@ export function LibrarySubject({
   const locale = auth.data?.account?.locale ?? undefined;
 
   if (object.isPending) {
-    return <p className="text-sm text-ink-subtle">Loading the object…</p>;
+    return <Note>Loading the object…</Note>;
   }
   if (object.isError) {
     return (

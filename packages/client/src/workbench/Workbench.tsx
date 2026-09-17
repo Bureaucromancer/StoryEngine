@@ -32,6 +32,7 @@ import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
 import { PreviewSubject } from './turn/PreviewSubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * The workbench frame — [10 §3](../../../../docs/design/10-ui-surfaces.md),
@@ -412,7 +413,7 @@ function TurnOrPreview({
   }
 
   if (transcript.isPending) {
-    return <p className="text-sm text-ink-subtle">Loading the record…</p>;
+    return <Note>Loading the record…</Note>;
   }
   if (transcript.isError) {
     return (

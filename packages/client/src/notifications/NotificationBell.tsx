@@ -76,7 +76,7 @@ export function NotificationBell(props: { state: NotificationsState }): JSX.Elem
           }}
         >
           <div className="flex items-center justify-between gap-4">
-            <h2 id="notifications-heading" className="text-lg font-semibold">
+            <h2 id="notifications-heading" className="text-section text-ink">
               Notifications
             </h2>
             <div className="flex items-center gap-2">

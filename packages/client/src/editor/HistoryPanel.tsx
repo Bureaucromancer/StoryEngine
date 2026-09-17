@@ -14,6 +14,7 @@ import {
   useRestoreVersion,
   useVersionPayload,
 } from '../queries.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * The history panel — [10 §11.2a](../../../../docs/design/10-ui-surfaces.md), interaction
@@ -99,7 +100,7 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
         </Alert>
       ) : null}
 
-      {history.isPending ? <p className="text-sm text-ink-subtle">Loading the history…</p> : null}
+      {history.isPending ? <Note>Loading the history…</Note> : null}
       {history.isError ? (
         <p role="alert" className="text-sm text-danger-ink">
           {history.error.message}

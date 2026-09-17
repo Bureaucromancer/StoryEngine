@@ -13,6 +13,7 @@ import {
 } from '../library/fields.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * The object, field by field, **writable** — [P7B.1], and the write-side twin
@@ -188,7 +189,7 @@ function FieldGroupView(props: {
   const summary = summaryOf(props.group.fields, props.value);
   return (
     <details className="rounded-control border border-line p-3">
-      <summary className="cursor-pointer text-sm font-medium text-ink">
+      <summary className={`${disclosure.titled} text-sm font-medium`}>
         {props.group.title}
         {summary === null ? null : <span className="ms-2 text-ink-subtle">({summary})</span>}
       </summary>

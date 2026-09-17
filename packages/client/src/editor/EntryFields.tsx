@@ -18,6 +18,7 @@ import {
 import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
 import { joinLines, splitLines } from './form.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * One entry, as the schema's own shape —
@@ -160,7 +161,7 @@ export function EntryFields(props: {
              * inside it and the group's editorial note goes into the panel
              * below rather than beside the title.
              */}
-            <summary className="cursor-pointer">
+            <summary className={disclosure.quiet}>
               <SubsectionTitle as="h4">{groupSummary(group, props.entry)}</SubsectionTitle>
             </summary>
             {group.note === undefined ? null : <Fine className="mt-1">{group.note}</Fine>}

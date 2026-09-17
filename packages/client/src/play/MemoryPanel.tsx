@@ -7,6 +7,7 @@ import { useState, type JSX } from 'react';
 import type { MemoryConfig } from '../api.js';
 import { useMemoryPanel, useSetMemoryConfig } from '../queries.js';
 import { Fine, Note } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
 
 /**
  * ***The UI, as the requirement describes it*** —
@@ -55,7 +56,7 @@ export function MemorySection(props: { sessionId: string }): JSX.Element {
         setOpen(event.currentTarget.open);
       }}
     >
-      <summary className="cursor-pointer px-3 py-2 text-sm text-ink">Memories</summary>
+      <summary className={`${disclosure.titled} px-3 py-2 text-sm`}>Memories</summary>
 
       <div className="flex flex-col gap-4 border-t border-line p-3">
         {panel.isPending && open ? <Fine>Loading…</Fine> : null}
