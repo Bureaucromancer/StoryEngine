@@ -29,6 +29,7 @@ import {
   roleTable,
 } from '../providers/roles.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
+import { isLocalEndpoint } from '../updates.js';
 
 /**
  * System connections and the install default bindings —
@@ -579,11 +580,35 @@ async function fetchModels(
     const payload: unknown = await response.json();
     return await reply.send({ models: modelIdsFrom(payload) });
   } catch {
-    // A class, never the fetch's own message — it can carry the URL, and the
-    // URL can carry a token.
-    return await reply
-      .code(502)
-      .send({ error: 'unreachable', message: 'That endpoint could not be reached.' });
+    /**
+     * ***Nothing answered, and [P11.6] splits that in two.***
+     *
+     * [09 §6.5](../../../../docs/design/09-server-multiuser-deployment.md) asks
+     * for *"this server appears to have no internet access"* instead of a raw
+     * connection error, and **this route is where a stranger meets it first**:
+     * adding a connection is their third step, and a remote endpoint that will
+     * never work because the machine has no route out is the failure most
+     * likely to be diagnosed as a wrong URL.
+     *
+     * **Both conditions, and the order matters.** A *local* endpoint that does
+     * not answer says nothing about the internet — the model server is simply
+     * not running, and telling that operator they are offline is the mistake
+     * §6.5 warns about. And `online` is only claimed when a check has actually
+     * run: `null` is *nothing has looked*, which leaves the neutral sentence
+     * rather than inventing a diagnosis in a server's first minute.
+     *
+     * A class, never the fetch's own message — it can carry the URL, and the
+     * URL can carry a token.
+     */
+    const offline = !isLocalEndpoint(base) && services.updates.online === false;
+    return await reply.code(502).send(
+      offline
+        ? {
+            error: 'offline',
+            message: 'This server appears to have no internet access.',
+          }
+        : { error: 'unreachable', message: 'That endpoint could not be reached.' },
+    );
   }
 }
 

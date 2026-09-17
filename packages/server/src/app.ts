@@ -659,6 +659,20 @@ async function assembleWithState(
     dispatchRenditions(renditions, account, sessionId, records, turnId);
   };
 
+  /**
+   * ***The runner reads the current connectivity, not a snapshot of it*** —
+   * [P11.6].
+   *
+   * `services.updates` is **replaced wholesale** every time a check completes,
+   * so a value copied into the runner at construction would be `UNCHECKED`
+   * forever and every failure would report *nothing has looked*. The hole is
+   * this `let`, filled one statement below and read only when a turn has
+   * already failed — which is the same shape `watcher.ts` uses to keep
+   * `history.keepPerObject` live, and for the same reason: a field filled at
+   * construction is what makes a live value untrue.
+   */
+  let built: AppServices | null = null;
+
   const runner = new TurnRunner({
     commit,
     bus,
@@ -667,9 +681,10 @@ async function assembleWithState(
     config,
     dispatch,
     notify,
+    connectivity: () => built?.updates.online ?? null,
   });
 
-  return {
+  built = {
     config,
     // And the baseline separately, for the same reason in the other direction:
     // sharing one object would make it follow the thing it is the baseline for,
@@ -727,6 +742,7 @@ async function assembleWithState(
     configDocument: options.configDocument ?? {},
     library,
   };
+  return built;
 }
 
 /**

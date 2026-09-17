@@ -191,7 +191,14 @@ describe('every stage this repository names is a stage that exists', () => {
 });
 
 /**
- * A section citation: the `§7.4` in `[P3 §7.4](workplan/15-p3-implementation.md)`.
+ * A section citation: the `§7.4` a link like *P3 §7.4* carries, where the link's
+ * target is the document that section is in.
+ *
+ * *Written as a description rather than as an example, for item 2's reason in
+ * [§0.4](../docs/design/workplan/28-p11-implementation.md)* — a specimen link
+ * inside this file is a real link to `doc-links.test.ts`, and a specimen path
+ * relative to a document is not a path relative to `tools/`. **Every check that
+ * reads the whole repository has to survive being read by itself.**
  *
  * **Only citations that carry a link**, because those are the ones with a
  * checkable target. A bare `§3` in running prose means *this document's §3* and

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { remedyFor, type StepFailureReason } from '@storyengine/shared';
+
+import { remedySentence } from '../failures.js';
 import type { NotificationView } from './types.js';
 
 /**
@@ -46,9 +49,23 @@ export const NOTIFICATION_LABELS: Record<string, NotificationLabel> = {
   },
   'turn.failed': {
     title: 'A turn could not finish',
-    // The class, not a sentence: `rate-limit` and `no-binding` are words the
-    // reader can act on, and the endpoint's own prose went to the log.
-    body: '{sessionName} — {error}',
+    /**
+     * ***`{remedy}` is a sentence and `{error}` was a class*** — [P11.6].
+     *
+     * The comment here used to read *"the class, not a sentence: `rate-limit`
+     * and `no-binding` are words the reader can act on"* — and it named a
+     * vocabulary that does not exist. {@link StepFailureReason} is `transient |
+     * retryable | terminal | …`, so what a person got in a toast was *Vera's
+     * story — transient*. The rule the comment was defending is right and
+     * unchanged: **the endpoint's own prose still goes to the log** and never
+     * here. What crosses now is a remedy key, which the client turns into words
+     * the way it always turned classes into words.
+     *
+     * {@link summary} falls back to the class when a notification carries no
+     * remedy — an older row in the store, a turn that failed before any step
+     * did — because a stored notification outlives the build that wrote it.
+     */
+    body: '{sessionName}{remedy}',
   },
   'artifact.ready': {
     title: 'A picture is ready',
@@ -98,10 +115,41 @@ export function summary(notification: Pick<NotificationView, 'class' | 'params'>
     NOTIFICATION_LABELS[notification.class];
 
   if (label === undefined) return { title: notification.class, body: '' };
+  const params = withRemedy(notification.params);
   return {
-    title: fill(label.title, notification.params),
-    body: fill(label.body, notification.params),
+    title: fill(label.title, params),
+    body: fill(label.body, params),
   };
+}
+
+/**
+ * ***`{remedy}` becomes a sentence, and an older row still gets one*** —
+ * [P11.6].
+ *
+ * Two things happen here and both are about not leaking a machine word into a
+ * toast. The remedy the server sent is a **key**, so it is turned into words the
+ * way every other class on this surface is. And a notification that carries no
+ * remedy — a row stored by a build older than P11.6, or a turn that failed
+ * before any step ran — is not left with a literal `{remedy}` on screen:
+ * `remedyFor` derives what it can from the class alone, which is the same
+ * degrade the transcript makes and lands on the arm that says less.
+ *
+ * ***It carries its own separator***, which is {@link foldedSuffix}'s shape and
+ * is here for the same reason: a row with nothing to add must read as the
+ * session's name and not as *Vera's story — *. `fill` renders an unmatched
+ * `{name}` as itself — right for a missing name, useless for a missing sentence
+ * — so the empty case has to be an empty **string** rather than an absent param.
+ */
+function withRemedy(
+  params: Record<string, string | number | boolean>,
+): Record<string, string | number | boolean> {
+  const stated = typeof params['remedy'] === 'string' ? params['remedy'] : null;
+  const derived =
+    stated === null && typeof params['error'] === 'string'
+      ? remedyFor({ reason: params['error'] as StepFailureReason, online: null })
+      : stated;
+  const sentence = remedySentence(derived);
+  return { ...params, remedy: sentence === null ? '' : ` — ${sentence}` };
 }
 
 /**

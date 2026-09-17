@@ -38,6 +38,7 @@ export type {
   ChannelEffect,
   ChannelState,
   EffectOp,
+  FailureRemedy,
   ModelCall,
   NotFilledReason,
   NotFilledSlot,

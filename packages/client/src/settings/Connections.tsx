@@ -433,11 +433,18 @@ function ConnectionForm({
              * admin to the URL and the network, and the one case where that is
              * exactly wrong is the endpoint answering perfectly well that the
              * key is bad.
+             *
+             * ***And a third, since [P11.6]: no internet at all.*** [09 §6.5]
+             * asks for that sentence by name, and the reason it is worth a third
+             * arm rather than being folded into *unreachable* is the same
+             * argument finding 5 made about the first two — it sends somebody
+             * somewhere else entirely. The server only says `offline` when the
+             * endpoint is remote **and** a check has actually established that
+             * this machine has no route out, so a deliberately local install
+             * never sees it.
              */
             <p role="status" className="text-sm text-ink-subtle">
-              {models.error instanceof ApiError && models.error.code === 'unauthorized'
-                ? 'That endpoint refused the key. Check it — the URL is fine.'
-                : 'That endpoint did not answer with a model list. Type the model name instead.'}
+              {modelsErrorLine(models.error)}
             </p>
           ) : null}
         </div>
@@ -1173,4 +1180,23 @@ function capabilitiesFrom(
   else next.reportsUsage = reportsUsage;
 
   return { capabilities: next };
+}
+
+/**
+ * What a failed `/models` probe says — [P2B §2.6], finding 5 in
+ * [P2C log](../../../../docs/design/workplan/14-p2c-log.md), [P11.6].
+ *
+ * Three codes, three different places to go next, which is the whole reason the
+ * server distinguishes them: the key, the address, and the machine's own
+ * network. **A code this build does not know falls through to the address**,
+ * which is the widest of the three and the one that costs least when it is
+ * wrong.
+ */
+function modelsErrorLine(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : null;
+  if (code === 'unauthorized') return 'That endpoint refused the key. Check it — the URL is fine.';
+  if (code === 'offline') {
+    return 'This server appears to have no internet access, so it could not reach that endpoint. A model running on this network would still work.';
+  }
+  return 'That endpoint did not answer with a model list. Type the model name instead.';
 }

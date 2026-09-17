@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { remedyFor } from '@storyengine/shared';
+
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
 import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
@@ -19,6 +21,7 @@ import { applyEffects, readSession } from '../sessions/store.js';
 import type {
   ChannelEffect,
   ChannelState,
+  FailureRemedy,
   ModelCall,
   PooledHook,
   StepFailureReason,
@@ -194,6 +197,21 @@ export interface RunnerOptions {
    * test that is not about notifications.
    */
   notify?: (occurrence: Occurrence) => void;
+  /**
+   * ***Whether this server could reach the internet at the last update check***
+   * — [P11.6], reading [`updates.ts`](../updates.js)'s signal.
+   *
+   * **A reader rather than a value**, because `services.updates` is replaced
+   * wholesale when a check completes and a number copied in at construction
+   * would be the state at boot forever. The same argument
+   * [`watcher.ts`](../index-db/watcher.js) makes about `history.keepPerObject`:
+   * a field filled at construction is what makes a live tier untrue.
+   *
+   * **Optional, and absent means `null`** — *nothing has looked* — which is
+   * exactly right for every test double and is a state `remedyFor` already
+   * handles rather than guesses at.
+   */
+  connectivity?: () => boolean | null;
 }
 
 interface Live {
@@ -707,6 +725,13 @@ export class TurnRunner {
      * the store makes about folding into a notification that has been read.
      */
     let stoppedBy: StepFailureReason | null = null;
+    /**
+     * And what could be done about it — [P11.6]. Carried beside the class
+     * rather than recomputed in `#announce`, because by then the failure is
+     * gone: `endpoint` and `stalled` live on the `CallFailed` this loop caught
+     * and nothing downstream keeps them.
+     */
+    let remedyFound: FailureRemedy | null = null;
     /**
      * **The setup turn runs the mode's parts instead of its steps** — [06 §7.3],
      * [P7.4].
@@ -1538,13 +1563,34 @@ export class TurnRunner {
         // `ignore` says the author already decided this is unremarkable, so no
         // live alarm — but it is still on the record, because silence about a
         // step that ran is the failure [09 §3.3] calls out for `skipped`.
-        if (definition.failure !== 'ignore') write([stepFailed(definition.id, reason, false)]);
-        else write();
+        /**
+         * ***The remedy, beside the class*** — [P11.6].
+         *
+         * The class is what the engine did; the remedy is what a person could
+         * do, and until this stage the play surface rendered the class — *The
+         * turn failed (transient)*, which is a word about our retry ladder.
+         * Computed here rather than on the client because two of its three
+         * inputs are the server's: whether the endpoint was on this network,
+         * and whether this server has internet. **Neither reaches the record**
+         * — see {@link remedyFor} on why a transient fact about a network does
+         * not belong in a permanent turn.
+         */
+        const remedy = remedyFor({
+          reason,
+          online: this.#options.connectivity?.() ?? null,
+          ...(error instanceof CallFailed
+            ? { endpoint: error.endpoint, stalled: error.stalled }
+            : {}),
+        });
+        if (definition.failure !== 'ignore') {
+          write([stepFailed(definition.id, reason, false, remedy)]);
+        } else write();
 
         // Cancellation overrides the declared mode: a user's stop is not a warn.
         if (definition.failure === 'abort' || reason === 'cancelled') {
           aborted = true;
           stoppedBy = reason;
+          remedyFound = remedy;
           break;
         }
       }
@@ -1789,7 +1835,7 @@ export class TurnRunner {
      * beside the turn — the same ordering argument `#recordRenditions` makes
      * against `finaliseTurn`, one layer out.
      */
-    await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null);
+    await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null, remedyFound);
   }
 
   /**
@@ -1813,7 +1859,11 @@ export class TurnRunner {
    * swallows, for `#recordRenditions`' reason: a store that would not answer
    * costs a notification, and must never cost the turn it was about.
    */
-  async #announce(job: Job, failure: StepFailureReason | null): Promise<void> {
+  async #announce(
+    job: Job,
+    failure: StepFailureReason | null,
+    remedy: FailureRemedy | null = null,
+  ): Promise<void> {
     const notify = this.#options.notify;
     if (notify === undefined) return;
     if (failure === 'cancelled') return;
@@ -1837,6 +1887,17 @@ export class TurnRunner {
               turnId: job.turnId,
               sessionName,
               error: failure,
+              /**
+               * ***The sentence's key, not the sentence*** — [P11.6],
+               * [19 §12.4]. The router composes `{ key, params }` and the
+               * client holds the words; a remedy is one more param and travels
+               * the same way the class already does.
+               *
+               * *Absent when a turn failed before any step did* — an
+               * unstartable job, a reconciliation — because there is no
+               * failure to have a remedy for and `engine` would be a claim.
+               */
+              ...(remedy === null ? {} : { remedy }),
             },
       );
     } catch {

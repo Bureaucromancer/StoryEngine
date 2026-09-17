@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import { control, page } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { uuidv7 } from '@storyengine/shared';
-import type { TextSpan } from '@storyengine/shared';
+import { remedyFor, uuidv7 } from '@storyengine/shared';
+import type { StepFailureReason, TextSpan } from '@storyengine/shared';
 
 import {
   cancelTurn,
@@ -37,6 +37,7 @@ import {
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
+import { remedySentence } from '../failures.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
@@ -1031,10 +1032,17 @@ function TurnView({
         className="flex flex-wrap gap-2"
       />
       {/* A failed turn is shown rather than hidden: it is on the record with
-          what it managed, and hiding it would make a re-run unexplainable. */}
-      {turn.status === 'failed' ? (
-        <p className="text-sm text-warn-ink">This turn did not finish.</p>
-      ) : null}
+          what it managed, and hiding it would make a re-run unexplainable.
+
+          ***And since [P11.6] it says what to do about it.*** The line was
+          *This turn did not finish.* and nothing else — which is the sentence
+          [09 §6.5] is complaining about when it asks for *"this server appears
+          to have no internet access"* instead of a raw connection error. The
+          class is read off the record's own steps and turned into a remedy by
+          `remedyFor`, the same function the runner uses while the failure is
+          fresh; a reader has fewer inputs, so it lands on the arm that says
+          less, which is the honest degrade rather than a second guess. */}
+      {turn.status === 'failed' ? <FailedTurnNote turn={turn} /> : null}
 
       {/* Visible on hover and on focus. Focus is not decoration here: these are
           the only controls in the transcript, and a keyboard reaching them
@@ -1295,8 +1303,58 @@ function SiblingStrip({
  * first thing a bug report needs and the first thing a person can act on.
  */
 function streamFailureLine(error: string | null): string {
+  /**
+   * ***The class stopped being the sentence at [P11.6].*** This read *The turn
+   * failed (transient). Reload to try again.* — [P6B.0] added the class because
+   * one sentence covered every failure, which was the right diagnosis and the
+   * wrong vocabulary: `transient` describes our retry ladder and tells a reader
+   * nothing. The remedy is the sentence now, and the class is still appended for
+   * the bug report, in brackets, where it belongs.
+   */
   if (error === null) return 'The connection failed. Reload to try again.';
-  return `The turn failed (${error}). Reload to try again.`;
+  const sentence = remedySentence(remedyFor({ reason: error as StepFailureReason, online: null }));
+  return sentence === null
+    ? `The turn failed (${error}). Reload to try again.`
+    : `${sentence} (${error})`;
+}
+
+/**
+ * ***What a failed turn says in the transcript*** — [09 §6.5], [P11.6].
+ *
+ * The first line is the fact and the second is the remedy, and they are two
+ * sentences rather than one because the fact is always true and the remedy is
+ * sometimes unavailable — a turn with no recorded steps, a class this build has
+ * never heard of. **A missing remedy leaves the original line exactly as it
+ * was**, which is the behaviour a version skew should have.
+ */
+function FailedTurnNote({ turn }: { turn: TurnRecord }): React.JSX.Element {
+  const sentence = recordedRemedy(turn);
+  return (
+    <div className="flex flex-col gap-1 text-sm text-warn-ink">
+      <p>This turn did not finish.</p>
+      {sentence === null ? null : <p>{sentence}</p>}
+    </div>
+  );
+}
+
+/**
+ * The remedy for a turn on the record, or null when it cannot be told.
+ *
+ * ***The last failed step rather than the first***, because a turn stops at the
+ * step that aborted it and that is the one whose failure ended the turn. An
+ * earlier `warn` step that failed and was stepped over is on the record too, and
+ * reporting its remedy would explain something that did not stop anything.
+ *
+ * **The record holds neither the endpoint's locality nor that day's
+ * connectivity** — see `remedyFor` on why the second must not be stored — so the
+ * arm this lands on is deliberately the one that says less. That is the whole
+ * value of `endpoint-silent` existing as a separate arm from
+ * `endpoint-silent-offline`.
+ */
+function recordedRemedy(turn: TurnRecord): string | null {
+  const failed = (turn.steps ?? []).filter((step) => step.error !== undefined);
+  const reason = failed.at(-1)?.error?.reason;
+  return reason === undefined ? null : remedySentence(remedyFor({ reason, online: null }));
 }
 
 function StreamStatus({

@@ -877,6 +877,13 @@ the stage whose third clause is *better failures* is **P11.6**, which its own
 check, this stage is the error messages alone"*. P10 took the check, so that arm
 is the live one, and this is the debt that lands in it.
 
+***Paid the same day.*** [P11.6](28-p11-implementation.md) built `remedyFor` in
+`packages/shared/src/remedy.ts`, reading exactly the signal this paragraph
+argued for, and the two halves of the distinction above became the two arms
+`endpoint-silent-offline` and `endpoint-silent-online`. **The conditionality
+§6.5 asks for is the assertion the stage is proved by**: a local endpoint is
+told nothing about the internet *even when this server knows it has none*.
+
 ***§1.5 and §1.8 are closed, which is the part that had cost two sweeps.***
 §1.8's system-library bullet is **struck** in [10 §15.3](../10-ui-surfaces.md):
 it offered two ways out and nothing in four phases argued for changing 1.0's

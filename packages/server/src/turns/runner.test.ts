@@ -118,7 +118,17 @@ async function seedProviderConfig(): Promise<void> {
 }
 
 function makeRunner(
-  options: { script?: ScriptedReply[]; plan?: TurnPlan; config?: Partial<Config> } = {},
+  options: {
+    script?: ScriptedReply[];
+    plan?: TurnPlan;
+    config?: Partial<Config>;
+    /**
+     * What the last update check learned — [P11.6]. Omitted is `null`, *nothing
+     * has looked*, which is what every test that is not about remedies wants
+     * and is a state `remedyFor` handles rather than guesses at.
+     */
+    connectivity?: () => boolean | null;
+  } = {},
 ): void {
   provider = new FakeProvider(options.script === undefined ? {} : { script: options.script });
   const providers: ProviderFactory = () => provider;
@@ -138,6 +148,7 @@ function makeRunner(
     notify: (occurrence) => {
       announced.push(occurrence);
     },
+    ...(options.connectivity === undefined ? {} : { connectivity: options.connectivity }),
   });
   // The runner's own logger seam, so a test reads what an operator would.
   logLines = [];
@@ -827,6 +838,55 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
     // One of the vocabulary's own words, and short enough that it cannot be a
     // sentence somebody pasted in.
     expect(failure.error).toBe('terminal');
+    /**
+     * ***And the remedy beside it*** — [P11.6]. The class is what the engine
+     * did and the remedy is what a person could do, and this failure is the
+     * case where the two disagree most: `terminal` reads as *we gave up*, while
+     * the endpoint in fact accepted the request and then went quiet, which is
+     * not something anybody should change a key over.
+     */
+    expect(failure.remedy).toBe('endpoint-stalled');
+  });
+
+  /**
+   * ***[09 §6.5]'s sentence, reaching the seam it has to cross*** — [P11.6].
+   *
+   * `remedy.test.ts` owns the decision table; what this asserts is the **wiring**
+   * — that the runner reads its connectivity seam at the moment a turn fails and
+   * puts the answer where a notification can find it. A `remedyFor` that is
+   * perfect and never called is the failure this covers, and it is the failure
+   * an argument about the table would not.
+   */
+  it('reads connectivity when a turn fails, and says so in the announcement', async () => {
+    makeRunner({
+      script: [{ error: { class: 'transient', message: 'fetch failed' } }],
+      connectivity: () => false,
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.status).toBe('failed');
+
+    await until(() => announced.length === 1, 'the failure to be announced');
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    expect(failure.error).toBe('transient');
+    expect(failure.remedy).toBe('endpoint-silent-offline');
+  });
+
+  /**
+   * The same failure with the internet known to work blames the endpoint
+   * instead — the distinction [P10.3] paid for and the one that makes the
+   * sentence above trustworthy rather than a default.
+   */
+  it('blames the endpoint rather than the network when the internet works', async () => {
+    makeRunner({
+      script: [{ error: { class: 'transient', message: 'fetch failed' } }],
+      connectivity: () => true,
+    });
+
+    await runTurn();
+    await until(() => announced.length === 1, 'the failure to be announced');
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    expect(failure.remedy).toBe('endpoint-silent-online');
   });
 
   /**

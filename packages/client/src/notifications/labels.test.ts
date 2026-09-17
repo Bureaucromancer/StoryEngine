@@ -129,6 +129,48 @@ describe('composing a sentence', () => {
   it('leaves an unfilled field as written', () => {
     expect(summary({ class: 'turn.complete', params: {} }).body).toBe('{sessionName}');
   });
+
+  /**
+   * ***A failed turn says what to do, not what class it was*** — [P11.6].
+   *
+   * This body was `{sessionName} — {error}` and `{error}` is
+   * `transient | retryable | terminal | …`, so a person whose wifi was off got a
+   * toast reading *Vera's story — transient*. The three cases below are the
+   * three a stored notification can actually be in, and none of them may put a
+   * machine word or a bare placeholder in front of a reader.
+   */
+  it('turns a failed turn into a sentence rather than a class', () => {
+    const said = summary({
+      class: 'turn.failed',
+      params: { sessionName: 'The harbour', error: 'transient', remedy: 'endpoint-silent-offline' },
+    });
+    expect(said.body).toContain('The harbour');
+    expect(said.body).toContain('no internet access');
+    expect(said.body).not.toContain('transient');
+  });
+
+  /**
+   * A row stored by a build older than [P11.6] carries the class and no remedy.
+   * It still gets words, derived from the class alone, which lands on the arm
+   * that says less — the same degrade the transcript makes.
+   */
+  it('derives one from the class alone for a row an older build wrote', () => {
+    const said = summary({
+      class: 'turn.failed',
+      params: { sessionName: 'The harbour', error: 'unbound' },
+    });
+    expect(said.body).toContain('No connection is set up');
+  });
+
+  /**
+   * ***And never a literal `{remedy}`***, which is the failure mode `fill`
+   * has by design — an unmatched field is rendered as itself, which is right for
+   * a missing name and useless for a missing sentence.
+   */
+  it('shows no placeholder when there is nothing to say', () => {
+    const said = summary({ class: 'turn.failed', params: { sessionName: 'The harbour' } });
+    expect(said.body).not.toContain('{remedy}');
+  });
 });
 
 describe('a folded row says so', () => {

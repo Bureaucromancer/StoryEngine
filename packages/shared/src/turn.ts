@@ -512,6 +512,60 @@ export interface ModelCall {
 export type StepFailureReason =
   ErrorClass | 'cancelled' | 'advisory-leak' | 'unbound' | 'dangling' | 'internal';
 
+/**
+ * ***What a person could do about it*** — [09 §6.5](../../../docs/design/09-server-multiuser-deployment.md),
+ * [P11.6](../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * **A second axis beside {@link StepFailureReason}, not a replacement for it.**
+ * The class says how the engine treated the failure — whether it retried,
+ * whether it gave up — and it is the right thing to put on a record. It is the
+ * wrong thing to put in front of a person: *The turn failed (transient)* is what
+ * this surface said until P11.6, and *transient* is a word about our retry
+ * ladder rather than about their evening.
+ *
+ * ***Derived, never recorded.*** Two of the three inputs are facts about **now**
+ * — whether this server can reach the internet, and whether the endpoint a role
+ * resolved to is on this network — and a turn record that stored them would be
+ * claiming last Tuesday's network as part of what happened. So a remedy travels
+ * on the live event and the notification, and
+ * [18 §3](../../../docs/design/18-session-import.md)'s export format never sees
+ * it.
+ *
+ * ***The distinction that pays for the whole type is `-offline` against
+ * `-online`.*** [09 §6.5] asks for *"this server appears to have no internet
+ * access"* instead of a raw connection error, and the trap is that a failure to
+ * reach one endpoint is not evidence about the internet. An install whose
+ * endpoints are all on the LAN is **a legitimate, fully-functional deployment
+ * whose operator chose it deliberately**, and telling that operator they are
+ * offline every time their model server is down would be worse than saying
+ * nothing. So locality is asked first, and connectivity only for the remote
+ * case — and `endpoint-silent` is the honest answer when nothing has looked.
+ *
+ * The sentences live on the client, keyed by these values, which is
+ * [19 §12.4](../../../docs/design/19-tech-stack.md)'s rule and what lets
+ * [P11.8](../../../docs/design/workplan/28-p11-implementation.md) fold them into
+ * a catalogue without touching this file.
+ */
+export type FailureRemedy =
+  /** Nothing answered, at an address on this network. The model server is down. */
+  | 'endpoint-silent-local'
+  /** Nothing answered out on the internet, and this server has no internet. */
+  | 'endpoint-silent-offline'
+  /** Nothing answered out on the internet, and this server's internet works. */
+  | 'endpoint-silent-online'
+  /** Nothing answered out on the internet, and nothing has checked the internet. */
+  | 'endpoint-silent'
+  /** The endpoint answered, and was busy or broken — a 429 or a 5xx. */
+  | 'endpoint-busy'
+  /** The endpoint answered and said no. A key, a permission, a model name. */
+  | 'endpoint-refused'
+  /** The endpoint accepted the request and then went quiet past the idle limit. */
+  | 'endpoint-stalled'
+  /** No connection is bound to the role this step asked for, or it points at nothing. */
+  | 'not-bound'
+  /** Nothing about the network. This build did something it should not have. */
+  | 'engine';
+
 /** Why a step did not run. [06 §6]'s three condition arms, from the other side. */
 export type StepSkipReason = 'cadence' | 'stage' | 'not-armed';
 

@@ -407,6 +407,58 @@ describe('fetching a model list', () => {
   });
 
   /**
+   * ***The sentence [09 §6.5] asks for, and the install it must never reach***
+   * — [P11.6]. Two halves of one rule, so they are one test: *"this server
+   * appears to have no internet access"* is the right thing to say to somebody
+   * whose machine has no route out, and the worst thing to say to somebody who
+   * deliberately runs everything on their LAN and has one container down.
+   *
+   * **The local half is the one a happy path would never see**, which is why it
+   * is asserted against `online: false` — the server *knows* it is offline and
+   * must still say nothing about it, because a refused connection to
+   * `10.0.0.5` is evidence about `10.0.0.5` and about nothing else.
+   */
+  it('names the internet only for a remote endpoint, and never for a local one', async () => {
+    server.services.updates = { ...server.services.updates, online: false };
+    fetchResult = new TypeError('fetch failed');
+
+    const remote = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'https://api.example.com/v1' },
+    });
+    expect(remote.status).toBe(502);
+    expect(remote.body.error).toBe('offline');
+
+    const local = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'http://10.0.0.5:11434/v1' },
+    });
+    expect(local.status).toBe(502);
+    expect(local.body.error).toBe('unreachable');
+  });
+
+  /**
+   * *Nothing has looked* is not *the internet is down* — the third state
+   * `UpdateStatus.online` carries deliberately. A server in its first minute
+   * has run no check, and inventing a diagnosis there would be this program
+   * having an opinion about somebody's network on no evidence.
+   */
+  it('claims nothing about the internet before a check has run', async () => {
+    fetchResult = new TypeError('fetch failed');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'https://api.example.com/v1' },
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body.error).toBe('unreachable');
+  });
+
+  /**
    * **The literal case the gate names**: an endpoint that *does not implement*
    * `/models` answers 404, not a transport failure. That branch had no test —
    * the three above cover ok-with-good-json, ok-with-a-shape-we-do-not-know,

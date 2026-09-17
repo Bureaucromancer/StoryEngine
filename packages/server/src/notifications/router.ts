@@ -3,6 +3,8 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
+import type { FailureRemedy } from '@storyengine/shared';
+
 import {
   notify,
   type Notification,
@@ -77,6 +79,19 @@ export type Occurrence =
       sessionName: string;
       /** A class, never a provider's words ([21 §1.4]). */
       error: string;
+      /**
+       * ***What a person could do about it*** — [P11.6].
+       *
+       * The class answers *how did the engine treat this*, which is what a bug
+       * report wants; this answers *what do I do now*, which is what the person
+       * reading the toast wants. **They were one field doing both jobs**, and
+       * the body rendered `{error}` — so a turn that could not reach the
+       * internet said *transient* to somebody whose wifi was off.
+       *
+       * Absent when the turn failed before any step did, because there is
+       * nothing to have a remedy for.
+       */
+      remedy?: FailureRemedy;
     }
   | {
       kind: 'artifact.ready';
@@ -189,7 +204,11 @@ function draftFor(occurrence: Occurrence): NotificationDraft | null {
       return {
         account: occurrence.account,
         class: 'turn.failed',
-        params: { sessionName: occurrence.sessionName, error: occurrence.error },
+        params: {
+          sessionName: occurrence.sessionName,
+          error: occurrence.error,
+          ...(occurrence.remedy === undefined ? {} : { remedy: occurrence.remedy }),
+        },
         sessionId: occurrence.sessionId,
         turnId: occurrence.turnId,
         dedupeKey: `turn.failed:${occurrence.sessionId}`,

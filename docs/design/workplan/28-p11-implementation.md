@@ -1507,6 +1507,77 @@ hold* — an install whose connections are all local is legitimate, so the
 assertion is that a local-only install produces **no** warning, which is the
 failure mode §1.6 names and the one a happy-path test would never see.
 
+#### Done — 2026-09-17
+
+**The error messages alone, as [§0.3](#03-re-audited-2026-09-17-at-f0b19ba-after-p10)
+established.** P10 took the check, the badge and the conditionality; the two
+`'unread'` keys left the tier with it, so the *Ends at* clause about them was
+already discharged before this stage opened. What was left is what
+[P10.3](27-p10-implementation.md) named and did not build.
+
+***The defect was worse than the plan's wording implies, and finding that out is
+most of what this stage did.*** §1.6 anticipated *a raw DNS or TLS error*
+reaching a person. What actually reached them was **our own vocabulary**: the
+play surface rendered `The turn failed (transient)`, and the notification body
+was `{sessionName} — {error}` over the same union. *`transient` is a word about
+our retry ladder.* The comment beside that notification template defended it as
+*"the class, not a sentence: `rate-limit` and `no-binding` are words the reader
+can act on"* — **and named a vocabulary that does not exist**;
+{@link StepFailureReason} has never had either word in it. A sentence that
+defends a decision by describing something else is the same failure
+[P11.0](#p110--the-audit-that-makes-the-list) spent its day on, arriving from
+inside the code this time.
+
+And the transcript, which is where a person actually looks, said
+`This turn did not finish.` — a fact with no remedy attached, which is
+[09 §6.5](../09-server-multiuser-deployment.md)'s complaint verbatim.
+
+***`FailureRemedy` is a second axis rather than a replacement.*** The class says
+what the engine did and belongs on the record; the remedy says what a person
+could do and is **derived, never recorded** — two of its three inputs are facts
+about *now*, and a turn record storing last Tuesday's connectivity would be
+claiming it as part of what happened. So a remedy travels on the live event and
+the notification, and [P11.10](#p1110--session-export-and-the-format-it-freezes)'s
+format never sees one.
+
+***It lives in `shared` because it has two callers on opposite sides of the
+wire***, and that is the decision worth recording. The runner derives a remedy
+while the failure is fresh and holds every input; **the transcript derives one
+for a turn that failed last week and holds only the class.** One function
+answering both is what stops the two surfaces describing one failure
+differently — which is the defect this stage set out to fix. The optional
+inputs are how the same function serves a caller that knows less, and every
+absent one degrades towards *saying less* rather than towards guessing:
+`endpoint-silent` exists precisely so a reader cannot round *nothing has looked*
+up to *your internet is down*.
+
+***The order of the questions is the whole of the conditionality.*** A dead
+container on `localhost:11434` and a severed uplink produce the identical
+`ECONNREFUSED`, so locality is asked **before** connectivity — reading them the
+other way round lets one stopped model server report the internet as broken,
+which is not merely wrong but wrong in the direction that sends somebody to look
+at their router. `remedy.test.ts` asserts the local arms **against every value of
+`online`, `false` included**: an install whose endpoints are all on the LAN is
+told nothing about the internet *while this server knows perfectly well that it
+has none*. That is [09 §6.5]'s *"a fully local setup is a legitimate,
+fully-functional deployment and its operator chose it deliberately"* as a test
+rather than as a hope, and it is the assertion a happy path could never make.
+
+**Three surfaces, one vocabulary.** The transcript's failed-turn note, the
+notification body, and — the first-run case §1.6 names — `/connections/models`,
+which grew a third error code beside `unauthorized` and `unreachable` on
+[P2C log](14-p2c-log.md)'s finding 5's own argument: *the two remedies point in
+opposite directions*, and a third that points somewhere else again earns its own
+word. A stored notification written by an older build still gets a sentence,
+derived from its class.
+
+*One thing this stage deliberately did not do*: put `endpoint` and `stalled` on
+the turn record. They are facts about the call rather than about the network, so
+the argument for recording them is real, and it is
+[P11.10](#p1110--session-export-and-the-format-it-freezes)'s to make — that stage
+owns what the record carries when it freezes, and a field added here to improve a
+sentence would be a schema decision taken for a cosmetic reason.
+
 ### P11.7 — Trash retention and restore, and the accessibility audit
 
 [P2 §2.11](08-p2-implementation.md)'s F7 second half — delete already *moves* to
