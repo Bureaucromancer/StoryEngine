@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { TurnRecord } from '../api.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * ***A path through the turn tree, as prose*** —
@@ -102,13 +103,13 @@ export function passages(
  * `InputKind.tsx`'s rule and for its reason: a mode may declare one, and a
  * client that hid it would hide a capability.
  */
-const MOVES: Record<string, string> = {
+const MOVES: Record<string, string> = labels('reading.move', {
   do: 'did',
   say: 'said',
   think: 'thought',
   story: 'wrote',
   choice: 'chose',
-};
+});
 
 /**
  * The line above a player's words — *Vera said*, *You did*, or just *said*.

@@ -6,6 +6,7 @@ import type { JSX, ReactNode } from 'react';
 import type { ObjectVersion } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { Badge } from '../ui/Badge.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * The revision list — **one component, two hosts, different powers**
@@ -28,14 +29,14 @@ import { Badge } from '../ui/Badge.js';
  * this list answers.
  */
 
-const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Record<string, string> = labels('library.revision.source', {
   manual: 'Edited in the app',
   external: 'Hand edit on disk',
   restore: 'Restored',
   assist: 'Assist',
   extension: 'Extension',
   import: 'Import',
-};
+});
 
 export function RevisionList({
   versions,

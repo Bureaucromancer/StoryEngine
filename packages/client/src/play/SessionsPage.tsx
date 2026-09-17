@@ -18,6 +18,7 @@ import { RenameSession } from './RenameSession.js';
 import { SetupFields } from './SetupFields.js';
 import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * The list of sessions, and the control that makes a new one.
@@ -93,10 +94,10 @@ const routeApi = getRouteApi('/play');
  * `displayName` directly, which is the same rule bent one step further; it
  * predates this table.)
  */
-const MODE_PLURALS: Record<string, string> = {
+const MODE_PLURALS: Record<string, string> = labels('play.mode-plural', {
   'storyengine.scene': 'Scenes',
   'storyengine.freeform': 'Freeform',
-};
+});
 
 export function modeLabel(mode: Pick<PublicMode, 'id' | 'displayName'>): string {
   return MODE_PLURALS[mode.id] ?? (mode.displayName === '' ? mode.id : mode.displayName);

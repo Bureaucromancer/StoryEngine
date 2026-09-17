@@ -8,6 +8,7 @@ import type { Rendition, RenditionReport } from '@storyengine/shared';
 import { formatCount } from '../../format.js';
 import { MetadataRow } from '../../ui/MetadataRow.js';
 import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * What this turn asked to have made, and what it was made from —
@@ -91,11 +92,11 @@ export function RenditionList({
  * a newer build can carry a reason this one has never heard of, and the honest
  * rendering of that is the word itself.
  */
-const HELD_WORDS: Record<string, string> = {
+const HELD_WORDS: Record<string, string> = labels('workbench.rendition.held', {
   'place-unchanged': 'Nothing was made: the place had not changed since the last backdrop.',
   'no-moment': 'Nothing was made: this turn held no moment worth a picture.',
   'no-binding': 'Nothing was made: no model is bound to the image role.',
-};
+});
 
 function RenditionRow({
   rendition,
@@ -195,18 +196,18 @@ function RenditionRow({
   );
 }
 
-const PURPOSE_WORDS: Record<string, string> = {
+const PURPOSE_WORDS: Record<string, string> = labels('workbench.rendition.purpose', {
   illustration: 'An illustration',
   background: 'A backdrop',
-};
+});
 
-const STATE_WORDS: Record<string, string> = {
+const STATE_WORDS: Record<string, string> = labels('workbench.rendition.state', {
   pending: 'being made',
   ready: 'made',
   failed: 'did not come out',
-};
+});
 
-const DROP_WORDS: Record<string, string> = {
+const DROP_WORDS: Record<string, string> = labels('workbench.rendition.drop', {
   'over-hard-cap': 'dropped — over the endpoint’s limit',
   'over-useful-cap': 'dropped — past where this endpoint stops reading',
-};
+});

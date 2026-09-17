@@ -13,6 +13,7 @@ import { Button } from '../ui/Button.js';
 import { control } from '../ui/classes.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 import { sentence } from './note-labels.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * The way in — [P4 §1.4](../../../../docs/design/workplan/16-p4-implementation.md)'s review
@@ -46,7 +47,7 @@ import { sentence } from './note-labels.js';
  * blank.
  */
 
-const DISPOSITION_LABELS: Record<string, string> = {
+const DISPOSITION_LABELS: Record<string, string> = labels('import.disposition', {
   converted: 'Imported',
   unchanged: 'Already here',
   credential: 'Credential removed',
@@ -54,10 +55,10 @@ const DISPOSITION_LABELS: Record<string, string> = {
   'by-position': 'Not importable',
   skipped: 'Skipped',
   unrecognised: 'Not recognised',
-};
+});
 
 /** What each class means, in the one place a person can read it. */
-const DISPOSITION_HELP: Record<string, string> = {
+const DISPOSITION_HELP: Record<string, string> = labels('import.disposition.help', {
   converted: 'Now in your library.',
   unchanged: 'Identical to what is already here, so nothing was written.',
   credential: 'A connection or password. Removed and never stored.',
@@ -65,17 +66,17 @@ const DISPOSITION_HELP: Record<string, string> = {
   'by-position': 'There is nothing here for it to become, and there will not be.',
   skipped: 'Deliberately not taken.',
   unrecognised: 'Could not be identified.',
-};
+});
 
 /** What the verdict is called, for somebody who did not write the probe table. */
-const VERDICT_LABELS: Record<string, string> = {
+const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   sillytavern: 'A SillyTavern library. Ready to import.',
   marinara: 'A Marinara data folder. Ready to import.',
   'marinara-archive': 'A Marinara profile archive. Ready to import.',
   'marinara-envelope': 'A Marinara export file. Ready to import.',
   'loose-files':
     'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
-};
+});
 
 export const IMPORT_OPEN_KEY = 'ui.import-open';
 
@@ -646,14 +647,14 @@ function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Ele
 }
 
 /** Why a root was turned away, in words. Open-keyed, like every other map here. */
-const REFUSAL_LABELS: Record<string, string> = {
+const REFUSAL_LABELS: Record<string, string> = labels('import.refusal', {
   'live-install': 'That application was running.',
   'unknown-format': 'Written by a newer version than this understands.',
   'ambiguous-root': 'Looked like two applications at once.',
   'unreadable-root': 'Nothing readable there.',
   'inside-data-root': 'Inside this install’s own data directory.',
   'not-absolute': 'Not a full path.',
-};
+});
 
 /** “4 imported, 2 already here” — the counts that are not zero, in order. */
 function summarise(counts: Record<string, number>): string {

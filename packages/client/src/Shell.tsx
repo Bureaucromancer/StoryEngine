@@ -20,6 +20,7 @@ import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
 import { Dialog } from './ui/Dialog.js';
 import { useTheme } from './ui/useTheme.js';
+import { useLocale } from './i18n/useLocale.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
 import { useToggleChord } from './workbench/useToggleChord.js';
 import { Workbench } from './workbench/Workbench.js';
@@ -33,6 +34,10 @@ export function Shell(): JSX.Element {
   // reaches every other surface — and so signing in applies your theme before
   // you go looking for where to set it.
   useTheme();
+  // The same argument, for the same reason, one field along: the account's
+  // locale decides which catalogue the label tables read through, and the
+  // shell is the only component that is always present and present once.
+  useLocale(account?.locale);
 
   /**
    * ***Mounted once, here, and that is the whole reason it is a shell

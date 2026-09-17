@@ -18,6 +18,8 @@ import { fieldLabel, page } from '../ui/classes.js';
 import { SecretField } from '../ui/SecretField.js';
 import { drawnTile } from '../auth/tile.js';
 
+import { TRANSLATIONS } from '../i18n/locales.js';
+
 /**
  * What a person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
  *
@@ -84,6 +86,26 @@ const LOCALES = [
   ['en-ZW', 'English (Zimbabwe)'],
 ] as const;
 
+/**
+ * ***And the languages there is actually a catalogue for*** — [P11.8].
+ *
+ * The list above says outright that *"the day somebody writes a translation is
+ * the day another language belongs in this list, and not before"*. This is that
+ * day, arriving in the least convincing possible form: the one entry is a
+ * machine's French, and its own label says so in English so that a reader who
+ * cannot yet read the interface can still see the warning.
+ *
+ * **Spread from `TRANSLATIONS` rather than typed out**, which is the same
+ * anti-drift argument `EDITOR_ROUTES` makes in `fields.ts`: a locale offered
+ * here with no catalogue behind it promises a language and delivers English,
+ * and a catalogue with no entry here is a translation nobody can choose. One
+ * source, so neither is possible.
+ */
+const LANGUAGES: readonly (readonly [string, string])[] = [
+  ...LOCALES,
+  ...TRANSLATIONS.map((one) => [one.tag, one.label] as const),
+];
+
 export function UserSettings(): JSX.Element {
   const me = useMe();
   const update = useUpdateMe();
@@ -147,7 +169,7 @@ export function UserSettings(): JSX.Element {
           <SelectField
             label="Language and formats"
             value={localeValue}
-            options={LOCALES}
+            options={LANGUAGES}
             onChange={setLocale}
             hint="Sets how dates and numbers are written, and the language of notifications the server sends while the app is closed."
           />

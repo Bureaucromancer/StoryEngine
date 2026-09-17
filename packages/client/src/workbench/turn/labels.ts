@@ -5,6 +5,8 @@ import type { ModelCall } from '@storyengine/shared';
 
 import type { BadgeTone } from '../../ui/Badge.js';
 
+import { labels } from '../../i18n/catalogue.js';
+
 /**
  * What a call's outcome is called, and what colour that is — extracted at
  * [P3.6] for the same reason `rules.ts` was extracted at [P3.4]: a second
@@ -17,14 +19,17 @@ import type { BadgeTone } from '../../ui/Badge.js';
  * word arriving from disk.
  */
 
-export const OUTCOME_LABELS: Record<ModelCall['outcome'], string> = {
-  ok: 'Answered',
-  refused: 'Refused',
-  truncated: 'Truncated',
-  incomplete: 'Incomplete',
-  error: 'Failed',
-  cancelled: 'Stopped',
-};
+export const OUTCOME_LABELS: Record<ModelCall['outcome'], string> = labels(
+  'workbench.call-outcome',
+  {
+    ok: 'Answered',
+    refused: 'Refused',
+    truncated: 'Truncated',
+    incomplete: 'Incomplete',
+    error: 'Failed',
+    cancelled: 'Stopped',
+  },
+);
 
 export const OUTCOME_TONES: Record<ModelCall['outcome'], BadgeTone> = {
   ok: 'neutral',

@@ -6,19 +6,21 @@ import type { JSX } from 'react';
 import type { LibraryKind } from '../api.js';
 import { Badge } from '../ui/Badge.js';
 
+import { labels } from '../i18n/catalogue.js';
+
 /**
  * Display names for the six kinds, keyed by folder name. Keyed by the *value*,
  * never the other way around — nothing branches on a displayed string
  * ([19 §12.6](../../../../docs/design/19-tech-stack.md)).
  */
-export const KIND_LABELS: Record<LibraryKind, string> = {
+export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
   actors: 'Actors',
   lorebooks: 'Lorebooks',
   treatments: 'Treatments',
   setups: 'Setups',
   presets: 'Presets',
   packages: 'Packages',
-};
+});
 
 /**
  * The user-versus-system badge. The list merges both libraries into one

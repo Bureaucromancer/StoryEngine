@@ -9,6 +9,8 @@ import { usePatchPrefs, usePrefs } from '../queries.js';
 import { headroom } from '../workbench/headroom.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 
+import { labels } from '../i18n/catalogue.js';
+
 /**
  * The context-fill meter — [10 §3]'s **[RESOLVED]** answer, built at [P3.4]:
  * *Play keeps one always-visible signal — a context-fill meter — and clicking
@@ -43,12 +45,12 @@ import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.j
  * against on a mount that finds the preference already set.
  */
 
-const UNMEASURABLE: Record<UnmeasurableReason, string> = {
+const UNMEASURABLE: Record<UnmeasurableReason, string> = labels('play.unmeasurable', {
   'role-unbound': 'nothing is bound to the prose role',
   'role-dangling': 'the prose role points at a connection that is gone',
   'no-prose-step': 'this mode narrates nothing',
   'not-this-turn': 'this turn will not narrate',
-};
+});
 
 /** The name the button carries, which is the whole of what it says. */
 export function meterLabel(

@@ -16,6 +16,8 @@ import { OUTCOME_LABELS, OUTCOME_TONES } from './labels.js';
 import { NotFilledList } from './NotFilledList.js';
 import { rulesOf } from './rules.js';
 
+import { labels } from '../../i18n/catalogue.js';
+
 /**
  * One model call, whole — [10 §3]'s *"one per model call"*, now that the
  * record keeps it that way: the call's own block table and verdict first
@@ -36,11 +38,14 @@ import { rulesOf } from './rules.js';
  *   a baseline.
  */
 
-const PURPOSE_LABELS: Record<NonNullable<ModelCall['purpose']>, string> = {
-  prose: 'Prose',
-  effects: 'Effects',
-  verdict: 'Verdict',
-};
+const PURPOSE_LABELS: Record<NonNullable<ModelCall['purpose']>, string> = labels(
+  'workbench.call-purpose',
+  {
+    prose: 'Prose',
+    effects: 'Effects',
+    verdict: 'Verdict',
+  },
+);
 
 export function CallView({
   call,

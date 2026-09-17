@@ -8,6 +8,7 @@ import type { StepOutcome } from '@storyengine/shared';
 import { formatCount, formatDuration } from '../../format.js';
 import { Badge, type BadgeTone } from '../../ui/Badge.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * The steps, including skipped and failed — [09 §3.3]'s durable half: a
@@ -15,11 +16,11 @@ import { Fine, SubsectionTitle } from '../../ui/Text.js';
  * live one about what happened.
  */
 
-const STATE_LABELS: Record<StepOutcome['state'], string> = {
+const STATE_LABELS: Record<StepOutcome['state'], string> = labels('workbench.step.state', {
   ok: 'Ran',
   skipped: 'Skipped',
   failed: 'Failed',
-};
+});
 
 const STATE_TONES: Record<StepOutcome['state'], BadgeTone> = {
   ok: 'neutral',
@@ -27,11 +28,11 @@ const STATE_TONES: Record<StepOutcome['state'], BadgeTone> = {
   failed: 'danger',
 };
 
-const SKIP_LABELS: Record<string, string> = {
+const SKIP_LABELS: Record<string, string> = labels('workbench.step.skip', {
   cadence: 'not its turn yet',
   stage: 'its stage did not run',
   'not-armed': 'its flag is not armed',
-};
+});
 
 export function StepList({
   steps,

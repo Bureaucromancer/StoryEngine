@@ -1876,6 +1876,98 @@ answer to how anybody knows the sweep is finished*: it is finished when a map
 outside the catalogue fails the build, not when somebody has been through the
 list.
 
+---
+
+#### Done — 2026-09-17
+
+***`labels(namespace, english)` and a Proxy, so no call site changed.*** A table
+declares its English, registers it, and gets back a view that follows the active
+locale — which means `note-labels.ts` keeps its words beside the docstring
+explaining why each note says what it says, and `address.ts` and `prose.ts` keep
+reading tables rather than calling a lookup. The alternative, a `t(ns, key)`
+function, is a mechanical edit in twenty-odd files that also moves every sentence
+away from the code it is about. **The cost is one trap per label read** on tables
+of a dozen entries, which is not a number anybody will measure.
+
+***`i18next` is not here, and the deferral has a measurement behind it rather
+than a preference.*** [19 §12.3](../19-tech-stack.md) recommends it and its own
+deciding factor is that *"i18next runs on the server too"* — push bodies rendered
+with the app closed. **That need is not real in this build**: [P10.2](27-p10-implementation.md)
+renders every notification on the client, from these tables. What it would cost
+was measured one stage ago — [§1.3](#13-the-i18n-sweep-is-extraction-and-only-the-discipline-made-it-mechanical)'s
+280 kB gzip entry and its recommended ceiling — and `react-i18next` with an ICU
+plugin is a fifth of that again, on the common entry, for a feature no shipped
+locale uses. *That is [20 §7](../20-client-loading.md)'s trigger, knowingly.*
+What §12.3 actually buys is ICU plurals, which is real and is not what a
+class-to-word table needs. **So the deferral is a loader, not a format**: §12.2's
+explicit keys are what makes it cheap, because adopting a library later changes
+who reads the JSON and nothing about what is in it.
+
+***The count was thirty-one across twenty-one files and came out at
+thirty-eight across twenty-seven***, and the difference is the finding rather
+than an accounting error. §1.3 counted **open-keyed** maps — `Record<string,
+string>` — and a good half of the tables a person reads are closed:
+`Record<StepOutcome['state'], string>`, `Record<BlockChange, string>`,
+`Record<FailureRemedy, string>`. *A translator cannot tell the two apart and
+neither should the rule*, so the check below is written on what a table **is**
+rather than on how it is typed.
+
+***The instrument found three maps the sweep had already walked past***, which
+is [§10.1](05-manual-testing.md)'s lesson arriving on schedule:
+`REMEDY_SENTENCES` (P11.6's own, written this phase), `KIND_LABELS` and
+`OUTCOME_LABELS` were all missed by a hand-written pass and caught by the first
+run of the check. **That is the whole argument for the proof obligation being a
+scan rather than a list.** It also found `OFF_LABELS` written out twice,
+character for character, in the lorebook view and the lorebook editor — hoisted
+into `library/gate-labels.ts`, because two declarations of one namespace mean one
+translator entry and two English sources, so an English copy-edit in one file
+would leave the other disagreeing with the catalogue *only in English*.
+
+***What the rule deliberately does not reach is written into the check, not left
+to be discovered.*** Three things: prose written inline in JSX, `[value, label]`
+option lists, and a table read at module scope into another `const` — which
+would freeze English before any catalogue loaded, and is the one way to use
+`labels()` wrongly and quietly. The first two are the `<Trans>`-shaped job §12.3
+buys and this stage declined; the third is a hazard with no instance yet, so it
+is a paragraph rather than a check. *The boundary is §1.3's own*: the sweep is
+**moving label maps into a catalogue**, because the discipline that made it cheap
+— the server emits `{ key, params }` and the client holds the words — is a
+discipline about **classes**.
+
+***The test French is `fr-x-machine`, and the private-use subtag is the honest
+part.*** [19 §12.4](../19-tech-stack.md) makes machine translation *the primary
+mechanism rather than a fallback*, so what has to be right on day one is the
+machinery: per-key fallback, layout under longer strings, and a locale a person
+can actually switch to. Offering it as plain `fr` would promise French and
+deliver a machine's — the same refusal `UserSettings.tsx` already makes for an
+untranslated `de-DE`, one step along. **It is deliberately partial and
+deliberately long**: whole namespaces are absent, `play.input-kind`'s hints are
+absent while its labels are present — so a button reads *Parler* and its tooltip
+reads *Speak aloud*, which is §12.1's *per key* on screen rather than only in a
+test — and several entries are padded past what a careful translator would write,
+because a layout that only holds English breaks on the first real locale.
+*Provenance is the whole file rather than the entry*: every string in it is
+machine-made and unreviewed, which one flag says better than four hundred, and
+§12.4's per-entry marker belongs with the **script** that fills gaps against a
+real locale — there is nothing yet for a human to have reviewed.
+
+***`useLocale` is `useTheme`'s shape one indirection deeper***, mounted once in
+the shell for the reason the theme is: a choice made on the settings page reaches
+every surface, and signing in applies it before anybody goes looking for where to
+set it. The catalogue is a dynamic `import()` so a language nobody chose costs
+nothing on the common entry. **No `localStorage` mirror**, unlike the theme — a
+locale arriving one round-trip late shows English for a moment, which is the
+bilingual steady state §12.1 already asks people to live with; a theme arriving
+late shows white to somebody who asked for dark.
+
+*The layout half of Ends at is a person's and is recorded as one*: the app
+rendering in the machine French without breakage is
+[sitting Q](05-manual-testing.md), where the tag manager's three long folder
+labels are the first place to look. `useLocale.test.tsx` carries what a test can
+— an account's locale reaching a chunk, the chunk reaching a module-level table
+imported before any catalogue existed, and a component that knows nothing about
+either re-rendering in French.
+
 ### P11.9 — Release engineering, which is the other half of the bar
 
 [work plan §8](01-work-plan.md) rewritten rather than extended, and then built: CI that

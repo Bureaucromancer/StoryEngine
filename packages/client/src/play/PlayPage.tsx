@@ -61,6 +61,8 @@ import { Fine } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
 
+import { labels } from '../i18n/catalogue.js';
+
 /**
  * How long a pause has to be before the meter asks — [P3.4].
  *
@@ -79,10 +81,10 @@ const PREVIEW_DEBOUNCE_MS = 400;
  * server does not know the reader's language, so what travels is something a
  * client can render.
  */
-const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = {
+const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = labels('play.rendition.held-here', {
   'no-binding': 'Nothing is set up to make pictures yet.',
   'no-moment': 'There was nothing here worth a picture.',
-};
+});
 
 /**
  * The play surface — a deliberately thin chat view

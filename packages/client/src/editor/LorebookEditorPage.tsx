@@ -9,7 +9,6 @@ import {
   entryGate,
   LOREBOOK_SCHEMA,
   resolvedFolderId,
-  type GateReason,
   type Lorebook,
   type LoreEntry,
 } from '@storyengine/shared';
@@ -48,6 +47,8 @@ import {
 import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
+
+import { OFF_LABELS } from '../library/gate-labels.js';
 
 /**
  * The entry editor's minimum —
@@ -490,13 +491,6 @@ function Editor(props: EditorProps): JSX.Element {
     </EditorFrame>
   );
 }
-
-/** §5.3's three ways off, in the design's own words. */
-const OFF_LABELS: Record<GateReason['kind'], string> = {
-  'entry-off': 'off',
-  'folder-off': 'off: its folder is off',
-  'book-off': 'off: the book is off',
-};
 
 /**
  * Why this entry will not fire, if it will not — the **same** `entryGate` the

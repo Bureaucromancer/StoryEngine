@@ -7,6 +7,7 @@ import type { ChannelEffect } from '@storyengine/shared';
 
 import { Badge } from '../../ui/Badge.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * The effects, all three outcomes of [10 §3] now renderable from the
@@ -17,18 +18,21 @@ import { Fine, SubsectionTitle } from '../../ui/Text.js';
  * link the record made rather than an adjacency the view guessed.
  */
 
-const REFUSAL_LABELS: Record<string, string> = {
+const REFUSAL_LABELS: Record<string, string> = labels('workbench.effect.refusal', {
   'engine-computed': 'refused — the engine computes this channel',
   'user-only': 'refused — only a person may change it',
   'unknown-channel': 'refused — no channel by this name',
-};
+});
 
-const PROPOSER_LABELS: Record<ChannelEffect['proposedBy']['kind'], string> = {
-  model: 'proposed by the model',
-  step: 'proposed by a step',
-  user: 'written by you',
-  engine: 'computed by the engine',
-};
+const PROPOSER_LABELS: Record<ChannelEffect['proposedBy']['kind'], string> = labels(
+  'workbench.proposer',
+  {
+    model: 'proposed by the model',
+    step: 'proposed by a step',
+    user: 'written by you',
+    engine: 'computed by the engine',
+  },
+);
 
 export function EffectList({ effects }: { effects: ChannelEffect[] }): JSX.Element {
   return (

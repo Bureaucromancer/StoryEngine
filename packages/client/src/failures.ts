@@ -3,6 +3,8 @@
 
 import type { FailureRemedy } from '@storyengine/shared';
 
+import { labels } from './i18n/catalogue.js';
+
 /**
  * ***What a person is told when a turn could not finish*** —
  * [09 §6.5](../../../docs/design/09-server-multiuser-deployment.md),
@@ -46,7 +48,7 @@ import type { FailureRemedy } from '@storyengine/shared';
  * which the operator of a deliberately local install is sent to look at their
  * router.
  */
-export const REMEDY_SENTENCES: Record<FailureRemedy, string> = {
+export const REMEDY_SENTENCES: Record<FailureRemedy, string> = labels('failure.remedy', {
   'endpoint-silent-local':
     'Nothing answered at the model endpoint on this network. The model server is probably not running.',
   'endpoint-silent-offline':
@@ -61,7 +63,7 @@ export const REMEDY_SENTENCES: Record<FailureRemedy, string> = {
   'endpoint-stalled': 'The model endpoint accepted the request and then went quiet.',
   'not-bound': 'No connection is set up for the model this step needs. Bind one in Settings.',
   engine: 'The server could not finish the turn. Nothing is wrong with your connection.',
-};
+});
 
 /**
  * The sentence for a remedy, or null when there is none to give.

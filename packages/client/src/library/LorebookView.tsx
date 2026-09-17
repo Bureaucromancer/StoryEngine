@@ -12,7 +12,6 @@ import {
   mergeSpans,
   offCount,
   resolvedFolderId,
-  type GateReason,
   type Lorebook,
   type LoreEntry,
   type LoreFolder,
@@ -33,6 +32,8 @@ import type { ObjectImportNotes } from '../api.js';
 import { ImportNotes, notesForEntry } from './ImportNotes.js';
 import { sentence } from './note-labels.js';
 import { entryMatches, highlight, matches, runsFor } from './search.js';
+
+import { OFF_LABELS } from './gate-labels.js';
 
 /**
  * Which folder the list is narrowed to, where the outer `null` is *any folder*
@@ -72,13 +73,6 @@ type FolderChoice = { id: string | null } | null;
 
 /** What the readable unit already shows, so the fold does not repeat it. */
 const SHOWN_ABOVE = new Set(['name', 'content', 'description', 'keys', 'tag']);
-
-/** §5.3's three ways off, in the design's own words. */
-const OFF_LABELS: Record<GateReason['kind'], string> = {
-  'entry-off': 'off',
-  'folder-off': 'off: its folder is off',
-  'book-off': 'off: the book is off',
-};
 
 /**
  * Why this object cannot be read as a book, in one sentence — or null when it

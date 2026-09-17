@@ -1052,6 +1052,30 @@ each other*, so the gate answers *are they kept apart* and is silent on *is it
 pleasant to share*. That second question wants a household and a month, and it is
 [work plan §0.4](01-work-plan.md)'s rather than this file's.
 
+### Q — The machine French — *twenty minutes, and the only thing it needs is eyes*
+
+**The layout half of [P11.8](28-p11-implementation.md)'s *Ends at***, which is
+one sentence — *"the app runs in the test French with no layout breakage"* — and
+is not a thing a test can answer. `useLocale.test.tsx` carries the path (an
+account's locale reaches a chunk, the chunk reaches a module-level table, a
+component re-renders in French) and `catalogue.test.ts` carries the rule (a label
+map outside the catalogue fails the build). *Neither can see a button.*
+
+***Why it is a sitting and not a critical row.*** Nothing here can lose data,
+take a one-way door, or be undone only by a migration — a clipped label is
+ugly and reversible. It belongs on the standing list, and it belongs there
+**now** rather than when a real locale exists, which is the whole argument for a
+deliberately bad French: *the cheapest moment to find out that a layout only
+holds English is while nobody is relying on the alternative.*
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **Q0** | **Switch.** Settings → *You* → **Language and formats** → *Français (machine translation, unreviewed)*. It should apply without a reload. Check the picker itself still reads in English — the label is a warning, and a warning written in the language being warned about is one the reader cannot check. | [P11.8](28-p11-implementation.md) | |
+| **Q1** | ***The bilingual row, which is the point rather than a defect.*** Open a session. The composer's kind buttons read *Faites / Parler / Penser*; **hover one** and the tooltip reads English, because the hints are deliberately untranslated. That is [19 §12.1](../19-tech-stack.md)'s *per key* on screen. **No `[MISSING]`, no placeholder, nothing on the console** — open it and check. | [19 §12.1](../19-tech-stack.md) | |
+| **Q2** | ***The longest strings in the build, which is where it will break if it breaks.*** Open the tag manager and read the three folder labels — *Dossier ouvert — les membres restent également visibles dans la liste* and its siblings. Do they clip, wrap into the control, or push the dialog wider than the viewport on a phone-width window? Then the workbench's step list and call view, whose badges are sized for *Ran* and now hold *En cours d'exécution*. | [10 §1](../10-ui-surfaces.md) | |
+| **Q3** | **Back again.** Choose a regional English. The interface returns to English without a reload. *The failure this catches is the one a person cannot work around from inside the app*: a catalogue that stayed applied after the account changed its mind, with the setting saying otherwise. | [P11.8](28-p11-implementation.md) | |
+| **Q4** | **Write down every clipped or overflowing thing, with the screen it was on.** Each one is a layout bug in **English's** favour and a fix in the component, not in the French — *the French is not going to get shorter, and the next one will be German.* | — | |
+
 ## 5. Already discharged, and by what
 
 Listed so the count is honest. **Nobody walks these.**

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { BlockSource } from '@storyengine/shared';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * A block's source as the panel presents it — a label always, a library
@@ -51,7 +52,7 @@ export interface SourceAddress {
  * this build has never heard of, and the honest label for that is the word
  * itself rather than a crash or a blank.
  */
-const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Record<string, string> = labels('workbench.source', {
   persona: 'Persona',
   actor: 'Actor',
   lore: 'Lore',
@@ -103,7 +104,7 @@ const SOURCE_LABELS: Record<string, string> = {
    * so this line buys the word rather than the survival.
    */
   schema: 'Reply format',
-};
+});
 
 export function blockSourceAddress(source: BlockSource): SourceAddress {
   const label = SOURCE_LABELS[source.kind] ?? source.kind;
