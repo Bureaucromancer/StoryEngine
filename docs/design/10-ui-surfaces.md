@@ -1918,6 +1918,28 @@ book-level differences on import and leave the real answer to the keyword test
 against real text (§3) — a warning that is checkable beats a warning that is
 merely worrying.
 
+**Built at P11** ([P11.2](workplan/28-p11-implementation.md)), and three
+things this section left open were answered by building it.
+
+*The media clause has nothing to carry yet.* "Entry media, in whichever container
+the book itself would use" presumes §11.2b, which is not built, so a selection
+clears the **book's** gallery rather than appearing to select from it: `media` is
+the world's art and `writingSamples` is how the world reads, and neither is a
+fact about twelve entries. `hooks` go the same way for a second reason — nothing
+links a hook to an entry, so *which hooks came with these* has no answer to give.
+
+*The export is built in the page, not fetched from a route.* What is being
+exported is a selection of the **draft**, edits and all; a route would only ever
+see what is on disk, so somebody who fixed a typo and exported would get the typo
+back.
+
+*"The book's history is the record of the import" cost one optional field.*
+`importedFrom` on the library's ordinary write, which makes that save's version
+`{ kind: "import", from }` instead of `manual` — and no second write path, which
+is what this section asks for when it says the merge goes through the same one.
+It is `VersionSource`'s `import` arm's first writer since the type was declared
+at P1.
+
 **Copy and paste is the same path**, and it is the half that makes this routine
 rather than ceremonial. Select entries, copy, paste into another open book; the
 clipboard carries what the export writes, and dragging between two open editors

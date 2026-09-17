@@ -1464,10 +1464,11 @@ work**, and the phase does not close until they have results — which is
 when *beta* may be said.
 
 ***What it does not have is named rather than absorbed***, which is the part of
-this row worth reading twice. ~~Four~~ **Three** things a 1.0 commitment asks for
-are **not built**: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
-[10 §11.2c](../10-ui-surfaces.md)'s entry travel, and the assistant's docs
-lorebook. ~~and the **Playwright journeys the gate's own row 8 assumed and no
+this row worth reading twice. ~~Four~~ ~~**Three**~~ **Two** things a 1.0
+commitment asks for are **not built**:
+[10 §11.2b](../10-ui-surfaces.md)'s image slots and the assistant's docs
+lorebook. ~~[10 §11.2c](../10-ui-surfaces.md)'s entry travel~~ was built on
+2026-09-17, hours after being written down as missing. ~~and the **Playwright journeys the gate's own row 8 assumed and no
 stage was asked to build**~~. ~~Three are features with an argument beside them;
 the fourth is infrastructure.~~ **All three are features with an argument beside
 them**, and they are in [manual testing §10](05-manual-testing.md) with no owner,

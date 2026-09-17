@@ -646,13 +646,24 @@ export const api = {
     request('POST', `/api/library/${kind}`, { object }),
 
   /** The hash rides in the body — the second spelling docs/api.md allows. */
+  /**
+   * `importedFrom` is [10 §11.2c]'s *"the book's history is the record of the
+   * import"* — the file a merge came from, which makes the save's history line
+   * read `import` rather than `manual`. Absent on every other save, which is
+   * every save but one.
+   */
   updateObject: (
     kind: LibraryKind,
     id: string,
     object: Record<string, unknown>,
     contentHash: string,
+    importedFrom?: string,
   ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
-    request('PUT', objectUrl(kind, id), { object, contentHash }),
+    request('PUT', objectUrl(kind, id), {
+      object,
+      contentHash,
+      ...(importedFrom === undefined ? {} : { importedFrom }),
+    }),
 
   /**
    * **Delete, which the server has been able to do since P1 and the client

@@ -121,6 +121,30 @@ const WriteBody = Type.Object(
   {
     object: Type.Optional(Type.Object({}, { additionalProperties: true })),
     contentHash: Type.Optional(Type.String()),
+    /**
+     * ***What came in, and from where*** —
+     * [10 §11.2c](../../../../docs/design/10-ui-surfaces.md), [P11].
+     *
+     * *"The book's history is the record of the import. `LoreEntry` carries no
+     * provenance of its own and should not gain one for this: the merge goes
+     * through the same write path as every other edit, so the book takes a
+     * history entry with `source: "import"` naming what came in and from
+     * where."* This is that field, and it is the whole of what the route needs
+     * to make it true: **one optional string, and an ordinary save otherwise.**
+     *
+     * ***It gives `VersionSource`'s `import` arm its first writer.***
+     * `history.ts` has carried `{ kind: 'import'; from: string }` since P2 with
+     * the note that *"`assist`, `extension` and `import` have no writers until
+     * their phases, but the type is the contract"* — this is that phase for the
+     * third of them.
+     *
+     * **A file name rather than an id**, because the thing being named is a
+     * file somebody chose on their own machine and there is nothing else to
+     * call it. It is the client's word for it and is never resolved against
+     * anything, which is why it is safe to take from a caller: it lands in a
+     * history line as free text, beside `reason`, and nothing branches on it.
+     */
+    importedFrom: Type.Optional(Type.String({ maxLength: 200 })),
   },
   { additionalProperties: true },
 );
@@ -490,6 +514,18 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           .send({ error: 'invalid', message: 'The request body is not an object.' });
       }
 
+      /**
+       * **`import` when the client says so, `manual` otherwise** — the default
+       * is `undefined`, which `update` reads as `MANUAL`, and the kind is the
+       * argument after it. The reason is what the history list shows beside the
+       * line, so it says what happened rather than restating the source name.
+       */
+      const from = (request.body as { importedFrom?: unknown }).importedFrom;
+      const change =
+        typeof from === 'string' && from !== ''
+          ? { source: { kind: 'import' as const, from }, reason: `Imported entries from ${from}` }
+          : undefined;
+
       try {
         const stored = await update(
           services.library,
@@ -497,8 +533,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           (request.params as { id: string }).id,
           object,
           expected,
-          // Default attribution; the kind is the argument after it.
-          undefined,
+          change,
           schemaId,
         );
         return await reply

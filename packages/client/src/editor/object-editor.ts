@@ -133,6 +133,26 @@ export interface ObjectEditor<F> {
   dismissConflict: () => void;
   /** After a restore, so the page can re-seed without knowing how. */
   adopt: (object: Record<string, unknown>, contentHash: string, notice: string) => void;
+  /**
+   * ***The next save is an import, and this is where it came from*** —
+   * [10 §11.2c](../../../../docs/design/10-ui-surfaces.md), [P11].
+   *
+   * *"The book's history is the record of the import … the merge goes through
+   * the same write path as every other edit, so the book takes a history entry
+   * with `source: 'import'` naming what came in and from where."* **Through the
+   * shell rather than around it**, precisely because it is the same write path:
+   * a second save that bypassed this would be a second write path, which is what
+   * §11.2c is ruling out when it says the book's history is the record.
+   *
+   * ***Held until the save, then cleared.*** An import and a save are two
+   * gestures with a person's attention in between — they may fix a name, delete
+   * an entry, change their mind about a folder — so what is saved is *a book
+   * with imported entries in it*, and the import is the reason the save
+   * happened. The clearing matters as much as the setting: the **next** save,
+   * an hour later, is a manual edit, and a `from` left lying about would
+   * silently attribute it to a file somebody imported once.
+   */
+  noteImport: (from: string) => void;
 
   /**
    * ***Per-field generation provenance, the editor's copy*** —
@@ -190,6 +210,14 @@ export function useObjectEditor<F>(
     generatedOf(initial.object),
   );
   const formRef = useRef<HTMLFormElement | null>(null);
+
+  /**
+   * See `noteImport`. A ref rather than state, and the reason is that nothing
+   * renders from it: it is read once, inside `save`, and a `useState` would
+   * re-render every row of a two-hundred-entry list to record a fact no row
+   * shows.
+   */
+  const importedFrom = useRef<string | null>(null);
 
   const saveMutation = useSaveObject();
   const create = useCreateObject();
@@ -274,10 +302,21 @@ export function useObjectEditor<F>(
      * way the argument went rather than the way the older code went.
      */
     const object = withGenerated(descriptor.apply(base.object, form));
+    const from = importedFrom.current;
     saveMutation.mutate(
-      { kind: descriptor.kind, id: base.id, object, contentHash: base.contentHash },
+      {
+        kind: descriptor.kind,
+        id: base.id,
+        object,
+        contentHash: base.contentHash,
+        ...(from === null ? {} : { importedFrom: from }),
+      },
       {
         onSuccess: (result) => {
+          // Cleared **here** and not before the write: a save that failed its
+          // hash check is one somebody will retry, and the retry is still the
+          // import.
+          importedFrom.current = null;
           setBase((previous) => ({
             ...previous,
             object: result.object,
@@ -389,6 +428,9 @@ export function useObjectEditor<F>(
     formRef,
     heading,
     save,
+    noteImport: (from: string) => {
+      importedFrom.current = from;
+    },
     generatedAt: (path) => generated[path] ?? null,
     recordGenerated: (path, record) => {
       setGenerated((was) => ({ ...was, [path]: record }));

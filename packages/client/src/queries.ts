@@ -201,6 +201,8 @@ interface SaveInput {
   id: string;
   object: Record<string, unknown>;
   contentHash: string;
+  /** See `api.updateObject` — [10 §11.2c]'s history line, on the one save that has one. */
+  importedFrom?: string;
 }
 
 export function useSaveObject(): UseMutationResult<
@@ -211,7 +213,7 @@ export function useSaveObject(): UseMutationResult<
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: SaveInput) =>
-      api.updateObject(input.kind, input.id, input.object, input.contentHash),
+      api.updateObject(input.kind, input.id, input.object, input.contentHash, input.importedFrom),
     // The editor's base too — it sits outside the `['library']` prefix by
     // design, so without this the cached entry kept its pre-save contentHash
     // and the *next* visit to the editor raised the conflict dialog against

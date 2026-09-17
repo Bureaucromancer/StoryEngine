@@ -85,6 +85,73 @@ describe('every edit snapshots the state it replaces', () => {
     expect(versions[0]!.source).toEqual({ kind: 'manual' });
   });
 
+  /**
+   * ***`VersionSource`'s `import` arm gets its first writer*** —
+   * [10 §11.2c](../../../../docs/design/10-ui-surfaces.md), [P11].
+   *
+   * `history.ts` has carried `{ kind: 'import'; from: string }` since P1 with
+   * the note that *"`assist`, `extension` and `import` have no writers until
+   * their phases, but the type is the contract"*. §11.2c is `import`'s phase:
+   * *"the merge goes through the same write path as every other edit, so the
+   * book takes a history entry with `source: 'import'` naming what came in and
+   * from where … it makes undoing a bad import one restore rather than twelve
+   * deletions."*
+   *
+   * **The claim is about the write path, not about a second route.** So the
+   * assertion is that the *ordinary* PUT produces an `import` version when the
+   * body says where the entries came from — and a `manual` one when it does
+   * not, which is the test above and every other save in this suite.
+   */
+  it('records an import source, and the file it came from, when the save says so', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: newLorebook('Rain City'),
+    });
+    expect(created.status).toBe(201);
+    const { id, contentHash } = created.body as { id: string; contentHash: string };
+
+    const read = await server.request({ method: 'GET', url: `/api/library/lorebooks/${id}` });
+    const object = (read.body as { object: Record<string, unknown> }).object;
+
+    const saved = await server.request({
+      method: 'PUT',
+      url: `/api/library/lorebooks/${id}`,
+      payload: {
+        object: { ...object, name: 'Rain City', description: 'Twelve entries arrived.' },
+        contentHash,
+        importedFrom: 'a-gift.json',
+      },
+    });
+    expect(saved.status).toBe(200);
+
+    const versions = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/history`,
+    });
+    const rows = (versions.body as { versions: { source: unknown; reason: string }[] }).versions;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.source).toEqual({ kind: 'import', from: 'a-gift.json' });
+    // The reason is what the list shows beside the line, so it says what
+    // happened rather than restating the file name on its own.
+    expect(rows[0]!.reason).toBe('Imported entries from a-gift.json');
+  });
+
+  it('ignores an empty importedFrom rather than recording an import from nowhere', async () => {
+    const created = await createActor();
+    const { object } = await readEnvelope(created.id);
+    object['profile'].sections[0].body = 'Edited.';
+    const saved = await server.request({
+      method: 'PUT',
+      url: `/api/library/actors/${created.id}`,
+      payload: { object, contentHash: created.contentHash, importedFrom: '' },
+    });
+    expect(saved.status).toBe(200);
+
+    const versions = await listHistory(created.id);
+    expect(versions[0]!.source).toEqual({ kind: 'manual' });
+  });
+
   it('serves the snapshotted object, not the live one', async () => {
     const created = await createActor();
     await saveSummary(created.id, created.contentHash, 'Rewritten.');

@@ -28,9 +28,15 @@ document most wants them to arrive at deliberately"* — was answered by buildin
 the thing rather than by arguing about whether beta could be declared without it.
 The suite is `e2e/`, CI runs it as the `journeys` job, and
 [§3.2](#32-what-was-answered--recorded-2026-09-17)'s row 8 carries what walking
-the seven journeys turned up. **The other three stand**, and they are features
+the seven journeys turned up. **The other three stood**, and they are features
 with arguments beside them, which is the shape this paragraph could not claim
 while a fourth thing sat in it with no argument at all.
+
+***Two, since later the same day: [10 §11.2c]'s entry travel is built too.*** Its
+record is [P11.2]'s Done block below. **What remains unbuilt for beta is
+[10 §11.2b]'s image slots and the assistant's docs lorebook**, and the honest
+reason both are still here is that one is a stage of work and the other is a
+corpus somebody has to write — neither is a decision waiting on a reader.
 
 ***What the fleshing out did, in one line: every one of the stages now
 names what it depends on, what it ends at, and the check that says it is done***
@@ -1535,13 +1541,34 @@ here rather than discovered by a reader of the gate:
   assist.** Generating a location image is a rendition… so it arrives with them
   and not before"*, which [P9](26-p9-implementation.md) has now shipped — and
   leaves upload, crop and replace, which is a stage rather than a clause.
-- **[10 §11.2c]'s entry travel.** Exporting a selection of entries and importing
-  entries into an open book. **The reordering half already exists** — a drag with
-  a landing line, a keyboard pair, and a self-scrolling list — so what is missing
-  is *selection* and the two file actions over it. §11.2c is emphatic that the
-  unit matters — *"people do exactly that, which is evidence about the unit
-  rather than about the people"* — so this is a real 1.0 commitment and not a
-  polish item.
+- ~~**[10 §11.2c]'s entry travel.**~~ ***Built 2026-09-17***, after the record
+  named it: selection on the entry list, *Export selected*, *Import entries…*,
+  and the review that goes with a merge. `editor/entry-travel.ts` is the model
+  and `EntryTravel.tsx` the surface. **Three decisions are worth reading before
+  the code**: an entry export **is a lorebook**, so there is no fragment schema
+  and nothing new to version, and the way in is the way in for any book anybody
+  downloaded; the folders above a selection travel and the rest do not, because
+  *"a dozen entries arriving flat at the root have lost"* a shape the author
+  gave; and a merge **adds and never overwrites** — an id that collides takes a
+  fresh one and the collision is *reported*, because *"two books hold entries
+  under the same id precisely because one was copied from the other, which makes
+  id equality a sign of shared ancestry rather than permission to overwrite an
+  edit."*
+
+  ***And it gave `VersionSource`'s `import` arm its first writer.*** §11.2c says
+  the book's own history is the record of the import, *"so the merge goes
+  through the same write path as every other edit"* — which turned out to need
+  exactly one optional field on the library PUT, `importedFrom`, and nothing
+  else. `history.ts` has carried `{ kind: 'import'; from: string }` since P1
+  under the note that *"`assist`, `extension` and `import` have no writers until
+  their phases, but the type is the contract"*; this is that phase for the third
+  of them, and the contract held.
+
+  ***What is deliberately still absent is §11.2c's media clause***, and it is
+  absent because [§11.2b] is: *"entry media, in whichever container the book
+  itself would use"* has nothing to carry until entry media exists, so
+  `selectionAsLorebook` clears the **book's** gallery rather than pretending to
+  select from it, and says why.
 
 **Neither is in *Ends at***, which reads *"every editor offers assist,
 provenance and history, and a collapsed section names what inside it is not at
@@ -2878,6 +2905,13 @@ additions, and all three came from writing the record.
 gaps, and the docs lorebook is [P11.3]'s. *A phase claiming feature completeness
 has to answer for them at C4*, which is why they are here rather than only in
 their stages' Done blocks.
+
+***Entry travel was built on 2026-09-17***, so that list is one shorter — and it
+is the second thing this record named that then got made rather than argued
+about, after row 8. Both took a day; both were being carried because nobody had
+written down that they were missing, which is the case for writing a record at
+all. **Image slots and the docs lorebook stand**, and neither is waiting on a
+decision: one is a stage of work, the other a corpus somebody has to write.
 
 **And row 8 was the one to argue about** — ~~*"whether beta can be declared
 without it is C4's reader's call and not this document's"*~~. Three of the four

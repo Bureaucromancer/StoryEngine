@@ -125,12 +125,16 @@ function makeLibrary() {
         contentHash: hash(),
       });
     },
+    /** What the last save said it was an import of — [10 §11.2c]'s history line. */
+    importedFrom: undefined as string | undefined,
     updateObject(
       _kind: unknown,
       _id: unknown,
       object: Record<string, unknown>,
       contentHash: string,
+      importedFrom?: string,
     ): Promise<{ contentHash: string; object: Record<string, unknown> }> {
+      this.importedFrom = importedFrom;
       if (contentHash !== hash()) {
         return Promise.reject(
           new ApiError(
@@ -174,7 +178,8 @@ vi.mock('../api.js', async (importOriginal) => {
         id: unknown,
         object: Record<string, unknown>,
         contentHash: string,
-      ) => server.updateObject(kind, id, object, contentHash),
+        importedFrom?: string,
+      ) => server.updateObject(kind, id, object, contentHash, importedFrom),
     },
   };
 });
@@ -1265,5 +1270,189 @@ describe('a new lorebook', () => {
     // The factory's shape, not a literal: a book arrives with its entry list
     // and its scan settings, the same as one made with `curl`.
     expect(filed?.object['entries']).toEqual([]);
+  });
+});
+
+/**
+ * ***[10 §11.2c](../../../../docs/design/10-ui-surfaces.md) — entries travel on
+ * their own***, at the surface.
+ *
+ * [entry-travel.test.ts](./entry-travel.test.ts) holds the two questions a
+ * screen cannot answer — which folders come with a selection, and what a merge
+ * does with a collision. **What is here is the three things only the page can
+ * say**: that a selection is something a person can actually make, that what
+ * comes out is a file, and that what goes in reaches disk through *the same
+ * write path as every other edit*, carrying the history line §11.2c asks for.
+ *
+ * *The last of those is the one worth a test rather than a reading.* §11.2c's
+ * *"the book's history is the record of the import"* is a claim about a field
+ * on a save three components away from the file picker, and the failure it
+ * guards against — an import that saves as `manual` — looks exactly like
+ * success on screen.
+ */
+describe('entries travelling on their own', () => {
+  /** jsdom has no object URLs and no real downloads, so both are captured. */
+  function captureDownloads(): { names: string[]; blobs: Blob[] } {
+    const caught: { names: string[]; blobs: Blob[] } = { names: [], blobs: [] };
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob: Blob | MediaSource) => {
+      caught.blobs.push(blob as Blob);
+      return 'blob:fake';
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      caught.names.push(this.download);
+    });
+    return caught;
+  }
+
+  /** The hidden input, which has no accessible name on purpose — see `EntryTravel`. */
+  function filePicker(): HTMLInputElement {
+    const found = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (found === null) throw new Error('no file input rendered');
+    return found;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('exports the entries a person ticked, as a lorebook', async () => {
+    const caught = captureDownloads();
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Harbour' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Export selected' }));
+
+    // The em-dash is not a path character, and what is left of it is one
+    // space rather than two — see `fileNameFor`.
+    expect(caught.names).toEqual(['Ardent entries.json']);
+    const [blob] = caught.blobs;
+    expect(blob).toBeDefined();
+    const written = JSON.parse(await (blob?.text() ?? '{}')) as Lorebook;
+    expect(written.schema).toBe(newLorebook('x').schema);
+    expect(written.entries.map((one) => one.name)).toEqual(['Harbour']);
+    // The folder above it came too — a dozen entries arriving flat at the root
+    // have lost a shape the author gave the book.
+    expect(written.folders.map((one) => one.id)).toEqual(['places']);
+  });
+
+  it('will not export nothing', async () => {
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    expect(screen.getByRole('button', { name: 'Export selected' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+
+  it('merges a file into the open book, reviews it, and saves it as an import', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      scanDepth: 8,
+      entries: [
+        entry('01a008de-7e08-70d0-899c-000000000009', 'Bridge'),
+        entry('01a008de-7e08-70d0-899c-00000000000a', 'The lock keeper'),
+      ],
+    };
+    const file = new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' });
+
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [file] } });
+      // The change handler reads the file, so what `act` has to flush is the
+      // promise chain rather than the event — which is a microtask away and
+      // has to be awaited for `act` to see it.
+      await Promise.resolve();
+    });
+
+    // ***The review, in the list rather than as a modal*** — §5's step scaled
+    // down, and it reports the two things a merge decided on its own.
+    const review = await screen.findByRole('region', { name: 'What arrived' });
+    expect(within(review).getByText(/2 entries added/)).toBeTruthy();
+    // `Bridge` was taken, so the incoming one was renamed rather than merged
+    // into the entry already here.
+    expect(within(review).getByText('Bridge → Bridge (2)')).toBeTruthy();
+    expect(within(review).getByText(/Scan depth: 8 → 2/)).toBeTruthy();
+
+    // Nothing is on disk yet, which is what makes the review fixable.
+    expect(server.stored().entries).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.entries.map((one) => one.name)).toEqual([
+      'Harbour',
+      'Bridge',
+      'Bridge (2)',
+      'The lock keeper',
+    ]);
+    /**
+     * ***The history line***, and the assertion this whole test exists for:
+     * §11.2c says the merge goes through *"the same write path as every other
+     * edit"* and the book takes a version *"naming what came in and from
+     * where"*. An import that saved as `manual` would look identical above.
+     */
+    expect(server.importedFrom).toBe('gift.json');
+  });
+
+  it('says which kind of file it could not read, rather than that it could not', async () => {
+    renderApp();
+    await openEditor();
+
+    const wrong = new File([JSON.stringify({ schema: 'storyengine.actor/1' })], 'vera.json', {
+      type: 'application/json',
+    });
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [wrong] } });
+      await Promise.resolve();
+    });
+
+    // [P11.6]'s rule: *that is the wrong file* and *that file is broken* have
+    // different next steps, so they are different sentences.
+    expect(
+      await screen.findByText(/StoryEngine file of another kind, not a lorebook/),
+    ).toBeTruthy();
+  });
+
+  it('leaves the next save alone — an import is one save, not a mode', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [entry('01a008de-7e08-70d0-899c-00000000000b', 'The lock keeper')],
+    };
+    await act(async () => {
+      fireEvent.change(filePicker(), {
+        target: {
+          files: [new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' })],
+        },
+      });
+      await Promise.resolve();
+    });
+    await screen.findByRole('region', { name: 'What arrived' });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+    expect(server.importedFrom).toBe('gift.json');
+
+    // An ordinary edit, an hour later. A `from` left lying about would
+    // attribute it to a file somebody imported once.
+    await userEvent.click(screen.getByRole('button', { name: 'Harbour' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(server.importedFrom).toBeUndefined();
+    });
   });
 });

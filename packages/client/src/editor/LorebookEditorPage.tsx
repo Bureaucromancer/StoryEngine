@@ -47,6 +47,7 @@ import {
 import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
+import { EntryTravel } from './EntryTravel.js';
 
 import { OFF_LABELS } from '../library/gate-labels.js';
 
@@ -307,6 +308,15 @@ function Editor(props: EditorProps): JSX.Element {
   /** Entry-list state, which is this page's and not the shell's. */
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [folder, setFolder] = useState<FolderChoice>(null);
+  /**
+   * ***The library's bulk selection, one level down*** — [10 §11.2c]. Two pieces
+   * rather than one: *are we selecting* and *what is selected*. A list that
+   * showed a checkbox per row all the time would make every click ambiguous —
+   * the rows are also how an entry is opened — so the mode is explicit, and
+   * leaving it clears the selection rather than leaving one invisibly held.
+   */
+  const [choosing, setChoosing] = useState(false);
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set<string>());
 
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
@@ -411,11 +421,40 @@ function Editor(props: EditorProps): JSX.Element {
           </Button>
         </div>
 
+        {/*
+         * ***Above the list rather than inside it*** — [10 §11.2c]'s controls
+         * act on a selection of rows, so they belong where a selection is made
+         * and not in any one row. Export and import are the same two verbs the
+         * library has (§5) applied one level down, which is the section's own
+         * argument: *the unit an author moves is often smaller than the unit the
+         * library browses*.
+         */}
+        <EntryTravel
+          book={book}
+          chosen={chosen}
+          choosing={choosing}
+          onChoosing={setChoosing}
+          onChoose={setChosen}
+          visibleIds={visible.map((entry) => entry.id)}
+          onMerged={(merged, from) => {
+            edit(merged);
+            editor.noteImport(from);
+          }}
+        />
+
         <EntryList
           book={book}
           entries={visible}
           base={base.object}
           selectedId={search.entry}
+          choosing={choosing}
+          chosen={chosen}
+          onToggle={(id) => {
+            const next = new Set(chosen);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            setChosen(next);
+          }}
           onSelect={select}
           onMove={(id, beforeId) => {
             edit(moveEntryBefore(draft, id, beforeId));
@@ -578,6 +617,10 @@ function EntryList(props: {
   entries: LoreEntry[];
   base: Draft;
   selectedId: string | undefined;
+  /** Whether the list is in [10 §11.2c]'s selection mode — see the `Editor`'s state. */
+  choosing: boolean;
+  chosen: ReadonlySet<string>;
+  onToggle: (id: string) => void;
   onSelect: (id: string) => void;
   onMove: (id: string, beforeId: string | null) => void;
 }): JSX.Element {
@@ -820,6 +863,24 @@ function EntryList(props: {
                     }
                   />
                 )}
+                {/*
+                 * ***A checkbox, and only while selecting.*** A row is how an
+                 * entry is opened, so a permanent checkbox would put two
+                 * meanings on one line and make neither obvious. Labelled with
+                 * the entry's name because *Select* on its own, read out three
+                 * hundred times, is a list of identical controls.
+                 */}
+                {props.choosing ? (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${nameOfEntry(entry)}`}
+                    checked={props.chosen.has(entry.id)}
+                    className="accent-accent"
+                    onChange={() => {
+                      props.onToggle(entry.id);
+                    }}
+                  />
+                ) : null}
                 <button
                   type="button"
                   aria-current={current ? 'true' : undefined}
