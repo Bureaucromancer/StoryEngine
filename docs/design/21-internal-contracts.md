@@ -588,7 +588,8 @@ interface Config {
   server: {
     host: string; port: number; trustProxy: boolean
     cookieSecure: boolean                    // [P6A §1.4]
-    clientRoot: string                       // [P6A §1.3]
+    clientRoot: string
+    mdnsName: string                         // [09 §5.1]                       // [P6A §1.3]
   }
   auth: {
     minPasswordLength: number
@@ -623,6 +624,7 @@ interface Config {
 | `server.trustProxy` | `restart` | `false` | |
 | `server.cookieSecure` | `restart` | `false` | `Secure` on the session and CSRF cookies. Deliberately **not** derived from the bind: [09 §5.1](09-server-multiuser-deployment.md) supports plain HTTP on a trusted LAN, and a `Secure` cookie is not sent back over HTTP — so deriving it would lock that install out silently (F10, [P6A §1.4](workplan/19-p6a-alpha-1.md)) |
 | `server.clientRoot` | `restart` | `""` | Where the built client is, so one process serves the API and the UI on one port ([P6A §1.3](workplan/19-p6a-alpha-1.md)). Empty means serve nothing, which is what development wants — two processes, Vite proxying `/api`. `/api` is never the fallback: an unrouted address there answers JSON |
+| `server.mdnsName` | `restart` | `storyengine` | The `.local` name this install answers to, so nobody types an IP ([09 §5.1](09-server-multiuser-deployment.md)), added at [P10.0](workplan/27-p10-implementation.md). **One key doing two jobs**: the *name*, because two installs in one household collide and the responder probes before it claims — so the second would otherwise go unnamed — and *off*, spelled as the empty string. Advertising is conditional on the bind regardless: §5.1 says *once bound beyond loopback*, and an install only its own machine can reach has nobody to tell |
 | `auth.minPasswordLength` | `live` | `8` | The shortest password accepted when one is *set*: setup, an admin creating an account, either reset, a self-change. Never measured at login, and `--reset-password` honours no minimum at all ([09 §5.1](09-server-multiuser-deployment.md)). `0` means the empty string is a password |
 | `auth.loginScreen` | `live` | `form` | Which of the two front doors an arrival meets ([12 §1.1](12-account-gallery.md)), added at [P10.4](workplan/27-p10-implementation.md). `form` is the handle-and-password box every install has always shown; `gallery` replaces the handle box with a grid of faces. **The install's choice, never the visitor's**, and `form` is the default for the bind address's reason: a gallery discloses who has an account here, so opening it is a decision with a person attached. The union is load-bearing — the admin config form derives a select from it, so the control ships with the key |
 | `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/08-p2-implementation.md)) |

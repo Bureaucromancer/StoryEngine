@@ -7,6 +7,7 @@ import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
+import { advertise } from './mdns/responder.js';
 import { describeUnusableDataDirectory, ensureWritableDirectory } from './storage/files.js';
 import { Layout } from './storage/layout.js';
 
@@ -192,6 +193,38 @@ async function main(): Promise<void> {
     'StoryEngine listening',
   );
 
+  /**
+   * ***`storyengine.local`, once bound beyond loopback*** —
+   * [09 §5.1](../../../docs/design/09-server-multiuser-deployment.md), [P10.0].
+   *
+   * **The bind is the condition, not a setting**: an install only its own
+   * machine can reach has nobody to advertise to, and `localhost` already works
+   * there. `server.mdnsName` says what to call it and `""` says nothing at all.
+   *
+   * **In `main.ts` rather than in `buildServices`**, for the update check's
+   * reason one file over: it needs a logger, and a caller that only wants the
+   * services — a migration, a CLI action, every test harness — has no business
+   * opening a multicast socket.
+   *
+   * ***Not awaited, and that is the point of the probe being cheap.*** It takes
+   * three quarters of a second to claim a name, and a server that listened
+   * three quarters of a second later because of it would have traded the thing
+   * for the convenience.
+   */
+  let mdns: Awaited<ReturnType<typeof advertise>> | null = null;
+  if (!loopback) {
+    void advertise({
+      name: config.server.mdnsName,
+      log: (event, message) => {
+        app.log.info(event, message);
+      },
+    })
+      .then((handle) => {
+        mdns = handle;
+      })
+      .catch(() => undefined);
+  }
+
   // Only when it did something. A restart that interrupted nothing should not
   // print a line about turns — but one that finalised a turn the last process
   // was in the middle of should say so, because the user will see a failed turn
@@ -274,6 +307,14 @@ async function main(): Promise<void> {
 
   async function shutdown(): Promise<void> {
     app.log.info('Shutting down.');
+    /**
+     * ***The goodbye first***, because it is the only thing here that is about
+     * the **network** rather than about this process: a TTL-zero answer tells
+     * the household to forget the name now rather than in two minutes, and
+     * doing it after `app.close()` would spend those two minutes with the port
+     * already shut.
+     */
+    await mdns?.stop();
     await app.close();
     await disposeServices(services);
     process.exit(0);

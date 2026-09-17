@@ -52,6 +52,30 @@ The console is the channel on purpose. Only somebody with host access reads it,
 and that is exactly the audience entitled to claim an unclaimed install
 ([09 §5.1](design/09-server-multiuser-deployment.md)).
 
+## Reaching it by name
+
+Once the server is bound beyond loopback it advertises itself on the local
+network as **`storyengine.local`**, so a household reaches
+`http://storyengine.local:8080` instead of an IP address somebody read out over
+the phone ([09 §5.1](design/09-server-multiuser-deployment.md)). Change the name
+with `server.mdnsName`, or set it to `""` to advertise nothing.
+
+**Two installs on one network need two names** — `attic` and `study`. The server
+checks whether a name is already claimed before it takes one, so the second
+install would otherwise simply go unnamed, and it says so in its log.
+
+Two things that are not faults and are reported as log lines rather than
+failures:
+
+- **macOS and most Linux desktops already run an mDNS daemon** (mDNSResponder,
+  Avahi) which holds the port. Those machines are usually reachable by their own
+  hostname already, which is a better answer than this one.
+- **A container often has no multicast route to the LAN.** Under the default
+  bridge network, `.local` will not reach the rest of the house; `network_mode:
+  host` is what makes it work, at the cost of the port mapping being the host's
+  whole port. That is a trade rather than a fix, and the IP address keeps
+  working either way.
+
 ## The volume
 
 Everything the install is — accounts, library, sessions, `config.json` — is under

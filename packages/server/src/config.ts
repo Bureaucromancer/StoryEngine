@@ -94,6 +94,35 @@ export const ConfigSchema = Type.Object(
        * against the working directory when relative.
        */
       clientRoot: Type.String({ default: '' }),
+      /**
+       * The `.local` name this install answers to —
+       * [09 §5.1](../../../docs/design/09-server-multiuser-deployment.md),
+       * [P10.0].
+       *
+       * ***"So nobody types an IP"*** is the whole of §5.1's ask, and it calls
+       * it *"small feature, large effect on whether non-technical household
+       * members ever use it"*. The label here becomes `<label>.local`.
+       *
+       * ***One key doing two jobs, and both are things a person has an opinion
+       * about.*** **The name**, because two installs in one household collide —
+       * `attic` and `study` is a real answer to a real problem, and the
+       * responder probes before it claims, so the second one would otherwise
+       * simply go unnamed. **And off**, spelled as the empty string, for a
+       * network where it is unwelcome. A separate boolean would be a second
+       * thing to keep in step with a value that already has an obvious
+       * *nothing*.
+       *
+       * ***Advertising is conditional on the bind regardless of this*** — §5.1
+       * says *"once bound beyond loopback"*, and an install only its own machine
+       * can reach has nobody to advertise to. So this is *what to call it*, not
+       * *whether to do it at all*.
+       *
+       * `restart`, because the responder binds a socket at boot and probes for
+       * the name once. A live rename would mean tearing down and re-probing on
+       * a settings save, which is machinery in front of something an operator
+       * does once.
+       */
+      mdnsName: Type.String({ maxLength: 63, default: 'storyengine' }),
     }),
     auth: Type.Object({
       /**
@@ -301,6 +330,7 @@ export const CONFIG_TIERS = {
   'server.trustProxy': 'restart',
   'server.cookieSecure': 'restart',
   'server.clientRoot': 'restart',
+  'server.mdnsName': 'restart',
   'auth.minPasswordLength': 'live',
   /** Read per request in the `/auth/state` handler — [12 §1.1]. */
   'auth.loginScreen': 'live',
@@ -452,7 +482,14 @@ export function applierOf(key: string): LiveApplier | null {
 
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
-  server: { host: '127.0.0.1', port: 8080, trustProxy: false, cookieSecure: false, clientRoot: '' },
+  server: {
+    host: '127.0.0.1',
+    port: 8080,
+    trustProxy: false,
+    cookieSecure: false,
+    clientRoot: '',
+    mdnsName: 'storyengine',
+  },
   auth: { minPasswordLength: 8, loginScreen: 'form' },
   log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },

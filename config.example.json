@@ -81,7 +81,26 @@
     // under /api is still the API: an address there that matches no route
     // answers JSON, never the app shell, because a client parsing JSON is
     // better served by a 404 than by a page.
-    "clientRoot": ""
+    "clientRoot": "",
+
+    // restart — the name this install answers to on the local network, as
+    // <name>.local (docs/design/09-server-multiuser-deployment.md §5.1).
+    //
+    // With the default, a household reaches the server at
+    // http://storyengine.local:8080 instead of typing an IP address somebody
+    // read out over the phone. Two installs on one network need two names —
+    // "attic" and "study" — because the server checks whether the name is
+    // already taken before it claims one, and the second would otherwise simply
+    // go unnamed.
+    //
+    // Set it to "" to advertise nothing. Advertising only happens when
+    // server.host is not loopback in any case: an install only this machine can
+    // reach has nobody to tell.
+    //
+    // On macOS, and on most Linux desktops, a system daemon already holds the
+    // mDNS port. The server says so in its log and carries on; those machines
+    // are usually reachable by their own hostname already.
+    "mdnsName": "storyengine"
   },
 
   "auth": {

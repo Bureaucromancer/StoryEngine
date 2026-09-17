@@ -524,6 +524,52 @@ reading of this phase: the *"two phases wearing one number"* argument was about
 P10.0's deployment work versus everything after it, and P10.0 is no longer the
 half where the risk lives. That paragraph is corrected in place below.
 
+#### Done — 2026-09-17
+
+***A responder rather than a dependency, and the argument is scope rather than
+pride.*** An mDNS library brings service discovery, browsing, TXT and SRV
+records, arbitration across a record set, and a cache. What [09 §5.1] asks for is
+one sentence — *"advertise over mDNS as `storyengine.local` once bound beyond
+loopback, so nobody types an IP"* — which is **one host, one A record, one
+name**, and that is a hundred lines of `DataView` against a format fixed in 1987.
+*The other half of the argument is the supply chain*: [19 §10] makes the
+dependency licence manifest a shipped artefact, and a package that opens a
+multicast socket and parses attacker-shaped bytes off the local network is
+exactly the kind worth not having.
+
+***It probes before it claims, which is what makes it well-behaved rather than
+merely working*** (RFC 6762 §8.1). Two installs in one household both answering
+for `storyengine.local` is a race whose winner nobody can identify. Three
+queries, 250 ms apart; anything that answers means the name is taken, and this
+install advertises nothing and says so with the name it tried. **And it says
+goodbye** — a TTL-zero answer on shutdown, so a restart is a restart rather than
+two minutes of a household reaching a dead address.
+
+***One config key doing two jobs, and both are things a person has an opinion
+about.*** `server.mdnsName` is **the name**, because two installs collide and
+`attic` and `study` is a real answer to a real problem, and **off**, spelled as
+the empty string. *Advertising is conditional on the bind regardless* — §5.1's
+own condition, and the same `isLoopbackHost` the setup token uses, because two
+spellings of *is this exposed* is a security bug rather than an inconsistency.
+
+***Every failure is a log line and a running server.*** macOS runs
+`mDNSResponder` and most Linux desktops run Avahi, both of which hold port 5353;
+a container under the default bridge often has no multicast route to the LAN at
+all. Each of those is *no `.local` name*, none is *no server*, and the first is
+arguably a better outcome than what this would have done — that machine is
+already reachable by its own hostname.
+
+**What this stage cannot end at.** *Ends at* above is *somebody on the LAN
+reaching the install by name rather than by address*, which needs a second
+machine on a real network. The **bytes** that would reach them are asserted
+exactly (`packet.test.ts` is pure: cache-flush bit, unicast bit, compression
+pointers, pointer loops, every malformed shape answering `null`); what is between
+the bytes and the neighbour is a socket, and a socket is a person with two
+machines. **Recorded as owed to the gate rather than claimed**, alongside the
+container first-run question this stage was also asked to settle against a second
+install — which likewise has not happened, and is §3's to carry rather than this
+block's to assert.
+
 ### P10.1 — The notification router
 
 §1.3's server-side routing with a substitutable presence input; §1.4's
