@@ -9,8 +9,10 @@ import { remedyFor, uuidv7 } from '@storyengine/shared';
 import type { StepFailureReason, TextSpan } from '@storyengine/shared';
 
 import {
+  ApiError,
   cancelTurn,
   createBranchRef,
+  impersonateAs,
   moveHead,
   type Abandoned,
   type CastRow,
@@ -698,6 +700,25 @@ export function PlayPage({
             </Button>
           )}
         </div>
+        {/*
+          ***A draft in your own character's voice*** —
+          [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+          [P11.4]. *"Genuinely useful when stuck, when you want the model's read
+          on how your character would answer, or as a drafting aid you then
+          rewrite."*
+
+          **Under the box rather than beside Send**, because it is not the
+          primary action and never should read as one: §3.1's first detail is
+          that this is *"a draft, not a commitment"*, and a control sitting where
+          Send sits invites the press that skips the reading.
+        */}
+        <Impersonate
+          sessionId={sessionId}
+          disabled={running}
+          onDrafted={(text) => {
+            setDraft(text);
+          }}
+        />
         {/* **Below the composer and above the guidance box** — [R11], [P7.9].
             The offers fill the box rather than taking a turn, so they belong
             beside the thing they fill; the toggle rides with them because it is
@@ -1379,4 +1400,67 @@ function StreamStatus({
     );
   }
   return null;
+}
+
+/**
+ * ***The model writes your next message, and you keep authorship*** —
+ * [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md), [P11.4].
+ *
+ * **The text lands in the box and nothing is sent.** §3.1 puts that first and
+ * argues for it rather than merely stating it — *"anything else takes authorship
+ * away rather than assisting it"* — so this is a control that fills a field, and
+ * the person presses Send or does not.
+ *
+ * ***Re-rolling is pressing it again***, which is §3.1's *"re-rollable without
+ * ceremony"* read literally and is what a person dissatisfied with a draft
+ * actually does. It replaces what is in the box, which is the behaviour a second
+ * press means: somebody who wanted to keep the first draft would have edited it.
+ *
+ * *A refusal says which of the four things is wrong*, because they point at four
+ * different places — the mode, the party, or the bindings.
+ */
+function Impersonate(props: {
+  sessionId: string;
+  disabled: boolean;
+  onDrafted: (text: string) => void;
+}): React.JSX.Element {
+  const draft = useMutation({
+    mutationFn: () => impersonateAs(props.sessionId),
+    onSuccess: (answer) => {
+      props.onDrafted(answer.text);
+    },
+  });
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        disabled={props.disabled || draft.isPending}
+        onClick={() => {
+          draft.mutate();
+        }}
+      >
+        {draft.isPending ? 'Drafting…' : 'Draft my next message'}
+      </Button>
+      {draft.isError ? (
+        <span role="alert" className="text-sm text-warn-ink">
+          {impersonateLine(draft.error)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** Whole sentences, one per reason — the catalogue shape [P11.8] will want. */
+function impersonateLine(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : null;
+  if (code === 'not-a-player') {
+    return 'You do not author that character, so there is nothing here to draft for.';
+  }
+  if (code === 'no-prose-step')
+    return 'This mode does not write prose, so there is no voice to borrow.';
+  if (code === 'role-unbound' || code === 'role-dangling') {
+    return 'No connection is set up for the model this needs. Bind one in Settings.';
+  }
+  return 'That draft could not be written. Try again in a moment.';
 }

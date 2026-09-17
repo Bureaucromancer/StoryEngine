@@ -1506,6 +1506,70 @@ ordinary one on the record. *A turn that cannot be rerolled would satisfy the
 first half and miss the point of the feature*, so the reroll is in the
 obligation.
 
+#### Done — 2026-09-17
+
+**The whole feature, because [§0.2](#02-re-audited-2026-09-16-at-2f3f5d9-after-p7b-p8-and-p9)
+established there was no half to inherit** — P7 took none of it and the word
+appeared in no package.
+
+***§3.1's three details are not all satisfiable by one implementation, and the
+tension is the decision this stage makes.*** It says both of these:
+
+- *"It is a draft, not a commitment. The output lands in the input box,
+  editable, and is not sent until the user sends it. **Anything else takes
+  authorship away rather than assisting it.**"*
+- *"It is a `generate` step like any other, so it is **recorded in the turn
+  record** and rewrite/reroll apply."*
+
+**A draft that commits a turn is not a draft.** The first is the one §3.1 argues
+for rather than merely states — *takes authorship away* is the sentence the
+feature is measured against — so nothing is committed, and the second's two
+promises are kept the two ways that remain. *Recorded* is the job log, which
+carries this call the way it carries every other. *Re-rollable without ceremony*
+is pressing the button again, which is the literal reading and what a person
+dissatisfied with a draft actually does.
+
+*The alternative is written into the code so it can be re-argued rather than
+rediscovered*: a turn committed off the path, which would put the draft in the
+workbench with its prompt and its block table. That is a real gain at a permanent
+cost — **every impersonation would leave a sibling in the tree**, visible to
+`readTranscript`'s sibling map as a line the player might have taken and did not.
+A feature for when you are stuck should not make the tree noisier the more you
+use it.
+
+***Built on `preview.ts`'s gather rather than on the runner***, which is
+[P3 §1.6](15-p3-implementation.md)'s seam used for the second time: that file
+exists because *assemble-without-dispatch* is worth having, and this is the same
+seam with a dispatch on the end. The runner commits, advances a head, writes
+segments and announces — every one of which is what a draft must not do. **The
+retriever's effects are discarded**, and it matters more here than in a preview:
+a draft that advanced a lorebook's cooldowns would change the turn the person
+then sends, which is the turn they wanted the draft *for*.
+
+***The proof obligation is the block, not the prose.*** §3's row asks that *"the
+persona's card is present as the thing being written **as**"*, which is a claim
+about the assembled prompt — and it is the half a behavioural test cannot see: a
+call that lost the instruction still returns prose, and the prose is the
+narrator's. So the instruction is a **required** candidate, appended the way
+`schemaInstruction` is appended and for its reasons, and a test holds it to
+naming the character, forbidding narration of anybody else, and explaining itself
+to whoever reads the block table.
+
+**The party line is enforced at the door.** [06 §8] calls the difference between
+a companion and a second player *"the 'we are not building a D&D engine' line"*,
+and `readParty` is reused rather than re-derived — it already knows a session's
+persona is `player` without a channel write, which is the case every ordinary
+session is in. *Naming another member is allowed*, because §8's *"more than one
+member may be `control: 'player'`"* is the same sentence read forwards: a draft
+affordance that could only speak for one of a pair would refuse half its own
+reason to exist.
+
+*One thing the route does differently from its neighbours*: **it is not refused
+while a turn is in flight.** A submission is refused because two turns on one
+session is what [P2 §2.10](08-p2-implementation.md) exists to prevent; a draft
+commits nothing, and the moment somebody most wants one is while they are reading
+what just arrived.
+
 ### P11.5 — Hook tuning, played
 
 §1.7. Not a build stage — a stage whose output is settings, prompt wording and a

@@ -67,6 +67,7 @@ import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
+import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
@@ -318,6 +319,12 @@ const TurnsQuery = Type.Object({
   from: Type.Optional(Type.String({ maxLength: 200 })),
 });
 const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 200 })) });
+/**
+ * Whose next message to draft — [06 §3.1], [P11.4]. Absent is the persona,
+ * which is the case §3.1 describes; naming another member is [06 §8]'s *more
+ * than one member may be `control: 'player'`* followed through.
+ */
+const ImpersonateBody = Type.Object({ actorId: Type.Optional(Type.String({ maxLength: 200 })) });
 
 /**
  * What a `PATCH /sessions/:sessionId` may change — archiving, and the name.
@@ -2157,6 +2164,71 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       );
 
       return reply.send({ preview });
+    },
+  );
+
+  /**
+   * ***A draft of your own next message*** —
+   * [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+   * [P11.4](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **`POST` for a call and `GET` for nothing**, which reads oddly for something
+   * that commits no state and is right: this dispatches a model call, which
+   * costs money and time and must not be replayable by a browser deciding to
+   * prefetch a link.
+   *
+   * ***Not refused while a turn is in flight***, which is the one thing this
+   * route does differently from its neighbours and is deliberate. A submission
+   * is refused mid-turn because two turns on one session is the state [P2 §2.10]
+   * exists to prevent; a draft commits nothing, moves no head and can be thrown
+   * away — and the moment somebody most wants one is while they are reading what
+   * just arrived. *What it shares with them* is the per-session read and the
+   * ownership check, because a draft in somebody else's story is somebody else's
+   * prose.
+   */
+  app.post(
+    '/sessions/:sessionId/impersonate',
+    { schema: { params: SessionParams, body: ImpersonateBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await readMine(services, request, reply);
+      if (!session) return;
+
+      const body = request.body as { actorId?: string };
+      const drafted = await impersonate(
+        {
+          sessions: services.sessions,
+          accounts: services.accounts,
+          providers: services.providers,
+          config: services.config,
+        },
+        {
+          account: account.handle,
+          sessionId: session.id,
+          parentTurnId: session.headTurnId ?? null,
+          ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
+          // A draft nobody is waiting for is a draft nobody wants: the request
+          // going away is the whole of when to stop.
+          signal: AbortSignal.timeout(services.config.limits.providerTimeoutMs),
+        },
+      );
+
+      if (!drafted.ok) {
+        /**
+         * **A class, and the client has the sentences.** The four reasons point
+         * at four different places: a mode with no prose step is a mode that
+         * cannot do this at all, a non-player member is the design's own line
+         * ([06 §8]'s *"the difference between a party member and a second
+         * player"*), and the two role failures are the bindings surface.
+         */
+        return reply.code(drafted.reason === 'not-a-player' ? 409 : 422).send({
+          error: drafted.reason,
+          message: 'That character’s next message could not be drafted.',
+        });
+      }
+      return reply.send({ text: drafted.text });
     },
   );
 

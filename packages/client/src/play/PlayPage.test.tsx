@@ -44,6 +44,7 @@ const undoTurn = vi.fn();
 const createBranchRef = vi.fn();
 const previewTurn = vi.fn();
 const setSessionLore = vi.fn();
+const impersonateAs = vi.fn();
 const readRenditions = vi.fn();
 const listLibrary = vi.fn();
 const patchPrefs = vi.fn();
@@ -80,6 +81,9 @@ vi.mock('../api.js', async (importOriginal) => {
     // Since [P9.4] the page reads the session's pictures, which is one more
     // fetch into jsdom on every test in the file if it is left real.
     readRenditions: (...a: unknown[]) => readRenditions(...a) as unknown,
+    // Since [P11.4] the composer offers a draft of the player's own next
+    // message, which is a model call and must never be a real one here.
+    impersonateAs: (...a: unknown[]) => impersonateAs(...a) as unknown,
     api: {
       ...actual.api,
       listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
@@ -201,6 +205,7 @@ beforeEach(() => {
   setSessionLore.mockResolvedValue({ session: SESSION });
   listLibrary.mockResolvedValue({ objects: [] });
   readRenditions.mockResolvedValue({ renditions: [], selection: {} });
+  impersonateAs.mockResolvedValue({ text: 'I would not go in there.' });
 });
 
 function renderPage() {
@@ -1082,5 +1087,52 @@ describe('siblings and undo', () => {
     await waitFor(() => {
       expect(undoTurn).toHaveBeenCalledWith(SESSION.id, TURN.id);
     });
+  });
+});
+
+/**
+ * ***A draft in your own character's voice*** —
+ * [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md), [P11.4].
+ *
+ * §3.1's first detail is the whole of what a component test can hold: *"the
+ * output lands in the input box, editable, and is not sent until the user sends
+ * it. Anything else takes authorship away rather than assisting it."* So the
+ * assertions are that the words arrive **in the box** and that **nothing was
+ * submitted** — the second being the one a happy-path test forgets, and the one
+ * that would go quiet the day somebody wired the control to `send` for
+ * convenience.
+ */
+describe('drafting your own next message', () => {
+  it('puts the words in the box and sends nothing', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await user.click(screen.getByRole('button', { name: 'Draft my next message' }));
+
+    const box = await screen.findByDisplayValue('I would not go in there.');
+    expect(box).toBeTruthy();
+    expect(submitTurn).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ***Re-rolling is pressing it again*** — §3.1's *"re-rollable without
+   * ceremony"* read literally. The second draft replaces the first, which is
+   * what a second press means: somebody who wanted to keep the first would have
+   * edited it.
+   */
+  it('replaces the draft when asked again', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await user.click(screen.getByRole('button', { name: 'Draft my next message' }));
+    await screen.findByDisplayValue('I would not go in there.');
+
+    impersonateAs.mockResolvedValue({ text: 'Fine. After you.' });
+    await user.click(screen.getByRole('button', { name: 'Draft my next message' }));
+
+    expect(await screen.findByDisplayValue('Fine. After you.')).toBeTruthy();
+    expect(screen.queryByDisplayValue('I would not go in there.')).toBeNull();
   });
 });

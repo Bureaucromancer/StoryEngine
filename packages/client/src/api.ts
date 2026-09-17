@@ -2166,3 +2166,23 @@ export interface SearchResults {
 export function searchEverything(query: string): Promise<SearchResults> {
   return request('GET', `/api/search?q=${encodeURIComponent(query)}`);
 }
+
+/**
+ * ***A draft of your own next message*** —
+ * [06 §3.1](../../../docs/design/06-modes-and-turn-pipeline.md), [P11.4].
+ *
+ * `POST` for something that commits nothing, because it dispatches a model call:
+ * it costs money and time, and must not be replayable by a browser deciding to
+ * prefetch a link.
+ *
+ * *`actorId` is optional and absent means the persona*, which is §3.1's case;
+ * naming another member is [06 §8]'s *"more than one member may be `control:
+ * 'player'`"* followed through.
+ */
+export function impersonateAs(sessionId: string, actorId?: string): Promise<{ text: string }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/impersonate`,
+    actorId === undefined ? {} : { actorId },
+  );
+}
