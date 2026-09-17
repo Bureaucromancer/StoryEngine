@@ -68,6 +68,7 @@ import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js'
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { exportSession } from '../sessions/export.js';
+import { importSession } from '../sessions/import.js';
 import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
@@ -2182,6 +2183,42 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * — and a browser that rendered it as JSON in a tab would have made them
    * copy it out by hand.
    */
+  /**
+   * ***And back in*** — [18 §3](../../../../docs/design/18-session-import.md),
+   * [25 B12](../../../../docs/design/25-open-questions.md),
+   * [P11 §3](../../../../docs/design/workplan/28-p11-implementation.md)'s row 10.
+   *
+   * The gate's row 10 is *"a session exported from this install **loads on
+   * another one**, siblings and all"*, and a format with no reader makes that
+   * sentence unwalkable rather than merely unwalked. This is the reader.
+   *
+   * **A body rather than an upload**, unlike the library's import: a session
+   * export is one JSON document, the client already has it as a file, and a
+   * multipart route would buy the ability to stream a document that is
+   * megabytes at worst. *The size limit is the body parser's, which is the
+   * limit every other route on this server already has.*
+   *
+   * ***It always makes a new session.*** [07 §3] makes a session a tree keyed
+   * by parent, and merging two trees would mean deciding what a turn with an
+   * unknown parent is — a question nobody has asked and whose every answer
+   * loses something.
+   */
+  app.post('/sessions/import', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const result = await importSession(
+      { sessions: services.sessions },
+      account.handle,
+      request.body,
+    );
+    if (!result.ok) {
+      // A class, for the client to word — [21 §1.4], as everywhere else.
+      return reply.code(422).send({ error: result.reason });
+    }
+    return reply.code(201).send(result);
+  });
+
   app.get(
     '/sessions/:sessionId/export',
     { schema: { params: SessionParams } },

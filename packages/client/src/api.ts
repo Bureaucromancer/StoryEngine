@@ -2270,3 +2270,18 @@ export interface AssistFieldResult {
 export function assistField(body: AssistFieldRequest): Promise<AssistFieldResult> {
   return request('POST', '/api/library/assist', body);
 }
+
+/**
+ * ***A session somebody else exported*** — [18 §3], [P11 §3]'s row 10, [P11.10].
+ *
+ * The document goes in a body rather than a multipart upload, unlike the
+ * library's import: a session export is one JSON document the client already
+ * holds as a file, and streaming buys nothing at this size.
+ */
+export function importSessionDocument(document: unknown): Promise<{
+  sessionId: string;
+  turns: number;
+  renditions: number;
+}> {
+  return request('POST', '/api/sessions/import', document);
+}

@@ -14,6 +14,7 @@ import { SelectorBar, selectionHref } from '../ui/SelectorBar.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link, page } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
+import { ImportSession } from './ImportSession.js';
 import { RenameSession } from './RenameSession.js';
 import { SetupFields } from './SetupFields.js';
 import { setupFromForm } from './setup-from-form.js';
@@ -371,6 +372,12 @@ export function SessionsPage(): React.JSX.Element {
             Start
           </Button>
         </div>
+
+        {/* ***Beside Start, because it makes the same thing*** — [P11 §3]'s row
+            10. A session export loads as a new session with every branch, which
+            is a different act from the library's object import and belongs
+            where sessions are made rather than where objects are merged. */}
+        <ImportSession />
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
           <summary className="cursor-pointer text-sm text-ink-subtle">

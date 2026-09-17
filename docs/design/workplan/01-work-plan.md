@@ -1456,6 +1456,24 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
+***Built on branch `p10`, 2026-09-17: thirteen stages, and the critical list is
+unwalked.*** [P11 §3.2](28-p11-implementation.md) is the record and
+[sitting R](05-manual-testing.md) is the list. **Five criticals, two of them desk
+work**, and the phase does not close until they have results — which is
+[manual testing §0](05-manual-testing.md)'s rule and, here, the rule that decides
+when *beta* may be said.
+
+***What it does not have is named rather than absorbed***, which is the part of
+this row worth reading twice. Four things a 1.0 commitment asks for are **not
+built**: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
+[10 §11.2c](../10-ui-surfaces.md)'s entry travel, the assistant's docs lorebook,
+and the **Playwright journeys the gate's own row 8 assumed and no stage was asked
+to build**. Three are features with an argument beside them; the fourth is
+infrastructure. All four are in
+[manual testing §10](05-manual-testing.md) with no owner, because *giving a false
+owner would stop anybody looking* — and the person walking R4 meets them as known
+absences rather than as discoveries.
+
 ~~**Skeleton: [P11](28-p11-implementation.md)**~~ ~~***A register,
 re-audited 2026-09-16 at `2f3f5d9`***~~ ***A register with a costed stage list,
 fleshed out 2026-09-16 at `7c5e0bd`***: [P11](28-p11-implementation.md), whose

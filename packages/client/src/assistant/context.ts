@@ -57,12 +57,12 @@ export function contextFor(pathname: string): AmbientContext | null {
     return { kind: library[1] ?? '', id: library[2] ?? '', where: WHERE.library };
   }
 
-  const reading = /^\/sessions\/([^/]+)\/read/.exec(pathname);
+  const reading = /^\/read\/([^/]+)/.exec(pathname);
   if (reading !== null) {
     return { kind: 'session', id: reading[1] ?? '', where: WHERE.reading };
   }
 
-  const session = /^\/sessions\/([^/]+)/.exec(pathname);
+  const session = /^\/play\/([^/]+)/.exec(pathname);
   if (session !== null) {
     return { kind: 'session', id: session[1] ?? '', where: WHERE.session };
   }

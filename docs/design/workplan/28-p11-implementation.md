@@ -1,10 +1,26 @@
 # 28 — P11 implementation plan
 
-**Status: ~~skeleton~~ ~~a register, re-audited 2026-09-16 at `2f3f5d9`~~ a
-register with a costed stage list, fleshed out 2026-09-16 at `7c5e0bd` — and
-still not a plan, for the reason §0 gives rather than for want of work.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); to be
-revisited before the phase starts.
+**Status: ~~skeleton~~ ~~a register, re-audited 2026-09-16 at `2f3f5d9`~~
+~~a register with a costed stage list, fleshed out 2026-09-16 at `7c5e0bd`~~
+**built on branch `p10`, 2026-09-17 — thirteen stages, and the critical list is
+unwalked.** Drafted 2026-08-29 alongside
+[P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); revisited
+before the phase started, which is the one thing the old status line asked for
+and got.
+
+***The record is [§3.2](#32-what-was-answered--recorded-2026-09-17) and the list
+is [sitting R](05-manual-testing.md)***, five rows of which two are desk work and
+one — R4, the 1.0 corpus read capability by capability — **is the beta claim
+rather than a check on it**. *The thirteen gate rows above §3.2 are not edited*,
+which is [manual testing §0](05-manual-testing.md)'s first honesty condition and
+the whole reason there are two tables.
+
+***Four things a 1.0 commitment asks for are not built, and they are named rather
+than absorbed***: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
+[10 §11.2c](../10-ui-surfaces.md)'s entry travel, the assistant's docs lorebook,
+and **row 8's Playwright suite, which this gate assumed and no stage was asked to
+build**. Three are features with an argument; the fourth is infrastructure, and it
+is the one to argue about.
 
 ***What the fleshing out did, in one line: every one of the stages now
 names what it depends on, what it ends at, and the check that says it is done***
@@ -2449,6 +2465,25 @@ them would be a hundred megabytes of base64 for a feature whose value is the
 story — which is [P9 §1.1]'s *"the recipe travels and the pixels do not"*,
 arriving unchanged at the stage it was written for.
 
+***And the reader arrived with the record, 2026-09-17.*** This stage shipped a
+format and a download, and [§3](#3-verification--the-p11-exit-gate)'s row 10 is
+*"a session exported from this install **loads on another one**"* — which nothing
+could do, because there was no importer and no stage owned one. **A format with no
+reader makes that row unwalkable rather than merely unwalked**, and [25 E4]'s
+whole argument for writing the format *with import in mind* was that the two are
+different documents; `sessions/import.ts` is what makes that claim checkable.
+
+*Three decisions in it are worth having here rather than only in the file.* It
+always makes a **new** session, because merging two trees means deciding what a
+turn with an unknown parent is and every answer loses something. It **keeps the
+turn ids and re-mints the session's**: the turn ids are the tree's own structure
+and re-minting them is a graph rewrite over the one structure this project spends
+the most care on, while a session id is an address on *this* install and two
+sessions sharing one is an immediate confusion. And a turn that already carries
+`foreign` **keeps it**, because the first install it came from is the one that
+matters — a session that had travelled twice and claimed it came from the middle
+would be a provenance record that gets less true the more it is used.
+
 ### P11.11 — Backup and restore
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:
@@ -2739,6 +2774,97 @@ pressing a button. **Either some phase takes the extractor before this gate is
 walked, or row 12's reader records that 1.0 ships manual capture deliberately.**
 What must not happen is row 12 being walked by somebody who does not know the
 question was open.
+
+---
+
+### 3.1 The critical list, and what a test answers
+
+*Planned to [§0](05-manual-testing.md)'s criterion rather than sketched — the
+seventh phase to do so, and the first where clause (ii) has to be re-read
+because there is no phase after this one.*
+
+***Clause (ii) reads differently here, and the re-reading is the criterion's own
+instruction.*** *"Re-read it when each phase opens. If P7 reshapes the mode
+contract far enough, some of what is excluded today as equally cheap later
+becomes more expensive instead."* Clause (ii) privileges what **compounds**, and
+compounding is a claim about later phases — of which there are none. **But this
+gate is also the beta gate**, so the thing it compounds into is not a phase, it
+is a **declaration**: a wrong answer found after somebody has been told this is
+feature complete costs more than the same answer found now, and costs it in the
+currency [releases §0](04-repo-and-releases.md) says beta spends — other people's
+trust, once.
+
+***Five criticals, and two of them are desk work.*** That is unusual and it is a
+property of a phase whose gate is mostly *did the thing get built*: row 1 and row
+13 are answered by reading rather than by playing, and they are on the list
+because **they are what closes the phase** rather than because they are hard.
+
+| Row | Why it is critical | Blocked on |
+|---|---|---|
+| **C1** [§0.1]'s list is empty, item by item, with each named check green — gate row 1 | Clause (i): it is the phase's own claim about its own list, and nothing else in this gate can falsify it. Clause (ii): it is what row 12's reader is entitled to assume. **The `'unread'` tier reaching zero is part of it** | Nothing — a desk and the test output |
+| **C2** A real session reads end to end as prose, prints to a clean PDF, and copies as Markdown that pastes — gate row 2, minus the two hundred turns | Clause (i): [P11.1]'s claim, and the three outputs are three different renderers. Clause (ii): a reading view that loses a swipe or a speaker is a thing people would find after being told the phase shipped. *Two hundred turns is [sitting G](05-manual-testing.md)'s* — a length, which §0 says is not criticality | Nothing — any session with a few branches, a browser |
+| **C3** The assistant answers a question about the user's own library — gate row 4, the half a grep cannot reach | Clause (i): [P11.3]'s claim, and the grep answers *not a second chat* rather than *it works*. Clause (ii): it is the feature whose absent half — the docs lorebook — is most likely to be discovered by somebody else first | **R2**, a live endpoint |
+| **C4** Read the 1.0 design documents and say, capability by capability, whether it exists and works — gate row 12 | Clause (i) in its strongest form: it **is** the beta claim rather than a check on one. Clause (ii): everything | An afternoon, and the corpus |
+| **C5** Row 13's question is answered in writing — gate row 13 | Clause (i): the gate says *what must not happen is row 12 being walked by somebody who does not know the question was open*. **It is answered**: [P11.12] took the extractor, so C5 is recording that rather than deciding it, and [sitting N](05-manual-testing.md) stops being one row | Nothing — and C4 must not run before it |
+
+***What the criterion excludes, and it is most of the gate.*** Rows 5, 6 and 7
+are **breadth, duration and a clock** — §0's *"breadth, duration, platform and
+corpus are not criticality"* — and they go to sittings G, Q and the standing
+list. Rows 3, 8, 10 and 11 are **asserted by name** below. Row 9's container half
+is blocked on a daemon, which clause (iii) makes a deferral rather than a check.
+
+***And one row the criterion cannot rescue.*** Row 8 — *the Playwright journeys
+pass against the fake provider, on CI, on every merge* — **has no suite to run.**
+There are no journeys, there is no harness, and no stage of this phase was asked
+to build one. That is not a walk anybody can do and not a test anybody can name;
+it is a gap, it is [§3.2](#32-what-was-answered--recorded-2026-09-17)'s honest
+entry, and it is recorded here so that C4's reader meets it as a known absence
+rather than as a discovery.
+
+### 3.2 What was answered — recorded 2026-09-17
+
+*The results table [manual testing §0](05-manual-testing.md) asks for, in
+[P10 §3.2](27-p10-implementation.md)'s shape. **The thirteen rows above are not
+edited**; this is the second table, which is that model's first honesty condition
+and the whole reason there are two.*
+
+| Row | Discharged by | Result |
+|---|---|---|
+| **1** [§0.1]'s list, item by item | every stage's own obligation | **C1. Desk work, not yet done.** Each stage's Done block names its check and each check is green; what nobody has done is the item-by-item read across them, which is the row |
+| **2** A two-hundred-turn session reads, prints, copies | `reading/prose.test.ts`, `reading/fence.test.ts`, `ReadingPage.test.tsx`, `library/book-document.ts` | ✅ **in part** — the passage model, the attribution, the Markdown and the print stylesheet, plus the fence that refuses workbench machinery in the reading directory. **C2** is a person's eyes on a real one; two hundred turns is G's |
+| **3** Every editor offers assist, provenance and history | `editor/contract.test.tsx`, `library/entry-defaults.test.ts` | ✅ — over `LIBRARY_KINDS` rather than over the editors somebody remembered, which is the obligation's own wording, plus one round trip driven end to end. The closed-section invariant is `groupSummary`'s and predates this phase |
+| **4** The assistant answers, proposes a diff, and is not a second chat | `tools/repo-shape.test.ts`, `modes/assistant/mode.test.ts`, `assistant/assistant.test.ts` | ✅ **in part** — *not a second chat* is asserted from both sides, the proposal reader and the ambient context are asserted, and **the docs lorebook does not exist**, which is [P11.3]'s recorded gap. **C3** is the half a grep cannot reach |
+| **5** Four pacing levels produce different sessions | `sessions/hooks.test.ts`, both modes' `mode.test.ts` | ✅ **in part** — that each level *has prose*, that the pack ships four, and that the top of the dial carries no compliance language. Whether they **read** differently is [sitting G](05-manual-testing.md)'s, and until [P11.5] there was nothing to read |
+| **6** The app in the test French | `i18n/catalogue.test.ts`, `i18n/useLocale.test.tsx` | ✅ **in part** — the per-key fallback, the orphan check, and an account's locale reaching a module-level table through a lazily-loaded chunk. **Layout is [sitting Q](05-manual-testing.md)'s**, because no test can see a clipped label |
+| **7** Restorable within the window, gone after it | `storage/trash.test.ts`, `settings/Trash.tsx`'s route tests | ✅ **in part** — the suffix reader, the sweep and the restore. *Gone after the window* is a clock, which the standing list holds |
+| **8** Playwright journeys on CI | — | ❌ **Nothing.** No suite, no harness, no stage asked to build one. Named in §3.1 rather than left for row 12's reader to find |
+| **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
+| **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
+| **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it |
+| **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded |
+| **13** The extractor is owned, or 1.0 ships manual capture deliberately | [P11.12](#p1112--the-automatic-extractor) | ✅ — **taken.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took it rather than carrying it a third time, and `repo-shape.test.ts` holds the clause that makes [P8](25-p8-implementation.md)'s C2 answerable |
+
+***Three things this table says that the row list cannot.***
+
+**The phase built more than its stage list named.** [P11.2]'s obligation was a
+loop and the loop found nothing, because the frame was what changed;
+[P11.9]'s asked for five artifacts where the bar is two; and row 10 needed an
+**importer** that no stage owned — the format was written at [P11.10] and
+nothing could read it back, which made *loads on another one* a sentence about a
+capability rather than about this build. All three are corrections rather than
+additions, and all three came from writing the record.
+
+**Two 1.0 commitments are named as unbuilt rather than absorbed.**
+[10 §11.2b]'s image slots and [10 §11.2c]'s entry travel are [P11.2]'s recorded
+gaps, and the docs lorebook is [P11.3]'s. *A phase claiming feature completeness
+has to answer for them at C4*, which is why they are here rather than only in
+their stages' Done blocks.
+
+**And row 8 is the one to argue about.** Three of the four unbuilt things above
+are features with an argument beside them; a browser test suite is
+**infrastructure the gate assumed and no stage was asked for**. Whether beta can
+be declared without it is C4's reader's call and not this document's — but it is
+the question this record most wants them to arrive at deliberately.
 
 ---
 

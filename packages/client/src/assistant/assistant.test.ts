@@ -33,8 +33,8 @@ describe('what the assistant can see', () => {
   });
 
   it('is the session a play or reading address names', () => {
-    expect(contextFor('/sessions/s-1')).toMatchObject({ kind: 'session', id: 's-1' });
-    expect(contextFor('/sessions/s-1/read')).toMatchObject({ kind: 'session', id: 's-1' });
+    expect(contextFor('/play/s-1')).toMatchObject({ kind: 'session', id: 's-1' });
+    expect(contextFor('/read/s-1')).toMatchObject({ kind: 'session', id: 's-1' });
   });
 
   /**

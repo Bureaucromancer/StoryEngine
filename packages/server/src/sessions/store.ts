@@ -114,7 +114,7 @@ export function sessionRoot(layout: Layout, handle: string, sessionId: string): 
   return layout.sessionRoot(handle, sessionId);
 }
 
-function sessionFilePath(layout: Layout, handle: string, sessionId: string): string {
+export function sessionFilePath(layout: Layout, handle: string, sessionId: string): string {
   return resolveWithin(sessionRoot(layout, handle, sessionId), 'session.json');
 }
 
