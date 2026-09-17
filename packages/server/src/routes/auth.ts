@@ -4,7 +4,13 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
-import { AccountError } from '../auth/accounts.js';
+import {
+  AccountError,
+  isListedInGallery,
+  toGalleryEntry,
+  type GalleryEntry,
+} from '../auth/accounts.js';
+import { avatarToken, readAvatar } from '../auth/avatars.js';
 import { refuseShortPassword } from '../auth/password-policy.js';
 import { secretsMatch } from '../auth/secrets.js';
 import {
@@ -17,6 +23,9 @@ import {
   sessionCookieOptions,
 } from '../auth/session.js';
 import type { AppServices } from '../app.js';
+
+/** The handle in a URL is user input, so it is bounded like every other id. */
+const HandleParams = Type.Object({ handle: Type.String({ minLength: 1, maxLength: 63 }) });
 
 /**
  * Login, logout, and first-run setup.
@@ -118,6 +127,22 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
        */
       minPasswordLength: services.config.auth.minPasswordLength,
       /**
+       * **Which of the two front doors this install shows** — [12 §1.2],
+       * [P10.4].
+       *
+       * This route is *"the one place the pre-auth client learns anything"*,
+       * and this is the same kind of fact as `minPasswordLength` above:
+       * configuration a screen needs before anybody types, not a secret. The
+       * handler's own argument carries it — the same response already says
+       * whether this install is unclaimed, *"which is the more sensitive fact by
+       * some distance"*. **Which door is open is a smaller fact than whether the
+       * house has an owner.**
+       *
+       * Read off the live config per request, so flipping it takes effect on
+       * the next arrival with no restart ([12 §1.1]).
+       */
+      loginScreen: services.config.auth.loginScreen,
+      /**
        * **What build this is, so every page can say so** — the footer on every
        * page and the About block at the top of Settings, since alpha.2.
        *
@@ -215,6 +240,86 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
     return await reply.send({ account });
   });
 
+  /**
+   * ***The gallery, and the whole of its scoping is these four lines*** —
+   * [12 §3](../../../../docs/design/12-account-gallery.md),
+   * [12 §6](../../../../docs/design/12-account-gallery.md), [P10.4].
+   *
+   * **It answers only in gallery mode**, which is §3's one-route-family rule
+   * made concrete rather than remembered: *"when `loginScreen` is `form`, the
+   * family answers 404 — a default install's unauthenticated surface is
+   * byte-for-byte what it is today"*, which is the sentence §1.1's default
+   * exists to make true. The gate is a helper both routes call, so a third
+   * member of the family cannot be added without it.
+   *
+   * ***And it does not join the setup gate's allowlist.*** Before first run the
+   * client renders the setup form before it would ever ask for a gallery, and
+   * the pre-setup surface is a claim window ([09 §5.1]) kept deliberately small
+   * — two routes. This declines to widen it.
+   *
+   * **Order is file order**, which is creation order and the convention the
+   * storage model already keeps ([03 §5.5]): deterministic, stable under
+   * display-name changes, and free of collation. *Alphabetical would have to
+   * pick a locale's collation rules for a response addressed to nobody in
+   * particular*, which is a decision this feature has no business making.
+   */
+  app.get('/auth/gallery', async (_request, reply) => {
+    if (!galleryOpen(services)) return await reply.code(404).send(NOT_FOUND);
+
+    const held = await services.accounts.list();
+    const entries: GalleryEntry[] = [];
+    for (const account of held) {
+      if (!isListedInGallery(account)) continue;
+      entries.push(toGalleryEntry(account, await avatarToken(services.layout, account.handle)));
+    }
+    return await reply.send({ accounts: entries });
+  });
+
+  /**
+   * One face, unauthenticated — [12 §5.3].
+   *
+   * ***Nested under the gallery contract so the scoping is structural rather
+   * than remembered***: it answers only in gallery mode, only for accounts the
+   * listing would name, and 404 otherwise. **The second clause is the one worth
+   * having**: without it, `hiddenFromGallery` would hide a tile and still serve
+   * the portrait to anybody who guessed the handle, which is the flag doing
+   * nothing for the only reason somebody sets it.
+   *
+   * **The cache story is the actor avatar's, copied**: `ETag` of the content
+   * hash, cache-busted by the token the listing carries. A changed face is a
+   * changed URL; an unchanged one is a 304.
+   */
+  app.get(
+    '/auth/gallery/:handle/avatar',
+    { schema: { params: HandleParams } },
+    async (request, reply) => {
+      if (!galleryOpen(services)) return await reply.code(404).send(NOT_FOUND);
+
+      const { handle } = request.params as { handle: string };
+      const account = await services.accounts.find(handle);
+      if (account === null || !isListedInGallery(account)) {
+        return await reply.code(404).send(NOT_FOUND);
+      }
+
+      const avatar = await readAvatar(services.layout, handle);
+      // Null is the ordinary case rather than an error: [12 §5.4] says every
+      // account has a face from the day the feature ships because the client
+      // draws one, and an upload is an override.
+      if (avatar === null) return await reply.code(404).send(NOT_FOUND);
+
+      if (request.headers['if-none-match'] === avatar.digest) return await reply.code(304).send();
+
+      return await reply
+        .header('content-type', avatar.mime)
+        .header('etag', avatar.digest)
+        // Revalidate rather than cache blindly: the token in the listing is what
+        // makes a change visible, and a client that composed the URL without it
+        // would otherwise hold a stale face for a year.
+        .header('cache-control', 'no-cache')
+        .send(Buffer.from(avatar.bytes));
+    },
+  );
+
   app.post('/auth/logout', async (_request, reply) => {
     // Clears the cookie. A copy already taken elsewhere stays valid until it
     // expires — the honest cost of stateless sessions, argued in session.ts.
@@ -242,3 +347,22 @@ function localeFrom(header: string | undefined): string | null {
   const first = header.split(',')[0]?.split(';')[0]?.trim();
   return first && first !== '*' ? first : null;
 }
+
+/**
+ * Whether the gallery family answers at all — [12 §3], [12 §6].
+ *
+ * **One helper rather than the check repeated per route**, which is how one of
+ * them ends up without it. Read off the live config, so an admin flipping the
+ * key closes the family on the next request rather than at the next restart.
+ */
+function galleryOpen(services: AppServices): boolean {
+  return services.config.auth.loginScreen === 'gallery';
+}
+
+/**
+ * *The same body for every arm*, deliberately: *not in gallery mode*, *no such
+ * account*, *hidden* and *no uploaded face* are four different facts and one
+ * answer, because distinguishing them to an unauthenticated caller is how a
+ * 404 becomes an oracle for who has an account here.
+ */
+const NOT_FOUND = { error: 'not-found', message: 'No such thing.' } as const;

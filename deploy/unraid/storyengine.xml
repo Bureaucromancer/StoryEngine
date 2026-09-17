@@ -108,4 +108,15 @@
     Display="advanced"
     Required="false"
     Mask="false">0.0.0.0</Config>
+
+  <Config
+    Name="Supervised"
+    Target="SE_SUPERVISED"
+    Default="1"
+    Mode=""
+    Description="Whether something will start this container again if it stops. unraid does, so 1 is correct here — it is what lets the settings page offer Restart now instead of explaining that the server does not restart itself (09 §6.4). Nothing inside a container can detect this for itself, which is why it is a variable rather than a guess. Set it to 0 if you have turned autostart off."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">1</Config>
 </Container>

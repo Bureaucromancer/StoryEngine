@@ -5,6 +5,10 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 
 import { applyLiveConfig, type AppServices } from '../app.js';
+import { readSystemConnections } from '../providers/connections.js';
+import { beginRestart, wouldInterrupt, type RestartRefusal } from '../restart.js';
+import { needsInternet } from '../updates.js';
+import { announceRestartPending } from '../notifications/notices.js';
 import {
   type Config,
   CONFIG_TIERS,
@@ -247,18 +251,56 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
    * running now rather than an accumulated set. It is also why every admin sees
    * the same list — there is one process and one answer, not a per-session note.
    */
-  app.get('/notices', async (_request, reply) => {
+  app.get('/notices', async (request, reply) => {
     return reply.send({
       pendingRestart: pendingRestart(services.bootConfig, services.config),
       /**
-       * **The server does not restart itself**, and the banner says so in one
+       * ~~**The server does not restart itself**, and the banner says so in one
        * sentence rather than listing pending changes and offering nothing.
        * [09 §6.4] is explicit that under no supervisor a restart control leaves
        * the admin with no server and possibly no shell, so it needs supervisor
-       * detection and a drain — neither of which exists. A notice that invites
-       * *"so how do I restart it?"* is a worse answer than one that says.
+       * detection and a drain — neither of which exists.~~
+       *
+       * ***Both exist since [P10.3]***, and the sentence above is why this is a
+       * **condition** rather than a feature flag: what §6.4 forbids is offering
+       * the control where nothing will bring the process back, and that is a
+       * fact about how this process was started ([`supervision.ts`](../supervision.js)).
+       * Where it is false the surface still says *"so how do I restart it?"*,
+       * which was the honest answer before and remains the honest answer for a
+       * bare `node server.js`.
        */
-      canRestart: false,
+      canRestart: services.supervision.supervised && services.exit !== null,
+      /** How the answer above was arrived at, so the surface can say. */
+      supervision: services.supervision.how,
+      /**
+       * What a restart would interrupt — [09 §6.4]'s *"2 other users have
+       * active sessions"*. **Counts, never contents.**
+       */
+      interrupts: wouldInterrupt(services, request.account?.handle ?? ''),
+      /** True while a restart is draining, so the surface stops offering one. */
+      draining: services.draining,
+      /**
+       * ***The update check, and the connectivity signal it pays for*** —
+       * [09 §6.5], [P10.3].
+       *
+       * **Read, never run.** §6.5 is explicit — *daily, cached, never on page
+       * load* — so this reads whatever the timer last wrote. A route that
+       * checked on demand would turn one request a day into one per navigation
+       * from every browser on the install, which is a traffic pattern that looks
+       * like telemetry whatever it carries.
+       *
+       * ***`needsInternet` is the conditionality, and it is the half that stops
+       * this nagging the wrong people.*** A fully local setup — Ollama,
+       * llama.cpp, an LLM box on the LAN — is a legitimate deployment whose
+       * operator chose it: *"telling them their server is broken because it
+       * cannot reach a release feed would be both wrong and irritating."* So the
+       * fact is reported either way and the surface only makes something of it
+       * when generation is going to fail too.
+       */
+      updates: {
+        ...services.updates,
+        needsInternet: needsInternet(await readSystemConnections(services.layout)),
+      },
       /**
        * **What build this is** — [P6A §1.5], and here rather than on a route of
        * its own because this is already the *state of this install* answer the
@@ -277,6 +319,44 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
        */
       build: services.build,
     });
+  });
+
+  /**
+   * *Restart now* — [09 §6.4](../../../../docs/design/09-server-multiuser-deployment.md),
+   * [10 §15.2](../../../../docs/design/10-ui-surfaces.md), [P10.3].
+   *
+   * ***Refused where nothing would bring the process back***, which is the
+   * whole of §6.4's first precondition: *"a bare `node server.js` will simply
+   * exit and the admin who clicked the button now has no server and possibly no
+   * shell."* The surface does not offer the control there either — `canRestart`
+   * above — and this refuses it anyway, because a route that trusts its own form
+   * is a route that form has not met.
+   *
+   * **202, and the response is the last thing this process sends.** The drain
+   * runs behind it and then the process exits; a handler that awaited the drain
+   * would be writing to a socket the exit is about to close. Clients reconnect
+   * on their own ([19 §8]), so what a person sees is the stream's reconnecting
+   * state and then the page coming back.
+   */
+  app.post('/restart', async (request, reply) => {
+    const outcome = beginRestart(services);
+    if (!outcome.ok) {
+      /**
+       * **409 rather than 403**, and the distinction is worth the line: the
+       * caller is permitted — they are an admin, the prefix let them through —
+       * and what is wrong is the **state of the install**. `forbidden` would
+       * send them looking for a permission nobody can grant.
+       */
+      return await reply
+        .code(409)
+        .send({ error: outcome.why, message: refusalMessage(outcome.why) });
+    }
+
+    request.log.warn(
+      { event: 'restart.requested', account: request.account?.handle },
+      'Restart requested from the settings surface; draining',
+    );
+    return await reply.code(202).send({ draining: true });
   });
 
   app.put('/config', { schema: { body: ConfigWrite } }, async (request, reply) => {
@@ -384,9 +464,42 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
     services.configDocument = merged;
     const pending = applyLiveConfig(app, services, next);
 
+    /**
+     * ***`system.notice`'s producer, and it is the one [09 §3.4] was arguing
+     * about*** — [P10.1]. That section's case for a notification table separate
+     * from `event` is that *"several admin warnings are already specified with
+     * nowhere to be delivered"*, and this is the first of them: the keys are
+     * pending until somebody restarts, and the person who saved the setting is
+     * the person who then closes this tab.
+     *
+     * **Awaited rather than detached**, unlike the rendition dispatch: the read
+     * is the accounts file, it is already warm, and a save is not a path where
+     * milliseconds matter. Detaching would trade nothing for an unhandled
+     * rejection nobody would see.
+     */
+    await announceRestartPending({ accounts: services.accounts, notify: services.notify }, pending);
+
     return await reply.send({
       config: services.config,
       pendingRestart: pending,
     });
   });
+}
+
+/**
+ * Why a restart was refused, in words — and **the server's own words, unusually**.
+ *
+ * *[21 §1.4] says a class crosses and a sentence does not*, and the class does
+ * cross: `error` carries it. This is the `message` field, which every refusal in
+ * this API already carries beside the class for a reader who has no catalogue —
+ * and there are exactly three of these, none of which a client can compose
+ * better than the server can, because two of them are facts about how the
+ * process was started.
+ */
+function refusalMessage(why: RestartRefusal): string {
+  if (why === 'unsupervised') {
+    return 'Nothing would start this server again, so it will not stop itself. Restart it however you run it.';
+  }
+  if (why === 'already-restarting') return 'A restart is already under way.';
+  return 'This build cannot restart itself.';
 }

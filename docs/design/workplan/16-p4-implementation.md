@@ -6,7 +6,7 @@ reopened twice.
 
 **Fifteen gate steps and no record of a walk.** Step 1 wants a real imported
 library, which the repository does not have and cannot synthesise: it is
-person-blocked with lead time, and [manual testing §3.4](05-manual-testing.md) is where it
+person-blocked with lead time, and [manual testing §3](05-manual-testing.md) is where it
 waits with [P5 §3](17-p5-implementation.md) step 6, which wants the same
 thing.
 

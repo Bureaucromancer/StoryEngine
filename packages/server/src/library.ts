@@ -8,7 +8,6 @@ import encodeChunks from 'png-chunks-encode';
 
 import {
   ACTOR_SCHEMA,
-  type EmbeddedMedia,
   isKnownSchema,
   type PortableSchemaId,
   schemaIdOf,
@@ -35,6 +34,7 @@ import {
 } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
+import { mediaRowsIn, readAsset } from './library/assets.js';
 import type { BlobStore } from './storage/card/envelope.js';
 import { moveTree, readFileBytes } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';
@@ -1040,10 +1040,14 @@ export async function readMedia(
 ): Promise<{ bytes: Uint8Array; mime: string; digest: string }> {
   const current = read(context, handle, id, inKind);
 
-  const media = (current.body as { media?: unknown } | null)?.media;
-  const entry = Array.isArray(media)
-    ? (media as EmbeddedMedia[]).find((one) => one.id === mediaId)
-    : undefined;
+  /**
+   * ***Every row in the object, not only the top-level array*** — [10 §11.2b]
+   * gives a lorebook a gallery **and** every one of its entries a strip, so a
+   * lookup that read `body.media` alone could serve the book's maps and none of
+   * the pictures beside the entries. `mediaRowsIn` is the same walk the asset
+   * sweep uses, which is what keeps *served* and *kept* from drifting apart.
+   */
+  const entry = mediaRowsIn(current.body).find((one) => one.id === mediaId);
   if (entry === undefined) {
     throw new LibraryError('not-found', 'No such media on that object.');
   }
@@ -1056,7 +1060,26 @@ export async function readMedia(
 
   const codec = codecFor(bytes);
   if (codec === null) {
-    throw new LibraryError('not-found', 'That object is not in a container that carries media.');
+    /**
+     * ***The folder container*** — [03 §5.2.3], [10 §11.2b], built at P11.
+     *
+     * A lorebook is `lorebook.json` in a folder, so `codecFor` finds no magic
+     * number and this arm used to end at *"that object is not in a container
+     * that carries media"* — which made §11.2b's *"the book gets a gallery"*
+     * **unreachable** rather than merely unbuilt, a distinction that only shows
+     * up when somebody tries. [04 §5]'s own note had already said where the
+     * bytes go: *"bulk, in the folder rather than the manifest … a layout that
+     * already listed `lorebooks/<slug>/lorebook.json + assets/`"*.
+     *
+     * `library/assets.ts` is that container's whole implementation, and the
+     * `ref` resolves the same way a blob id does: literally, within the object's
+     * own folder and never out of it.
+     */
+    const beside = await readAsset(context, handle, id, entry.ref, inKind);
+    if (beside === null) {
+      throw new LibraryError('not-found', 'The media is named but its bytes are missing.');
+    }
+    return { bytes: beside, mime: entry.mime, digest: entry.digest };
   }
 
   const blob = codec.read(bytes).blobs.get(entry.ref);

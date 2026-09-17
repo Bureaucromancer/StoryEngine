@@ -4,12 +4,15 @@
 import type { JSX } from 'react';
 
 import { AboutBuild } from '../about/AboutBuild.js';
+import { UpdateBadge } from '../about/UpdateBadge.js';
 import { useAuthState } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { AdminAccounts } from './AdminAccounts.js';
-import { AdminConnections } from './AdminConnections.js';
+import { AdminConnections, MyConnections } from './Connections.js';
 import { AdminInstall } from './AdminInstall.js';
 import { MyRoles } from './MyRoles.js';
+import { NotificationPrefs } from './NotificationPrefs.js';
+import { Trash } from './Trash.js';
 import { Preferences } from './Preferences.js';
 import { UserSettings } from './UserSettings.js';
 
@@ -50,6 +53,13 @@ export function SettingsPage(): JSX.Element {
           is `auth/state`'s rather than the admin route's — so *absent is
           absent* below is untouched by a version on the page. */}
       <AboutBuild build={auth.data?.build} />
+      {/*
+        Beneath the build it is about, and **admin-only** — [09 §6.5]: a regular
+        user cannot fix the server's networking, and a warning they can only be
+        alarmed by is noise. It reads `admin/notices`, so it sits outside the
+        `AboutBuild` block above, which is deliberately everyone's.
+      */}
+      <UpdateBadge isAdmin={account?.role === 'admin'} />
 
       <UserSettings />
 
@@ -63,6 +73,33 @@ export function SettingsPage(): JSX.Element {
       <MyRoles />
 
       <Preferences />
+
+      {/*
+        After Preferences and still in the user half — [10 §15.1] and [09 §3.5],
+        whose *"one row per class in settings"* is what this section is. A fact
+        about one person's ears, so it sits with the theme rather than with the
+        install.
+      */}
+      <NotificationPrefs />
+
+      {/*
+        ***Absent when the capability is off***, which is this page's own
+        mechanism rather than a new one — [10 §15.1], [P10.3]. A person whose
+        `privateConnections` was withdrawn does not get a greyed form whose
+        writes the resolver would ignore, and their browser issues no request to
+        be refused. The route refuses too, for [09 §4.5]'s reason: a UI-level
+        check is a trivial bypass and is never the boundary.
+      */}
+      {account?.capabilities.privateConnections === true ? <MyConnections /> : null}
+
+      {/*
+        ***The drawer delete has been filling since P4.4*** —
+        [03 §10.2](../../../../docs/design/03-data-model.md), [P11.7]. In the
+        user half and for every account, because a person's trash is their own:
+        it holds their sessions and their objects, and an admin reading it would
+        be reading somebody's deleted stories.
+      */}
+      <Trash />
 
       {account?.role === 'admin' ? (
         <section className="flex flex-col gap-8" aria-labelledby="administration">

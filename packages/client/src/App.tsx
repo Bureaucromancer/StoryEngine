@@ -8,6 +8,7 @@ import type { JSX, ReactNode } from 'react';
 import { BuildFooter } from './about/BuildFooter.js';
 import type { BuildInfo } from './api.js';
 import { LoginForm, SetupForm } from './auth/forms.js';
+import { Gallery } from './auth/Gallery.js';
 import { queryClient, useAuthState } from './queries.js';
 import { Button } from './ui/Button.js';
 import { router } from './router.js';
@@ -74,7 +75,17 @@ function Gate(): JSX.Element {
   if (auth.data.account === null) {
     return (
       <Frame build={auth.data.build}>
-        <LoginForm />
+        {/*
+          ***The install's choice, made once by an admin, never the visitor's***
+          — [12 §1.1], [P10.4]. An arrival screen chosen per browser would
+          defeat the point of an install having chosen one at all, which is why
+          this reads the server's answer rather than a preference: there is no
+          session to have preferences in, and the person arriving is nobody yet.
+
+          The gallery falls through to `LoginForm` for *sign in by name*, so the
+          form is the floor under both doors rather than the other branch.
+        */}
+        {auth.data.loginScreen === 'gallery' ? <Gallery /> : <LoginForm />}
       </Frame>
     );
   }

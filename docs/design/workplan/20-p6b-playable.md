@@ -459,7 +459,7 @@ from the stage records that four fifths of P2C never ran.
 mid-walk.** Steps 6, 8, 11 and 12 are amended. Step 6 is **person-blocked** and
 that is its outcome — the book is supplied by the walker or the step is
 deferred, and it is counted with [P4 §3](16-p4-implementation.md) step 1 at
-[manual testing §3.4](05-manual-testing.md), which wants the same book. Step 11's
+[manual testing §3](05-manual-testing.md), which wants the same book. Step 11's
 reproduction half is **P6's** and there is no replay entry point to look for.
 Step 12 is **P7's**: [work plan §0.3](01-work-plan.md)'s row moved,
 [P5 §1.4](17-p5-implementation.md) is corrected, and

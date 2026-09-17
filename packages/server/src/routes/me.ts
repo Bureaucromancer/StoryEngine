@@ -7,7 +7,9 @@ import type { FastifyInstance } from 'fastify';
 import { requireAccount } from '../app.js';
 import type { AppServices } from '../app.js';
 import { refuseShortPassword } from '../auth/password-policy.js';
+import { deleteAvatar, writeAvatar } from '../auth/avatars.js';
 import { PrefsError } from '../auth/prefs.js';
+import { readOnePart } from './import.js';
 import {
   pickBindings,
   readSystemBindings,
@@ -16,6 +18,7 @@ import {
 } from '../providers/bindings.js';
 import { presentConnection, resolveConnections } from '../providers/connections.js';
 import { presentRoleRow, roleTable } from '../providers/roles.js';
+import { listTrash, restoreFromTrash } from '../storage/trash.js';
 
 /**
  * What a signed-in person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -56,6 +59,15 @@ const ProfilePatch = Type.Object(
   {
     displayName: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     locale: Type.Optional(Type.Union([Type.String({ maxLength: 35 }), Type.Null()])),
+    /**
+     * *Shown on the sign-in screen* — [12 §4], [10 §15.1], [P10.4].
+     *
+     * ***In the *You* form and not in Preferences***, which is the same line
+     * `ui.theme` is on the other side of: what only your own browser reads is a
+     * preference, and what **other people and the server** read is an account
+     * field. A gallery is built by the server for a reader who is nobody yet.
+     */
+    hiddenFromGallery: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -82,6 +94,8 @@ const PasswordChange = Type.Object(
  * comment explaining that they are bounds and not validation lives too.
  */
 const PrefsPatch = Type.Object({}, { additionalProperties: true });
+/** `kind/slug-uuid`, bounded so a malformed one is refused by the validator. */
+const TrashAddress = Type.Object({ id: Type.String({ minLength: 3, maxLength: 300 }) });
 
 /**
  * A binding is a connection and one of its models — [19 §5.1], and **nothing
@@ -136,7 +150,11 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const body = request.body as { displayName?: string; locale?: string | null };
+    const body = request.body as {
+      displayName?: string;
+      locale?: string | null;
+      hiddenFromGallery?: boolean;
+    };
     const updated = await services.accounts.updateSelf(account.handle, body);
     return reply.send({ account: updated });
   });
@@ -196,6 +214,134 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
      */
     await services.accounts.changePassword(account.handle, body.newPassword);
     return reply.code(204).send();
+  });
+
+  /**
+   * Your face — [12 §5.2](../../../../docs/design/12-account-gallery.md), [P10.4].
+   *
+   * ***Self-service only, and that is the line rather than an omission.*** *"The
+   * face is the account holder's to set, the way the display name is; admins get
+   * the hide flag, not somebody else's portrait."* There is no
+   * `PUT /api/admin/accounts/:handle/avatar` and there should not be.
+   *
+   * **Three obligations, and two of them are `readOnePart`'s**: bound the size
+   * by `limits.maxUploadMb` — 413 with the number in it — and take the bytes as
+   * received. The third is this route's own: ***sniff the bytes, never trust the
+   * extension*** ([10 §4.4]), because a route that believed a filename would
+   * store an HTML document as `avatar.png` and serve it back with a content type
+   * somebody else chose.
+   *
+   * ***And a fixed cap below the config's***, which [12 §5.2] asks for in as
+   * many words: *"plus a fixed sanity cap in the handler, because an avatar that
+   * large is a mistake whatever the config says. No new config key: nobody tunes
+   * avatar sizes, and not everything is a setting."* `maxUploadMb` defaults to
+   * 64 and exists for a library import; a 64 MB portrait is a misdirected file.
+   */
+  app.post('/me/avatar', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const part = await readOnePart(request, reply, services);
+    if (part === null) return;
+
+    const stored = await writeAvatar(services.layout, account.handle, part.bytes, {
+      maxBytes: Math.min(services.config.limits.maxUploadMb * MEGABYTE, AVATAR_CAP_BYTES),
+    });
+
+    if ('refused' in stored) {
+      return stored.refused === 'too-large'
+        ? await reply.code(413).send({
+            error: 'too-large',
+            message: `An avatar has to be under ${String(AVATAR_CAP_MB)} MB.`,
+          })
+        : await reply.code(415).send({
+            error: 'not-an-image',
+            message: 'That is not a PNG, JPEG or WebP image.',
+          });
+    }
+
+    // The token, so a client can compose the URL it will now be served from —
+    // which is how the cache-busting in [12 §5.3] reaches the browser.
+    return await reply.send({ avatar: stored.digest });
+  });
+
+  /** Removing it goes back to the drawn tile, which every account always has. */
+  app.delete('/me/avatar', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    await deleteAvatar(services.layout, account.handle);
+    return await reply.code(204).send();
+  });
+
+  /**
+   * ***What is in your trash, and how long it has*** —
+   * [03 §10.2](../../../../docs/design/03-data-model.md),
+   * [P11.7](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **Under `/me` rather than `/library`**, because the trash holds sessions as
+   * well as library objects — [03 §10.3] puts `trash/sessions/` beside the
+   * kinds — and a route under `/library` would have had to answer about
+   * something that is not a library object, which is how a surface acquires a
+   * special case it never sheds.
+   *
+   * *Per account and never cross-account*: the trash is inside the user's own
+   * root, so this route cannot answer about anybody else's without being asked
+   * to, and it is not.
+   */
+  app.get('/me/trash', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const entries = await listTrash(
+      services.layout,
+      account.handle,
+      services.config.trash.retentionDays,
+    );
+    return reply.send({ entries, retentionDays: services.config.trash.retentionDays });
+  });
+
+  /**
+   * ***Put it back*** — [03 §10.2]'s other half, and the reason delete is a
+   * move at all.
+   *
+   * **`POST` with the address in the body**, because a trash id is
+   * `kind/slug-uuid` and a path segment carrying a slash is a fight with every
+   * router and proxy between here and the browser for no gain.
+   */
+  app.post('/me/trash/restore', { schema: { body: TrashAddress } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const { id } = request.body as { id: string };
+    let restored;
+    try {
+      restored = await restoreFromTrash(services.layout, account.handle, id);
+    } catch {
+      // `splitTrashId` throws for an address that is not one, which is a
+      // malformed request rather than a server fault.
+      return reply
+        .code(400)
+        .send({ error: 'invalid', message: 'That is not an address in the trash.' });
+    }
+
+    if (!restored.ok) {
+      return reply.code(restored.reason === 'not-found' ? 404 : 409).send({
+        error: restored.reason,
+        message:
+          restored.reason === 'not-found'
+            ? 'That is no longer in the trash.'
+            : 'Something with that name is already there.',
+      });
+    }
+    /**
+     * ***The index catches up by itself, and this says why nothing is done
+     * here.*** A restore is a move into the library tree, which the watcher
+     * sees; an install with the watcher off gets it at the next rebuild. Making
+     * this route ingest the folder would be a second producer for the one thing
+     * [P1]'s gate holds to a single answer.
+     */
+    return reply.send({ restored: true });
   });
 
   app.get('/me/prefs', async (request, reply) => {
@@ -337,3 +483,17 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     return reply.send(await userBindingsState(services.layout, account.handle));
   });
 }
+
+/** A megabyte, so the arithmetic above says what it means. */
+const MEGABYTE = 1024 * 1024;
+
+/**
+ * The fixed cap [12 §5.2] asks for, above whatever `maxUploadMb` says.
+ *
+ * **Two megabytes**, because a portrait rendered at a few hundred pixels is
+ * tens of kilobytes and anything past this is a photograph somebody dropped on
+ * the wrong control. *Not a config key*: nobody tunes avatar sizes, and
+ * [work plan §2.3]'s standing line is that not everything is a setting.
+ */
+const AVATAR_CAP_MB = 2;
+const AVATAR_CAP_BYTES = AVATAR_CAP_MB * MEGABYTE;

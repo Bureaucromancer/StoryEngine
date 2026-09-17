@@ -10,6 +10,7 @@ import { RevisionList } from '../../library/RevisionList.js';
 import { MetadataRow } from '../../ui/MetadataRow.js';
 import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
 import { IndexRowTable } from './IndexRowTable.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * The library subject, rendered — [10 §3]'s *raw truth of that object*: the
@@ -32,13 +33,13 @@ import { IndexRowTable } from './IndexRowTable.js';
  * empty* are different claims everywhere in this codebase.
  */
 
-const PROVENANCE_LABELS: Record<string, string> = {
+const PROVENANCE_LABELS: Record<string, string> = labels('workbench.provenance', {
   manual: 'Made in the app',
   import: 'Imported',
   generated: 'Generated',
   package: 'From a package',
   session: 'From a session',
-};
+});
 
 interface ProvenanceView {
   source: string | null;

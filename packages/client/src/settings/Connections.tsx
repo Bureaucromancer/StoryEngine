@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 
 import {
   ApiError,
@@ -22,6 +22,7 @@ import {
   useSaveConnection,
   useWriteBindings,
   useWriteDefaultBindings,
+  type ConnectionScope,
 } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
@@ -40,14 +41,22 @@ import { Dialog } from '../ui/Dialog.js';
  *
  * ## The scope line, once
  *
- * **The system scope and only the system scope** ([P2B §2.7]). A user's own
+ * ~~**The system scope and only the system scope** ([P2B §2.7]). A user's own
  * `connections/` and `bindings.json` are read by the resolver, counted by the
  * delete warning, hand-written by anyone who wants one, and reachable from
  * nothing here. [10 §15.1]'s *your connections* bullet waits for the phase that
- * builds the user half — the role table below is the same component with its
- * personal column not yet populated, which is
- * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md)'s minimal demonstration rather
- * than a placeholder.
+ * builds the user half~~ — **the user half arrived at [P10.3]**, 2026-09-16, and
+ * this file was renamed from `AdminConnections.tsx` to say so. The role table
+ * below is unchanged; its personal counterpart is `MyRoles`, which arrived
+ * separately at [P7.3] and is a second table rather than a second column.
+ *
+ * ***Two panels over one form, which is the server's own arrangement***
+ * (`routes/connections.ts` grew a second registrar in the same file on the same
+ * day, for the same reason). What the two scopes share is a **record shape, a
+ * stale check and an error vocabulary**, so the failure worth designing against
+ * was never a second copy of the form — it was one surface quietly reading the
+ * other's directory. {@link ConnectionsPanel} takes the scope as a parameter, so
+ * it appears at every call site and in every cache key.
  *
  * ## What it inherits rather than builds
  *
@@ -74,15 +83,7 @@ import { Dialog } from '../ui/Dialog.js';
 const PROVIDERS = [['openai-compatible', 'OpenAI-compatible']] as const;
 
 export function AdminConnections(): JSX.Element {
-  const connections = useConnections();
   const bindings = useBindings();
-  const [editing, setEditing] = useState<AdminConnection | 'new' | null>(null);
-  const [confirming, setConfirming] = useState<AdminConnection | null>(null);
-
-  if (connections.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
-  if (connections.isError) return <p role="alert">The connections could not be read.</p>;
-
-  const rows = connections.data.connections;
   /**
    * **Nothing bound yet** is the state P2B.4's offer exists for, and it is a
    * property of the bindings file rather than of the connection just saved —
@@ -93,21 +94,93 @@ export function AdminConnections(): JSX.Element {
   const unbound = bindings.data !== undefined && Object.keys(bindings.data.bindings).length === 0;
 
   return (
-    <section className="flex flex-col gap-6" aria-labelledby="connections">
+    <ConnectionsPanel
+      scope="system"
+      headingId="connections"
+      heading="Connections"
+      blurb="Shared by everybody on this install. Keys stay on the server and are never sent back to a browser."
+      empty="There are no connections yet, so nobody can send a message."
+      offerDefaults={unbound}
+    >
+      <RoleTable />
+    </ConnectionsPanel>
+  );
+}
+
+/**
+ * ***Your* connections** — [10 §15.1](../../../../docs/design/10-ui-surfaces.md),
+ * [19 §5.1](../../../../docs/design/19-tech-stack.md), [P10.3].
+ *
+ * [19 §5.1]'s sentence is the whole of it: *"anyone who wants their own key
+ * overrides a role without the admin's involvement"*. The reader for this
+ * directory has existed since P2A and the writer did not, deliberately — a
+ * personal surface predating the `privateConnections` check would have been
+ * [09 §4.5]'s *"trivial bypass, wearing a UI"*.
+ *
+ * **No first-run offer and no role table.** The offer is about an install with
+ * nothing bound, which is an admin's problem; the personal role table is
+ * `MyRoles`, above on the same page, and duplicating it under a second heading
+ * would ask somebody to reconcile two renderings of one resolution.
+ */
+export function MyConnections(): JSX.Element {
+  return (
+    <ConnectionsPanel
+      scope="mine"
+      headingId="my-connections"
+      heading="Your connections"
+      blurb="Only yours, and used ahead of the install's when a role can resolve to one. The key stays on the server and is never sent back to a browser."
+      empty="You have none, so your turns use whatever the install provides."
+      offerDefaults={false}
+    />
+  );
+}
+
+/**
+ * The list, the form and the remove dialog — one component, two directories.
+ *
+ * ***The scope reaches the server as a different address and reaches this
+ * component as a prop***, and nothing between them decides anything: the rows
+ * come from whichever list the scope names, and `shadowed` is computed by the
+ * server from the array it presented. A panel that worked out precedence itself
+ * would be a second implementation of `resolveConnections`' order.
+ */
+function ConnectionsPanel({
+  scope,
+  headingId,
+  heading,
+  blurb,
+  empty,
+  offerDefaults,
+  children,
+}: {
+  scope: ConnectionScope;
+  headingId: string;
+  heading: string;
+  blurb: string;
+  empty: string;
+  offerDefaults: boolean;
+  children?: ReactNode;
+}): JSX.Element {
+  const connections = useConnections(scope);
+  const [editing, setEditing] = useState<AdminConnection | 'new' | null>(null);
+  const [confirming, setConfirming] = useState<AdminConnection | null>(null);
+
+  if (connections.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
+  if (connections.isError) return <p role="alert">The connections could not be read.</p>;
+
+  const rows = connections.data.connections;
+
+  return (
+    <section className="flex flex-col gap-6" aria-labelledby={headingId}>
       <div>
-        <h3 id="connections" className="text-subsection text-ink">
-          Connections
+        <h3 id={headingId} className="text-subsection text-ink">
+          {heading}
         </h3>
-        <p className="mt-1 text-xs text-ink-faint">
-          Shared by everybody on this install. Keys stay on the server and are never sent back to a
-          browser.
-        </p>
+        <p className="mt-1 text-xs text-ink-faint">{blurb}</p>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-ink-subtle">
-          There are no connections yet, so nobody can send a message.
-        </p>
+        <p className="text-sm text-ink-subtle">{empty}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {rows.map((row) => (
@@ -176,8 +249,9 @@ export function AdminConnections(): JSX.Element {
 
       {editing === null ? null : (
         <ConnectionForm
+          scope={scope}
           connection={editing === 'new' ? null : editing}
-          offerDefaults={unbound}
+          offerDefaults={offerDefaults}
           onDone={() => {
             setEditing(null);
           }}
@@ -186,6 +260,7 @@ export function AdminConnections(): JSX.Element {
 
       {confirming === null ? null : (
         <RemoveConnectionDialog
+          scope={scope}
           connection={confirming}
           onDone={() => {
             setConfirming(null);
@@ -193,7 +268,7 @@ export function AdminConnections(): JSX.Element {
         />
       )}
 
-      <RoleTable />
+      {children}
     </section>
   );
 }
@@ -209,16 +284,18 @@ export function AdminConnections(): JSX.Element {
  * since this page loaded.
  */
 function ConnectionForm({
+  scope,
   connection,
   offerDefaults,
   onDone,
 }: {
+  scope: ConnectionScope;
   connection: AdminConnection | null;
   offerDefaults: boolean;
   onDone: () => void;
 }): JSX.Element {
-  const save = useSaveConnection();
-  const models = useFetchModels();
+  const save = useSaveConnection(scope);
+  const models = useFetchModels(scope);
   const [label, setLabel] = useState(connection?.label ?? '');
   const [provider, setProvider] = useState(connection?.provider ?? 'openai-compatible');
   const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? '');
@@ -356,11 +433,18 @@ function ConnectionForm({
              * admin to the URL and the network, and the one case where that is
              * exactly wrong is the endpoint answering perfectly well that the
              * key is bad.
+             *
+             * ***And a third, since [P11.6]: no internet at all.*** [09 §6.5]
+             * asks for that sentence by name, and the reason it is worth a third
+             * arm rather than being folded into *unreachable* is the same
+             * argument finding 5 made about the first two — it sends somebody
+             * somewhere else entirely. The server only says `offline` when the
+             * endpoint is remote **and** a check has actually established that
+             * this machine has no route out, so a deliberately local install
+             * never sees it.
              */
             <p role="status" className="text-sm text-ink-subtle">
-              {models.error instanceof ApiError && models.error.code === 'unauthorized'
-                ? 'That endpoint refused the key. Check it — the URL is fine.'
-                : 'That endpoint did not answer with a model list. Type the model name instead.'}
+              {modelsErrorLine(models.error)}
             </p>
           ) : null}
         </div>
@@ -610,22 +694,36 @@ function FirstRunDefaults({
  * for it.
  */
 function RemoveConnectionDialog({
+  scope,
   connection,
   onDone,
 }: {
+  scope: ConnectionScope;
   connection: AdminConnection;
   onDone: () => void;
 }): JSX.Element {
-  const count = useConnectionBindings(connection.id);
-  const remove = useDeleteConnection();
+  /**
+   * ***The binding count is the system scope's alone*** — [P10.3].
+   *
+   * [P2B §2.8]'s warning exists because an admin deleting a shared connection
+   * breaks **other people's** turns, and *counts, never contents* is how it says
+   * so without listing who. Deleting your own breaks your own, and telling
+   * somebody that a thing they are about to delete is used by them is not
+   * information. There is no personal route for it either, which is the same
+   * decision written on the server.
+   */
+  const count = useConnectionBindings(connection.id, scope === 'system');
+  const remove = useDeleteConnection(scope);
   return (
     <Dialog role="alertdialog" labelledBy="remove-connection" onDismiss={onDone} size="wide">
       <h4 id="remove-connection" className="text-subsection text-ink">
         {removeTitle(connection.label)}
       </h4>
-      <p className="text-sm text-ink-muted">
-        {count.data === undefined ? bindingCountUnknown() : bindingCount(count.data.bindings)}
-      </p>
+      {scope === 'system' ? (
+        <p className="text-sm text-ink-muted">
+          {count.data === undefined ? bindingCountUnknown() : bindingCount(count.data.bindings)}
+        </p>
+      ) : null}
       <p className="text-sm text-ink-muted">
         The key stops working here straight away. Nothing revokes it at the provider — do that there
         as well if it has leaked.
@@ -1082,4 +1180,23 @@ function capabilitiesFrom(
   else next.reportsUsage = reportsUsage;
 
   return { capabilities: next };
+}
+
+/**
+ * What a failed `/models` probe says — [P2B §2.6], finding 5 in
+ * [P2C log](../../../../docs/design/workplan/14-p2c-log.md), [P11.6].
+ *
+ * Three codes, three different places to go next, which is the whole reason the
+ * server distinguishes them: the key, the address, and the machine's own
+ * network. **A code this build does not know falls through to the address**,
+ * which is the widest of the three and the one that costs least when it is
+ * wrong.
+ */
+function modelsErrorLine(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : null;
+  if (code === 'unauthorized') return 'That endpoint refused the key. Check it — the URL is fine.';
+  if (code === 'offline') {
+    return 'This server appears to have no internet access, so it could not reach that endpoint. A model running on this network would still work.';
+  }
+  return 'That endpoint did not answer with a model list. Type the model name instead.';
 }

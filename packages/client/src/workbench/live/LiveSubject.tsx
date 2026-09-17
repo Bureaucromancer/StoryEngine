@@ -7,6 +7,7 @@ import { formatCount, formatDuration } from '../../format.js';
 import type { LiveStep, LiveTurn } from '../../play/reducer.js';
 import { Badge, type BadgeTone } from '../../ui/Badge.js';
 import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * The turn being taken, as the progress events describe it — [P3.5].
@@ -34,12 +35,12 @@ import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
  * step visible rather than silent, and timing per step while it is happening.
  */
 
-const STATE_LABELS: Record<LiveStep['state'], string> = {
+const STATE_LABELS: Record<LiveStep['state'], string> = labels('workbench.live.state', {
   running: 'Running',
   ok: 'Ran',
   skipped: 'Skipped',
   failed: 'Failed',
-};
+});
 
 const STATE_TONES: Record<LiveStep['state'], BadgeTone> = {
   running: 'provenance',
@@ -49,22 +50,22 @@ const STATE_TONES: Record<LiveStep['state'], BadgeTone> = {
 };
 
 /** The same classes the record's own step list spells out, kept in step with it. */
-const SKIP_LABELS: Record<string, string> = {
+const SKIP_LABELS: Record<string, string> = labels('workbench.live.skip', {
   cadence: 'not its turn yet',
   stage: 'its stage did not run',
   'not-armed': 'its flag is not armed',
-};
+});
 
 /**
  * The refusal classes, worded as the record's `EffectList` words them — one
  * vocabulary, so a person reading the live view and then the record is not
  * told the same fact twice in two different sentences.
  */
-const REFUSAL_LABELS: Record<string, string> = {
+const REFUSAL_LABELS: Record<string, string> = labels('workbench.live.refusal', {
   'engine-computed': 'refused — the engine computes this channel',
   'user-only': 'refused — only a person may change it',
   'unknown-channel': 'refused — no channel by this name',
-};
+});
 
 export function LiveSubject({
   live,

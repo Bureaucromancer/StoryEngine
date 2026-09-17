@@ -12,6 +12,8 @@ import { LoreReportView } from './LoreReportView.js';
 import { NotFilledList } from './NotFilledList.js';
 import { rulesOf } from './rules.js';
 
+import { labels } from '../../i18n/catalogue.js';
+
 /**
  * The turn about to be taken — [P3.4], the other half of the meter.
  *
@@ -34,7 +36,7 @@ import { rulesOf } from './rules.js';
  * the same answer the meter is showing.
  */
 
-const UNMEASURABLE: Record<UnmeasurableReason, string> = {
+const UNMEASURABLE: Record<UnmeasurableReason, string> = labels('workbench.unmeasurable', {
   'role-unbound':
     'Nothing is bound to the prose role, so there is no context window to measure against.',
   'role-dangling':
@@ -46,7 +48,7 @@ const UNMEASURABLE: Record<UnmeasurableReason, string> = {
    * different remedy: this one resolves itself by taking a turn.
    */
   'not-this-turn': 'This turn will not narrate, so there is no prompt to assemble.',
-};
+});
 
 export function PreviewSubject({
   preview,

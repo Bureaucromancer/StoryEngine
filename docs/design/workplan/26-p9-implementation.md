@@ -1275,6 +1275,34 @@ theoretical: `@ai-sdk/openai-compatible@3.0.30` exports `imageModel` and
 `ai@7.0.66` exports `generateImage`, so the adapter is the same package, the
 same `baseUrl` and the same credential path as chat.
 
+***And one thing this stage did not write, found a phase later.*** **Detached had
+been allowed to mean untracked** — `dispatchRenditions` fires `runRendition` and
+returns, correctly, because [06 §10.2](../06-modes-and-turn-pipeline.md) forbids
+a turn waiting on a picture and `TurnRunnerOptions.dispatch`'s own note forbids
+the runner owning the worker — *"a runner whose shutdown had to drain pictures,
+which is exactly the coupling this phase exists to avoid."* **Both of those are still right.** What neither of them says is where
+the waiting happens *instead*, and the answer was nowhere: a job dispatched by
+the last turn of a process carried on writing assets and calling
+`setRenditionJobStatus` through a `DatabaseSync` that `disposeServices` had
+already closed. That function's own comment argues against exactly this, one line
+above where the gap was — *"a detached turn touching a closed `DatabaseSync` is
+the failure that surfaces on Windows as `EBUSY` on a file the caller never
+named"* — and the argument transfers verbatim to a detached rendition, which
+holds the same handle.
+
+***Fixed 2026-09-17, at P11, and found from the other end.*** Not by reading
+this document: a full-suite run went red in `p9-gate-selection.test.ts` with
+`ENOTEMPTY` removing a session directory, because the test's `rm` had raced an
+asset write. **It passed five times in isolation**, which is what a race under
+load looks like, and is the reason it is worth writing down that *flake* was not
+the root cause. The fix keeps the seam exactly where this stage put it: an
+`inFlight` set on the worker's context, a `drainRenditions` beside
+`dispatchRenditions`, and one `await` in `disposeServices` between
+`runner.drain()` and the handles closing — so the runner still knows nothing
+about pictures, and shutdown has a thing to await rather than a component to own.
+`renditions/shutdown.test.ts` asserts it, and its falsifying mutation is removing
+that one line.
+
 ### P9.3 — Accumulation, selection, and the permanent recipe
 
 Many renditions per turn with the user choosing which is shown — structurally

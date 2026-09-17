@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
 import { makeZip } from '../storage/test-zip.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, setUpAdmin, type TestServer, ownObjects } from '../test-server.js';
 import { marinaraFixture } from './fixtures/test-marinara.js';
 import { sillyTavernFixture } from './fixtures/test-sillytavern.js';
 
@@ -73,10 +73,15 @@ async function upload(filename: string, bytes: Uint8Array) {
   });
 }
 
-const count = async (kind: string): Promise<number> => {
-  const listed = await server.request({ method: 'GET', url: `/api/library/${kind}` });
-  return (listed.body.objects as unknown[]).length;
-};
+/**
+ * How many objects of a kind **this account** has.
+ *
+ * *`ownObjects` rather than the route's own list*, since [P11.3]: the system
+ * scope ships an assistant card and a pack per mode, and every count in this
+ * file is a claim about what an *import* wrote.
+ */
+const count = async (kind: string): Promise<number> =>
+  (await ownObjects(server, kind)).objects.length;
 
 describe('a CHARX', () => {
   it('imports the card inside it', async () => {
@@ -103,8 +108,11 @@ describe('a CHARX', () => {
     ]);
     await upload('Vera.charx', charx);
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
-    const id = (listed.body.objects as { id: string }[])[0]?.id ?? '';
+    // ***The user's actors, not the merged list*** — the system scope ships an
+    // assistant card since [P11.3], and it sorts before every name in these
+    // fixtures. `[0]` meant *the only one*; `ownObjects` is what makes that true
+    // again rather than a coincidence about alphabetical order.
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
     const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
 
     // The pixels ride along as they do off a card PNG — the point of carrying
@@ -133,8 +141,11 @@ describe('a CHARX', () => {
     ]);
     await upload('Vera.charx', charx);
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
-    const id = (listed.body.objects as { id: string }[])[0]?.id ?? '';
+    // ***The user's actors, not the merged list*** — the system scope ships an
+    // assistant card since [P11.3], and it sorts before every name in these
+    // fixtures. `[0]` meant *the only one*; `ownObjects` is what makes that true
+    // again rather than a coincidence about alphabetical order.
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
     const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
     const media = (actor.body.object as { media?: { role: string; label?: string }[] }).media ?? [];
 
@@ -160,8 +171,11 @@ describe('a CHARX', () => {
     ]);
     await upload('Vera.charx', charx);
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
-    const id = (listed.body.objects as { id: string }[])[0]?.id ?? '';
+    // ***The user's actors, not the merged list*** — the system scope ships an
+    // assistant card since [P11.3], and it sorts before every name in these
+    // fixtures. `[0]` meant *the only one*; `ownObjects` is what makes that true
+    // again rather than a coincidence about alphabetical order.
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
     const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
     const media = (actor.body.object as { media?: { id: string; role: string; digest: string }[] })
       .media;

@@ -142,6 +142,27 @@ export function readJob(db: DatabaseSync, id: string): Job | null {
   return row ? toJob(row) : null;
 }
 
+/**
+ * Every job still advancing a session, across the install — [09 §6.4], [P10.3].
+ *
+ * ***The sibling below asks *is this session busy*, which is the submission
+ * path's question and needs a session id.*** This asks *what is in flight right
+ * now*, which is the restart confirmation's — *"2 other users have active
+ * sessions"* — and has no session to be about.
+ *
+ * **Read from the store rather than from `TurnRunner`'s live map**, and the
+ * difference is load-bearing after a crash: a job left `running` with
+ * `finished_at` null by a killed process is not in any live map and is exactly
+ * what somebody restarting wants counted, because it is what startup
+ * reconciliation will have to finalise.
+ */
+export function activeJobs(db: DatabaseSync): Job[] {
+  const rows = db
+    .prepare(`select ${JOB_COLUMNS} from job where finished_at is null`)
+    .all() as unknown as JobRow[];
+  return rows.map(toJob);
+}
+
 /** The job currently advancing a session, if any. At most one, by constraint. */
 export function activeJob(db: DatabaseSync, sessionId: string): Job | null {
   const row = db

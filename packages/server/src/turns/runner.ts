@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { remedyFor } from '@storyengine/shared';
+
+import { extractMemories } from '../memory/extract.js';
+import { readMemoryConfig } from '../memory/config.js';
+
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
 import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
+import type { LibraryContext } from '../library.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { randomOver } from '../rng/random.js';
@@ -15,10 +21,11 @@ import {
   renderedChannels,
   SE_CLOCK,
 } from '../sessions/channels.js';
-import { applyEffects } from '../sessions/store.js';
+import { applyEffects, readSession } from '../sessions/store.js';
 import type {
   ChannelEffect,
   ChannelState,
+  FailureRemedy,
   ModelCall,
   PooledHook,
   StepFailureReason,
@@ -27,6 +34,7 @@ import type {
   TurnCost,
 } from '../sessions/types.js';
 import type { CastMember } from './cast.js';
+import type { Occurrence } from '../notifications/router.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
   callFinished,
@@ -69,7 +77,7 @@ import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } fro
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
-import { readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
+import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
@@ -178,6 +186,50 @@ export interface RunnerOptions {
     records: readonly Rendition[],
     turnId: string,
   ) => void;
+  /**
+   * Says a turn ended, so somebody can be told — [09 §3.5], [P10.1].
+   *
+   * ***A second callback beside `dispatch` rather than a field on it***, and
+   * the same seam for the same reason: what the runner knows is *this turn
+   * finished, or failed, and here is the class it failed with*. Whether that
+   * reaches a person, and through which channel, is
+   * [`notifications/router.ts`](../notifications/router.js)'s — which is
+   * [09 §3.1]'s rule that the server routes, applied to the producer end.
+   *
+   * **Optional, so every existing test double stays a double**, exactly as
+   * `dispatch` is. Absent means nobody is told, which is every turn of every
+   * test that is not about notifications.
+   */
+  notify?: (occurrence: Occurrence) => void;
+  /**
+   * ***Whether this server could reach the internet at the last update check***
+   * — [P11.6], reading [`updates.ts`](../updates.js)'s signal.
+   *
+   * **A reader rather than a value**, because `services.updates` is replaced
+   * wholesale when a check completes and a number copied in at construction
+   * would be the state at boot forever. The same argument
+   * [`watcher.ts`](../index-db/watcher.js) makes about `history.keepPerObject`:
+   * a field filled at construction is what makes a live tier untrue.
+   *
+   * **Optional, and absent means `null`** — *nothing has looked* — which is
+   * exactly right for every test double and is a state `remedyFor` already
+   * handles rather than guesses at.
+   */
+  connectivity?: () => boolean | null;
+  /**
+   * ***The library, so a memory can be written*** — [08 §2.1], [P11.12].
+   *
+   * **Optional, and absent means no extractor** — `notify`'s arrangement and
+   * `dispatch`'s, so every existing double stays a double. It is also the
+   * honest gate: a runner with no library cannot write into a book, and a step
+   * that discovered that at call time would log a failure to report a
+   * configuration.
+   *
+   * *The one piece of the memory feature the runner needs*, and it is threaded
+   * rather than reached for: [P8.3]'s capture path takes the same context from
+   * the routes, so the extractor and the button write through one queue.
+   */
+  library?: LibraryContext;
 }
 
 interface Live {
@@ -379,6 +431,14 @@ export class TurnRunner {
     try {
       checkpoint(this.#options.commit, job.id, { turn: draft });
       await finaliseTurn(this.#options.commit, job.id, draft);
+      /**
+       * **This path notifies too, and it is the one that most needs to.** A
+       * turn that could not even be set up leaves a record saying so and no
+       * prose at all, so a person watching a session sees nothing happen. The
+       * class is `internal` because that is what the record says: `se.setup`
+       * failed with a reason nobody declared.
+       */
+      await this.#announce(job, 'internal');
     } catch (fatal) {
       // The store itself is gone — the kill case. Startup reconciliation is
       // what picks this up; there is nothing left to write it with.
@@ -454,6 +514,12 @@ export class TurnRunner {
      * this paragraph is for.
      */
     const suggested: { report: SuggestReport | null } = { report: null };
+    /**
+     * What the extractor wrote — [08 §2.1], [P11.12]. Up here with the other
+     * five for the reason the paragraph below gives: `write()` closes over it,
+     * and a sink declared beside its step would be out of scope by then.
+     */
+    const remembered: { written: { bookId: string; entryIds: string[] }[] } = { written: [] };
     /**
      * The story above the window — [P8.1]. Up here with the other four for the
      * reason the paragraph above gives: `write()` closes over it, and a
@@ -673,6 +739,24 @@ export class TurnRunner {
 
     let aborted = false;
     /**
+     * Why it stopped, when it did — for the notification and nothing else.
+     *
+     * ***`aborted` alone cannot answer the one question a notification has to
+     * ask***, because it is set by two different events: a step declaring
+     * `failure: 'abort'`, and a person pressing **Stop**. The first is news and
+     * the second is not — telling somebody *your turn failed* about a turn they
+     * just cancelled is the app arguing with them, which is the same judgement
+     * the store makes about folding into a notification that has been read.
+     */
+    let stoppedBy: StepFailureReason | null = null;
+    /**
+     * And what could be done about it — [P11.6]. Carried beside the class
+     * rather than recomputed in `#announce`, because by then the failure is
+     * gone: `endpoint` and `stalled` live on the `CallFailed` this loop caught
+     * and nothing downstream keeps them.
+     */
+    let remedyFound: FailureRemedy | null = null;
+    /**
      * **The setup turn runs the mode's parts instead of its steps** — [06 §7.3],
      * [P7.4].
      *
@@ -732,6 +816,12 @@ export class TurnRunner {
       inputs.goals.current.completion.kind === 'narrative';
 
     const selects = payload.setup !== true && inputs.hooks.pool.length > 0;
+    const pacing = readPacing(running, {
+      ...(isRecord(inputs.session?.setup) ? { setup: inputs.session.setup } : {}),
+      ...(isRecord(inputs.lore.treatment?.treatment)
+        ? { treatment: inputs.lore.treatment.treatment }
+        : {}),
+    });
     const plan: TurnPlan = selects
       ? {
           steps: [
@@ -742,12 +832,15 @@ export class TurnRunner {
                 activeBooks: new Set(inputs.lore.books.map((book) => book.id)),
                 persona: cast.persona?.actor.id ?? null,
               },
-              pacing: readPacing(running, {
-                ...(isRecord(inputs.session?.setup) ? { setup: inputs.session.setup } : {}),
-                ...(isRecord(inputs.lore.treatment?.treatment)
-                  ? { treatment: inputs.lore.treatment.treatment }
-                  : {}),
-              }),
+              pacing: pacing,
+              /**
+               * ***The dial's prose, resolved here because the preset is
+               * here*** — [06 §6.1], [P11.5]. The selector takes everything
+               * resolved, for the reason its own docstring gives: a step does
+               * not go shopping, and the runner is the one place holding the
+               * pack, the channels and the authored rungs at once.
+               */
+              pacingProse: pacingProse(inputs.preset, pacing),
               report: (report) => {
                 hooks.report = report;
               },
@@ -939,6 +1032,53 @@ export class TurnRunner {
       : withJudge;
 
     /**
+     * ***The memory extractor*** — [08 §2.1], [P8 §5]'s named cut, [P11.12].
+     *
+     * **Three gates, and each keeps the step out of the plan rather than idling
+     * it** — the suggester's arrangement and for its stated reason: *a step
+     * outcome that means this feature exists rather than anything about the
+     * turn* is noise on every turn of every session.
+     *
+     * *A setup turn, no step*: there is no exchange to remember. *No cast, no
+     * step*: a memory belongs to an actor, and a session with nobody in it has
+     * no book to write into. *Not sharing, no step* — [08 §4]'s two
+     * read-without-adding rows, checked here as well as inside the step so that
+     * a sealed session does not carry a step it will always decline.
+     *
+     * **After the suggester, before the picture**, which is where the ordering
+     * argument below puts anything that reads the turn's finished prose and
+     * changes nothing about it.
+     */
+    const library = this.#options.library;
+    const withMemory: TurnPlan =
+      library !== undefined &&
+      payload.setup !== true &&
+      cast.actors.length > 0 &&
+      readMemoryConfig(inputs.session).share
+        ? {
+            steps: [
+              ...withSuggest.steps,
+              extractMemories({
+                library,
+                handle: job.account,
+                sessionId: job.sessionId,
+                session: {
+                  name: inputs.session?.name ?? '',
+                  ...(inputs.session?.cast === undefined ? {} : { cast: inputs.session.cast }),
+                  memory: (inputs.session as { memory?: unknown } | null)?.memory,
+                },
+                nameOf: (actorId) =>
+                  [cast.persona, ...cast.actors].find((one) => one?.actor.id === actorId)?.actor
+                    .name ?? null,
+                report: (written) => {
+                  remembered.written = written;
+                },
+              }),
+            ],
+          }
+        : withSuggest;
+
+    /**
      * ***The rendition step, appended last*** — [06 §10.3], [P9.1], and the
      * sixth engine-owned one.
      *
@@ -1033,7 +1173,7 @@ export class TurnRunner {
       renderRoles?.image.ok === true && renderRoles.moment.ok
         ? {
             steps: [
-              ...withSuggest.steps,
+              ...withMemory.steps,
               render({
                 illustration: wantsIllustration ? 'each-turn' : 'off',
                 backdrop: wantsBackdrop,
@@ -1091,7 +1231,7 @@ export class TurnRunner {
               }),
             ],
           }
-        : withSuggest;
+        : withMemory;
 
     for (const { definition, run } of withRender.steps) {
       const decision = evaluateCondition(definition.when, {
@@ -1503,12 +1643,34 @@ export class TurnRunner {
         // `ignore` says the author already decided this is unremarkable, so no
         // live alarm — but it is still on the record, because silence about a
         // step that ran is the failure [09 §3.3] calls out for `skipped`.
-        if (definition.failure !== 'ignore') write([stepFailed(definition.id, reason, false)]);
-        else write();
+        /**
+         * ***The remedy, beside the class*** — [P11.6].
+         *
+         * The class is what the engine did; the remedy is what a person could
+         * do, and until this stage the play surface rendered the class — *The
+         * turn failed (transient)*, which is a word about our retry ladder.
+         * Computed here rather than on the client because two of its three
+         * inputs are the server's: whether the endpoint was on this network,
+         * and whether this server has internet. **Neither reaches the record**
+         * — see {@link remedyFor} on why a transient fact about a network does
+         * not belong in a permanent turn.
+         */
+        const remedy = remedyFor({
+          reason,
+          online: this.#options.connectivity?.() ?? null,
+          ...(error instanceof CallFailed
+            ? { endpoint: error.endpoint, stalled: error.stalled }
+            : {}),
+        });
+        if (definition.failure !== 'ignore') {
+          write([stepFailed(definition.id, reason, false, remedy)]);
+        } else write();
 
         // Cancellation overrides the declared mode: a user's stop is not a warn.
         if (definition.failure === 'abort' || reason === 'cancelled') {
           aborted = true;
+          stoppedBy = reason;
+          remedyFound = remedy;
           break;
         }
       }
@@ -1743,6 +1905,83 @@ export class TurnRunner {
      */
     if (renditions.report !== null && this.#options.dispatch !== undefined) {
       await this.#recordRenditions(job, draft, renditions.report);
+    }
+
+    /**
+     * ***And the person is told, last of all*** — [09 §3.5], [P10.1].
+     *
+     * **After the renditions are recorded rather than before**, so that a
+     * notification whose `turnId` a client follows finds the pictures pending
+     * beside the turn — the same ordering argument `#recordRenditions` makes
+     * against `finaliseTurn`, one layer out.
+     */
+    await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null, remedyFound);
+  }
+
+  /**
+   * Tells the router a turn ended.
+   *
+   * ***A cancelled turn is not news and produces nothing.*** The person
+   * pressed **Stop** and the turn stopping is what they asked for; a toast
+   * saying *your turn failed* is the app reporting their own act back to them
+   * as a problem. Every other stop is a class they did not choose, so it is a
+   * `turn.failed` carrying that class — [21 §1.4]'s rule, so what crosses is
+   * `rate-limit` and never an endpoint's sentence.
+   *
+   * ***The session's name is read here rather than passed in, and that is
+   * [09 §3.4]'s warning obeyed.*** A `{ key, params }` summary composed later
+   * from whatever happened to be in scope produces *"New event in session
+   * 4f2a"*; the params have to carry everything the sentence needs, and a
+   * session id is not a name. One file read on a path that has just written
+   * several is not worth avoiding.
+   *
+   * **Nothing here can fail the turn.** It runs after `finaliseTurn`, and it
+   * swallows, for `#recordRenditions`' reason: a store that would not answer
+   * costs a notification, and must never cost the turn it was about.
+   */
+  async #announce(
+    job: Job,
+    failure: StepFailureReason | null,
+    remedy: FailureRemedy | null = null,
+  ): Promise<void> {
+    const notify = this.#options.notify;
+    if (notify === undefined) return;
+    if (failure === 'cancelled') return;
+
+    try {
+      const session = await readSession(this.#options.commit.sessions, job.account, job.sessionId);
+      const sessionName = session?.name ?? '';
+      notify(
+        failure === null
+          ? {
+              kind: 'turn.complete',
+              account: job.account,
+              sessionId: job.sessionId,
+              turnId: job.turnId,
+              sessionName,
+            }
+          : {
+              kind: 'turn.failed',
+              account: job.account,
+              sessionId: job.sessionId,
+              turnId: job.turnId,
+              sessionName,
+              error: failure,
+              /**
+               * ***The sentence's key, not the sentence*** — [P11.6],
+               * [19 §12.4]. The router composes `{ key, params }` and the
+               * client holds the words; a remedy is one more param and travels
+               * the same way the class already does.
+               *
+               * *Absent when a turn failed before any step did* — an
+               * unstartable job, a reconciliation — because there is no
+               * failure to have a remedy for and `engine` would be a claim.
+               */
+              ...(remedy === null ? {} : { remedy }),
+            },
+      );
+    } catch {
+      // See above: a notification is never worth a turn.
     }
   }
 

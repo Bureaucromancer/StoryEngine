@@ -88,11 +88,31 @@ function loginErrorMessage(error: Error | null): string | null {
   return error.message;
 }
 
-export function LoginForm(): JSX.Element {
+/**
+ * ***Two optional props, and both arrived with [12]'s gallery at [P10.4].***
+ *
+ * **The form is unchanged when neither is passed**, which is the claim that
+ * matters: [12 §9] is explicit that *"the tile changes what you see, never what
+ * authenticates you — `POST /api/auth/login` is byte-for-byte the same contract
+ * from either door"*, and the cheapest way to keep that true is for the gallery
+ * to hand this component a starting handle rather than to grow a login path of
+ * its own.
+ *
+ * *`presetHandle` fills the box; it does not lock it.* Somebody who picked the
+ * wrong face types over it, which is better than a disabled field and a Back
+ * button being the only way out.
+ */
+export interface LoginFormProps {
+  presetHandle?: string;
+  /** Rendered only when there is somewhere to go back to — the gallery. */
+  onBack?: () => void;
+}
+
+export function LoginForm(props: LoginFormProps = {}): JSX.Element {
   const login = useLogin();
   const handleId = useId();
   const passwordId = useId();
-  const [handle, setHandle] = useState('');
+  const [handle, setHandle] = useState(props.presetHandle ?? '');
   const [password, setPassword] = useState('');
 
   return (
@@ -117,7 +137,11 @@ export function LoginForm(): JSX.Element {
               setHandle(event.target.value);
             }}
             autoComplete="username"
-            autoFocus
+            // **Focus lands on the empty box**, which is the handle from the
+            // form door and the password from a tile: picking a face has
+            // already answered the first question, and focusing a filled field
+            // asks it again.
+            autoFocus={props.presetHandle === undefined}
             required
           />
         </div>
@@ -134,6 +158,7 @@ export function LoginForm(): JSX.Element {
               setPassword(event.target.value);
             }}
             autoComplete="current-password"
+            autoFocus={props.presetHandle !== undefined}
             /**
              * **`required` on the handle above and not here**, and the
              * asymmetry is deliberate. A handle can never be empty. A password
@@ -149,6 +174,11 @@ export function LoginForm(): JSX.Element {
         <Button type="submit" variant="primary" className="w-full" disabled={login.isPending}>
           Sign in
         </Button>
+        {props.onBack === undefined ? null : (
+          <Button type="button" size="compact" onClick={props.onBack}>
+            Back to the faces
+          </Button>
+        )}
       </form>
     </Panel>
   );

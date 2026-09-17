@@ -215,6 +215,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
     >
       <Field
         label="Name"
+        path="name"
         value={nameOfPreset(draft)}
         onChange={(name) => {
           editor.patch({ ...draft, name });
@@ -377,6 +378,10 @@ function BlockRow(props: {
       ) : (
         <Field
           label="Template"
+          // The block's id, for `sections` reason one file over: block order is
+          // the author's and moves, and an index-keyed provenance entry would
+          // follow the position rather than the prose.
+          path={`blocks.${typeof block.id === 'string' ? block.id : ''}.template`}
           value={typeof block['template'] === 'string' ? block['template'] : ''}
           onChange={(template) => {
             props.onPatch({ template });

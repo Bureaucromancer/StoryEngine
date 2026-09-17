@@ -1,14 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useId, useState, type JSX } from 'react';
 
-import { ApiError } from '../api.js';
-import { useAuthState, useChangePassword, useMe, useUpdateMe } from '../queries.js';
-import { Field, SelectField } from '../ui/Field.js';
+import { ApiError, type Account } from '../api.js';
+import {
+  useAuthState,
+  useChangePassword,
+  useMe,
+  useRemoveAvatar,
+  useUpdateMe,
+  useUploadAvatar,
+} from '../queries.js';
+import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { Button } from '../ui/Button.js';
-import { page } from '../ui/classes.js';
+import { fieldLabel, page } from '../ui/classes.js';
 import { SecretField } from '../ui/SecretField.js';
+import { drawnTile } from '../auth/tile.js';
+
+import { TRANSLATIONS } from '../i18n/locales.js';
 
 /**
  * What a person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -76,6 +86,26 @@ const LOCALES = [
   ['en-ZW', 'English (Zimbabwe)'],
 ] as const;
 
+/**
+ * ***And the languages there is actually a catalogue for*** — [P11.8].
+ *
+ * The list above says outright that *"the day somebody writes a translation is
+ * the day another language belongs in this list, and not before"*. This is that
+ * day, arriving in the least convincing possible form: the one entry is a
+ * machine's French, and its own label says so in English so that a reader who
+ * cannot yet read the interface can still see the warning.
+ *
+ * **Spread from `TRANSLATIONS` rather than typed out**, which is the same
+ * anti-drift argument `EDITOR_ROUTES` makes in `fields.ts`: a locale offered
+ * here with no catalogue behind it promises a language and delivers English,
+ * and a catalogue with no entry here is a translation nobody can choose. One
+ * source, so neither is possible.
+ */
+const LANGUAGES: readonly (readonly [string, string])[] = [
+  ...LOCALES,
+  ...TRANSLATIONS.map((one) => [one.tag, one.label] as const),
+];
+
 export function UserSettings(): JSX.Element {
   const me = useMe();
   const update = useUpdateMe();
@@ -129,6 +159,7 @@ export function UserSettings(): JSX.Element {
         }}
       >
         <div className="flex max-w-md flex-col gap-4">
+          <AvatarField account={account} />
           <Field
             label="Display name"
             value={nameValue}
@@ -138,10 +169,30 @@ export function UserSettings(): JSX.Element {
           <SelectField
             label="Language and formats"
             value={localeValue}
-            options={LOCALES}
+            options={LANGUAGES}
             onChange={setLocale}
             hint="Sets how dates and numbers are written, and the language of notifications the server sends while the app is closed."
           />
+          {/*
+            ***Only where it currently means something*** — [12 §4], [P10.4].
+            On an install whose `loginScreen` is `form` the toggle would change
+            nothing, and rather than render it saying so this hides it: the
+            honesty `fileAccess` and `enableExtensions` practise is for
+            *capabilities*, which every account carries whether or not they are
+            gated. This is a fact about **this install's front door**, and a
+            person whose install has one door should not be shown a preference
+            about the other.
+          */}
+          {auth.data?.loginScreen === 'gallery' ? (
+            <CheckboxField
+              label="Shown on the sign-in screen"
+              checked={account.hiddenFromGallery !== true}
+              hint="Your face and name appear in the grid people pick from. Turning this off does not change how you sign in — you type your handle, exactly as you can now."
+              onChange={(shown) => {
+                update.mutate({ hiddenFromGallery: !shown });
+              }}
+            />
+          ) : null}
         </div>
         <div className={page.actions}>
           <Button type="submit" variant="primary" size="compact">
@@ -271,4 +322,85 @@ function newPasswordTooShort(minimum: number): string {
   return minimum === 1
     ? 'The new password must be at least 1 character.'
     : `The new password must be at least ${String(minimum)} characters.`;
+}
+
+/**
+ * Your face — [12 §5](../../../../docs/design/12-account-gallery.md), [P10.4].
+ *
+ * ***Shown on every install, not only a gallery one***, which is the opposite
+ * of the toggle above it and deliberate: the *visibility* preference is about a
+ * screen this install may not show, and the **portrait** is about you. It is
+ * also where a face will come from when other surfaces want one —
+ * [10 §9](../../../../docs/design/10-ui-surfaces.md)'s avatar bubble, a
+ * participant list — so an install on the form door is not a reason to leave
+ * accounts faceless.
+ *
+ * **The preview is the drawn tile when there is no upload**, not an empty box:
+ * [12 §5.4]'s claim is that *every account has a face from the day the feature
+ * ships* and an uploaded image is an **override**, and a preview showing a grey
+ * square would tell somebody the opposite.
+ *
+ * *No crop, no resize, no re-encode.* [12 §5.2] is explicit that the server has
+ * no raster encoder and should not grow one; doing it in the browser instead
+ * would be a second implementation of a thing nobody asked for, and `object-fit`
+ * already makes a rectangular photograph a round tile.
+ */
+function AvatarField(props: { account: Account }): JSX.Element {
+  const upload = useUploadAvatar();
+  const remove = useRemoveAvatar();
+  const inputId = useId();
+  const tile = drawnTile(props.account);
+
+  return (
+    <div className="flex items-center gap-4">
+      {/* The signed-in view draws its own tile rather than fetching the
+          gallery's asset: this person's own face is a fact they already have,
+          and the gallery address answers only in gallery mode. */}
+      <span
+        aria-hidden="true"
+        className="flex size-16 items-center justify-center rounded-full text-xl font-medium"
+        style={{ backgroundColor: tile.background, color: tile.ink }}
+      >
+        {tile.initials}
+      </span>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={inputId} className={fieldLabel}>
+          Your picture
+        </label>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="text-sm"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file !== undefined) upload.mutate(file);
+            // Cleared, so choosing the same file twice fires again — a browser
+            // reports no change otherwise, and the second attempt after a
+            // failure is exactly when somebody picks the same file.
+            event.target.value = '';
+          }}
+        />
+        <p className="text-xs text-ink-faint">
+          A PNG, JPEG or WebP under 2 MB. Without one you get the coloured initials beside this.
+        </p>
+        {upload.isError ? (
+          <p role="alert" className="text-sm text-danger-ink">
+            {upload.error.message}
+          </p>
+        ) : null}
+        <p>
+          <Button
+            type="button"
+            size="compact"
+            onClick={() => {
+              remove.mutate();
+            }}
+          >
+            Remove it
+          </Button>
+        </p>
+      </div>
+    </div>
+  );
 }

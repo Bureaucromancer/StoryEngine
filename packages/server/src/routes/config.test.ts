@@ -79,7 +79,11 @@ describe('GET /api/admin/config', () => {
     // The exemplar moved at P4.1: `limits.maxUploadMb` became `applied` when
     // the upload route arrived and started reading it per request, so the
     // still-honest example is a key nothing reads yet.
-    expect(response.body.appliers['trash.retentionDays']).toBe('unread');
+    // And moved again at [P11.7], which built the retention sweep —
+    // `limits.extensionStorageQuotaMb` is the still-honest example now. *Twice,
+    // and always in the same direction*: the exemplar keeps becoming read,
+    // which means this check has never failed by a key quietly stopping.
+    expect(response.body.appliers['limits.extensionStorageQuotaMb']).toBe('unread');
     expect(response.body.appliers['limits.maxUploadMb']).toBe('applied');
   });
 

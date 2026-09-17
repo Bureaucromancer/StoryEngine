@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { RoleRow } from '../api.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * The sentences a role table says, spelled once for the two tables that say
@@ -29,7 +30,7 @@ import type { RoleRow } from '../api.js';
  * what a *table* says, and every id it does not know falls through to itself
  * rather than to a blank cell.
  */
-const ROLE_LABELS: Record<string, string> = {
+const ROLE_LABELS: Record<string, string> = labels('settings.role', {
   prose: 'Writing the story',
   reasoning: 'Working things out',
   fast: 'Quick background jobs',
@@ -38,7 +39,7 @@ const ROLE_LABELS: Record<string, string> = {
   image: 'Making images',
   video: 'Making video',
   speech: 'Speech',
-};
+});
 
 export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? role;

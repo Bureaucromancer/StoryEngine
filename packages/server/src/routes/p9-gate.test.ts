@@ -191,9 +191,21 @@ async function renditionsOf(): Promise<Rendition[]> {
 
 describe('a turn completes on text while its picture is still being made', () => {
   beforeEach(async () => {
-    // A provider that takes its time, so *pending* is a state the turn can be
-    // observed in rather than a race the test hopes to win.
-    await boot([{ stallMs: 50 }]);
+    /**
+     * A provider that takes its time, so *pending* is a state the turn can be
+     * observed in rather than a race the test hopes to win.
+     *
+     * ***The number is a second and a half rather than the fifty milliseconds
+     * it was, and the reason is the second half of the race fixed below.***
+     * Fifty is plenty of head-room on an idle machine and none at all on one
+     * running the whole suite, where fifty milliseconds of wall clock can pass
+     * between two adjacent `await`s. A budget that has to be generous to be a
+     * budget should be written generously; the stall costs the file three
+     * seconds and buys both assertions a margin that does not depend on what
+     * else the machine is doing. *Found 2026-09-17, the second race in this
+     * file.*
+     */
+    await boot([{ stallMs: 1_500 }]);
   });
 
   it('commits the turn and leaves the rendition pending beside it', async () => {
@@ -206,6 +218,25 @@ describe('a turn completes on text while its picture is still being made', () =>
      * assertion would be a coin flip rather than a claim.
      */
     expect(turn.status).toBe('complete');
+
+    /**
+     * ***Awaited rather than read, and the ordering this file exists to prove
+     * is exactly why.*** `#recordRenditions` runs **after** `finaliseTurn`,
+     * deliberately — *"enqueuing first would let a fast provider land an asset
+     * on a turn the store has not appended"* — and `takeATurn` returns the
+     * moment the head moves, which is `finaliseTurn`. So there is a real window
+     * in which the turn is committed and the record is not yet written, and a
+     * bare read of it is a coin flip weighted by how loaded the machine is.
+     *
+     * **Waiting does not soften the claim, it is the claim.** What gate row 1
+     * asserts is that the turn did not wait for the picture; the picture's
+     * record arriving a beat later is that property, not a weakening of it. The
+     * falsifying mutation — making the rendition a step of the turn — still
+     * turns this red, because then `turn.status` would not be `complete` until
+     * the stall elapsed and the state below would be `ready` rather than
+     * `pending`. *Found 2026-09-17, under a full-suite run.*
+     */
+    await eventually(async () => (await renditionsOf()).length === 1);
 
     const pending = await renditionsOf();
     expect(pending).toHaveLength(1);
@@ -237,7 +268,13 @@ describe('a turn completes on text while its picture is still being made', () =>
      * by the time this runs, and what it waits for is the **worker** finishing,
      * not the turn.
      */
-    await eventually(async () => (await renditionsOf()).every((one) => one.state !== 'pending'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty: `every` over an empty list is true, so this would otherwise
+      // wait for nothing whenever the record has not landed yet — which is the
+      // teardown race this wait exists to close, reopened by the wait itself.
+      return all.length > 0 && all.every((one) => one.state !== 'pending');
+    });
   });
 
   it('lands the picture on the record afterwards', async () => {

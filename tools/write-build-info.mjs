@@ -27,6 +27,19 @@ import { fileURLToPath } from 'node:url';
  * is worse than one with no identity at all: the whole promise of P6A is *a
  * build you can go back to*, and you cannot go back to a working tree.
  *
+ * **The source URL comes from the `origin` remote** — [09 §7], [P10.5].
+ * AGPL §13 obliges an offer of the source corresponding to *the running
+ * version*, and §7 is explicit about the case that makes this more than a
+ * constant: *"a link to `main` is not strictly compliant when the operator is
+ * running a patched build — and the patched-build case is exactly the one §13
+ * exists for."* So the URL is **written by whoever cut the build**, from the
+ * remote they cut it from. A fork that ships its own image ships its own link,
+ * with no code change and nothing to remember.
+ *
+ * *`--source <url>` says it instead*, for `--commit`'s caller and for its
+ * reason: an image build has no `.git` to ask. A caller that says it is trusted
+ * about it; there is nothing here that could check.
+ *
  * **`--commit <sha>` says it instead**, for the one caller that cannot ask git:
  * an image build, whose context has no `.git` because `.dockerignore` excludes
  * it. That is the *build* environment stating a fact it has in hand — the
@@ -43,6 +56,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const allowDirty = process.argv.includes('--allow-dirty');
 const stated = argumentValue('--commit');
+const statedSource = argumentValue('--source');
 const expected = argumentValue('--expect-version');
 
 /** The value after a flag, or undefined. Refuses a flag with nothing after it. */
@@ -95,6 +109,37 @@ if (commit === undefined) {
   }
   commit = git('rev-parse', 'HEAD') + (dirty === '' ? '' : '-dirty');
 }
+/**
+ * Where the source is — a browsable URL, derived from whatever `origin` is.
+ *
+ * **Normalised from the three spellings a remote actually takes**: `git@host:o/r`,
+ * `https://host/o/r.git` and `https://host/o/r`. A link the person reading it
+ * cannot open is not an offer, and an SSH remote pasted verbatim is exactly
+ * that.
+ *
+ * *Undefined rather than a guess when there is no remote*, which is a clone
+ * somebody made by hand or an export. `readBuildInfo` treats the field as
+ * optional and the footer then shows no link, which is honest: this build cannot
+ * say where its source is.
+ */
+function sourceUrl() {
+  if (statedSource !== undefined) return statedSource;
+  let remote;
+  try {
+    remote = git('remote', 'get-url', 'origin');
+  } catch {
+    return undefined;
+  }
+  const ssh = /^(?:ssh:\/\/)?(?:[^@]+@)?([^:/]+)[:/](.+?)(?:\.git)?$/.exec(remote);
+  if (remote.startsWith('http')) return remote.replace(/\.git$/, '');
+  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
+  return undefined;
+}
+
+const source = sourceUrl();
 const path = join(root, 'packages', 'server', 'build-info.json');
-writeFileSync(path, `${JSON.stringify({ version, commit }, null, 2)}\n`);
-console.log(`${path}: ${version} at ${commit}`);
+writeFileSync(
+  path,
+  `${JSON.stringify({ version, commit, ...(source === undefined ? {} : { source }) }, null, 2)}\n`,
+);
+console.log(`${path}: ${version} at ${commit}${source === undefined ? '' : ` from ${source}`}`);

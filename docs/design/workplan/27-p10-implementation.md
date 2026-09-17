@@ -1,10 +1,25 @@
 # 27 — P10 implementation plan
 
-**Status: skeleton, re-audited 2026-09-16 at `fee56da`.** Drafted 2026-08-29
+**Status: built on branch `p10`, 2026-09-16 to 2026-09-17. Open — sitting P is
+unwalked.** ~~Skeleton, re-audited 2026-09-16 at `fee56da`.~~ Drafted 2026-08-29
 alongside
 [P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
 [P9](26-p9-implementation.md) and [P11](28-p11-implementation.md); to be
 revisited before the phase starts.
+
+***All six stages landed, and three of them were not the shape this document
+predicted*** — recorded 2026-09-17, with [§3.2](#32-what-was-answered--recorded-2026-09-17)
+as the results table [manual testing §0](05-manual-testing.md) requires and
+[§3.1](#31-the-critical-list-and-what-a-test-answers) as the critical list.
+**§1.7's update check moved into this phase** and turned two `unread` config keys
+`applied`; **§1.5's fork closed as a deferral** with a row in
+[24 §3.2](../24-roadmap.md) rather than as a build, on a distinction it was
+missing — *1.0 needs extensions loaded, not installed*; and **the §13 source link
+turned out to need the build to carry its URL**, because a constant cannot be
+right for a fork and the patched-build case is the one §13 exists for. *The phase
+does not close on the merge*: four criticals are unwalked and three of them are
+errands, which [§3.1](#31-the-critical-list-and-what-a-test-answers) states
+rather than absorbs.
 
 ***The re-audit is §5's own instruction carried out, and its answer changes a
 stage.*** §0 below closes by saying what this phase *cannot yet know* — how many
@@ -118,11 +133,20 @@ cheap is only true while P10.1 is unwritten.
 | `artifact.ready` | ❌ **nothing**. `grep -rn "artifact.ready"` over `packages/` returns zero, and [P9](26-p9-implementation.md) was the phase that was going to build it |
 | `turn.awaiting-input` | ❌ **nothing**, and its precondition did not arrive. [25 C5](../25-open-questions.md)'s suspending step does not exist: `turnFinished` accepts `'suspended'` and no step produces it, and `packages/sdk/src/steps.ts` has no suspend verb at all |
 
-***So §1.4's own rule, applied today, ships three classes rather than five.***
-That is a smaller P10.1 and a smaller P10.3 — **three preference rows, not five**
-— and it is the rule doing exactly what it was written to do. *The rule was also
-right to be a rule rather than a list*: a list written on 2026-08-31 would have
-had five rows and four phases of drift.
+***So §1.4's own rule, applied today, ships ~~three~~ **four** classes rather
+than five.*** That is a smaller P10.1 and a smaller P10.3 — ~~**three preference
+rows, not five**~~ **four preference rows, not five** — and it is the rule doing
+exactly what it was written to do. *The rule was also right to be a rule rather
+than a list*: a list written on 2026-08-31 would have had five rows and four
+phases of drift.
+
+***Corrected 2026-09-16 at [P10.1], and the correction is this section's own
+argument arriving one stage later.*** The scoring above counted producers **that
+existed when it was run**, and the row below then moved `artifact.ready`'s
+producer into P10.1 — so the count was true for about two hundred lines and false
+by the time the stage it was scoping had been built. Four classes ship, four
+preference rows are owed, and the rule is unchanged: *every class either has a
+producer or is not shipped*, and `artifact.ready` now has one.
 
 #### `artifact.ready` is P11's row 20 in the other direction
 
@@ -335,7 +359,10 @@ that will resume.
 class nothing emits is [work plan §2.3](01-work-plan.md)'s failure inverted: a surface
 for configuration that has no producer.
 
-***Scored 2026-09-16 (§0.1), and the rule answers three rather than four.***
+***Scored 2026-09-16 (§0.1), and the rule answers ~~three~~ **four** rather than
+five.*** *(The strikethrough is [P10.1]'s, same day: the scoring ran before this
+phase agreed to build `artifact.ready`'s producer, and building it is what made
+the fourth class shippable. §0.1 carries the full correction.)*
 
 - **`artifact.ready` did not get a producer at P9**, and the strikethrough above
   is the correction rather than the finding. [P9 §1.5](26-p9-implementation.md)
@@ -512,6 +539,52 @@ reading of this phase: the *"two phases wearing one number"* argument was about
 P10.0's deployment work versus everything after it, and P10.0 is no longer the
 half where the risk lives. That paragraph is corrected in place below.
 
+#### Done — 2026-09-17
+
+***A responder rather than a dependency, and the argument is scope rather than
+pride.*** An mDNS library brings service discovery, browsing, TXT and SRV
+records, arbitration across a record set, and a cache. What [09 §5.1] asks for is
+one sentence — *"advertise over mDNS as `storyengine.local` once bound beyond
+loopback, so nobody types an IP"* — which is **one host, one A record, one
+name**, and that is a hundred lines of `DataView` against a format fixed in 1987.
+*The other half of the argument is the supply chain*: [19 §10] makes the
+dependency licence manifest a shipped artefact, and a package that opens a
+multicast socket and parses attacker-shaped bytes off the local network is
+exactly the kind worth not having.
+
+***It probes before it claims, which is what makes it well-behaved rather than
+merely working*** (RFC 6762 §8.1). Two installs in one household both answering
+for `storyengine.local` is a race whose winner nobody can identify. Three
+queries, 250 ms apart; anything that answers means the name is taken, and this
+install advertises nothing and says so with the name it tried. **And it says
+goodbye** — a TTL-zero answer on shutdown, so a restart is a restart rather than
+two minutes of a household reaching a dead address.
+
+***One config key doing two jobs, and both are things a person has an opinion
+about.*** `server.mdnsName` is **the name**, because two installs collide and
+`attic` and `study` is a real answer to a real problem, and **off**, spelled as
+the empty string. *Advertising is conditional on the bind regardless* — §5.1's
+own condition, and the same `isLoopbackHost` the setup token uses, because two
+spellings of *is this exposed* is a security bug rather than an inconsistency.
+
+***Every failure is a log line and a running server.*** macOS runs
+`mDNSResponder` and most Linux desktops run Avahi, both of which hold port 5353;
+a container under the default bridge often has no multicast route to the LAN at
+all. Each of those is *no `.local` name*, none is *no server*, and the first is
+arguably a better outcome than what this would have done — that machine is
+already reachable by its own hostname.
+
+**What this stage cannot end at.** *Ends at* above is *somebody on the LAN
+reaching the install by name rather than by address*, which needs a second
+machine on a real network. The **bytes** that would reach them are asserted
+exactly (`packet.test.ts` is pure: cache-flush bit, unicast bit, compression
+pointers, pointer loops, every malformed shape answering `null`); what is between
+the bytes and the neighbour is a socket, and a socket is a person with two
+machines. **Recorded as owed to the gate rather than claimed**, alongside the
+container first-run question this stage was also asked to settle against a second
+install — which likewise has not happened, and is §3's to carry rather than this
+block's to assert.
+
 ### P10.1 — The notification router
 
 §1.3's server-side routing with a substitutable presence input; §1.4's
@@ -522,9 +595,11 @@ add once producers exist; per-user scoping by ownership, which
 [09 §4.3](../09-server-multiuser-deployment.md) already answers.
 
 ***The class decision is decidable now rather than at the stage*** — §0.1, and
-§5 asked for exactly this. **Three classes ship**: `turn.complete`, `turn.failed`
-and `system.notice`. `turn.awaiting-input` has no suspending step after four more
-phases and comes back with [25 C5](../25-open-questions.md).
+§5 asked for exactly this. ~~**Three classes ship**: `turn.complete`,
+`turn.failed` and `system.notice`.~~ **Four**, once this stage builds
+`artifact.ready`'s producer, which the paragraph below commits it to.
+`turn.awaiting-input` has no suspending step after four more phases and comes
+back with [25 C5](../25-open-questions.md).
 
 ***And this stage gains a producer it was not going to have.***
 `artifact.ready` was [P9](26-p9-implementation.md)'s and P9 did not emit it — for
@@ -541,6 +616,61 @@ rendition that failed is not *ready*, and `interrupted` exists because a server
 can restart mid-job. The lean is to widen the class to *settled* with the outcome
 in the params.
 
+#### Done — 2026-09-16
+
+***The lean was taken, and the name was not.*** A failed picture is
+`artifact.ready` with `outcome: 'failed'` in the params, not a fifth class and
+not a rename — which is [09 §3.5](../09-server-multiuser-deployment.md)'s own
+reason for choosing `artifact.ready` over `rendition-ready`, *"precisely so its
+second instance would not require renaming it"*, applied to the second instance
+that actually arrived. **The callback into the worker is called `settled` and the
+class it feeds is called `artifact.ready`**, which is the distinction written
+into the two names rather than into a comment.
+
+***A test found a real defect in the first hour, and it is the one worth
+recording.*** `state/notifications.ts` resolved `actionable` from a per-class
+table, with `artifact.ready` marked `false` — [09 §3.5]'s own column — and the
+router overriding it for the failed arm. **The override could not reach the
+store**: the table won, and a failed picture landed with `actionable: false`.
+`router.test.ts` caught it on its first run. The fix is in the table rather than
+as a special case in `notify`, because the table was making a claim it does not
+have the information to make: what it actually encodes is **who decides**, and
+two of the four classes have an answer that is the occasion's rather than the
+class's. *This is §1.4's "decide per class" read one level down — the decision
+is per class, and for two of them the decision is `varies`.*
+
+***The presence interface got its implementation somewhere §1.3 did not
+predict, because the obvious place could not work.*** The first draft put
+`Presence` over `TurnStream`'s subscriber map, which is `sessionId ->
+Set<Listener>` — and **a listener carries no account**, deliberately: [09 §4.3]
+withholds sharing at 1.0, so anyone who can read a session stream is its owner
+and that bus has never needed to know who. So presence and delivery live together
+in `notifications/bus.ts`, which is the same registry read two ways: *connected*
+is holding a notification stream, and that stream is where a notification is
+delivered. **Viewing is counted rather than flagged** — two tabs on one session
+are two attachments, and a flag makes the second close wrong in a way that only
+shows for somebody who had two tabs open.
+
+**Three producers, at the three places that know**: the runner after
+`finaliseTurn` (both its paths, including the unstartable one, which is the path
+that most needs it because it leaves no prose at all); the rendition worker at
+its two settle points; and the settings save, where `pendingRestart` already
+computes the keys. ***And the runner tracks **why** it stopped***, because
+`aborted` is set by two different events — a step declaring `failure: 'abort'`
+and a person pressing **Stop** — and only one of them is news. A toast saying
+*your turn failed* about a turn somebody just cancelled is the app reporting
+their own act back to them as a problem.
+
+***What is deliberately not built here is the client***, which is P10.2's whole
+subject. The three routes are in `route-callers.test.ts`'s `OWED` map with that
+stage named, as three lines rather than one, because P10.2 pays them separately:
+the badge and the list come from the two JSON routes and the toast needs the
+stream.
+
+**Also landed, because a record's shape is not finally said in a workplan:**
+[21 §8](../21-internal-contracts.md) now carries `Notification`, which §5.1 above
+has been promising a durable home since P2.3 and which no document held.
+
 ### P10.2 — The two delivery channels 1.0 gets
 
 In-app — sound, toast, unread badge, document title — which covers the
@@ -553,6 +683,72 @@ when no browser is open.
 ([09 §3.6](../09-server-multiuser-deployment.md)): plain LAN HTTP is not a secure
 context, and channel 2's availability therefore depends on how the install is
 reached. Say it where someone will read it.
+
+#### Done — 2026-09-16
+
+***"Documentation, not code" was half right, and the half it missed is the one
+§3.6 spends a paragraph on.*** The caveat is in
+[`docs/deploy.md`](../../deploy.md) with the three-row table, which is the
+documentation this line asked for. But §3.6's own first obligation is *"say so
+where the user chooses… a greyed toggle with no reason is the worst version of
+this"* — and that is code: `browser.ts` distinguishes **four** states rather than
+a boolean, because *unsupported*, *insecure context*, *not yet asked* and
+*refused* need four different sentences and only one of them is a control. **The
+order of the checks carries the finding**: a browser on plain HTTP reports
+`permission: 'default'`, which reads as askable and then refuses the prompt, so
+`isSecureContext` is read first or the surface promises something it cannot do.
+
+***One hook for four channels, because they are four renderings of one fact.***
+Sound, toast, badge and title split across four components would each hold their
+own copy of *what has arrived*, and the way that fails is a badge showing two
+while the title shows three. So `useNotifications` is mounted once, in the shell,
+and the query cache is the state the stream writes into — `usePatchPrefs`' shape
+on a second subject.
+
+***The subtle half is that **arriving** and **being told** are different
+things.*** A notification on the stream's **snapshot** is recorded as announced
+without announcing it: what is on a snapshot was already true before this tab
+attached, and on a flaky LAN the stream reattaches every three seconds — so
+without that, one finished turn becomes a chime every three seconds until the
+network settles, after which a person reasonably concludes notifications are
+broken. **But a fold is news again, once**: *your picture is ready* and *three
+pictures are ready* are different facts, so the memory is a count per id rather
+than a set of ids, and [09 §3.4]'s coalescing would be pointless if the second
+one were silent.
+
+***The transport was extracted rather than copied.*** `play/stream.ts` was
+written when the session stream was the only one; [09 §3.1] describes two, and
+the second has the same retry problem at a different address. So the `fetch`
+loop, the refusal arms and the backpressure moved to `sse/connect.ts`, and
+`openTurnStream` became a twenty-line caller of it — **with its own test file
+unchanged**, which is what makes the move a refactor rather than a rewrite. On
+the server the same seam appears as `SseWriter.emit`, beside the typed `send`:
+the session stream's frame union stays closed, and a per-account stream's frames
+are not in it.
+
+***The sound is synthesised.*** Two oscillators and an envelope, because an
+audio asset would be a binary in a text repository, would need a licence line
+([19 §10](../19-tech-stack.md)), and would have to be fetched over a LAN from the
+server that is busy making the turn it announces.
+
+***And a mechanical instrument came with it***, which is the part that outlives
+the stage: `labels.test.ts` greps the server's `NotificationClass` union against
+the client's sentence table, both directions. It is
+`library/note-labels.test.ts` on a second subject and it exists for that file's
+reason — that table had drifted by twenty-four keys with nothing saying so,
+because the fallback renders an unlabelled key as itself, which is right for a
+version skew and silent for a build shipped against itself.
+
+**The three routes [P10.1] left in `OWED` are paid**, which is one stage
+outstanding — the shortest that map has carried a debt.
+
+*A test race this stage caused and fixed, worth the line because it is the
+ordering [P10.1] chose.* `#announce` runs **after** `finaliseTurn`, which is what
+marks a job committed — so a test that read the collector the instant the turn
+was on disk passed alone and failed under the full suite. The turn is
+deliberately not delayed by the notification; the test waits instead, and the
+one that asserts an *absence* buys its window with a second turn rather than with
+a sleep, which is `runner.test.ts`'s standing rule.
 
 ### P10.3 — The remainder of [10 §15](../10-ui-surfaces.md)
 
@@ -583,6 +779,124 @@ personal connection list alone**: `/me/` serves `password`, `prefs`, `roles` and
 a personal surface predating the `privateConnections` check would have been
 [09 §4.5](../09-server-multiuser-deployment.md)'s *"trivial bypass, wearing a
 UI"*, and the check has been real since P3.
+
+#### Done — 2026-09-16, in two commits
+
+***Six bullets, and the interesting half is that four of them were waiting on a
+blocker rather than on a decision.*** What this stage mostly did was build
+blockers.
+
+**The preference rows: four, and the list is mechanical.** §1.4's rule is about
+**surfaces** — a row for a class nothing emits is
+[work plan §2.3](01-work-plan.md)'s failure inverted — so the rows come from
+`NOTIFYING_CLASSES`, which `prefs.test.ts` checks against the server's own union
+in both directions. A fifth class cannot arrive with no row, and a row cannot
+outlive its class.
+
+***And [10 §9](../10-ui-surfaces.md) asked for three things this plan did not
+mention, all of which were right.*** **Distinct sounds per class** — *"tellable
+apart from another room, which is the entire point of having a sound rather than
+a toast"* — so the contour carries it, rising for finished and falling for
+failed, because a change of waveform does not survive a laptop speaker two rooms
+away. **A global mute and a start-muted preference**, Marinara's, which is for a
+shared room and fails exactly once if you have to remember it. And ***prime the
+audio on first interaction***, which that section calls *"a well-known trap that
+presents as 'sounds work sometimes'"* — the failure is not silence, it is a
+person who clicked something hearing it and a person who opened a tab and waited
+not, which is unreportable.
+
+***A tension worth recording rather than resolving.*** [10 §9] says *"suppress
+what is already visible… the sound is still wanted; the toast is not"*, and
+[P10.1]'s router suppresses the **whole notification** for a session you are
+watching. Both are right about their own subject: §9's case is a *message*
+arriving in a chat you are reading, where the sound tells you across the room;
+[09 §3.1] and this phase's §1.3 put routing server-side, where the only honest
+unit is the notification. **Messages is unscheduled** ([24 §3.4]), so nothing at
+1.0 produces §9's case — and when it does, the split it needs is a per-channel
+decision in the router rather than a client-side override. Recorded here because
+the next person to read §9 will notice the same thing.
+
+**Your connections.** [19 §5.1]'s *"anyone who wants their own key overrides a
+role without the admin's involvement"*, which until now meant writing a JSON
+file by hand into a directory the UI never mentioned.
+`routes/connections.ts` grew a second registrar rather than a second module and
+the client grew a second panel over one form, for the same reason both times:
+what the scopes share is a record shape, a stale check and an error vocabulary,
+so the failure to design against was never a second copy — it was one surface
+quietly reading the other's directory. ***The personal routes are the first
+entries on `connections.test.ts`'s exemption table that carry a key***, so the
+old argument (*this route handles ids, never credentials*) was unavailable and a
+third probe kind was needed: the capability.
+
+***§1.6: *Restart now* is built, and the detection is mostly *ask*.*** That is
+the finding rather than a shortcut — **nothing inside a container can see its own
+restart policy**, and every heuristic people reach for (PID 1, `/.dockerenv`, a
+cgroup path) detects *being in a container*, which is a different question whose
+false positive is precisely §6.4's trap: a `docker run` with no policy. So
+`SE_SUPERVISED` is set beside the `restart:` line in `compose.yaml` and in the
+unraid template — §1.2's *one documented environment variable* on a second
+subject — and systemd's own `INVOCATION_ID` is the one honest detection.
+**Default-deny**, because a wrong *no* costs one manual restart and a wrong *yes*
+costs the server.
+
+*And "drain" meant writing one*, because `runner.drain()` aborts. The sequence is
+**stop accepting** (a 503 with `retry-after` at the submission route, which is
+the only door), then `settle()`, then — after thirty seconds — the abort, which
+commits what is left as failed turns rather than losing them. `restart.test.ts`
+drives a real turn through a slow provider and asserts the exit does not happen
+while it runs, which is the claim the whole stage rests on.
+
+***§1.7: the check moved, and the section's own prediction is why.*** Two config
+keys had shipped ahead of it and `CONFIG_TIERS` had been saying `'unread'` about
+both for four phases — *"not shipping dark as a decision; shipping dark by
+default"*. Both are `'applied'` now.
+
+***What §6.5 did not have to distinguish, and this build does.*** A failed check
+is two things: **a transport failure**, where nothing answered, and **an HTTP
+answer this build cannot use** — a 404, an empty feed, no release for the
+channel. Only the first is a connectivity signal; the second *proves the internet
+works*. **That is this project's present state rather than a hypothetical**: the
+repository is private and [releases §4](04-repo-and-releases.md) says `latest`
+*"names nothing"* until a release is cut, so the default channel's feed answers
+404. A check that conflated them would tell every alpha operator their server was
+offline. And §6.5's conditionality is built the way it is written: an all-local
+install is told nothing, because *"a fully local setup is a legitimate,
+fully-functional deployment and its operator chose it deliberately"*.
+
+**Not built, and named rather than left:** §6.5's *"better use"* — an engine that
+says *"this server appears to have no internet access"* instead of surfacing a
+raw connection error when a turn fails against a remote provider. It is genuinely
+the more valuable half and it belongs where a provider failure becomes a
+`StepFailureReason`, which is `turns/calls.ts` rather than a settings surface.
+~~**Owed to [P11.3](28-p11-implementation.md)**, whose subject is the error
+vocabulary, and the signal it needs now exists.~~ **Owed to
+[P11.6](28-p11-implementation.md)** — corrected 2026-09-17, on the re-audit. The
+stage number was wrong and the routing was right: P11.3 is *the assistant*, and
+the stage whose third clause is *better failures* is **P11.6**, which its own
+*Depends on* had already made conditional on this paragraph — *"if P10 takes the
+check, this stage is the error messages alone"*. P10 took the check, so that arm
+is the live one, and this is the debt that lands in it.
+
+***Paid the same day.*** [P11.6](28-p11-implementation.md) built `remedyFor` in
+`packages/shared/src/remedy.ts`, reading exactly the signal this paragraph
+argued for, and the two halves of the distinction above became the two arms
+`endpoint-silent-offline` and `endpoint-silent-online`. **The conditionality
+§6.5 asks for is the assertion the stage is proved by**: a local endpoint is
+told nothing about the internet *even when this server knows it has none*.
+
+***§1.5 and §1.8 are closed, which is the part that had cost two sweeps.***
+§1.8's system-library bullet is **struck** in [10 §15.3](../10-ui-surfaces.md):
+it offered two ways out and nothing in four phases argued for changing 1.0's
+position on admin write, so the bullet goes and the argument stays beside it
+struck rather than deleted. §1.5's fork is closed by a distinction it was
+missing — ***1.0 needs extensions **loaded**, not **installed***. The dice
+reference extension the work plan keeps at 1.0 is first-party and ships inside
+the image the way a built-in mode does; acquiring one from outside is a
+subsystem no 1.0 goal requires, and it is now a row in
+[24 §3.2](../24-roadmap.md) rather than an owner-shaped hole. **The three
+artefacts that presuppose it all stay** — the capability, the quota key, the
+manifest — because each is cheap, specified, and *visibly* inert, which is what
+`'unread'` and that docstring are for.
 
 ### P10.4 — The account gallery
 
@@ -615,6 +929,55 @@ for. What that now means is a constraint on whoever builds the full home — *it
 has to be read against this stage* — rather than a claim about which stage
 builds it. Polish §5's scope rule travels with it either way.
 
+#### Done — 2026-09-16
+
+***[12 §8] was written to be read at the build rather than re-derived, and it
+was.*** Every obligation it enumerates shipped: the config key end to end with
+its tier row, applier and derived select; `hiddenFromGallery` through `toPublic`,
+`updateSelf`, `update` and both toggles; `loginScreen` on `/auth/state`; the
+route family; the tile grid and the generated tile. The three tests it names are
+`gallery.test.ts`'s, under the names that section gives them.
+
+***The upload route was not the server's first, and [12 §5.2] said it would
+be.*** P4 built one for the import sweep, and it had already extracted
+`readOnePart` — *"before the second copy existed rather than after"*, in its own
+words — so two of the three obligations that section names were waiting with a
+caller. **What was actually new is the sniffing**, which is this route's own:
+`readOnePart` bounds the size and hands over bytes, and believing a filename is
+how an HTML document gets stored as `avatar.png` and served back with a type
+somebody else chose.
+
+***The generated tile's two inputs are the part worth arguing about, and [12
+§5.4] got them right.*** Initials from the **display name**, hue from the
+**handle** — so a rename moves your letters and leaves your colour, which is what
+lets the tile be how you find yourself in a grid. *The falsifying mutation is
+hashing the display name*, and `tile.test.ts` is written against exactly that.
+**`oklch` rather than `hsl`**, which the appearance layer already decided for
+every other colour in the build: equal lightness numbers look equally light
+across hues there and do not in `hsl`, so a tile in `hsl` would be the one
+surface whose yellows glare.
+
+***Two mechanical instruments caught things during the build, and both are worth
+recording.*** `routes.test.ts`'s own comment predicted the shallow-spread problem
+— *"complete today because the section has one key, and it would silently stop
+being complete the moment a second joins it"* — and a second key joined it;
+**the compiler refused the literal by name**, so the warning was right about the
+risk and wrong about the failure mode, and it is corrected in place.
+`tailwind-utilities.test.ts` caught `hover:bg-surface-raised`, a token that does
+not exist, which is the exact defect that test was written for: an element
+silently losing a property, found by somebody looking at the page weeks later.
+
+***And a real defect in [P9]'s own tests, found by load rather than by
+reading.*** Six waits of the form
+`eventually(() => renditions.every((one) => one.state === 'ready'))` **pass
+vacuously over an empty list**, so they wait for nothing whenever the record has
+not been written yet — and the next line reads `[0]` off an empty array. It
+presented once in a full run as *"the backdrop never landed"* and passed in
+isolation every time. *It is the vacuous half of the fire-and-forget design
+[P9.2] chose deliberately*: the dispatch is detached, so **no renditions yet** and
+**all renditions settled** are the same answer to `every`. Fixed in all three
+gate files with the non-empty clause, and named here rather than called a flake.
+
 ### P10.5 — About, the source link, and the embedded version
 
 [09 §7](../09-server-multiuser-deployment.md)'s licence obligations that are
@@ -637,6 +1000,47 @@ link's **content** depends on a phase after this one even though its **place**
 does not.
 
 *Ends at:* the demo.
+
+#### Done — 2026-09-16
+
+***The place was cut and the content was the question, and the answer is that
+the **build** carries it.*** [09 §7] names the case that makes a §13 link more
+than a constant: *"a link to `main` is not strictly compliant when the operator
+is running a patched build — and the patched-build case is exactly the one §13
+exists for."* So `BuildInfo` grows a `source` field, written by
+`tools/write-build-info.mjs` from the `origin` remote of whatever repository the
+build was cut from. **A fork that ships its own image ships its own link**, with
+no code change and nothing to remember — which is what a hardcoded constant
+could never have done, and it is the whole reason this is three lines in a build
+script rather than one in a component.
+
+***And it resolves to a tag rather than a branch.***
+[releases §2](04-repo-and-releases.md) keeps tags immutable and release branches
+forever *"directly to serve an obligation we already have"*: a branch answers
+*where do I fix this?* and a tag answers *what precisely is the user running?*,
+and §13 asks the second.
+
+**Three absences that are each the honest answer**, rather than a fallback to
+somebody else's repository: no remote, no link; an unidentified build, no link;
+a scheme that is not `http(s)`, dropped at the parse. *The last one matters more
+than it sounds* — `build-info.json` is a file a hand edit reaches, and this
+becomes an anchor's `href` on every page of a signed-in surface.
+
+***The other half of [09 §7] went to the About block, and the split is that
+section's own.*** The **offer** must be *"visible to every logged-in user, not
+buried in an admin screen"*, which the footer is; the **licence boundary** is a
+paragraph somebody reads once, which is what an About block is for. Both halves
+in the same words, for every account, because §7 calls saying them plainly *"the
+cheapest available defence against the misreading that copyleft is creeping into
+people's stories"* — and the person who needs that sentence is whoever wrote a
+character, which is everybody.
+
+**Nothing here waits on publication.** §13 attaches on distribution
+([releases §0](04-repo-and-releases.md)) and this repository is private, so the
+obligation has not fired — but the *mechanism* is what a later phase would
+otherwise have to invent under time pressure, and it is cheaper now: a private
+build links to a private repository, which is correct and harmless, and the day
+the repository is public the link already works.
 
 ---
 
@@ -683,9 +1087,82 @@ where it is found and fixed, not P11.
 large debtor* is a number rather than a characterisation. **Three of the four are
 this phase's**: `updates.checkEnabled` and `updates.channel` (§1.7),
 `limits.extensionStorageQuotaMb` (§1.5). The fourth is
-[P11.7](28-p11-implementation.md)'s. **This gate should read that table reaching
-one**, which is a check a person can run in a second and which the prose above
-could only gesture at.
+[P11.7](28-p11-implementation.md)'s. ~~**This gate should read that table reaching
+one**~~ — **it reaches two**, 2026-09-17, and the difference is §1.5's fork
+closing as a *deferral* rather than as a build: the update check's two keys are
+`applied`, and `limits.extensionStorageQuotaMb` **stays `unread` on purpose**,
+beside [24 §3.2](../24-roadmap.md)'s row for extension installation. *That is the
+tier doing its job rather than the debt going unpaid* — a key that is stored, not
+read, and visibly so, which is what the annotation exists to say.
+
+### 3.1 The critical list, and what a test answers
+
+*Planned to [§0](05-manual-testing.md)'s criterion rather than sketched — the
+sixth phase to do so, and the first whose gate is mostly about **deployment**,
+which changes what the criterion returns.*
+
+***Four criticals, and three of them are blocked on a thing rather than an
+hour.*** That is unusual and it is a property of the subject: this phase's claim
+is *"the install is reachable, and safe, for someone who is not the
+developer"*, and every clause of it is about a machine that is not this one.
+
+| Row | Why it is critical | Blocked on |
+|---|---|---|
+| **C1** A completion sound with the tab backgrounded | Clause (i): the feature that motivated the whole of [09 §3] is *the completion-sound case*, and whether it fires in a backgrounded tab is a browser's answer rather than a test's. Clause (ii): every later delivery channel is built on this one working | Nothing — a browser and a turn |
+| **C2** *Restart now* under a supervisor | Clause (i): [09 §6.4] says the control *"is honest or it is a trap"*, and the trap is the half a test cannot reach — `restart.test.ts` proves the refusal and the drain in-process, and what nobody has watched is the process coming **back** | **R11**, a supervised install |
+| **C3** `storyengine.local` from a second machine | Clause (i): the bytes are asserted exactly and what is unproven is that a neighbour hears them. Clause (ii): it is the arrival story every later install instruction assumes | **R5**, a second machine |
+| **C4** A household member, from the URL alone | Clause (i), and it **is** the phase's claim rather than a check on it. The gate's own step 10 says so: *"the phase's whole claim is about that person"* | **R4**, a non-author for an hour |
+
+***What the criterion excludes, and it is most of the gate.*** Steps 1 and 2 are
+[P6A](19-p6a-alpha-1.md)'s claims living in P10's gate — clause (i) — and belong
+to [sitting I](05-manual-testing.md), which already holds them. Steps 3, 4, 7 and
+the standing line are **asserted by name** below. Step 8's composition is
+asserted and its *resolves* half is blocked on publication, which is
+[P11.9](28-p11-implementation.md)'s.
+
+***And the one this phase was asked to decide and did not.*** [P10.0] carries
+the container first-run question — a one-time host `chown` against a container
+that takes its volume and drops to `PUID`/`PGID` — and says it is *"this phase's
+to decide against a second install, not the first."* **There has been no second
+install**, so it is carried into sitting P rather than decided at a desk, which
+is the honest handling of a question whose whole point was that it is answered by
+watching somebody.
+
+### 3.2 What was answered — recorded 2026-09-17
+
+*The results table [manual testing §0](05-manual-testing.md) asks for, in
+[P9 §3.2](26-p9-implementation.md)'s shape. **The ten steps above are not
+edited**; this is the second table, which is that model's first honesty condition
+and the whole reason there are two.*
+
+| Step | Discharged by | Result |
+|---|---|---|
+| **1** Fresh container: reachable, token, setup gate | — | **Not this phase's.** [P6A](19-p6a-alpha-1.md)'s claim in P10's gate — criterion (i) — and it is [sitting I](05-manual-testing.md) rows 1–6, one `PASS` and three `PART` from the first install |
+| **2** One environment variable, two artifacts | `config.test.ts` | ✅ **in part** — that the variable maps a key, is documented, and is refused by name when wrong. *Two artifacts* is I's, for step 1's reason |
+| **3** A's turn notifies A and nothing addressed to B | `notifications/router.test.ts`, `routes/notifications.test.ts` | ✅ — the phase's named CI claim, and asserted **twice on purpose**: once where the account is an argument, once where it comes from a session cookie and there is no other way to name one |
+| **4** Five events inside the window arrive as one | `state/notifications.test.ts` | ✅ — and on `folded` rather than on the row count, because *a replace also yields one row*. That is the assertion that separates *five people replied* from *somebody replied, and we told you about the last one* |
+| **5** A sound with the tab backgrounded; every row has a producer | `notifications/prefs.test.ts`, `notifications/labels.test.ts` **in part** | **C1. Never walked.** The row count is mechanical in **both directions** — the rows are generated from `NOTIFYING_CLASSES`, which is checked against the server's own union — so a class with no row and a row with no class each fail a test. *What no test reaches is whether a sound happens in a tab nobody is looking at* |
+| **6** *Restart now* refused bare; drains and names who it interrupts | `restart.test.ts`, `supervision.test.ts` | ✅ **in part** — the refusal, the 503 at the submission door, the drain waiting on a real turn through a slow provider, and the counts split mine-from-others. **C2** is the half where the process comes back |
+| **7** [12 §8]'s three tests | `routes/gallery.test.ts`, `auth/Gallery.test.tsx`, `auth/tile.test.ts` | ✅ — all three by the names that section gives them, plus the one it did not ask for: *a tile never authenticates*, which is [12 §9]'s refusal and the thing this feature is most likely to be quietly "improved" into |
+| **8** About shows a real version and commit; the source link resolves | `build-info.test.ts`, `about/BuildFooter.test.tsx` | ✅ **in part** — the composition is asserted, including the tag rather than a branch and the three absences. *Resolves* needs a public repository, which is [P11.9]'s, and **an identified build**, which needs a release build |
+| **9** `storyengine.local` from a second machine | `mdns/packet.test.ts`, `mdns/responder.test.ts` **in part** | **C3, blocked on R5. Never walked.** Every byte that would reach a neighbour is asserted — the cache-flush bit, the unicast bit, compression pointers, pointer loops, every malformed shape answering `null`. What is between the bytes and the neighbour is a socket |
+| **10** A household member, from the URL alone | — | **C4, blocked on R4. Never walked**, and it is the phase's whole claim rather than a check on it |
+| **The standing line** — no configuration without a surface | `config.test.ts`, `route-callers.test.ts` | ✅ **as stated, at two rather than one** — `updates.*` became `applied` when §1.7's check moved here; `limits.extensionStorageQuotaMb` stays `unread` beside its roadmap row, and `trash.retentionDays` is [P11.7]'s. **Four routes joined `OWED` and left it one stage later**, which is the shortest that map has carried a debt |
+
+***Seven rows discharged in whole or in part; four criticals, three of them
+errands.*** The distinction [§0](05-manual-testing.md) draws holds here as it did
+at P9: **a deferral is a judgement and a block is an errand**. Nobody decided C2,
+C3 or C4 were not worth walking.
+
+***What that leaves true and what it leaves unproven, plainly.*** Every claim
+this phase makes about **who is told what** is asserted, and it is the one that
+would be worst to get wrong: a household server that notified the wrong person,
+published an account list it should not have, or served a portrait somebody had
+hidden. What is unproven is every claim about **reaching the install** — a sound
+in a tab nobody is watching, a process that comes back, a name a neighbour
+resolves, and a person who has never seen it getting in. *That is the same shape
+P9's gate had and for the same structural reason*: the mechanisms are in this
+repository and the audience is not.
 
 ---
 

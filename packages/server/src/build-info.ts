@@ -36,6 +36,24 @@ export interface BuildInfo {
   version: string;
   /** The commit it was built from. Short or full; whatever the builder wrote. */
   commit: string;
+  /**
+   * Where this build's source is — [09 §7](../../../docs/design/09-server-multiuser-deployment.md),
+   * [P10.5].
+   *
+   * ***Written by whoever cut the build, from the remote they cut it from***,
+   * which is the whole of why it is a field rather than a constant. AGPL §13
+   * obliges an offer of the source corresponding to **the running version**, and
+   * §7 names the case that makes that more than a link: *"a link to `main` is
+   * not strictly compliant when the operator is running a patched build — and
+   * the patched-build case is exactly the one §13 exists for."* A fork that
+   * ships its own image ships its own link, with nothing to remember.
+   *
+   * **Optional, because a build can honestly not know.** A clone with no
+   * `origin`, an export, a tarball: the field is absent and the footer shows no
+   * link rather than pointing somebody at somebody else's repository, which
+   * would be a worse answer than none.
+   */
+  source?: string;
 }
 
 /**
@@ -72,10 +90,23 @@ export function parseBuildInfo(text: string): BuildInfo | null {
   try {
     const parsed: unknown = JSON.parse(text);
     if (typeof parsed !== 'object' || parsed === null) return null;
-    const { version, commit } = parsed as Record<string, unknown>;
+    const { version, commit, source } = parsed as Record<string, unknown>;
     if (typeof version !== 'string' || typeof commit !== 'string') return null;
     if (version === '' || commit === '') return null;
-    return { version, commit };
+    /**
+     * ***`source` is optional and a bad one is dropped rather than refused***,
+     * which is the other two fields' rule inverted and deliberately so: they
+     * are the **identity**, and a build that cannot say what it is has no
+     * business claiming to be something. A source link is an **offer**, and an
+     * absent offer is a smaller problem than a refusal to start — [P6A §1.5]'s
+     * own argument that a cosmetic fact must not become an outage.
+     *
+     * *Only `http` and `https`*, so a `javascript:` or a `file:` in a
+     * hand-edited identity file cannot become an anchor's `href` on every page
+     * of a signed-in surface.
+     */
+    const offered = typeof source === 'string' && /^https?:\/\//.test(source) ? { source } : {};
+    return { version, commit, ...offered };
   } catch {
     return null;
   }

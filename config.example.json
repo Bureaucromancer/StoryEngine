@@ -81,7 +81,26 @@
     // under /api is still the API: an address there that matches no route
     // answers JSON, never the app shell, because a client parsing JSON is
     // better served by a 404 than by a page.
-    "clientRoot": ""
+    "clientRoot": "",
+
+    // restart — the name this install answers to on the local network, as
+    // <name>.local (docs/design/09-server-multiuser-deployment.md §5.1).
+    //
+    // With the default, a household reaches the server at
+    // http://storyengine.local:8080 instead of typing an IP address somebody
+    // read out over the phone. Two installs on one network need two names —
+    // "attic" and "study" — because the server checks whether the name is
+    // already taken before it claims one, and the second would otherwise simply
+    // go unnamed.
+    //
+    // Set it to "" to advertise nothing. Advertising only happens when
+    // server.host is not loopback in any case: an install only this machine can
+    // reach has nobody to tell.
+    //
+    // On macOS, and on most Linux desktops, a system daemon already holds the
+    // mDNS port. The server says so in its log and carries on; those machines
+    // are usually reachable by their own hostname already.
+    "mdnsName": "storyengine"
   },
 
   "auth": {
@@ -101,7 +120,23 @@
     // one. Access to the host is already the highest authority this software
     // recognises (docs/design/09-server-multiuser-deployment.md §5.1), so the break-glass path takes what it
     // is given.
-    "minPasswordLength": 8
+    "minPasswordLength": 8,
+
+    // live — which arrival screen an unauthenticated visitor meets: "form" or
+    // "gallery" (docs/design/12-account-gallery.md §1.1).
+    //
+    // "form" is the default and is what every install has always shown: a
+    // handle box and a password box. "gallery" replaces the handle box with a
+    // grid of the accounts on this install, each with its face and display
+    // name — you pick yours and then type your password, which is the same
+    // login request either way.
+    //
+    // The default is "form" because a gallery discloses who has an account
+    // here, and a disclosure should be a decision somebody made. Individual
+    // accounts can opt out of the grid ("Shown on the sign-in screen" in
+    // Settings), and an admin can hide any of them; a hidden account still
+    // signs in by typing its handle.
+    "loginScreen": "form"
   },
 
   "log": {

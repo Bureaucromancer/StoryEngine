@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor, newLorebook } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, setUpAdmin, type TestServer, ownObjects } from '../test-server.js';
 
 /**
  * Request validation and the `:kind` segment — F2.
@@ -45,9 +45,11 @@ describe('the :kind segment decides something', () => {
     expect(response.body.message).toContain('storyengine.actor');
     expect(response.body.message).toContain('storyengine.lorebook');
 
-    // And nothing was written: the list is still empty.
-    const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
-    expect(actors.body.objects).toHaveLength(0);
+    // And nothing was written: the user's list is still empty.
+    // **`ownObjects`, not the bare list** — the system scope ships an assistant
+    // card since [P11.3], so *the library is empty* was never the claim: it is
+    // that **the user's** library is, which is what the refusal is about.
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(0);
   });
 
   it('will not read a lorebook through the actors collection', async () => {

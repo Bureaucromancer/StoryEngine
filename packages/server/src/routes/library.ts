@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Type } from '@sinclair/typebox';
+import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
@@ -13,6 +13,12 @@ import {
 
 import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
+import { usedBy } from '../index-db/links.js';
+import { exportPackage } from '../packaging/export.js';
+import { assistField } from '../library/assist.js';
+import { storeAsset, sweep } from '../library/assets.js';
+import { sniff } from '../auth/avatars.js';
+import { readOnePart } from './import.js';
 import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
@@ -22,6 +28,7 @@ import {
   LibraryError,
   list,
   read,
+  readableOwners,
   readCardPixels,
   readMedia,
   remove,
@@ -117,6 +124,30 @@ const WriteBody = Type.Object(
   {
     object: Type.Optional(Type.Object({}, { additionalProperties: true })),
     contentHash: Type.Optional(Type.String()),
+    /**
+     * ***What came in, and from where*** —
+     * [10 §11.2c](../../../../docs/design/10-ui-surfaces.md), [P11].
+     *
+     * *"The book's history is the record of the import. `LoreEntry` carries no
+     * provenance of its own and should not gain one for this: the merge goes
+     * through the same write path as every other edit, so the book takes a
+     * history entry with `source: "import"` naming what came in and from
+     * where."* This is that field, and it is the whole of what the route needs
+     * to make it true: **one optional string, and an ordinary save otherwise.**
+     *
+     * ***It gives `VersionSource`'s `import` arm its first writer.***
+     * `history.ts` has carried `{ kind: 'import'; from: string }` since P2 with
+     * the note that *"`assist`, `extension` and `import` have no writers until
+     * their phases, but the type is the contract"* — this is that phase for the
+     * third of them.
+     *
+     * **A file name rather than an id**, because the thing being named is a
+     * file somebody chose on their own machine and there is nothing else to
+     * call it. It is the client's word for it and is never resolved against
+     * anything, which is why it is safe to take from a caller: it lands in a
+     * history line as free text, beside `reason`, and nothing branches on it.
+     */
+    importedFrom: Type.Optional(Type.String({ maxLength: 200 })),
   },
   { additionalProperties: true },
 );
@@ -285,6 +316,143 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
+   * ***A package, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
+   *
+   * **`.sepack` is this stage's rather than a stage of its own**, and §1.9's
+   * argument was not scheduling: an envelope is one of [18 §3]'s four
+   * consequences — free while the format is written, expensive afterwards — and
+   * a second one written later is two formats forever.
+   *
+   * *`missing` travels in a header rather than in the body*, because the body is
+   * the file: a person downloading a bundle gets the bundle, and a stale
+   * reference is something the **surface** tells them about. A field inside the
+   * document would be a note to the importer about the exporter's library.
+   */
+  app.get(
+    '/library/packages/:id/export',
+    { schema: { params: Type.Object({ id: Type.String({ minLength: 1 }) }) } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const result = exportPackage(
+        { library: services.library, build: services.build },
+        account.handle,
+        (request.params as { id: string }).id,
+      );
+      if (result === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'That package is not there.' });
+      }
+
+      return reply
+        .header('content-type', 'application/json; charset=utf-8')
+        .header('x-storyengine-missing', String(result.missing.length))
+        .header(
+          'content-disposition',
+          `attachment; filename="${packFileName(result.exported.manifest.name)}"`,
+        )
+        .send(result.exported);
+    },
+  );
+
+  /**
+   * ***Write this field for me*** —
+   * [10 §11.1](../../../../docs/design/10-ui-surfaces.md), [P11.2].
+   *
+   * ***One route for every field of every editor***, which is §11's own
+   * instruction read literally: assist has to be *"a primitive the editors are
+   * built from"*, and a primitive with six endpoints behind it is six
+   * primitives. The kind travels as a word in the body because the model is
+   * told it in a sentence — this is not a route that looks anything up.
+   *
+   * **The draft is the body and that is the whole design.** §11.1: *"an assist
+   * that receives only the field label produces generic slop and trains people
+   * not to use it."* So the editor sends what the person is looking at,
+   * unsaved fields included, and the size of that is the cost of the sentence
+   * being true.
+   *
+   * ***It writes nothing.*** No provenance, no object, no history entry — the
+   * answer goes back to a form, and whether it is kept is the person's next
+   * decision. That is §11.1's *"nothing may require a model call to proceed,
+   * ever"* on the server's side of the line: a route that recorded the
+   * generation would have made accepting it the default by making refusing it
+   * a second write.
+   */
+  app.post('/library/assist', { schema: { body: AssistBody } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as Static<typeof AssistBody>;
+    const result = await assistField(
+      {
+        layout: services.library.layout,
+        accounts: services.accounts,
+        providers: services.providers,
+        config: services.config,
+      },
+      {
+        account: account.handle,
+        subject: body.subject,
+        path: body.path,
+        label: body.label,
+        draft: body.draft,
+        ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+        ...(body.current === undefined ? {} : { current: body.current }),
+      },
+    );
+
+    if (!result.ok) {
+      /**
+       * **A class, never a sentence** — [21 §1.4]. `not-bound` is a
+       * configuration fault with a remedy the client already knows how to
+       * word ([P11.6]'s `REMEDY_SENTENCES`), and `no-answer` is an endpoint
+       * that replied with nothing, which is not the same thing and must not
+       * be reported as one.
+       */
+      return reply.code(422).send({ error: result.reason });
+    }
+    return reply.send(result);
+  });
+
+  /**
+   * ***Who points at this*** —
+   * [03 §10.1](../../../../docs/design/03-data-model.md),
+   * [10 §5.2](../../../../docs/design/10-ui-surfaces.md),
+   * [P11.7](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **One route for two surfaces**, which is [P4 §6.6]'s *"whichever phase
+   * builds that panel pays both"* kept: the object page's *Used by* and the
+   * delete confirmation's *referenced by 12 sessions, 3 treatments and 1
+   * package* are the same question at two moments, and separate answers could
+   * disagree about what a reference is.
+   *
+   * **A route rather than a field on the object read**, because the panel is
+   * read once per object view and the object read is on the hot path of every
+   * editor save — and because a count that is a fact about the *index* has no
+   * business in the payload whose etag is the file's content hash.
+   *
+   * *Not an existence check*: an id nothing points at answers with an empty
+   * list rather than a 404, which is what makes *used by nothing* renderable.
+   */
+  app.get(
+    '/library/:kind/:id/links',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const owners = readableOwners(account.handle).map((owner) =>
+        owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
+      );
+      const used = usedBy(services.index.db, (request.params as { id: string }).id, owners);
+      return reply.send({ usedBy: used });
+    },
+  );
+
+  /**
    * The index rows behind an object — the workbench's projection ([P3.3]).
    *
    * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [21 §5] keeps
@@ -349,6 +517,18 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           .send({ error: 'invalid', message: 'The request body is not an object.' });
       }
 
+      /**
+       * **`import` when the client says so, `manual` otherwise** — the default
+       * is `undefined`, which `update` reads as `MANUAL`, and the kind is the
+       * argument after it. The reason is what the history list shows beside the
+       * line, so it says what happened rather than restating the source name.
+       */
+      const from = (request.body as { importedFrom?: unknown }).importedFrom;
+      const change =
+        typeof from === 'string' && from !== ''
+          ? { source: { kind: 'import' as const, from }, reason: `Imported entries from ${from}` }
+          : undefined;
+
       try {
         const stored = await update(
           services.library,
@@ -356,10 +536,31 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           (request.params as { id: string }).id,
           object,
           expected,
-          // Default attribution; the kind is the argument after it.
-          undefined,
+          change,
           schemaId,
         );
+        /**
+         * ***Assets nothing names are collected here*** — [10 §11.2b], and the
+         * other half of `POST …/assets` storing bytes without touching the
+         * object. A picture uploaded by somebody who then closed the tab is a
+         * file with no manifest row, and this is the moment the manifest on
+         * disk is authoritative about which rows there are.
+         *
+         * **After the write and never before it**, because sweeping against a
+         * draft would delete the picture somebody had just added and not yet
+         * saved. Best-effort, and awaited rather than detached: the object is
+         * already on disk, so the worst a failure costs is a file the next save
+         * collects — but a detached sweep is one more thing writing into a
+         * directory after the request that caused it has answered, which is the
+         * shape that just cost a shutdown race one layer over.
+         */
+        await sweep(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+        );
+
         return await reply
           .header('etag', stored.contentHash)
           .send({ contentHash: stored.contentHash, object: stored.object });
@@ -463,6 +664,28 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           expected,
           schemaId,
         );
+        /**
+         * ***Assets nothing names are collected here*** — [10 §11.2b], and the
+         * other half of `POST …/assets` storing bytes without touching the
+         * object. A picture uploaded by somebody who then closed the tab is a
+         * file with no manifest row, and this is the moment the manifest on
+         * disk is authoritative about which rows there are.
+         *
+         * **After the write and never before it**, because sweeping against a
+         * draft would delete the picture somebody had just added and not yet
+         * saved. Best-effort, and awaited rather than detached: the object is
+         * already on disk, so the worst a failure costs is a file the next save
+         * collects — but a detached sweep is one more thing writing into a
+         * directory after the request that caused it has answered, which is the
+         * shape that just cost a shutdown race one layer over.
+         */
+        await sweep(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+        );
+
         return await reply
           .header('etag', stored.contentHash)
           .send({ contentHash: stored.contentHash, object: stored.object });
@@ -580,6 +803,81 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           .header('content-type', mime)
           .header('etag', digest)
           .send(Buffer.from(bytes));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * ***Bytes beside an object*** — [10 §11.2b](../../../../docs/design/10-ui-surfaces.md),
+   * [03 §5.2.3](../../../../docs/design/03-data-model.md), built at P11.
+   *
+   * §11 lists *"every image slot can be generated, uploaded, cropped and
+   * replaced"* and §11.2b is the lorebook half of it. **Three of those four are
+   * this route and the editor above it**; *generated* is a rendition
+   * ([06 §10](../../../../docs/design/06-modes-and-turn-pipeline.md)) and
+   * §11.2b sends it away by name, to arrive *"with the providers and not
+   * before"* — which [P9](../../../../docs/design/workplan/26-p9-implementation.md)
+   * has now shipped as the backdrop.
+   *
+   * ***It stores bytes and does not touch the object***, which is the decision
+   * worth reading twice. §11.2b puts a gallery on the **book** and a strip on
+   * **each entry**, so *which array does this row belong to* is a question only
+   * the form knows the answer to — a route that decided would need an arm per
+   * array, and it would write the object behind the editor's draft, which is
+   * the one thing the editor shell exists to prevent. So the manifest row
+   * travels in the ordinary save, hash-checked like every other field, and
+   * `library/assets.ts` explains what that costs and how it is paid back.
+   *
+   * ***Cropping happens in the browser, and the cropped bytes are what arrives
+   * here.*** A crop is a rectangle over pixels somebody is looking at; doing it
+   * on the server would mean shipping an image library to re-derive a decision
+   * the client had already made exactly, and then keeping an uncropped original
+   * nothing asks for. The canvas the browser already has is the better tool,
+   * and what reaches disk is what the person chose.
+   */
+  app.post(
+    '/library/:kind/:id/assets',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const part = await readOnePart(request, reply, services);
+      if (part === null) return;
+
+      /**
+       * **Sniffed, not trusted.** The part's own content type is what the browser
+       * said; this is what the bytes are, and it is the same `sniff` the avatar
+       * upload uses so the two doors accept the same set. A file that is not an
+       * image is refused here rather than stored and discovered by a broken
+       * picture later.
+       */
+      const kind = sniff(part.bytes);
+      if (kind === null) {
+        return reply
+          .code(415)
+          .send({ error: 'not-an-image', message: 'That is not a PNG, JPEG or WebP image.' });
+      }
+
+      try {
+        const stored = await storeAsset(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          part.bytes,
+          kind.mime,
+          schemaId,
+        );
+        // 201, and the body is the manifest row the editor is about to add — the
+        // caller has to be able to write `ref`, `digest`, `bytes` and `mime` into
+        // an `EmbeddedMedia` without computing any of them.
+        return await reply.code(201).send({ asset: stored });
       } catch (error) {
         respondToLibraryError(error, reply);
         return;
@@ -769,3 +1067,37 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
   const unhandled: never = error.code;
   throw new Error(`unhandled library error code: ${String(unhandled)}`);
 }
+
+/**
+ * A `.sepack` filename — [P11.10], and `fileNameFor`'s rules in `sessions.ts`.
+ *
+ * ASCII only, because `content-disposition` is latin-1 by specification; the
+ * extension is the one [04 §9] names and the one an importer will look for.
+ */
+function packFileName(name: string): string {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[^\p{ASCII}]/gu, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return `${slug === '' ? 'package' : slug}.sepack.json`;
+}
+
+/**
+ * What an assist needs to know — [10 §11.1], [P11.2].
+ *
+ * **`draft` is `Type.Unknown()` on purpose.** It is the object the editor is
+ * holding, which may be a draft of a kind this build validates and may equally
+ * be a half-typed one that would fail its own schema — refusing it here would
+ * make assist available only once the form was already correct, which is the
+ * opposite of when somebody wants it.
+ */
+const AssistBody = Type.Object({
+  subject: Type.String({ minLength: 1, maxLength: 60 }),
+  path: Type.String({ minLength: 1, maxLength: 200 }),
+  label: Type.String({ minLength: 1, maxLength: 200 }),
+  draft: Type.Unknown(),
+  guidance: Type.Optional(Type.String({ maxLength: 2000 })),
+  current: Type.Optional(Type.String({ maxLength: 100_000 })),
+});

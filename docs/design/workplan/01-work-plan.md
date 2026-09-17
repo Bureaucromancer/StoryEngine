@@ -1339,6 +1339,24 @@ is asserted. Every claim about **what it looks like** is not. §0.4's question,
 *are renditions worth 1.0 at all*, is therefore no easier to answer than it was;
 what has changed is that the code exists to answer it with.
 
+***And the fleshing out closed two of its own forks and pinned its split seam***
+(2026-09-16). **All twelve stages now name what they depend on, what they end at
+and the check that says they are done** — §1.1's rule turned on the document's own
+list, which its §5 asks for. Two forks fell out of it: the **assistant's mode
+definition** is P11's because [P7](23-p7-implementation.md) shipped without
+answering its §1.8, which is precisely the *both documents leaving it to the
+other* that P11 §1.5 said must not happen; and **P11.4's impersonation** is the
+whole feature rather than a remainder, because P7's own dependency list records
+that *"P7's revisit did not know it was asked."*
+
+***And the split is not where §5 guessed.*** With every stage carrying a
+dependency, **nine of twelve depend on nothing** — so the seam is not product
+completion against release engineering, it is *everything else* against **P11.8
+and P11.9**, the only two that depend on the phase. **That cut cannot be a release
+boundary**, because [releases §0](04-repo-and-releases.md) requires P11.9 for beta
+to count: the honest form is two phases and one release, which is worth knowing
+before somebody proposes a split as a way to ship sooner.
+
 ***Three decisions the phase closed on its way through***, all recorded in the
 plan rather than in commit messages: `Rendition` is **internal tier** and
 graduates when the turn record does, at the export freeze (§1.1, which is the
@@ -1364,11 +1382,38 @@ subsystem that spends money on its own from spending it per turn.
 
 ### P10 — Multi-user, notifications, deployment
 
-**Skeleton: [P10](27-p10-implementation.md)**, ***re-audited 2026-09-16 at
-`fee56da`***, which gives a remainder phase the
-spine it does not have by default: *this is the phase that makes the install
-reachable, and safe, for someone who is not the developer.* Anything here off
-that line gets checked against P11 before it is built.
+~~**Skeleton: [P10](27-p10-implementation.md)**~~ ~~***re-audited 2026-09-16 at
+`fee56da`***~~ ***Built on branch `p10`, 2026-09-16 to 2026-09-17, and open***,
+on the spine that document gives a remainder phase because it does not have one
+by default: *this is the phase that makes the install reachable, and safe, for
+someone who is not the developer.* Anything here off that line gets checked
+against P11 before it is built.
+
+***All six stages landed and the phase does not close on them*** —
+[P10 §3.2](27-p10-implementation.md) records seven gate rows discharged and
+[§3.1](27-p10-implementation.md) four criticals, **three of which are errands**:
+a supervised install, a second machine, and a non-author for an hour
+([sitting P](05-manual-testing.md)). *This is the most blocked rows any critical
+list has carried, and unlike P9's they are not one errand* — so the sitting does
+not become walkable when any single one arrives.
+
+***What a built P10 proves is who is told what***, which is the half that would
+be worst to get wrong on a household server: a turn notifying its own account and
+nothing addressed to anybody else, five arrivals folding into one notification
+that knows it is five, an unauthenticated account listing held to three fields by
+a test, a hidden account absent from the sign-in grid and still able to sign in by
+handle. **What is unproven is reaching it.**
+
+***Three things were not the shape the plan predicted, and each is worth a
+line.*** **The update check moved into this phase** — [P10 §1.7] called the lean
+and the two config keys it needed had already shipped `unread`, which that section
+names as *shipping dark by default*. **The extensions fork closed as a deferral**
+rather than as a build, on a distinction four audits had missed: *1.0 needs
+extensions **loaded**, not **installed***, and the first-party reference extension
+ships inside the image the way a built-in mode does — so acquiring one from
+outside is [24 §3.2](../24-roadmap.md)'s. And **the §13 source link needed the
+build to carry its URL**: a constant is right for this repository and wrong for
+every fork, and the patched-build case is the one §13 exists for.
 
 ***The re-audit was that document's own instruction, and it moved a producer
 between phases.*** [P10 §5](27-p10-implementation.md) names *re-reading P7's, P8's
@@ -1411,9 +1456,41 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-~~**Skeleton: [P11](28-p11-implementation.md)**~~ ***A register,
-re-audited 2026-09-16 at `2f3f5d9`***: [P11](28-p11-implementation.md), whose exit
-gate *is* the beta gate — the one structural difference from every other phase
+***Built on branch `p10`, 2026-09-17: thirteen stages, and the critical list is
+unwalked.*** [P11 §3.2](28-p11-implementation.md) is the record and
+[sitting R](05-manual-testing.md) is the list. **Five criticals, two of them desk
+work**, and the phase does not close until they have results — which is
+[manual testing §0](05-manual-testing.md)'s rule and, here, the rule that decides
+when *beta* may be said.
+
+***What it does not have is named rather than absorbed***, which is the part of
+this row worth reading twice. ~~Four~~ ~~**Three**~~ ~~**Two**~~ ~~**One**~~
+**None**. All four — ~~[10 §11.2c](../10-ui-surfaces.md)'s entry travel~~,
+~~[10 §11.2b](../10-ui-surfaces.md)'s image slots~~, ~~the assistant's docs
+lorebook~~ and ~~the Playwright suite~~ — were built on 2026-09-17, hours after
+being written down as missing. **Writing them down is what closed them**, which
+is the one general claim this row makes about the form of a phase record. ~~and the **Playwright journeys the gate's own row 8 assumed and no
+stage was asked to build**~~. ~~Three are features with an argument beside them;
+the fourth is infrastructure.~~ **All three are features with an argument beside
+them**, and they are in [manual testing §10](05-manual-testing.md) with no owner,
+because *giving a false owner would stop anybody looking* — and the person walking
+R4 meets them as known absences rather than as discoveries.
+
+***The fourth was the Playwright suite, and it was built on 2026-09-17***, the
+day the record named it. **It is worth a sentence because of how it went**: three
+of the four were features, each with a reason it could wait; the fourth was
+infrastructure the gate had simply assumed, which is not a thing a reader can
+weigh — so rather than ask R4's reader to adjudicate it, the suite was written.
+**Walking the seven journeys found three of them had been read wrong**, the
+sharpest being that *branch* is **Redo** and not a second send — and a second send
+posts the same one turn, so a suite written to the wrong reading would have been
+green while protecting the wrong claim. [testing §3.5](03-testing.md) records all
+three.
+
+~~**Skeleton: [P11](28-p11-implementation.md)**~~ ~~***A register,
+re-audited 2026-09-16 at `2f3f5d9`***~~ ***A register with a costed stage list,
+fleshed out 2026-09-16 at `7c5e0bd`***: [P11](28-p11-implementation.md), whose
+exit gate *is* the beta gate — the one structural difference from every other phase
 document. Its first stage
 is the audit that produces the list, ~~because the list exists today only as *home
 P11* scattered across the phase documents~~ **and a partial list now exists**:
@@ -1552,48 +1629,82 @@ Things that are wrong to schedule because they must happen inside every phase:
   economy available in this plan.
 
 ---
+## 8. What "beta" means — rewritten 2026-09-17, at [P11.9](28-p11-implementation.md)
 
-## 8. What "beta" means — to be expanded
+~~to be expanded~~ **This section was a sketch held open for the phase that would
+build it**, and [P11](28-p11-implementation.md) §1.1 named the rewrite as
+P11.9's. What follows is that rewrite: the seven bullets are gone, replaced by
+what they turned out to mean once three of them had been built.
 
-[releases §0](04-repo-and-releases.md) currently defines beta as **feature complete to
-the 1.0 spec**, which is a good completeness gate and an incomplete definition of
-readiness.
+[releases §0](04-repo-and-releases.md) defines beta as **feature complete to the
+1.0 spec**, which is a good completeness gate and half a definition of readiness.
+The other half is release engineering, and it belongs *in* the beta bar rather
+than after it — a phase that does not know what it is hardening toward ends when
+someone gets tired.
 
-The other half is release engineering, and it belongs in the beta bar rather
-than after it: build chains, release automation, and the workflows that make
-shipping repeatable rather than an event. Sketched here only to hold the shape —
-**this section is awaiting expansion** and should be rewritten rather than
-extended. **[P11](28-p11-implementation.md) names that rewrite as P11's** — its
-§1.1 and its P11.9 stage — because a hardening phase that does not know what it
-is hardening toward ends when someone gets tired:
+### What the rehearsal taught
 
-- CI that builds, tests and produces artifacts on every merge.
-- Reproducible builds of the container and the tarball, from a tag. **Those two
-  artifacts only** (§0.5) — the remaining four are a 1.0 requirement, and
-  standing up four more build chains is exactly the kind of work that reads as
-  progress while delaying the thing being packaged.
-- The release cut itself automated: tag → build → publish → changelog.
-  **Partly taken early at [P6A](19-p6a-alpha-1.md)** — one artifact's chain,
-  built once for real; five to go.
-- Channels wired (`latest`, `testing`, `nightly`) and *boring* — a nightly that
-  is often broken is worse than none ([releases §4](04-repo-and-releases.md)).
-  **Untouched by P6A**, deliberately: a private immutable tag is not a channel,
-  and P6A moves no alias.
-- Version and commit embedded in the build, which AGPL §13 already requires
-  ([09 §7](../09-server-multiuser-deployment.md)). **Taken early at
-  [P6A](19-p6a-alpha-1.md)**, for a reason of its own rather than §13's — a
-  frozen build that cannot say what it is defeats its own purpose. The §13
-  *surface* is not built there, because §13 attaches on distribution and P6A
-  distributes nothing.
-- Upgrade tested, not assumed: an install from the previous release upgrading
-  with its data intact.
-- Backup and restore actually exercised.
+**Three of the seven were taken early, at [P6A](19-p6a-alpha-1.md)**, on one
+artifact: the release cut automated end to end, version and commit embedded in
+the build, and an on-tag CI tier. That was not a schedule change.
+[releases §0.1](04-repo-and-releases.md) draws the line it was for — *a release
+artifact* is published, channelled and supported, while *a build the project
+produces for itself* is tagged, reproducible and handed to nobody — and
+front-loading release engineering is defensible on exactly the second one.
 
-~~The plan above front-loads none of this, which is defensible during alpha and
-would be a mistake to carry into beta.~~ **The plan above now front-loads three
-of these seven, at [P6A](19-p6a-alpha-1.md).** The original sentence was written
-when nothing did, and its argument is unchanged for the other four: front-loading
-release engineering during alpha is defensible only where the artifact is for the
-project rather than for an audience, which is the distinction
-[releases §0](04-repo-and-releases.md) now draws. What would be a mistake is
-carrying the *deferral* into beta, and this list is still what retires it.
+**The rehearsal was worth more than the plan it shortened, and specifically
+because it failed.** The first `v*` tag, on 2026-09-06, died at `corepack` with
+exit 127: Node 25 stopped shipping it, `node:26-slim` has no such command, and
+nothing had run the Dockerfile before a daemon did. Two more of the same class
+were found by reading the workflow against `compose.yaml` — an image tagged with
+the `v` that the trigger needed, so the tag [deploy](../../deploy.md) told people
+to pull did not exist; and a comment saying *lowercased* beside an expression
+that did not, which the registry would have refused.
+
+***All three were string mistakes in a file that runs once, on a tag, and
+nowhere else.*** That is what the rehearsal taught, and it is what
+`tools/release.test.ts` exists for: this build chain's characteristic failure is
+not *the compiler broke*, it is **two files disagreeing about a version, a name
+or a path**, and every one of those is visible to a test that reads them together
+on an ordinary run. So the rule this section now carries is: ***a release step
+that cannot be exercised on an ordinary run should be asserted about on one.***
+
+### What beta requires
+
+**Two artifacts, not six.** [releases §0](04-repo-and-releases.md) settles it —
+*"the canonical build must deliver the OCI image and the tarball
+([09 §5.4](../09-server-multiuser-deployment.md)) for beta to count"* — and the
+other four packaging artifacts are a **1.0** requirement: enough to have users is
+the beta test, and four more build chains is work that reads as progress while
+delaying the thing being packaged. They are P11's rather than a bar's, because a
+bar nobody owns is a wish.
+
+| | What | Where it stands, 2026-09-17 |
+|---|---|---|
+| 1 | **CI that builds, tests and produces artifacts on every merge** | `ci.yml` builds and tests on every push; the on-tag tier produces the artifacts. *Merge-time artifacts are deliberately not built* — a private alpha has nobody to hand them to, and an artifact nobody fetches is a cache with a retention policy. |
+| 2 | **Reproducible builds of the container and the tarball, from a tag** | The tarball is reproducible **and checked**: packed twice in the workflow and compared, with `tools/pack-tarball.test.ts` making the same claim over a fixture. The container's half is [P11 §3](28-p11-implementation.md)'s row 9 — it wants a daemon and two runs. |
+| 3 | **The release cut automated: tag → build → publish → changelog** | Done for the image at [P6A](19-p6a-alpha-1.md) and for the tarball at [P11.9](28-p11-implementation.md). ~~one artifact's chain, built once for real; five to go~~ **Two, and one tag cuts both.** |
+| 4 | **Channels wired and *boring*** | `testing` moves with every `v*` tag and the unraid template follows it; `latest` moves nowhere, deliberately, because unraid's auto-update and watchtower both track that alias and an alpha is not something to hand an auto-updater. **`nightly` does not exist and should not until somebody is reading it** — [releases §4](04-repo-and-releases.md): a nightly that is often broken is worse than none. |
+| 5 | **Version and commit embedded in the build** | Taken at [P6A](19-p6a-alpha-1.md). The AGPL §13 *surface* that uses it arrived at [P10.5](27-p10-implementation.md), because §13 attaches on distribution and P6A distributes nothing. |
+| 6 | **Upgrade tested, not assumed** | The tarball's upgrade path *is* re-running the install script, which is why that script is written to be idempotent and leaves the data directory alone. **Walking it is a person's** — a previous release, with data, upgraded — and it is a gate row rather than a check. |
+| 7 | **Backup and restore actually exercised** | Built and tested at [P11.11](28-p11-implementation.md): `tools/backup.mjs`, and a restore test whose load-bearing assertion is that the index is **rebuilt rather than carried**. The live half — restore into a running install and watch a search answer — is [testing](03-testing.md)'s. |
+
+### What is left is two rows and a person
+
+Rows 2 (the container half) and 6 are the whole of the remainder, and neither is
+code. **Both want a machine with a container daemon and a previous release
+installed on it**, which is the same sitting twice, and
+[P11 §3](28-p11-implementation.md) carries them — row 9 for the first, and the
+critical list its close builds for the second.
+
+*That is a much smaller residue than this section's first draft implied*, and the
+reason is worth keeping rather than quietly enjoying: the sketch listed seven
+bullets as though each were a project. Three were an afternoon each once the
+first artifact existed, one was a decision **not** to build something, and one
+turned out to be a test file.
+
+**~~The plan above front-loads none of this~~** — it front-loads five of seven
+now, and the original argument is unchanged for what is left: front-loading
+release engineering during alpha is defensible where the artifact is for the
+project rather than for an audience. What would be a mistake is carrying the
+*deferral* into beta, and this table is what retires it.

@@ -27,6 +27,7 @@ import {
   type TokenUsage,
 } from '../providers/types.js';
 import type { ModelCall } from '../sessions/types.js';
+import { isLocalEndpoint } from '../updates.js';
 import { budgetPolicyFor, type PresetBudget } from './budget.js';
 import { callPurposeFor, type StepCallRequest, type StepDefinition } from './steps.js';
 import { missMessage, needsPrompting, schemaInstruction, schemaMiss } from './structured.js';
@@ -611,7 +612,8 @@ export async function performCall(
       // person wins, and only silence that nobody asked to end is a stall. The
       // adapter's classifier matches `/abort/i` and would otherwise have called
       // this `transient` and retried the hang twice.
-      if (bound.stalled()) {
+      const stalled = bound.stalled();
+      if (stalled) {
         error = new Stalled(context.config.limits.providerTimeoutMs);
       }
 
@@ -661,6 +663,11 @@ export async function performCall(
           error: { class: classified, message },
           retries,
         },
+        // A word about where, for [P11.6]'s remedy. `isLocalEndpoint` is
+        // `updates.ts`'s, reused rather than copied: one definition of *on this
+        // network* is what keeps the update check's conditionality and this
+        // sentence from being able to disagree.
+        { endpoint: isLocalEndpoint(connection.baseUrl) ? 'local' : 'remote', stalled },
         detail,
       );
     } finally {
@@ -695,12 +702,33 @@ export class CallFailed extends Error {
   readonly detail: string | undefined;
   readonly partialText: string;
   readonly call: ModelCall;
+  /**
+   * ***Where the endpoint was, as a word rather than an address*** — [P11.6].
+   *
+   * `remedyFor` needs to know whether a silent endpoint was on this network,
+   * because a model server that is not running and an internet connection that
+   * is down produce the identical `ECONNREFUSED`. **What it must not be handed
+   * is the URL.** [21 §1.4] keeps a connection's `baseUrl` off every record and
+   * every log line, and `providers/capture.ts` says why in its own words — the
+   * URL may carry a token or name a private host. A boolean's worth of the
+   * answer is all the decision needs and all it is entitled to.
+   */
+  readonly endpoint: 'local' | 'remote';
+  /**
+   * Whether the endpoint accepted and then went quiet, rather than refusing.
+   *
+   * Both are `terminal`, because the retry ladder treats them the same, and
+   * they are opposite remedies — so the distinction is carried beside the class
+   * rather than folded into it.
+   */
+  readonly stalled: boolean;
 
   constructor(
     errorClass: ProviderError['class'],
     message: string,
     partialText: string,
     call: ModelCall,
+    where: { endpoint: 'local' | 'remote'; stalled: boolean },
     detail?: string,
   ) {
     super(message);
@@ -709,6 +737,8 @@ export class CallFailed extends Error {
     this.detail = detail;
     this.partialText = partialText;
     this.call = call;
+    this.endpoint = where.endpoint;
+    this.stalled = where.stalled;
   }
 }
 

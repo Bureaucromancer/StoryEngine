@@ -71,6 +71,17 @@ import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
 export const BUILT_IN_MODE_PACKAGES: readonly string[] = [
   '@storyengine/mode-scene',
   '@storyengine/mode-freeform',
+  /**
+   * ***The assistant is a mode package like any other*** — [06 §7.4],
+   * [P11.3](../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * Its presence on this list, and its absence from everywhere else, is the
+   * claim §7.4 makes: *"if building the assistant requires a parallel chat
+   * implementation, something in the mode contract is wrong."* It loads by bare
+   * specifier, registers its channels and its steps through the same two calls
+   * the story modes do, and nothing in `packages/server` names it.
+   */
+  '@storyengine/mode-assistant',
 ];
 
 export async function installBuiltIns(): Promise<void> {

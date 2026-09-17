@@ -285,7 +285,13 @@ describe('Illustrate, pressed by hand', () => {
     });
     expect(second.status).toBe(202);
 
-    await eventually(async () => (await renditionsOf()).every((one) => one.state !== 'pending'));
+    await eventually(async () => {
+      const all = await renditionsOf();
+      // Non-empty: `every` over an empty list is true, so this would otherwise
+      // wait for nothing whenever the record has not landed yet — which is the
+      // teardown race this wait exists to close, reopened by the wait itself.
+      return all.length > 0 && all.every((one) => one.state !== 'pending');
+    });
 
     const held = await renditionsOf();
     expect(held).toHaveLength(2);

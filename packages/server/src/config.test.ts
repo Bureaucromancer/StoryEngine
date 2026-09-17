@@ -183,14 +183,28 @@ describe('the tier table is the source', () => {
    *
    * **The standing example moved at P4.1**, because the old one stopped being
    * one: the upload route arrived and `limits.maxUploadMb` is now read per
-   * request. `trash.retentionDays` takes its place — tiered `live` because a
+   * request. ~~`trash.retentionDays` takes its place — tiered `live` because a
    * retention window is a thing an operator changes and expects to matter,
-   * unread because nothing prunes on it yet. That the exemplar had to move is
+   * unread because nothing prunes on it yet.~~ That the exemplar had to move is
    * the table working: a key stops being an example of dishonesty by becoming
    * honest.
+   *
+   * ***And it moved again at [P11.7]***, which built the retention sweep — so
+   * `limits.extensionStorageQuotaMb` takes the seat, tiered `live` because a
+   * quota is a thing an operator changes and expects to matter, unread because
+   * nothing installs an extension yet ([24 §3.2](../../../docs/design/24-roadmap.md)).
+   *
+   * **Twice now, and the pattern is the finding rather than either move.** The
+   * exemplar of *stored and not read* keeps becoming read, which means this
+   * check has never once failed by a key going the other way — nothing has ever
+   * quietly stopped being consumed. *What it is actually holding is that the
+   * table stays capable of saying `unread` at all*: a row of nothing but
+   * `applied` would pass the two checks above while telling the settings
+   * surface there is nothing to warn about, and the surface exists partly to
+   * warn.
    */
   it('admits that some live keys are stored and not read', () => {
-    expect(applierOf('trash.retentionDays')).toBe('unread');
+    expect(applierOf('limits.extensionStorageQuotaMb')).toBe('unread');
     expect(applierOf('log.level')).toBe('applied');
   });
 
@@ -388,10 +402,19 @@ describe('config has nowhere to put a credential', () => {
     // `GET /api/auth/state` so the first-run form can state the rule before
     // anybody types. A value handed to anyone who can reach the port is not a
     // credential; that is the argument this list asks for.
+    //
+    // `auth.loginScreen` trips it on `auth` alone and the argument is the same
+    // shape, one notch weaker, which is why it is written out rather than
+    // waved through: it is a two-value union naming **which arrival screen an
+    // install shows** ([12 §1.1]), it is published on the same unauthenticated
+    // `GET /api/auth/state` for the same reason — a pre-auth client cannot
+    // choose a screen it has not been told about — and a value that is one of
+    // exactly `form` and `gallery` has nowhere for a secret to hide.
     const knownSafe = [
       'server.trustProxy',
       'server.host',
       'auth.minPasswordLength',
+      'auth.loginScreen',
       'limits.contextTokens',
       'limits.reservedCompletionTokens',
     ];

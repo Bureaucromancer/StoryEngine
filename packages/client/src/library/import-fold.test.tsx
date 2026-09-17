@@ -190,6 +190,7 @@ describe('the folder half, against the permission', () => {
     vi.spyOn(api, 'authState').mockResolvedValue({
       setupRequired: false,
       setupTokenRequired: false,
+      loginScreen: 'form',
       minPasswordLength: 8,
       build: null,
       account: {

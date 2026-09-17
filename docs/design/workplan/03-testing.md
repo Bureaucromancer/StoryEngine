@@ -181,11 +181,46 @@ session, take a turn, branch, open the workbench.
 *"Create an actor" meant through the API when this was written, because the
 browser had no way to. Since [P4.5](16-p4-implementation.md) it does, so the
 journey is a journey: name it on the library page, land in the editor, save.
-The tier is still unbuilt.*
+~~The tier is still unbuilt.~~*
+
+**Built 2026-09-17**, at P11, because the phase record found that row 8 of P11's
+own gate had nothing behind it ([P11 §3.2](28-p11-implementation.md)). `e2e/` —
+one test, these seven journeys in this paragraph's order, against a built server
+serving a built client, with an OpenAI-compatible double on a second port. CI
+runs it as the `journeys` job.
+
+**Three of the seven said something other than what they had been read as
+saying**, which is the whole argument for walking a list rather than reciting
+it:
+
+- ***Import a card* is third, inside the sequence.** It was briefly a second
+  test, on the reasoning that a card starts from a file rather than from the
+  journey before it — which overlooked that it still needs an account, and that
+  Playwright gives each test its own browser context, so *signed in* does not
+  survive a test boundary. The list above already had it in the right place.
+- ***Branch* is *Redo***, not a second send ([07 §7](../07-branching.md)). A
+  second send continues the line from the head, which is precisely the thing a
+  branch is not. **The difference does not appear in a request count** — both
+  shapes post one turn — so a test written the wrong way passes, and what it
+  then protects is the wrong claim.
+- ***Open the workbench* needs an assertion about what is in it.** The dock's
+  landmark role is a claim an empty panel satisfies, and an empty workbench over
+  a turn that happened is exactly the wiring failure this tier exists to catch.
+  It asserts the resolved model id, which no other tier can: the connection bound
+  in arrangement, the turn that resolved against it, the record that kept which
+  it was, and the panel that reads it back.
 
 Run against the fake provider (§4) so it is deterministic and free. E2E that
 calls a real model is slow, flaky and expensive, and tests the model rather than
 the app.
+
+**§4.1's fake is injected into a server the test constructs, and this tier has no
+such seam** — so the double is an HTTP server on a second port instead, and
+`packages/server` does not know it exists. That is not a workaround: a shipped
+build that could be told to fake its own provider would be a footgun in every
+install, bought so a test could avoid writing forty lines of HTTP. What it buys
+beyond that is the real `openai-compatible` adapter — request shape, streaming
+reader, finish-reason mapping — which an injected double replaces wholesale.
 
 ---
 

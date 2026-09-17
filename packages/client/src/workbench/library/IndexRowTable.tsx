@@ -9,6 +9,8 @@ import { link, table } from '../../ui/classes.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
 import { Note } from '../../ui/Text.js';
 
+import { labels } from '../../i18n/catalogue.js';
+
 /**
  * The index rows, one per copy — the stage's ends-at surface ([P3.3]):
  * *opening the panel over a shadowed object names the winning path*, which
@@ -24,11 +26,11 @@ import { Note } from '../../ui/Text.js';
  * link that 404s on arrival is worse than a row that says what it is.
  */
 
-const RULING_LABELS = {
+const RULING_LABELS = labels('workbench.ruling', {
   winner: 'Winner',
   shadowed: 'Shadowed',
   tombstoned: 'Tombstoned',
-} as const;
+});
 
 function rulingOf(row: IndexRow): keyof typeof RULING_LABELS {
   if (row.tombstonedAt !== null) return 'tombstoned';

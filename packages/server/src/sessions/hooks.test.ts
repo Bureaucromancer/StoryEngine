@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { HookRefusal, PlotHook } from '@storyengine/shared';
+import type { HookRefusal, PlotHook, Preset } from '@storyengine/shared';
 
 import { installBuiltIns } from '../mode-loader.js';
 import { SE_PARTY, SE_PRESENCE, SE_STATUS } from './cast.js';
@@ -12,6 +12,8 @@ import {
   filterHooks,
   gate,
   hookRows,
+  pacingLevel,
+  pacingProse,
   readHookState,
   readPacing,
   SE_HOOK,
@@ -888,5 +890,89 @@ describe('a commitment rewound past', () => {
     expect(replayChannels(walkPath(turns, 't2'))[channelKey(SE_HOOK, HOOK)]?.value).toBe(
       'committed',
     );
+  });
+});
+
+/**
+ * ***The other half of §6.1's split*** —
+ * [06 §6.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * *"Level → cadence, cooldown and patience is engine code; the level's prose is
+ * the prompt pack's."* Everything above this block is the first half. These four
+ * are the second: the pack is read, the level is found by the dial's own name,
+ * and the fragments come out in the order the pack ranked them.
+ */
+describe('the prose a pack ships for the dial', () => {
+  /**
+   * *Four levels and not a pack*, which is what `Pick<Preset, 'pacingLevels'>`
+   * buys: this file is about the resolution, and a whole `Preset` here would
+   * make every assertion below also an assertion about Scene's words. Those are
+   * pinned in Scene's own package, where they belong.
+   */
+  function pack(levels?: Preset['pacingLevels']): Pick<Preset, 'pacingLevels'> {
+    return levels === undefined ? {} : { pacingLevels: levels };
+  }
+
+  const FOUR = pack([
+    { id: 'sparse', label: 'Sparse', rank: 0, fragments: [{ text: 'Rarely.', priority: 1 }] },
+    { id: 'normal', label: 'Normal', rank: 1, fragments: [{ text: 'When it fits.', priority: 1 }] },
+    { id: 'aggressive', label: 'Brisk', rank: 2, fragments: [{ text: 'Readily.', priority: 1 }] },
+    {
+      id: 'manual-only',
+      label: 'Only when asked',
+      rank: 3,
+      fragments: [{ text: 'Only what was asked for.', priority: 1 }],
+    },
+  ]);
+
+  it('is the level the dial names', () => {
+    expect(pacingLevel(FOUR, 'sparse')?.id).toBe('sparse');
+    expect(pacingLevel(FOUR, 'aggressive')?.id).toBe('aggressive');
+    expect(pacingProse(FOUR, 'manual-only')).toBe('Only what was asked for.');
+  });
+
+  /**
+   * ***No floor, where a difficulty dial has one*** — and the difference is the
+   * difference between the two controls. `resolveLevel` falls to the pack's
+   * gentlest entry because a session is running at **a** difficulty whether or
+   * not anybody chose one. Pacing is not like that: putting `sparse`'s words on
+   * an `aggressive` session is worse than putting none, because the words would
+   * then be arguing with the cadence.
+   */
+  it('is nothing at all when the pack ships none for that level', () => {
+    const partial = pack([
+      { id: 'sparse', label: 'Sparse', rank: 0, fragments: [{ text: 'Rarely.', priority: 1 }] },
+    ]);
+    expect(pacingLevel(partial, 'sparse')).not.toBeNull();
+    expect(pacingLevel(partial, 'aggressive')).toBeNull();
+    expect(pacingProse(partial, 'aggressive')).toBeNull();
+  });
+
+  /** A pack that has never heard of the field is every pack before [P11.5]. */
+  it('is nothing at all when the pack has no levels', () => {
+    expect(pacingProse(pack(), 'normal')).toBeNull();
+    expect(pacingLevel(pack(), 'normal')).toBeNull();
+  });
+
+  /**
+   * ***Highest priority first, which is [19 §5.3]'s ordering and not the
+   * array's.*** A collector that emitted them in the order somebody typed them
+   * would make the pack's ranking depend on typing, which is the accident
+   * `rank` avoids one level up — and it would hand the cap the wrong end to cut.
+   */
+  it('orders the fragments by rank rather than by how they were typed', () => {
+    const ranked = pack([
+      {
+        id: 'normal',
+        label: 'Normal',
+        rank: 1,
+        fragments: [
+          { text: 'second', priority: 10 },
+          { text: 'first', priority: 90 },
+        ],
+      },
+    ]);
+    expect(pacingProse(ranked, 'normal')).toBe('first\nsecond');
   });
 });

@@ -87,3 +87,55 @@ export function Suggestions(props: {
     </div>
   );
 }
+
+/**
+ * ***Starter prompts, for a session with no turns in it*** — [06 §7.4],
+ * [10 §7](../../../../docs/design/10-ui-surfaces.md),
+ * [P11.3](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * *"Marinara ships suggestion chips — labelled entry points that expand into a
+ * pre-written prompt… Cheap, and the main thing standing between a blank
+ * assistant box and people actually using it."*
+ *
+ * ***The same component shape as the offers above, deliberately, and a
+ * different source.*** An offer is the *model's* reading of the last turn and
+ * arrives on that turn's record; a starter is the *surface's* and is passed in,
+ * because there is no turn yet to have read. What they share is the rule that
+ * matters: **it fills the box**. A chip that submitted would make the app's
+ * suggestion and the person's decision one gesture, which is what the file above
+ * this line spends a paragraph refusing.
+ *
+ * *No toggle, where the offers have one.* A per-session switch exists up there
+ * because offers cost a model call on every turn; these are four strings in a
+ * component and cost nothing, and a control for turning off four strings that
+ * vanish after the first message would be configuration with no question behind
+ * it.
+ */
+export function Starters(props: {
+  actions: readonly string[];
+  disabled: boolean;
+  onPick: (action: string) => void;
+}): JSX.Element | null {
+  if (props.actions.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Fine>Or start with one of these.</Fine>
+      <div className="flex flex-wrap gap-2">
+        {props.actions.map((action) => (
+          <Button
+            key={action}
+            type="button"
+            size="compact"
+            disabled={props.disabled}
+            onClick={() => {
+              props.onPick(action);
+            }}
+          >
+            {action}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}

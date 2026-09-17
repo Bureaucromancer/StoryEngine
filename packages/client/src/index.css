@@ -376,3 +376,60 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
   --color-tag-stone-surface: var(--color-stone-900);
   --color-tag-stone-ink: var(--color-stone-100);
 }
+
+/**
+ * ***A real print stylesheet, which is how this project ships PDF*** —
+ * docs/design/10-ui-surfaces.md §12.2,
+ * docs/design/workplan/28-p11-implementation.md P11.1.
+ *
+ * §12.2: *"a clean printable page means the browser's own print-to-PDF produces
+ * a good result. Shipping a PDF renderer would be real weight — fonts,
+ * pagination, layout — for an outcome the platform already gives away."* So this
+ * is the whole of the PDF story, and it has to be good rather than present.
+ *
+ * **It is here rather than on the reading route, because the chrome is not.**
+ * The header, the navigation and the build footer are the Shell's, mounted
+ * around every page; a reading view that hid its own controls and printed under
+ * a navigation bar would have solved the smaller half. Landmarks rather than
+ * class names, so nothing has to be remembered when one of them is restyled.
+ *
+ * **Colour is dropped and ink is forced black**, because a themed surface prints
+ * as a grey wash on paper and the dark theme prints as a page of toner. The
+ * reading view is the only surface anybody prints deliberately, and prose is
+ * what it is for.
+ */
+@media print {
+  body > * > header,
+  body > * > nav,
+  body > * > footer,
+  header[class],
+  footer[class],
+  nav[aria-label] {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  main {
+    max-inline-size: none !important;
+    padding: 0 !important;
+  }
+
+  /* A paragraph broken across a page break reads as two, and an illustration
+     split in half reads as a printer fault. */
+  p,
+  blockquote,
+  img {
+    break-inside: avoid;
+  }
+
+  /* Underlined blue text on paper is a link nobody can follow. */
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}

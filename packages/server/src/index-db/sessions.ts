@@ -6,6 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { TurnLocation } from '../sessions/segments.js';
 import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
+import { clearLinks, writeLinks } from './links.js';
 
 /**
  * Sessions and turns in the index — [19 §7.1](../../../../docs/design/19-tech-stack.md),
@@ -39,6 +40,26 @@ export interface TurnHit {
   sessionName: string;
   segment: string;
   offset: number;
+  /**
+   * ***The matched text, which is what makes a hit worth returning*** —
+   * [10 §14.1](../../../../docs/design/10-ui-surfaces.md),
+   * [P11.1](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * §14.1 asks for *"results as a list of turns with a snippet"* and this index
+   * returned a turn id. **At six hundred turns the difference is the whole
+   * feature**: a list of nine dates is a list of nine things to open, which is
+   * the scrolling §14 exists to prevent wearing a different shape. §14.5 makes
+   * the same complaint about lore entries in so many words — *"close to
+   * useless at book scale"* — and that half was paid at P5.2 while this one was
+   * not.
+   *
+   * *No markers around the match.* `lore_entry_fts` passes empty strings for
+   * `snippet`'s open and close arguments and this does the same, because the
+   * text goes into a React child rather than into `innerHTML`: a marker would
+   * have to be parsed back out, and parsing markers out of prose that may
+   * legitimately contain them is how an excerpt starts lying about the story.
+   */
+  snippet: string;
 }
 
 /**
@@ -71,6 +92,29 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
     session.archivedAt === undefined ? 0 : 1,
     session.updatedAt,
   );
+
+  /**
+   * ***What this session uses*** — [03 §10.1], [10 §5.2], [P11.7].
+   *
+   * The cast it plays with and the lorebooks it selected, which is what
+   * *referenced by 12 sessions* counts. **Its pack is not in the list**, and
+   * that is a fact about the record rather than an omission: a session's preset
+   * is **embedded**, not referenced — [P7B.2] made it the session's own copy so
+   * that editing one does not reach into a library object — so there is nothing
+   * pointed at to count.
+   *
+   * *An archived session still counts*, on [03 §10.3]'s rule that archiving
+   * hides from a list rather than removing: telling somebody an actor is unused
+   * when four archived sessions are built on them is the same lie a search that
+   * skipped archives would tell.
+   */
+  writeLinks(db, { kind: 'session', id: session.id, name: session.name, owner }, [
+    ...(session.cast?.persona === null || session.cast?.persona === undefined
+      ? []
+      : [session.cast.persona]),
+    ...(session.cast?.actors ?? []),
+    ...(session.lore ?? []),
+  ]);
 }
 
 /**
@@ -114,6 +158,9 @@ export function removeSessionRows(db: DatabaseSync, sessionId: string): void {
     db.prepare('delete from turn_fts where session_id = ?').run(sessionId);
     db.prepare('delete from turn where session_id = ?').run(sessionId);
     db.prepare('delete from session where session_id = ?').run(sessionId);
+    // And what it pointed at — [P11.7]. A deleted session is not a user of
+    // anything, and the count a delete confirmation shows is about now.
+    clearLinks(db, 'session', sessionId);
   });
 }
 
@@ -174,8 +221,12 @@ export function searchTurns(
 
   const rows = db
     .prepare(
+      // The FTS table is named rather than aliased, for `query.ts`'s reason:
+      // neither `match` nor `snippet`'s first argument resolves through an
+      // alias.
       `select turn.turn_id, turn.session_id, turn.segment, turn.offset,
-              session.name as session_name
+              session.name as session_name,
+              snippet(turn_fts, -1, '', '', '…', 20) as snippet
          from turn_fts
          join turn on turn.turn_id = turn_fts.turn_id
          join session on session.session_id = turn.session_id
@@ -188,6 +239,7 @@ export function searchTurns(
     segment: string;
     offset: number;
     session_name: string;
+    snippet: string;
   }[];
 
   return rows.map((row) => ({
@@ -196,6 +248,7 @@ export function searchTurns(
     sessionName: row.session_name,
     segment: row.segment,
     offset: row.offset,
+    snippet: row.snippet,
   }));
 }
 

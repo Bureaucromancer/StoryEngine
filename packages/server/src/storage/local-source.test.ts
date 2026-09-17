@@ -65,8 +65,23 @@ describe('what it refuses', () => {
 
   it('walks a root that CONTAINS the data directory, without entering it', async () => {
     /**
-     * The case nobody wrote, found by an adversarial review of the P4.7.2
-     * relabel and reproduced before it was fixed ([P4 §7.2]).
+     * The case nobody wrote, found by an adversarial review of the
+     * [P4 §7.2](../../../../docs/design/workplan/16-p4-implementation.md)
+     * relabel and reproduced before it was fixed.
+     *
+     * *Until [P11.0](../../../../docs/design/workplan/28-p11-implementation.md)'s
+     * stage-citation check found it, the reference above was written with the
+     * phase and the section number run together and the `§` dropped* — which
+     * names a stage of P4 rather than a section of it, and P4 has stages P4.0
+     * through P4.5. The line below it always spelled the same reference
+     * correctly, which is how small the slip was and how long it lasted.
+     *
+     * **The wrong form is described here rather than quoted, because quoting it
+     * would fail the check that found it** — an instrument that forbids a token
+     * makes that token unwritable in the account of why it is forbidden. That is
+     * a real cost of mechanising a convention and it is worth one sentence
+     * wherever it is paid, rather than an exemption nobody would understand
+     * later.
      *
      * Every test above refuses a root at or below the data directory. None
      * covered a root *above* it — and `dataDir` defaults to `./data`, so on an

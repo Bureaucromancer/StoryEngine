@@ -19,6 +19,7 @@ import { fileExists, readFileBytes, statFile } from '../storage/files.js';
 import type { Layout, LibraryOwner, ParsedObjectPath } from '../storage/layout.js';
 import type { PathEscapeError } from '../storage/paths.js';
 import { inTransaction } from '../storage/transaction.js';
+import { clearLinks, referencesIn, writeLinks } from './links.js';
 
 /**
  * File → rows.
@@ -233,6 +234,24 @@ export async function ingestFile(
     // Unlink-first ordering: the tombstone is already waiting for us.
     const claimed = claimTombstone(db, id, path, now);
     upsert(db, row, payload);
+    /**
+     * ***What this file points at*** — [03 §10.1], [10 §5.2], [P11.7].
+     *
+     * **Inside the same transaction as the row**, because the two describe one
+     * file: an index that had the object and not its links, or the reverse,
+     * would answer *used by* against a state that never existed on disk. It is
+     * also what makes the rebuild-equals-incremental gate cover this table for
+     * free — both producers go through here.
+     *
+     * *Keyed by the file's id and not by its path*, so a file that moves keeps
+     * its links; `dropRows` and `removeFile` are what clear them, for the same
+     * reason they clear the row.
+     */
+    writeLinks(
+      db,
+      { kind: row.schemaId, id: row.id, name: row.name, owner: row.owner },
+      referencesIn(row.schemaId, payload),
+    );
     // Add-first ordering: the row we are replacing is still live, and its file
     // is already gone.
     dropRows(db, vanished);
@@ -573,9 +592,22 @@ export function removeFile(
     .run(now, path);
 
   if (result.changes > 0) {
-    const row = db.prepare('select id from object where path = ?').get(path) as
-      { id: string } | undefined;
-    if (row) resolveDuplicates(db, layout, row.id);
+    const row = db.prepare('select id, schema_id from object where path = ?').get(path) as
+      { id: string; schema_id: string } | undefined;
+    if (row) {
+      resolveDuplicates(db, layout, row.id);
+      /**
+       * ***A deleted file stops pointing at things*** — [P11.7].
+       *
+       * Cleared at the **tombstone** rather than at maturation, because the
+       * tombstone is the moment the file stopped existing and *used by* is a
+       * question about now: a setup somebody deleted this morning must not keep
+       * an actor's count at twelve. **A rename restores them for free** —
+       * `claimTombstone` re-ingests the same id at the new path, and
+       * `writeLinks` writes what the file says there.
+       */
+      clearLinks(db, row.schema_id, row.id);
+    }
   }
 
   return result.changes > 0;

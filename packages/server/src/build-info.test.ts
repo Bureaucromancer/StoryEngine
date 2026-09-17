@@ -276,3 +276,49 @@ describe('a released build against a data directory', () => {
     }
   });
 });
+
+/**
+ * The §13 source, added at [P10.5] — [09 §7](../../../docs/design/09-server-multiuser-deployment.md).
+ *
+ * ***The other two fields are the build's **identity** and this is an
+ * **offer***, which is why the rules are inverted: a build that cannot say what
+ * it is has no business claiming to be something, and a build that cannot say
+ * where its source is has a smaller problem than a refusal to start —
+ * [P6A §1.5]'s own argument that a cosmetic fact must not become an outage.
+ */
+describe('the source URL', () => {
+  it('is carried when it is there and absent when it is not', () => {
+    expect(
+      parseBuildInfo('{"version":"1.0.0","commit":"abc","source":"https://example.org/se"}'),
+    ).toEqual({ version: '1.0.0', commit: 'abc', source: 'https://example.org/se' });
+
+    // Absent rather than null, so a client's optional field reads as absent.
+    expect(parseBuildInfo('{"version":"1.0.0","commit":"abc"}')).toEqual({
+      version: '1.0.0',
+      commit: 'abc',
+    });
+  });
+
+  /**
+   * ***Only `http` and `https`.*** This becomes an anchor's `href` on every page
+   * of a signed-in surface, and `build-info.json` is a file in a data-adjacent
+   * directory that a hand edit reaches — so a `javascript:` there must not
+   * become a link somebody's browser will run.
+   */
+  it('drops a scheme that has no business being a link', () => {
+    for (const source of ['javascript:alert(1)', 'file:///etc/passwd', 'ftp://example.org', '']) {
+      const parsed = parseBuildInfo(JSON.stringify({ version: '1.0.0', commit: 'abc', source }));
+      expect(parsed, source).toEqual({ version: '1.0.0', commit: 'abc' });
+    }
+  });
+
+  /**
+   * **A bad source is dropped and a bad version is refused**, which is the
+   * inversion stated as behaviour rather than as a paragraph.
+   */
+  it('still refuses a build that cannot say what it is', () => {
+    expect(
+      parseBuildInfo('{"version":"","commit":"abc","source":"https://example.org"}'),
+    ).toBeNull();
+  });
+});

@@ -332,6 +332,33 @@ export class Layout {
     return resolveWithin(this.userRoot(handle), 'tags.json');
   }
 
+  /**
+   * `users/<handle>/avatar.<ext>` — the account's face
+   * ([12 §5.1](../../../../docs/design/12-account-gallery.md), [P10.4]).
+   *
+   * ***Inside the user's own directory, and that is the mirror image of why
+   * `accounts.json` is outside every one of them.*** That file holds password
+   * hashes, so a future file browser over a user's directory must never be able
+   * to serve it ([P1 §1.3]). An avatar is the opposite in every respect —
+   * user-authored, not secret, and uploaded *specifically to be shown* — so it
+   * belongs with the user's other authored things, where the browser's own rule
+   * is that what the user authored is exactly what it may expose.
+   *
+   * ***The clinching argument is removal.*** Removing an account moves the
+   * whole directory to `data/removed/<handle>-<uuid>` before the record goes,
+   * and that promise should cover the face along with the library. Here, the
+   * avatar leaves in the same gesture with zero new code; in a system-side store
+   * it would be a second account-adjacent orphan needing its own sweep.
+   *
+   * **The extension is part of the name because the bytes are stored as
+   * received** — [12 §5.2]: the server has no raster re-encoder and should not
+   * grow one for this, so the sniffed type decides the suffix and the file says
+   * what it is.
+   */
+  userAvatarFile(handle: string, extension: string): string {
+    return resolveWithin(this.userRoot(handle), `avatar.${extension}`);
+  }
+
   userRoot(handle: string): string {
     assertValidHandle(handle);
     return resolveWithin(this.usersRoot, handle);

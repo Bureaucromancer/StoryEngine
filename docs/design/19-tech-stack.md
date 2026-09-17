@@ -483,7 +483,7 @@ mechanical part.
 
 - **`liquidjs`** for block templates — [triage §7](workplan/02-triage.md)'s BUY,
   and the language [06 §5](06-modes-and-turn-pipeline.md),
-  [02 §8](02-infinite-worlds.md) and [04 §8.4.2](04-schemas.md) had all already
+  [02 §6](02-infinite-worlds.md) and [04 §8.4.2](04-schemas.md) had all already
   chosen. It could not be deferred past import: the macro table converts
   SillyTavern's macros *into* Liquid, so without a renderer a converted preset's
   `{{char}}` reaches the model as literal braces, and PLAYABLE would be testing

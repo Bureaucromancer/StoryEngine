@@ -1,11 +1,57 @@
 # 28 — P11 implementation plan
 
-**Status: ~~skeleton~~ a register, re-audited 2026-09-16 at `2f3f5d9` — and
-still not a plan.** Drafted 2026-08-29 alongside
-[P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); to be
-revisited before the phase starts.
+**Status: ~~skeleton~~ ~~a register, re-audited 2026-09-16 at `2f3f5d9`~~
+~~a register with a costed stage list, fleshed out 2026-09-16 at `7c5e0bd`~~
+**built on branch `p10`, 2026-09-17 — thirteen stages, and the critical list is
+unwalked.** Drafted 2026-08-29 alongside
+[P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); revisited
+before the phase started, which is the one thing the old status line asked for
+and got.
 
-***What the re-audit found, in one line: six of §0.1's nineteen rows are built,
+***The record is [§3.2](#32-what-was-answered--recorded-2026-09-17) and the list
+is [sitting R](05-manual-testing.md)***, five rows of which two are desk work and
+one — R4, the 1.0 corpus read capability by capability — **is the beta claim
+rather than a check on it**. *The thirteen gate rows above §3.2 are not edited*,
+which is [manual testing §0](05-manual-testing.md)'s first honesty condition and
+the whole reason there are two tables.
+
+***Four things a 1.0 commitment asks for are not built, and they are named rather
+than absorbed***: [10 §11.2b](../10-ui-surfaces.md)'s image slots,
+[10 §11.2c](../10-ui-surfaces.md)'s entry travel, the assistant's docs lorebook,
+and ~~**row 8's Playwright suite, which this gate assumed and no stage was asked
+to build**~~. Three are features with an argument; the fourth was infrastructure,
+and it was the one to argue about.
+
+***~~Four~~ Three, since 2026-09-17: row 8 was built.*** Writing this record is
+what found it, and what the record then said about it — *"the question this
+document most wants them to arrive at deliberately"* — was answered by building
+the thing rather than by arguing about whether beta could be declared without it.
+The suite is `e2e/`, CI runs it as the `journeys` job, and
+[§3.2](#32-what-was-answered--recorded-2026-09-17)'s row 8 carries what walking
+the seven journeys turned up. **The other three stood**, and they are features
+with arguments beside them, which is the shape this paragraph could not claim
+while a fourth thing sat in it with no argument at all.
+
+***None, by the end of the same day: [10 §11.2c]'s entry travel,
+[10 §11.2b]'s image slots and the docs lorebook are all built.*** The first two
+are [P11.2]'s Done block below and the third is [P11.3]'s. **The list this
+paragraph existed to keep is empty**, which is what a list of named absences is
+for — and none of the four closed by being argued about.
+
+***What the fleshing out did, in one line: every one of the stages now
+names what it depends on, what it ends at, and the check that says it is done***
+— twelve of them then, and thirteen since
+[§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took the extractor —
+§1.1's rule applied to this document's **own** accumulated list, which
+[§5](#5-what-only-the-revisit-can-settle) asks for in as many words and which no
+sweep of the corpus was ever going to do. **Two of §1's forks closed with it**:
+the assistant's (§1.5 — by P7 shipping without answering) and P11.4's *find out
+which half P7 took* (**none**). **And §5's structural question has its answer
+pinned**: the seam is not where that section guessed, because nine of twelve
+stages depend on nothing and only P11.8 and P11.9 depend on the phase.
+
+***What the re-audit before it found, in one line: six of §0.1's nineteen rows are
+built,
 the instrument that found the sharpest of them has been joined by a second one,
 and the only new unowned row is the one component a shipped phase deliberately
 cut.*** [P7B](24-p7b-presets-and-prompts.md), [P8](25-p8-implementation.md) and
@@ -453,6 +499,297 @@ same limit §0.1 named for the first instrument and which keeps P11.0 a stage.
 
 ---
 
+### 0.3 Re-audited 2026-09-17 at `f0b19ba`, after P10
+
+***The second re-run against a phase that happened, and the first one where an
+instrument closed a row rather than counting one.*** §0.2 ran against three
+phases that had shipped since the register was written; this runs against
+[P10](27-p10-implementation.md), which is the phase this register spent more rows
+routing to than any other — row 11 was **P10's own fork to settle**, and rows 6,
+18 and 19 are the whole of the OWED map it inherited.
+
+#### The instruments, and one of them is now evidence for itself
+
+**`route-callers.test.ts`'s OWED map holds four**, and they are §0.2's four
+*exactly*: `GET /api/search`, `PUT /api/sessions/:p/roles`, and `PATCH` and
+`DELETE` on `…/refs/:refId` — rows 6, 18 and 19, unmoved.
+
+***What is worth recording is that it did not hold four the whole time.*** P10
+served **seven** new addresses — the three notification routes at
+[P10.1](27-p10-implementation.md), and two gallery and two avatar routes at
+[P10.4](27-p10-implementation.md) — and **not one of them is owed now**. The
+notification three were written into OWED as they were built, with `P10.2` named
+beside them, and left it one stage later when P10.2 built the channels; the
+gallery and avatar four never entered it at all, because their surface shipped in
+the same stage as the routes. **That is the shortest a debt has ever been
+outstanding in that map, and it is the first time the map has been used the way
+it was designed to be used** — as a place to write down a promise *while making
+it*, rather than as a place a later sweep discovers one.
+
+**`CONFIG_TIERS`'s `'unread'` count is two**, down from four. `updates.checkEnabled`
+and `updates.channel` are `applied`; `limits.extensionStorageQuotaMb` stays
+`'unread'` **deliberately**, beside a roadmap row, and `trash.retentionDays` is
+[P11.7](#p117--trash-retention-and-restore-and-the-accessibility-audit)'s.
+*Two of the four keys this table was counting were paid by a phase deciding to
+take a stage it had leaned toward, which is exactly the use §0.2 predicted for
+it*: the count is what made the lean an argument rather than a preference.
+
+#### Row 11 is discharged, and it is the first row closed by a decision
+
+**Extension installation** — the row this register routed to *"P10's own fork, at
+its revisit"* — is closed, and **not by being built**.
+[P10.3](27-p10-implementation.md) took the deferral arm on a distinction four
+audits had passed over: ***1.0 needs extensions **loaded**, not **installed***.
+The first-party reference extension the [work plan](01-work-plan.md) keeps at 1.0
+([24 §4.4](../24-roadmap.md)) ships inside the image the way a built-in mode
+does, so it needs no acquiring step at all; *acquiring one from outside* is a
+subsystem — fetch, verify, unpack, register, quota — that no 1.0 goal requires.
+It is now a row in [24 §3.2](../24-roadmap.md) rather than an owner-shaped hole,
+and the three artefacts that presuppose it all stay, visibly inert.
+
+***That is the first row in this register to close by somebody deciding***, and
+it is worth separating from the six that closed by being built. §1.1's whole
+argument is that *"a list without owners never ends"* — and a list where the only
+way off is construction is a list that ends by the work being done, which is a
+weaker claim than it sounds. **A row that leaves because a phase read it and said
+*not at 1.0, and here is where it lives instead* is the register working at its
+cheapest.**
+
+#### One stage shrank to exactly its named remainder
+
+**[P11.6](#p116--update-check-about-badge-and-better-failures) is now the error
+messages alone**, which is the arm its own *Depends on* named: *"if P10 takes the
+check, this stage is the error messages alone."* P10 took the check, the About
+badge and the conditionality — including a distinction §1.6 did not have to draw
+and this document should now carry: ***a failed check is two things and only one
+is about the network.*** Nothing answering is a connectivity signal; **an HTTP
+answer this build cannot use proves the internet works**. That is not
+hypothetical — the repository is private and
+[releases §4](04-repo-and-releases.md) says `latest` names nothing until a
+release is cut, so the default channel's feed answers 404, and a check that
+conflated the two would tell every alpha operator their server was offline.
+
+*This is the first conditional stage in this document to resolve*, and it
+resolved to the smaller arm, which is what a *Depends on* line is for.
+
+**One correction came with the resolution.** [P10.3](27-p10-implementation.md)
+names the half it did not build — *an engine that says "this server appears to
+have no internet access" instead of surfacing a raw connection error*, which
+belongs in `turns/calls.ts` where a provider failure becomes a
+`StepFailureReason` — and owed it to **P11.3**, which is *the assistant*. The
+routing was right and the number was wrong; it is struck and corrected there, and
+it lands here. *Worth noting because it is the failure mode a cross-reference has
+and prose does not*: the sentence describing the debt was accurate enough that
+four readings of it never checked the number beside it.
+
+#### The new row, and it arrived by being unblocked rather than by being found
+
+| # | The commitment, and where it is committed | What is built | The artifact, and the check | Routed to |
+|---|---|---|---|---|
+| 21 | **The sign-in gallery's type-to-filter, folding the by-name link into it** — [12 §7](../12-account-gallery.md), [polish §7](06-polish.md) | The gallery, at [P10.4](27-p10-implementation.md): tiles, a drawn face for every account, and a separate *Sign in by name* button | One text affordance where there are now two — a filter over the listing the screen already fetched, where a typed handle matching no tile **is** the by-name case. **Check:** the screen has one text entry rather than a box beside a link | **Unowned.** [polish §7](06-polish.md) holds the design and says *"blocked on the gallery existing"*; **the gallery exists as of 2026-09-17** |
+
+***The way it arrived is the point rather than the row.*** Rows 14 and 20 are
+phases saying *this is not mine*; rows 18 and 19 were found by a test. **This one
+was written down, correctly, with its blocker named — and the blocker cleared.**
+Nothing in this repository notices that: there is no instrument that watches a
+deferral's condition and says when it fires, and
+[manual testing §10.1](05-manual-testing.md) is a whole section about the shape.
+*It is a small row and it is here because the mechanism that would have found it
+does not exist.*
+
+#### Row 20 is unchanged, and carrying it a third time would be a decision by default
+
+**[P8](25-p8-implementation.md)'s automatic extractor.** P10 has now shipped and
+the word appears in its document **zero** times, which was the state §0.2
+recorded as a prediction and is now a fact about a built phase. **P11 is the only
+phase left.** This document mentions the extractor seventeen times and schedules
+it in none of them — every mention is this register describing the hole.
+
+***So the honest statement is that a third carry is a decision, and it should be
+made rather than arrived at.*** Either P11 takes it, or **1.0 ships with memory
+books that only a person fills** — which is a defensible product and is *not* what
+[08 §2](../08-cross-session-memory.md) describes. §5's revisit is where that is
+settled, and [§1.8](#18-this-phase-grew-by-three-and-the-growth-should-be-sized-rather-than-absorbed)
+is where the size of taking it would land. **What this section refuses to do is
+record it unowned a third time and move on**, which is exactly what
+[manual testing §10.1](05-manual-testing.md) names as the failure this whole
+register exists against.
+
+---
+
+### 0.4 The audit, run — 2026-09-17, at `45c613c`
+
+***This is [P11.0](#p110--the-audit-that-makes-the-list)'s output rather than
+another re-audit***, and the difference is what §1.2 insists on: §0.1 through
+§0.3 read the *register* against the phases that shipped, and this reads the
+**corpus and the tree** against each other and produces a list with a count.
+
+**Twenty-seven items. Seven of them were already fixed by the running of it**,
+because the instrument this stage built found them and they were a line each.
+
+---
+
+#### The two instruments, run and recorded — which is this stage's proof obligation
+
+| Instrument | Reading | Against |
+|---|---|---|
+| `route-callers.test.ts`'s **OWED** | **4** — `GET /api/search`, `PUT …/roles`, `PATCH` and `DELETE` on `…/refs/:refId` | 4 at §0.2, 4 at §0.3. Rows 6, 18 and 19, unmoved since they were found |
+| `route-callers.test.ts`'s **EXEMPT** | **3**, each with a written reason | Recorded here because an exemption is the other way a route goes unreached |
+| `config.ts`'s **`'unread'` tier** | **2** — `limits.extensionStorageQuotaMb`, `trash.retentionDays` | 4 at §0.2, 2 at §0.3. Both survivors are owned: a roadmap row and [P11.7](#p117--trash-retention-and-restore-and-the-accessibility-audit) |
+
+**Both are where §0.3 left them**, which is the answer this stage was owed and
+not an interesting one. *The interesting reading is the third column*: neither
+number has moved because neither instrument can see what this audit was for.
+`OWED` watches routes and `'unread'` watches config keys, and the twenty-seven
+items below are overwhelmingly **neither** — they are sentences.
+
+#### The measurement [20 §7](../20-client-loading.md) asked for at this stage
+
+[20 §7.1](../20-client-loading.md) fired a trigger on 2026-09-15, decided not to
+bring the review forward, and said *"the review point stays P11.0, and the first
+line of its baseline capture is now known."* Here is the rest of that line, from
+one `pnpm build` on this tree:
+
+| | Modules | JavaScript | gzip | CSS | gzip |
+| --- | --- | --- | --- | --- | --- |
+| [20 §1](../20-client-loading.md)'s baseline, at `a54afcc` | — | 676.82 kB | 199.15 kB | — | — |
+| [20 §7.1](../20-client-loading.md), after `react-markdown` | 729 | 909.25 kB | 268.11 kB | 34.06 kB | 6.94 kB |
+| **Here, after P10** | **748** | **951.64 kB** | **280.27 kB** | **34.90 kB** | **7.07 kB** |
+
+**P10 cost nineteen modules and 12.16 kB gzip** — notifications, the gallery,
+the restart banner, the update check and the licence block, for about a
+twenty-third of what the entry already was. *That is the number §7.1 predicted
+would matter more than its own*: one dependency at a sixth is loud and a phase
+at a twenty-third is quiet, and the quiet one is the shape of every phase left.
+
+***The recommendation is §7's step 5, the deferral arm, and it is a decision
+rather than an omission.*** 280 kB gzip on one route is large and is not
+*measured harm*: nothing in [PLAYABLE](21-playable-log.md) or any sitting
+reports slow arrival, and [20 §6](../20-client-loading.md) is explicit that CI
+can hold a byte total and cannot hold a timing. **What this audit therefore asks
+of [P11.9](#p119--release-engineering-which-is-the-other-half-of-the-bar) is one
+line in `tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
+bundle**, so the next phase that doubles it is found by failing rather than by
+somebody rebuilding and remembering these three rows. *A budget nobody can
+breach loudly is the same class of thing as a deferral nobody collects.*
+
+---
+
+#### What the new instrument found, all of it fixed in this stage
+
+[`tools/citation-targets.test.ts`](../../../tools/citation-targets.test.ts) is
+§10.1's lesson mechanised: **a citation that names a stage or a section names
+one that exists.** §10.1 named two remedies for the dangling owner and both were
+*somebody reading again*; this is the third, which is the machine reading
+instead. Sixteen defects on its first run, across four thousand one hundred and
+three stage citations and four thousand eight hundred and eighty-seven section
+citations.
+
+| # | What | Where | Fixed as |
+|---|---|---|---|
+| 1 | **A test whose title claimed a divergence its body never drove** — *is skipped by a rebuild and indexed by the watcher* — owing the reconciliation to `P2.7`, **a stage that was never created**, after [P6B.1](20-p6b-playable.md) had done the reconciling | `packages/server/src/routes/refused-path.test.ts` | Rewritten to the claim P6B.1 actually makes: one folder, **both** producers, the same answer, with the refusal read off the surface [P7B.8](24-p7b-presets-and-prompts.md) built for it |
+| 2 | A phase number run into a section number with the `§` dropped, naming a stage of P4 that does not exist | `packages/server/src/storage/local-source.test.ts` | Rewritten to the section it meant, **described rather than quoted** — the check that found it would refuse its own account |
+| 3–9 | **Seven phase status lines pointing into `05-manual-testing.md`'s old subsections** — §3.3, §3.4 ×5, §3.5 ×2 — after that file grew the two-tier gate and renumbered | P2, P2B, P3, P4, P5 ×3, P6B | Repointed at §1, §3 and §6, which are where those three things live now |
+| 10–16 | Seven more dangling section citations: `[04 §3.4]`, `[02 §8]`, `[P2 §2.13]`, `[P11 §0.4]`, `[P4 §1.4]` pointing at the wrong document, `[P2C §0]` | [05](../05-tagging.md), [19](../19-tech-stack.md), [P6](18-p6-implementation.md), [18](../18-session-import.md), `ImportPanel.tsx`, `openai-compatible.live.test.ts` | Repointed |
+
+***`[P11 §0.4]` is in that list, and it was pointing at this section before this
+section existed.*** [18 §3](../18-session-import.md) cited P11's localisation
+sweep as §0.4 when the sweep is §1.3, and the number happened to be the next one
+free. *A citation can be wrong in a way that comes true, which is the least
+useful kind of correct.*
+
+**And one cost of the instrument, paid and worth naming**: an account of a
+forbidden token cannot quote it. Item 2's comment describes the wrong form
+instead, and any future account of a mistake this check catches will have to do
+the same. That is the price of mechanising a convention, and it is smaller than
+the convention rotting.
+
+---
+
+#### Five §10 rows whose premise had stopped being true
+
+*Checked against the tree rather than re-read.*
+[Manual testing §10](05-manual-testing.md) is the register of deferrals with
+owners, and its own §10.1 says what happens to a row nobody re-checks. **Four of
+its rows describe defects that were fixed and never came back to say so.**
+
+| # | The row | What the tree says |
+|---|---|---|
+| 17 | *P2 gate step 8 / F12 — an editor-page mount rather than a component mount*, unassigned | **Closed.** `packages/client/src/editor/` carries five page-level mounts, built across [P7B.1](24-p7b-presets-and-prompts.md), [P7B.3](24-p7b-presets-and-prompts.md) and [P7B.6](24-p7b-presets-and-prompts.md) |
+| 18 | *A killed process names no model call* — *the suite's one `it.todo`* | **Closed.** `routes/recovery.test.ts` asserts it by name, and **this repository has no `it.todo` at all**, so the row's own pointer had stopped existing |
+| 19 | *Two clock-effect constructors disagree; `clockEffect` has no production caller* | **Closed.** The production export went at [P7.0](23-p7-implementation.md); three test-local helpers remain, which is ordinary duplication in tests and not the dead code with a disagreement in it that the row describes |
+| 20 | *A turn carries no money total — `costOf()` never aggregates* | **Half true and worth re-stating.** `runner.ts` aggregates and the workbench renders it. What is absent is **money**: `TurnCost` is prompt tokens, completion tokens, wall time and model, and nothing in this repository holds a price for a model. The row should say *no price source* rather than *no aggregate*, because the two want completely different work |
+| 21 | *The record cannot say a block is advisory* — residue after the P3.0 repair | **Stands.** `assemble()` carries the flag and refuses advisory content to a deciding call, and `ModelCall.purpose` is written; nothing asserts the invariant **over a committed record**. One test, and it is [P11.0](#p110--the-audit-that-makes-the-list)'s to hand on rather than to write |
+
+***Four rows out of five, and every one of them closed by work that happened
+inside this corpus.*** Nobody was careless. What the register lacks is the
+*direction* this pass ran in: a row is written when a defect is found and is
+re-read when somebody goes looking for work, and **nothing re-reads it when the
+defect is fixed.** That is the same missing mechanism §0.3's row 21 arrived by —
+a condition clearing with nothing watching — and it is now two findings from two
+directions, which makes it a property of the register rather than an accident.
+
+---
+
+#### Six commitments with no owner, which is the list §1.2 says does not exist
+
+| # | The commitment | Where it is committed | The artifact, and the check | Routed to |
+|---|---|---|---|---|
+| 22 | **Session and Turn carry no provenance at all**, and the window shuts when the record freezes | [18 §4.1](../18-session-import.md), [03 §8](../03-data-model.md) — `origin: Provenance` is specified and unimplemented, and `stampImported` does not typecheck against a session | A field on both records before export publishes them. **Check:** `stampImported` accepts a session; `emit-schemas` produces the field | **[P11.10](#p1110--session-export-and-the-format-it-freezes)**, and it is the one item here that costs more by waiting: an edit now, a migration of a frozen portable format afterwards |
+| 23 | **Openings, and the seed → expand → edit → accept → promote loop** | [03 §6](../03-data-model.md), **PORT** in [triage](02-triage.md); `fromSeedId` has shipped since P1 with no writer anywhere | The loop, and a control beside the setup's other fields. **Check:** a seed expands, is edited, and the accepted text is what a session opens on | **Unowned.** [P7B §1.11](24-p7b-presets-and-prompts.md) held it *"with that cost named"* — the expand step is a model call and a new interaction, not a surface over a finished route |
+| 24 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — a collapsed in-flight line outside the workbench — with [R4](22-walkthrough-refinements.md) and [polish §11](06-polish.md) | [F-03](21-playable-log.md) from the pre-P6 walk; [P7B §1.11](24-p7b-presets-and-prompts.md) held all three together | One story or none: *"building one third of a scroll-and-progress story is how the other two thirds get built twice"* | **Unowned, and R4 still needs a paragraph in [10](../10-ui-surfaces.md) before it can have one** — which makes this the corpus's oldest genuine blank rather than an unscheduled item |
+| 25 | **The sign-in gallery's type-to-filter** | [12 §7](../12-account-gallery.md), [polish §7](06-polish.md) | §0.3's row 21, restated: one text affordance where there are now two | **Unowned.** Its blocker cleared at [P10.4](27-p10-implementation.md) and nothing noticed |
+| 26 | **`.sepack` import and export** | [P4](16-p4-implementation.md)'s *"P11-ish"*, the only assignment the corpus has ever given it; [P7B §1.9](24-p7b-presets-and-prompts.md) shipped the package editor without it | A bundle that travels. **Check:** a package exported from one install opens on another | **Routed *beside* [P11.10](#p1110--session-export-and-the-format-it-freezes) and never *into* it**, which is the distinction this audit exists to catch. §0.1 row 13 said the choice was cheaper to make at the revisit; **this is the revisit**, and §1.9 below is where it is made |
+| 27 | **[P8](25-p8-implementation.md)'s automatic extractor** — §0.2's row 20, carried twice | [08 §2](../08-cross-session-memory.md) is the feature; [P8 §5](25-p8-implementation.md) cut it deliberately and named no arrival | See below. **This audit decides it rather than carrying it a third time** | **[P11.12](#p1112--the-automatic-extractor), new** |
+
+---
+
+#### Row 20 decided: the extractor is [P11.12](#p1112--the-automatic-extractor)
+
+§0.3 said *"a third carry is a decision, and it should be made rather than
+arrived at."* Made, and these are the grounds rather than a preference:
+
+- **[08 §2](../08-cross-session-memory.md) is not what ships without it.** The
+  design's sentence is *"entries are **extracted** from sessions"*, and what
+  exists is a book a person fills by hand. A memory book nobody is obliged to
+  maintain is a lorebook with a suggestive name.
+- **It holds a phase's gate open, not a feature's.** [P8](25-p8-implementation.md)'s
+  C2 (*a hand correction survives the next extraction*) is **vacuous** under the
+  cut and C3's extraction half *"has no extractor to bleed"*, so
+  [sitting N](05-manual-testing.md) is one row and **two of P8's three criticals
+  cannot be walked by anybody**. Leaving it unowned does not defer a feature; it
+  leaves a closed phase's gate permanently unfinishable.
+- **The machinery is all here, which is why P8 could cut it safely.** The books,
+  the (actor × persona) association, the two-tier retrieval budget, the
+  workbench's injection report, the scope and intake toggles, the write path
+  that appends a turn with no model call, and `LoreEntry.locked` **with a writer
+  and no reader** — P8.3's record says outright that *"the extractor inherits an
+  obligation with subjects already on disk."* What is missing is a step, a
+  payload, a prompt and a dedupe rule.
+- **And the alternative is defensible, which is why it needed deciding rather
+  than assuming.** 1.0 could ship memory as a manual feature. It would be a
+  smaller, honest product — and it is **not** the one four design documents
+  describe, so choosing it would mean editing them. Nobody has proposed that.
+
+*Appended as P11.12 rather than inserted*, on §2's own convention: stages are
+cited by number across the corpus and renumbering to buy tidiness breaks live
+citations. By argument it belongs with the large user-facing items.
+
+---
+
+#### What this stage did **not** find, which is worth one line
+
+**No route without a caller, no config key without a consumer, and no `TODO`,
+`FIXME` or `it.todo` anywhere in the tree.** The two shapes §0.2 named — a
+shipped route with no surface, a shipped setting nothing reads — are both at
+zero outside their written exemptions, and the third shape a sweep usually finds
+is absent because this codebase does not use the marker. *That is the argument
+for why the twenty-seven items above are the shape they are*: what is left after
+six phases of instruments is **sentences that stopped being true**, and no
+instrument in this repository could see one until this stage built the first.
+
+---
+
 ## 1. Decisions this plan has to make
 
 ### 1.1 A hardening phase is a list, and a list without owners never ends
@@ -596,6 +933,41 @@ definition moves to P7 as the contract's third witness and P11 builds only its
 surface and tools, or it all stays here and P11 accepts that it may find the
 contract wrong after everything is built on it. What must not happen is both
 documents leaving it to the other.
+
+---
+
+#### Resolved 2026-09-16 — by P7 closing, which is the arm this section feared
+
+***P7 shipped without answering, so the answer is the default one.*** [P7
+§1.8](23-p7-implementation.md) posed the same fork from its side — *"to decide at
+the revisit: whether the assistant's mode definition is pulled into P7"* — and
+P7's buildable work finished on 2026-09-13 across fifteen stages, merged at
+`589900e`, with the question still in its §5. **So the assistant's mode
+definition is P11's**, and it is P11's *by expiry* rather than by decision, which
+is the sentence above coming true.
+
+**P7 saw it coming and left the record in the right shape**, which is the part
+worth keeping rather than scolding. Its §4 lists the assistant's mode definition
+under *not out of scope but reads like it*, **specifically** so that *"leaving it
+in P11 is a decision rather than an omission"*. A deferral that names itself as a
+deferral is the thing this corpus keeps asking for; what neither document has is
+a mechanism that makes a phase answer before it closes.
+
+***And the worry the fork existed to manage got smaller on its own.*** §1.8's
+real subject is that two similar modes are a weak test of the mode contract. P7
+records the mitigation: [P9](26-p9-implementation.md)'s rendition step is a
+**fourth witness volunteered by a phase that is not about modes**, which is the
+variety §1.8 said the phase lacked — *"it does not answer §1.8's question…  it
+does change the price of answering **no**."* **The price was paid and it was
+lower than budgeted.** P9's step exercised the contract from outside and found no
+fault in it; what it did find was that a mode could not be imported by the engine
+and that `CastEntry` was missing a field, both of which P9 fixed inside the
+contract rather than by widening it.
+
+**What this stage therefore builds is all of it** — mode definition, surface and
+tools — and P11.3 says so. *The residual risk is unchanged and is now this
+phase's alone*: if the contract is wrong, P11 finds out after everything is built
+on it. **That risk is why P11.3 is not last**, which §2's ordering now states.
 
 ### 1.6 The update check produces a signal P10 already ships a surface for
 
@@ -756,6 +1128,39 @@ rather than from the sizing.
 
 ---
 
+### 1.9 `.sepack` is [P11.10](#p1110--session-export-and-the-format-it-freezes)'s, and the reason is that it is not a second format
+
+***Decided 2026-09-17 by [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)'s item
+26***, which is the revisit [§0.1](#01-the-audit-run-early--2026-09-14)'s row 13
+said the choice was cheaper at. Three arms were open — this stage, a stage of its
+own, or [P7B](24-p7b-presets-and-prompts.md)'s package editor growing an export
+button — and the argument that separates them is not about scheduling.
+
+**The two things travel differently and serialise identically.** A session
+carries branch structure and channel state; a package carries an arbitrary
+bundle of library objects, every one of which is already a **portable kind** with
+a schema, a `Provenance` and an id that `stampImported` can key. So the package
+half needs no format decision at all: [04 §9](../04-schemas.md) describes the
+bundle and [18](../18-session-import.md)'s sweep already reads exactly those
+objects. *What P11.10 is actually deciding is the hard part — how a record with
+siblings, absent instrumentation and foreign identifiers survives a round trip —
+and none of those three questions is asked by a bag of actors.*
+
+**So the deciding consideration is the one §1.8 makes about import:** the four
+consequences are *"free while the format is being written and expensive
+afterwards"*, and an envelope is one of them. **One envelope, two payloads** — a
+manifest naming what is inside, a version, and the same provenance rules — is
+free if it is written once and is two formats forever if it is not. A stage of
+its own would write the second envelope; an export button on the package editor
+would write it *and* put it somewhere nothing else can reach.
+
+*What this does not do is grow P11.10's gate.* The round trip that has to be
+proved is the session's, for the reason §1.8 gives. The package half's proof is
+one line beside it — **a bundle exported from one install opens on another** —
+because every object in it round-trips through machinery six phases old.
+
+---
+
 ## 2. Stages
 
 The audit first, because §1.2 says the list does not exist; then the two large
@@ -763,15 +1168,34 @@ user-facing items; then the sweeps, which are cheapest once nothing new is
 landing; then release engineering, which gates the phase rather than being part
 of it.
 
-***Two stages were appended below release engineering rather than placed in that
-order*** — P11.10 and P11.11, added 2026-09-14 (§0.1, §1.8). **Appended, because
-stages are cited by number across the corpus and renumbering nine of them to put
-two in their right place would break live citations to buy tidiness.** By
-argument they belong with the large user-facing items: export is the largest
-single thing this phase builds and the only one with a design dependency outside
-the phase. Read §2 as P11.0, P11.10, P11.11, P11.1 … P11.9, and treat the
-numbers as filing order — the same convention the work-plan documents themselves
-run on.
+***Three stages were appended below release engineering rather than placed in
+that order*** — P11.10 and P11.11, added 2026-09-14 (§0.1, §1.8), and **P11.12,
+added 2026-09-17** ([§0.4](#04-the-audit-run--2026-09-17-at-45c613c)).
+**Appended, because stages are cited by number across the corpus and renumbering
+nine of them to put two in their right place would break live citations to buy
+tidiness** — an argument that got cheaper the second time it was used, which is
+what a convention is. By argument all three belong with the large user-facing
+items: export is the largest single thing this phase builds and the only one
+with a design dependency outside the phase, and the extractor is the half of
+[08](../08-cross-session-memory.md) that [P8](25-p8-implementation.md) cut. Read
+§2 as P11.0, P11.10, P11.11, P11.12, P11.1 … P11.9, and treat the numbers as
+filing order — the same convention the work-plan documents themselves run on.
+
+***And since 2026-09-16 the reading order can be derived rather than asserted.***
+Every stage now carries a *Depends on* line, so the order is a topological sort of
+thirteen stages of which **ten depend on nothing** (§5). That makes two
+constraints and one preference explicit:
+
+- **P11.8 last but one, P11.9 last.** The sweep depends on everything that adds
+  user-facing prose and the packaging depends on everything; these are the
+  phase's only internal dependencies, and they are the seam §5 pins.
+- **P11.3 early rather than late**, which is a preference with a reason: §1.5's
+  residual risk is that the mode contract turns out wrong and P11 finds out
+  *after everything is built on it*. **That risk does not fall by waiting.**
+  Running the assistant before the sweeps is how a contract fault gets found
+  while there is still phase left to absorb it.
+- **Everything else in any order** — worth saying, because a list of twelve reads
+  as a sequence whether or not it is one.
 
 ### P11.0 — The audit that makes the list
 
@@ -810,6 +1234,54 @@ costs, then decide whether route/tool splitting and serving changes need a stage
 before broader distribution. It adds a review, not a pre-priced implementation
 commitment; observed loading problems can bring it forward.
 
+*Depends on:* **P10 having closed**, and nothing else. §0.2 answered *what P8 and
+P9 added to the pile* — one row — so P10 is the only phase left between this
+document and this stage.
+
+*Proof obligation:* **the two instruments, run and recorded** — which is the only
+mechanical part of an audit and therefore the only part worth an obligation.
+`route-callers.test.ts`'s OWED map and `config.ts`'s `'unread'` tier are both
+enumerable in seconds, both fail the build when they go stale, and between them
+they cover the two shapes a shipped-but-unreachable commitment takes (§0.2).
+**The stage's real output is the list, and a list has no check** — which is
+§1.1's rule turned on this stage and answered rather than dodged: *what the rule
+can hold here is that the two countable things were counted; the rest is
+reading, and §0.2 is the evidence that reading finds what the instruments
+cannot.*
+
+#### Done — 2026-09-17, in [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)
+
+**Twenty-seven items, seven of them fixed by the running of it.** The list, the
+count and the two instruments' readings are §0.4; what belongs here is what the
+stage learned about itself.
+
+***The stage's own proof obligation turned out to be the least informative thing
+it produced***, and that is worth recording rather than hiding. Both instruments
+read exactly what §0.3 left them — four owed routes, two unread keys — because
+**neither can see what this audit was for.** `OWED` watches routes and
+`'unread'` watches config keys; twenty-two of the twenty-seven items are
+*sentences*. The obligation was honest and it was satisfied by a no-op.
+
+***So the stage built the instrument its own findings implied.***
+[`tools/citation-targets.test.ts`](../../../tools/citation-targets.test.ts) is
+[manual testing §10.1](05-manual-testing.md)'s lesson mechanised — a citation
+names a stage or a section that exists — and it found **sixteen defects on its
+first run**, one of which was a test asserting half of what its title claimed
+while owing the other half to `P2.7`, the never-created stage §10.1 is a whole
+section about. *That file predicted its own repair — "when that lands, this test
+changes shape, and it should be found by failing" — and the prediction did not
+fire, because the body never drove the watcher.* It does now.
+
+**§1.1's rule turned on this stage and answered rather than dodged**, which is
+what its *Proof obligation* line asked for: the countable things were counted,
+and the reading found what the instruments could not. The difference this time is
+that *some of the reading became countable* — which is the only way an audit
+stops having to be re-run by hand.
+
+**Row 20 is decided** — [P11.12](#p1112--the-automatic-extractor) — and
+§1.9 settles `.sepack`. Both were carried on the explicit promise that the
+revisit would decide them, and this is the revisit.
+
 ### P11.1 — The reading view
 
 [10 §12](../10-ui-surfaces.md): any node rather than only the head, live rather
@@ -827,6 +1299,102 @@ lorebook, [10 §5.3](../10-ui-surfaces.md), which is the same print stylesheet
 and the same Markdown pass run over a different record. Both are the kind of
 cheap item §1.4 warns gets cut, so they are named here rather than left to
 P11.0 to rediscover.
+
+*Depends on:* nothing. Every input exists — the turn tree, `walkPath`, the
+rendition records [P9](26-p9-implementation.md) wrote, and `GET /api/search`,
+which has served objects and turns since P2 and which
+[`route-callers.test.ts`](../../../packages/server/src/routes/route-callers.test.ts)
+still lists as **owed a caller**. *That OWED entry is this stage's, and it is
+discharged by building the surface rather than by editing the map.*
+
+*Ends at:* a two-hundred-turn session reads end to end as prose at the head **and
+at an abandoned node**, prints through the browser with a real stylesheet, and
+copies as Markdown that pastes usefully elsewhere — and a search hit lands on the
+node it names.
+
+*Proof obligation:* `packages/client/src/reading/…` — **the fence, asserted
+rather than intended.** §1.4 says the view must not drift toward the workbench,
+which is a claim about what it renders: *no cost, no token count, no model id,
+no block table anywhere in the reading route's subtree.* A source-text assertion
+over that directory is the cheap form and it is the form that survives somebody
+adding a *helpful* line two phases later. Plus `route-callers.test.ts` losing its
+`GET /api/search` row — which is the mechanical half, and the one that says the
+surface is reachable rather than merely written.
+
+#### Done — 2026-09-17
+
+**`route-callers.test.ts` lost its `GET /api/search` row**, which is the
+mechanical half of this stage and the one that says the surface is *reachable*
+rather than merely written. ***Nine phases outstanding, the longest a debt in
+that map has ever stood*** — and it stood for a reason the map is the wrong
+instrument to see: the route worked, its tests passed, and what was missing was
+somebody to ask it.
+
+***The fence is a directory scan, and it caught something before it was
+finished.*** [§1.4](#14-the-reading-view-is-cheap-which-is-why-it-is-at-risk)
+asked for *no cost, no token count, no model id, no block table anywhere in the
+reading route's subtree*, and [`fence.test.ts`](../../../packages/client/src/reading/fence.test.ts)
+is that as seven patterns over `packages/client/src/reading/`. **Its first run
+failed on the reading view's own model**, which was called `ReadingBlock` — a
+name that reads naturally and collides head-on with the workbench's *blocks*,
+the assembled prompt fragments [10 §12.1](../10-ui-surfaces.md) forbids this view
+from showing. The type is `Passage` now. *A word that means two things across the
+boundary a design rests on is how the boundary gets crossed by accident*, and the
+test refused the name before a person did.
+
+***Two things the plan did not know it was asking for.***
+
+- **Turn hits had no snippet.** [10 §14.1](../10-ui-surfaces.md) asks for
+  *"results as a list of turns with a snippet"* and `searchTurns` returned a turn
+  id. At six hundred turns that difference **is** the feature: a list of nine
+  dates is a list of nine things to open, which is the scrolling §14 exists to
+  prevent wearing a different shape. §14.5 makes the identical complaint about
+  lore entries in so many words — *"close to useless at book scale"* — and that
+  half was paid at [P5.2](17-p5-implementation.md) while this one was not, by
+  nobody's decision.
+- **The transcript route walked from the head and only the head.** §12.1's
+  *"any node, not just the head"* is the bullet that makes this more than a print
+  button, and it is one argument to `walkPath`. It is `?from=` on the route that
+  already exists rather than a second route: *what differs between the two
+  surfaces is what they render*, and a second fetch path would be a second place
+  for the walk, the limit and the sibling map to drift. **A node the session does
+  not have is a 404** — `walkPath` answers `[]` for an unknown id, which is
+  indistinguishable from an empty session and would render as a blank page with
+  nothing wrong.
+
+***The print stylesheet is in `index.css` rather than on the route***, which is
+the decision worth recording. §12.2 makes the browser's own print-to-PDF the
+whole of the PDF story — *"shipping a PDF renderer would be real weight… for an
+outcome the platform already gives away"* — so it has to be good rather than
+present, and the chrome that would otherwise print is the **Shell's**: the
+header, the navigation and the build footer are mounted around every page. A
+reading view that hid its own controls would have solved the smaller half.
+Landmarks rather than class names, so nothing has to be remembered when one of
+them is restyled.
+
+***And one coupling cost, paid rather than hidden.*** The way into the reading
+view is a `<Link>` on the session panel, because §12.1 wants it *"openable at any
+time on any session"* and so it renders unconditionally. Two component suites
+mount that panel **without a router** — forty-two tests and eight — and `<Link>`
+throws where `useNavigate` merely warns. *`MemoryPanel` has carried one since
+P8.4 and never tripped it*, because its fixtures have no memory books; this is
+the same latent coupling with a fixture that reaches it. Both files now replace
+`Link` with an anchor, which is all either asserts about a link anyway. **The
+alternative was driving the real router to `/play/$sessionId` in both and
+rewriting every assertion around it**, which is a large change to prove something
+no test there is about.
+
+**The lorebook half is its own serialiser and that is deliberate.**
+[10 §5.3](../10-ui-surfaces.md) is §12's argument on a second subject and shares
+its *formats*, not its model: a session is a path through a tree and a book is a
+collection with folders, and one serialiser over both would have a branch in
+every function. [11 §3](../11-lorebooks-as-a-format.md)'s rule — *"raw is a claim
+about the words, not about the layout; the reading view may re-arrange, and it
+may not re-word"* — is asserted in both directions, and the *may not re-word*
+half is the one a Markdown serialiser's instinct violates: **escaping somebody's
+corpus is re-wording it under another name.** §5.3's *"no JavaScript in the
+output"* fence is held structurally rather than by discipline — a function that
+returns a string has nowhere to put a handler.
 
 ### P11.2 — Editors are not dumb forms, across every editor
 
@@ -886,13 +1454,300 @@ about the tree rather than a projection**, the sequencing decision above was
 taken correctly, and what P11.0 owes here is a read of six editors rather than a
 question about how many there will be.
 
+*Depends on:* nothing here — [P7B](24-p7b-presets-and-prompts.md) built the six
+and its merge is the dependency, already discharged.
+
+*Ends at:* every editor offers assist, provenance and history, and a collapsed
+section names what inside it is not at its default.
+
+*Proof obligation:* `packages/client/src/editor/…` — **over the key set, not over
+the editors somebody remembered.** `fields.test.ts` is the model and it is in
+this file already: the claim runs over `LIBRARY_KINDS` and fails when a kind is
+added without the affordance, which is the difference between a test that
+tracks the feature and one that tracks the day it was written. *The
+not-at-its-default invariant is the row [P5 §2](17-p5-implementation.md) refused
+to cut, and it is the one an assertion can hold exactly* — the others are
+rendering.
+
+#### Done — 2026-09-17: the contract, and what is not the contract
+
+***The assist slot has been empty since P1 and this is the stage that fills
+it.*** `ui/Field.tsx`'s own docstring has said so the whole time — *"What P1
+commits to is this component boundary, not the assist mechanism"* — and the
+boundary is what makes this one edit rather than thirty.
+
+***A context, not a prop, and that is [10 §11](../10-ui-surfaces.md)'s sentence
+read literally.*** The section's requirement is that assist be *"a primitive the
+editors are built from, so that 'does this field have AI assist?' is never a
+question anyone asks"*, and **a prop is exactly that question** — asked once per
+call site, answered by whoever was typing. So `EditorFrame` provides the slot
+once and every `Field` inside any of the six has it. A field gains assist by
+being in an editor and loses it by not being, which is also the right answer for
+a login form, a settings control and a secret.
+
+*What a field has to say for itself is its `path`* — the dotted key [10 §11.2]
+keys the provenance map by — and a field without one gets nothing. That is a
+fact about the field rather than a decision about the feature, which is the
+difference between this and a `hasAssist` boolean.
+
+***Two operations reach the server and two deliberately do not.*** §11.1 lists
+four: generate, refine, revert, accept as-is. **Accept is the absence of a
+control**, and that is the strongest available reading of *"nothing may require a
+model call to proceed, ever"* — a button labelled *accept* would imply the value
+is pending until blessed, which is the requirement rebuilt as an interface.
+Aventuras has one because its assist is a step in a wizard; here the field is
+just a field. **Revert is two buttons because §11.1 asks for two**: *before* is
+the value the field held when the assist ran and lives in a ref, *generated* is
+what the model wrote and lives in the file — one is about the last thirty
+seconds and the other is about the object's history, and a button offering to
+restore a value from a previous session would be offering to lose work.
+
+***Provenance is Marinara's shape, adopted as §11.2 says to adopt it***, with
+`unreviewed` cleared by the one event that means somebody looked: **an edit**.
+Not a form-wide diff — a diff cannot tell a hand edit from a restore, a reapply
+or a revert, and all three change the value without anybody having read it. So
+the flag rides on the same context the slot does.
+
+*The map is held by `useObjectEditor` rather than by six form shapes*, and
+assigned over `apply`'s output in one place. `generated` is keyed by dotted path
+and is a fact about the **object**; six forms carrying it would be six chances to
+get the merge-on-save subtly different.
+
+***The paths are ids, never indices***, in the three places a list is involved —
+an actor's sections and samples, a preset's blocks, a book's entries. All three
+are reordered by design ([10 §11.2c] makes reordering entries an ordinary
+action), and an index-keyed record would attribute one entry's generated prose to
+whichever entry took its place. **That is worse than no provenance, because it
+reads as an answer.**
+
+***The obligation is a loop and it found nothing***, which is worth saying
+plainly: `editor/contract.test.tsx` runs over `LIBRARY_KINDS` and asks each of
+the six for assist, disclosure and history — and every one answered on the first
+run, because the frame is the thing that changed. *The value is in what it
+refuses next*: a seventh kind with an editor and no affordance, or a `Field` that
+lost its `path`, which typechecks, lints and silently removes the control. One
+round trip is driven end to end beside it, because *the control is there* and
+*the feature works* are different claims and the loop only makes the first.
+
+---
+
+***What this stage's opening paragraph names and this does not build***, stated
+here rather than discovered by a reader of the gate:
+
+- ~~**[10 §11.2b]'s image slots.**~~ ***Built 2026-09-17.*** §11 lists *"every
+  image slot can be generated, uploaded, cropped and replaced"* as the second of
+  its two capabilities, and §11.2b is the lorebook half of it — a gallery on the
+  book, a strip on each entry. Its own text removes the *generated* arm from this
+  phase — *"**No assist.** Generating a location image is a rendition… so it
+  arrives with them and not before"*, which [P9](26-p9-implementation.md) has now
+  shipped — and leaves upload, crop and replace.
+
+  ***It was unreachable rather than unbuilt***, which is what building it found.
+  `EmbeddedMedia` is a reference to bytes *the container* carries, and this build
+  had **one** container that carries them: a PNG's blob chunk. A lorebook is
+  `lorebook.json` in a folder, so `readMedia`'s `codecFor` returned null for one
+  and every read ended at *"that object is not in a container that carries
+  media"* — while `assetsRoot` had sat in `layout.ts` since P1 with nothing ever
+  writing to it. `library/assets.ts` is that container, and
+  [04 §5](../04-schemas.md) had already said where it goes: *"bulk, in the folder
+  rather than the manifest … a layout that already listed
+  `lorebooks/<slug>/lorebook.json + assets/`"*.
+
+  ***Two decisions are worth reading before the code.*** Assets are
+  **content-addressed**, so the same picture twice is one file and an orphan is
+  detectable — a file whose digest no manifest row carries — which is what makes
+  the sweep on save possible at all. And the upload route **stores bytes without
+  touching the object**: the gallery and each entry's strip are different arrays,
+  only the form knows which one a row belongs to, and a route that decided would
+  write the object behind the editor's draft.
+- ~~**[10 §11.2c]'s entry travel.**~~ ***Built 2026-09-17***, after the record
+  named it: selection on the entry list, *Export selected*, *Import entries…*,
+  and the review that goes with a merge. `editor/entry-travel.ts` is the model
+  and `EntryTravel.tsx` the surface. **Three decisions are worth reading before
+  the code**: an entry export **is a lorebook**, so there is no fragment schema
+  and nothing new to version, and the way in is the way in for any book anybody
+  downloaded; the folders above a selection travel and the rest do not, because
+  *"a dozen entries arriving flat at the root have lost"* a shape the author
+  gave; and a merge **adds and never overwrites** — an id that collides takes a
+  fresh one and the collision is *reported*, because *"two books hold entries
+  under the same id precisely because one was copied from the other, which makes
+  id equality a sign of shared ancestry rather than permission to overwrite an
+  edit."*
+
+  ***And it gave `VersionSource`'s `import` arm its first writer.*** §11.2c says
+  the book's own history is the record of the import, *"so the merge goes
+  through the same write path as every other edit"* — which turned out to need
+  exactly one optional field on the library PUT, `importedFrom`, and nothing
+  else. `history.ts` has carried `{ kind: 'import'; from: string }` since P1
+  under the note that *"`assist`, `extension` and `import` have no writers until
+  their phases, but the type is the contract"*; this is that phase for the third
+  of them, and the contract held.
+
+  ***What is deliberately still absent is §11.2c's media clause***, and it is
+  absent because [§11.2b] is: *"entry media, in whichever container the book
+  itself would use"* has nothing to carry until entry media exists, so
+  `selectionAsLorebook` clears the **book's** gallery rather than pretending to
+  select from it, and says why.
+
+**Neither is in *Ends at***, which reads *"every editor offers assist,
+provenance and history, and a collapsed section names what inside it is not at
+its default"* — and all four of those are true. The fourth was already true:
+`summaryOf` and `groupSummary` have carried [P5 §2](17-p5-implementation.md)'s
+refused cut since P5 and P7B, and `entry-defaults.test.ts` asserts it. *Recording
+the two gaps against the gate rather than against this stage is the honest
+filing*: they are section commitments this stage did not reach, and
+[§3](#3-verification--the-p11-exit-gate)'s row 12 is where a phase claiming
+feature completeness has to answer for them.
+
 ### P11.3 — The assistant
 
-§1.5's decision executed: the mode definition wherever it ended up, plus the
-surface ([10 §7](../10-ui-surfaces.md)) — summonable from anywhere as a panel,
-starter prompts, ambient context **disclosed as a block in the turn record**,
-domain tools rather than filesystem tools, and every mutation a reviewable diff
-carrying `GeneratedFieldProvenance`.
+§1.5's decision executed — ***and as of 2026-09-16 the decision is that all of it
+is here***: P7 closed without pulling the mode definition across, so this stage
+builds the definition **and** the surface ([10 §7](../10-ui-surfaces.md)) —
+summonable from anywhere as a panel, starter prompts, ambient context **disclosed
+as a block in the turn record**, domain tools rather than filesystem tools, and
+every mutation a reviewable diff carrying `GeneratedFieldProvenance`.
+
+**Early in the phase rather than late, and §1.5 is why.** The residual risk the
+fork was managing is that the mode contract turns out wrong *after everything is
+built on it*. That risk does not fall by waiting; it falls by finding out. So
+this stage runs before the sweeps — ahead of P11.2's six editors and P11.8's
+catalogue — because a contract fault found here is a fault found while there is
+still a phase left to absorb it.
+
+*Depends on:* nothing in this phase. [06 §7.4](../06-modes-and-turn-pipeline.md)
+says the whole design is *a session, in a mode, with an actor card*, and all
+three have shipped since P7.
+
+*Ends at:* the assistant answers a question about the user's own library,
+proposes a change as a diff, and the applied change carries provenance.
+
+*Proof obligation:* **`tools/repo-shape.test.ts`, not a component test** — the
+check §3's row 4 already names and puts *in the gate*: **no part of it is a
+second chat implementation.** That is a grep, it is mechanical, and it is the
+only assertion that holds [06 §7.4](../06-modes-and-turn-pipeline.md)'s actual
+claim — *"if building it requires a parallel chat implementation, something in
+the mode contract is wrong."* A passing assistant built the wrong way would
+satisfy every behavioural test and fail this one. *Plus the ambient-context
+block appearing in the turn record*, which is what makes the disclosure real
+rather than promised.
+
+#### Done — 2026-09-17
+
+***"It is a session, in a mode, with an actor card. That is the whole design."***
+[06 §7.4](../06-modes-and-turn-pipeline.md) says it in one sentence and the
+interesting thing about this stage is how much of it turned out to be literally
+true: `packages/modes/assistant` is a mode package with one dependency, and
+`AssistantPanel.tsx` renders **`PlayPage`**. Everything in §7.4's table of what
+*applies unchanged* — streaming, reconnection, the turn record and the workbench,
+rewrite and reroll, the guidance box, branching, notifications, per-user
+ownership — is there because it is the same component, not because it was
+re-implemented carefully.
+
+***The proof obligation is that sentence inverted, and it is mechanical.*** §7.4:
+*"If building the assistant requires a parallel chat implementation, something in
+the mode contract is wrong."* `tools/repo-shape.test.ts` holds it from both
+sides: the panel **imports and renders** the play surface, and its directory
+contains no `<textarea`, no `submitTurn`, no stream and no `EventSource`. *That
+is a claim about code shape rather than behaviour, which is why the obligation
+named this file rather than a component test* — a passing assistant built the
+wrong way would satisfy every behavioural test and fail this one.
+
+***Ambient context is a channel with a budget, and that is the whole
+implementation of "disclosed".*** §7.4 asks for two things in two sentences:
+*"That context is a block the client contributes, and it must be visible in the
+turn record like any other block."* A `user-only` channel with a non-null budget
+**is** a block the client contributes: the pack positions it, the assembler
+renders it, the workbench lists it in the block table beside everything else.
+**`budget: null` would have been the unsettling version** — an assistant that
+knew what was on your screen and never said so — and it would have looked like a
+smaller declaration rather than a different feature. [10 §7](../10-ui-surfaces.md)
+asks for the other half, *"on screen, not just in the turn record"*, and that is
+the line at the top of the panel.
+
+*The context is derived from the **address** rather than pushed by each page*,
+because the address is already the app's statement of where you are and is
+maintained whether or not anybody is thinking about the assistant. The cost is
+written down: what it can say is what the URL says.
+
+***Propose, then apply, through the ordinary channel path.*** §7.4: *"Every
+mutation is a reviewable diff, not a silent write… an assistant quietly
+rewriting your own work is the fastest way to stop trusting it."* A `post` step
+writes `se.assistant.proposal` as a `model-proposed` effect — so a proposal is on
+the turn, in the workbench, reversible by branching — and the panel reads it back
+off the transcript it was already reading. **Nothing in the mode package can
+reach a file**, which its single dependency makes structural. Applying is an
+ordinary library write the **person** makes, carrying `GeneratedFieldProvenance`
+exactly as [P11.2]'s field assist does, which is what §7.4 asks for by name:
+*"so 'the assistant wrote this bit' stays answerable later."*
+
+**Two refusals inside that are worth naming.** The proposal is applied against
+*the object as it stands now*, not against what the model was shown, because
+minutes may have passed and the honest question is whether you want this change
+to the file you have. And **a dotted path the object does not have is not
+created** — inventing structure because a model named it would be the silent
+write arriving through the one door that stayed open.
+
+***The card ships from the server and names no mode***, which is the test of
+whether §7.4's *capabilities belong to the mode, personality to the card* split
+is real. `assistant-card.ts` is an ordinary actor in the system library, beside
+the packs and under the same four rules; pointing a story session at it produces
+a strange but working character, which is §7.4's own *"point it at a roleplay
+character for fun and it still works"* read in the other direction.
+
+*It cost eight test edits, and they were improvements.* The shipped card made
+`actors` non-empty for the first time, so assertions reading *the library is
+empty* and *`objects[0]` is the one I imported* stopped holding — and both were
+always saying something slightly wrong. `ownObjects` already existed for exactly
+this and now says what those tests meant: **the user's** library.
+
+***Starter prompts are a `PlayPage` prop, not an assistant component.*** §7.4
+calls them *"the main thing standing between a blank assistant box and people
+actually using it"*, and the same reasoning that makes the assistant a session
+makes this an affordance of **sessions**: a story mode that wanted openers on an
+empty session would pass the prop and get the same control. They fill the box
+rather than taking a turn, which is `Suggestions`' rule beside them.
+
+---
+
+***What §7.4 asks for and this did not have: the docs lorebook.*** *"Docs
+retrieval needs no new machinery. Ship the documentation as a built-in lorebook
+and attach it to the assistant. Keyword activation plus the budgeter already do
+the work."* ~~**The machinery is here and the corpus is not**: the pack positions
+a `lore` slot, the retriever runs, and no book is attached.~~ That was a corpus
+problem — turning a design corpus into keyed entries somebody would want
+retrieved — rather than a mechanism one, and shipping an empty book to close the
+row would have been the placeholder shape this phase has refused at every stage.
+*It was the one thing between this assistant and the one §7.4 describes.*
+
+***Written 2026-09-17***, and *"needs no new machinery"* turned out to be exactly
+true: `docs-lorebook.ts` ships twenty-five keyed entries in eleven folders,
+`system-library.ts` materialises it beside the assistant card under the same four
+rules, and the attaching is **one line** — `lore: [DOCS_LOREBOOK_ID]` on the
+session the panel creates. No route, no retriever, no slot.
+
+***What the entries are is the part that took the time.*** The design corpus is
+reasoning about decisions; an entry here is an answer to a question somebody
+types at three in the morning — *why does my lorebook entry never fire*, *which
+model answers*, *what does scan depth count* — and the keys are the words they
+would use **including the wrong ones**, because a key that only matches the
+correct term only helps somebody who did not need help.
+
+***Three settings on the book are the whole of "the budgeter already does the
+work".*** `scanDepth: 4`, because a follow-up question names none of the original
+words; `entryLimit: 4` and a token budget, so documentation cannot eat the
+conversation it is helping with; and `recursiveScanning: false`, because these
+entries cross-reference each other constantly and one question would otherwise
+pull in half the book.
+
+***And a corpus needs an instrument, because a type cannot check one.***
+`docs-lorebook.test.ts` refuses an entry with no keys, an entry filed in a folder
+that does not exist, a folder holding nothing, a book whose own gates are shut,
+and **two entries claiming the same key** — which is the defect that is invisible
+and expensive, because both fire on the same question and the budgeter then drops
+one by a priority nobody set. It found one on its first run: *restore* meant both
+the trash and a backup. `repo-shape.test.ts` holds the other seam, the id written
+out in two packages that cannot import each other.
 
 ### P11.4 — Scene's remainder, and impersonation
 
@@ -901,15 +1756,309 @@ carrying `GeneratedFieldProvenance`.
 P7/P11 scope* — so this stage is whatever half of that P7 did not take, and
 the revisit should start by finding out which.
 
+***Found out, 2026-09-16: P7 took none of it, and P7 says so itself.*** That
+document's own dependency list carries the row — *"[25 C3] — impersonation, and
+the split P11 asks P7 to make… [P11.4] says 'this stage is whatever half of that
+P7 did not take, and the revisit should start by finding out which.'*
+***P7's revisit did not know it was asked.***"* And the tree agrees: the word
+appears in no package. **So there is no split. This stage is the whole feature**,
+which makes it larger than the sentence above reads and smaller than it sounds.
+
+**Smaller than it sounds, because §3.1 already reduced it to a mechanism that
+exists.** *"Impersonate — the model writes your next message as your persona —
+is simply a `player`-controlled member being model-authored for one turn. Same
+mechanism, flipped for a turn."* Scene has `control` on party members since P7,
+so what is missing is the *flip*: one turn authored against the persona's card
+with the persona as subject rather than audience, and a reroll that costs
+nothing.
+
+*Depends on:* nothing. Scene's party and `control` shipped at P7.
+
+*Ends at:* a player stuck for words gets a draft in their own character's voice,
+edits or accepts it, and rerolling it is one button.
+
+*Proof obligation:* `packages/modes/scene/src/…` — **the card is the subject, not
+the audience** ([06 §3.1](../06-modes-and-turn-pipeline.md)), which is a claim
+about the assembled prompt and therefore assertable on the block list: the
+persona's card is present as the thing being written *as*, and the turn is an
+ordinary one on the record. *A turn that cannot be rerolled would satisfy the
+first half and miss the point of the feature*, so the reroll is in the
+obligation.
+
+#### Done — 2026-09-17
+
+**The whole feature, because [§0.2](#02-re-audited-2026-09-16-at-2f3f5d9-after-p7b-p8-and-p9)
+established there was no half to inherit** — P7 took none of it and the word
+appeared in no package.
+
+***§3.1's three details are not all satisfiable by one implementation, and the
+tension is the decision this stage makes.*** It says both of these:
+
+- *"It is a draft, not a commitment. The output lands in the input box,
+  editable, and is not sent until the user sends it. **Anything else takes
+  authorship away rather than assisting it.**"*
+- *"It is a `generate` step like any other, so it is **recorded in the turn
+  record** and rewrite/reroll apply."*
+
+**A draft that commits a turn is not a draft.** The first is the one §3.1 argues
+for rather than merely states — *takes authorship away* is the sentence the
+feature is measured against — so nothing is committed, and the second's two
+promises are kept the two ways that remain. *Recorded* is the job log, which
+carries this call the way it carries every other. *Re-rollable without ceremony*
+is pressing the button again, which is the literal reading and what a person
+dissatisfied with a draft actually does.
+
+*The alternative is written into the code so it can be re-argued rather than
+rediscovered*: a turn committed off the path, which would put the draft in the
+workbench with its prompt and its block table. That is a real gain at a permanent
+cost — **every impersonation would leave a sibling in the tree**, visible to
+`readTranscript`'s sibling map as a line the player might have taken and did not.
+A feature for when you are stuck should not make the tree noisier the more you
+use it.
+
+***Built on `preview.ts`'s gather rather than on the runner***, which is
+[P3 §1.6](15-p3-implementation.md)'s seam used for the second time: that file
+exists because *assemble-without-dispatch* is worth having, and this is the same
+seam with a dispatch on the end. The runner commits, advances a head, writes
+segments and announces — every one of which is what a draft must not do. **The
+retriever's effects are discarded**, and it matters more here than in a preview:
+a draft that advanced a lorebook's cooldowns would change the turn the person
+then sends, which is the turn they wanted the draft *for*.
+
+***The proof obligation is the block, not the prose.*** §3's row asks that *"the
+persona's card is present as the thing being written **as**"*, which is a claim
+about the assembled prompt — and it is the half a behavioural test cannot see: a
+call that lost the instruction still returns prose, and the prose is the
+narrator's. So the instruction is a **required** candidate, appended the way
+`schemaInstruction` is appended and for its reasons, and a test holds it to
+naming the character, forbidding narration of anybody else, and explaining itself
+to whoever reads the block table.
+
+**The party line is enforced at the door.** [06 §8] calls the difference between
+a companion and a second player *"the 'we are not building a D&D engine' line"*,
+and `readParty` is reused rather than re-derived — it already knows a session's
+persona is `player` without a channel write, which is the case every ordinary
+session is in. *Naming another member is allowed*, because §8's *"more than one
+member may be `control: 'player'`"* is the same sentence read forwards: a draft
+affordance that could only speak for one of a pair would refuse half its own
+reason to exist.
+
+*One thing the route does differently from its neighbours*: **it is not refused
+while a turn is in flight.** A submission is refused because two turns on one
+session is what [P2 §2.10](08-p2-implementation.md) exists to prevent; a draft
+commits nothing, and the moment somebody most wants one is while they are reading
+what just arrived.
+
 ### P11.5 — Hook tuning, played
 
 §1.7. Not a build stage — a stage whose output is settings, prompt wording and a
 panel that survived contact with a real pool.
 
+***And as of 2026-09-16 the subject is enumerable, which is what makes a tuning
+stage schedulable at all.*** P7 shipped the mechanism, so what this stage tunes
+is four numbers, one constant and one absence:
+
+| What | Where it is now |
+|---|---|
+| The four levels' **cadence and cooldown** | `sessions/hooks.ts` — `sparse: 6/20`, `normal: 3/10`, `aggressive: 1/4`, `manual-only: ∞/∞` |
+| **How long a commitment waits** before lapsing | `HOOK_PATIENCE = 3` |
+| **How `sparse` reads to a model** | ***Nowhere.*** [06 §6.1](../06-modes-and-turn-pipeline.md) puts the levels' prose in the **pack** and the numbers in engine code; `turns/hook-selector.ts` records that the pacing prose *"arrives as an ordinary block when the pack grows one"* — and no pack has grown one |
+
+**The third row is the one that is not tuning.** A pack block that does not exist
+cannot be worded better by playing; it has to be written first, and writing it is
+a small build inside a stage that says it is not a build stage. *Naming it here
+is the point* — otherwise the stage arrives, discovers a missing block, and
+either grows silently or drops the half of §1.7 that is about **wording**.
+
+*Depends on:* a live endpoint and hours of play — the only stage here whose
+input is a person's time rather than code. *It therefore depends on
+[manual testing](05-manual-testing.md)'s R2 in the way the sittings do, and
+should be walked with **sitting G** rather than beside it: one long unscripted
+session answers this stage and PLAYABLE's fourth hypothesis at once.*
+
+*Ends at:* four levels produce recognisably different sessions, and a session at
+`sparse` with eligible hooks explains its own quiet.
+
+*Proof obligation:* **none, and that is this stage's honest answer to §1.1's
+rule.** [work plan §2.1](01-work-plan.md) lists *that hook pacing works at all*
+among the hypotheses nothing has tested, and a hypothesis is not discharged by an
+assertion — it is discharged by playing and writing down what happened. **What
+this stage owes instead is a written result** in [manual testing](05-manual-testing.md),
+in the form §0's two-tier gate uses. *An item that cannot name a check is
+supposed to be ejected by §1.1; this one is kept because the rule's own purpose —
+that nothing ends by someone getting tired — is served by a sitting with a
+recorded outcome, which is the same thing a check buys.*
+
+#### Half done — 2026-09-17: the part that was never tuning
+
+***The third row of the table above was not a tuning item and this stage said
+so***: *"A pack block that does not exist cannot be worded better by playing; it
+has to be written first, and writing it is a small build inside a stage that says
+it is not a build stage. Naming it here is the point — otherwise the stage
+arrives, discovers a missing block, and either grows silently or drops the half
+of §1.7 that is about **wording**."* It arrived, the block was missing, and this
+is it written rather than either of those two outcomes.
+
+**What was actually broken is worth stating plainly, because it had been true
+since [P7.5](23-p7-implementation.md).** [06 §6.1](../06-modes-and-turn-pipeline.md)
+splits the dial in two — *"Level → cadence, cooldown and patience is engine code;
+the level's prose is the prompt pack's"* — and only the engine half existed. So
+**`sparse` and `aggressive` put the identical question to the model** and
+differed only in a cadence the model could not see. Four levels producing
+recognisably different sessions, which is this stage's *Ends at*, was not
+something play could have discovered: there was nothing to discover.
+
+***`Preset.pacingLevels`, and it is not a third dial.*** The shape is the one
+[06 §7.3.1](../06-modes-and-turn-pipeline.md) gave difficulty and
+[P7.8](23-p7-implementation.md) gave directedness — a named level with ranked
+fragments, selected by a dial, replaceable by whoever ships the pack — because
+that argument transfers whole and a third literal shape for one idea is a third
+thing for an author to learn. **What does not transfer is the axis.**
+[23 §5.4](../23-randomizers.md) is explicit that a frequency dial stays a
+*separate channel* from difficulty, *"because folding* how often *into* how
+hard *rebuilds exactly the conflation [06 §7.3.2] exists to prevent"* — so
+`DialAxis` did not grow an arm, `dials.ts` still reads two, and
+`dials.test.ts`'s *three dials and not two* still passes unchanged. **One sort
+crosses the line and nothing else**: `levelFragments`, which is a fact about the
+data shape rather than about either control.
+
+*`hook-selector.ts`'s own guess is corrected in place rather than quietly
+replaced*, because it was wrong in an instructive direction: it said the prose
+*"arrives as an ordinary block when the pack grows one"*, and an ordinary
+`PresetBlock` cannot vary by level — one template, one `appliesTo` — so a pack
+would have shipped four blocks with nothing to choose among them. The half that
+held is the record: it reaches the call as `se.hooks.select.pacing`, an ordinary
+block in `request.calls`, visible in the workbench like any other.
+
+***No floor, where a difficulty dial has one***, and this is the decision most
+likely to be re-litigated. `resolveLevel` falls back to the pack's gentlest
+entry because a session runs at **a** difficulty whether or not anybody chose
+one. Pacing is not like that: `manual-only` is a real setting meaning *no
+judgement at all*, and a pack that ships three levels and not the fourth has said
+something about the fourth. Putting `sparse`'s words on an `aggressive` session
+would leave the prose arguing with the cadence, which is worse than silence.
+
+**Both built-in packs ship all four, and `mode.test.ts` in each refuses a pack
+that does not** — a missing level is the failure that looks like nothing: the
+resolver returns null, the block is omitted, and the setting silently goes back
+to meaning only a cadence. *The same test watches the top of the dial for
+compliance language*, which is §6.1's own warning — *"`aggressive` must not reach
+railroading… none of them makes the narrator comply"* — and is a crude check
+kept because the top of the dial is exactly where a later edit will be tempted.
+
+***What is still owed is the stage's actual subject, and it has not moved.***
+Four numbers, one constant, and the wording of what is now four levels of real
+prose, all of which want a live endpoint and hours of play. That is
+[sitting G](05-manual-testing.md), walked with PLAYABLE's fourth hypothesis, and
+this stage's *"honest answer to §1.1's rule"* stands: no proof obligation, a
+written result instead. **What changed is that the sitting is now possible.**
+
 ### P11.6 — Update check, About badge, and better failures
 
 §1.6, if P10 did not take it; the conditional connectivity warning, admin-only;
 and the error-message improvement that is the feature's actual value.
+
+***Two settings for it already ship, unread*** — 2026-09-16, and this is the
+sharpest reason to settle the ownership rather than carry it. `config.ts`'s
+`CONFIG_TIERS` marks **`updates.checkEnabled` and `updates.channel`** as
+`'unread'`, the tier meaning *nothing consumes this*. So the configuration
+shipped ahead of the producer, which is precisely what
+[P10 §1.7](27-p10-implementation.md) calls *shipping dark* — arrived at by
+default rather than chosen.
+
+**[P10 §1.7](27-p10-implementation.md) leans to taking the check, and its
+re-audit strengthened the lean**, so the live reading is that **this stage is
+P10's** and what remains here is the half P10 does not want: *better failures*.
+That half is the feature's actual value and it is independent of the badge —
+*"this server appears to have no internet access"* instead of a raw DNS or TLS
+error, and the same sentence at first run before somebody configures a remote
+provider that will never work.
+
+*Depends on:* P10's answer to its §1.7, which is a reading of one paragraph
+rather than a build. **If P10 takes the check, this stage is the error messages
+alone**; if it does not, the check comes here with them.
+
+*Ends at:* an install with no internet says so in a sentence somebody can act on,
+**and the two `'unread'` keys either have a consumer or are gone.**
+
+*Proof obligation:* `config.test.ts` — **the tier table, read as an assertion.**
+Those two keys leaving `'unread'` is the mechanical form of this stage being
+done, and it is already enforced in the direction that matters: a key missing
+from the table fails the build. *The conditionality is the part a test must also
+hold* — an install whose connections are all local is legitimate, so the
+assertion is that a local-only install produces **no** warning, which is the
+failure mode §1.6 names and the one a happy-path test would never see.
+
+#### Done — 2026-09-17
+
+**The error messages alone, as [§0.3](#03-re-audited-2026-09-17-at-f0b19ba-after-p10)
+established.** P10 took the check, the badge and the conditionality; the two
+`'unread'` keys left the tier with it, so the *Ends at* clause about them was
+already discharged before this stage opened. What was left is what
+[P10.3](27-p10-implementation.md) named and did not build.
+
+***The defect was worse than the plan's wording implies, and finding that out is
+most of what this stage did.*** §1.6 anticipated *a raw DNS or TLS error*
+reaching a person. What actually reached them was **our own vocabulary**: the
+play surface rendered `The turn failed (transient)`, and the notification body
+was `{sessionName} — {error}` over the same union. *`transient` is a word about
+our retry ladder.* The comment beside that notification template defended it as
+*"the class, not a sentence: `rate-limit` and `no-binding` are words the reader
+can act on"* — **and named a vocabulary that does not exist**;
+{@link StepFailureReason} has never had either word in it. A sentence that
+defends a decision by describing something else is the same failure
+[P11.0](#p110--the-audit-that-makes-the-list) spent its day on, arriving from
+inside the code this time.
+
+And the transcript, which is where a person actually looks, said
+`This turn did not finish.` — a fact with no remedy attached, which is
+[09 §6.5](../09-server-multiuser-deployment.md)'s complaint verbatim.
+
+***`FailureRemedy` is a second axis rather than a replacement.*** The class says
+what the engine did and belongs on the record; the remedy says what a person
+could do and is **derived, never recorded** — two of its three inputs are facts
+about *now*, and a turn record storing last Tuesday's connectivity would be
+claiming it as part of what happened. So a remedy travels on the live event and
+the notification, and [P11.10](#p1110--session-export-and-the-format-it-freezes)'s
+format never sees one.
+
+***It lives in `shared` because it has two callers on opposite sides of the
+wire***, and that is the decision worth recording. The runner derives a remedy
+while the failure is fresh and holds every input; **the transcript derives one
+for a turn that failed last week and holds only the class.** One function
+answering both is what stops the two surfaces describing one failure
+differently — which is the defect this stage set out to fix. The optional
+inputs are how the same function serves a caller that knows less, and every
+absent one degrades towards *saying less* rather than towards guessing:
+`endpoint-silent` exists precisely so a reader cannot round *nothing has looked*
+up to *your internet is down*.
+
+***The order of the questions is the whole of the conditionality.*** A dead
+container on `localhost:11434` and a severed uplink produce the identical
+`ECONNREFUSED`, so locality is asked **before** connectivity — reading them the
+other way round lets one stopped model server report the internet as broken,
+which is not merely wrong but wrong in the direction that sends somebody to look
+at their router. `remedy.test.ts` asserts the local arms **against every value of
+`online`, `false` included**: an install whose endpoints are all on the LAN is
+told nothing about the internet *while this server knows perfectly well that it
+has none*. That is [09 §6.5]'s *"a fully local setup is a legitimate,
+fully-functional deployment and its operator chose it deliberately"* as a test
+rather than as a hope, and it is the assertion a happy path could never make.
+
+**Three surfaces, one vocabulary.** The transcript's failed-turn note, the
+notification body, and — the first-run case §1.6 names — `/connections/models`,
+which grew a third error code beside `unauthorized` and `unreachable` on
+[P2C log](14-p2c-log.md)'s finding 5's own argument: *the two remedies point in
+opposite directions*, and a third that points somewhere else again earns its own
+word. A stored notification written by an older build still gets a sentence,
+derived from its class.
+
+*One thing this stage deliberately did not do*: put `endpoint` and `stalled` on
+the turn record. They are facts about the call rather than about the network, so
+the argument for recording them is real, and it is
+[P11.10](#p1110--session-export-and-the-format-it-freezes)'s to make — that stage
+owns what the record carries when it freezes, and a field added here to improve a
+sentence would be a schema decision taken for a cosmetic reason.
 
 ### P11.7 — Trash retention and restore, and the accessibility audit
 
@@ -928,12 +2077,239 @@ the table, the counts, the panel, and *played alongside*
 ([10 §5.3](../10-ui-surfaces.md)), which is the same query read from a
 lorebook. Placed 2026-09-11; nothing had named a phase before.
 
+***And the retention half has a marker in the tree*** — 2026-09-16.
+`trash.retentionDays` is `'unread'` in `CONFIG_TIERS`, with `config.ts` saying it
+outright: *"the maturation sweep does not read it; trash retention is not
+implemented."* **So the setting, the window and the folder all exist and nothing
+sweeps** — which is the standing line's shape with a default of 30 days that has
+never expired anything.
+
+*Depends on:* nothing. `Layout.trashRoot` and the move-on-delete path have
+shipped since P4.4.
+
+*Ends at:* a deleted object is restorable within the window and gone after it,
+with its history intact in both directions — and the confirmation names what
+refers to it before anybody presses the button.
+
+*Proof obligation:* **two, because this stage is two features wearing one
+heading.** For retention, a sweep test over a **clock the test controls** — the
+one shape that can assert *gone after it* without waiting thirty days, and the
+reason to write it here rather than let somebody reach for a real date. For the
+link table, the count itself: an object referenced by a session, a treatment and
+a package reports **three**, which is the claim [03 §10.1](../03-data-model.md)
+makes and the one a panel showing *Used by* would otherwise assert only by
+looking right. *The accessibility pass has no proof obligation and should not
+pretend to one* — [P2 §2.11](08-p2-implementation.md) calls it an audit over
+surfaces built to the habit, and an audit's output is findings.
+
+#### Done — 2026-09-17
+
+**Two features under one heading, and the stage's own record keeps them apart.**
+
+---
+
+***Retention: when something was deleted is in its own folder name, and that is
+the find the whole sweep turns on.*** `trashDestination` has suffixed every
+entry with a `uuidv7` since [P4.4](16-p4-implementation.md), and a `uuidv7`'s
+first forty-eight bits are the Unix millisecond it was minted — so **the trash
+has been recording the exact moment of every delete, per entry, for seven
+phases, and nothing read it.**
+
+*The alternative was the filesystem's mtime*, and it is worse in a way that only
+shows up when it matters: a restore from backup, a `cp -r` to a new disk or a
+container migration resets every mtime, and a sweep reading them would either
+delete nothing for thirty more days or — depending which way the tool sets them
+— empty a month of trash overnight. **The name travels with the bytes.** The
+falsifying mutation is switching to `stat`, which passes every test that makes a
+file and immediately sweeps.
+
+*And the parser was wrong on its first run, in the way this kind of parser
+always is.* It split the folder name on the **last** hyphen, which put twelve
+valid hex digits from the *end* of the uuid into the timestamp reader, produced
+a deletion date some nine thousand years hence, and swept nothing ever. A uuid
+is full of hyphens; the only unambiguous reading is the shape of the whole
+suffix, matched as one.
+
+***Zero means keep forever***, and the reading is load-bearing in the one
+direction that cannot be undone: the schema's minimum is zero, and a sweep that
+read it as *expire on sight* would empty the trash of every install that tried
+to turn the feature off.
+
+**Restore refuses rather than overwrites.** Delete-recreate-restore is a real
+sequence — somebody deletes an actor, makes a new one with the same name, then
+changes their mind — and overwriting would destroy the newer object to
+resurrect the older.
+
+---
+
+***The link table: [P4 §6.6](16-p4-implementation.md) said these were one debt
+and it was right.*** *"Whichever phase builds that panel pays both"* — the
+delete confirmation's *referenced by 12 sessions* and the object page's
+*Used by* are the same question at two moments, and the reason they had to be
+one build is that separate answers disagree about **what a reference is**.
+
+The rule this stage settles: ***a reference is a link somebody authored, not a
+mention.*** A setup naming a treatment, a session's chosen cast, a treatment's
+lorebooks, a package's contents — each is a field whose whole purpose is to
+point. A lore entry mentioning *Vera* is not a reference to the actor, and
+counting it would make the delete confirmation's number grow with the prose
+rather than with the links. **That is [10 §14.5](../10-ui-surfaces.md)'s *a
+fragment is indexable when it has an address*, read from the other end.**
+
+*The tidy alternative is rejected for the same reason §14.5 rejects its own*: a
+generic walk collecting every `{ id, name }`-shaped value would scoop up the
+object's own id, every lore entry's, every tag's and every folder's — producing
+a table where a book references its own three hundred entries.
+
+***And the route test found a bug the unit test agreed with.*** A setup's cast is
+`{ personaOptions, partyDefault, narrator }`; the reader was written against
+`{ persona, actors }`, which is a **session**'s shape, and it found nothing at
+all — silently, because an absent field and an empty list are indistinguishable
+there. The unit test passed because it was written from the same wrong picture.
+*What caught it was making each producer through its own route and counting.*
+**That is the concrete argument for having both kinds of test**, and it is worth
+more than the general one.
+
+**A count is information and never a gate**, which is [03 §10.2](../03-data-model.md)'s
+posture: delete is a move until the retention window closes, so a person
+removing an actor twelve sessions use is **told** and then allowed.
+
+---
+
+*The accessibility pass has no proof obligation and does not pretend to one* —
+[P2 §2.11](08-p2-implementation.md) calls it an audit over surfaces built to
+the habit, and an audit's output is findings. **It is not walked here**: the
+surfaces this stage added carry the habit (landmarks, `role="status"` on every
+asynchronous answer, whole sentences rather than assembled fragments), and a
+sweep over the whole client is a sitting rather than a commit.
+
 ### P11.8 — The localisation sweep
 
 §1.3: extraction into catalogues, the deliberately bad machine-generated French
 for testing ([19 §12.4](../19-tech-stack.md)), and missing keys falling back to
 English **silently, per key** — a 60%-translated UI should look bilingual, not
 broken.
+
+***The size is measured rather than estimated*** — §1.3's re-measurement,
+2026-09-16: **thirty-one open-keyed label maps across twenty-one files**, up from
+roughly ten. Every one is still a class-to-word lookup with the English on the
+client and `{ key, params }` on the wire, so the sweep is **moving maps into a
+catalogue** rather than hunting sentences in server code — which is the outcome
+§1.3 traded for on day one and the reason this stage is a sweep at all.
+
+**And one number says what the stage should leave behind.**
+`library/note-labels.test.ts` — which §1.3 calls *the model* — fails the build
+when the server emits a class the client has no sentence for **and** when the
+client holds a sentence for a class nothing emits. **It is applied once, in
+thirty-one places.** Nothing has regressed; the model simply has not propagated,
+and propagating it is most of what a catalogue is for.
+
+*Depends on:* everything else in the phase, and this is the one real ordering
+constraint in §2. A sweep run before P11.1's reading view, P11.3's assistant and
+P11.7's restore UI would be a sweep run twice — *the same argument P11.2 makes
+about editors, one level up.*
+
+*Ends at:* the app runs in the test French with no layout breakage, and an
+untranslated key renders English with no placeholder and no console noise.
+
+*Proof obligation:* **`note-labels.test.ts`'s shape, generalised to the
+catalogue** — the class set and the word set agree, for every map, as one
+build-time check rather than thirty-one hand-written ones. *That is also the
+answer to how anybody knows the sweep is finished*: it is finished when a map
+outside the catalogue fails the build, not when somebody has been through the
+list.
+
+---
+
+#### Done — 2026-09-17
+
+***`labels(namespace, english)` and a Proxy, so no call site changed.*** A table
+declares its English, registers it, and gets back a view that follows the active
+locale — which means `note-labels.ts` keeps its words beside the docstring
+explaining why each note says what it says, and `address.ts` and `prose.ts` keep
+reading tables rather than calling a lookup. The alternative, a `t(ns, key)`
+function, is a mechanical edit in twenty-odd files that also moves every sentence
+away from the code it is about. **The cost is one trap per label read** on tables
+of a dozen entries, which is not a number anybody will measure.
+
+***`i18next` is not here, and the deferral has a measurement behind it rather
+than a preference.*** [19 §12.3](../19-tech-stack.md) recommends it and its own
+deciding factor is that *"i18next runs on the server too"* — push bodies rendered
+with the app closed. **That need is not real in this build**: [P10.2](27-p10-implementation.md)
+renders every notification on the client, from these tables. What it would cost
+was measured one stage ago — [§1.3](#13-the-i18n-sweep-is-extraction-and-only-the-discipline-made-it-mechanical)'s
+280 kB gzip entry and its recommended ceiling — and `react-i18next` with an ICU
+plugin is a fifth of that again, on the common entry, for a feature no shipped
+locale uses. *That is [20 §7](../20-client-loading.md)'s trigger, knowingly.*
+What §12.3 actually buys is ICU plurals, which is real and is not what a
+class-to-word table needs. **So the deferral is a loader, not a format**: §12.2's
+explicit keys are what makes it cheap, because adopting a library later changes
+who reads the JSON and nothing about what is in it.
+
+***The count was thirty-one across twenty-one files and came out at
+thirty-eight across twenty-seven***, and the difference is the finding rather
+than an accounting error. §1.3 counted **open-keyed** maps — `Record<string,
+string>` — and a good half of the tables a person reads are closed:
+`Record<StepOutcome['state'], string>`, `Record<BlockChange, string>`,
+`Record<FailureRemedy, string>`. *A translator cannot tell the two apart and
+neither should the rule*, so the check below is written on what a table **is**
+rather than on how it is typed.
+
+***The instrument found three maps the sweep had already walked past***, which
+is [§10.1](05-manual-testing.md)'s lesson arriving on schedule:
+`REMEDY_SENTENCES` (P11.6's own, written this phase), `KIND_LABELS` and
+`OUTCOME_LABELS` were all missed by a hand-written pass and caught by the first
+run of the check. **That is the whole argument for the proof obligation being a
+scan rather than a list.** It also found `OFF_LABELS` written out twice,
+character for character, in the lorebook view and the lorebook editor — hoisted
+into `library/gate-labels.ts`, because two declarations of one namespace mean one
+translator entry and two English sources, so an English copy-edit in one file
+would leave the other disagreeing with the catalogue *only in English*.
+
+***What the rule deliberately does not reach is written into the check, not left
+to be discovered.*** Three things: prose written inline in JSX, `[value, label]`
+option lists, and a table read at module scope into another `const` — which
+would freeze English before any catalogue loaded, and is the one way to use
+`labels()` wrongly and quietly. The first two are the `<Trans>`-shaped job §12.3
+buys and this stage declined; the third is a hazard with no instance yet, so it
+is a paragraph rather than a check. *The boundary is §1.3's own*: the sweep is
+**moving label maps into a catalogue**, because the discipline that made it cheap
+— the server emits `{ key, params }` and the client holds the words — is a
+discipline about **classes**.
+
+***The test French is `fr-x-machine`, and the private-use subtag is the honest
+part.*** [19 §12.4](../19-tech-stack.md) makes machine translation *the primary
+mechanism rather than a fallback*, so what has to be right on day one is the
+machinery: per-key fallback, layout under longer strings, and a locale a person
+can actually switch to. Offering it as plain `fr` would promise French and
+deliver a machine's — the same refusal `UserSettings.tsx` already makes for an
+untranslated `de-DE`, one step along. **It is deliberately partial and
+deliberately long**: whole namespaces are absent, `play.input-kind`'s hints are
+absent while its labels are present — so a button reads *Parler* and its tooltip
+reads *Speak aloud*, which is §12.1's *per key* on screen rather than only in a
+test — and several entries are padded past what a careful translator would write,
+because a layout that only holds English breaks on the first real locale.
+*Provenance is the whole file rather than the entry*: every string in it is
+machine-made and unreviewed, which one flag says better than four hundred, and
+§12.4's per-entry marker belongs with the **script** that fills gaps against a
+real locale — there is nothing yet for a human to have reviewed.
+
+***`useLocale` is `useTheme`'s shape one indirection deeper***, mounted once in
+the shell for the reason the theme is: a choice made on the settings page reaches
+every surface, and signing in applies it before anybody goes looking for where to
+set it. The catalogue is a dynamic `import()` so a language nobody chose costs
+nothing on the common entry. **No `localStorage` mirror**, unlike the theme — a
+locale arriving one round-trip late shows English for a moment, which is the
+bilingual steady state §12.1 already asks people to live with; a theme arriving
+late shows white to somebody who asked for dark.
+
+*The layout half of Ends at is a person's and is recorded as one*: the app
+rendering in the machine French without breakage is
+[sitting Q](05-manual-testing.md), where the tag manager's three long folder
+labels are the first place to look. `useLocale.test.tsx` carries what a test can
+— an account's locale reaching a chunk, the chunk reaching a module-level table
+imported before any catalogue existed, and a component that knows nothing about
+either re-rendering in French.
 
 ### P11.9 — Release engineering, which is the other half of the bar
 
@@ -974,7 +2350,95 @@ negative about the document. And `packages/client/src/about/` already ships
 left here is the **audience** obligations attached to About — the AGPL §13 source
 link and the channels — rather than the surface itself.
 
+*Depends on:* everything this phase ships, because it packages it — **and on
+nothing outside**, since [P6A](19-p6a-alpha-1.md) took the half with the
+unrecoverable decisions. *This is the stage that gates the phase rather than
+being part of it*, which §2's ordering already says.
+
+*Proof obligation:* **`git tag` twice on one commit produces identical
+artifacts** — the reproducibility claim in the only form that distinguishes it
+from *the build works*, and the form [work plan §8](01-work-plan.md)'s rewrite has
+to be able to assert. Plus `tools/release.test.ts` **extended from one artifact to
+five**: it already fails when the version disagrees across `package.json`,
+`CHANGELOG.md`, `compose.yaml` and the unraid template, and each new artifact adds
+a place for that version to disagree. *That test is the cheapest thing this stage
+inherits and the one most likely to be forgotten, because it passes today.*
+
 *Ends at:* the demo.
+
+---
+
+#### Half done — 2026-09-17: everything that does not need a daemon
+
+***[work plan §8](01-work-plan.md) is rewritten rather than extended***, which
+§1.1 named as this stage's and which the stage's own text asked for in the right
+words: it *"should say what the rehearsal actually taught rather than restating
+the list"*. What it taught is one sentence and is now the section's rule —
+**all three of P6A's on-tag failures were string mistakes in a file that runs
+once, on a tag, and nowhere else**, so *a release step that cannot be exercised
+on an ordinary run should be asserted about on one*. The seven bullets are now a
+table of where each stands, and five of them are done.
+
+***The proof obligation's count is corrected rather than met.*** It asks for
+`tools/release.test.ts` *"extended from one artifact to five"*, and both
+[releases §0](04-repo-and-releases.md) and [work plan §8](01-work-plan.md) say
+**two** for beta — *"the canonical build must deliver the OCI image and the
+tarball… for beta to count"*, with the other four a 1.0 requirement and the
+reason written beside it: *"standing up four more build chains is exactly the
+kind of work that reads as progress while delaying the thing being packaged."*
+So this is the extension from one to two, and the three that are not owed here
+are named as not owed rather than quietly skipped.
+
+***The tarball exists, which is the actual work.***
+[09 §5.4](../09-server-multiuser-deployment.md) decides its packaging list on one
+question — *"does it start on boot and come back after a reboot?"* — and calls
+Tier 2 *"the single highest-value non-container artifact, and the one most easily
+skipped"*. `deploy/tarball/` is a systemd unit and an install script;
+`tools/pack-tarball.mjs` archives the deployed tree with them beside it; a second
+job on the same tag builds it. **It builds from source rather than extracting the
+image**, which is the tempting shortcut: `docker cp` would tie the tarball to a
+base image's layout and make two artifacts into one artifact with two wrappers,
+which is the coupling §5.4's tier list exists to avoid.
+
+***One deliberate difference between the artifacts, written into both.*** The
+unit binds `127.0.0.1` where the image binds `0.0.0.0`.
+[P10 §1.2](27-p10-implementation.md) forbids a **hidden** difference — *"a hidden
+difference between artifacts is a support burden shaped like a security
+feature"* — and this one is not hidden: a container's network namespace makes
+`0.0.0.0` a statement about the container and the operator's `-p` is the explicit
+act, while a systemd service has no such boundary and would otherwise put a fresh
+install on the LAN before anybody read the setup token. `release.test.ts` asserts
+both values and asserts the unit explains itself.
+
+***The reproducibility claim is met for the tarball and is a gate row for the
+image.*** The obligation is sharp — *"`git tag` twice on one commit produces
+identical artifacts — the reproducibility claim in the only form that
+distinguishes it from* the build works" — and for a tarball the packer is the
+only thing between a tree and the bytes, so **packing one tree twice is that
+claim with the build removed from it**. That is asserted twice: over a fixture in
+`tools/pack-tarball.test.ts`, and over the real artifact in the workflow, which
+packs it again and `cmp`s. *The three places it would have failed are named in
+the packer*: directory order, mtime and ownership, and gzip's own timestamp —
+the last being the one that survives every check of the contents. The image's
+half needs a daemon and two runs and stays row 9.
+
+***And P11.0's recommendation is collected.*** That audit asked for *"one line in
+`tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
+bundle, so the next phase that doubles it is found by failing rather than by
+somebody rebuilding and remembering these three rows"*. `tools/entry-budget.test.ts`
+is it: **310 kB gzip, recorded at 276.77** — and the number moved by **6.30 kB
+gzip across the whole of P11's client work**, which is a fifth of what P10 cost
+and the best argument available that the ceiling is not going to be a nuisance.
+*It also names the one regression a byte total would catch too late*: a static
+import of a locale catalogue, which typechecks, lints, works, and folds every
+translation into the common entry. `fr-x-machine` is its own 2.42 kB chunk and
+the test says so.
+
+*Two rows of [work plan §8](01-work-plan.md) are left and neither is code*: the
+container's reproducibility and the upgrade test, which want a machine with a
+daemon and a previous release on it — the same sitting twice. **`Ends at: the
+demo` is untouched by any of this**, which is correct: a demo is what a person
+does with a built thing.
 
 ### P11.10 — Session export, and the format it freezes
 
@@ -1008,6 +2472,16 @@ that answer rather than leaving it here**: the tier claim is checked by
 `emit-schemas` producing no diff, so this stage inherits a record that has never
 been published under a schema it would now have to honour.
 
+*Proof obligation:* **the round trip, and the three things a serialiser written
+against our own records would silently get wrong** (§1.8). A session exported and
+re-read keeps its **siblings** — assert the count, because `walkPath(head)` drops
+them and the loss is invisible against a linear session; survives a record with
+`input`, `output`, `request`, `cost` and `steps` **absent**, which is what a
+hand-edit divergence turn already is on disk and what a tightened serialiser
+would reject; and round-trips a turn carrying a **foreign identifier** it does not
+understand. *The first is the one that costs data, and no fixture this build
+produces would catch it unless the fixture branches* — so the fixture branches.
+
 *Depends on:* [13 §4](../13-write-mode.md) — **read 2026-09-16 and found written
 and settled through §4.8**, so this is a confirmation rather than a block
 (§1.8) — and on nothing else here.
@@ -1015,6 +2489,83 @@ and settled through §4.8**, so this is a confirmation rather than a block
 included — **not the path**, which is the consequence most likely to be lost by
 a serialiser written against `walkPath(head)` — and the turn record **and the
 rendition record** are declared frozen.
+
+#### Done — 2026-09-17
+
+***The event that ends two records' freedom to move, and it happened without a
+migration.*** `turn.ts` has said since P3.0 that *"session export is the event
+that ends this freedom: the day a stored turn becomes a portable artefact, these
+graduate to `schema/` and the registry"*, and
+[P9 §1.1](26-p9-implementation.md) attached `Rendition` to the same event.
+**The event arrived; the graduation did not, and that is a decision.**
+
+The old sentence assumed *portable* and *validated on import* were one thing.
+[18 §3](../18-session-import.md) is the argument that they are not: **a registry
+entry would validate a foreign record against our shape**, and consequences 1 and
+2 are both about tolerating shapes we did not write — so the registry would
+enforce exactly what the format exists not to enforce. *The freeze is a promise
+not to tighten, which a schema cannot express and a test can.* Both docstrings
+now carry the correction rather than the prediction.
+
+***The obligation's first clause is the one a serialiser violates without
+deciding to***, and it is where the round-trip test starts: every read surface in
+this build calls `walkPath(head)`, so reaching for the obvious function produces
+an export that is **correct against every linear session and lossy against every
+real one** — and every fixture in this repository is linear. §1.8 predicted
+exactly that (*"no fixture this build produces would catch it unless the fixture
+branches — so the fixture branches"*), and the fixture branches.
+
+**All three of [18 §3]'s checkable consequences are asserted**: siblings by a
+count over a branched fixture, a turn with five absent fields surviving
+unchanged, and a foreign identifier from a source this build has never heard of
+carried through. *The last is what makes this a format rather than a dialect.*
+
+***The fourth consequence is the one that costs more by waiting, and it is
+paid.*** `Session.origin` has been specified in [03 §8](../03-data-model.md)
+since it was written and never implemented; `Turn.foreign` is [18 §3]'s place for
+a foreign message id. **Both are optional**, because every session this build has
+ever written has neither — a record that made them mandatory would refuse to
+load every session on every existing install, which is what a *free to move*
+tier is supposed to make impossible and what freezing it makes permanent.
+
+---
+
+***And `.sepack` is here, which is [§1.9](#19-sepack-is-p1110p1110--session-export-and-the-format-it-freezess-and-the-reason-is-that-it-is-not-a-second-format)'s
+decision built.*** [P7B.6](24-p7b-presets-and-prompts.md) shipped the package
+editor with the honest limit written beside it — *"the editor lands able to make
+and describe a bundle and not to send one"* — and this is the send.
+
+**The contents are resolved rather than carried by reference**, which is the
+whole of what makes it a bundle rather than a bookmark: a `.sepack` naming twelve
+ids is useless on the install it was sent to. *And an id that no longer resolves
+is **reported**, not dropped*: a package outlives an object it names, and both
+obvious answers are worse — dropping exports a package that quietly is not the
+one somebody made, refusing makes a stale reference unfixable except by
+hand-editing a file.
+
+*Neither export carries pixels.* An asset is content-addressed bytes and inlining
+them would be a hundred megabytes of base64 for a feature whose value is the
+story — which is [P9 §1.1]'s *"the recipe travels and the pixels do not"*,
+arriving unchanged at the stage it was written for.
+
+***And the reader arrived with the record, 2026-09-17.*** This stage shipped a
+format and a download, and [§3](#3-verification--the-p11-exit-gate)'s row 10 is
+*"a session exported from this install **loads on another one**"* — which nothing
+could do, because there was no importer and no stage owned one. **A format with no
+reader makes that row unwalkable rather than merely unwalked**, and [25 E4]'s
+whole argument for writing the format *with import in mind* was that the two are
+different documents; `sessions/import.ts` is what makes that claim checkable.
+
+*Three decisions in it are worth having here rather than only in the file.* It
+always makes a **new** session, because merging two trees means deciding what a
+turn with an unknown parent is and every answer loses something. It **keeps the
+turn ids and re-mints the session's**: the turn ids are the tree's own structure
+and re-minting them is a graph rewrite over the one structure this project spends
+the most care on, while a session id is an address on *this* install and two
+sessions sharing one is an immediate confusion. And a turn that already carries
+`foreign` **keeps it**, because the first install it came from is the one that
+matters — a session that had travelled twice and claimed it came from the middle
+would be a provenance record that gets less true the more it is used.
 
 ### P11.11 — Backup and restore
 
@@ -1028,16 +2579,201 @@ restore actually exercised"* among the release-engineering bullets rather than
 among the features — which is the right place for it and is also how this came
 to have no stage: everybody could see where the *test* went.
 
-*Depends on:* nothing. *Ends at:* a restored install serves the sessions the
+*Depends on:* nothing.
+
+*Proof obligation:* **the CI restore test, which belongs to
+[testing](03-testing.md) rather than to this stage** — this phase's one case of
+the check living outside the document that owes it, and also how the stage came
+to have no home at all (§1.8: *everybody could see where the test went*). What
+the obligation adds is the clause that makes it a restore test rather than a copy
+test: **the index is rebuilt, not carried.** Archive excluding `index.sqlite`,
+restore, and assert the sessions are served *and* that a search answers — a
+search answering is the only observable proof the rebuild ran, and an archive
+that quietly included the index would pass every other check.
+
+*Ends at:* a restored install serves the sessions the
 archive was taken from, with the index rebuilt rather than carried — and the
 test that says so runs without a person.
 
 ---
 
+#### Done — 2026-09-17
+
+***[25 E6](../25-open-questions.md)'s whole instruction is "do not build a
+subsystem"***, and §1.8 calls this *"the smallest"*. It is: a script, two
+commands, and one test.
+
+**Two things it does that `rsync` does not**, which is the entire justification
+for it existing beside E6's own *"`rsync` is a legitimate backup strategy and
+should be documented as one"*:
+
+- ***It leaves the index out, and that is the design rather than a tidiness.***
+  [03 §5.1](../03-data-model.md) makes `index.sqlite` **derived** — a cache of
+  what the files say, dropped and rebuilt whenever its schema version moves. An
+  archive carrying it would restore correctly today and, the first time somebody
+  restored **across a version**, restore a stale belief about a newer tree —
+  *silently, because a stale index answers queries*. All three files go
+  (`-wal` and `-shm` too): taking the database without them, or with them from a
+  running server, restores a file that is neither current nor empty.
+- ***It quiesces by saying it cannot.*** There is no write-lock to take from
+  outside the process, and inventing one would be the subsystem E6 forbids. So
+  the usage text says *stop the server first* and explains why —
+  `POST /api/admin/restart` with its drain is how an operator gets there
+  ([09 §6.4](../09-server-multiuser-deployment.md), [P10.3](27-p10-implementation.md)).
+
+**A tar written by hand, and no dependency.** The format is forty years old and
+the subset an archive of a directory tree needs is a header struct and padding.
+*A dependency here would be a supply-chain surface on the one tool somebody
+reaches for when things have already gone wrong.* Ownership is written as zero
+deliberately — a restore into a container runs as whoever the container runs as,
+and carrying uids from the machine the backup was taken on is how a restore
+produces files its own server cannot read.
+
+***And the restore refuses a path outside the destination***, which is the one
+security clause in a file about recovery. `../../etc/passwd` in a tar header is
+the oldest attack there is, and **the fact that this project writes its own
+archives is exactly the assumption a restore must not make**: the thing a person
+restores is the file that survived, from a disk that may have had a bad week.
+
+*The obligation's own clause is asserted directly*: **the index is rebuilt, not
+carried**, so the test checks the archive's contents and the restored tree for
+its absence rather than only the outcome — *"an archive that quietly included the
+index would pass every other check."* The live half — restore into a running
+install and watch a search answer — is [testing](03-testing.md)'s, and stays
+this phase's one case of the check living outside the document that owes it.
+
+### P11.12 — The automatic extractor
+
+***Added 2026-09-17 by [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)***, which
+decided [§0.2](#02-re-audited-2026-09-16-at-2f3f5d9-after-p7b-p8-and-p9)'s row 20
+rather than carrying it a third time. [08 §2.1](../08-cross-session-memory.md) is
+the specification and none of it is restated here: *a step at session end, and
+periodically during long sessions, writes memory entries* — **discrete facts and
+events, not summaries**, because *"five memories are five things that can be
+retrieved independently, attributed separately, and deleted individually when one
+turns out to be wrong."*
+
+**Appended rather than placed**, on §2's convention. By argument it sits with the
+large user-facing items.
+
+***What P8 left, which is most of it.*** [P8](25-p8-implementation.md) cut this
+on its own named fallback and built everything around it: the (actor × persona)
+memory book, the retrieval path and budget the workbench already reports, manual
+capture with its escaped-effect write, the scope and intake toggles, and
+`LoreEntry.locked` **with a writer and no reader**. P8.3's record states the
+inheritance outright — *"the extractor inherits an obligation with subjects
+already on disk."* So this stage is a step, a narrowed payload, a prompt and a
+dedupe rule, over machinery that is six stages old and has run.
+
+**Two rules come with it rather than after it**, both from
+[08 §6](../08-cross-session-memory.md) and both cheaper to build than to retrofit:
+
+- **The extractor never rewrites a locked entry.** That is the reader `locked`
+  has been waiting for since P8.3, and a hand-written memory is locked from the
+  moment it is written — so the subjects exist before the rule does.
+- **It is handed the record, narrowed.** [P8 §1.5](25-p8-implementation.md)
+  settled the payload question, and its own argument is that *"what the extractor
+  declared `history` to get"* is verbatim what it is given — an extractor that
+  reads more than it declared is exactly what §6 rejects.
+
+*Depends on:* nothing in this phase. Everything it needs merged with
+[P8](25-p8-implementation.md).
+
+*Ends at:* a session played to its end leaves memories in the pair's book
+without anybody asking, **a hand-corrected one survives the next extraction**,
+and a second session about the same events does not double the book.
+
+*Proof obligation:* **[P8](25-p8-implementation.md)'s C2 and C3, which is the
+point of taking the stage rather than a side effect of it.** Those two criticals
+are *vacuous* under the cut — C2 asks whether a hand correction survives the next
+extraction and C3 whether a memory bleeds a spoiler, and neither can be walked
+while nothing extracts. **This stage is what makes
+[sitting N](05-manual-testing.md) more than one row.** The mechanical half is the
+locked rule, asserted where it can fail: a locked entry, a run that would have
+rewritten it, and the entry unchanged — which is a test and not a sitting. *The
+judgement half — whether the facts it picks are the ones a reader would have
+picked — is [G](05-manual-testing.md)'s, and belongs with the other tuning this
+phase cannot do at a desk.*
+
+---
+
+#### Done — 2026-09-17
+
+**Row 20's decision, built.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)
+took it rather than carrying it a third time, and the ground was never the
+feature: two of [P8](25-p8-implementation.md)'s three criticals are **vacuous**
+while nothing extracts, so leaving it unowned did not defer a feature — it left
+a closed phase's gate permanently unfinishable.
+
+***§2.1 asks for "a step at session end, and periodically during long sessions",
+and this build has no session end.*** A session is never closed; it is **left**,
+and left sessions are exactly the ones a person comes back to. So *at session
+end* has no event to hang on, and a step waiting for one would never run. **The
+periodic half is the whole of it**, which is the honest reading rather than a
+reduction: what §2.1 is asking for is that a long session deposit memories as it
+goes, and a cadence does that at every length. *Eight turns, written down as the
+judgement it is* — short enough that forty turns leave five memories rather than
+one, long enough that the extra call is a twelfth of the turns.
+
+***`post` where the summariser is `pre`***, and the difference is the whole
+relationship between the two features: a summary goes into **this turn's**
+prompt, and a memory is a reading of what just happened that goes into a
+**book**. The precedent is `suggest.ts`, `post` for the same reason.
+
+***The locked rule turned out to be an absence, and that is the finding.***
+[P8.3](25-p8-implementation.md) wrote `LoreEntry.locked` onto every hand-written
+memory and said its reader was owed — *"the extractor never rewrites a locked
+entry."* **The shape that honours it is appending and never updating**: a
+hand-written memory cannot be eaten because no code in this module edits an
+entry at all. *The cheapest way not to eat corrections is to have no code that
+could*, and the assertion is therefore in
+[`tools/repo-shape.test.ts`](../../../tools/repo-shape.test.ts) rather than
+behavioural — a behavioural test can only say *it did not this time*, where
+[P8 §3.1](25-p8-implementation.md)'s C2 claims *it cannot*. That is also the
+check a helpful refinement two phases later would otherwise break silently: an
+extractor improving its own earlier entries looks like an improvement right up
+to the first correction it swallows.
+
+***And extracted entries are deliberately not locked***, which is the other half
+of the same decision. The field means *locked against automatic modification*,
+and an entry this step wrote is exactly the kind a later refinement should be
+free to improve; a person who corrects one is editing it in the editor, which is
+a different act with a different field.
+
+**What [08 §6](../08-cross-session-memory.md) forbids is unreachable rather than
+filtered.** The step reads `transcript` and nothing else — [P8.1]'s payload,
+which carries *what was said* with nothing about how it was produced — so a
+hook's premise, a hidden channel and GM-only state cannot reach it. *That is the
+structural half §6 asks for, inherited rather than rebuilt.*
+
+***The dedupe is coarse and errs towards not writing***, which is the right
+direction and is stated so nobody mistakes it for cleverness. [25 E2] puts
+semantic retrieval post-1.0, so what is left is the text and the keys,
+normalised for case and punctuation — a model asked twice about the same evening
+produces the same sentence with different commas far more often than a different
+sentence. **A memory missed is still in the transcript; a book with four copies
+of one fact spends its retrieval budget four times on it.**
+
+*The judgement half is not here and should not pretend to be*: whether the facts
+it picks are the ones a reader would have picked is
+[sitting G](05-manual-testing.md)'s, arriving through play rather than through a
+check — which is exactly what the two P8 criticals this stage unblocks are for.
+
 ## 3. Verification — the P11 exit gate
 
-Sketch; expand on revisit. **This gate is also the beta gate**, which is the one
-structural difference from every other phase document here.
+~~Sketch; expand on revisit.~~ **This gate is also the beta gate**, which is the
+one structural difference from every other phase document here.
+
+***Expanded 2026-09-16, and the expansion is mostly a pointer rather than more
+rows.*** Every stage in §2 now carries a **proof obligation** — §1.1's rule
+applied to this document's own list, which §5 asks for in as many words — so the
+twelve rows below no longer have to carry the mechanical detail as well. **Row 1
+is what does the work**: *P11.0's list is empty, item by item, with each item's
+named check green*, and each stage's obligation is now one of those named checks.
+
+**What the rows below are for is the part no stage's obligation can hold**: the
+claims that span stages (row 2's two-hundred-turn session, row 6's whole app in
+French), and row 12, which is a person reading the design corpus.
 
 1. P11.0's list is empty, item by item, with each item's named check green.
 2. A two-hundred-turn session reads end to end as prose, at the head and at an
@@ -1078,6 +2814,25 @@ export and a green beta gate** — and row 12 is the row that depends entirely o
 a person reading carefully. A gate whose safety net is *somebody will notice* is
 the arrangement [manual testing §0](05-manual-testing.md) was adopted to end.
 
+***And row 13, added 2026-09-16, is the one this phase cannot assert about
+itself.*** [P8](25-p8-implementation.md)'s **automatic extractor** is unowned
+(§0.2's row 20) and two of P8's three gate criticals travel with it. So:
+
+13. **Either some phase has taken the extractor, or this gate records that 1.0
+    ships manual capture deliberately** — and [sitting N](05-manual-testing.md)'s
+    two vacuous rows are marked as such rather than left blank. *This is not a
+    build row and it is not optional*: while it is unanswered, *feature complete
+    to the 1.0 spec* is a claim nobody is entitled to make, and row 12's reader
+    would have to notice on their own that the question was open.
+
+***What the split between the twelve rows and the stage obligations costs, said
+plainly*** (2026-09-16): a reader now has to look in two places to know what this
+gate checks. **That is the right trade and it was not free.** The alternative —
+one list carrying both — is what produced a ten-row gate missing its two newest
+commitments, because a list that holds everything is a list nobody re-reads
+against the stages. *Row 1's wording is what joins them, and it is the sentence
+to keep correct if anything here drifts.*
+
 **And the standing line from [work plan §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** By this phase the line is not a per-phase
 check but a **completeness claim** — there is no later phase to defer to, so
@@ -1102,6 +2857,143 @@ pressing a button. **Either some phase takes the extractor before this gate is
 walked, or row 12's reader records that 1.0 ships manual capture deliberately.**
 What must not happen is row 12 being walked by somebody who does not know the
 question was open.
+
+---
+
+### 3.1 The critical list, and what a test answers
+
+*Planned to [§0](05-manual-testing.md)'s criterion rather than sketched — the
+seventh phase to do so, and the first where clause (ii) has to be re-read
+because there is no phase after this one.*
+
+***Clause (ii) reads differently here, and the re-reading is the criterion's own
+instruction.*** *"Re-read it when each phase opens. If P7 reshapes the mode
+contract far enough, some of what is excluded today as equally cheap later
+becomes more expensive instead."* Clause (ii) privileges what **compounds**, and
+compounding is a claim about later phases — of which there are none. **But this
+gate is also the beta gate**, so the thing it compounds into is not a phase, it
+is a **declaration**: a wrong answer found after somebody has been told this is
+feature complete costs more than the same answer found now, and costs it in the
+currency [releases §0](04-repo-and-releases.md) says beta spends — other people's
+trust, once.
+
+***Five criticals, and two of them are desk work.*** That is unusual and it is a
+property of a phase whose gate is mostly *did the thing get built*: row 1 and row
+13 are answered by reading rather than by playing, and they are on the list
+because **they are what closes the phase** rather than because they are hard.
+
+| Row | Why it is critical | Blocked on |
+|---|---|---|
+| **C1** [§0.1]'s list is empty, item by item, with each named check green — gate row 1 | Clause (i): it is the phase's own claim about its own list, and nothing else in this gate can falsify it. Clause (ii): it is what row 12's reader is entitled to assume. **The `'unread'` tier reaching zero is part of it** | Nothing — a desk and the test output |
+| **C2** A real session reads end to end as prose, prints to a clean PDF, and copies as Markdown that pastes — gate row 2, minus the two hundred turns | Clause (i): [P11.1]'s claim, and the three outputs are three different renderers. Clause (ii): a reading view that loses a swipe or a speaker is a thing people would find after being told the phase shipped. *Two hundred turns is [sitting G](05-manual-testing.md)'s* — a length, which §0 says is not criticality | Nothing — any session with a few branches, a browser |
+| **C3** The assistant answers a question about the user's own library — gate row 4, the half a grep cannot reach | Clause (i): [P11.3]'s claim, and the grep answers *not a second chat* rather than *it works*. Clause (ii): it is the feature whose absent half — ~~the docs lorebook~~ — was most likely to be discovered by somebody else first, ***and that half was written on 2026-09-17***, so what C3 now walks is whether the answers are any good rather than whether there are any | **R2**, a live endpoint |
+| **C4** Read the 1.0 design documents and say, capability by capability, whether it exists and works — gate row 12 | Clause (i) in its strongest form: it **is** the beta claim rather than a check on one. Clause (ii): everything | An afternoon, and the corpus |
+| **C5** Row 13's question is answered in writing — gate row 13 | Clause (i): the gate says *what must not happen is row 12 being walked by somebody who does not know the question was open*. **It is answered**: [P11.12] took the extractor, so C5 is recording that rather than deciding it, and [sitting N](05-manual-testing.md) stops being one row | Nothing — and C4 must not run before it |
+
+***What the criterion excludes, and it is most of the gate.*** Rows 5, 6 and 7
+are **breadth, duration and a clock** — §0's *"breadth, duration, platform and
+corpus are not criticality"* — and they go to sittings G, Q and the standing
+list. Rows 3, 8, 10 and 11 are **asserted by name** below. Row 9's container half
+is blocked on a daemon, which clause (iii) makes a deferral rather than a check.
+
+***And one row the criterion cannot rescue.*** Row 8 — *the Playwright journeys
+pass against the fake provider, on CI, on every merge* — ~~**has no suite to
+run.** There are no journeys, there is no harness, and no stage of this phase was
+asked to build one.~~ That is not a walk anybody can do and not a test anybody can
+name; it is a gap, it is
+[§3.2](#32-what-was-answered--recorded-2026-09-17)'s honest entry, and it is
+recorded here so that C4's reader meets it as a known absence rather than as a
+discovery.
+
+***Built the same day this was written*** (2026-09-17), which makes the paragraph
+above a record of where the work came from rather than a standing absence. **The
+criterion never had to rescue it**: a row asking for journeys *on CI, on every
+merge* is not a person's walk at all, and the reason it sat in this section is
+that a check nobody can run is not a check — which is a different failure from
+the one §0's three clauses sort for. Row 8 leaves the critical list because it is
+now green, not because the criterion was re-read.
+
+### 3.2 What was answered — recorded 2026-09-17
+
+*The results table [manual testing §0](05-manual-testing.md) asks for, in
+[P10 §3.2](27-p10-implementation.md)'s shape. **The thirteen rows above are not
+edited**; this is the second table, which is that model's first honesty condition
+and the whole reason there are two.*
+
+| Row | Discharged by | Result |
+|---|---|---|
+| **1** [§0.1]'s list, item by item | every stage's own obligation | **C1. Desk work, not yet done.** Each stage's Done block names its check and each check is green; what nobody has done is the item-by-item read across them, which is the row |
+| **2** A two-hundred-turn session reads, prints, copies | `reading/prose.test.ts`, `reading/fence.test.ts`, `ReadingPage.test.tsx`, `library/book-document.ts` | ✅ **in part** — the passage model, the attribution, the Markdown and the print stylesheet, plus the fence that refuses workbench machinery in the reading directory. **C2** is a person's eyes on a real one; two hundred turns is G's |
+| **3** Every editor offers assist, provenance and history | `editor/contract.test.tsx`, `library/entry-defaults.test.ts` | ✅ — over `LIBRARY_KINDS` rather than over the editors somebody remembered, which is the obligation's own wording, plus one round trip driven end to end. The closed-section invariant is `groupSummary`'s and predates this phase |
+| **4** The assistant answers, proposes a diff, and is not a second chat | `tools/repo-shape.test.ts`, `modes/assistant/mode.test.ts`, `assistant/assistant.test.ts` | ✅ **in part** — *not a second chat* is asserted from both sides, the proposal reader and the ambient context are asserted, and ~~**the docs lorebook does not exist**~~ — **written 2026-09-17**, twenty-five keyed entries shipped beside the card and attached by the session's own `lore` links, with `docs-lorebook.test.ts` holding the corpus and `repo-shape.test.ts` the two-package seam. **C3** is the half a grep cannot reach |
+| **5** Four pacing levels produce different sessions | `sessions/hooks.test.ts`, both modes' `mode.test.ts` | ✅ **in part** — that each level *has prose*, that the pack ships four, and that the top of the dial carries no compliance language. Whether they **read** differently is [sitting G](05-manual-testing.md)'s, and until [P11.5] there was nothing to read |
+| **6** The app in the test French | `i18n/catalogue.test.ts`, `i18n/useLocale.test.tsx` | ✅ **in part** — the per-key fallback, the orphan check, and an account's locale reaching a module-level table through a lazily-loaded chunk. **Layout is [sitting Q](05-manual-testing.md)'s**, because no test can see a clipped label |
+| **7** Restorable within the window, gone after it | `storage/trash.test.ts`, `settings/Trash.tsx`'s route tests | ✅ **in part** — the suffix reader, the sweep and the restore. *Gone after the window* is a clock, which the standing list holds |
+| **8** Playwright journeys on CI | `e2e/journeys.spec.ts`, `ci.yml`'s `journeys` job | ✅ — **built after this table first said ❌**, which is the one row here whose entry changed by the work being done rather than by the wording being fixed. One test, the seven journeys in [testing §3.5](03-testing.md)'s order, against a built server serving a built client and an OpenAI-compatible double over HTTP. **Three of the seven were read wrong until walked** — §3.5 records which and why |
+| **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
+| **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
+| **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it |
+| **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded |
+| **13** The extractor is owned, or 1.0 ships manual capture deliberately | [P11.12](#p1112--the-automatic-extractor) | ✅ — **taken.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took it rather than carrying it a third time, and `repo-shape.test.ts` holds the clause that makes [P8](25-p8-implementation.md)'s C2 answerable |
+
+***Three things this table says that the row list cannot.***
+
+**The phase built more than its stage list named.** [P11.2]'s obligation was a
+loop and the loop found nothing, because the frame was what changed;
+[P11.9]'s asked for five artifacts where the bar is two; and row 10 needed an
+**importer** that no stage owned — the format was written at [P11.10] and
+nothing could read it back, which made *loads on another one* a sentence about a
+capability rather than about this build. All three are corrections rather than
+additions, and all three came from writing the record.
+
+**Two 1.0 commitments are named as unbuilt rather than absorbed.**
+[10 §11.2b]'s image slots and [10 §11.2c]'s entry travel are [P11.2]'s recorded
+gaps, and the docs lorebook is [P11.3]'s. *A phase claiming feature completeness
+has to answer for them at C4*, which is why they are here rather than only in
+their stages' Done blocks.
+
+***All three were built on 2026-09-17***, so that list is empty — entry travel,
+image slots and the docs lorebook, and with row 8 they are the four things this
+record named that then got made rather than argued about. Each took hours; each
+was being carried because nobody had written down that it was missing, **which is
+the case for writing a record at all** and is the only general claim this
+document makes about its own form.
+
+***Image slots is the one that most argues for the exercise.*** It had been
+carried as *a stage of work*, and what it actually was is a **container that did
+not exist**: `EmbeddedMedia` names bytes a container carries, a lorebook's
+container is a folder, and nothing had ever written into one. So §11.2b was not
+unbuilt, it was **unreachable** — and the difference is invisible from a plan and
+obvious from an afternoon.
+
+***The docs lorebook is the one that argues the other way.*** Its row said the
+machinery was there and only a corpus was missing, and that was exactly right:
+the attaching is one line. What it cost was writing twenty-five answers, which is
+work a plan cannot shorten and a record was right to refuse to fake.
+
+***Image slots is the one that most argues for the exercise.*** It had been
+carried as *a stage of work*, and what it actually was is a **container that did
+not exist**: `EmbeddedMedia` names bytes a container carries, a lorebook's
+container is a folder, and nothing had ever written into one. So §11.2b was not
+unbuilt, it was **unreachable** — and the difference is invisible from a plan and
+obvious from an afternoon.
+
+**And row 8 was the one to argue about** — ~~*"whether beta can be declared
+without it is C4's reader's call and not this document's"*~~. Three of the four
+unbuilt things above are features with an argument beside them; a browser test
+suite was **infrastructure the gate assumed and no stage was asked for**, which
+is a different kind of absence and not one a reader should have to adjudicate.
+
+***So it was built instead*** (2026-09-17), and the argument is withdrawn rather
+than won. **What it cost is the interesting number**: a day's work, against four
+phases of a gate row that had been carried unbuilt. **What it found is the better
+one** — three of the seven journeys said something other than what they had been
+read as saying, and the sharpest of the three is that *branch* had been read as
+*a second send*, which posts the same one turn and continues the line instead of
+splitting it. A suite written to that reading would have been green and would
+have protected the wrong claim, which is the argument for walking a list of
+journeys rather than reciting it, and the argument this row was making all along
+without anybody able to act on it.
 
 ---
 
@@ -1151,6 +3043,50 @@ stage list: P11.1 through P11.5 are product completion, and P11.6 through P11.9
 are release engineering plus sweeps. Those have different audiences, different
 kinds of done, and only one of them is what [releases §0](04-repo-and-releases.md)
 requires for beta to count.
+
+---
+
+#### The seam, pinned 2026-09-16 — and it is not quite where this paragraph put it
+
+***What the revisit was asked to decide in advance is the seam, not the split***,
+and now that every stage carries a *Depends on* the seam can be read off the
+dependencies rather than guessed from the headings.
+
+**Ten of the thirteen stages depend on nothing.** P11.1, P11.2, P11.3, P11.4,
+P11.7, P11.11, P11.12 and P11.0 are independent outright; P11.5 depends on a
+person's time and P11.6 on a paragraph in [P10](27-p10-implementation.md), which
+that phase has since answered. **Only two have a dependency inside this phase**,
+and they are the seam:
+
+- **P11.8** depends on everything that adds user-facing prose — the sweep run
+  before P11.1, P11.3 and P11.7 is a sweep run twice.
+- **P11.9** depends on everything, because it packages it.
+
+***So the split is not P11.1–P11.5 against P11.6–P11.9.*** It is **everything
+else** against **P11.8 and P11.9**, which is a much better-shaped cut than the
+paragraph above proposes: the second half is two stages, both of which are
+*about* the first half rather than beside it, and neither is a feature. **A
+first phase that ships the product completion and defers the sweep and the
+packaging is coherent**; the reverse is not, and neither is a cut down the middle
+of the independent nine.
+
+**Two consequences worth stating, because they decide whether the cut is
+available at all.**
+
+1. **P11.10 and P11.11 go in the first half**, despite being appended last.
+   Export freezes the turn record and backup protects it; both are product
+   commitments that [work plan §0.5](01-work-plan.md) moved *into 1.0*, and a
+   beta that shipped without them would be beta by a different definition.
+2. ***But [releases §0](04-repo-and-releases.md) requires P11.9 for beta to
+   count***, which means the cut **cannot be a release boundary**. A first phase
+   ending before P11.9 is a phase, not a beta. *So the honest form of the split
+   is two phases and one release*, and saying that now is what stops a split
+   being proposed later as a way to ship something sooner — which it would not
+   be.
+
+*What would move the seam:* a stage acquiring a dependency on another. Nothing
+here has one today, and the *Depends on* lines are where anybody would see it
+arrive.
 
 **Three things the revisit cannot settle from this document and must go and
 read:**

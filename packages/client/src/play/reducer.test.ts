@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { INITIAL, reduce, type PlayState } from './reducer.js';
-import { SseParser } from './sse.js';
+import { SseParser } from '../sse/parser.js';
 
 /**
  * The play surface's state machine — [P2 §2.10], exit gate 14.

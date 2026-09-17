@@ -14,10 +14,12 @@ import { SelectorBar, selectionHref } from '../ui/SelectorBar.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link, page } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
+import { ImportSession } from './ImportSession.js';
 import { RenameSession } from './RenameSession.js';
 import { SetupFields } from './SetupFields.js';
 import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * The list of sessions, and the control that makes a new one.
@@ -93,10 +95,10 @@ const routeApi = getRouteApi('/play');
  * `displayName` directly, which is the same rule bent one step further; it
  * predates this table.)
  */
-const MODE_PLURALS: Record<string, string> = {
+const MODE_PLURALS: Record<string, string> = labels('play.mode-plural', {
   'storyengine.scene': 'Scenes',
   'storyengine.freeform': 'Freeform',
-};
+});
 
 export function modeLabel(mode: Pick<PublicMode, 'id' | 'displayName'>): string {
   return MODE_PLURALS[mode.id] ?? (mode.displayName === '' ? mode.id : mode.displayName);
@@ -370,6 +372,12 @@ export function SessionsPage(): React.JSX.Element {
             Start
           </Button>
         </div>
+
+        {/* ***Beside Start, because it makes the same thing*** — [P11 §3]'s row
+            10. A session export loads as a new session with every branch, which
+            is a different act from the library's object import and belongs
+            where sessions are made rather than where objects are merged. */}
+        <ImportSession />
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
           <summary className="cursor-pointer text-sm text-ink-subtle">

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newLorebook, uuidv7 } from '@storyengine/shared';
 
 import { rebuild } from '../index-db/rebuild.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * Opening the copy the warning is about — F19.
@@ -66,8 +66,13 @@ describe('a duplicated id', () => {
   it('lists both copies, with the later path flagged', async () => {
     const { id, winner, shadowed } = await duplicateOnDisk();
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    const rows = listed.body.objects as { id: string; slug: string; shadowed: boolean }[];
+    // The user's own: a shipped system book is on the same shelf and is not
+    // one of the two copies this test made.
+    const rows = (await ownObjects(server, 'lorebooks')).objects as unknown as {
+      id: string;
+      slug: string;
+      shadowed: boolean;
+    }[];
 
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.id === id)).toBe(true);

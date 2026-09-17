@@ -2,15 +2,28 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, type JSX } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import { BuildFooter } from './about/BuildFooter.js';
-import { useAuthState, useLogout, useNotices, usePatchPrefs, usePrefs } from './queries.js';
+import { NotificationBell } from './notifications/NotificationBell.js';
+import { NotificationToast } from './notifications/NotificationToast.js';
+import { useNotifications } from './notifications/useNotifications.js';
+import {
+  useAuthState,
+  useLogout,
+  useNotices,
+  usePatchPrefs,
+  usePrefs,
+  useRestart,
+} from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
+import { Dialog } from './ui/Dialog.js';
 import { useTheme } from './ui/useTheme.js';
+import { useLocale } from './i18n/useLocale.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
 import { useToggleChord } from './workbench/useToggleChord.js';
+import { AssistantPanel } from './assistant/AssistantPanel.js';
 import { Workbench } from './workbench/Workbench.js';
 
 /** The signed-in frame: a header with the account and sign-out, and the page. */
@@ -22,6 +35,39 @@ export function Shell(): JSX.Element {
   // reaches every other surface — and so signing in applies your theme before
   // you go looking for where to set it.
   useTheme();
+  // The same argument, for the same reason, one field along: the account's
+  // locale decides which catalogue the label tables read through, and the
+  // shell is the only component that is always present and present once.
+  useLocale(account?.locale);
+
+  /**
+   * ***The assistant's open state, and it is `useState` where the workbench's is
+   * a preference*** — [10 §7], [P11.3].
+   *
+   * The workbench is a **mode of working**: somebody debugging their preset
+   * wants it open on the next page and after a reload, which is what [P3 §1.2]
+   * spends a preference on. The assistant is something you **summon** — §7's own
+   * word — for a question, and a panel that reopened itself every morning would
+   * be an assistant that had decided it lived there. *A smaller mechanism for a
+   * smaller claim, rather than the same one for symmetry.*
+   */
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const closeAssistant = useCallback(() => {
+    setAssistantOpen(false);
+  }, []);
+
+  /**
+   * ***Mounted once, here, and that is the whole reason it is a shell
+   * concern*** — [09 §3.6], [P10.2]. Four surfaces render one fact (a sound, a
+   * toast, the unread badge, the tab title), and a second mount would open a
+   * second stream and chime twice. The shell is the only component that is
+   * always present and present only once.
+   *
+   * *Disabled when signed out*, which is the same absent-rather-than-disabled
+   * mechanism `RestartBanner` uses for a non-admin: a signed-out browser never
+   * opens the stream, rather than opening one that answers 401 and retries.
+   */
+  const notifications = useNotifications(account !== null);
 
   /**
    * The workbench's open state — a preference from this stage on ([P3.1a]),
@@ -107,6 +153,21 @@ export function Shell(): JSX.Element {
               >
                 Workbench
               </Button>
+              {/* ***Summonable from anywhere*** — [10 §7], [P11.3]. A button
+                  beside the workbench's and for the same reason its own comment
+                  gives: the panel is not a place, so it is not a nav entry. */}
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  setAssistantOpen((was) => !was);
+                }}
+                aria-expanded={assistantOpen}
+                title="Ask the assistant"
+              >
+                Assistant
+              </Button>
+              <NotificationBell state={notifications} />
               {/* One entry, which is all [P2A §3] asks for. */}
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
                 Settings
@@ -157,6 +218,11 @@ export function Shell(): JSX.Element {
           <Outlet />
         </main>
         {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
+        {/* After the workbench in source order, so with both open the assistant
+            is the outermost panel — it is the thing you summoned last and the
+            thing you dismiss first. Closed is unmounted for the dock's reason:
+            no queries run and the landmark is absent rather than lurking. */}
+        {account === null || !assistantOpen ? null : <AssistantPanel onClose={closeAssistant} />}
       </div>
       {/* Last in the column and outside `<main>`, for the banner's reason: a
           footer that scrolls away with the page is a footer on some pages. The
@@ -165,6 +231,9 @@ export function Shell(): JSX.Element {
           document would scroll again ([P3.−1]). Under the dock as a whole, so
           an open Workbench does not cover it. */}
       <BuildFooter build={auth.data?.build} />
+      {/* Fixed-position and last in the tree, so it sits over the dock rather
+          than under it, and takes no part in the height-managed column. */}
+      {account === null ? null : <NotificationToast state={notifications} />}
     </div>
   );
 }
@@ -187,11 +256,20 @@ function SurfaceNav(): JSX.Element {
     <nav aria-label="Surfaces" className="flex items-center gap-1">
       <SurfaceLink to="/play" label="Play" />
       <SurfaceLink to="/library" label="Library" />
+      {/*
+        ***Search is a surface, not a box in a corner*** —
+        [10 §14.5](../../../docs/design/10-ui-surfaces.md), [P11.1]. §14.1 gives
+        it two scopes — within a session and across all of them — and a box
+        pinned to one screen can only ever mean the first. §5's named failure is
+        *a search box per kind*, and the way to avoid it is one surface with a
+        scope rather than a prohibition on searching from where you stand.
+      */}
+      <SurfaceLink to="/search" label="Search" />
     </nav>
   );
 }
 
-function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.Element {
+function SurfaceLink(props: { to: '/play' | '/library' | '/search'; label: string }): JSX.Element {
   return (
     <Link
       to={props.to}
@@ -216,33 +294,153 @@ function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.El
 }
 /**
  * What is waiting for a restart — [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md),
- * [P2A §2.6](../../../docs/design/workplan/09-p2a-configuration-surface.md).
+ * [09 §6.4](../../../docs/design/09-server-multiuser-deployment.md),
+ * [P2A §2.6](../../../docs/design/workplan/09-p2a-configuration-surface.md),
+ * [P10.3].
  *
  * **Named changes rather than "restart required"**, because a bare notice
  * invites people to restart and hope — and the list is computed per request
  * from the config this process started with, so undoing a change clears it
  * rather than leaving a banner nobody can dismiss.
  *
- * **And it says the server will not restart itself.** [09 §6.4] is explicit that
- * under no supervisor a restart control leaves the administrator with no server
- * and possibly no shell, so it needs supervisor detection and a drain, neither
- * of which exists. A notice that invites *"so how do I restart it?"* is a worse
- * answer than one that says.
+ * ***And since [P10.3] it offers to do it, where something would bring the
+ * process back.*** ~~It says the server will not restart itself.~~ [09 §6.4]'s
+ * two preconditions are built — supervisor detection and a drain — so the
+ * sentence that stood here is now the **unsupervised** arm rather than the only
+ * arm. A bare `node server.js` still reads exactly as it did, which is the
+ * point: what §6.4 forbids is offering the control where it is a trap, not
+ * offering it at all.
+ *
+ * **In the banner rather than on the settings page**, because the banner is
+ * where a person *learns* a restart is pending — [09 §6.3] puts it on every page
+ * precisely because the person who needs to know is often not the one looking at
+ * the form, and sending them to a form to act on it would undo that.
  *
  * The query is disabled for a non-admin, so their browser never asks — the same
  * absent-rather-than-disabled mechanism the settings page uses.
  */
 function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const notices = useNotices(isAdmin);
+  const restart = useRestart();
+  const [confirming, setConfirming] = useState(false);
+
   const pending = notices.data?.pendingRestart ?? [];
   if (!isAdmin || pending.length === 0) return null;
 
+  const draining = notices.data?.draining === true || restart.isSuccess;
+  const canRestart = notices.data?.canRestart === true;
+  const interrupts = notices.data?.interrupts ?? { mine: 0, others: 0 };
+
   return (
     <div role="status" className="border-b border-warn-line bg-warn-surface px-6 py-2 text-sm">
-      <p className="mx-auto max-w-4xl text-warn-ink">
-        Waiting for a restart: <strong>{pending.join(', ')}</strong>. StoryEngine does not restart
-        itself — stop and start the server however you run it, and these will take effect.
-      </p>
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+        <p className="text-warn-ink">
+          {draining
+            ? drainingNotice(pending.join(', '))
+            : canRestart
+              ? supervisedNotice(pending.join(', '))
+              : unsupervisedNotice(pending.join(', '))}
+        </p>
+        {canRestart && !draining ? (
+          <Button
+            type="button"
+            size="compact"
+            onClick={() => {
+              setConfirming(true);
+            }}
+          >
+            Restart now
+          </Button>
+        ) : null}
+      </div>
+
+      {confirming ? (
+        <Dialog
+          role="alertdialog"
+          labelledBy="confirm-restart"
+          onDismiss={() => {
+            setConfirming(false);
+          }}
+        >
+          <h2 id="confirm-restart" className="text-subsection text-ink">
+            Restart this server?
+          </h2>
+          {/* ***[09 §6.4]'s own sentence***: *"because this is multi-user, the
+              confirmation must say what it is about to interrupt"*. Counts,
+              never contents — who is mid-turn is a different feature. */}
+          <p className="text-sm text-ink-muted">{interruptNotice(interrupts.others)}</p>
+          {interrupts.mine > 0 ? (
+            <p className="text-sm text-ink-muted">{ownTurnNotice(interrupts.mine)}</p>
+          ) : null}
+          <p className="text-sm text-ink-muted">
+            Turns already running are given up to thirty seconds to finish. Anything still going
+            after that is recorded as a failed turn rather than lost.
+          </p>
+          {restart.isError ? (
+            <p role="alert" className="text-sm text-danger-ink">
+              {restart.error.message}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              size="compact"
+              onClick={() => {
+                setConfirming(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="compact"
+              disabled={restart.isPending}
+              onClick={() => {
+                restart.mutate(undefined, {
+                  onSuccess: () => {
+                    setConfirming(false);
+                  },
+                });
+              }}
+            >
+              Restart now
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * The four sentences, whole.
+ *
+ * *One string each with the values substituted in* — the rule
+ * `AdminConnections` states and the lint rule enforces: a sentence assembled
+ * from fragments cannot be translated at all, and these are exactly the shapes
+ * that invite it (a list with a clause after it, a count with a noun).
+ */
+function supervisedNotice(keys: string): string {
+  return `Waiting for a restart: ${keys}. Restarting now will apply them.`;
+}
+
+function unsupervisedNotice(keys: string): string {
+  return `Waiting for a restart: ${keys}. StoryEngine does not restart itself — stop and start the server however you run it, and these will take effect.`;
+}
+
+function drainingNotice(keys: string): string {
+  return `Restarting to apply: ${keys}. Waiting for turns in flight to finish; this page will reconnect on its own.`;
+}
+
+function interruptNotice(others: number): string {
+  if (others === 0) return 'Nobody else has a turn running.';
+  if (others === 1) return '1 other person has a turn running, and it may be interrupted.';
+  return `${String(others)} other people have turns running, and they may be interrupted.`;
+}
+
+function ownTurnNotice(mine: number): string {
+  return mine === 1
+    ? 'One of your own turns is running.'
+    : `${String(mine)} of your own turns are running.`;
 }

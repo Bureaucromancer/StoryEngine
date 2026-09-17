@@ -108,6 +108,17 @@ const PatchAccount = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    /**
+     * *Shown on the sign-in screen* — [12 §4], [P10.4].
+     *
+     * ***Both the person and the admin can set it***, and it is beside
+     * `enabled` here rather than inside `capabilities` because it is **not a
+     * capability**: capabilities are what an account *may do*, enumerated so
+     * each can be shown with its consequence ([09 §4.2.1]), and this grants
+     * nothing and withholds nothing — a hidden account signs in identically, by
+     * typing its handle. It is kin to `displayName`.
+     */
+    hiddenFromGallery: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

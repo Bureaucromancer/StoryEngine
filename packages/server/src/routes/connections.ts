@@ -4,7 +4,7 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
-import type { AppServices } from '../app.js';
+import { requireAccount, type AppServices } from '../app.js';
 import {
   pickBindings,
   readBindings,
@@ -18,6 +18,7 @@ import {
   presentForAdmin,
   readSystemConnectionEntries,
   readSystemConnections,
+  readUserConnectionEntries,
   writeConnection,
 } from '../providers/connections.js';
 import {
@@ -28,6 +29,7 @@ import {
   roleTable,
 } from '../providers/roles.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
+import { isLocalEndpoint } from '../updates.js';
 
 /**
  * System connections and the install default bindings —
@@ -46,6 +48,30 @@ import { writeJsonAtomic } from '../storage/atomic.js';
  * is the right line: the per-user bindings file has a reader and no writer too,
  * and it would be easy to add one on the way past on the grounds that the shape
  * is already there.
+ *
+ * ---
+ *
+ * ***That line expired on schedule, and this file now has two registrars***
+ * — 2026-09-16, [P10.3]. {@link registerConnectionRoutes} is still the system
+ * scope and only the system scope; {@link registerMyConnectionRoutes} is
+ * [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s *your connections*,
+ * which [P2B §2.7] sent to *"the phase after, or at P10 with the rest of
+ * §15.1"*. The per-user bindings half went at [P7.3].
+ *
+ * ***Two registrars in one file rather than two files, and the reason is the
+ * paragraph above.*** What made the old line worth writing is that the two
+ * scopes share a **body schema, a stale check, a presenter and an error
+ * vocabulary** — so the easy mistake was never a second module, it was a route
+ * in this one quietly pointing at the other root. Keeping them here makes each
+ * root appear at a call site where the other is visible, and the guard is now a
+ * capability rather than a promise.
+ *
+ * **The personal half is gated on `privateConnections`, checked per request.**
+ * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) calls a
+ * UI-level check *"a trivial bypass"* and puts the real one in the loader, where
+ * it has been since P3 — so this gate is not the security boundary either. It is
+ * there so that somebody whose capability was withdrawn stops being offered a
+ * form whose writes the resolver would then ignore.
  */
 
 const CONNECTION_FIELDS = {
@@ -306,48 +332,9 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
    * automatic, and its response is used only to populate a picker. That is a
    * smaller claim than *this is safe*, and it is the true one.
    */
-  app.post('/connections/models', { schema: { body: FetchModelsBody } }, async (request, reply) => {
-    const body = request.body as { baseUrl?: string; apiKey?: string };
-    const base = (body.baseUrl ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
-
-    try {
-      const response = await services.fetch(`${base}/models`, {
-        headers: body.apiKey === undefined ? {} : { authorization: `Bearer ${body.apiKey}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-      /**
-       * **A refused key is not an unreachable endpoint** — finding 5 in
-       * [P2C log](../../../../docs/design/workplan/14-p2c-log.md). Both answered
-       * `502 unreachable`, and the remedies point in opposite directions: an
-       * admin told *unreachable* checks the URL and the network, when what is
-       * wrong is the one field this response cannot name. Adding a connection
-       * is a stranger's third step, so this is the first wrong turn available.
-       *
-       * Still a class and never the endpoint's own words, for the same reason
-       * as below — the body can echo the key it is refusing.
-       */
-      if (response.status === 401 || response.status === 403) {
-        return await reply.code(401).send({
-          error: 'unauthorized',
-          message: 'That endpoint refused the key.',
-        });
-      }
-      if (!response.ok) {
-        return await reply.code(502).send({
-          error: 'unreachable',
-          message: 'That endpoint did not answer with a model list.',
-        });
-      }
-      const payload: unknown = await response.json();
-      return await reply.send({ models: modelIdsFrom(payload) });
-    } catch {
-      // A class, never the fetch's own message — it can carry the URL, and the
-      // URL can carry a token.
-      return await reply
-        .code(502)
-        .send({ error: 'unreachable', message: 'That endpoint could not be reached.' });
-    }
-  });
+  app.post('/connections/models', { schema: { body: FetchModelsBody } }, async (request, reply) =>
+    fetchModels(services, request.body, reply),
+  );
 
   app.get('/bindings', async (_request, reply) => {
     return reply.send(await bindingsState(services));
@@ -538,8 +525,279 @@ function bodyToInput(body: unknown): {
  * sends an unexpected error to the handler that answers a status with no
  * message, rather than leaking a filesystem path.
  */
+/**
+ * `GET {baseUrl}/models`, as a picker's worth of ids — [P2B §2.6], [P10.3].
+ *
+ * ***One implementation behind two routes***, because the admin's and the
+ * personal one ask an endpoint the identical question and the interesting part
+ * is the **error vocabulary**: a refused key and an unreachable host point at
+ * opposite remedies, and a copy of this would be a second place for those to
+ * drift back together.
+ *
+ * `gate` is the personal route's capability check, already performed — `null`
+ * means it answered and this must not. The admin route passes nothing, because
+ * its guard is the `/api/admin` prefix's.
+ */
+async function fetchModels(
+  services: AppServices,
+  requestBody: unknown,
+  reply: FastifyReply,
+  gate?: unknown,
+): Promise<FastifyReply | undefined> {
+  if (gate === null) return undefined;
+
+  const body = requestBody as { baseUrl?: string; apiKey?: string };
+  const base = (body.baseUrl ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
+
+  try {
+    const response = await services.fetch(`${base}/models`, {
+      headers: body.apiKey === undefined ? {} : { authorization: `Bearer ${body.apiKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    /**
+     * **A refused key is not an unreachable endpoint** — finding 5 in
+     * [P2C log](../../../../docs/design/workplan/14-p2c-log.md). Both answered
+     * `502 unreachable`, and the remedies point in opposite directions: an
+     * admin told *unreachable* checks the URL and the network, when what is
+     * wrong is the one field this response cannot name. Adding a connection is
+     * a stranger's third step, so this is the first wrong turn available.
+     *
+     * Still a class and never the endpoint's own words, for the same reason as
+     * below — the body can echo the key it is refusing.
+     */
+    if (response.status === 401 || response.status === 403) {
+      return await reply.code(401).send({
+        error: 'unauthorized',
+        message: 'That endpoint refused the key.',
+      });
+    }
+    if (!response.ok) {
+      return await reply.code(502).send({
+        error: 'unreachable',
+        message: 'That endpoint did not answer with a model list.',
+      });
+    }
+    const payload: unknown = await response.json();
+    return await reply.send({ models: modelIdsFrom(payload) });
+  } catch {
+    /**
+     * ***Nothing answered, and [P11.6] splits that in two.***
+     *
+     * [09 §6.5](../../../../docs/design/09-server-multiuser-deployment.md) asks
+     * for *"this server appears to have no internet access"* instead of a raw
+     * connection error, and **this route is where a stranger meets it first**:
+     * adding a connection is their third step, and a remote endpoint that will
+     * never work because the machine has no route out is the failure most
+     * likely to be diagnosed as a wrong URL.
+     *
+     * **Both conditions, and the order matters.** A *local* endpoint that does
+     * not answer says nothing about the internet — the model server is simply
+     * not running, and telling that operator they are offline is the mistake
+     * §6.5 warns about. And `online` is only claimed when a check has actually
+     * run: `null` is *nothing has looked*, which leaves the neutral sentence
+     * rather than inventing a diagnosis in a server's first minute.
+     *
+     * A class, never the fetch's own message — it can carry the URL, and the
+     * URL can carry a token.
+     */
+    const offline = !isLocalEndpoint(base) && services.updates.online === false;
+    return await reply.code(502).send(
+      offline
+        ? {
+            error: 'offline',
+            message: 'This server appears to have no internet access.',
+          }
+        : { error: 'unreachable', message: 'That endpoint could not be reached.' },
+    );
+  }
+}
+
 async function respond(error: unknown, reply: FastifyReply): Promise<FastifyReply> {
   if (!(error instanceof ConnectionError)) throw error;
   const status = { 'not-found': 404, invalid: 400, unbuildable: 400 }[error.code];
   return reply.code(status).send({ error: error.code, message: error.message });
+}
+
+/**
+ * *Your* connections — [10 §15.1](../../../../docs/design/10-ui-surfaces.md),
+ * [P2B §2.7](../../../../docs/design/workplan/10-p2b-provider-configuration.md),
+ * [P10.3].
+ *
+ * ***The same form the admin has, scoped to the path that is the owner***,
+ * which is this stage's brief verbatim. Every route below is the system one with
+ * one substitution — `userConnectionsRoot(handle)` for `systemConnectionsRoot` —
+ * and nothing else differs, because nothing else should: a personal connection
+ * *is* a system connection in a different directory, which is exactly what
+ * `resolveConnections` has always believed.
+ *
+ * **[19 §5.1]'s sentence is the point of the whole surface**: *"anyone who wants
+ * their own key overrides a role without the admin's involvement"*. Until now
+ * the only way to exercise it was to write a JSON file by hand.
+ *
+ * **Personal first in resolution order**, which is `resolveConnections`' own
+ * rule and is why nothing here needs to say anything about precedence: a
+ * personal connection wins over a system default, visibly and switchably, and
+ * `presentConnectionsForAdmin` computes `shadowed` from the array it is given.
+ * *The array here is the personal scope alone*, so a personal file shadowing a
+ * **system** one reads as `shadowed: false` — correct, because it is the one
+ * that wins.
+ */
+export function registerMyConnectionRoutes(app: FastifyInstance, services: AppServices): void {
+  /**
+   * The capability, per request.
+   *
+   * ***Re-read rather than held***, which is `gather.ts`'s rule on a smaller
+   * subject: an admin who withdraws `privateConnections` while somebody has the
+   * form open should find that the next save is refused, not that it lands
+   * because a session cookie remembers a capability from before.
+   *
+   * *404 rather than 403 is deliberately **not** used here.* The account exists
+   * and the route exists; what is missing is permission, and `forbidden` is the
+   * honest class — the same one `adminOnly` sends. Hiding it would leave
+   * somebody who was told *ask an administrator* unable to tell whether they
+   * had been refused or had mistyped a URL.
+   */
+  async function permitted(
+    request: Parameters<typeof requireAccount>[0],
+    reply: FastifyReply,
+  ): Promise<{ handle: string; root: string } | null> {
+    const account = await requireAccount(request, reply);
+    if (!account) return null;
+
+    const held = await services.accounts.find(account.handle);
+    if (held?.capabilities.privateConnections !== true) {
+      await reply.code(403).send({
+        error: 'forbidden',
+        message: 'This account may not keep its own provider connections.',
+      });
+      return null;
+    }
+    return { handle: account.handle, root: services.layout.userConnectionsRoot(account.handle) };
+  }
+
+  app.get('/me/connections', async (request, reply) => {
+    const mine = await permitted(request, reply);
+    if (!mine) return;
+
+    const entries = await readUserConnectionEntries(services.layout, mine.handle);
+    return reply.send({ connections: presentConnectionsForAdmin(entries) });
+  });
+
+  app.post('/me/connections', { schema: { body: ConnectionBody } }, async (request, reply) => {
+    const mine = await permitted(request, reply);
+    if (!mine) return;
+
+    try {
+      const written = await writeConnection(services.layout, mine.root, bodyToInput(request.body));
+      // The same invalidation the admin path does, for the same reason: the
+      // factory caches by connection id and a personal id is a connection id.
+      services.providers.invalidate?.(written.connection.id);
+      return await reply
+        .code(201)
+        .send({ connection: presentForAdmin(written.connection, written.contentHash) });
+    } catch (error) {
+      return await respond(error, reply);
+    }
+  });
+
+  app.put(
+    '/me/connections/:id',
+    { schema: { params: IdParams, body: EditBody } },
+    async (request, reply) => {
+      const mine = await permitted(request, reply);
+      if (!mine) return;
+
+      const { id } = request.params as { id: string };
+      const presented = (request.body as { contentHash: string }).contentHash;
+
+      /**
+       * **The stale check, and here it defends against the same text editor**
+       * ([P2B §6]) — more so, in fact: [P2B §2.3] promises a hand-written
+       * personal file keeps working, and this directory is the one a person is
+       * most likely to have edited themselves.
+       *
+       * *Scoped to their own entries*, so an id that exists only in the system
+       * scope is a 404 rather than a route into somebody else's file.
+       */
+      const entries = await readUserConnectionEntries(services.layout, mine.handle);
+      const current = entries.find((entry) => entry.connection.id === id);
+      if (current === undefined) {
+        return await reply
+          .code(404)
+          .send({ error: 'not-found', message: `No connection with the id ${id}.` });
+      }
+      if (current.contentHash !== presented) {
+        return await reply.code(412).send({
+          error: 'stale',
+          message: 'That connection has changed on disk since this page read it.',
+          current: presentForAdmin(current.connection, current.contentHash),
+          contentHash: current.contentHash,
+        });
+      }
+
+      try {
+        const written = await writeConnection(services.layout, mine.root, {
+          id,
+          ...bodyToInput(request.body),
+        });
+        services.providers.invalidate?.(written.connection.id);
+
+        // Presented over the list, for the admin path's reason: an edit can
+        // change which of two files claiming one id wins, and answering with
+        // the single presenter would report `shadowed: false` about a
+        // connection the same write had just killed.
+        const after = await readUserConnectionEntries(services.layout, mine.handle);
+        const rows = presentConnectionsForAdmin(after);
+        const at = after.findIndex((entry) => entry.path === written.path);
+        return await reply.send({
+          connection:
+            at === -1 ? presentForAdmin(written.connection, written.contentHash) : rows[at],
+        });
+      } catch (error) {
+        return await respond(error, reply);
+      }
+    },
+  );
+
+  app.delete('/me/connections/:id', { schema: { params: IdParams } }, async (request, reply) => {
+    const mine = await permitted(request, reply);
+    if (!mine) return;
+
+    const { id } = request.params as { id: string };
+    try {
+      /**
+       * **No binding count and no warning**, which is the one place this
+       * deliberately differs from the admin form.
+       *
+       * [P2B §2.8]'s warning exists because an admin deleting a system
+       * connection breaks **other people's** turns, and *"counts, never
+       * contents"* is how it says so without listing who binds what. Deleting
+       * your own breaks your own, and telling somebody that a thing they are
+       * about to delete is used by them is not information.
+       */
+      await deleteConnection(services.layout, mine.root, id);
+      services.providers.invalidate?.(id);
+      return await reply.code(204).send();
+    } catch (error) {
+      return await respond(error, reply);
+    }
+  });
+
+  /**
+   * Asks an endpoint what models it offers — the admin route's twin.
+   *
+   * ***Worth a sentence about why this is not a new reach.*** It makes the
+   * server fetch a URL the caller typed, which is the shape of a request worth
+   * being careful with. But an account with `privateConnections` can already
+   * store that URL as a connection and have every turn call it — so what this
+   * adds is the *timing*, not the capability, and refusing it would leave the
+   * form worse without making anything safer. The gate is the same one, checked
+   * the same way.
+   */
+  app.post(
+    '/me/connections/models',
+    { schema: { body: FetchModelsBody } },
+    async (request, reply) =>
+      fetchModels(services, request.body, reply, await permitted(request, reply)),
+  );
 }

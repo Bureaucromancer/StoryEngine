@@ -32,6 +32,7 @@ import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
+import { startTrashSweep, type TrashSweep } from './storage/trash.js';
 import { rebuild } from './index-db/rebuild.js';
 import { materialiseModePresets } from './system-library.js';
 import { LibraryWatcher } from './index-db/watcher.js';
@@ -41,8 +42,10 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerModeRoutes } from './routes/modes.js';
 import { registerTagRoutes } from './routes/tags.js';
+import { registerMyConnectionRoutes } from './routes/connections.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
@@ -50,7 +53,11 @@ import { createCaptureRecorder, type CaptureRecorder } from './providers/capture
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
 import { capabilitiesFor } from './providers/capabilities.js';
 import { resolveConnections } from './providers/connections.js';
-import { dispatchRenditions, type RenditionWorkerContext } from './renditions/worker.js';
+import {
+  dispatchRenditions,
+  drainRenditions,
+  type RenditionWorkerContext,
+} from './renditions/worker.js';
 import { reconcileRenditionJobs } from './renditions/jobs.js';
 import type { Rendition } from '@storyengine/shared';
 import { selectBackdrop } from './renditions/backdrop.js';
@@ -60,14 +67,19 @@ import {
   reconcile,
   reconcileSession,
   type CommitContext,
+  type Logger,
   type Reconciliation,
 } from './state/commit.js';
 import type { JobContext } from './state/jobs.js';
+import { NotificationBus } from './notifications/bus.js';
+import { route as routeNotification, type Occurrence } from './notifications/router.js';
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { listDirectoryNames, readFileBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
+import { supervisionOf, type Supervision } from './supervision.js';
+import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
@@ -119,6 +131,27 @@ export interface AppServices {
   jobs: JobContext;
   /** In-process fan-out for the session stream. */
   bus: TurnStream;
+  /**
+   * Who is here, and how a notification reaches them — [09 §3.1], [P10.1].
+   *
+   * **Beside `bus` rather than inside it**, because the two are keyed
+   * differently and deliberately: the session stream is keyed by *session* and
+   * its listeners are anonymous ([09 §4.3] withholds sharing, so anyone reading
+   * one is its owner), while a notification is addressed to a **person** and has
+   * to find them in a session they do not have open — or in none at all.
+   */
+  notifications: NotificationBus;
+  /**
+   * A producer's one call: *this happened*. Routing is not its business.
+   *
+   * ***The whole of [09 §3.1] compressed into a signature.*** *"If the client
+   * decides what to notify about, notifications only work while a client is
+   * connected"* — so the decision is server-side, and the way that is enforced
+   * is that a producer cannot express one: it hands over a fact, and
+   * [`route`](./notifications/router.js) decides against ownership and presence
+   * whether anybody is told.
+   */
+  notify: (occurrence: Occurrence) => void;
   /** Drives a reserved job to a committed turn. */
   runner: TurnRunner;
   /**
@@ -135,6 +168,17 @@ export interface AppServices {
     records: readonly Rendition[],
     turnId: string,
   ) => void;
+  /**
+   * Waits for every picture still being made — [P9.2]'s detached dispatch, given
+   * the shutdown wait it never had.
+   *
+   * **On the services beside `renditions` rather than inside it**, because the
+   * two are the same seam from opposite ends: `renditions` says *make this and
+   * do not wait*, and this says *and now, once, wait*. `disposeServices` is the
+   * only caller and the only one that should be — anything else waiting on a
+   * picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra steps.
+   */
+  drainRenditions: () => Promise<void>;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -167,6 +211,8 @@ export interface AppServices {
    * forever.
    */
   maturation: Maturation;
+  /** The retention sweep — [03 §10.2], [P11.7]. */
+  trash: TrashSweep;
   sessionKey: string;
   /**
    * The first-run setup token, or null when nothing needs one — F10,
@@ -225,6 +271,44 @@ export interface AppServices {
    */
   configDocument: Record<string, unknown>;
   library: LibraryContext;
+  /**
+   * Whether something will start this process again — [09 §6.4], [P10.3].
+   *
+   * Read once at boot, for the reason `setupToken` is: the answer is a fact
+   * about how the process was started and cannot change under it.
+   */
+  supervision: Supervision;
+  /**
+   * Ends the process, when something is going to bring it back.
+   *
+   * ***A seam rather than a call to `process.exit`***, and for the reason every
+   * other seam in this file exists: a test that exercised *Restart now* would
+   * otherwise end the test runner. `main.ts` wires it; everything else leaves it
+   * null, and the route answers `unavailable` — which is the honest answer for a
+   * build that embeds the app rather than running it.
+   */
+  exit: (() => void) | null;
+  /**
+   * Set while a restart is draining — [09 §6.4]'s *"refuse new turns"*.
+   *
+   * **Assigned into these services rather than held in the restart module**,
+   * because the thing that has to read it is the submission route, and a module
+   * holding process-global state would be a second source of truth for *is this
+   * server leaving*.
+   */
+  draining: boolean;
+  /**
+   * What the last update check found — [09 §6.5], [P10.3].
+   *
+   * ***Assigned into rather than recomputed per request***, which is the whole
+   * of §6.5's *"daily, cached, never on page load"*: the notices route reads
+   * this field, and the only thing that writes it is the timer below. A route
+   * that checked on demand would make the traffic pattern a request per
+   * navigation, which *looks* like telemetry whatever it carries.
+   */
+  updates: UpdateStatus;
+  /** Stops the daily check. Called by `disposeServices`. */
+  stopUpdateCheck: () => void;
   /**
    * Client preferences, per user ([25 B13]).
    *
@@ -407,6 +491,21 @@ async function assembleWithState(
 
   const config = structuredClone(options.config);
 
+  /**
+   * ***The retention sweep*** — [03 §10.2], [P11.7].
+   *
+   * Beside `startMaturation` because they are the same kind of thing: periodic
+   * housekeeping over something a request path moved and nobody is coming back
+   * for. **Both closures rather than values** — the account list changes while
+   * the server runs, and `trash.retentionDays` is tiered `live`, so a number
+   * captured here would be the one from boot forever.
+   */
+  const trash = startTrashSweep(
+    layout,
+    async () => (await accounts.list()).map((one) => one.handle),
+    () => config.trash.retentionDays,
+  );
+
   const sessions: SessionContext = {
     layout,
     index: index.db,
@@ -497,10 +596,42 @@ async function assembleWithState(
    * owns. A runner that held this would be a runner whose `drain()` had to wait
    * for pictures — which is the exact coupling §10.2 exists to refuse.
    */
+  /**
+   * ***The notification half of [09 §3]***, built before the producers so that
+   * every one of them can be handed the same door — [P10.1].
+   *
+   * `notify` closes over the store, the presence registry and the delivery bus,
+   * which is what lets a producer be handed one function rather than three
+   * services and a policy. The alternative — each producer calling `notify()` in
+   * `state/notifications.ts` directly — is how two of them end up disagreeing
+   * about whether somebody looking at a session should be told about it.
+   */
+  const notifications = new NotificationBus();
+  const notify = (occurrence: Occurrence): void => {
+    routeNotification(
+      {
+        db: state.db,
+        presence: notifications,
+        deliver: (account, notification) => {
+          notifications.deliver(account, notification);
+        },
+      },
+      occurrence,
+    );
+  };
+
   const renditions: RenditionWorkerContext = {
     db: state.db,
     layout,
     providers,
+    /**
+     * **The pictures still being made**, so `disposeServices` can wait for them.
+     * See the field's own note in `renditions/worker.ts`: the dispatch is
+     * detached by design and was untracked by omission, and a job writing into a
+     * closed `DatabaseSync` is the failure that argument was already made about
+     * one layer up.
+     */
+    inFlight: new Set(),
     /**
      * The connection the `image` role resolves to, for this account.
      *
@@ -538,6 +669,23 @@ async function assembleWithState(
     changed: (sessionId, rendition) => {
       bus.rendition(sessionId, rendition);
     },
+    /**
+     * ***The producer [P9 §1.5] owed and [P9.2] did not write*** — moved here by
+     * [P10]'s re-audit, and both ends live at once. The `rendition` frame above
+     * is how **pixels** reach an open page; this is how a **person** is told,
+     * and the two answer different questions — which is why a page showing the
+     * session gets the first and not the second.
+     */
+    settled: (account, sessionId, rendition) => {
+      notify({
+        kind: 'artifact.ready',
+        account,
+        sessionId,
+        turnId: rendition.turnId,
+        purpose: rendition.purpose,
+        outcome: rendition.state === 'ready' ? 'ready' : 'failed',
+      });
+    },
     select: async (account, sessionId, renditionId) => {
       await selectBackdrop(sessions, account, sessionId, renditionId, { kind: 'engine' });
     },
@@ -552,6 +700,20 @@ async function assembleWithState(
     dispatchRenditions(renditions, account, sessionId, records, turnId);
   };
 
+  /**
+   * ***The runner reads the current connectivity, not a snapshot of it*** —
+   * [P11.6].
+   *
+   * `services.updates` is **replaced wholesale** every time a check completes,
+   * so a value copied into the runner at construction would be `UNCHECKED`
+   * forever and every failure would report *nothing has looked*. The hole is
+   * this `let`, filled one statement below and read only when a turn has
+   * already failed — which is the same shape `watcher.ts` uses to keep
+   * `history.keepPerObject` live, and for the same reason: a field filled at
+   * construction is what makes a live value untrue.
+   */
+  let built: AppServices | null = null;
+
   const runner = new TurnRunner({
     commit,
     bus,
@@ -559,9 +721,20 @@ async function assembleWithState(
     accounts,
     config,
     dispatch,
+    notify,
+    connectivity: () => built?.updates.online ?? null,
+    /**
+     * ***So the extractor can write into a memory book*** — [08 §2.1], [P11.12].
+     *
+     * **The same context the routes hold**, which is what puts the extractor
+     * and the *Remember this* button on one queue: two `LibraryContext`s would
+     * be two write paths into one book, and a book is the thing [P8]'s C2 is
+     * about not corrupting.
+     */
+    library,
   });
 
-  return {
+  built = {
     config,
     // And the baseline separately, for the same reason in the other direction:
     // sharing one object would make it follow the thing it is the baseline for,
@@ -573,8 +746,11 @@ async function assembleWithState(
     sessions,
     jobs,
     bus,
+    notifications,
+    notify,
     runner,
     renditions: dispatch,
+    drainRenditions: () => drainRenditions(renditions),
     commit,
     providers,
     streams: new Set<() => void>(),
@@ -583,8 +759,17 @@ async function assembleWithState(
     accounts,
     watcher,
     maturation,
+    trash,
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
+    supervision: supervisionOf(process.env),
+    // Wired by `main.ts`, which is the only caller that owns the process.
+    exit: null,
+    draining: false,
+    updates: UNCHECKED,
+    // Replaced by `startUpdateCheck`, which `buildApp` runs once a logger
+    // exists. A build that never starts one disposes cleanly.
+    stopUpdateCheck: () => undefined,
     build,
     sessionKey: await loadOrCreateSessionKey(layout),
     /**
@@ -609,6 +794,7 @@ async function assembleWithState(
     configDocument: options.configDocument ?? {},
     library,
   };
+  return built;
 }
 
 /**
@@ -625,14 +811,67 @@ async function assembleWithState(
  * silently dropped the maturation timer and the operational store from two of
  * the three, and each omission surfaced as a locked file rather than as a leak.
  */
+/**
+ * Runs the update check on a timer, and answers with the stopper.
+ *
+ * ***Both timers are `unref`ed***, which is the rule every other timer in this
+ * codebase follows: a release-feed check must never be the reason a process
+ * stays alive, and least of all one that has been asked to restart.
+ */
+function startUpdateCheck(services: AppServices, log: Logger): void {
+  let stopped = false;
+
+  const run = (): void => {
+    void checkForUpdate(services)
+      .then((status) => {
+        if (stopped) return;
+        services.updates = status;
+        // `info` rather than `warn` even for `unreachable`: a fully local
+        // install reaching no release feed is a legitimate deployment
+        // ([09 §6.5]), and a warning would be this program's opinion about
+        // somebody's network.
+        log.info(
+          { event: 'updates.checked', state: status.state, latest: status.latest },
+          'Update check',
+        );
+      })
+      .catch(() => undefined);
+  };
+
+  const first = setTimeout(run, FIRST_CHECK_DELAY_MS);
+  first.unref();
+  const repeat = setInterval(run, CHECK_INTERVAL_MS);
+  repeat.unref();
+
+  services.stopUpdateCheck = () => {
+    stopped = true;
+    clearTimeout(first);
+    clearInterval(repeat);
+  };
+}
+
+/** See {@link startUpdateCheck} — long enough that a restart loop is not traffic. */
+const FIRST_CHECK_DELAY_MS = 60_000;
+
 export async function disposeServices(services: AppServices): Promise<void> {
   // **Runs first, and waits.** A detached turn touching a closed
   // `DatabaseSync` is the failure that surfaces on Windows as `EBUSY` on a
   // file the caller never named, two layers from where it was caused.
   await services.runner.drain();
+  /**
+   * **After the runner and before the handles close**, which is the only order
+   * that works: a turn finalising during `drain()` dispatches its pictures on
+   * the way out, so waiting for renditions first would wait for a set that is
+   * about to grow — and every arm of `runRendition` writes through `db` and
+   * `layout`, so waiting after `index.close()` would be waiting for writes into
+   * a closed handle rather than preventing them.
+   */
+  await services.drainRenditions();
+  services.stopUpdateCheck();
   for (const close of services.streams) close();
   services.streams.clear();
   services.maturation.stop();
+  services.trash.stop();
   await services.watcher?.stop();
   services.index.close();
   services.state.close();
@@ -788,6 +1027,23 @@ export async function buildApp(
    * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
    * to every other way this goes wrong.
    */
+  /**
+   * ***The daily update check*** — [09 §6.5], [P10.3].
+   *
+   * **Here rather than in `buildServices`**, for `reconcile`'s reason one line
+   * up: it needs a logger, and it must not be started by a caller that only
+   * wants the services (a migration, a CLI action) — those would each open a
+   * socket to a release feed nobody asked about.
+   *
+   * *The first run is delayed rather than immediate*, and the delay is the
+   * honest half of §6.5's *"never on page load"*: a check that fired at boot
+   * would fire on every container restart, which for somebody debugging a
+   * deployment is a request every few seconds. A minute is long enough that a
+   * restart loop does not become a traffic pattern, and short enough that an
+   * operator who just turned the setting on sees an answer while still looking.
+   */
+  startUpdateCheck(services, app.log);
+
   const stranded = reconcileRenditionJobs(services.state.db);
   if (stranded.interrupted.length > 0) {
     app.log.info(
@@ -888,6 +1144,14 @@ export async function buildApp(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
+      registerNotificationRoutes(api, services);
+      /**
+       * ***Outside the `/api/admin` plugin, which is the whole point of it***
+       * — [10 §15.1], [P10.3]. `registerConnectionRoutes` is registered inside
+       * that prefix below and is the system scope; this is *your connections*,
+       * guarded by the `privateConnections` capability rather than by a role.
+       */
+      registerMyConnectionRoutes(api, services);
       registerModeRoutes(api);
       registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);

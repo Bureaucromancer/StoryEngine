@@ -19,6 +19,21 @@ export * from './factories.js';
 // The turn record — internal tier, deliberately outside `schema/`: no $id, no
 // registry entry, no emitted artefact. `turn.ts` carries the argument.
 export * from './turn.js';
+/**
+ * What a person could do about a failure — [P11.6].
+ *
+ * Beside the turn record and **not part of it**: `remedyFor` reads the record's
+ * vocabulary and produces something the record never holds, because two of its
+ * three inputs are facts about now. It is here rather than in the server
+ * because the transcript derives one too, and one function is what keeps the
+ * two from having different opinions.
+ */
+export * from './remedy.js';
+/**
+ * The interchange format, and the event that freezes two records —
+ * [25 B12](../../../docs/design/25-open-questions.md), [P11.10].
+ */
+export * from './session-export.js';
 // The tag registry — internal tier, beside the turn record and for the same
 // reason: it decorates names inside one install and never crosses a boundary
 // ([05](../../../docs/design/05-tagging.md)).

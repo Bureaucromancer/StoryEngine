@@ -94,6 +94,35 @@ export const ConfigSchema = Type.Object(
        * against the working directory when relative.
        */
       clientRoot: Type.String({ default: '' }),
+      /**
+       * The `.local` name this install answers to —
+       * [09 §5.1](../../../docs/design/09-server-multiuser-deployment.md),
+       * [P10.0].
+       *
+       * ***"So nobody types an IP"*** is the whole of §5.1's ask, and it calls
+       * it *"small feature, large effect on whether non-technical household
+       * members ever use it"*. The label here becomes `<label>.local`.
+       *
+       * ***One key doing two jobs, and both are things a person has an opinion
+       * about.*** **The name**, because two installs in one household collide —
+       * `attic` and `study` is a real answer to a real problem, and the
+       * responder probes before it claims, so the second one would otherwise
+       * simply go unnamed. **And off**, spelled as the empty string, for a
+       * network where it is unwelcome. A separate boolean would be a second
+       * thing to keep in step with a value that already has an obvious
+       * *nothing*.
+       *
+       * ***Advertising is conditional on the bind regardless of this*** — §5.1
+       * says *"once bound beyond loopback"*, and an install only its own machine
+       * can reach has nobody to advertise to. So this is *what to call it*, not
+       * *whether to do it at all*.
+       *
+       * `restart`, because the responder binds a socket at boot and probes for
+       * the name once. A live rename would mean tearing down and re-probing on
+       * a settings save, which is machinery in front of something an operator
+       * does once.
+       */
+      mdnsName: Type.String({ maxLength: 63, default: 'storyengine' }),
     }),
     auth: Type.Object({
       /**
@@ -124,6 +153,31 @@ export const ConfigSchema = Type.Object(
        * this software recognises ([09 §5.1]).
        */
       minPasswordLength: Type.Integer({ minimum: 0, maximum: 128, default: 8 }),
+      /**
+       * Which of the two front doors an arrival meets —
+       * [12 §1.1](../../../docs/design/12-account-gallery.md), [P10.4].
+       *
+       * ***The install's choice, made once by an admin, never the visitor's.***
+       * An arrival screen chosen per browser would defeat the point of an
+       * install having chosen one at all.
+       *
+       * **The default is `form` because exposure is an explicit act**, and the
+       * precedent is the bind address ([09 §5.1]): the server listens on
+       * loopback until somebody deliberately opens it up, because a disclosure
+       * should be a decision with a person attached. [12 §3] concedes that a
+       * gallery discloses something — who has an account here — so a fresh
+       * install and every existing one keeps exactly the unauthenticated
+       * surface it has today until an admin picks the other door.
+       *
+       * ***The union does quiet work.*** The admin config form renders
+       * string-literal unions as selects from the server's own schema, so the
+       * control ships with the key and there is no client change to forget —
+       * [P2A]'s configuration-ships-with-its-surface rule satisfied by
+       * construction rather than by remembering.
+       */
+      loginScreen: Type.Union([Type.Literal('form'), Type.Literal('gallery')], {
+        default: 'form',
+      }),
     }),
     log: Type.Object({
       /**
@@ -276,7 +330,10 @@ export const CONFIG_TIERS = {
   'server.trustProxy': 'restart',
   'server.cookieSecure': 'restart',
   'server.clientRoot': 'restart',
+  'server.mdnsName': 'restart',
   'auth.minPasswordLength': 'live',
+  /** Read per request in the `/auth/state` handler — [12 §1.1]. */
+  'auth.loginScreen': 'live',
   'log.level': 'live',
   'log.format': 'restart',
   'index.rebuildOnStart': 'restart',
@@ -331,6 +388,13 @@ export const LIVE_APPLIERS = {
   // registered — precisely the shape that would make this row say `applied` and
   // be a lie.
   'auth.minPasswordLength': 'applied',
+  /**
+   * Read off the live config in the `/auth/state` handler and by the gallery
+   * family's own gate, so flipping it takes effect on the next arrival —
+   * [12 §1.1], [P10.4]. It is also what makes the family answer 404 in form
+   * mode, which is the half a restart tier would have made untestable.
+   */
+  'auth.loginScreen': 'applied',
 
   // Assigned onto the root logger, which every child pino derived from it
   // inherits. The one key that was live before this table existed.
@@ -386,16 +450,41 @@ export const LIVE_APPLIERS = {
   // its next call rather than at the next restart.
   'limits.providerTimeoutMs': 'applied',
 
-  // The maturation sweep does not read it; trash retention is not implemented.
-  'trash.retentionDays': 'unread',
+  /**
+   * ~~The maturation sweep does not read it; trash retention is not
+   * implemented.~~ ***Read by `startTrashSweep` since [P11.7]***, which is what
+   * took it out of `unread` — and the sentence above is kept because it is
+   * seven phases of the standing line in one clause: the setting, the window
+   * and the folder all shipped, and a thirty-day default had never expired
+   * anything.
+   *
+   * **Read per pass rather than captured**, so a change reaches the next sweep
+   * rather than the next restart — which is what `live` is supposed to mean,
+   * and the mistake `watcher.ts` records about `history.keepPerObject`.
+   */
+  'trash.retentionDays': 'applied',
 
   // Read per write through the shared `LibraryContext`, which the watcher now
   // holds rather than copying a number out of.
   'history.keepPerObject': 'applied',
 
-  // The update check is P11's.
-  'updates.checkEnabled': 'unread',
-  'updates.channel': 'unread',
+  /**
+   * ~~The update check is P11's.~~ ***Built at [P10.3]***, which is
+   * [P10 §1.7](../../../docs/design/workplan/27-p10-implementation.md)'s lean
+   * taken — *"move the check"* rather than ship a surface reading a source that
+   * is always unknown.
+   *
+   * ***These two rows are why that section exists***: the settings for the check
+   * shipped ahead of the check, which is not *shipping dark* as a decision but
+   * **shipping dark by default**. They were `unread` for four phases and this
+   * table is what made that visible rather than remembered.
+   *
+   * *Both are genuinely live*: `checkEnabled` is read at the top of every check,
+   * so turning it off stops the next one without a restart, and `channel` is
+   * read when the feed is filtered — a change applies to the next daily run.
+   */
+  'updates.checkEnabled': 'applied',
+  'updates.channel': 'applied',
 } as const satisfies Record<string, LiveApplier>;
 
 export function applierOf(key: string): LiveApplier | null {
@@ -404,8 +493,15 @@ export function applierOf(key: string): LiveApplier | null {
 
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
-  server: { host: '127.0.0.1', port: 8080, trustProxy: false, cookieSecure: false, clientRoot: '' },
-  auth: { minPasswordLength: 8 },
+  server: {
+    host: '127.0.0.1',
+    port: 8080,
+    trustProxy: false,
+    cookieSecure: false,
+    clientRoot: '',
+    mdnsName: 'storyengine',
+  },
+  auth: { minPasswordLength: 8, loginScreen: 'form' },
   log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },
   sessions: { snapshotEveryNTurns: 10, streamKeepaliveMs: 15000, streamCoalesceMs: 250 },

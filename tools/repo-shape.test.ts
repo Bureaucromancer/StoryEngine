@@ -586,3 +586,204 @@ function codeOf(path: string): string {
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/[^\n]*/g, '');
 }
+
+/**
+ * ***A book that eats corrections is a book people stop correcting*** —
+ * [08 §6](../docs/design/08-cross-session-memory.md),
+ * [P8 §3.1](../docs/design/workplan/25-p8-implementation.md)'s C2,
+ * [P8.3](../docs/design/workplan/25-p8-implementation.md),
+ * [P11.12](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * `LoreEntry.locked` means *locked against automatic modification by agents*,
+ * and P8.3 wrote it onto every hand-written memory while saying its reader was
+ * owed: *"the extractor never rewrites a locked entry."*
+ *
+ * ***The reader turned out to be an absence, and that is why the check is
+ * here.*** The extractor honours the rule by **appending and never updating**,
+ * so a hand-written memory cannot be eaten because no code in that module edits
+ * an entry at all. A behavioural test can only ever say *it did not this time*;
+ * this says *it cannot*, which is the claim C2 actually makes — and it is the
+ * one a helpful refinement two phases later would otherwise break silently,
+ * because an extractor that improved its own earlier entries would look like an
+ * improvement right up to the first correction it swallowed.
+ *
+ * **What it cannot catch**, said so nobody trusts it further: a rewrite reached
+ * through a helper in another file. The names below are the ones somebody
+ * writes when they are doing the thing this forbids.
+ */
+describe('the extractor cannot eat a correction', () => {
+  const EXTRACTOR = join(ROOT, 'packages', 'server', 'src', 'memory', 'extract.ts');
+
+  it('finds the module, so an empty read cannot pass', () => {
+    expect(readFileSync(EXTRACTOR, 'utf8').length).toBeGreaterThan(1000);
+  });
+
+  it('appends entries and never rewrites one', () => {
+    const code = readFileSync(EXTRACTOR, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    // The append: the new entries follow everything the book already held.
+    expect(code).toContain('entries: [...held.entries,');
+    // And nothing that edits one. `map` over `entries` is how a rewrite is
+    // written, and `locked` appearing at all would mean this module had started
+    // reasoning about which entries it may touch — which is the wrong shape,
+    // because the answer is none of them.
+    expect(code).not.toMatch(/held\.entries\.map/);
+    expect(code).not.toMatch(/\.entries\[[^\]]+\]\s*=/);
+    expect(code).not.toContain('locked');
+  });
+});
+
+/**
+ * ***The assistant is not a second chat implementation*** —
+ * [06 §7.4](../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11 §3](../docs/design/workplan/28-p11-implementation.md)'s row 4,
+ * [P11.3](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * §7.4 states the whole design in one sentence — *"it is a session, in a mode,
+ * with an actor card"* — and then states the test of it in another: ***"If
+ * building the assistant requires a parallel chat implementation, something in
+ * the mode contract is wrong."***
+ *
+ * ***That is a claim about code shape, not about behaviour***, which is why the
+ * stage's proof obligation names this file rather than a component test: **a
+ * passing assistant built the wrong way would satisfy every behavioural test and
+ * fail this one.** The gate says so too, in row 4.
+ *
+ * *What it cannot catch*, said plainly: a copy that used different words. A
+ * hand-rolled composer built on `input` rather than `textarea`, or a stream read
+ * with a bare `EventSource`, would slip through. The names below are the ones
+ * somebody reaches for when they are doing the thing this forbids, and the
+ * positive assertion — that the panel renders `PlayPage` — is the half that
+ * cannot be satisfied by avoiding a word.
+ */
+/**
+ * ***The help book the assistant reads*** —
+ * [06 §7.4](../docs/design/06-modes-and-turn-pipeline.md),
+ * [P11.3](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * §7.4: *"Ship the documentation as a built-in lorebook and attach it to the
+ * assistant. Keyword activation plus the budgeter already do the work."* **Two
+ * halves in two packages**, and the thing joining them is an id written out
+ * twice — the server ships the book under it, and the client's session creation
+ * names it in `lore`.
+ *
+ * ***A literal in two files is exactly what an instrument is for.*** They cannot
+ * import each other: the client does not depend on the server, deliberately and
+ * by the boundary graph. So nothing but a reader like this can notice the day
+ * one of them changes — and what that day produces is an assistant that answers
+ * every question with no documentation at all, silently, because a `lore` link
+ * naming nothing resolves to nothing rather than failing.
+ *
+ * *The corpus's own health is `docs-lorebook.test.ts`'s*; this is only the seam.
+ */
+describe('the assistant reads the book the server ships', () => {
+  const SHIPPED = join(ROOT, 'packages', 'server', 'src', 'docs-lorebook.ts');
+  const SESSION = join(ROOT, 'packages', 'client', 'src', 'assistant', 'session.ts');
+
+  /** The one `DOCS_LOREBOOK_ID = '…'` a file declares. */
+  function declaredId(file: string): string {
+    const found = /DOCS_LOREBOOK_ID = '([0-9a-f-]+)'/.exec(readFileSync(file, 'utf8'));
+    expect(found, `${file.slice(ROOT.length)} declares no DOCS_LOREBOOK_ID`).not.toBeNull();
+    return found?.[1] ?? '';
+  }
+
+  it('agrees with the client about which book that is', () => {
+    expect(declaredId(SESSION)).toBe(declaredId(SHIPPED));
+  });
+
+  /**
+   * **Selected, because nothing else would activate it.** No lorebook is active
+   * that has not been selected for the session — a book's own `scope` is read by
+   * nothing — so this line is the whole of §7.4's *attach it to the assistant*,
+   * and a session created without it is an assistant with no documentation.
+   */
+  it('selects it for the session it creates', () => {
+    const session = readFileSync(SESSION, 'utf8');
+    expect(session).toMatch(/lore: \[DOCS_LOREBOOK_ID\]/);
+  });
+});
+
+describe('the assistant, which must not be a second chat', () => {
+  const PANEL = join(ROOT, 'packages', 'client', 'src', 'assistant');
+
+  function surfaceFiles(): string[] {
+    return readdirSync(PANEL)
+      .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
+      .map((name) => join(PANEL, name));
+  }
+
+  it('finds the surface, so an empty read cannot pass', () => {
+    expect(surfaceFiles().length).toBeGreaterThan(2);
+  });
+
+  /**
+   * ***The positive half.*** The panel renders the play surface, which is the
+   * strongest available statement that nothing was rebuilt: everything in
+   * §7.4's table of *applies unchanged* — streaming, reconnection, the turn
+   * record, rewrite and reroll, the guidance box, branching — is there because
+   * it is literally the same component.
+   */
+  it('renders the play surface rather than one of its own', () => {
+    const panel = readFileSync(join(PANEL, 'AssistantPanel.tsx'), 'utf8');
+    expect(panel).toMatch(/from '\.\.\/play\/PlayPage\.js'/);
+    expect(panel).toContain('<PlayPage');
+  });
+
+  /**
+   * ***The negative half.*** No composer, no submission, no stream. Each of
+   * these is a thing the play surface already does, and a second one here would
+   * be the parallel implementation — arriving, as it always would, as a small
+   * convenience rather than as a decision.
+   */
+  it('has no composer, no turn submission and no stream of its own', () => {
+    for (const file of surfaceFiles()) {
+      const code = codeOf(file);
+      const where = file.slice(ROOT.length);
+      expect(code, where).not.toContain('<textarea');
+      expect(code, where).not.toContain('submitTurn');
+      expect(code, where).not.toContain('openTurnStream');
+      expect(code, where).not.toContain('useTurnStream');
+      expect(code, where).not.toContain('EventSource');
+    }
+  });
+
+  /**
+   * ***The mode package resolves the SDK and nothing else***, which is the
+   * other side of the same claim: an assistant that needed the server would be
+   * an assistant the mode contract could not express, and
+   * [19 §10](../docs/design/19-tech-stack.md)'s boundary is what would have to
+   * bend to let it.
+   */
+  it('is a mode package with one dependency', () => {
+    const manifest = JSON.parse(
+      readFileSync(join(ROOT, 'packages', 'modes', 'assistant', 'package.json'), 'utf8'),
+    ) as { dependencies?: Record<string, string> };
+    expect(Object.keys(manifest.dependencies ?? {})).toEqual(['@storyengine/sdk']);
+  });
+
+  /**
+   * ***And the server does not know it exists.*** `mode-loader.ts` names the
+   * package on its list of built-ins — which every mode is on — and nothing
+   * else in `packages/server` names the mode. A `switch` on this id would be
+   * [06 §2]'s back door, and the assistant is the mode most likely to tempt one
+   * because it is the mode the app itself wants something from.
+   */
+  it('is not named anywhere in the server but the loader’s list', () => {
+    const named: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+          if (readFileSync(path, 'utf8').includes('storyengine.assistant')) {
+            named.push(path.slice(ROOT.length));
+          }
+        }
+      }
+    };
+    walk(join(ROOT, 'packages', 'server', 'src'));
+    expect(named).toEqual([]);
+  });
+});

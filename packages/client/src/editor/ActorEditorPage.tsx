@@ -228,6 +228,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
     >
       <Field
         label="Name"
+        path="name"
         value={form.name}
         onChange={(name) => {
           patchForm({ name });
@@ -237,6 +238,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       />
       <Field
         label="Pronouns"
+        path="pronouns"
         value={form.pronouns}
         onChange={(pronouns) => {
           patchForm({ pronouns });
@@ -245,6 +247,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       />
       <Field
         label="Aliases"
+        path="aliases"
         value={form.aliasesText}
         onChange={(aliasesText) => {
           patchForm({ aliasesText });
@@ -263,6 +266,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       />
       <Field
         label="Traits"
+        path="traits"
         value={form.traitsText}
         onChange={(traitsText) => {
           patchForm({ traitsText });
@@ -281,6 +285,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           <div className="flex flex-col gap-3">
             <Field
               label="Title"
+              path={`sections.${section.id}.title`}
               value={section.title}
               onChange={(title) => {
                 const sections = form.sections.map((candidate, position) =>
@@ -289,8 +294,16 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                 patchForm({ sections });
               }}
             />
+            {/*
+             * ***The path is the section's id, not its index*** — [10 §11.2],
+             * [P11.2]. The provenance map outlives the form, and an index-keyed
+             * entry would follow whichever section happened to be third after a
+             * reorder — attributing one section's words to another, which is
+             * worse than having no provenance at all.
+             */}
             <Field
               label="Body"
+              path={`sections.${section.id}.body`}
               value={section.body}
               onChange={(body) => {
                 const sections = form.sections.map((candidate, position) =>
@@ -345,6 +358,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                 <div className="flex flex-col gap-3">
                   <Field
                     label="Title"
+                    path={`writingSamples.${sample.id}.title`}
                     value={sample.title}
                     onChange={(title) => {
                       patchSample({ title });
@@ -353,6 +367,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                   />
                   <Field
                     label="Sample"
+                    path={`writingSamples.${sample.id}.body`}
                     value={sample.body}
                     onChange={(body) => {
                       patchSample({ body });

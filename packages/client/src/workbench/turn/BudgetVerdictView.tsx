@@ -10,6 +10,8 @@ import { MetadataRow } from '../../ui/MetadataRow.js';
 import { Note } from '../../ui/Text.js';
 import { headroom } from '../headroom.js';
 
+import { labels } from '../../i18n/catalogue.js';
+
 /**
  * The budget verdict — the window with its honest origin ([21 §1.5]'s
  * reshaped limit: ceiling, source, share), what was reserved and spent, and
@@ -18,11 +20,14 @@ import { headroom } from '../headroom.js';
  * in the verdict — this is the viewer's honesty, not recomputation.
  */
 
-const LIMIT_SOURCE_LABELS: Record<BudgetVerdict['limit']['source'], string> = {
-  provider: 'the endpoint’s declared window',
-  preset: 'the preset’s cap',
-  user: 'your context limit',
-};
+const LIMIT_SOURCE_LABELS: Record<BudgetVerdict['limit']['source'], string> = labels(
+  'workbench.limit-source',
+  {
+    provider: 'the endpoint’s declared window',
+    preset: 'the preset’s cap',
+    user: 'your context limit',
+  },
+);
 
 export function BudgetVerdictView({
   verdict,

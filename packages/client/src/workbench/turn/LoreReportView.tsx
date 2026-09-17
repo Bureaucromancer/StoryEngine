@@ -9,6 +9,7 @@ import { formatCount } from '../../format.js';
 import { Button } from '../../ui/Button.js';
 import { table } from '../../ui/classes.js';
 import { Fine } from '../../ui/Text.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * **The keyword test, generalised** — [P5.8], [10 §3].
@@ -57,7 +58,7 @@ import { Fine } from '../../ui/Text.js';
  * rendered nothing for an unfamiliar reason would go blank on exactly the entry
  * somebody was asking about. Showing the raw class is ugly and true.
  */
-const SKIP_LABELS: Record<string, string> = {
+const SKIP_LABELS: Record<string, string> = labels('workbench.lore.skip', {
   'book-disabled': 'its book is switched off',
   'folder-disabled': 'a folder above it is shut',
   'entry-disabled': 'switched off',
@@ -75,7 +76,7 @@ const SKIP_LABELS: Record<string, string> = {
   'held-by-secondary': 'a key matched and its secondary rule refused it',
   'lost-the-roll': 'its probability roll failed',
   'lost-its-group': 'another entry in its group won',
-};
+});
 
 /**
  * Why a book is being scanned at all — ~~and there are only two, because
@@ -92,11 +93,11 @@ const SKIP_LABELS: Record<string, string> = {
  * *The fallback below prints a route this build has not heard of rather than a
  * blank*, which is the posture that made adding this one a one-line change.
  */
-const ROUTE_LABELS: Record<string, string> = {
+const ROUTE_LABELS: Record<string, string> = labels('workbench.lore.route', {
   treatment: 'linked by the treatment',
   session: 'linked by this session',
   memory: 'memories of somebody in the cast',
-};
+});
 
 /** Enough to see the shape without becoming the panel. */
 const SHOWN = 12;

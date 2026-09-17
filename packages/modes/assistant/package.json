@@ -1,0 +1,23 @@
+{
+  "name": "@storyengine/mode-assistant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "The assistant — help with the app and your own library, as a mode package, which is 06 §7.4's whole design.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@storyengine/sdk": "workspace:*"
+  },
+  "dependencyNote": "One dependency, and here it is the claim rather than a convention. 06 §7.4 says that if building the assistant requires a parallel chat implementation, something in the mode contract is wrong — so this package resolving nothing but the SDK is the test, and `tools/repo-shape.test.ts` is what keeps it one."
+}

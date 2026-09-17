@@ -47,6 +47,7 @@ import {
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
+import type { Occurrence } from '../notifications/router.js';
 import { TurnRunner } from './runner.js';
 
 /**
@@ -117,7 +118,17 @@ async function seedProviderConfig(): Promise<void> {
 }
 
 function makeRunner(
-  options: { script?: ScriptedReply[]; plan?: TurnPlan; config?: Partial<Config> } = {},
+  options: {
+    script?: ScriptedReply[];
+    plan?: TurnPlan;
+    config?: Partial<Config>;
+    /**
+     * What the last update check learned — [P11.6]. Omitted is `null`, *nothing
+     * has looked*, which is what every test that is not about remedies wants
+     * and is a state `remedyFor` handles rather than guesses at.
+     */
+    connectivity?: () => boolean | null;
+  } = {},
 ): void {
   provider = new FakeProvider(options.script === undefined ? {} : { script: options.script });
   const providers: ProviderFactory = () => provider;
@@ -134,11 +145,27 @@ function makeRunner(
       sessions: { ...DEFAULT_CONFIG.sessions, streamCoalesceMs: 0 },
     },
     ...(options.plan === undefined ? {} : { plan: options.plan }),
+    notify: (occurrence) => {
+      announced.push(occurrence);
+    },
+    ...(options.connectivity === undefined ? {} : { connectivity: options.connectivity }),
   });
   // The runner's own logger seam, so a test reads what an operator would.
   logLines = [];
+  announced = [];
   runner.setLogger(recorder(logLines, {}));
 }
+
+/**
+ * What the runner told the notification router — [09 §3.5], [P10.1].
+ *
+ * The seam rather than the store, deliberately: what the runner is responsible
+ * for is *saying a turn ended and what it ended as*, and the routing beyond that
+ * belongs to `notifications/router.test.ts`. A test here that read the
+ * `notification` table would be asserting both, and would go red for a reason
+ * that is not this file's.
+ */
+let announced: Occurrence[] = [];
 
 /** Structured lines the runner emitted for the turn under test. */
 let logLines: Record<string, unknown>[] = [];
@@ -747,6 +774,161 @@ describe('what the provider did, and what it cost', () => {
     // `unbound` and `dangling` are told apart because the remedies differ.
     expect(turn.steps?.[0]).toMatchObject({ state: 'failed', error: { reason: 'unbound' } });
     expect(provider.requests).toHaveLength(0);
+  });
+});
+
+/**
+ * The producer end of [09 §3.5](../../../../docs/design/09-server-multiuser-deployment.md)
+ * — [P10.1].
+ *
+ * ***A producer reports a fact and never a decision***, which is [09 §3.1]'s
+ * rule at the only end that could break it: *"if the client decides what to
+ * notify about, notifications only work while a client is connected."* So what
+ * these assert is the **vocabulary** — that a committed turn says `complete`,
+ * that a failed one says `failed` and carries a class rather than an endpoint's
+ * sentence, and that a turn somebody stopped says nothing at all.
+ *
+ * **The falsifying mutation is announcing on `draft.status` alone.** Every
+ * assertion about a completion and a failure still passes; what goes red is the
+ * cancelled case, which is the only one of the three that needs a second fact.
+ */
+describe('a turn ending is news, and a turn you stopped is not', () => {
+  it('says a committed turn completed, with the session by name', async () => {
+    const { job } = await runTurn();
+
+    /**
+     * ***Waited for rather than assumed, and the reason is the ordering this
+     * stage chose.*** `#announce` runs **after** `finaliseTurn`, which is what
+     * marks the job committed — and `runTurn` returns on exactly that. So the
+     * notification is genuinely still in flight when the turn is on disk, which
+     * is correct (nothing below the commit may delay a turn) and makes a bare
+     * assertion here a race. *Measured: it passed alone and failed under the
+     * full suite's load, which is the worst way to find this out.*
+     */
+    await until(() => announced.length === 1, 'the turn to be announced');
+    expect(announced[0]).toMatchObject({
+      kind: 'turn.complete',
+      account: ACCOUNT,
+      sessionId,
+      turnId: job.turnId,
+    });
+    // The name rather than the id — [09 §3.4] warns that params must carry
+    // everything the sentence needs, or a composer produces "New event in
+    // session 4f2a".
+    expect(announced[0]).toHaveProperty('sessionName');
+  });
+
+  /**
+   * ***A class, never a provider's words*** — [21 §1.4]. The endpoint's own
+   * sentence goes to the log; what crosses this seam is something a client can
+   * render in a language the server does not know.
+   */
+  it('says a failed turn failed, carrying the class and not the message', async () => {
+    makeRunner({
+      script: [{ stallMs: 5_000 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.status).toBe('failed');
+
+    await until(() => announced.length === 1, 'the failure to be announced');
+    expect(announced[0]).toMatchObject({ kind: 'turn.failed', account: ACCOUNT, sessionId });
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    // One of the vocabulary's own words, and short enough that it cannot be a
+    // sentence somebody pasted in.
+    expect(failure.error).toBe('terminal');
+    /**
+     * ***And the remedy beside it*** — [P11.6]. The class is what the engine
+     * did and the remedy is what a person could do, and this failure is the
+     * case where the two disagree most: `terminal` reads as *we gave up*, while
+     * the endpoint in fact accepted the request and then went quiet, which is
+     * not something anybody should change a key over.
+     */
+    expect(failure.remedy).toBe('endpoint-stalled');
+  });
+
+  /**
+   * ***[09 §6.5]'s sentence, reaching the seam it has to cross*** — [P11.6].
+   *
+   * `remedy.test.ts` owns the decision table; what this asserts is the **wiring**
+   * — that the runner reads its connectivity seam at the moment a turn fails and
+   * puts the answer where a notification can find it. A `remedyFor` that is
+   * perfect and never called is the failure this covers, and it is the failure
+   * an argument about the table would not.
+   */
+  it('reads connectivity when a turn fails, and says so in the announcement', async () => {
+    makeRunner({
+      script: [{ error: { class: 'transient', message: 'fetch failed' } }],
+      connectivity: () => false,
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.status).toBe('failed');
+
+    await until(() => announced.length === 1, 'the failure to be announced');
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    expect(failure.error).toBe('transient');
+    expect(failure.remedy).toBe('endpoint-silent-offline');
+  });
+
+  /**
+   * The same failure with the internet known to work blames the endpoint
+   * instead — the distinction [P10.3] paid for and the one that makes the
+   * sentence above trustworthy rather than a default.
+   */
+  it('blames the endpoint rather than the network when the internet works', async () => {
+    makeRunner({
+      script: [{ error: { class: 'transient', message: 'fetch failed' } }],
+      connectivity: () => true,
+    });
+
+    await runTurn();
+    await until(() => announced.length === 1, 'the failure to be announced');
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    expect(failure.remedy).toBe('endpoint-silent-online');
+  });
+
+  /**
+   * ***Nothing at all, and that is the judgement this stage makes.*** The
+   * person pressed **Stop**; a toast saying *your turn failed* reports their
+   * own act back to them as a problem. `aborted` alone cannot tell the two
+   * apart, which is why the runner tracks why it stopped.
+   */
+  it('says nothing about a turn somebody stopped', async () => {
+    makeRunner({ script: [{ text: 'a slow answer', chunks: 8, chunkDelayMs: 15 }] });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+
+    await until(
+      () => readEvents(commit, job.id).some((e) => e.key === 'call.streaming'),
+      'a chunk',
+    );
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    /**
+     * ***An absence needs a window, and this one is bought with a second turn
+     * rather than with a sleep*** — which is this file's standing rule, *"no
+     * sleeps anywhere: the store is the clock"*.
+     *
+     * `#announce` runs after `finaliseTurn`, so reading `announced` the instant
+     * the cancelled job commits would prove only that nothing was announced
+     * **synchronously** — weaker than the claim, and green on a build that
+     * announced cancellations a tick later. So a second, ordinary turn follows
+     * it: when *its* completion has been announced, anything the cancelled turn
+     * was going to say has had its turn too, because both take the same path and
+     * the cancelled one started first.
+     */
+    // **The same runner**, deliberately: `makeRunner` clears `announced`, which
+    // would throw away the very thing this is checking for.
+    await runNextTurn();
+    await until(() => announced.length > 0, 'the next turn to be announced');
+
+    // Exactly one, and it is the *second* turn's. A cancellation that announced
+    // itself would appear ahead of it.
+    expect(announced.map((one) => one.kind)).toEqual(['turn.complete']);
+    expect(announced[0]).not.toMatchObject({ turnId: job.turnId });
   });
 });
 

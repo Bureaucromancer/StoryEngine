@@ -123,6 +123,30 @@ export class SseWriter {
     }
   }
 
+  /**
+   * One frame of a stream whose frames are not {@link StreamFrame}.
+   *
+   * ***The typed door stays typed and this is the second one*** — [P10.1].
+   * {@link send} is exhaustive over the session stream's union on purpose: a new
+   * session frame has to be declared there or it does not compile. The
+   * **notification** stream ([09 §3.1]'s other channel) is per *account* rather
+   * than per session, carries whole records, and has no cursor — so its frames
+   * are not that union and adding them to it would make `attach.ts` declare a
+   * frame session attach can never produce.
+   *
+   * What is shared is everything below the frame: the head, the keepalive, the
+   * backpressure queue and the overflow rule. Duplicating those for a second
+   * stream is how two streams end up disagreeing about which of them drops.
+   *
+   * **No `id:` line, for the rendition frame's reason**: a client applies these
+   * by upsert and re-reads the list on attach, so exactness comes from the
+   * snapshot rather than from a backlog nothing could serve.
+   */
+  emit(event: string, data: unknown, droppable = false): void {
+    if (this.#closed) return;
+    this.#write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`, droppable);
+  }
+
   /** A class, never a message — the same rule the JSON errors follow. */
   fail(error: string): void {
     this.#write(`event: error\ndata: ${JSON.stringify({ error })}\n\n`, false);

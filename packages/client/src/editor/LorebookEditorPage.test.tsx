@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { newLoreEntry, newLorebook, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
-import { ApiError, type Account, type LibraryObject } from '../api.js';
+import { api, ApiError, type Account, type LibraryObject } from '../api.js';
 
 /**
  * **Exit-gate step 5** —
@@ -125,12 +125,16 @@ function makeLibrary() {
         contentHash: hash(),
       });
     },
+    /** What the last save said it was an import of — [10 §11.2c]'s history line. */
+    importedFrom: undefined as string | undefined,
     updateObject(
       _kind: unknown,
       _id: unknown,
       object: Record<string, unknown>,
       contentHash: string,
+      importedFrom?: string,
     ): Promise<{ contentHash: string; object: Record<string, unknown> }> {
+      this.importedFrom = importedFrom;
       if (contentHash !== hash()) {
         return Promise.reject(
           new ApiError(
@@ -174,7 +178,8 @@ vi.mock('../api.js', async (importOriginal) => {
         id: unknown,
         object: Record<string, unknown>,
         contentHash: string,
-      ) => server.updateObject(kind, id, object, contentHash),
+        importedFrom?: string,
+      ) => server.updateObject(kind, id, object, contentHash, importedFrom),
     },
   };
 });
@@ -1265,5 +1270,327 @@ describe('a new lorebook', () => {
     // The factory's shape, not a literal: a book arrives with its entry list
     // and its scan settings, the same as one made with `curl`.
     expect(filed?.object['entries']).toEqual([]);
+  });
+});
+
+/**
+ * ***[10 §11.2c](../../../../docs/design/10-ui-surfaces.md) — entries travel on
+ * their own***, at the surface.
+ *
+ * [entry-travel.test.ts](./entry-travel.test.ts) holds the two questions a
+ * screen cannot answer — which folders come with a selection, and what a merge
+ * does with a collision. **What is here is the three things only the page can
+ * say**: that a selection is something a person can actually make, that what
+ * comes out is a file, and that what goes in reaches disk through *the same
+ * write path as every other edit*, carrying the history line §11.2c asks for.
+ *
+ * *The last of those is the one worth a test rather than a reading.* §11.2c's
+ * *"the book's history is the record of the import"* is a claim about a field
+ * on a save three components away from the file picker, and the failure it
+ * guards against — an import that saves as `manual` — looks exactly like
+ * success on screen.
+ */
+describe('entries travelling on their own', () => {
+  /** jsdom has no object URLs and no real downloads, so both are captured. */
+  function captureDownloads(): { names: string[]; blobs: Blob[] } {
+    const caught: { names: string[]; blobs: Blob[] } = { names: [], blobs: [] };
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob: Blob | MediaSource) => {
+      caught.blobs.push(blob as Blob);
+      return 'blob:fake';
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      caught.names.push(this.download);
+    });
+    return caught;
+  }
+
+  /**
+   * The hidden input, which has no accessible name on purpose — see
+   * `EntryTravel`.
+   *
+   * **Narrowed by `accept`**, because this page grew a second hidden file input
+   * when [10 §11.2b]'s picture strips landed, and a bare
+   * `input[type="file"]` then found the image picker instead.
+   */
+  function filePicker(): HTMLInputElement {
+    const found = document.querySelector<HTMLInputElement>('input[type="file"][accept*="json"]');
+    if (found === null) throw new Error('no file input rendered');
+    return found;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('exports the entries a person ticked, as a lorebook', async () => {
+    const caught = captureDownloads();
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Harbour' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Export selected' }));
+
+    // The em-dash is not a path character, and what is left of it is one
+    // space rather than two — see `fileNameFor`.
+    expect(caught.names).toEqual(['Ardent entries.json']);
+    const [blob] = caught.blobs;
+    expect(blob).toBeDefined();
+    const written = JSON.parse(await (blob?.text() ?? '{}')) as Lorebook;
+    expect(written.schema).toBe(newLorebook('x').schema);
+    expect(written.entries.map((one) => one.name)).toEqual(['Harbour']);
+    // The folder above it came too — a dozen entries arriving flat at the root
+    // have lost a shape the author gave the book.
+    expect(written.folders.map((one) => one.id)).toEqual(['places']);
+  });
+
+  it('will not export nothing', async () => {
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    expect(screen.getByRole('button', { name: 'Export selected' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+
+  it('merges a file into the open book, reviews it, and saves it as an import', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      scanDepth: 8,
+      entries: [
+        entry('01a008de-7e08-70d0-899c-000000000009', 'Bridge'),
+        entry('01a008de-7e08-70d0-899c-00000000000a', 'The lock keeper'),
+      ],
+    };
+    const file = new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' });
+
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [file] } });
+      // The change handler reads the file, so what `act` has to flush is the
+      // promise chain rather than the event — which is a microtask away and
+      // has to be awaited for `act` to see it.
+      await Promise.resolve();
+    });
+
+    // ***The review, in the list rather than as a modal*** — §5's step scaled
+    // down, and it reports the two things a merge decided on its own.
+    const review = await screen.findByRole('region', { name: 'What arrived' });
+    expect(within(review).getByText(/2 entries added/)).toBeTruthy();
+    // `Bridge` was taken, so the incoming one was renamed rather than merged
+    // into the entry already here.
+    expect(within(review).getByText('Bridge → Bridge (2)')).toBeTruthy();
+    expect(within(review).getByText(/Scan depth: 8 → 2/)).toBeTruthy();
+
+    // Nothing is on disk yet, which is what makes the review fixable.
+    expect(server.stored().entries).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.entries.map((one) => one.name)).toEqual([
+      'Harbour',
+      'Bridge',
+      'Bridge (2)',
+      'The lock keeper',
+    ]);
+    /**
+     * ***The history line***, and the assertion this whole test exists for:
+     * §11.2c says the merge goes through *"the same write path as every other
+     * edit"* and the book takes a version *"naming what came in and from
+     * where"*. An import that saved as `manual` would look identical above.
+     */
+    expect(server.importedFrom).toBe('gift.json');
+  });
+
+  it('says which kind of file it could not read, rather than that it could not', async () => {
+    renderApp();
+    await openEditor();
+
+    const wrong = new File([JSON.stringify({ schema: 'storyengine.actor/1' })], 'vera.json', {
+      type: 'application/json',
+    });
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [wrong] } });
+      await Promise.resolve();
+    });
+
+    // [P11.6]'s rule: *that is the wrong file* and *that file is broken* have
+    // different next steps, so they are different sentences.
+    expect(
+      await screen.findByText(/StoryEngine file of another kind, not a lorebook/),
+    ).toBeTruthy();
+  });
+
+  it('leaves the next save alone — an import is one save, not a mode', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [entry('01a008de-7e08-70d0-899c-00000000000b', 'The lock keeper')],
+    };
+    await act(async () => {
+      fireEvent.change(filePicker(), {
+        target: {
+          files: [new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' })],
+        },
+      });
+      await Promise.resolve();
+    });
+    await screen.findByRole('region', { name: 'What arrived' });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+    expect(server.importedFrom).toBe('gift.json');
+
+    // An ordinary edit, an hour later. A `from` left lying about would
+    // attribute it to a file somebody imported once.
+    await userEvent.click(screen.getByRole('button', { name: 'Harbour' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(server.importedFrom).toBeUndefined();
+    });
+  });
+});
+
+/**
+ * ***[10 §11.2b](../../../../docs/design/10-ui-surfaces.md) — image slots***, at
+ * the surface.
+ *
+ * `library/assets.test.ts` holds the container: bytes in, bytes out, an entry's
+ * row served as readily as the book's, and the sweep that collects what nothing
+ * names. **What is here is the two things §11.2b is actually about** — that the
+ * pictures are in *two* places, a gallery on the book and a strip inline with
+ * each entry, and that the row a person edits reaches the book through the
+ * ordinary save.
+ *
+ * *And one claim that is a sentence rather than a mechanism.* §11.2b: *"nothing
+ * here suggests the images are used. They are not sent, and an editor implying
+ * otherwise would be making a promise the engine does not keep — which matters
+ * more than usual here, because it is exactly the assumption the schema warns
+ * against."* A test is a poor guard against an implication, and a good one
+ * against the sentence being deleted.
+ */
+describe('image slots on a book and its entries', () => {
+  function uploads(): { sent: Blob[] } {
+    const sent: Blob[] = [];
+    vi.spyOn(api, 'uploadAsset').mockImplementation((_kind, _id, blob) => {
+      sent.push(blob);
+      return Promise.resolve({
+        asset: {
+          ref: `assets/${String(sent.length)}.png`,
+          digest: `sha256:${String(sent.length)}`,
+          bytes: 4,
+          mime: 'image/png',
+        },
+      });
+    });
+    return { sent };
+  }
+
+  function pickerIn(container: HTMLElement): HTMLInputElement {
+    const found = container.querySelector<HTMLInputElement>('input[type="file"][accept^="image"]');
+    if (found === null) throw new Error('no image picker rendered');
+    return found;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('adds a picture to the book and makes it the cover, through the ordinary save', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.click(await within(gallery).findByRole('button', { name: 'Use as the cover' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.media).toHaveLength(1);
+    expect(saved.media[0]?.ref).toBe('assets/1.png');
+    expect(saved.primaryMediaId).toBe(saved.media[0]?.id);
+  });
+
+  it('puts a strip on the entry rather than on the book', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    // The entry's own strip is the one below the entry heading, not the
+    // gallery above — §11.2b's *inline with the entry*.
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
+      ?.parentElement;
+    if (strip === undefined || strip === null) throw new Error('no entry section');
+
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['fake'], 'quay.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    // On the entry, and **not** on the book: the bytes are stored beside the
+    // book either way, and which array the row lands in is the whole difference.
+    expect(saved.media).toEqual([]);
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.media).toHaveLength(1);
+  });
+
+  it('offers role as a pick-list and tags as free text', async () => {
+    uploads();
+    renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    // §11.2b: *"role is a short pick-list the software understands, tags are
+    // free text the author organises by. Getting this wrong in the UI produces
+    // tag soup in the role field."*
+    expect(await within(gallery).findByRole('combobox', { name: 'Role' })).toBeTruthy();
+    expect(within(gallery).getByRole('textbox', { name: 'Tags' })).toBeTruthy();
+  });
+
+  it('says the pictures are never sent', async () => {
+    renderApp();
+    await openEditor();
+
+    // The one claim §11.2b makes that a mechanism cannot keep — so what is
+    // guarded is the sentence.
+    expect(screen.getAllByText(/never sent to a model/).length).toBeGreaterThan(0);
   });
 });

@@ -113,3 +113,93 @@ jobs:
             echo "CHANGELOG.md has no '## ${version}' entry." >&2
             exit 1
           }
+
+  # ***Tier 2, added at P11.9*** — docs/design/09-server-multiuser-deployment.md
+  # §5.4, docs/design/workplan/01-work-plan.md §8.
+  #
+  # **The second of the two artifacts beta requires.**
+  # docs/design/workplan/04-repo-and-releases.md §0 names them:
+  # *"the canonical build must deliver the OCI image and the tarball… for beta to
+  # count"*, with the other four packaging artifacts held for 1.0. The image has
+  # existed since P6A; this is the other one, and §5.4 calls it *"the single
+  # highest-value non-container artifact, and the one most easily skipped"*.
+  #
+  # **A separate job rather than more steps on the image**, and it is not
+  # parallelism: the image job needs a daemon and a registry login, and this one
+  # needs neither. A tarball that failed because a registry was down would be an
+  # artifact held hostage by a dependency it does not have.
+  #
+  # **It builds from source rather than extracting the image**, which is the
+  # tempting shortcut and the wrong one. `docker create` + `docker cp` would tie
+  # the tarball's contents to a base image's node_modules layout and to whatever
+  # the image's `USER` could read — and it would make the two artifacts one
+  # artifact with two wrappers, which is exactly the coupling
+  # docs/design/09-server-multiuser-deployment.md §5.4 keeps out of the tier
+  # list. The steps below are the Dockerfile's build stage in plain commands,
+  # deliberately, so a change to one is visibly a change to the other.
+  tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      # The pnpm the workspace pins, installed with npm — the same line the
+      # Dockerfile carries and for the same reason it carries it rather than
+      # corepack, which Node no longer ships. `tools/release.test.ts` holds both
+      # to the `packageManager` field.
+      - run: npm install -g pnpm@11.18.0
+
+      - name: The version, as the artifact wants it
+        id: names
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The identity, from what the workflow was told — and `--expect-version`
+      # refuses a tag that disagrees with the root package.json, so a tarball
+      # cannot claim a version nobody released.
+      - name: The build identity
+        run: |
+          node tools/write-build-info.mjs --commit "${{ github.sha }}" \
+            --expect-version "${{ steps.names.outputs.version }}"
+
+      # The same deploy the image does, into a plain directory. `--legacy`
+      # because pnpm 10 and later refuse the non-injected form otherwise, and
+      # one `deploy` per mode for the reason the Dockerfile gives: a loop would
+      # be a third place the shipped set is written.
+      - name: The runnable tree
+        run: |
+          pnpm --filter @storyengine/server --legacy deploy --prod build/app
+          pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
+            build/app/node_modules/@storyengine/mode-scene
+          pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
+            build/app/node_modules/@storyengine/mode-freeform
+          pnpm --filter @storyengine/mode-assistant --legacy deploy --prod \
+            build/app/node_modules/@storyengine/mode-assistant
+          cp -r packages/client/dist build/app/client
+
+      - name: The archive
+        run: |
+          node tools/pack-tarball.mjs build/app deploy/tarball \
+            "build/storyengine-${{ steps.names.outputs.version }}-linux.tar.gz"
+
+      # **Packed twice and compared**, which is work plan §8's *reproducible
+      # builds… from a tag* in the only form that distinguishes it from *the
+      # build works* (P11.9's proof obligation). `tools/pack-tarball.test.ts`
+      # makes the same assertion over a fixture; this makes it over the artifact
+      # somebody will actually download, where a stray timestamp would live.
+      - name: The archive is reproducible
+        run: |
+          node tools/pack-tarball.mjs build/app deploy/tarball build/again.tar.gz
+          cmp "build/storyengine-${{ steps.names.outputs.version }}-linux.tar.gz" \
+            build/again.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storyengine-${{ steps.names.outputs.version }}-linux
+          path: build/storyengine-${{ steps.names.outputs.version }}-linux.tar.gz
+          if-no-files-found: error

@@ -67,6 +67,9 @@ import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
+import { exportSession } from '../sessions/export.js';
+import { importSession } from '../sessions/import.js';
+import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
@@ -297,8 +300,33 @@ const CreateBody = Type.Object(
 );
 
 const ListQuery = Type.Object({ archived: Type.Optional(Type.String()) });
-const TurnsQuery = Type.Object({ limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,4}$' })) });
+/**
+ * `?from=<turnId>` walks to that node instead of to the head —
+ * [10 §12.1](../../../../docs/design/10-ui-surfaces.md),
+ * [P11.1](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * ***The reading view's *"any node, not just the head"*, and it is one
+ * parameter rather than a route.*** §12.1 says the two surfaces *"read the same
+ * turn records and share nothing else"* — which is a statement about what they
+ * render, not about how they fetch. A second route would be a second place for
+ * the walk, the limit and the sibling map to drift, over a difference that is
+ * one argument to `walkPath`.
+ *
+ * *A string, because Fastify's validator runs with `coerceTypes: false`* and a
+ * querystring value arrives as text — the same rule `search.ts` states for its
+ * own `limit`.
+ */
+const TurnsQuery = Type.Object({
+  limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,4}$' })),
+  from: Type.Optional(Type.String({ maxLength: 200 })),
+});
 const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 200 })) });
+/**
+ * Whose next message to draft — [06 §3.1], [P11.4]. Absent is the persona,
+ * which is the case §3.1 describes; naming another member is [06 §8]'s *more
+ * than one member may be `control: 'player'`* followed through.
+ */
+const ImpersonateBody = Type.Object({ actorId: Type.Optional(Type.String({ maxLength: 200 })) });
 
 /**
  * What a `PATCH /sessions/:sessionId` may change — archiving, and the name.
@@ -2003,11 +2031,26 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const byId = await readTurns(services.sessions, account.handle, session.id);
+      const query = request.query as { limit?: string; from?: string };
+      /**
+       * ***A node this session does not have is a 404 rather than an empty
+       * path*** — [P11.1].
+       *
+       * `walkPath` answers `[]` for an id it cannot find, which is
+       * indistinguishable from *a session with no turns yet* and would render
+       * as a blank reading view with nothing wrong. A pasted or stale link is
+       * exactly how somebody arrives here with a bad id, so it is worth the one
+       * check to say which.
+       */
+      if (query.from !== undefined && !byId.has(query.from)) {
+        return reply
+          .code(404)
+          .send({ error: 'not-found', message: 'That session has no such turn.' });
+      }
       // The path from the head, oldest first — not every turn in the file. A
       // session is a tree that P2 happens to use linearly, and a transcript is
       // one walk of it ([03 §5.5]).
-      const path = walkPath(byId, session.headTurnId);
-      const query = request.query as { limit?: string };
+      const path = walkPath(byId, query.from ?? session.headTurnId);
       /**
        * Floored as well as capped.
        *
@@ -2123,6 +2166,147 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       );
 
       return reply.send({ preview });
+    },
+  );
+
+  /**
+   * ***A session, whole, for another install*** — [25 B12], [10 §12.3],
+   * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **`GET`, because it reads and changes nothing** — which is the opposite of
+   * the route below it and for the opposite reason: this costs a few file reads
+   * and is the one thing on this surface a person might reasonably want to
+   * bookmark or `curl`.
+   *
+   * ***A file rather than a payload.*** `content-disposition` names it after the
+   * session, because the thing somebody does with an export is put it somewhere
+   * — and a browser that rendered it as JSON in a tab would have made them
+   * copy it out by hand.
+   */
+  /**
+   * ***And back in*** — [18 §3](../../../../docs/design/18-session-import.md),
+   * [25 B12](../../../../docs/design/25-open-questions.md),
+   * [P11 §3](../../../../docs/design/workplan/28-p11-implementation.md)'s row 10.
+   *
+   * The gate's row 10 is *"a session exported from this install **loads on
+   * another one**, siblings and all"*, and a format with no reader makes that
+   * sentence unwalkable rather than merely unwalked. This is the reader.
+   *
+   * **A body rather than an upload**, unlike the library's import: a session
+   * export is one JSON document, the client already has it as a file, and a
+   * multipart route would buy the ability to stream a document that is
+   * megabytes at worst. *The size limit is the body parser's, which is the
+   * limit every other route on this server already has.*
+   *
+   * ***It always makes a new session.*** [07 §3] makes a session a tree keyed
+   * by parent, and merging two trees would mean deciding what a turn with an
+   * unknown parent is — a question nobody has asked and whose every answer
+   * loses something.
+   */
+  app.post('/sessions/import', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const result = await importSession(
+      { sessions: services.sessions },
+      account.handle,
+      request.body,
+    );
+    if (!result.ok) {
+      // A class, for the client to word — [21 §1.4], as everywhere else.
+      return reply.code(422).send({ error: result.reason });
+    }
+    return reply.code(201).send(result);
+  });
+
+  app.get(
+    '/sessions/:sessionId/export',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await readMine(services, request, reply);
+      if (!session) return;
+
+      const exported = await exportSession(
+        { sessions: services.sessions, build: services.build },
+        account.handle,
+        session.id,
+      );
+      if (exported === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'That session is not there.' });
+      }
+
+      return reply
+        .header('content-type', 'application/json; charset=utf-8')
+        .header('content-disposition', `attachment; filename="${fileNameFor(session.name)}"`)
+        .send(exported);
+    },
+  );
+
+  /**
+   * ***A draft of your own next message*** —
+   * [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+   * [P11.4](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **`POST` for a call and `GET` for nothing**, which reads oddly for something
+   * that commits no state and is right: this dispatches a model call, which
+   * costs money and time and must not be replayable by a browser deciding to
+   * prefetch a link.
+   *
+   * ***Not refused while a turn is in flight***, which is the one thing this
+   * route does differently from its neighbours and is deliberate. A submission
+   * is refused mid-turn because two turns on one session is the state [P2 §2.10]
+   * exists to prevent; a draft commits nothing, moves no head and can be thrown
+   * away — and the moment somebody most wants one is while they are reading what
+   * just arrived. *What it shares with them* is the per-session read and the
+   * ownership check, because a draft in somebody else's story is somebody else's
+   * prose.
+   */
+  app.post(
+    '/sessions/:sessionId/impersonate',
+    { schema: { params: SessionParams, body: ImpersonateBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await readMine(services, request, reply);
+      if (!session) return;
+
+      const body = request.body as { actorId?: string };
+      const drafted = await impersonate(
+        {
+          sessions: services.sessions,
+          accounts: services.accounts,
+          providers: services.providers,
+          config: services.config,
+        },
+        {
+          account: account.handle,
+          sessionId: session.id,
+          parentTurnId: session.headTurnId ?? null,
+          ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
+          // A draft nobody is waiting for is a draft nobody wants: the request
+          // going away is the whole of when to stop.
+          signal: AbortSignal.timeout(services.config.limits.providerTimeoutMs),
+        },
+      );
+
+      if (!drafted.ok) {
+        /**
+         * **A class, and the client has the sentences.** The four reasons point
+         * at four different places: a mode with no prose step is a mode that
+         * cannot do this at all, a non-player member is the design's own line
+         * ([06 §8]'s *"the difference between a party member and a second
+         * player"*), and the two role failures are the bindings surface.
+         */
+        return reply.code(drafted.reason === 'not-a-player' ? 409 : 422).send({
+          error: drafted.reason,
+          message: 'That character’s next message could not be drafted.',
+        });
+      }
+      return reply.send({ text: drafted.text });
     },
   );
 
@@ -2317,6 +2501,25 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
+
+      /**
+       * ***[09 §6.4]'s *"refuse new turns"*, and this is the only door it has
+       * to be refused at*** — [P10.3]. A restart drains by waiting for the
+       * turns in flight, which is pointless if one can be started while it
+       * waits: the drain would never end, or it would end by aborting a turn
+       * that began **after** somebody pressed the button.
+       *
+       * **503 with `retry-after`**, which is the honest pair: the server is
+       * temporarily unable and will be back — that is the whole premise of a
+       * supervised restart — and a client that reconnects is doing the right
+       * thing rather than retrying into a wall.
+       */
+      if (services.draining) {
+        return await reply.code(503).header('retry-after', '10').send({
+          error: 'restarting',
+          message: 'This server is restarting. Your next turn will go through once it is back.',
+        });
+      }
 
       const { sessionId } = request.params as { sessionId: string };
       const body = request.body as {
@@ -2551,9 +2754,24 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const cursor = parseCursor(query.after ?? headerCursor(request));
 
       reply.hijack();
+
+      /**
+       * ***This is where *viewing* is answered from*** — [09 §3.1],
+       * [P10 §1.3], [P10.1].
+       *
+       * A socket open on this session is the strongest presence signal 1.0 has,
+       * and it is knowable only here: the session **store** could report *this
+       * person read this session*, which is a different fact and is true of a
+       * background poll. Held for exactly as long as the stream is, so the
+       * routing rule — *if you are looking at the session, you are not told
+       * about it* — is measured against something that closes when the tab does.
+       */
+      const watching = services.notifications.viewing(account.handle, session.id);
+
       const writer = new SseWriter(reply.raw, {
         keepaliveMs: services.config.sessions.streamKeepaliveMs,
         onClose: () => {
+          watching();
           attachment?.detach();
           services.streams.delete(release);
         },
@@ -2793,4 +3011,24 @@ async function sessionsInTreatment(
     if (other?.treatment === treatment) found.push({ sessionId: row.sessionId, name: row.name });
   }
   return found;
+}
+
+/**
+ * A filename a person can find again — [P11.10].
+ *
+ * ***ASCII and nothing else***, which is a fact about `content-disposition`
+ * rather than about names: the header is latin-1 by specification, and a
+ * session called *Дождливый город* would arrive as mojibake or as a header
+ * some proxy refuses. The date makes two exports of one session distinguishable
+ * in a downloads folder, which is where they land.
+ */
+function fileNameFor(name: string): string {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[^\p{ASCII}]/gu, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  const day = new Date().toISOString().slice(0, 10);
+  return `${slug === '' ? 'session' : slug}-${day}.session.json`;
 }

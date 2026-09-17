@@ -336,6 +336,93 @@ create table rendition_job (
 create unique index rendition_job_by_rendition on rendition_job(rendition_id);
 create index rendition_job_by_session on rendition_job(session_id, created_at);
 `,
+
+  /**
+   * Notifications — [09 §3.4](../../../../docs/design/09-server-multiuser-deployment.md),
+   * [09 §3.5](../../../../docs/design/09-server-multiuser-deployment.md), [P10.1].
+   *
+   * ***Keyed by account, which is the whole reason it is not the \`event\`
+   * table.*** A progress event belongs to a **job** and is scoped to the session
+   * anyone watching it is watching; a notification belongs to a **person** and
+   * has to find them wherever they are — including in a session they do not have
+   * open, and including when the thing that produced it has no session at all
+   * (\`system.notice\`). [09 §3.2] splits the two for that reason, and this is the
+   * split as a table rather than as a paragraph.
+   *
+   * **Durable, because the badge is.** [09 §3.6]'s first delivery channel
+   * includes an *unread badge*, which is a claim that survives a page reload —
+   * and \`system.notice\` carries admin warnings that must not evaporate because
+   * nobody had a tab open. So this is the store and the stream is only delivery,
+   * which is the same division \`bus.ts\` already draws for the durable half of
+   * the session stream.
+   *
+   * ***The schema is the retrofit risk and that is why it is here rather than
+   * later*** — [09 §3.4] states it outright: *"the retrofit cost is not in the
+   * delivery channels — those are additive. It is in the notification event
+   * schema, because every producer changes if it is wrong."* Every field below
+   * is one that section names.
+   */
+  `
+create table notification (
+  id          text primary key,
+
+  -- The **target user, resolved server-side** ([09 §3.4]). Never inferred by a
+  -- client, which is the half of [09 §3.1] that cannot be got wrong: if the
+  -- client decided, notifications would work only while a client was connected.
+  account     text not null,
+
+  -- The closed set in [09 §3.5]. A text column rather than a check constraint,
+  -- for \`ProgressEvent.key\`'s reason: the union in TypeScript is what makes a
+  -- typo a compile error, and a constraint here would only turn it into a
+  -- runtime one that a migration then has to widen.
+  class       text not null,
+
+  -- [09 §3.4]'s one field rather than a doubling of the class list: *does the
+  -- reader need to do something, or only to know?* It is the axis routing and
+  -- presentation actually care about.
+  actionable  integer not null,
+
+  -- The params of a \`{ key, params }\` summary, composed at display time because
+  -- the server does not know the reader's language ([19 §12.5]). **Params, not
+  -- prose** — and [09 §3.4] warns this cuts both ways: they must carry
+  -- everything the sentence needs, or a later composer produces the
+  -- "New event in session 4f2a" school of notification.
+  params      text not null,
+
+  -- What this is about, when it is about something. Null for a \`system.notice\`,
+  -- which is the class that exists precisely because several admin warnings have
+  -- nowhere to be delivered and no session behind them.
+  session_id  text,
+  turn_id     text,
+
+  -- [09 §3.4]'s dedupe key. *Five characters replying in a group chat is one
+  -- notification, not five* — and the coalescing is a **fold into the newest row
+  -- inside the window**, not a unique index, because two hours later the same
+  -- key is a second notification rather than a duplicate. The window is the
+  -- query's, so it can be tuned without a migration.
+  dedupe_key  text not null,
+
+  -- How many folded in. One row that says *3* is the thing a count of three rows
+  -- is not, and it is what lets the summary say so.
+  folded      integer not null default 1,
+
+  created_at  real not null,
+  -- Moved by a fold, so the window is measured from the most recent arrival
+  -- rather than the first — which is what makes a steady trickle coalesce
+  -- instead of restarting every window.
+  updated_at  real not null,
+
+  read_at     real
+) strict;
+
+-- The list a person reads, newest first.
+create index notification_by_account on notification(account, created_at);
+
+-- The coalescing lookup, and the unread count. Both are per-account and both
+-- are hot enough to deserve the index that a badge polls.
+create index notification_by_dedupe on notification(account, dedupe_key, updated_at);
+create index notification_unread on notification(account, read_at);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

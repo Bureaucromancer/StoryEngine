@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { validate } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, type TestServer } from '../../test-server.js';
+import { makeTestServer, setUpAdmin, type TestServer, ownObjects } from '../../test-server.js';
 import { marinaraFixture } from '../fixtures/test-marinara.js';
 import { MemoryFileSource } from '../memory-source.js';
 import { malformedInputs } from '../parse.js';
@@ -337,8 +337,10 @@ describe('sweeping a Marinara data root', () => {
     const outcome = await run({ 'storage/.writer-lease': 'held' });
 
     expect(outcome).toEqual({ ok: false, refusal: 'live-install' });
-    const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
-    expect(actors.body.objects).toEqual([]);
+    // **`ownObjects`, not the bare list** — the system scope ships an assistant
+    // card since [P11.3], so *the library is empty* was never the claim: it is
+    // that **the user's** library is, which is what the refusal is about.
+    expect((await ownObjects(server, 'actors')).objects).toEqual([]);
   });
 
   it('refuses a storage format it does not know, and writes nothing', async () => {
@@ -347,8 +349,7 @@ describe('sweeping a Marinara data root', () => {
     });
 
     expect(outcome).toEqual({ ok: false, refusal: 'unknown-format' });
-    const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
-    expect(actors.body.objects).toEqual([]);
+    expect((await ownObjects(server, 'actors')).objects).toEqual([]);
   });
 });
 

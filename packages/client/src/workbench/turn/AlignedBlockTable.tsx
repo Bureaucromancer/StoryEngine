@@ -12,6 +12,8 @@ import { blockSourceAddress } from '../address.js';
 import { alignBlocks, changeOf, type BlockChange } from './align.js';
 import { rulesOf } from './rules.js';
 
+import { labels } from '../../i18n/catalogue.js';
+
 /**
  * Two turns' blocks in one table, a row per block id — [P3.6].
  *
@@ -28,13 +30,13 @@ import { rulesOf } from './rules.js';
  * count of nothing.
  */
 
-const CHANGE_LABELS: Record<BlockChange, string> = {
+const CHANGE_LABELS: Record<BlockChange, string> = labels('workbench.block-change', {
   same: 'Unchanged',
   ruling: 'Ruling moved',
   changed: 'Changed',
   added: 'Only after',
   removed: 'Only before',
-};
+});
 
 export function AlignedBlockTable({
   before,

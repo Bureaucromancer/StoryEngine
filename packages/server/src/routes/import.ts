@@ -127,7 +127,17 @@ function conflictPolicy(value: string | null): ConflictPolicy | undefined {
  * than after.** The 413 below is not a check but a catch, the 415 is a `catch`
  * arm rather than a content-type test, and the truncation flag is read after the
  * buffer — three pieces of arranged-just-so control flow that would have been
- * copied verbatim and then drifted. `limits.maxUploadMb` is read here, per
+ * copied verbatim and then drifted.
+ *
+ * ***Exported at [P10.4], when the third door arrived from outside this
+ * module*** — `POST /api/me/avatar`, [12 §5.2]. That section calls the avatar
+ * route *"the server's first upload"*, which was true when it was written and
+ * had stopped being true by P4; what it names correctly is the three
+ * obligations, and two of them — bound the size, take the bytes as received —
+ * are this function. **The paragraph above predicted this exactly**, and the
+ * export is that prediction paying off rather than a widening: the arranged
+ * control flow stays in one place, and the avatar route adds only the sniffing
+ * that is its own. `limits.maxUploadMb` is read here, per
  * request, off the live config reference, so both doors answer with whatever
  * number is set now.
  *
@@ -141,7 +151,7 @@ function conflictPolicy(value: string | null): ConflictPolicy | undefined {
  * takes many files and this does not. Callers that read a field say so, and
  * `docs/api.md` says so where a person writing a client will look.
  */
-async function readOnePart(
+export async function readOnePart(
   request: FastifyRequest,
   reply: FastifyReply,
   services: AppServices,

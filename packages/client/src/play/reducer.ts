@@ -3,7 +3,7 @@
 
 import type { Rendition } from '@storyengine/shared';
 
-import type { SseFrame } from './sse.js';
+import type { SseFrame } from '../sse/parser.js';
 
 /**
  * What the play surface knows, and how a frame changes it.

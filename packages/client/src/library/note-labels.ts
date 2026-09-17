@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ImportNote } from '@storyengine/shared';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * **The review vocabulary: one sentence per note class the converters emit.**
@@ -24,7 +25,7 @@ import type { ImportNote } from '@storyengine/shared';
  * dotted machine string. That test names this path; moving the table again
  * means repointing it.
  */
-export const NOTE_LABELS: Record<string, string> = {
+export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.preset.credentialsRemoved': 'Removed connection fields: {fields}.',
   'import.preset.contextCeilingWasAbsolute':
     'The context limit ({tokens}) was an absolute number in the source, and is a ceiling here.',
@@ -166,7 +167,7 @@ export const NOTE_LABELS: Record<string, string> = {
     'This is inside a Marinara storage folder. Point two folders up, at the data folder itself.',
   'import.root.marinaraTooOld':
     'This is a Marinara data folder from before version 1.5.7, which kept everything in one database file. This build reads only the newer file storage.',
-};
+});
 
 /**
  * `{name}` substitution, which is all the catalogue needs until ICU arrives.

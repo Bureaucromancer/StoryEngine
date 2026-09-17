@@ -6,19 +6,39 @@ import type { JSX } from 'react';
 import type { LibraryKind } from '../api.js';
 import { Badge } from '../ui/Badge.js';
 
+import { labels } from '../i18n/catalogue.js';
+
 /**
  * Display names for the six kinds, keyed by folder name. Keyed by the *value*,
  * never the other way around — nothing branches on a displayed string
  * ([19 §12.6](../../../../docs/design/19-tech-stack.md)).
  */
-export const KIND_LABELS: Record<LibraryKind, string> = {
+export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
   actors: 'Actors',
   lorebooks: 'Lorebooks',
   treatments: 'Treatments',
   setups: 'Setups',
   presets: 'Presets',
   packages: 'Packages',
-};
+});
+
+/**
+ * ***The same six kinds in the singular***, for a sentence rather than a
+ * heading — [P11.2].
+ *
+ * `KIND_LABELS` above is what a tab says; this is what a sentence about one
+ * object says, and the two cannot be derived from each other in a language
+ * where plurals are not suffixes. A separate table is what [19 §12.2]'s
+ * explicit keys are for.
+ */
+export const KIND_WORDS: Record<LibraryKind, string> = labels('library.kind-word', {
+  actors: 'actor',
+  lorebooks: 'lorebook',
+  treatments: 'treatment',
+  setups: 'setup',
+  presets: 'preset',
+  packages: 'package',
+});
 
 /**
  * The user-versus-system badge. The list merges both libraries into one

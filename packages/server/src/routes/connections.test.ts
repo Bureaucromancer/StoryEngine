@@ -407,6 +407,58 @@ describe('fetching a model list', () => {
   });
 
   /**
+   * ***The sentence [09 §6.5] asks for, and the install it must never reach***
+   * — [P11.6]. Two halves of one rule, so they are one test: *"this server
+   * appears to have no internet access"* is the right thing to say to somebody
+   * whose machine has no route out, and the worst thing to say to somebody who
+   * deliberately runs everything on their LAN and has one container down.
+   *
+   * **The local half is the one a happy path would never see**, which is why it
+   * is asserted against `online: false` — the server *knows* it is offline and
+   * must still say nothing about it, because a refused connection to
+   * `10.0.0.5` is evidence about `10.0.0.5` and about nothing else.
+   */
+  it('names the internet only for a remote endpoint, and never for a local one', async () => {
+    server.services.updates = { ...server.services.updates, online: false };
+    fetchResult = new TypeError('fetch failed');
+
+    const remote = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'https://api.example.com/v1' },
+    });
+    expect(remote.status).toBe(502);
+    expect(remote.body.error).toBe('offline');
+
+    const local = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'http://10.0.0.5:11434/v1' },
+    });
+    expect(local.status).toBe(502);
+    expect(local.body.error).toBe('unreachable');
+  });
+
+  /**
+   * *Nothing has looked* is not *the internet is down* — the third state
+   * `UpdateStatus.online` carries deliberately. A server in its first minute
+   * has run no check, and inventing a diagnosis there would be this program
+   * having an opinion about somebody's network on no evidence.
+   */
+  it('claims nothing about the internet before a check has run', async () => {
+    fetchResult = new TypeError('fetch failed');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'https://api.example.com/v1' },
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body.error).toBe('unreachable');
+  });
+
+  /**
    * **The literal case the gate names**: an endpoint that *does not implement*
    * `/models` answers 404, not a transport failure. That branch had no test —
    * the three above cover ok-with-good-json, ok-with-a-shape-we-do-not-know,
@@ -1046,13 +1098,40 @@ describe('a key', () => {
    * which was right when the only exemption was a write, and would have been a
    * hole the moment a readable one was added.
    */
+  /**
+   * ***Four more at [P10.3], and they are the first exemptions that **do**
+   * carry a key — 2026-09-16.***
+   *
+   * `/api/me/connections` is [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
+   * *your connections*, which [P2B §2.7] sent to *"the phase after, or at P10
+   * with the rest of §15.1"*. Every exemption before it rested on the same
+   * argument — *this route handles ids, never credentials* — and that argument
+   * is unavailable here: a personal connection is a label, a base URL and a key,
+   * which is the whole of what makes it worth having.
+   *
+   * ***So the exemption rests on a different claim and needs a different
+   * probe.*** What makes these safe is not that they carry no secret but that
+   * they can only write **into the caller's own directory**, and only when the
+   * caller holds `privateConnections`. So the probe is the capability: an
+   * account without it is refused on every one of them, and the refusal is the
+   * class rather than a 404, because [09 §4.5] is explicit that the UI-level
+   * check is not the boundary — the loader is — and a person told *ask an
+   * administrator* should be able to tell that from a mistyped URL.
+   *
+   * **A third probe kind rather than a bare set**, which is [P7.3]'s rule
+   * arriving at its third case: each entry says how it is probed and every entry
+   * is probed, so an exemption that named no probe would not compile.
+   */
   const EXEMPT: {
     // The request helper's own union rather than `string`, so an entry is
     // callable without a cast — vitest would have run either way and `tsc` is
     // what said so.
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     url: string;
-    probe: { kind: 'refuses-a-key'; payload: unknown } | { kind: 'returns-no-secret'; at: string };
+    probe:
+      | { kind: 'refuses-a-key'; payload: unknown }
+      | { kind: 'returns-no-secret'; at: string }
+      | { kind: 'needs-the-capability'; payload?: unknown };
   }[] = [
     {
       method: 'PUT',
@@ -1077,6 +1156,34 @@ describe('a key', () => {
       method: 'GET',
       url: '/api/me/roles',
       probe: { kind: 'returns-no-secret', at: '/api/me/roles' },
+    },
+    { method: 'GET', url: '/api/me/connections', probe: { kind: 'needs-the-capability' } },
+    {
+      method: 'POST',
+      url: '/api/me/connections',
+      probe: {
+        kind: 'needs-the-capability',
+        payload: { label: 'Mine', provider: 'openai-compatible', models: ['m1'] },
+      },
+    },
+    {
+      method: 'PUT',
+      url: '/api/me/connections/:id',
+      probe: {
+        kind: 'needs-the-capability',
+        payload: {
+          label: 'Mine',
+          provider: 'openai-compatible',
+          models: ['m1'],
+          contentHash: 'whatever',
+        },
+      },
+    },
+    { method: 'DELETE', url: '/api/me/connections/:id', probe: { kind: 'needs-the-capability' } },
+    {
+      method: 'POST',
+      url: '/api/me/connections/models',
+      probe: { kind: 'needs-the-capability', payload: {} },
     },
   ];
 
@@ -1157,6 +1264,41 @@ describe('a key', () => {
       // And the label *is* carried, so the two assertions above are not passing
       // because the route answered with nothing.
       expect(body).toContain('The house key');
+    }
+  });
+
+  /**
+   * ***The capability is what the personal routes are exempt on, so it is what
+   * they are probed on*** — [P10.3].
+   *
+   * **Refused, and refused as `forbidden`.** An account whose
+   * `privateConnections` is off gets the same class `adminOnly` sends, on every
+   * verb, before any body is read — so a withdrawn capability is not a form that
+   * saves into a directory the resolver will then ignore.
+   *
+   * *This is not the security boundary and does not claim to be.* [09 §4.5]
+   * puts that in the loader, where `resolveConnections` has enforced it since
+   * P3: a file written by hand into that directory stops resolving the moment
+   * the capability goes. This is the surface agreeing with the loader.
+   */
+  it('refuses every personal connection route without the capability', async () => {
+    const refused = EXEMPT.filter((one) => one.probe.kind === 'needs-the-capability');
+    // The sweep would be vacuous over an empty list.
+    expect(refused.length).toBeGreaterThanOrEqual(5);
+
+    await server.services.accounts.update('ned', {
+      capabilities: { privateConnections: false, fileAccess: 'none', enableExtensions: false },
+    });
+
+    for (const one of refused) {
+      const response = await server.request({
+        method: one.method,
+        url: one.url.replace(':id', 'whatever'),
+        payload: one.probe.kind === 'needs-the-capability' ? one.probe.payload : undefined,
+      });
+
+      expect(response.status, `${one.method} ${one.url}`).toBe(403);
+      expect(response.body.error, `${one.method} ${one.url}`).toBe('forbidden');
     }
   });
 });

@@ -10,6 +10,8 @@ import {
   type TurnPreview,
 } from '@storyengine/shared';
 
+import type { NotificationList } from './notifications/types.js';
+
 /**
  * The client's side of docs/api.md — plain `fetch`, one wrapper.
  *
@@ -36,12 +38,29 @@ export function kindOfSchema(schemaId: string): LibraryKind | null {
 }
 
 /** The public account shape from `GET /api/auth/state` — never hashes or salts. */
+/**
+ * One tile on the sign-in screen — [12 §6](../../../docs/design/12-account-gallery.md).
+ *
+ * ***Three fields, and the narrowness is the contract.*** The server's
+ * projection picks exactly these; a field added to `Account` reaches this socket
+ * only when a line of code picks it, which is what keeps an unauthenticated
+ * listing from growing a role or a capability by accident.
+ */
+export interface GalleryEntry {
+  handle: string;
+  displayName: string;
+  /** A content-hash token, or null — in which case the client draws the tile. */
+  avatar: string | null;
+}
+
 export interface Account {
   handle: string;
   displayName: string;
   role: string;
   enabled: boolean;
   locale: string | null;
+  /** Absent means listed on the sign-in screen — [12 §4]. Only objectors carry it. */
+  hiddenFromGallery?: boolean;
   capabilities: {
     privateConnections: boolean;
     fileAccess: string;
@@ -58,6 +77,14 @@ export interface Account {
 export interface BuildInfo {
   version: string;
   commit: string;
+  /**
+   * Where this build's source is — AGPL §13, [09 §7], [P10.5].
+   *
+   * *Optional, because a build can honestly not know*: a clone with no remote,
+   * an export, a tarball. Absent shows no link rather than pointing somebody at
+   * somebody else's repository.
+   */
+  source?: string;
 }
 
 export interface AuthState {
@@ -74,6 +101,15 @@ export interface AuthState {
    * which is the one that makes an exposed install look broken.
    */
   setupTokenRequired: boolean;
+  /**
+   * Which of the two front doors this install shows — [12 §1.2].
+   *
+   * **Required rather than optional**, for `setupTokenRequired`'s reason one
+   * field up: client and server ship together, and a `?? 'form'` at the use site
+   * would be a guess — here a benign one, which is exactly how it would stop
+   * being noticed when the server stopped sending it.
+   */
+  loginScreen: 'form' | 'gallery';
   account: Account | null;
   /**
    * The shortest password this install accepts where one is *set*.
@@ -410,6 +446,8 @@ export const api = {
   updateMe: (patch: {
     displayName?: string;
     locale?: string | null;
+    /** *Shown on the sign-in screen* — [12 §4]. */
+    hiddenFromGallery?: boolean;
   }): Promise<{
     account: Account;
   }> => request('PATCH', '/api/me', patch),
@@ -462,6 +500,72 @@ export const api = {
     skipped: { name: string; reason: string }[];
   }> => request('POST', '/api/tags/adopt'),
 
+  /**
+   * What this person has been told — [09 §3.1], [P10.1], [P10.2].
+   *
+   * **One call for the list and the count**, because a badge and a list rendered
+   * from two round trips are a badge and a list assembled from two different
+   * moments — `/me/roles`' reasoning, on a smaller pane.
+   */
+  readNotifications: (options: { unread?: boolean } = {}): Promise<NotificationList> =>
+    request(
+      'GET',
+      // Two whole literals rather than one interpolated address, which is what
+      // `route-callers.test.ts` can read: its scan matches a quoted `/api/…`
+      // with no whitespace in it, so a `${cond ? a : b}` inside the template is
+      // an address no check can see. Measured — this arrived as one template
+      // and the route reported as having no caller.
+      options.unread === true ? '/api/me/notifications?unread=true' : '/api/me/notifications',
+    ),
+
+  /** Empty `ids` means all of them — the **Mark all read** affordance, in one request. */
+  markNotificationsRead: (ids: string[] = []): Promise<{ read: number; unread: number }> =>
+    request('POST', '/api/me/notifications/read', { ids }),
+
+  /**
+   * ***Your* connections — [10 §15.1], [19 §5.1], [P10.3].**
+   *
+   * The admin twins live on `adminApi` and the shapes are identical, because
+   * they are the same thing in two directories: `AdminConnection` is what both
+   * scopes present and `scope: 'user' | 'system'` is the field that says which.
+   * A second response type would have been two names for one record.
+   */
+  /**
+   * The sign-in gallery — [12 §6](../../../docs/design/12-account-gallery.md).
+   *
+   * **Unauthenticated, and it answers 404 in form mode**, which is the whole of
+   * the family's scoping: a default install's unauthenticated surface is
+   * byte-for-byte what it has always been.
+   */
+  gallery: (): Promise<{ accounts: GalleryEntry[] }> => request('GET', '/api/auth/gallery'),
+
+  /** Your own face. Multipart, because it is bytes — [12 §5.2]. */
+  uploadAvatar: (file: File): Promise<{ avatar: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm('/api/me/avatar', form);
+  },
+
+  removeAvatar: (): Promise<undefined> => request('DELETE', '/api/me/avatar'),
+
+  listMyConnections: (): Promise<{ connections: AdminConnection[] }> =>
+    request('GET', '/api/me/connections'),
+
+  createMyConnection: (body: ConnectionInput): Promise<{ connection: AdminConnection }> =>
+    request('POST', '/api/me/connections', body),
+
+  updateMyConnection: (
+    id: string,
+    body: ConnectionInput & { contentHash: string },
+  ): Promise<{ connection: AdminConnection }> =>
+    request('PUT', `/api/me/connections/${encodeURIComponent(id)}`, body),
+
+  deleteMyConnection: (id: string): Promise<undefined> =>
+    request('DELETE', `/api/me/connections/${encodeURIComponent(id)}`),
+
+  fetchMyModels: (body: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
+    request('POST', '/api/me/connections/models', body),
+
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
   /** A shallow merge; `null` deletes. The response is the whole document. */
@@ -491,6 +595,29 @@ export const api = {
     bindings: Record<string, Binding>,
     contentHash: string,
   ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
+
+  /**
+   * ***Bytes beside an object*** — [10 §11.2b], [P11].
+   *
+   * **Multipart rather than a JSON body with base64 in it**, which is the same
+   * choice the library's own import takes: a picture is a file, `FormData` is
+   * what a browser sends one with, and base64 is a third more bytes on the wire
+   * for the privilege of not using it.
+   *
+   * The answer is the manifest row's four computed fields — `ref`, `digest`,
+   * `bytes` and `mime` — so a caller writes an `EmbeddedMedia` without deriving
+   * any of them. The row itself travels in the ordinary save.
+   */
+  uploadAsset: (
+    kind: LibraryKind,
+    id: string,
+    blob: Blob,
+    filename: string,
+  ): Promise<{ asset: { ref: string; digest: string; bytes: number; mime: string } }> => {
+    const form = new FormData();
+    form.append('file', blob, filename);
+    return requestForm(`/api/library/${kind}/${id}/assets`, form);
+  },
 
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
@@ -542,13 +669,24 @@ export const api = {
     request('POST', `/api/library/${kind}`, { object }),
 
   /** The hash rides in the body — the second spelling docs/api.md allows. */
+  /**
+   * `importedFrom` is [10 §11.2c]'s *"the book's history is the record of the
+   * import"* — the file a merge came from, which makes the save's history line
+   * read `import` rather than `manual`. Absent on every other save, which is
+   * every save but one.
+   */
   updateObject: (
     kind: LibraryKind,
     id: string,
     object: Record<string, unknown>,
     contentHash: string,
+    importedFrom?: string,
   ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
-    request('PUT', objectUrl(kind, id), { object, contentHash }),
+    request('PUT', objectUrl(kind, id), {
+      object,
+      contentHash,
+      ...(importedFrom === undefined ? {} : { importedFrom }),
+    }),
 
   /**
    * **Delete, which the server has been able to do since P1 and the client
@@ -852,6 +990,18 @@ export interface NewSession {
    * possible and choosing one is what decides which wizard renders.
    */
   mode?: string;
+  /**
+   * ***Who is in it*** — [P11.3], and it is deliberately not the control the
+   * `persona` docstring above refuses.
+   *
+   * That paragraph argues against a *surface* for `cast.actors`, because it
+   * becomes channel state at P7 and a form built against the old shape would be
+   * built twice. This is not a form: it is how the assistant panel puts the
+   * shipped assistant card into the session it creates, with no person choosing
+   * anything. The route has taken the field since P2; the client type had no
+   * caller until there was one.
+   */
+  cast?: { persona: string | null; actors: string[] };
   /**
    * The mode's wizard, answered — [06 §7.3], [P7.4].
    *
@@ -1397,8 +1547,21 @@ export function writeSessionChannel(
  */
 export function readTranscript(
   sessionId: string,
+  options: { limit?: number; from?: string } = {},
 ): Promise<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
-  return request('GET', `/api/sessions/${sessionId}/turns`);
+  /**
+   * ***`from` walks to a node that is not the head*** — [10 §12.1], [P11.1].
+   *
+   * The reading view's *"any node, not just the head"*, asking the transcript's
+   * own route rather than a second one: what differs between the two surfaces
+   * is what they render, and a second fetch path would be a second place for
+   * the walk and the sibling map to drift.
+   */
+  const query = new URLSearchParams();
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+  if (options.from !== undefined) query.set('from', options.from);
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+  return request('GET', `/api/sessions/${sessionId}/turns${suffix}`);
 }
 
 /**
@@ -1725,6 +1888,8 @@ export interface AccountPatch {
   role?: 'admin' | 'user';
   enabled?: boolean;
   capabilities?: Partial<Account['capabilities']>;
+  /** Beside `enabled` and **not** inside `capabilities` — [12 §4]. */
+  hiddenFromGallery?: boolean;
 }
 
 /** The tier table and the appliers, sent as data rather than duplicated ([21 §4]). */
@@ -1979,7 +2144,178 @@ export const adminApi = {
   notices: (): Promise<{
     pendingRestart: string[];
     canRestart: boolean;
+    /** How `canRestart` was decided, so the surface can say why not. */
+    supervision: 'systemd' | 'declared' | 'none';
+    /** What a restart would interrupt. **Counts, never contents** — [09 §4.5]. */
+    interrupts: { mine: number; others: number };
+    /** True while a restart is draining. */
+    draining: boolean;
+    /**
+     * The daily update check, and the connectivity signal it pays for —
+     * [09 §6.5]. Read from the server's cache; nothing here triggers one.
+     */
+    updates: {
+      state: 'disabled' | 'unknown' | 'current' | 'behind' | 'unreachable';
+      latest: string | null;
+      checkedAt: number | null;
+      online: boolean | null;
+      /** Whether any connection points somewhere the internet is needed for. */
+      needsInternet: boolean;
+    };
     /** The same build the auth state carries — the admin shell's copy of it. */
     build: BuildInfo | null;
   }> => request('GET', '/api/admin/notices'),
+
+  /**
+   * *Restart now* — [09 §6.4], [P10.3].
+   *
+   * **202, and it is the last thing this process says.** The drain runs behind
+   * the response and then the process exits; the client's own reconnection is
+   * what makes the result a brief *reconnecting* rather than a manual refresh.
+   */
+  restart: (): Promise<{ draining: boolean }> => request('POST', '/api/admin/restart'),
 };
+
+/**
+ * ***One query, three kinds of hit*** —
+ * [10 §14.5](../../../docs/design/10-ui-surfaces.md),
+ * [P11.1](../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * The route has served this since P2 and nothing called it, which is the entry
+ * `route-callers.test.ts` has carried in its `OWED` map. This is the call, and
+ * the shape is the route's response verbatim rather than a narrowing: a turn hit
+ * carries `onPath` and `headTurnId` because [07 §7] requires a branch hit to say
+ * where it lives, and dropping either here would make that impossible on the
+ * surface rather than merely absent.
+ */
+export interface SearchResults {
+  objects: { id: string; schema: string; name: string; slug: string; source: string }[];
+  turns: {
+    turnId: string;
+    sessionId: string;
+    sessionName: string;
+    snippet: string;
+    onPath: boolean;
+    headTurnId: string | null;
+  }[];
+  entries: {
+    entryId: string;
+    entryName: string | null;
+    objectId: string;
+    objectName: string;
+    slug: string;
+    source: string;
+    snippet: string;
+  }[];
+}
+
+export function searchEverything(query: string): Promise<SearchResults> {
+  return request('GET', `/api/search?q=${encodeURIComponent(query)}`);
+}
+
+/**
+ * ***A draft of your own next message*** —
+ * [06 §3.1](../../../docs/design/06-modes-and-turn-pipeline.md), [P11.4].
+ *
+ * `POST` for something that commits nothing, because it dispatches a model call:
+ * it costs money and time, and must not be replayable by a browser deciding to
+ * prefetch a link.
+ *
+ * *`actorId` is optional and absent means the persona*, which is §3.1's case;
+ * naming another member is [06 §8]'s *"more than one member may be `control:
+ * 'player'`"* followed through.
+ */
+export function impersonateAs(sessionId: string, actorId?: string): Promise<{ text: string }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/impersonate`,
+    actorId === undefined ? {} : { actorId },
+  );
+}
+
+/**
+ * ***Who points at this object*** —
+ * [03 §10.1](../../../docs/design/03-data-model.md),
+ * [10 §5.2](../../../docs/design/10-ui-surfaces.md), [P11.7].
+ *
+ * One call for the *Used by* panel and for the delete confirmation's counts,
+ * which [P4 §6.6] recorded as one debt: separate answers could disagree about
+ * what a reference is.
+ */
+export interface Usage {
+  fromKind: string;
+  fromId: string;
+  fromName: string;
+}
+
+export function readUsedBy(kind: string, id: string): Promise<{ usedBy: Usage[] }> {
+  return request('GET', `/api/library/${kind}/${encodeURIComponent(id)}/links`);
+}
+
+/**
+ * ***What is in your trash*** — [03 §10.2], [P11.7]. Delete has been a move
+ * since P4.4 and nothing could look in the drawer until this stage.
+ */
+export interface TrashEntry {
+  id: string;
+  kind: string;
+  name: string;
+  deletedAt: number;
+  expiresAt: number | null;
+}
+
+export function readTrash(): Promise<{ entries: TrashEntry[]; retentionDays: number }> {
+  return request('GET', '/api/me/trash');
+}
+
+export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
+  return request('POST', '/api/me/trash/restore', { id });
+}
+
+/**
+ * ***Write this field for me*** —
+ * [10 §11.1](../../../docs/design/10-ui-surfaces.md), [P11.2].
+ *
+ * One call for every field of every editor, which is §11's *"a primitive the
+ * editors are built from"* on the wire. `guidance` absent is **generate**;
+ * present is **refine**, and §11.1 says why the difference matters — *"'make it
+ * darker' is the whole interaction, and without it the only recourse is
+ * regenerate-and-hope"*.
+ *
+ * `draft` is the **working** object rather than the saved one, deliberately: an
+ * assist blind to the three fields somebody just typed is the *generic slop*
+ * §11.1 warns the whole feature dies of.
+ */
+export interface AssistFieldRequest {
+  subject: string;
+  path: string;
+  label: string;
+  draft: unknown;
+  guidance?: string;
+  current?: string;
+}
+
+export interface AssistFieldResult {
+  text: string;
+  model: string;
+  seed: string;
+}
+
+export function assistField(body: AssistFieldRequest): Promise<AssistFieldResult> {
+  return request('POST', '/api/library/assist', body);
+}
+
+/**
+ * ***A session somebody else exported*** — [18 §3], [P11 §3]'s row 10, [P11.10].
+ *
+ * The document goes in a body rather than a multipart upload, unlike the
+ * library's import: a session export is one JSON document the client already
+ * holds as a file, and streaming buys nothing at this size.
+ */
+export function importSessionDocument(document: unknown): Promise<{
+  sessionId: string;
+  turns: number;
+  renditions: number;
+}> {
+  return request('POST', '/api/sessions/import', document);
+}

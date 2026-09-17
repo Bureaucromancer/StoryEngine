@@ -8,7 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, watchedIndex, type TestServer } from './test-server.js';
+import {
+  makeTestServer,
+  ownObjects,
+  setUpAdmin,
+  watchedIndex,
+  type TestServer,
+} from './test-server.js';
 
 /**
  * The harness itself, because F11's gate tests are about to lean on it.
@@ -96,8 +102,10 @@ describe('the borrowed data directory', () => {
       });
       expect(login.status).toBe(200);
 
-      const listed = await second.request({ method: 'GET', url: '/api/library/lorebooks' });
-      expect((listed.body.objects as { id: string }[]).map((row) => row.id)).toEqual([book.id]);
+      // The user's own, not the shelf: the app ships system objects and the
+      // claim here is that *this* book survived the restart.
+      const listed = await ownObjects(second, 'lorebooks');
+      expect(listed.objects.map((row) => row.id)).toEqual([book.id]);
     } finally {
       await second.dispose();
     }

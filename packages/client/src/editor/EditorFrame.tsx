@@ -9,6 +9,9 @@ import { DeleteObject } from '../library/DeleteObject.js';
 import { useAuthState } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { link, page } from '../ui/classes.js';
+import { KIND_WORDS } from '../library/labels.js';
+import { AssistProvider } from '../ui/assist.js';
+import { useAssistFor } from './assist.js';
 import { ConflictDialog } from './ConflictDialog.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import type { EditorKind, ObjectEditor } from './object-editor.js';
@@ -64,9 +67,22 @@ export function EditorFrame<F>(props: {
   const { editor, descriptor } = props;
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
+  /**
+   * ***Provided once, here, and that is the whole of why P11.2 is a stage
+   * rather than a sweep*** — [10 §11], [P11.2].
+   *
+   * §11's requirement is that assist be *"a primitive the editors are built
+   * from, so that 'does this field have AI assist?' is never a question anyone
+   * asks"*. The frame is the one thing all six editors are built from, so the
+   * slot is provided exactly once and every `Field` with a `path` inside any of
+   * them has it. **A field gains assist by being in an editor**, and loses it by
+   * not being — which is the same rule for a login form, a settings control and
+   * a secret, none of which are inside this component.
+   */
+  const contract = useAssistFor(descriptor, editor, KIND_WORDS[descriptor.kind]);
 
   return (
-    <>
+    <AssistProvider contract={contract}>
       {props.header}
 
       <form
@@ -216,6 +232,6 @@ export function EditorFrame<F>(props: {
           copyError={editor.copyError}
         />
       ) : null}
-    </>
+    </AssistProvider>
   );
 }

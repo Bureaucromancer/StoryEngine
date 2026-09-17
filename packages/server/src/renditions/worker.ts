@@ -44,6 +44,29 @@ export interface RenditionWorkerContext {
   /** Told when a rendition's state changed, so the stream can say so. */
   changed?: (sessionId: string, rendition: Rendition) => void;
   /**
+   * Told when a rendition **stopped being pending**, so a person can be told —
+   * [09 §3.5]'s `artifact.ready`, [P10.1].
+   *
+   * ***Beside `changed` rather than derived from it, because the two answer
+   * different questions and one of them needs an account.*** `changed` says
+   * *this session's watchers should repaint*, and a session stream is scoped to
+   * a session, so it needs no handle. This says *somebody should be told*, and
+   * [09 §3.1] puts that decision on the server against a **person** — which is
+   * the account on the job and is not recoverable from a session id here.
+   *
+   * ***And it fires on a failure as well as on a success***, which is why it is
+   * called `settled` while the class it feeds is called `artifact.ready`.
+   * [09 §3.5] chose that name over `rendition-ready` *"precisely so its second
+   * instance would not require renaming it"*, and a picture that failed is the
+   * same subject in a different state: the outcome rides in the params, and
+   * [P10 §1.4]'s *decide the failure case before writing the table* is that
+   * decision made here rather than by a fifth class.
+   *
+   * *Nothing calls this for a backdrop that was reused* — [P9 §1.7]'s money
+   * row dispatches no job, so nothing settles, and there is no news.
+   */
+  settled?: (account: string, sessionId: string, rendition: Rendition) => void;
+  /**
    * Points the backdrop channel at a rendition that just became ready — [P9.3].
    *
    * ***A callback rather than a direct call***, because the write needs a
@@ -55,6 +78,35 @@ export interface RenditionWorkerContext {
   select?: (account: string, sessionId: string, renditionId: string) => Promise<void>;
   /** Injected so a test can make a seed predictable. */
   seed?: () => number;
+  /**
+   * ***Where a picture still being made is kept, so shutdown can wait for it.***
+   *
+   * [P9.2] made the dispatch detached on purpose — *"the thing not being waited
+   * for is the thing [06 §10.2] says must never be waited for"* — and
+   * [runner.ts]'s own note explains why the runner must not own the worker: *"a
+   * runner whose shutdown had to drain pictures"* is the coupling that phase
+   * existed to avoid. **Both are still right.** What neither of them says is
+   * where the waiting happens *instead*, and the answer was nowhere: a job
+   * fired after the last turn committed carried on writing assets and calling
+   * `setRenditionJobStatus` into a `DatabaseSync` that `disposeServices` had
+   * already closed.
+   *
+   * `disposeServices` argues against exactly this, one line above where the hole
+   * was — *"a detached turn touching a closed `DatabaseSync` is the failure that
+   * surfaces on Windows as `EBUSY` on a file the caller never named"* — and the
+   * argument transfers verbatim to a detached **rendition**, which touches the
+   * same handle. Found from the other end (2026-09-17): a full-suite run went
+   * red with `ENOTEMPTY` removing a session directory, because a test's `rm`
+   * raced an asset write that nothing had waited for.
+   *
+   * **A set on the context rather than a worker object**, so the seam P9.2 drew
+   * stays where it is: the runner still knows nothing, and what shutdown gets is
+   * a thing to await rather than a component to own.
+   *
+   * *Optional, so every test double stays a double* — absent means nothing is
+   * tracked and the dispatch behaves exactly as it did.
+   */
+  inFlight?: Set<Promise<void>>;
 }
 
 /**
@@ -106,10 +158,49 @@ export function dispatchRenditions(
      * the HTTP response is a job id, and the stream is how a client watches"* —
      * and here it is load-bearing rather than convenient, because the thing not
      * being waited for is the thing §10.2 says must never be waited for.
+     *
+     * ***Detached is not untracked***, which is the distinction that was missing
+     * until 2026-09-17. Nobody waits for this to answer a request; `inFlight`
+     * is what lets **shutdown** wait for it, and the two are different waits.
+     * See that field for what the absence cost.
      */
-    void runRendition(context, job).catch(() => undefined);
+    const work = runRendition(context, job).catch(() => undefined);
+    const live = context.inFlight;
+    if (live === undefined) {
+      void work;
+    } else {
+      // Removed by the same promise that added it, so the set holds only what is
+      // genuinely still running — a set that only grew would make `drain` a wait
+      // on every picture the process ever made.
+      const tracked = work.finally(() => {
+        live.delete(tracked);
+      });
+      live.add(tracked);
+    }
   }
   return { dispatched, reused: 0 };
+}
+
+/**
+ * Waits for every picture still being made — the other half of `inFlight`.
+ *
+ * ***A loop rather than one `Promise.all`***, because a rendition can outlive
+ * the snapshot taken when the wait began: `select` writes a channel, and a
+ * channel write is a session write, which is the sort of thing that can dispatch
+ * again. Waiting on a list captured once would return with work still running,
+ * which is the bug this function exists to prevent wearing a fix.
+ *
+ * **It never rejects.** Each entry is already `.catch`ed at dispatch, and a
+ * shutdown that threw because a picture failed would turn [06 §10.2]'s *"a
+ * failed rendition is a placeholder, never a failed turn"* into *a failed
+ * process* at the one moment nobody is watching.
+ */
+export async function drainRenditions(context: RenditionWorkerContext): Promise<void> {
+  const live = context.inFlight;
+  if (live === undefined) return;
+  while (live.size > 0) {
+    await Promise.all([...live]);
+  }
 }
 
 /**
@@ -225,6 +316,7 @@ export async function runRendition(
       await context.select?.(job.account, job.sessionId, ready.id);
     }
     context.changed?.(job.sessionId, ready);
+    context.settled?.(job.account, job.sessionId, ready);
   } catch (error) {
     await fail(context, job, record, classOf(error));
   }
@@ -253,6 +345,7 @@ async function fail(
   }
   setRenditionJobStatus(context.db, job.id, 'done', reason);
   context.changed?.(job.sessionId, failed);
+  context.settled?.(job.account, job.sessionId, failed);
 }
 
 /**

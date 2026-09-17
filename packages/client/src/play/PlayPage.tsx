@@ -5,12 +5,14 @@ import { useEffect, useState } from 'react';
 import { control, page } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { uuidv7 } from '@storyengine/shared';
-import type { TextSpan } from '@storyengine/shared';
+import { remedyFor, uuidv7 } from '@storyengine/shared';
+import type { StepFailureReason, TextSpan } from '@storyengine/shared';
 
 import {
+  ApiError,
   cancelTurn,
   createBranchRef,
+  impersonateAs,
   moveHead,
   type Abandoned,
   type CastRow,
@@ -37,6 +39,7 @@ import {
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
+import { remedySentence } from '../failures.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
@@ -45,7 +48,7 @@ import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
 import { ModeRegion } from './ModeRegion.js';
-import { Suggestions } from './Suggestions.js';
+import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
 import { LorePanel } from './LorePanel.js';
@@ -57,6 +60,8 @@ import { sessionLabel } from './session-label.js';
 import { Fine } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
+
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * How long a pause has to be before the meter asks — [P3.4].
@@ -76,10 +81,10 @@ const PREVIEW_DEBOUNCE_MS = 400;
  * server does not know the reader's language, so what travels is something a
  * client can render.
  */
-const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = {
+const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = labels('play.rendition.held-here', {
   'no-binding': 'Nothing is set up to make pictures yet.',
   'no-moment': 'There was nothing here worth a picture.',
-};
+});
 
 /**
  * The play surface — a deliberately thin chat view
@@ -98,10 +103,30 @@ const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = {
 export function PlayPage({
   sessionId,
   block,
+  starters,
 }: {
   sessionId: string;
   /** A block of this session's pack to open the settings panel on — [P7B.4]. */
   block?: string;
+  /**
+   * ***Labelled entry points for a session nobody has typed into yet*** —
+   * [06 §7.4]'s *starter prompts*, [10 §7],
+   * [P11.3](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * Marinara's suggestion chips: *"cheap, and the main thing standing between a
+   * blank assistant box and people actually using it."*
+   *
+   * **A prop on the play surface rather than a thing the assistant panel
+   * renders**, and that is [06 §7.4]'s claim applied to one more affordance: the
+   * assistant is a session, so an affordance it wants belongs to *sessions* and
+   * arrives here. A story mode that wanted openers on an empty session would
+   * pass this and get the same control.
+   *
+   * *They fill the box rather than taking a turn*, which is `Suggestions`'
+   * rule one component down and the same argument: a chip that submitted would
+   * make the app's suggestion and the person's decision one gesture.
+   */
+  starters?: readonly string[];
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const { state, dispatch } = useTurnStream(sessionId);
@@ -697,11 +722,37 @@ export function PlayPage({
             </Button>
           )}
         </div>
+        {/*
+          ***A draft in your own character's voice*** —
+          [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
+          [P11.4]. *"Genuinely useful when stuck, when you want the model's read
+          on how your character would answer, or as a drafting aid you then
+          rewrite."*
+
+          **Under the box rather than beside Send**, because it is not the
+          primary action and never should read as one: §3.1's first detail is
+          that this is *"a draft, not a commitment"*, and a control sitting where
+          Send sits invites the press that skips the reading.
+        */}
+        <Impersonate
+          sessionId={sessionId}
+          disabled={running}
+          onDrafted={(text) => {
+            setDraft(text);
+          }}
+        />
         {/* **Below the composer and above the guidance box** — [R11], [P7.9].
             The offers fill the box rather than taking a turn, so they belong
             beside the thing they fill; the toggle rides with them because it is
             the control that explains an empty row, which is the argument
             [10 §10.1] makes for the pacing dial one panel over. */}
+        {/* **Only while there is nothing to talk about yet.** A starter beside
+            a conversation in progress is an offer to start over, which is not
+            what it is for — and the session's own suggestions take the row from
+            the first turn onward. */}
+        {starters === undefined || (transcript.data?.turns.length ?? 0) > 0 ? null : (
+          <Starters actions={starters} disabled={running} onPick={setDraft} />
+        )}
         <Suggestions
           sessionId={sessionId}
           actions={transcript.data?.turns.at(-1)?.suggestions ?? []}
@@ -1031,10 +1082,17 @@ function TurnView({
         className="flex flex-wrap gap-2"
       />
       {/* A failed turn is shown rather than hidden: it is on the record with
-          what it managed, and hiding it would make a re-run unexplainable. */}
-      {turn.status === 'failed' ? (
-        <p className="text-sm text-warn-ink">This turn did not finish.</p>
-      ) : null}
+          what it managed, and hiding it would make a re-run unexplainable.
+
+          ***And since [P11.6] it says what to do about it.*** The line was
+          *This turn did not finish.* and nothing else — which is the sentence
+          [09 §6.5] is complaining about when it asks for *"this server appears
+          to have no internet access"* instead of a raw connection error. The
+          class is read off the record's own steps and turned into a remedy by
+          `remedyFor`, the same function the runner uses while the failure is
+          fresh; a reader has fewer inputs, so it lands on the arm that says
+          less, which is the honest degrade rather than a second guess. */}
+      {turn.status === 'failed' ? <FailedTurnNote turn={turn} /> : null}
 
       {/* Visible on hover and on focus. Focus is not decoration here: these are
           the only controls in the transcript, and a keyboard reaching them
@@ -1295,8 +1353,58 @@ function SiblingStrip({
  * first thing a bug report needs and the first thing a person can act on.
  */
 function streamFailureLine(error: string | null): string {
+  /**
+   * ***The class stopped being the sentence at [P11.6].*** This read *The turn
+   * failed (transient). Reload to try again.* — [P6B.0] added the class because
+   * one sentence covered every failure, which was the right diagnosis and the
+   * wrong vocabulary: `transient` describes our retry ladder and tells a reader
+   * nothing. The remedy is the sentence now, and the class is still appended for
+   * the bug report, in brackets, where it belongs.
+   */
   if (error === null) return 'The connection failed. Reload to try again.';
-  return `The turn failed (${error}). Reload to try again.`;
+  const sentence = remedySentence(remedyFor({ reason: error as StepFailureReason, online: null }));
+  return sentence === null
+    ? `The turn failed (${error}). Reload to try again.`
+    : `${sentence} (${error})`;
+}
+
+/**
+ * ***What a failed turn says in the transcript*** — [09 §6.5], [P11.6].
+ *
+ * The first line is the fact and the second is the remedy, and they are two
+ * sentences rather than one because the fact is always true and the remedy is
+ * sometimes unavailable — a turn with no recorded steps, a class this build has
+ * never heard of. **A missing remedy leaves the original line exactly as it
+ * was**, which is the behaviour a version skew should have.
+ */
+function FailedTurnNote({ turn }: { turn: TurnRecord }): React.JSX.Element {
+  const sentence = recordedRemedy(turn);
+  return (
+    <div className="flex flex-col gap-1 text-sm text-warn-ink">
+      <p>This turn did not finish.</p>
+      {sentence === null ? null : <p>{sentence}</p>}
+    </div>
+  );
+}
+
+/**
+ * The remedy for a turn on the record, or null when it cannot be told.
+ *
+ * ***The last failed step rather than the first***, because a turn stops at the
+ * step that aborted it and that is the one whose failure ended the turn. An
+ * earlier `warn` step that failed and was stepped over is on the record too, and
+ * reporting its remedy would explain something that did not stop anything.
+ *
+ * **The record holds neither the endpoint's locality nor that day's
+ * connectivity** — see `remedyFor` on why the second must not be stored — so the
+ * arm this lands on is deliberately the one that says less. That is the whole
+ * value of `endpoint-silent` existing as a separate arm from
+ * `endpoint-silent-offline`.
+ */
+function recordedRemedy(turn: TurnRecord): string | null {
+  const failed = (turn.steps ?? []).filter((step) => step.error !== undefined);
+  const reason = failed.at(-1)?.error?.reason;
+  return reason === undefined ? null : remedySentence(remedyFor({ reason, online: null }));
 }
 
 function StreamStatus({
@@ -1321,4 +1429,67 @@ function StreamStatus({
     );
   }
   return null;
+}
+
+/**
+ * ***The model writes your next message, and you keep authorship*** —
+ * [06 §3.1](../../../../docs/design/06-modes-and-turn-pipeline.md), [P11.4].
+ *
+ * **The text lands in the box and nothing is sent.** §3.1 puts that first and
+ * argues for it rather than merely stating it — *"anything else takes authorship
+ * away rather than assisting it"* — so this is a control that fills a field, and
+ * the person presses Send or does not.
+ *
+ * ***Re-rolling is pressing it again***, which is §3.1's *"re-rollable without
+ * ceremony"* read literally and is what a person dissatisfied with a draft
+ * actually does. It replaces what is in the box, which is the behaviour a second
+ * press means: somebody who wanted to keep the first draft would have edited it.
+ *
+ * *A refusal says which of the four things is wrong*, because they point at four
+ * different places — the mode, the party, or the bindings.
+ */
+function Impersonate(props: {
+  sessionId: string;
+  disabled: boolean;
+  onDrafted: (text: string) => void;
+}): React.JSX.Element {
+  const draft = useMutation({
+    mutationFn: () => impersonateAs(props.sessionId),
+    onSuccess: (answer) => {
+      props.onDrafted(answer.text);
+    },
+  });
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        disabled={props.disabled || draft.isPending}
+        onClick={() => {
+          draft.mutate();
+        }}
+      >
+        {draft.isPending ? 'Drafting…' : 'Draft my next message'}
+      </Button>
+      {draft.isError ? (
+        <span role="alert" className="text-sm text-warn-ink">
+          {impersonateLine(draft.error)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** Whole sentences, one per reason — the catalogue shape [P11.8] will want. */
+function impersonateLine(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : null;
+  if (code === 'not-a-player') {
+    return 'You do not author that character, so there is nothing here to draft for.';
+  }
+  if (code === 'no-prose-step')
+    return 'This mode does not write prose, so there is no voice to borrow.';
+  if (code === 'role-unbound' || code === 'role-dangling') {
+    return 'No connection is set up for the model this needs. Bind one in Settings.';
+  }
+  return 'That draft could not be written. Try again in a moment.';
 }

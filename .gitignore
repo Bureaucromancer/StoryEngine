@@ -35,6 +35,13 @@ captures/
 .env
 .env.local
 
+# What a browser-tier run leaves behind (`pnpm test:e2e`) — traces, screenshots
+# and the error-context snapshot Playwright writes beside a failure. Evidence
+# from a run rather than source, like logs/ and captures/ above, and a trace
+# carries the whole page including whatever was typed into it.
+test-results/
+playwright-report/
+
 # OS and editor cruft. macOS drops .DS_Store into every directory Finder opens,
 # and a pair of them reached the repository in ff59ee8 before this rule existed.
 .DS_Store

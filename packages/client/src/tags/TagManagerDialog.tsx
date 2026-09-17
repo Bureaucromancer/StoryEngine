@@ -14,6 +14,8 @@ import { landing, nudge } from '../ui/reorder.js';
 import { TagChip } from '../ui/TagChip.js';
 import { TAG_SWATCH_STYLES, tagClassFor } from '../ui/tag-colors.js';
 
+import { labels } from '../i18n/catalogue.js';
+
 /**
  * The tag manager — [05 §5](../../../../docs/design/05-tagging.md).
  *
@@ -50,11 +52,11 @@ const FOLDER_NEXT: Record<TagFolder, TagFolder> = {
   closed: 'none',
 };
 
-const FOLDER_LABEL: Record<TagFolder, string> = {
+const FOLDER_LABEL: Record<TagFolder, string> = labels('tags.folder', {
   none: 'Not a folder',
   open: 'Open folder — members also stay in the list',
   closed: 'Closed folder — members hidden until it is opened',
-};
+});
 
 const FOLDER_GLYPH: Record<TagFolder, string> = { none: '–', open: '▾', closed: '▸' };
 

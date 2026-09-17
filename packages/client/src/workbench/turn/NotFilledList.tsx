@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 import type { NotFilledSlot } from '@storyengine/shared';
 
 import { Fine } from '../../ui/Text.js';
+import { labels } from '../../i18n/catalogue.js';
 
 /**
  * The slots that collected nothing — the record's answer to *why is there no
@@ -14,13 +15,13 @@ import { Fine } from '../../ui/Text.js';
  * list is empty: an absent section is the right rendering of nothing to say.
  */
 
-const REASON_LABELS: Record<string, string> = {
+const REASON_LABELS: Record<string, string> = labels('workbench.not-filled', {
   disabled: 'switched off in the preset',
   'not-applicable': 'not for this kind of call',
   'no-producer': 'nothing produces this yet',
   'empty-source': 'its source had nothing to give',
   'unknown-slot': 'a slot kind this build does not know',
-};
+});
 
 export function NotFilledList({ notFilled }: { notFilled: NotFilledSlot[] }): JSX.Element | null {
   if (notFilled.length === 0) return null;

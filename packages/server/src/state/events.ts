@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { FailureRemedy } from '@storyengine/shared';
+
 import type { StepFailureReason, StepSkipReason, StepStage } from '../sessions/types.js';
 import type { ModelRole } from '../providers/types.js';
 
@@ -84,11 +86,29 @@ export const stepFinished = (
   ms: number,
 ): EventDraft => ({ key: 'step.finished', params: { stepId, contributed, ms } });
 
+/**
+ * ***`remedy` is what a person could do; `error` is what the engine did*** —
+ * [P11.6](../../../../docs/design/workplan/28-p11-implementation.md).
+ *
+ * Both travel, because they answer different questions and a reader needs both:
+ * a bug report wants the class, and the person in front of the screen wants the
+ * sentence. **The engine's own word was doing both jobs and doing one of them
+ * badly** — the play surface rendered *The turn failed (transient)*, and
+ * *transient* describes our retry ladder rather than anything they can act on.
+ *
+ * *Optional, so the many call sites that are about something else stay as they
+ * are.* A draft without one says nothing about remedies rather than claiming
+ * `engine`.
+ */
 export const stepFailed = (
   stepId: string,
   error: StepFailureReason,
   willRetry: boolean,
-): EventDraft => ({ key: 'step.failed', params: { stepId, error, willRetry } });
+  remedy?: FailureRemedy,
+): EventDraft => ({
+  key: 'step.failed',
+  params: { stepId, error, willRetry, ...(remedy === undefined ? {} : { remedy }) },
+});
 
 export const callStarted = (stepId: string, role: ModelRole, model: string): EventDraft => ({
   key: 'call.started',
