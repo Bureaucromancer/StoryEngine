@@ -252,6 +252,58 @@ contents of `state/setup.token` under the appdata folder.
 
 ---
 
+## A tarball, and a systemd unit
+
+*Added at [P11.9](design/workplan/28-p11-implementation.md).* The image is the
+distribution and everything else is a convenience
+([09 §5.4](design/09-server-multiuser-deployment.md)) — but the convenience that
+matters is this one. §5.4 decides its packaging list on a single question,
+**does it start on boot and come back after a reboot**, and calls the tarball
+*"the single highest-value non-container artifact, and the one most easily
+skipped"*: it answers that question for every Linux that is not Debian or Arch.
+
+Every `v*` tag builds `storyengine-<version>-linux.tar.gz` beside the image. It
+contains the same tree the image runs — `dist/`, the resolved `node_modules/`,
+the built client and `build-info.json` — with a systemd unit and an install
+script beside it.
+
+```bash
+tar xzf storyengine-1.0.0-alpha.2-linux.tar.gz
+sudo ./storyengine/install.sh
+journalctl -u storyengine -n 50      # the setup token is in here
+```
+
+The script creates a `storyengine` service user, copies the tree to
+`/opt/storyengine`, creates `/var/lib/storyengine` for the data, installs and
+enables the unit, and starts it. It needs Node 26 or newer and **checks** rather
+than assuming — an unpacked tarball has no equivalent of the build's
+`engine-strict`, and a service that installs, enables and then dies on a syntax
+error is the failure worth one `if`.
+
+**It listens on `127.0.0.1`, where the container listens on `0.0.0.0`.** That is
+a deliberate difference rather than an oversight, and it is written into both
+artifacts so it is not a surprise in either: a container's network namespace
+makes `0.0.0.0` a statement about the container, and your `-p` is the explicit
+act that exposes it. A systemd service has no such boundary, so the same value
+would put a fresh install on the LAN before anybody had read the setup token.
+To reach it from another machine, edit `SE_HOST` in
+`/etc/systemd/system/storyengine.service`, then
+`systemctl daemon-reload && systemctl restart storyengine`.
+
+**Upgrading is running the script again.** Unpack the new tarball, run
+`install.sh`, and it rewrites `/opt/storyengine` and the unit and restarts the
+service. `/var/lib/storyengine` is created once and never touched again — there
+is no separate upgrade path to get out of step with the install one.
+
+**The archive is reproducible**, which is
+[work plan §8](design/workplan/01-work-plan.md)'s requirement and is checked in
+the workflow rather than claimed: it is packed twice from one tree and the two
+files are compared. Entries are sorted, timestamps and ownership are zero, and
+the gzip container carries no time of its own — which are the three places an
+otherwise identical build stops being identical.
+
+---
+
 ## Cutting a release
 
 1. Bump `version` in the root `package.json`, and the image tag in

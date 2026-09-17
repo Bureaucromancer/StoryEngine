@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 StoryEngine contributors
+#
+# Tier 2 — docs/design/09-server-multiuser-deployment.md §5.4, built at P11.9.
+#
+# **The unit is the artifact.** §5.4 decides the packaging list on one question:
+# *does it start on boot and come back after a reboot?* — and says a format that
+# does not give service integration "is not buying anything a tarball does not".
+# So the tarball's value is entirely this file plus the script that installs it,
+# and everything else in the archive is the same tree the image carries.
+#
+# **Nothing here is a security theatre knob.** The hardening lines below are the
+# ones that are true of this server rather than the ones a template generator
+# would emit: it writes to one directory, opens one socket, and runs no setuid
+# anything. `ProtectSystem=strict` with a single `ReadWritePaths` is the honest
+# expression of that, and it is checked by the install script actually starting.
+
+[Unit]
+Description=StoryEngine
+Documentation=https://github.com/Bureaucromancer/StoryEngine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=storyengine
+Group=storyengine
+
+# `node dist/main.js`, not a package manager: one process, so SIGTERM reaches
+# the server — `main.ts` installs its own SIGINT and SIGTERM handlers to close
+# the app and dispose its services. The image's CMD says the same thing for the
+# same reason.
+WorkingDirectory=/opt/storyengine
+ExecStart=/usr/bin/env node dist/main.js
+
+# **`127.0.0.1`, where the image binds `0.0.0.0`, and the difference is
+# deliberate rather than an oversight.** docs/design/workplan/27-p10-implementation.md
+# §1.2 forbids a *hidden* difference between artifacts; this one is written
+# down in both places. A container's network namespace makes `0.0.0.0` a
+# statement about the container, and the operator's port mapping is the explicit
+# act that exposes it. A systemd unit has no such boundary, so the same value
+# would put a fresh install on the LAN before anybody had read the setup token
+# out of the log. Change it here, on purpose, in one line.
+Environment=NODE_ENV=production
+Environment=SE_DATA_DIR=/var/lib/storyengine
+Environment=SE_HOST=127.0.0.1
+Environment=SE_PORT=8080
+Environment=SE_CLIENT_ROOT=/opt/storyengine/client
+
+Restart=on-failure
+RestartSec=5
+
+# The data directory is the whole of the install — library, sessions, accounts,
+# config (docs/design/03-data-model.md §5) — and it is the only thing this
+# service writes.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/storyengine
+
+[Install]
+WantedBy=multi-user.target

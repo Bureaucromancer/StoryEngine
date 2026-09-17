@@ -2087,6 +2087,80 @@ inherits and the one most likely to be forgotten, because it passes today.*
 
 *Ends at:* the demo.
 
+---
+
+#### Half done — 2026-09-17: everything that does not need a daemon
+
+***[work plan §8](01-work-plan.md) is rewritten rather than extended***, which
+§1.1 named as this stage's and which the stage's own text asked for in the right
+words: it *"should say what the rehearsal actually taught rather than restating
+the list"*. What it taught is one sentence and is now the section's rule —
+**all three of P6A's on-tag failures were string mistakes in a file that runs
+once, on a tag, and nowhere else**, so *a release step that cannot be exercised
+on an ordinary run should be asserted about on one*. The seven bullets are now a
+table of where each stands, and five of them are done.
+
+***The proof obligation's count is corrected rather than met.*** It asks for
+`tools/release.test.ts` *"extended from one artifact to five"*, and both
+[releases §0](04-repo-and-releases.md) and [work plan §8](01-work-plan.md) say
+**two** for beta — *"the canonical build must deliver the OCI image and the
+tarball… for beta to count"*, with the other four a 1.0 requirement and the
+reason written beside it: *"standing up four more build chains is exactly the
+kind of work that reads as progress while delaying the thing being packaged."*
+So this is the extension from one to two, and the three that are not owed here
+are named as not owed rather than quietly skipped.
+
+***The tarball exists, which is the actual work.***
+[09 §5.4](../09-server-multiuser-deployment.md) decides its packaging list on one
+question — *"does it start on boot and come back after a reboot?"* — and calls
+Tier 2 *"the single highest-value non-container artifact, and the one most easily
+skipped"*. `deploy/tarball/` is a systemd unit and an install script;
+`tools/pack-tarball.mjs` archives the deployed tree with them beside it; a second
+job on the same tag builds it. **It builds from source rather than extracting the
+image**, which is the tempting shortcut: `docker cp` would tie the tarball to a
+base image's layout and make two artifacts into one artifact with two wrappers,
+which is the coupling §5.4's tier list exists to avoid.
+
+***One deliberate difference between the artifacts, written into both.*** The
+unit binds `127.0.0.1` where the image binds `0.0.0.0`.
+[P10 §1.2](27-p10-implementation.md) forbids a **hidden** difference — *"a hidden
+difference between artifacts is a support burden shaped like a security
+feature"* — and this one is not hidden: a container's network namespace makes
+`0.0.0.0` a statement about the container and the operator's `-p` is the explicit
+act, while a systemd service has no such boundary and would otherwise put a fresh
+install on the LAN before anybody read the setup token. `release.test.ts` asserts
+both values and asserts the unit explains itself.
+
+***The reproducibility claim is met for the tarball and is a gate row for the
+image.*** The obligation is sharp — *"`git tag` twice on one commit produces
+identical artifacts — the reproducibility claim in the only form that
+distinguishes it from* the build works" — and for a tarball the packer is the
+only thing between a tree and the bytes, so **packing one tree twice is that
+claim with the build removed from it**. That is asserted twice: over a fixture in
+`tools/pack-tarball.test.ts`, and over the real artifact in the workflow, which
+packs it again and `cmp`s. *The three places it would have failed are named in
+the packer*: directory order, mtime and ownership, and gzip's own timestamp —
+the last being the one that survives every check of the contents. The image's
+half needs a daemon and two runs and stays row 9.
+
+***And P11.0's recommendation is collected.*** That audit asked for *"one line in
+`tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
+bundle, so the next phase that doubles it is found by failing rather than by
+somebody rebuilding and remembering these three rows"*. `tools/entry-budget.test.ts`
+is it: **310 kB gzip, recorded at 276.77** — and the number moved by **6.30 kB
+gzip across the whole of P11's client work**, which is a fifth of what P10 cost
+and the best argument available that the ceiling is not going to be a nuisance.
+*It also names the one regression a byte total would catch too late*: a static
+import of a locale catalogue, which typechecks, lints, works, and folds every
+translation into the common entry. `fr-x-machine` is its own 2.42 kB chunk and
+the test says so.
+
+*Two rows of [work plan §8](01-work-plan.md) are left and neither is code*: the
+container's reproducibility and the upgrade test, which want a machine with a
+daemon and a previous release on it — the same sitting twice. **`Ends at: the
+demo` is untouched by any of this**, which is correct: a demo is what a person
+does with a built thing.
+
 ### P11.10 — Session export, and the format it freezes
 
 ***Added 2026-09-14 (§0.1, §1.8).*** §1.8 argued this stage at length and §2

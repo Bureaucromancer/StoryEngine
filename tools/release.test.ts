@@ -186,3 +186,125 @@ describe("the image's build stage", () => {
     expect(dockerfile.replace(/^#.*$/gm, '')).not.toMatch(/corepack/);
   });
 });
+
+/**
+ * ***The second artifact beta requires*** —
+ * [09 §5.4](../docs/design/09-server-multiuser-deployment.md),
+ * [work plan §8](../docs/design/workplan/01-work-plan.md),
+ * [P11.9](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * [releases §0](../docs/design/workplan/04-repo-and-releases.md) names the bar
+ * in one sentence — *"the canonical build must deliver the OCI image and the
+ * tarball ([09 §5.4]) for beta to count"* — and everything above this block is
+ * about the first one. P11.9's obligation is this file *"extended from one
+ * artifact to five"*, and the count is the part worth correcting rather than
+ * copying: **§0 and [work plan §8] both say two for beta**, with the other four
+ * packaging artifacts a 1.0 requirement and the reason written down —
+ * *"standing up four more build chains is exactly the kind of work that reads as
+ * progress while delaying the thing being packaged"*. So this is the extension
+ * from one to **two**, and the remaining three are not owed here.
+ *
+ * *What these check is the shape of a job nothing in this repository can run*,
+ * which is the same standing the image job's tests have and the reason they
+ * exist: the workflow runs on a tag, on a runner, once, and the failures it has
+ * actually had were a stripped `v` and an unlowercased owner — string mistakes,
+ * visible from here.
+ */
+describe('the tarball tier', () => {
+  const workflow = read('.github/workflows/release.yml');
+  const unit = read('deploy/tarball/storyengine.service');
+  const script = read('deploy/tarball/install.sh');
+
+  it('is a job on the same tag, not a thing somebody remembers to run', () => {
+    expect(workflow).toMatch(/^ {2}tarball:$/m);
+    expect(workflow).toMatch(/node tools\/pack-tarball\.mjs build\/app deploy\/tarball/);
+  });
+
+  /**
+   * ***The reproducibility claim, made against the artifact rather than a
+   * fixture.*** `pack-tarball.test.ts` packs a fixture twice and compares; this
+   * asserts the *workflow* does the same to the thing somebody downloads, which
+   * is where a stray timestamp would actually live.
+   */
+  it('packs twice and compares, which is what "reproducible" has to mean', () => {
+    expect(workflow).toMatch(/node tools\/pack-tarball\.mjs build\/app deploy\/tarball build\//);
+    expect(workflow).toMatch(/\n\s+cmp /);
+  });
+
+  /**
+   * **The version in the artifact's name is the tag's, stripped of its `v`** —
+   * the same string the image tag needed and the same mistake available: the
+   * archive is named for a version, and a `v` in it makes the file disagree
+   * with the changelog entry, the compose tag and the template.
+   */
+  it('names the archive for the version, without the tag’s v', () => {
+    expect(workflow).toMatch(/storyengine-\$\{\{ steps\.names\.outputs\.version \}\}-linux/);
+    expect(workflow).not.toMatch(/storyengine-\$\{\{ github\.ref_name \}\}/);
+  });
+
+  /**
+   * ***The Node floor is one number in four places and this is the fourth.***
+   * `engines.node` is the source, the Dockerfile's base carries it, the install
+   * script checks it at unpack time, and the workflow's runner has to build on
+   * it. A tarball built on a Node older than the floor is one the install script
+   * would then refuse, which is a release that fails at the last possible
+   * moment.
+   */
+  it('builds on the Node the workspace requires, and the script checks the same one', () => {
+    const { engines } = JSON.parse(read('package.json')) as { engines?: { node?: string } };
+    const floor = /(\d+)/.exec(engines?.node ?? '')?.[1];
+    expect(floor, 'engines.node names no number').toBeTruthy();
+    expect(workflow).toMatch(new RegExp(`node-version: ${floor ?? ''}`));
+    expect(script).toMatch(new RegExp(`NEED=${floor ?? ''}`));
+  });
+
+  /**
+   * ***[09 §5.4] decides the packaging list on one question*** — *"does it start
+   * on boot and come back after a reboot?"* — and says a format that does not
+   * answer it *"is not buying anything a tarball does not"*. A unit that is not
+   * enabled, or a tier that ships no unit, is this one failing its own entrance
+   * exam.
+   */
+  it('ships a unit that survives a reboot, and enables it', () => {
+    expect(unit).toMatch(/WantedBy=multi-user\.target/);
+    expect(unit).toMatch(/Restart=on-failure/);
+    expect(script).toMatch(/systemctl enable storyengine/);
+  });
+
+  /**
+   * ***The data directory is created and never emptied***, which is §5.4's third
+   * question — *"does an upgrade leave it alone"* — and the reason re-running
+   * the script **is** the upgrade path. A `rm -rf` on the data directory in an
+   * install script is the one-way door this whole tier is trying not to be, so
+   * it is asserted against by name rather than trusted to review.
+   */
+  it('creates the data directory and never removes it', () => {
+    expect(script).toMatch(/mkdir -p "\$DATA"/);
+    expect(script).not.toMatch(/rm -rf[^\n]*\$DATA/);
+    expect(script).not.toMatch(/rm -rf[^\n]*\/var\/lib\/storyengine/);
+  });
+
+  /**
+   * ***The one deliberate difference between the artifacts, and it is written
+   * down in both.*** [P10 §1.2](../docs/design/workplan/27-p10-implementation.md)
+   * forbids a *hidden* difference — *"a hidden difference between artifacts is a
+   * support burden shaped like a security feature"* — and this one is not
+   * hidden: the image binds `0.0.0.0` because a container's network namespace
+   * makes that a statement about the container, and the unit binds `127.0.0.1`
+   * because a systemd service has no such boundary and would otherwise put a
+   * fresh install on the LAN before anybody read the setup token.
+   */
+  it('binds the loopback, where the image binds every interface', () => {
+    expect(unit).toMatch(/Environment=SE_HOST=127\.0\.0\.1/);
+    expect(read('Dockerfile')).toMatch(/SE_HOST=0\.0\.0\.0/);
+    // And the unit says which one it is, so nobody reads the difference as a bug.
+    expect(unit).toMatch(/0\.0\.0\.0/);
+  });
+
+  /** The data directory the unit names is the one the script creates. */
+  it('agrees with the install script about where the data lives', () => {
+    expect(unit).toMatch(/Environment=SE_DATA_DIR=\/var\/lib\/storyengine/);
+    expect(unit).toMatch(/ReadWritePaths=\/var\/lib\/storyengine/);
+    expect(script).toMatch(/DATA="\$\{DATA:-\/var\/lib\/storyengine\}"/);
+  });
+});

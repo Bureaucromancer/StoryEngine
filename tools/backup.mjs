@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { createGzip, createGunzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 
+import { BLOCK, padding, tarHeader, trailer } from './tar.mjs';
+
 /**
  * Backs up and restores a data directory —
  * [25 E6](../docs/design/25-open-questions.md),
@@ -61,8 +63,6 @@ import { pipeline } from 'node:stream/promises';
  */
 const DERIVED = /^index\.sqlite(-wal|-shm)?$/;
 
-const BLOCK = 512;
-
 async function main() {
   const [command, first, second] = process.argv.slice(2);
   if (command === 'create' && first && second) {
@@ -109,53 +109,24 @@ async function create(dataDir, archive) {
   const gzip = createGzip();
   const out = createWriteStream(archive);
   const done = pipeline(gzip, out);
+  // The same listener cap `pack-tarball.mjs` raises, for the same reason: one
+  // `close` listener per member on one gzip stream, and Node warns past ten.
+  gzip.setMaxListeners(0);
 
   for (const name of files) {
     const path = join(dataDir, ...name.split('/'));
     const info = await stat(path);
-    gzip.write(header(name, info.size));
+    // **The backup's mtime is now**, where a release artifact's is zero: the
+    // two callers of `tarHeader` want opposite things from that field, which is
+    // why it is a parameter rather than a constant inside it.
+    gzip.write(tarHeader(name, info.size, { mtime: Date.now() / 1000 }));
     await pipeline(createReadStream(path), gzip, { end: false });
-    const padding = (BLOCK - (info.size % BLOCK)) % BLOCK;
-    if (padding > 0) gzip.write(Buffer.alloc(padding));
+    const pad = padding(info.size);
+    if (pad > 0) gzip.write(Buffer.alloc(pad));
   }
-  // Two empty blocks end a tar, and a reader that trusts the format needs them.
-  gzip.end(Buffer.alloc(BLOCK * 2));
+  gzip.end(trailer());
   await done;
   return files.length;
-}
-
-/**
- * One ustar header.
- *
- * Only the fields a directory tree needs: name, mode, size, mtime, type and the
- * checksum. Ownership is deliberately zero — a restore into a container runs as
- * whoever the container runs as, and carrying uids from the machine the backup
- * was taken on is how a restore produces files its own server cannot read.
- */
-function header(name, size) {
-  const block = Buffer.alloc(BLOCK);
-  block.write(name.slice(0, 100), 0, 100, 'utf8');
-  block.write('0000644\0', 100, 8, 'ascii');
-  block.write('0000000\0', 108, 8, 'ascii');
-  block.write('0000000\0', 116, 8, 'ascii');
-  block.write(`${size.toString(8).padStart(11, '0')}\0`, 124, 12, 'ascii');
-  block.write(
-    `${Math.floor(Date.now() / 1000)
-      .toString(8)
-      .padStart(11, '0')}\0`,
-    136,
-    12,
-    'ascii',
-  );
-  block.write('        ', 148, 8, 'ascii');
-  block.write('0', 156, 1, 'ascii');
-  block.write('ustar\0', 257, 6, 'ascii');
-  block.write('00', 263, 2, 'ascii');
-
-  let sum = 0;
-  for (const byte of block) sum += byte;
-  block.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'ascii');
-  return block;
 }
 
 async function restore(archive, dataDir) {
