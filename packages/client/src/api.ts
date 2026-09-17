@@ -4,6 +4,7 @@
 import {
   type TagEntry,
   LIBRARY_DIRECTORIES,
+  type ImportDestination,
   type ImportPreview,
   type NearMissOffer,
   type Turn as TurnRecord,
@@ -711,8 +712,15 @@ export const api = {
    * because there is no staging area and the confirm has to re-derive from the
    * file rather than trust this answer. A preset is kilobytes.
    */
-  importFilePreview: (file: File): Promise<{ preview: ImportPreview }> => {
+  importFilePreview: (
+    file: File,
+    destination?: ImportDestination,
+  ): Promise<{ preview: ImportPreview }> => {
     const body = new FormData();
+    // Before the file, on the ordering rule `importFile` states below — and it
+    // matters more here than there, because re-previewing under the other
+    // destination is the *only* thing this argument is for.
+    if (destination !== undefined) body.append('destination', destination);
     body.append('file', file);
     return requestForm('/api/import/file/preview', body);
   },
@@ -728,9 +736,12 @@ export const api = {
   importFile: (
     file: File,
     onConflict?: 'replace' | 'keep-both' | 'skip',
+    destination?: ImportDestination,
   ): Promise<ImportFileResult> => {
     const body = new FormData();
     if (onConflict !== undefined) body.append('onConflict', onConflict);
+    // Same rule, same reason: appended before the file so the route sees it.
+    if (destination !== undefined) body.append('destination', destination);
     body.append('file', file);
     return requestForm('/api/import/file', body);
   },

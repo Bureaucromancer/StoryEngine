@@ -11,6 +11,7 @@ import {
   type ImportDisposition,
   type PortableSchemaId,
   type Provenance,
+  type ImportDestination,
   type ImportItemReport,
   type ImportNote,
   type ImportReport,
@@ -20,6 +21,9 @@ import {
   type Treatment,
 } from '@storyengine/shared';
 
+import { convertCharacter } from './aventuras/character.js';
+import { convertAventurasLorebook } from './aventuras/lorebook.js';
+import { convertScenario } from './aventuras/scenario.js';
 import { identify, stampImported, type ConflictPolicy } from './identity.js';
 import { create, update, type LibraryContext } from '../library.js';
 import { contentHashOf } from '../index-db/ingest.js';
@@ -75,6 +79,21 @@ export interface SweepRequest {
    * and says so; `skip` writes nothing and reports the difference.
    */
   onConflict?: ConflictPolicy;
+  /**
+   * Which kind a source with a genuine choice should become.
+   *
+   * **Optional, and only one format reads it.** Aventuras' `VaultScenario` is
+   * the conflated object [04 §6] names, and unconflating it is a reading of the
+   * file rather than a fact about it — so the reading is the caller's to make
+   * and `treatment` is what it defaults to. Every other format ignores this:
+   * a card is an Actor and a world file is a Lorebook, and a request that
+   * carried an answer for them would be carrying an answer to no question.
+   *
+   * Absent on a folder sweep, which is the right shape rather than an omission:
+   * §1.4 commits a sweep first and reports after, so there is nobody to ask, and
+   * the default is the one a person would have picked.
+   */
+  destination?: ImportDestination;
 }
 
 export type SweepOutcome =
@@ -211,6 +230,17 @@ class Writer {
         return this.#marinaraLorebook(candidate);
       case 'marinara.preset':
         return this.#marinaraPreset(candidate);
+
+      // Aventuras' three single-file vault exports ([P4 §1.5]). Its *fourth*
+      // path — lorebooks written as SillyTavern files — needs no arm, and has
+      // not since P4.2: it arrives above, as `sillytavern.lorebook`.
+      case 'aventuras.scenario':
+        return this.#aventurasScenario(candidate);
+      case 'aventuras.character':
+        return this.#aventurasCharacter(candidate);
+      case 'aventuras.lorebook':
+        return this.#aventurasLorebook(candidate);
+
       default:
         return { source: candidate.source, disposition: 'unrecognised', notes: [] };
     }
@@ -538,6 +568,115 @@ class Writer {
 
   async #lorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
     const converted = convertLorebook(candidate.payload, nameOf(candidate.source));
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
+
+    const { lorebook, notes } = converted.value;
+    stampImported(lorebook, candidate.source);
+    const outcome = await this.store(lorebook, LOREBOOK_SCHEMA, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: lorebook.id,
+      notes,
+    };
+  }
+
+  /**
+   * **One file, up to four objects, and the order is the whole of the method.**
+   *
+   * The cast has to be stored *before* the treatment, because `identify()`
+   * re-points a re-imported object to the id it already had here — so an actor's
+   * id is not settled until it has been through `store()`, and a cast built from
+   * the pre-store ids would point at objects that do not exist on the second
+   * import. `#card` and `flushTreatments` take the same order for the same
+   * reason; this one just has both halves in one method, because a scenario
+   * names its own cast and a card's loose `scenario` string does not.
+   */
+  async #aventurasScenario(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const converted = convertScenario(
+      candidate.payload,
+      nameOf(candidate.source),
+      this.#request.destination,
+    );
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
+
+    const { treatment, lorebook, cast, notes } = converted.value;
+
+    if (lorebook !== null) {
+      stampImported(lorebook, candidate.source);
+      const outcome = await this.store(lorebook, LOREBOOK_SCHEMA, notes);
+      return {
+        source: candidate.source,
+        disposition: Writer.dispositionOf(outcome),
+        objectId: lorebook.id,
+        notes,
+      };
+    }
+    if (treatment === null) return refusedItem(candidate, 'wrong-shape');
+
+    const alsoProduced: string[] = [];
+    for (const member of cast) {
+      /**
+       * **Each actor's identity is the scenario file plus their name.**
+       *
+       * They have no file of their own — they were rows inside one — so
+       * `originalFilename` has to be something re-import will produce again from
+       * the same bytes. `flushTreatments` solves the same problem for a
+       * synthesised treatment by stamping the scenario text; this is the
+       * `#character_book` suffix from `#card`, which is the closer precedent
+       * because the object really did travel inside the file.
+       */
+      stampImported(member.actor, `${candidate.source}#npc:${member.actor.name}`);
+      const outcome = await this.store(member.actor, ACTOR_SCHEMA, notes);
+      if (outcome !== 'failed') alsoProduced.push(member.actor.id);
+    }
+
+    treatment.cast = cast
+      .filter((member) => alsoProduced.includes(member.actor.id))
+      .map((member) => ({
+        ref: { id: member.actor.id, name: member.actor.name },
+        // `npc` and not required, on `flushTreatments`' reasoning: the file said
+        // these people are in this scenario and nothing more, and billing one a
+        // persona option would be inventing intent the source did not express.
+        billing: 'npc' as const,
+        note: member.note,
+      }));
+
+    stampImported(treatment, candidate.source);
+    const outcome = await this.store(treatment, TREATMENT_SCHEMA, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: treatment.id,
+      ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
+      notes,
+    };
+  }
+
+  async #aventurasCharacter(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const converted = convertCharacter(candidate.payload, nameOf(candidate.source));
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
+
+    const { actor, notes } = converted.value;
+    stampImported(actor, candidate.source);
+    // Through `#createActor` rather than `store` directly, so a vault character
+    // that arrived in a zip beside its portrait gets the same asset handling a
+    // card does. It carries none today; the path costs nothing and diverging
+    // from it would have to be undone the first time one does.
+    const outcome = await this.#createActor(candidate, actor, notes);
+    if (outcome === 'failed') {
+      return { source: candidate.source, disposition: 'unrecognised', notes };
+    }
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: actor.id,
+      notes,
+    };
+  }
+
+  async #aventurasLorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const converted = convertAventurasLorebook(candidate.payload, nameOf(candidate.source));
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { lorebook, notes } = converted.value;

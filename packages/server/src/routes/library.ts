@@ -5,8 +5,10 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
+  exportFormat,
   isKnownSchema,
   LIBRARY_DIRECTORIES,
+  type ImportNote,
   type PortableSchemaId,
   type TagList,
 } from '@storyengine/shared';
@@ -15,6 +17,7 @@ import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
 import { usedBy } from '../index-db/links.js';
 import { exportPackage } from '../packaging/export.js';
+import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
 import { storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
@@ -70,6 +73,11 @@ const DIRECTORY_TO_SCHEMA = new Map<string, PortableSchemaId>(
 
 const KindParams = Type.Object({ kind: Type.String() });
 const ObjectParams = Type.Object({ kind: Type.String(), id: Type.String() });
+const ExportParams = Type.Object({
+  kind: Type.String(),
+  id: Type.String(),
+  format: Type.String({ minLength: 1 }),
+});
 const MediaParams = Type.Object({
   kind: Type.String(),
   id: Type.String(),
@@ -352,6 +360,149 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           `attachment; filename="${packFileName(result.exported.manifest.name)}"`,
         )
         .send(result.exported);
+    },
+  );
+
+  /**
+   * ***The object itself, as a file*** — the primitive this surface was missing.
+   *
+   * **Nothing in this build downloaded a library object except a `.sepack`**, and
+   * `ObjectDetailPage` said so in a comment for two phases. That is a strange
+   * absence in a project whose library note is
+   * [10 §2.1](../../../../docs/design/10-ui-surfaces.md)'s *the library is the
+   * model* — the objects are yours, in folders you may open in a text editor,
+   * and the one surface that shows them could not hand you one.
+   *
+   * **It serves what is stored and converts nothing**, which is what makes it
+   * the primitive rather than one more format. Everything under `/export/`
+   * below is a *writer*, and a writer loses something by definition; this loses
+   * nothing, and needs no row in `EXPORT_FORMATS` because there is no
+   * conversion to describe. *As stored* ([polish §2]) already shows these bytes
+   * in a fold; this is the same bytes with somewhere to put them.
+   *
+   * It carries no `x-storyengine-missing`: a package resolves references and can
+   * come up short, and an object is just itself.
+   */
+  app.get(
+    '/library/:kind/:id/download',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      try {
+        const row = read(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+        );
+        return await reply
+          .header('content-type', 'application/json; charset=utf-8')
+          .header(
+            'content-disposition',
+            `attachment; filename="${downloadName(row.name, '.json')}"`,
+          )
+          .send(row.body);
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * ***The same object, written as somebody else's format*** —
+   * [00 §2.4](../../../../docs/design/00-stance.md)'s *"nothing is lost and
+   * re-export is possible"*, which until now had preservation behind it and no
+   * writer.
+   *
+   * **One route and a registry rather than a route per format**, because the
+   * second format is the one that decides which of those you have built. The
+   * shared `EXPORT_FORMATS` says what exists and what it accepts, `writerFor`
+   * pairs it with the code, and adding a third is a table row.
+   *
+   * **What it loses travels in a header rather than the body**, on the reason
+   * the `.sepack` route already gives one route up: *the body is the file*. A
+   * person downloading a scenario gets a scenario, and what did not fit in it is
+   * something the **surface** tells them — a field inside the document would be
+   * a note to the importer about the exporter's library. The notes are keys and
+   * params as everywhere else, so the client composes the sentence.
+   *
+   * **404 for a format nobody has, 409 for one aimed at the wrong kind, 422 for
+   * an object that does not validate.** The last is the interesting one: the
+   * folder is the object and somebody may have hand-edited it, so *this file is
+   * not a treatment any more* is a real answer and a better one than a
+   * cheerfully empty download.
+   */
+  app.get(
+    '/library/:kind/:id/export/:format',
+    { schema: { params: ExportParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const { format: formatId, id } = request.params as { format: string; id: string };
+      const writer = writerFor(formatId, schemaId);
+
+      if (writer === 'unknown-format') {
+        return reply
+          .code(404)
+          .send({ error: 'unknown-format', message: `No export format called ${formatId}.` });
+      }
+      if (writer === 'wrong-kind') {
+        return reply.code(409).send({
+          error: 'wrong-kind',
+          message: `${formatId} is not written from ${(request.params as { kind: string }).kind}.`,
+        });
+      }
+
+      try {
+        const row = read(services.library, account.handle, id, schemaId);
+        /**
+         * **Resolved by id against the same library, and a miss is `null`.**
+         *
+         * A treatment's cast points at actors, and [00 §3.3] is the standing
+         * answer for one that does not resolve: visible, non-blocking, never
+         * fatal. So a dangling ref costs a line in the notes rather than the
+         * download — which is the same posture `exportPackage` takes when it
+         * reports `missing` instead of refusing.
+         */
+        const written = writer(row.body, (refId) => {
+          try {
+            return read(services.library, account.handle, refId).body;
+          } catch (error) {
+            if (error instanceof LibraryError && error.code === 'not-found') return null;
+            throw error;
+          }
+        });
+
+        if (written === null) {
+          return await reply.code(422).send({
+            error: 'not-exportable',
+            message: 'That object does not match its own schema, so it cannot be written out.',
+          });
+        }
+
+        const format = exportFormat(formatId);
+        return await reply
+          .header('content-type', format?.contentType ?? 'application/json; charset=utf-8')
+          .header('x-storyengine-export-notes', encodeNotes(written.notes))
+          .header(
+            'content-disposition',
+            `attachment; filename="${downloadName(written.name, format?.extension ?? '.json')}"`,
+          )
+          .send(written.body);
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
     },
   );
 
@@ -1074,6 +1225,37 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
  * ASCII only, because `content-disposition` is latin-1 by specification; the
  * extension is the one [04 §9] names and the one an importer will look for.
  */
+/**
+ * A download filename, by `packFileName`'s rules and for its reason.
+ *
+ * ASCII only, because `content-disposition` is latin-1 by specification. The
+ * extension is the format's rather than fixed, since the next writer added may
+ * not be JSON.
+ */
+function downloadName(name: string, extension: string): string {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[^\p{ASCII}]/gu, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return `${slug === '' ? 'object' : slug}${extension}`;
+}
+
+/**
+ * What an export did not carry, as a header.
+ *
+ * **Base64 of the JSON, because a header is latin-1 and a note's params are
+ * whatever an object is called** — a treatment named *Café* would otherwise put
+ * bytes in a header that no specification says how to read. The body is the
+ * file ([P11.10]'s rule for `x-storyengine-missing`), so the notes cannot ride
+ * inside it, and dropping them would leave the only surface that can tell
+ * somebody what they lost with nothing to say.
+ */
+function encodeNotes(notes: readonly ImportNote[]): string {
+  return Buffer.from(JSON.stringify(notes), 'utf8').toString('base64');
+}
+
 function packFileName(name: string): string {
   const slug = name
     .normalize('NFKD')

@@ -86,6 +86,32 @@ export type ImportDisposition =
  */
 export type ImportFieldOutcome = 'compat' | 'metadata' | 'dropped';
 
+/**
+ * Which library kind an import that has a genuine choice should produce.
+ *
+ * **Only one source shape has a choice worth offering, and that is the point.**
+ * A SillyTavern card is an Actor, a world-info file is a Lorebook; neither poses
+ * a question, and a destination control on either would be a control with one
+ * answer. Aventuras' `VaultScenario` is the exception because it is the
+ * *conflated* object [04 §6](../../../docs/design/04-schemas.md) names when it
+ * records why `Scenario` was refused as a kind name — setting prose, a cast and
+ * an opening in one file. Treatment is what StoryEngine calls the deconflated
+ * version of that and is the default; Lorebook is offered because a scenario
+ * whose `settingSeed` is really a setting bible wants to be read rather than
+ * played, and [11](../../../docs/design/11-lorebooks-as-a-format.md) is the
+ * argument that reading is a first-class use.
+ *
+ * Carried here rather than as a server-side flag because the client has to name
+ * the choice before the commit, and the preview is where it names it.
+ */
+export type ImportDestination = 'treatment' | 'lorebook';
+
+/** Every arm, so a caller can iterate rather than restate the union. */
+export const IMPORT_DESTINATIONS = [
+  'treatment',
+  'lorebook',
+] as const satisfies readonly ImportDestination[];
+
 /** How serious a note is. `error` is reserved for what the server could not do. */
 export type ImportNoteLevel = 'info' | 'warn';
 

@@ -5,6 +5,7 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type {
+  ImportDestination,
   ImportItemReport,
   ImportNote,
   ImportPreview,
@@ -118,6 +119,18 @@ function isTooLarge(error: unknown): boolean {
  */
 function conflictPolicy(value: string | null): ConflictPolicy | undefined {
   return value === 'replace' || value === 'keep-both' || value === 'skip' ? value : undefined;
+}
+
+/**
+ * Which kind a source with a choice should become, off the wire.
+ *
+ * Unknown means absent, on `conflictPolicy`'s reasoning directly above: this
+ * field arrives after the file has been buffered, and refusing here throws away
+ * an upload that was otherwise fine over a spelling. Absent falls back to
+ * `treatment`, which is the reading the converter would have taken anyway.
+ */
+function destination(value: string | null): ImportDestination | undefined {
+  return value === 'treatment' || value === 'lorebook' ? value : undefined;
 }
 
 /**
@@ -240,12 +253,25 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     const onConflict = conflictPolicy(part.field('onConflict'));
 
+    /**
+     * **Read the same way and for the same reason as `onConflict`: off the
+     * parts that arrived ahead of the file.**
+     *
+     * `request.file()` stops at the file part, so a field appended after it is
+     * accepted by `FormData`, sent by the browser, and never parsed — which
+     * would silently ignore the one control the preview exists to offer. The
+     * client's `importFile` carries that ordering rule in its own docstring;
+     * this is the other half of it.
+     */
+    const into = destination(part.field('destination'));
+
     const result = await importOneFile(
       services,
       account.handle,
       part.filename,
       part.bytes,
       onConflict,
+      into,
     );
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
@@ -288,9 +314,15 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const part = await readOnePart(request, reply, services);
     if (part === null) return;
 
-    return reply
-      .code(200)
-      .send({ preview: await previewUpload(services, account.handle, part.filename, part.bytes) });
+    return reply.code(200).send({
+      preview: await previewUpload(
+        services,
+        account.handle,
+        part.filename,
+        part.bytes,
+        destination(part.field('destination')),
+      ),
+    });
   });
 
   /**
@@ -789,6 +821,7 @@ async function previewUpload(
   handle: string,
   filename: string,
   bytes: Uint8Array,
+  into?: ImportDestination,
 ): Promise<ImportPreview> {
   const blank = (
     disposition: ImportPreview['disposition'],
@@ -857,6 +890,7 @@ async function previewUpload(
     filename,
     candidate: read.candidate,
     forwarded: FORWARDED,
+    ...(into === undefined ? {} : { destination: into }),
   });
 }
 
@@ -875,6 +909,7 @@ async function importOneFile(
   filename: string,
   bytes: Uint8Array,
   onConflict?: ConflictPolicy,
+  into?: ImportDestination,
 ): Promise<UploadResult> {
   const item = (
     disposition: ImportItemReport['disposition'],
@@ -994,6 +1029,10 @@ async function importOneFile(
       handle,
       files: new MemoryFileSource({ [filename]: bytes }),
       ...(onConflict === undefined ? {} : { onConflict }),
+      // Only `aventuras.scenario` reads it. Passed unconditionally rather than
+      // gated on the format here, so this route stays ignorant of which
+      // converters have a choice — that is the engine's to know.
+      ...(into === undefined ? {} : { destination: into }),
     },
     read.candidate,
   );

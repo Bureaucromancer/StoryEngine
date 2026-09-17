@@ -438,6 +438,20 @@ never parsed. A word this build does not know is treated as absent rather than
 refused: the file has already been buffered by then, and throwing away a good
 upload over a spelling is the worse answer.
 
+**An optional `destination` field** — `treatment` or `lorebook` — decides what a
+source with a genuine choice becomes. It follows the same before-the-file rule
+and the same unknown-is-absent rule, for the same reasons.
+
+Exactly one format reads it, and that is the point rather than a limitation. A
+character card is an Actor and a world file is a Lorebook; neither poses a
+question, and a control over either would be a control with one answer.
+Aventuras' `VaultScenario` is the exception because it is the *conflated* object
+[04 §6](design/04-schemas.md) names when it records why `Scenario` was refused as
+a kind name — setting prose, a cast and an opening in one file. `treatment` is
+the default and is what StoryEngine calls the unconflated version of that;
+`lorebook` is for a scenario whose setting prose is really a setting bible, and
+it costs the opening messages, which a lorebook has nowhere to hold.
+
 ### `POST /api/import/file/preview`
 
 **What that upload would do, with nothing written.** `multipart/form-data` with
@@ -450,9 +464,18 @@ the same function.
 change underneath, and the commit's answer is the real one.
 
 - `object` is `{ kind: 'preset', name, blocks, params, maxContextTokens,
-  preferredModelIds, compatKeys }` for a preset, `{ kind: 'sweep' }` for an
-  archive or a Marinara envelope, `{ kind: 'opaque', name }` for something that
-  converts and has no summary yet, and `null` when nothing would be imported.
+  preferredModelIds, compatKeys }` for a preset, `{ kind: 'scenario', name,
+  blurb, framingChars, cast, openings, destination, alternatives }` for an
+  Aventuras scenario, `{ kind: 'sweep' }` for an archive or a Marinara envelope,
+  `{ kind: 'opaque', name }` for something that converts and has no summary yet,
+  and `null` when nothing would be imported.
+- The scenario arm is the only one carrying a **question** rather than only
+  statements: `alternatives` is what it could also be converted to, so a client
+  can offer the switch without knowing which formats have a choice. It takes the
+  same optional `destination` field as `/import/file`, because a control that
+  changed what a commit produced without changing what the look showed would be
+  a look at something else. `framingChars` is a measurement and not the prose —
+  a preview describes a file, it does not render one.
 - `compatKeys` carries **names and never values** ([04 §8.4.6](design/04-schemas.md)).
   A screen that showed what was in the file would show a proxy password to
   whoever was handed the file.
@@ -612,6 +635,58 @@ carry everything.
 - `415 {"error":"not-multipart"}`.
 
 No `suggestions` here — the plan step is where advice can still be acted on.
+
+### `GET /api/library/:kind/:id/download`
+
+**The object as stored, byte for byte** → `200`, `application/json`, with a
+`content-disposition` naming an ASCII-slugged file. Works for every kind.
+
+**The primitive, and it converts nothing.** Everything under `/export/` below is
+a *writer*, and a writer loses something by definition; this loses nothing
+because nothing is converted. It carries no `x-storyengine-missing`: a package
+resolves references and can come up short, and an object is just itself.
+
+Until this route existed, nothing in the build downloaded a library object except
+a `.sepack` — a strange absence in a surface whose whole claim
+([10 §2.1](design/10-ui-surfaces.md)) is that these are your files, in folders you
+may open in a text editor.
+
+### `GET /api/library/:kind/:id/export/:format`
+
+**The same object, written as somebody else's format** →
+`200` with that format's content type and extension.
+
+`:format` is an id from the shared `EXPORT_FORMATS` table, which says what each
+format accepts and whether the application it belongs to can read it back. One
+route and a registry rather than a route per format: the second format is the one
+that decides which of those you have built, and adding a third is a table row.
+
+- `404 {"error":"unknown-format"}` — no format by that id.
+- `409 {"error":"wrong-kind"}` — the format exists and is not written from this
+  kind.
+- `422 {"error":"not-exportable"}` — the stored object does not match its own
+  schema. The folder is the object and somebody may have hand-edited it, so
+  *this file is not a treatment any more* is a real answer and a better one than
+  a cheerfully empty download.
+
+**What the file does not carry travels in `x-storyengine-export-notes`**, base64
+of a JSON `ImportNote[]`. In a header on `.sepack`'s reasoning — *the body is the
+file*, and a note to the recipient's importer about the exporter's library does
+not belong inside the document. Base64 because a header is latin-1 and a note's
+params carry whatever an object is called. Every writer loses something and each
+one names what: a treatment's cast narrowed to a card's one character, a
+lorebook's folder gates flattened, a linked lorebook a scenario has nowhere to
+hold.
+
+Formats at this stage: `aventuras.scenario` and `sillytavern.card` from a
+Treatment, `aventuras.character` from an Actor, `aventuras.lorebook` from a
+Lorebook. **`aventuras.scenario` does not round-trip into Aventuras** and the
+table says so — its scenario import routes every uploaded file through the
+character-card pipeline and never sniffs for a `VaultScenario`, so that format is
+archival while the card is the one that travels. It round-trips into *this*
+build, which is what `export/writers.test.ts` asserts and the first real exercise
+[00 §2.4](design/00-stance.md)'s *nothing is lost and re-export is possible* has
+had.
 
 ### `GET /api/library/:kind/:id/avatar`
 

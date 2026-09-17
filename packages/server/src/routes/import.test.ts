@@ -14,6 +14,11 @@ import {
   type TestServer,
 } from '../test-server.js';
 import { makeZip } from '../storage/test-zip.js';
+import {
+  aventurasCharacter,
+  aventurasLorebook,
+  aventurasScenario,
+} from '../import/fixtures/test-aventuras.js';
 
 /**
  * The first upload route this server has had ([P4 §1.3]).
@@ -1189,5 +1194,130 @@ describe('what a re-upload of a changed file does', () => {
 
     expect(again.status).toBe(200);
     expect(again.body.item.disposition).toBe('unchanged');
+  });
+});
+
+describe('uploading one Aventuras scenario', () => {
+  /**
+   * **The conflated object, and the one upload this route asks a question
+   * about** ([P4 §1.5], [04 §6]).
+   *
+   * `destination` follows `onConflict`'s constraint exactly — fields before the
+   * file, because `request.file()` stops at the first file part — and that is
+   * asserted here rather than left to be discovered, for the reason the section
+   * above gives: it is a real constraint on every client.
+   */
+  function withDestination(contents: string, destination?: string) {
+    const boundary = '----storyengineTestBoundary';
+    const parts: string[] = [];
+    if (destination !== undefined) {
+      parts.push(
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="destination"',
+        '',
+        destination,
+      );
+    }
+    parts.push(
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="file"; filename="Ash Harbour.json"',
+      'Content-Type: application/json',
+      '',
+      contents,
+      `--${boundary}--`,
+      '',
+    );
+    return {
+      payload: parts.join('\r\n'),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    };
+  }
+
+  async function send(url: string, destination?: string) {
+    const { payload, headers } = withDestination(
+      JSON.stringify(aventurasScenario(), null, 2),
+      destination,
+    );
+    return server.request({ method: 'POST', url, payload, headers });
+  }
+
+  it('becomes a treatment and its cast by default', async () => {
+    const response = await send('/api/import/file');
+    expect(response.status).toBe(201);
+    expect(response.body.item.disposition).toBe('converted');
+
+    const treatments = await ownObjects(server, 'treatments');
+    const actors = await ownObjects(server, 'actors');
+    expect(treatments.objects).toHaveLength(1);
+    // The npcs land beside it and the cast points at them — which only works
+    // because the actors are stored first, so `identify` has settled their ids.
+    expect(actors.objects).toHaveLength(2);
+    expect(response.body.item.alsoProduced).toHaveLength(2);
+  });
+
+  it('becomes a lorebook when the field says so, and the field is read at all', async () => {
+    const response = await send('/api/import/file', 'lorebook');
+    expect(response.status).toBe(201);
+
+    // The assertion that proves the field arrived: without it this is a
+    // treatment and two actors.
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(1);
+    expect((await ownObjects(server, 'treatments')).objects).toHaveLength(0);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(0);
+  });
+
+  it('previews the choice, and re-previewing under the other one changes it', async () => {
+    const first = await send('/api/import/file/preview');
+    expect(first.status).toBe(200);
+    expect(first.body.preview.object).toMatchObject({
+      kind: 'scenario',
+      name: 'Ash Harbour',
+      destination: 'treatment',
+      cast: ['Ines Vaur', 'The Dockmaster'],
+      openings: 2,
+    });
+    // What it *could* be, so the client can offer the switch without knowing
+    // which formats have a choice.
+    expect(first.body.preview.object.alternatives).toEqual(['treatment', 'lorebook']);
+
+    const second = await send('/api/import/file/preview', 'lorebook');
+    expect(second.body.preview.object).toMatchObject({ kind: 'scenario', openings: 0 });
+
+    // A preview writes nothing, whichever reading it was asked for.
+    expect((await ownObjects(server, 'treatments')).objects).toHaveLength(0);
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(0);
+  });
+
+  it('treats a destination it does not know as absent', async () => {
+    // The file has already been buffered by the time this field is read, so
+    // throwing away a good upload over a spelling is the worse answer.
+    const response = await send('/api/import/file', 'nonsense');
+    expect(response.status).toBe(201);
+    expect((await ownObjects(server, 'treatments')).objects).toHaveLength(1);
+  });
+
+  it('takes an Aventuras character and its native lorebook too', async () => {
+    const character = multipart('Ines Vaur.json', JSON.stringify(aventurasCharacter(), null, 2));
+    const asCharacter = await server.request({
+      method: 'POST',
+      url: '/api/import/file',
+      payload: character.payload,
+      headers: character.headers,
+    });
+    expect(asCharacter.body.item.disposition).toBe('converted');
+
+    // The bare `Entry[]` array — the export path [P4 §1.5] counted as covered by
+    // the SillyTavern one, and which this route could not even parse before.
+    const book = multipart('Harbour lore.json', JSON.stringify(aventurasLorebook(), null, 2));
+    const asLorebook = await server.request({
+      method: 'POST',
+      url: '/api/import/file',
+      payload: book.payload,
+      headers: book.headers,
+    });
+    expect(asLorebook.body.item.disposition).toBe('converted');
+
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(1);
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(1);
   });
 });

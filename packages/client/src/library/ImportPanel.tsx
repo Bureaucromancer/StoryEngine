@@ -4,7 +4,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent, type JSX, type ReactNode } from 'react';
 
-import type { ImportPreview, ImportPreviewBlock, NearMissOffer } from '@storyengine/shared';
+import type {
+  ImportDestination,
+  ImportPreview,
+  ImportPreviewBlock,
+  ImportPreviewScenario,
+  NearMissOffer,
+} from '@storyengine/shared';
 
 import { api, type ImportReport } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
@@ -118,7 +124,27 @@ type PreviewPolicy = 'replace' | 'keep-both';
  * state somebody could reach by accident.
  */
 type Outcome =
-  | { kind: 'preview'; file: File; preview: ImportPreview; onConflict: PreviewPolicy }
+  | {
+      kind: 'preview';
+      file: File;
+      preview: ImportPreview;
+      onConflict: PreviewPolicy;
+      /**
+       * What the preview on screen was computed for, or `null` when this file
+       * poses no such question.
+       *
+       * **`null` rather than a default, so nothing is sent for a file with no
+       * choice in it.** Every format but one ignores the field, and putting
+       * `treatment` on the wire beside a preset would be telling the server an
+       * answer to a question it never asked — the sort of noise that later reads
+       * as meaning something.
+       *
+       * Held beside the preview rather than read out of it, because the two go
+       * out of step for one render: changing the control re-asks the server, and
+       * the answer that comes back is what settles the question.
+       */
+      destination: ImportDestination | null;
+    }
   | { kind: 'report'; report: ImportReport }
   | null;
 
@@ -252,12 +278,42 @@ export function ImportPanel(): JSX.Element {
        * staging area [P4 §1.4] refused.
        */
       const { preview } = await api.importFilePreview(file);
-      setOutcome({ kind: 'preview', file, preview, onConflict: 'replace' });
+      setOutcome({
+        kind: 'preview',
+        file,
+        preview,
+        onConflict: 'replace',
+        destination: destinationOf(preview),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'That file could not be read.');
     } finally {
       setBusy(false);
       event.target.value = '';
+    }
+  };
+
+  /**
+   * The same bytes, asked about again under the other reading.
+   *
+   * **A round trip rather than a local recomputation**, and that is the same
+   * claim the preview makes in the first place: the converter is on the server
+   * and a client that predicted the answer would be a second implementation of
+   * it, drifting. The file is still in the browser's own handle, so this costs a
+   * few kilobytes and buys the property that **what the screen says is what the
+   * converter says**.
+   */
+  const reask = async (destination: ImportDestination): Promise<void> => {
+    if (outcome?.kind !== 'preview') return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { preview } = await api.importFilePreview(outcome.file, destination);
+      setOutcome({ ...outcome, preview, destination });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That file could not be read.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -267,7 +323,11 @@ export function ImportPanel(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.importFile(outcome.file, outcome.onConflict);
+      const result = await api.importFile(
+        outcome.file,
+        outcome.onConflict,
+        outcome.destination ?? undefined,
+      );
       setOutcome({
         kind: 'report',
         report: {
@@ -577,6 +637,7 @@ export function ImportPanel(): JSX.Element {
           onPolicy={(onConflict) => {
             setOutcome({ ...outcome, onConflict });
           }}
+          onDestination={(destination) => void reask(destination)}
           onImport={() => void commit()}
           onCancel={() => {
             setOutcome(null);
@@ -759,12 +820,14 @@ function Preview(props: {
   onConflict: PreviewPolicy;
   busy: boolean;
   onPolicy: (policy: PreviewPolicy) => void;
+  onDestination: (destination: ImportDestination) => void;
   onImport: () => void;
   onCancel: () => void;
 }): JSX.Element {
   const { preview } = props;
   const object = preview.object;
   const preset = object !== null && object.kind === 'preset' ? object : null;
+  const scenario = object !== null && object.kind === 'scenario' ? object : null;
 
   return (
     <section aria-label="What this would import" className="flex flex-col gap-3">
@@ -774,6 +837,49 @@ function Preview(props: {
         <code className="block break-all text-xs text-ink">{preview.source}</code>
         <p className="text-ink-subtle">{summary(preview)}</p>
       </div>
+
+      {scenario !== null ? (
+        <div className="flex flex-col gap-2">
+          {scenario.cast.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              <h5 className="text-sm font-medium text-ink">
+                {castCountLabel(scenario.cast.length)}
+              </h5>
+              <p className="text-sm text-ink-subtle">{scenario.cast.join(', ')}</p>
+            </div>
+          ) : null}
+
+          {/*
+            **The control this preview exists for** — [04 §6]'s conflated object,
+            offered as the two readings it can be given. Structurally the twin of
+            the conflict select below, and deliberately so: the panel already
+            teaches *a look, then a word*, and a second shape of question inside
+            the same look would be a second thing to learn.
+
+            Changing it re-asks the server rather than recomputing here, so what
+            is on screen is always the converter's answer.
+          */}
+          <div className="flex flex-col gap-1">
+            <FieldLabel htmlFor="import-destination">What this should become</FieldLabel>
+            <select
+              id="import-destination"
+              className={control}
+              value={scenario.destination}
+              disabled={props.busy}
+              onChange={(event) => {
+                props.onDestination(event.target.value === 'lorebook' ? 'lorebook' : 'treatment');
+              }}
+            >
+              {scenario.alternatives.map((destination) => (
+                <option key={destination} value={destination}>
+                  {destinationLabel(destination)}
+                </option>
+              ))}
+            </select>
+            <Note>{destinationNote(scenario.destination)}</Note>
+          </div>
+        </div>
+      ) : null}
 
       {preset !== null && preset.blocks.length > 0 ? (
         <div className="flex flex-col gap-1">
@@ -878,7 +984,56 @@ function summary(preview: ImportPreview): string {
   if (object === null) return 'Nothing would be imported from this file.';
   if (object.kind === 'sweep') return 'Everything inside would be imported.';
   if (object.kind === 'opaque') return `It would be imported as “${object.name}”.`;
+  if (object.kind === 'scenario') return scenarioSummary(object);
   return `It would become a preset called “${object.name}”.`;
+}
+
+/**
+ * Whole sentences per destination rather than one assembled from parts, on the
+ * `userFacing` rule the two label helpers below already state: word order
+ * differs between languages, so a sentence built out of fragments is the half
+ * of i18n that cannot be retrofitted.
+ */
+function scenarioSummary(scenario: ImportPreviewScenario): string {
+  return scenario.destination === 'lorebook'
+    ? `It would become a lorebook called “${scenario.name}”, with its setting and cast as entries.`
+    : `It would become a treatment called “${scenario.name}”, with ${String(scenario.cast.length)} of its characters imported beside it.`;
+}
+
+/**
+ * What the server computed this preview for, or `null` when it had no choice.
+ *
+ * **Read off the answer rather than assumed**, so the control opens on whatever
+ * the converter actually did rather than on what this file guesses it did.
+ */
+function destinationOf(preview: ImportPreview): ImportDestination | null {
+  return preview.object !== null && preview.object.kind === 'scenario'
+    ? preview.object.destination
+    : null;
+}
+
+function castCountLabel(count: number): string {
+  return `${String(count)} characters would be imported too`;
+}
+
+function destinationLabel(destination: ImportDestination): string {
+  return destination === 'lorebook'
+    ? 'A lorebook — the setting, to read and to draw on'
+    : 'A treatment — how this world is played here';
+}
+
+/**
+ * What each reading costs, said before the commit rather than in the report.
+ *
+ * The treatment line names the invariant it bends ([04 §6] — *a Treatment
+ * contains no world facts*) because the converter emits a note saying the same
+ * thing, and a person meeting that note *after* the import has already had the
+ * decision made for them.
+ */
+function destinationNote(destination: ImportDestination): string {
+  return destination === 'lorebook'
+    ? 'The opening messages are not carried: a lorebook has nowhere to put them.'
+    : 'The setting prose becomes the framing injected every turn. You can move it into a lorebook later.';
 }
 
 /** A block's placement and what it fills, in the width a narrow dock has. */
