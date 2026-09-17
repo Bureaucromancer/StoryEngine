@@ -700,6 +700,15 @@ async function assembleWithState(
     dispatch,
     notify,
     connectivity: () => built?.updates.online ?? null,
+    /**
+     * ***So the extractor can write into a memory book*** — [08 §2.1], [P11.12].
+     *
+     * **The same context the routes hold**, which is what puts the extractor
+     * and the *Remember this* button on one queue: two `LibraryContext`s would
+     * be two write paths into one book, and a book is the thing [P8]'s C2 is
+     * about not corrupting.
+     */
+    library,
   });
 
   built = {

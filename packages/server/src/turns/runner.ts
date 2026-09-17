@@ -3,9 +3,13 @@
 
 import { remedyFor } from '@storyengine/shared';
 
+import { extractMemories } from '../memory/extract.js';
+import { readMemoryConfig } from '../memory/config.js';
+
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
 import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
+import type { LibraryContext } from '../library.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { randomOver } from '../rng/random.js';
@@ -212,6 +216,20 @@ export interface RunnerOptions {
    * handles rather than guesses at.
    */
   connectivity?: () => boolean | null;
+  /**
+   * ***The library, so a memory can be written*** — [08 §2.1], [P11.12].
+   *
+   * **Optional, and absent means no extractor** — `notify`'s arrangement and
+   * `dispatch`'s, so every existing double stays a double. It is also the
+   * honest gate: a runner with no library cannot write into a book, and a step
+   * that discovered that at call time would log a failure to report a
+   * configuration.
+   *
+   * *The one piece of the memory feature the runner needs*, and it is threaded
+   * rather than reached for: [P8.3]'s capture path takes the same context from
+   * the routes, so the extractor and the button write through one queue.
+   */
+  library?: LibraryContext;
 }
 
 interface Live {
@@ -496,6 +514,12 @@ export class TurnRunner {
      * this paragraph is for.
      */
     const suggested: { report: SuggestReport | null } = { report: null };
+    /**
+     * What the extractor wrote — [08 §2.1], [P11.12]. Up here with the other
+     * five for the reason the paragraph below gives: `write()` closes over it,
+     * and a sink declared beside its step would be out of scope by then.
+     */
+    const remembered: { written: { bookId: string; entryIds: string[] }[] } = { written: [] };
     /**
      * The story above the window — [P8.1]. Up here with the other four for the
      * reason the paragraph above gives: `write()` closes over it, and a
@@ -999,6 +1023,53 @@ export class TurnRunner {
       : withJudge;
 
     /**
+     * ***The memory extractor*** — [08 §2.1], [P8 §5]'s named cut, [P11.12].
+     *
+     * **Three gates, and each keeps the step out of the plan rather than idling
+     * it** — the suggester's arrangement and for its stated reason: *a step
+     * outcome that means this feature exists rather than anything about the
+     * turn* is noise on every turn of every session.
+     *
+     * *A setup turn, no step*: there is no exchange to remember. *No cast, no
+     * step*: a memory belongs to an actor, and a session with nobody in it has
+     * no book to write into. *Not sharing, no step* — [08 §4]'s two
+     * read-without-adding rows, checked here as well as inside the step so that
+     * a sealed session does not carry a step it will always decline.
+     *
+     * **After the suggester, before the picture**, which is where the ordering
+     * argument below puts anything that reads the turn's finished prose and
+     * changes nothing about it.
+     */
+    const library = this.#options.library;
+    const withMemory: TurnPlan =
+      library !== undefined &&
+      payload.setup !== true &&
+      cast.actors.length > 0 &&
+      readMemoryConfig(inputs.session).share
+        ? {
+            steps: [
+              ...withSuggest.steps,
+              extractMemories({
+                library,
+                handle: job.account,
+                sessionId: job.sessionId,
+                session: {
+                  name: inputs.session?.name ?? '',
+                  ...(inputs.session?.cast === undefined ? {} : { cast: inputs.session.cast }),
+                  memory: (inputs.session as { memory?: unknown } | null)?.memory,
+                },
+                nameOf: (actorId) =>
+                  [cast.persona, ...cast.actors].find((one) => one?.actor.id === actorId)?.actor
+                    .name ?? null,
+                report: (written) => {
+                  remembered.written = written;
+                },
+              }),
+            ],
+          }
+        : withSuggest;
+
+    /**
      * ***The rendition step, appended last*** — [06 §10.3], [P9.1], and the
      * sixth engine-owned one.
      *
@@ -1093,7 +1164,7 @@ export class TurnRunner {
       renderRoles?.image.ok === true && renderRoles.moment.ok
         ? {
             steps: [
-              ...withSuggest.steps,
+              ...withMemory.steps,
               render({
                 illustration: wantsIllustration ? 'each-turn' : 'off',
                 backdrop: wantsBackdrop,
@@ -1151,7 +1222,7 @@ export class TurnRunner {
               }),
             ],
           }
-        : withSuggest;
+        : withMemory;
 
     for (const { definition, run } of withRender.steps) {
       const decision = evaluateCondition(definition.when, {

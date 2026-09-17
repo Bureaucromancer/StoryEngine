@@ -2169,6 +2169,68 @@ phase cannot do at a desk.*
 
 ---
 
+#### Done — 2026-09-17
+
+**Row 20's decision, built.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)
+took it rather than carrying it a third time, and the ground was never the
+feature: two of [P8](25-p8-implementation.md)'s three criticals are **vacuous**
+while nothing extracts, so leaving it unowned did not defer a feature — it left
+a closed phase's gate permanently unfinishable.
+
+***§2.1 asks for "a step at session end, and periodically during long sessions",
+and this build has no session end.*** A session is never closed; it is **left**,
+and left sessions are exactly the ones a person comes back to. So *at session
+end* has no event to hang on, and a step waiting for one would never run. **The
+periodic half is the whole of it**, which is the honest reading rather than a
+reduction: what §2.1 is asking for is that a long session deposit memories as it
+goes, and a cadence does that at every length. *Eight turns, written down as the
+judgement it is* — short enough that forty turns leave five memories rather than
+one, long enough that the extra call is a twelfth of the turns.
+
+***`post` where the summariser is `pre`***, and the difference is the whole
+relationship between the two features: a summary goes into **this turn's**
+prompt, and a memory is a reading of what just happened that goes into a
+**book**. The precedent is `suggest.ts`, `post` for the same reason.
+
+***The locked rule turned out to be an absence, and that is the finding.***
+[P8.3](25-p8-implementation.md) wrote `LoreEntry.locked` onto every hand-written
+memory and said its reader was owed — *"the extractor never rewrites a locked
+entry."* **The shape that honours it is appending and never updating**: a
+hand-written memory cannot be eaten because no code in this module edits an
+entry at all. *The cheapest way not to eat corrections is to have no code that
+could*, and the assertion is therefore in
+[`tools/repo-shape.test.ts`](../../../tools/repo-shape.test.ts) rather than
+behavioural — a behavioural test can only say *it did not this time*, where
+[P8 §3.1](25-p8-implementation.md)'s C2 claims *it cannot*. That is also the
+check a helpful refinement two phases later would otherwise break silently: an
+extractor improving its own earlier entries looks like an improvement right up
+to the first correction it swallows.
+
+***And extracted entries are deliberately not locked***, which is the other half
+of the same decision. The field means *locked against automatic modification*,
+and an entry this step wrote is exactly the kind a later refinement should be
+free to improve; a person who corrects one is editing it in the editor, which is
+a different act with a different field.
+
+**What [08 §6](../08-cross-session-memory.md) forbids is unreachable rather than
+filtered.** The step reads `transcript` and nothing else — [P8.1]'s payload,
+which carries *what was said* with nothing about how it was produced — so a
+hook's premise, a hidden channel and GM-only state cannot reach it. *That is the
+structural half §6 asks for, inherited rather than rebuilt.*
+
+***The dedupe is coarse and errs towards not writing***, which is the right
+direction and is stated so nobody mistakes it for cleverness. [25 E2] puts
+semantic retrieval post-1.0, so what is left is the text and the keys,
+normalised for case and punctuation — a model asked twice about the same evening
+produces the same sentence with different commas far more often than a different
+sentence. **A memory missed is still in the transcript; a book with four copies
+of one fact spends its retrieval budget four times on it.**
+
+*The judgement half is not here and should not pretend to be*: whether the facts
+it picks are the ones a reader would have picked is
+[sitting G](05-manual-testing.md)'s, arriving through play rather than through a
+check — which is exactly what the two P8 criticals this stage unblocks are for.
+
 ## 3. Verification — the P11 exit gate
 
 ~~Sketch; expand on revisit.~~ **This gate is also the beta gate**, which is the

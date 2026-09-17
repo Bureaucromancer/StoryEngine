@@ -1472,13 +1472,15 @@ dangling pointer to find. What found it was reading a shipped phase's own cut
 against the two phases that come after it, which is the pass
 [P11 §0.2](28-p11-implementation.md) exists to be.
 
-***Closed 2026-09-17: the extractor is [P11.12](28-p11-implementation.md).***
-[P11 §0.4](28-p11-implementation.md) took it rather than carrying it a third
-time, on the ground this row states — **two of P8's three criticals cannot be
-walked by anybody while nothing extracts**, so leaving it unowned did not defer a
-feature, it left a closed phase's gate permanently unfinishable.
+***Closed 2026-09-17: the extractor is [P11.12](28-p11-implementation.md), and
+it is built.*** [P11 §0.4](28-p11-implementation.md) took it rather than carrying
+it a third time, on the ground this row states — **two of P8's three criticals
+cannot be walked by anybody while nothing extracts**, so leaving it unowned did
+not defer a feature, it left a closed phase's gate permanently unfinishable.
 [Sitting N](#n--p8s-critical-list--one-row-and-the-shortest-a-phase-has-ever-closed-on)
-stops being one row when that stage lands.
+**stops being one row**: C2 (*a hand correction survives the next extraction*)
+and C3's extraction half are walkable as of that stage, and both travel with it
+rather than with P8, which is what §6's P8 row already said they would do.
 
 ---
 

@@ -586,3 +586,51 @@ function codeOf(path: string): string {
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/[^\n]*/g, '');
 }
+
+/**
+ * ***A book that eats corrections is a book people stop correcting*** —
+ * [08 §6](../docs/design/08-cross-session-memory.md),
+ * [P8 §3.1](../docs/design/workplan/25-p8-implementation.md)'s C2,
+ * [P8.3](../docs/design/workplan/25-p8-implementation.md),
+ * [P11.12](../docs/design/workplan/28-p11-implementation.md).
+ *
+ * `LoreEntry.locked` means *locked against automatic modification by agents*,
+ * and P8.3 wrote it onto every hand-written memory while saying its reader was
+ * owed: *"the extractor never rewrites a locked entry."*
+ *
+ * ***The reader turned out to be an absence, and that is why the check is
+ * here.*** The extractor honours the rule by **appending and never updating**,
+ * so a hand-written memory cannot be eaten because no code in that module edits
+ * an entry at all. A behavioural test can only ever say *it did not this time*;
+ * this says *it cannot*, which is the claim C2 actually makes — and it is the
+ * one a helpful refinement two phases later would otherwise break silently,
+ * because an extractor that improved its own earlier entries would look like an
+ * improvement right up to the first correction it swallowed.
+ *
+ * **What it cannot catch**, said so nobody trusts it further: a rewrite reached
+ * through a helper in another file. The names below are the ones somebody
+ * writes when they are doing the thing this forbids.
+ */
+describe('the extractor cannot eat a correction', () => {
+  const EXTRACTOR = join(ROOT, 'packages', 'server', 'src', 'memory', 'extract.ts');
+
+  it('finds the module, so an empty read cannot pass', () => {
+    expect(readFileSync(EXTRACTOR, 'utf8').length).toBeGreaterThan(1000);
+  });
+
+  it('appends entries and never rewrites one', () => {
+    const code = readFileSync(EXTRACTOR, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    // The append: the new entries follow everything the book already held.
+    expect(code).toContain('entries: [...held.entries,');
+    // And nothing that edits one. `map` over `entries` is how a rewrite is
+    // written, and `locked` appearing at all would mean this module had started
+    // reasoning about which entries it may touch — which is the wrong shape,
+    // because the answer is none of them.
+    expect(code).not.toMatch(/held\.entries\.map/);
+    expect(code).not.toMatch(/\.entries\[[^\]]+\]\s*=/);
+    expect(code).not.toContain('locked');
+  });
+});
