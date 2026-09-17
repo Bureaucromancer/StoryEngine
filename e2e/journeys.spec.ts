@@ -299,10 +299,27 @@ test('the seven journeys, in the order a person walks them', async ({ page }) =>
   // the first would show half a sentence here and nowhere else.
   const composer = page.getByRole('textbox').first();
   await composer.fill('Look around.');
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  /**
+   * ***Sent with Enter, from the box***, which is both how a person sends a
+   * turn and the only way to walk the two things a browser has and jsdom does
+   * not.
+   *
+   * The composer became a `<textarea>` in this pass, and a textarea's own
+   * default for Enter is to insert a newline — so *Enter still sends* is a
+   * claim about a keydown handler that a component test can assert and a real
+   * browser has to confirm, because the handler runs against the browser's
+   * default rather than beside it.
+   *
+   * And the composer is `disabled` while the turn runs. A browser moves focus
+   * to `<body>` when the element holding it is disabled; jsdom does not, which
+   * is why the assertion below lives here. Without the restoration effect the
+   * keyboard is left outside the box after every single turn.
+   */
+  await composer.press('Enter');
   await expect(page.getByText(/pushed the ledger across the desk/)).toBeVisible({
     timeout: 20_000,
   });
+  await expect(composer).toBeFocused();
 
   /**
    * ***6. Branch.*** **A second turn from the same parent**, which is what makes

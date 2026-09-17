@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { control, page } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -180,6 +180,35 @@ export function PlayPage({
 
   const running = state.status === 'running';
 
+  /**
+   * ***The composer, held so focus can be given back to it*** — see the effect
+   * below. A textarea rather than the `<input>` it was for its first nine
+   * phases: a turn of a story is prose, and prose in a one-line box scrolls
+   * sideways past its own width with no way to hold a paragraph break. The
+   * guidance box two controls down has been a textarea all along, on this same
+   * `control` class; the composer is the one box that never got it.
+   *
+   * ***It starts at one line and grows, and that is not a refinement — it is
+   * what makes the change safe.*** The first draft of this was `rows={3}`, and
+   * the Playwright journey went red on a step four journeys later: the play
+   * column is `h-full` and already full at a 720px viewport, the transcript is
+   * the `flex-1` in it, and **a flex item that is a scroll container has an
+   * automatic minimum size of zero** — `min-height: auto` only resolves to a
+   * content-based minimum while `overflow` is `visible`. So the twenty-odd
+   * pixels the taller box wanted came straight out of the transcript, which
+   * collapsed to *height 0* with its turns overflowing behind the form. Redo
+   * was still in the document and still "visible, enabled and stable"; the
+   * click landed on the column lying over it.
+   *
+   * `field-sizing-content` with `rows={1}` costs nothing while the box is empty
+   * — the same single line the `<input>` was — and spends height only once
+   * there is prose to spend it on, capped at `max-h-40` so a long draft scrolls
+   * inside the box rather than eating the story again. Where the property is
+   * not supported the box stays one row and wraps, which is still every part of
+   * this that matters: no sideways scroll, and Shift+Enter writes a paragraph.
+   */
+  const composer = useRef<HTMLTextAreaElement | null>(null);
+
   const send = useMutation({
     mutationFn: () =>
       submitTurn({
@@ -215,6 +244,40 @@ export function PlayPage({
       // rendering the value they had last been handed. Resetting notifies.
       void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
     },
+  });
+
+  /**
+   * ***One gate in front of the send, rather than none*** — [polish §11].
+   *
+   * The form's handler used to read `if (draft.trim().length > 0) send.mutate()`
+   * and nothing else, and `running` is set in `onSuccess` — so for the whole
+   * duration of the POST the button stayed live, the composer had already
+   * cleared, and a second press started a **second turn**. That is the half of
+   * §11 the register does not describe: its symptom paragraph is about missing
+   * feedback, and the missing feedback was also a missing guard.
+   *
+   * `send.isPending` rather than a flag of our own: the mutation already knows,
+   * and a second source of truth about whether a request is out is how the two
+   * come to disagree.
+   */
+  const submit = (): void => {
+    if (send.isPending || running) return;
+    if (draft.trim().length === 0) return;
+    send.mutate();
+  };
+
+  /**
+   * ***Stopping is a request, and a request can be refused*** — [P6B.0].
+   *
+   * It was the one control on this page outside `useMutation`, spelled
+   * `void cancelTurn(...)`, so it could reach neither the busy label every other
+   * control has nor the `failure` fold below. A cancel the server refused — a
+   * job that had already finished, an expired session — produced nothing at
+   * all, on the one control a person presses *because* something already feels
+   * wrong.
+   */
+  const stop = useMutation({
+    mutationFn: (jobId: string) => cancelTurn(sessionId, jobId),
   });
 
   /**
@@ -354,9 +417,50 @@ export function PlayPage({
    * outrank the send that failed a second ago. A mutation clears its own error
    * on its next attempt, so this empties by being used.
    */
-  const failure = [send, redo, continueFrom, undo, name, goToSibling]
+  const failure = [send, redo, continueFrom, undo, name, goToSibling, stop]
     .filter((one) => one.isError)
     .sort((a, b) => b.submittedAt - a.submittedAt)[0]?.error;
+
+  /**
+   * ***Focus, given back when the turn ends.***
+   *
+   * The composer is `disabled` for the whole of a running turn, and disabling
+   * the element that has focus moves focus to `<body>` — where the Tab order
+   * starts again from the top of the document. So the rhythm of playing was:
+   * type, send, read the reply, then reach for the mouse to get back into the
+   * box you were already in. Nothing in this file called `focus()` at all.
+   *
+   * **On the transition rather than on the state**, which is why the previous
+   * value is held rather than read off `running` alone: an effect keyed on
+   * `running` also fires on mount, and a page that seizes focus on arrival is a
+   * page that scrolls itself and opens a keyboard on a phone.
+   *
+   * **And only if focus was lost**, never if it has moved somewhere deliberate.
+   * Somebody who tabbed to the guidance box while the turn ran has chosen where
+   * they are, and taking that back would be a second bug wearing this one's
+   * clothes. `<body>` is the signature of focus having been *dropped* rather
+   * than placed.
+   */
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    const justFinished = wasRunning.current && !running;
+    wasRunning.current = running;
+    if (!justFinished) return;
+    /**
+     * Three spellings of *focus was dropped rather than placed*. A browser
+     * moves focus to `<body>` when the element holding it is disabled; jsdom
+     * leaves it on the disabled element, and a browser may too if the disable
+     * and the re-enable fall in one frame. None of the three is somebody having
+     * chosen to be elsewhere, which is the only case this must not take back.
+     */
+    const active = document.activeElement;
+    const dropped = active === null || active === document.body || active === composer.current;
+    // `preventScroll`, because giving the keyboard back is a courtesy and
+    // moving the page under somebody's eyes is not. The composer is at the
+    // bottom of a column that scrolls; without this, the end of every turn
+    // would jump the transcript down to it.
+    if (dropped) composer.current?.focus({ preventScroll: true });
+  }, [running]);
 
   /**
    * The meter's question, asked on every pause — [P3.4].
@@ -639,7 +743,11 @@ export function PlayPage({
         ) : null}
       </ol>
 
-      <StreamStatus status={state.status} error={state.error} />
+      <StreamStatus
+        status={state.status}
+        error={state.error}
+        waiting={send.isPending || (running && state.text.length === 0)}
+      />
 
       {/* **A refused action says so** — [P6B.0].
        *
@@ -672,7 +780,7 @@ export function PlayPage({
         className="flex flex-col gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          if (draft.trim().length > 0) send.mutate();
+          submit();
         }}
       >
         {/* Above the input rather than beside Send: a fill reads as a fill
@@ -697,28 +805,55 @@ export function PlayPage({
         <div className="flex gap-2">
           <label className="flex-1">
             <span className="sr-only">{promptFor(kind)}</span>
-            <input
-              className={control}
+            <textarea
+              ref={composer}
+              className={`${control} field-sizing-content max-h-40 resize-y`}
+              rows={1}
               value={draft}
               disabled={running}
               placeholder={promptFor(kind)}
               onChange={(event) => {
                 setDraft(event.target.value);
               }}
+              /**
+               * **Enter still sends; Shift+Enter is the paragraph break.**
+               * Changing the element must not change the habit — Enter has sent
+               * a turn since P2, and a textarea's own default is to insert a
+               * newline, so without this the box would have quietly stopped
+               * submitting for everybody who has ever used it.
+               *
+               * ***`isComposing` is the arm that is not obvious.*** An input
+               * method editor — every Japanese, Chinese and Korean keyboard —
+               * uses Enter to **commit the candidate it is offering**, and that
+               * keystroke arrives here like any other. Without the guard,
+               * choosing a word would send the turn mid-sentence: not a rough
+               * edge but an app those people cannot type in. It is read off
+               * `nativeEvent` because React's synthetic event does not carry it.
+               */
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey) return;
+                if (event.nativeEvent.isComposing) return;
+                event.preventDefault();
+                submit();
+              }}
             />
           </label>
           {running && state.jobId !== null ? (
             <Button
               type="button"
+              disabled={stop.isPending}
               onClick={() => {
-                void cancelTurn(sessionId, state.jobId ?? '');
+                stop.mutate(state.jobId ?? '');
               }}
             >
-              Stop
+              {stop.isPending ? STOPPING : 'Stop'}
             </Button>
           ) : (
-            <Button type="submit" variant="primary">
-              Send
+            /* **The label is the reason it is greyed**, which is what
+               [10 §11.1a] asks of any control that disables: a button reading
+               *Sending…* has already said why it cannot be pressed again. */
+            <Button type="submit" variant="primary" disabled={send.isPending}>
+              {send.isPending ? SENDING : 'Send'}
             </Button>
           )}
         </div>
@@ -1407,13 +1542,56 @@ function recordedRemedy(turn: TurnRecord): string | null {
   return reason === undefined ? null : remedySentence(remedyFor({ reason, online: null }));
 }
 
+/**
+ * The three sentences the composer's own controls say, each a whole string for
+ * the reason every other user-visible sentence here is one ([P11.8]).
+ */
+const SENDING = 'Sending…';
+const AWAITING = 'Waiting for the first words…';
+const STOPPING = 'Stopping…';
+
+/**
+ * ***Something happens between Send and the first token*** — [polish §11],
+ * [F-02], graded at [R10] — and written down before anybody hit it:
+ * [P2C brief §3.4] says *"There is no progress, no step display and no
+ * spinner"*, and it was accepted deliberately. What turned the acceptance into
+ * a defect is that a person walked into it on every turn of four sittings and
+ * called it painful.
+ *
+ * **What a person got until now**: the button did not change, no live region
+ * fired, and the composer cleared — so the only evidence the app had received
+ * anything was *your own text disappearing*, which is indistinguishable from
+ * having lost it.
+ *
+ * **One wait, not two, because a person is only waiting once.** Internally
+ * there are two — the POST, and then the gap between an accepted job and its
+ * first delta — but the seam between them is not something anybody is waiting
+ * *for*, and two messages a tenth of a second apart is a live region that
+ * interrupts itself. The button carries the other fact, that *this control* is
+ * busy; the region carries the one a person actually has, that the story has
+ * not started yet.
+ *
+ * **Acknowledgement, not progress**, which is §11's own bar. The server emits
+ * ten step events and this page subscribes to none of them; wiring those is a
+ * *step display*, a bigger thing with a contract in it. Nothing here claims a
+ * progress the server is not reporting.
+ */
 function StreamStatus({
   status,
   error,
+  waiting,
 }: {
   status: string;
   error: string | null;
+  waiting: boolean;
 }): React.JSX.Element | null {
+  if (waiting) {
+    return (
+      <p role="status" className="text-sm text-ink-subtle">
+        {AWAITING}
+      </p>
+    );
+  }
   if (status === 'reconnecting') {
     return (
       <p role="status" className="text-sm text-ink-subtle">

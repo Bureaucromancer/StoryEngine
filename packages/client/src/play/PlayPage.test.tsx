@@ -848,7 +848,7 @@ describe('the two gestures', () => {
     await waitFor(() => {
       expect(submitTurn).toHaveBeenCalled();
     });
-    expect((box as HTMLInputElement).value).toBe('I was still writing this.');
+    expect((box as HTMLTextAreaElement).value).toBe('I was still writing this.');
   });
 
   /**
@@ -1134,5 +1134,168 @@ describe('drafting your own next message', () => {
 
     expect(await screen.findByDisplayValue('Fine. After you.')).toBeTruthy();
     expect(screen.queryByDisplayValue('I would not go in there.')).toBeNull();
+  });
+});
+
+/**
+ * ***The composer*** — [polish §11], and the element itself.
+ *
+ * The box was an `<input>` from P2 until this pass, which made a turn of a
+ * story a single line that scrolled sideways. Changing the element is only safe
+ * if the habit survives it, so the first of these is the one that matters:
+ * **Enter has sent a turn since P2**, and a textarea's own default is to insert
+ * a newline. Nothing else here asserts what the box looks like — that is
+ * layout, and jsdom computes none.
+ *
+ * The other three are the feedback §11 asks for, and the guard that came with
+ * it. `running` is set in the send's `onSuccess`, so for the whole duration of
+ * the POST there was nothing at all between a person pressing Send and the
+ * first token: the button did not change, no live region fired, and the box had
+ * already cleared.
+ */
+describe('the composer', () => {
+  /** A send that has gone out and not come back, so `isPending` is observable. */
+  function heldSend(): (accepted: { jobId: string; cursor: string }) => void {
+    let settle: (accepted: { jobId: string; cursor: string }) => void = () => undefined;
+    submitTurn.mockReturnValue(
+      new Promise<{ jobId: string; cursor: string }>((resolve) => {
+        settle = resolve;
+      }),
+    );
+    return (accepted) => {
+      settle(accepted);
+    };
+  }
+
+  async function typeInto(user: ReturnType<typeof userEvent.setup>): Promise<HTMLElement> {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    const box = screen.getByRole('textbox', { name: 'What do you do?' });
+    await user.click(box);
+    return box;
+  }
+
+  it('sends on Enter, and writes a newline on Shift+Enter', async () => {
+    const user = userEvent.setup();
+    const box = await typeInto(user);
+
+    await user.keyboard('The first line.{Shift>}{Enter}{/Shift}The second.');
+    expect(submitTurn).not.toHaveBeenCalled();
+    expect((box as HTMLTextAreaElement).value).toBe('The first line.\nThe second.');
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'The first line.\nThe second.' }),
+      );
+    });
+  });
+
+  /**
+   * The half of §11 the register does not describe. `running` arrives in
+   * `onSuccess`, so until this guard the composer stayed live through the whole
+   * request and a second press started a **second turn** — a duplicate the
+   * idempotency key cannot catch, because the client mints a fresh one per
+   * submission on purpose ([P2 §2.10]).
+   */
+  it('does not start a second turn while the first is still going out', async () => {
+    heldSend();
+    const user = userEvent.setup();
+    await typeInto(user);
+
+    await user.keyboard('I step in.{Enter}{Enter}{Enter}');
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledTimes(1);
+    });
+    expect(submitTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('says it is sending, and goes on saying so until the first words arrive', async () => {
+    const release = heldSend();
+    const user = userEvent.setup();
+    await typeInto(user);
+
+    await user.keyboard('I step in.{Enter}');
+
+    // The two facts, in the two places they belong: the control says that *it*
+    // is busy, and the live region says that the story has not started. Only
+    // the second is announced, which is why it is the one carrying the wait.
+    expect(await screen.findByRole('button', { name: 'Sending…' })).toBeTruthy();
+    expect(await screen.findByText('Waiting for the first words…')).toBeTruthy();
+
+    await act(async () => {
+      release({ jobId: 'job-1', cursor: 'job-1.0' });
+      await Promise.resolve();
+    });
+
+    // The POST being answered is not the model being answered. The seam between
+    // the two waits is not something anybody is waiting *for*, so the message
+    // does not change across it.
+    expect(screen.getByText('Waiting for the first words…')).toBeTruthy();
+  });
+
+  /**
+   * ***The half of the focus restoration that jsdom can hold.***
+   *
+   * The defect is the disable: the composer is `disabled` for the whole of a
+   * running turn, a browser moves focus to `<body>` when the element holding it
+   * is disabled, and nothing brought it back — so every turn ended with the
+   * keyboard outside the box it had been in.
+   *
+   * **That cannot be asserted here.** jsdom leaves focus on the disabled
+   * element and treats neither it nor `<body>` as a focus target, so `blur()`
+   * and `body.focus()` are both no-ops; and the Stop control is not a way round
+   * it either, because React reconciles Stop and Send to the same `<button>`
+   * node, so focus is never dropped through that path in any environment. The
+   * restoration is asserted in a real browser instead — `e2e/journeys.spec.ts`
+   * journey 5 sends with Enter, from the composer, and expects the composer
+   * focused once the prose lands.
+   *
+   * **What is asserted here is the guard**, which is the half that can do harm.
+   * Restoring focus is a courtesy; *taking it back from somewhere a person put
+   * it* is a bug, and it is the one this effect could plausibly introduce. So
+   * the test walks away from the composer deliberately and checks that the turn
+   * ending leaves that alone.
+   */
+  it('leaves focus alone when the turn ends somewhere the person put it', async () => {
+    const user = userEvent.setup();
+    await typeInto(user);
+
+    await user.keyboard('I step in.{Enter}');
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalled();
+    });
+
+    const elsewhere = screen.getByText('Guidance for this turn', { selector: 'summary' });
+    act(() => {
+      elsewhere.focus();
+    });
+    expect(document.activeElement).toBe(elsewhere);
+
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-1', status: 'committed' } } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
+    });
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
+  /**
+   * Stop was the one control on this page outside `useMutation`, so a refused
+   * cancel produced nothing — on the control a person reaches for *because*
+   * something already feels wrong.
+   */
+  it('says so when the stop is refused', async () => {
+    cancelTurn.mockRejectedValue(new Error('That turn had already finished.'));
+    const user = userEvent.setup();
+    await typeInto(user);
+
+    await user.keyboard('I step in.{Enter}');
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+
+    expect(await screen.findByText('That turn had already finished.')).toBeTruthy();
   });
 });
