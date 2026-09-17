@@ -852,7 +852,7 @@ work, not a mention.
   is what keeps a stale client from becoming a branch nobody asked for; the
   field is what lets somebody ask. `busy` is unchanged, so two branches arriving
   together are still one turn at a time.
-- **The tape's first real use** ([P2 §2.13](08-p2-implementation.md)). The tape
+- **The tape's first real use** ([P2 §3](08-p2-implementation.md)). The tape
   is recorded from P2 *"though nothing rerolls until P6"*, and P3 §1.8 records
   the consequence: every committed tape is empty because there is no production
   draw site. P5 introduces the first — activation draws — so the tape is

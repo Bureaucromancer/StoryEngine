@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newLorebook } from '@storyengine/shared';
 
 import { rebuild } from '../index-db/rebuild.js';
+import { LibraryWatcher, type WatchEvent } from '../index-db/watcher.js';
 import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -143,14 +144,34 @@ describe('a refused path', () => {
     expect(listed.objects.map((row) => row.id)).toEqual([ordinary.id]);
   });
 
-  it('is skipped by a rebuild and indexed by the watcher, which P2.3 owns', async () => {
-    // Written down as an assertion rather than a comment, because it is a real
-    // divergence between the two producers the rebuild-equals-incremental gate
-    // holds to one answer (F11): `parseObjectPath` takes the slug off the
-    // directory name without checking it, so the watcher indexes what a rebuild
-    // steps over. Reconciling them is P2.7's, beside F20 — the same question of
-    // how the index represents a file it cannot open. When that lands, this
-    // test changes shape, and it should be found by failing.
+  /**
+   * ***Both producers agree, and this test asserted the opposite until
+   * [P11.0](../../../../docs/design/workplan/28-p11-implementation.md).***
+   *
+   * It was called *is skipped by a rebuild and indexed by the watcher*, and it
+   * said in a comment that reconciling the two was **`P2.7`**'s — a stage that
+   * was never created, which is
+   * [manual testing §10.1](../../../../docs/design/workplan/05-manual-testing.md)'s
+   * entire subject. The reconciliation landed at
+   * [P6B.1](../../../../docs/design/workplan/20-p6b-playable.md) (`0e228ec`):
+   * `watcher.ts` now calls `objectFile` on the way in and records a refusal
+   * instead of indexing a row no read can open.
+   *
+   * **The comment predicted its own repair and the prediction did not fire** —
+   * *"when that lands, this test changes shape, and it should be found by
+   * failing."* It was not found by failing, because the body never drove the
+   * watcher: it wrote the folder, ran a rebuild, and asserted the rebuild half
+   * only. So the name claimed a divergence, the comment owed it to nobody, and
+   * the assertion was silent about both. *A test whose title is a claim its body
+   * does not make is worse than no test, because the title is what anybody
+   * greps.*
+   *
+   * So it changes shape now, into the claim P6B.1 actually makes: **one folder,
+   * both producers, the same answer** — nothing indexed either way, and the
+   * refusal visible on the surface [P7B.8] built for it rather than counted into
+   * a number nobody reads.
+   */
+  it('is refused identically by a rebuild and by the watcher', async () => {
     const kindRoot = join(server.dataDir, 'users', 'ned', 'library', 'lorebooks');
     const refused = newLorebook('Hand Made');
     await mkdir(join(kindRoot, 'con'), { recursive: true });
@@ -158,10 +179,70 @@ describe('a refused path', () => {
 
     await rebuild(server.services.index.db, server.services.layout);
 
-    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
-    expect(listed.body.objects).toHaveLength(0);
+    const afterRebuild = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    expect(afterRebuild.body.objects).toHaveLength(0);
+    expect(await refusals()).toEqual(['con']);
+
+    /**
+     * The watcher over the same folder, started after it exists so that the
+     * initial scan is what sees it — which is the path an operator takes when
+     * they hand-make a directory while the server is down, and the one the old
+     * divergence lived on.
+     *
+     * *The `file_error` row is cleared first*, because a rebuild has already
+     * written it and a test that left it there would pass whether or not the
+     * watcher ever looked. The assertion is that **the watcher puts it back**.
+     */
+    server.services.index.db.prepare('delete from file_error').run();
+    expect(await refusals()).toEqual([]);
+
+    const seen: WatchEvent[] = [];
+    const watcher = new LibraryWatcher({
+      db: server.services.index.db,
+      layout: server.services.layout,
+      stabilityThresholdMs: 20,
+      onChange: (event) => seen.push(event),
+    });
+    await watcher.start();
+    try {
+      // Touched rather than merely present: `start()` settles its initial scan,
+      // and a write afterwards is the event this suite can wait on without a
+      // sleep.
+      await writeFile(join(kindRoot, 'con', 'lorebook.json'), JSON.stringify(refused, null, 2));
+      await until(() => seen.some((event) => event.type === 'refused'));
+    } finally {
+      await watcher.stop();
+    }
+
+    const afterWatch = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    expect(afterWatch.body.objects).toHaveLength(0);
+    expect(await refusals()).toEqual(['con']);
   });
 });
+
+/** The slugs `GET /api/library/errors` reports as unusable, in path order. */
+async function refusals(): Promise<string[]> {
+  const listed = await server.request({ method: 'GET', url: '/api/library/errors' });
+  expect(listed.status).toBe(200);
+  return (listed.body.errors as { slug: string; reason: string }[])
+    .filter((row) => row.reason === 'unusable-name')
+    .map((row) => row.slug);
+}
+
+/**
+ * Waits for a condition rather than for a duration.
+ *
+ * The watcher settles on its own schedule and a sleep long enough to be safe on
+ * a loaded machine is a sleep paid on every green run — the standing rule in
+ * `runner.test.ts` and the reason no file in this suite carries one.
+ */
+async function until(ready: () => boolean, ms = 5_000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!ready()) {
+    if (Date.now() > deadline) throw new Error('the watcher never reported a refusal');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 describe('the scope this does not have', () => {
   it('leaves an ordinary object alone', async () => {

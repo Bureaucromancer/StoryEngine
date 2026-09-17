@@ -20,7 +20,7 @@ It sits here, beside the pair whose position on tags it corrects.
 [03 §2.2](03-data-model.md) is headed *Roles are closed, tags are open*, and
 [03 §3.6](03-data-model.md) restates it in one line: `ActorRole` is closed and
 read by the engine, **"`tags` are open and nothing branches on them"**.
-[04 §3.4](04-schemas.md) and [10 §11.2b](10-ui-surfaces.md) say the same thing in
+[04 §3](04-schemas.md) and [10 §11.2b](10-ui-surfaces.md) say the same thing in
 their own words.
 
 The last clause is not true, and has not been since P5.

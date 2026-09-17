@@ -1362,11 +1362,11 @@ Anything that loses its owner comes back to §0's rule.*
 |---|---|---|---|
 | The permissive corpus | [P4 §0](16-p4-implementation.md), [P5 §1.6](17-p5-implementation.md) | whoever acquires it; blocks P4 step 1 and P5 step 6 | Person-blocked with lead time. Cannot be synthesised. §3, R1 |
 | **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2.3](08-p2-implementation.md) | ~~P2.7~~ ~~nobody~~ **closed at P6B.1**, `0e228ec` | See §10.1 — and it was a live divergence, not the bookkeeping the sentence made it sound. |
-| P2 gate step 8 / F12 — an editor-page mount rather than a component mount | [P2.6](08-p2-implementation.md) | unassigned; "unblocked rather than done" | The harness exists now, so it is a test somebody has to write |
-| A killed *process* names no model call | [manual gate §3.6](11-p2-manual-gate.md) | the suite's one `it.todo`, `recovery.test.ts` | Needs a provisional call in the checkpoint |
+| ~~P2 gate step 8 / F12 — an editor-page mount rather than a component mount~~ **Closed, found by [P11.0](28-p11-implementation.md) 2026-09-17** | [P2.6](08-p2-implementation.md) | ~~unassigned; "unblocked rather than done"~~ **[P7B](24-p7b-presets-and-prompts.md)**, without knowing it was owed | ~~The harness exists now, so it is a test somebody has to write~~ `packages/client/src/editor/` carries five page-level mounts. *Nobody was careless; the row simply has no direction that runs from **fixed** back to **written down*** |
+| ~~A killed *process* names no model call~~ **Closed, found by [P11.0](28-p11-implementation.md) 2026-09-17** | [manual gate §3.6](11-p2-manual-gate.md) | ~~the suite's one `it.todo`, `recovery.test.ts`~~ **done** | `routes/recovery.test.ts` asserts it by name — *and this repository now has **no** `it.todo` at all*, so the row's own pointer had stopped existing, which is a sharper form of the same failure |
 | ~~The record cannot say a block is advisory~~ **It can. Corrected 2026-09-10** | [manual gate §3.6](11-p2-manual-gate.md) | **a test somebody has to write** | ~~`assemble()` drops `Candidate.advisory`; `ModelCall` records no purpose. **[P7](23-p7-implementation.md) makes this expressible or it stays unexpressible**~~ **Both halves were repaired at P3.0** and the row was never updated: `assembly/assemble.ts:141` carries the flag onto the assembled block with a comment naming this finding, and `ModelCall.purpose` is `shared/src/turn.ts:364`, written at `turns/calls.ts:301-305`, whose docstring calls it *"the committed half of [testing §1]'s invariant, beside `advisory` on the block"*. The residue is one line rather than a phase: nothing asserts the invariant **over a committed record** — the checks live at `assemble()` and at the pipeline. Found by [P7 §0.1a](23-p7-implementation.md) |
-| Two clock-effect constructors disagree; `clockEffect` has no production caller | [manual gate §3.6](11-p2-manual-gate.md) | unassigned | Dead code with a disagreement in it |
-| A turn carries no money total | [manual gate §3.6](11-p2-manual-gate.md) | [work plan §2](01-work-plan.md)'s day-one list says record cost now, display later | `costOf()` never aggregates. The recording is done; the aggregate is not |
+| ~~Two clock-effect constructors disagree; `clockEffect` has no production caller~~ **Closed, found by [P11.0](28-p11-implementation.md) 2026-09-17** | [manual gate §3.6](11-p2-manual-gate.md) | ~~unassigned~~ **[P7.0](23-p7-implementation.md)** | ~~Dead code with a disagreement in it~~ The production export went when the runner started building its own inline; three test-local helpers remain, which is ordinary duplication in tests and not what this row describes |
+| A turn carries no money total | [manual gate §3.6](11-p2-manual-gate.md) | [work plan §2](01-work-plan.md)'s day-one list says record cost now, display later | ~~`costOf()` never aggregates. The recording is done; the aggregate is not~~ ***Re-stated 2026-09-17 by [P11.0](28-p11-implementation.md), because the row asked for work that had been done.*** `runner.ts` aggregates across every call and the workbench renders it. What is absent is **money**: `TurnCost` is prompt tokens, completion tokens, wall time and a model id, and **nothing in this repository holds a price for a model**. The row wants *no price source*, which is a different and much larger thing than *no aggregate* |
 | `requestId` unbound on job log lines | [manual gate §3.6](11-p2-manual-gate.md) | deferred **with a written reason** — the model | A turn outlives its request; carrying one means a column, a migration and a meaning |
 | Nightly tier, dependency-licence scan, forward-port check | [testing §6](03-testing.md), [releases §8](04-repo-and-releases.md) | [P11](28-p11-implementation.md) | Beta-gate work; `testing` landed early at alpha.2 and nightly did not |
 | Restore test, upgrade test | [work plan §8](01-work-plan.md), [25 E6](../25-open-questions.md) | [P11](28-p11-implementation.md) | "An untested restore is not a backup" — and it is 1.0 scope |
@@ -1471,6 +1471,41 @@ and onto no document at all** — which is harder to see, because there is no
 dangling pointer to find. What found it was reading a shipped phase's own cut
 against the two phases that come after it, which is the pass
 [P11 §0.2](28-p11-implementation.md) exists to be.
+
+***Closed 2026-09-17: the extractor is [P11.12](28-p11-implementation.md).***
+[P11 §0.4](28-p11-implementation.md) took it rather than carrying it a third
+time, on the ground this row states — **two of P8's three criticals cannot be
+walked by anybody while nothing extracts**, so leaving it unowned did not defer a
+feature, it left a closed phase's gate permanently unfinishable.
+[Sitting N](#n--p8s-critical-list--one-row-and-the-shortest-a-phase-has-ever-closed-on)
+stops being one row when that stage lands.
+
+---
+
+**A third instance, and the first one a machine will now catch** — added
+2026-09-17 by [P11 §0.4](28-p11-implementation.md).
+
+Four rows of §10's own table above described defects that had been **fixed**, by
+phases that did not know they were paying them, and said so nowhere. An editor
+page mount that P7B built, a killed-process assertion `recovery.test.ts` carries
+by name, a `clockEffect` export P7.0 deleted, and an aggregate `runner.ts`
+computes. *Two of them pointed at things that had stopped existing* — the
+suite's *one `it.todo`* when the suite now has none.
+
+***So the register has a direction and is missing its inverse.*** A row is
+written when a defect is found, and re-read when somebody goes looking for work.
+**Nothing re-reads it when the defect is fixed**, and nothing watches a
+deferral's stated blocker to say when it clears — which is how
+[P11 §0.3](28-p11-implementation.md)'s row 21 arrived, by the gallery being
+built. Two findings from opposite directions make that a property of this file
+rather than an accident.
+
+*What was buildable of the answer is built*:
+[`tools/citation-targets.test.ts`](../../../tools/citation-targets.test.ts) holds
+every stage and section citation in the repository to a target that exists, which
+is the part of *a row that stopped being true* that a machine can see. **What it
+cannot see is a row whose prose is stale**, and no instrument proposed so far
+could. That is the honest limit and it is why this section keeps being added to.
 
 ---
 

@@ -23,6 +23,18 @@ const GATE = 'packages/server/src/index-db/rebuild-property.test.ts';
 const FIXTURE_PAIR = 'packages/server/src/import/fixture-pair.test.ts';
 
 /**
+ * The documentation checks, which are about the **corpus** rather than about any
+ * package — [P11.0](docs/design/workplan/28-p11-implementation.md).
+ *
+ * A constant because it is referenced twice and the two references must not
+ * drift: the `docs` project includes it and the `release` project excludes it,
+ * and a file added to one and forgotten in the other runs twice or runs under a
+ * name CI cannot report. That is the mistake `GATE` and `FIXTURE_PAIR` are
+ * constants to avoid, made once more.
+ */
+const DOCS = ['tools/doc-links.test.ts', 'tools/citation-targets.test.ts'];
+
+/**
  * **Spread into every project, because `projects` do not inherit it** — F28.
  *
  * This was first written once at the top level, which reads as a default and is
@@ -99,7 +111,7 @@ export default defineConfig({
           // the reason the gate is: CI has to be able to say which step failed.
           // Excluded here because an `include` elsewhere does not remove a file
           // from this one, and vitest runs a file once *per matching project*.
-          exclude: ['**/node_modules/**', 'tools/doc-links.test.ts'],
+          exclude: ['**/node_modules/**', ...DOCS],
           environment: 'node',
         },
       },
@@ -118,7 +130,7 @@ export default defineConfig({
           name: 'docs',
           ...TIMEOUTS,
           root: '.',
-          include: ['tools/doc-links.test.ts'],
+          include: DOCS,
           environment: 'node',
         },
       },

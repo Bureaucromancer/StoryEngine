@@ -15,7 +15,7 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
 import { sentence } from './note-labels.js';
 
 /**
- * The way in — [P4 §1.4](../../../../docs/design/10-ui-surfaces.md)'s review
+ * The way in — [P4 §1.4](../../../../docs/design/workplan/16-p4-implementation.md)'s review
  * step, rendered.
  *
  * **~~Import commits immediately and the review reports loudly~~ — and which of

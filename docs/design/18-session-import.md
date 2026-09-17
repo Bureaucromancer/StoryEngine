@@ -380,7 +380,7 @@ future reader deciding the size should not re-derive it.
 - **The review vocabulary.** `{ key, params }` notes, seven dispositions, the
   addressable report, `import_job` / `import_item`, and the near-miss diagnosis.
   A session sweep would emit into all of it unchanged, which also keeps its prose
-  off [P11 §0.4](workplan/28-p11-implementation.md)'s localisation sweep.
+  off [P11 §1.3](workplan/28-p11-implementation.md)'s localisation sweep.
 - **The session write path.** `createSession`, `appendTurnOnly`, `advanceHead`,
   `reconcileSession` — turns can be written without running a model today.
 

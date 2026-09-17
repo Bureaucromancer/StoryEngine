@@ -6,8 +6,10 @@ still not a plan, for the reason §0 gives rather than for want of work.** Draft
 [P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); to be
 revisited before the phase starts.
 
-***What the fleshing out did, in one line: every one of the twelve stages now
-names what it depends on, what it ends at, and the check that says it is done*** —
+***What the fleshing out did, in one line: every one of the stages now
+names what it depends on, what it ends at, and the check that says it is done***
+— twelve of them then, and thirteen since
+[§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took the extractor —
 §1.1's rule applied to this document's **own** accumulated list, which
 [§5](#5-what-only-the-revisit-can-settle) asks for in as many words and which no
 sweep of the corpus was ever going to do. **Two of §1's forks closed with it**:
@@ -583,6 +585,179 @@ register exists against.
 
 ---
 
+### 0.4 The audit, run — 2026-09-17, at `45c613c`
+
+***This is [P11.0](#p110--the-audit-that-makes-the-list)'s output rather than
+another re-audit***, and the difference is what §1.2 insists on: §0.1 through
+§0.3 read the *register* against the phases that shipped, and this reads the
+**corpus and the tree** against each other and produces a list with a count.
+
+**Twenty-seven items. Seven of them were already fixed by the running of it**,
+because the instrument this stage built found them and they were a line each.
+
+---
+
+#### The two instruments, run and recorded — which is this stage's proof obligation
+
+| Instrument | Reading | Against |
+|---|---|---|
+| `route-callers.test.ts`'s **OWED** | **4** — `GET /api/search`, `PUT …/roles`, `PATCH` and `DELETE` on `…/refs/:refId` | 4 at §0.2, 4 at §0.3. Rows 6, 18 and 19, unmoved since they were found |
+| `route-callers.test.ts`'s **EXEMPT** | **3**, each with a written reason | Recorded here because an exemption is the other way a route goes unreached |
+| `config.ts`'s **`'unread'` tier** | **2** — `limits.extensionStorageQuotaMb`, `trash.retentionDays` | 4 at §0.2, 2 at §0.3. Both survivors are owned: a roadmap row and [P11.7](#p117--trash-retention-and-restore-and-the-accessibility-audit) |
+
+**Both are where §0.3 left them**, which is the answer this stage was owed and
+not an interesting one. *The interesting reading is the third column*: neither
+number has moved because neither instrument can see what this audit was for.
+`OWED` watches routes and `'unread'` watches config keys, and the twenty-seven
+items below are overwhelmingly **neither** — they are sentences.
+
+#### The measurement [20 §7](../20-client-loading.md) asked for at this stage
+
+[20 §7.1](../20-client-loading.md) fired a trigger on 2026-09-15, decided not to
+bring the review forward, and said *"the review point stays P11.0, and the first
+line of its baseline capture is now known."* Here is the rest of that line, from
+one `pnpm build` on this tree:
+
+| | Modules | JavaScript | gzip | CSS | gzip |
+| --- | --- | --- | --- | --- | --- |
+| [20 §1](../20-client-loading.md)'s baseline, at `a54afcc` | — | 676.82 kB | 199.15 kB | — | — |
+| [20 §7.1](../20-client-loading.md), after `react-markdown` | 729 | 909.25 kB | 268.11 kB | 34.06 kB | 6.94 kB |
+| **Here, after P10** | **748** | **951.64 kB** | **280.27 kB** | **34.90 kB** | **7.07 kB** |
+
+**P10 cost nineteen modules and 12.16 kB gzip** — notifications, the gallery,
+the restart banner, the update check and the licence block, for about a
+twenty-third of what the entry already was. *That is the number §7.1 predicted
+would matter more than its own*: one dependency at a sixth is loud and a phase
+at a twenty-third is quiet, and the quiet one is the shape of every phase left.
+
+***The recommendation is §7's step 5, the deferral arm, and it is a decision
+rather than an omission.*** 280 kB gzip on one route is large and is not
+*measured harm*: nothing in [PLAYABLE](21-playable-log.md) or any sitting
+reports slow arrival, and [20 §6](../20-client-loading.md) is explicit that CI
+can hold a byte total and cannot hold a timing. **What this audit therefore asks
+of [P11.9](#p119--release-engineering-which-is-the-other-half-of-the-bar) is one
+line in `tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
+bundle**, so the next phase that doubles it is found by failing rather than by
+somebody rebuilding and remembering these three rows. *A budget nobody can
+breach loudly is the same class of thing as a deferral nobody collects.*
+
+---
+
+#### What the new instrument found, all of it fixed in this stage
+
+[`tools/citation-targets.test.ts`](../../../tools/citation-targets.test.ts) is
+§10.1's lesson mechanised: **a citation that names a stage or a section names
+one that exists.** §10.1 named two remedies for the dangling owner and both were
+*somebody reading again*; this is the third, which is the machine reading
+instead. Sixteen defects on its first run, across four thousand one hundred and
+three stage citations and four thousand eight hundred and eighty-seven section
+citations.
+
+| # | What | Where | Fixed as |
+|---|---|---|---|
+| 1 | **A test whose title claimed a divergence its body never drove** — *is skipped by a rebuild and indexed by the watcher* — owing the reconciliation to `P2.7`, **a stage that was never created**, after [P6B.1](20-p6b-playable.md) had done the reconciling | `packages/server/src/routes/refused-path.test.ts` | Rewritten to the claim P6B.1 actually makes: one folder, **both** producers, the same answer, with the refusal read off the surface [P7B.8](24-p7b-presets-and-prompts.md) built for it |
+| 2 | A phase number run into a section number with the `§` dropped, naming a stage of P4 that does not exist | `packages/server/src/storage/local-source.test.ts` | Rewritten to the section it meant, **described rather than quoted** — the check that found it would refuse its own account |
+| 3–9 | **Seven phase status lines pointing into `05-manual-testing.md`'s old subsections** — §3.3, §3.4 ×5, §3.5 ×2 — after that file grew the two-tier gate and renumbered | P2, P2B, P3, P4, P5 ×3, P6B | Repointed at §1, §3 and §6, which are where those three things live now |
+| 10–16 | Seven more dangling section citations: `[04 §3.4]`, `[02 §8]`, `[P2 §2.13]`, `[P11 §0.4]`, `[P4 §1.4]` pointing at the wrong document, `[P2C §0]` | [05](../05-tagging.md), [19](../19-tech-stack.md), [P6](18-p6-implementation.md), [18](../18-session-import.md), `ImportPanel.tsx`, `openai-compatible.live.test.ts` | Repointed |
+
+***`[P11 §0.4]` is in that list, and it was pointing at this section before this
+section existed.*** [18 §3](../18-session-import.md) cited P11's localisation
+sweep as §0.4 when the sweep is §1.3, and the number happened to be the next one
+free. *A citation can be wrong in a way that comes true, which is the least
+useful kind of correct.*
+
+**And one cost of the instrument, paid and worth naming**: an account of a
+forbidden token cannot quote it. Item 2's comment describes the wrong form
+instead, and any future account of a mistake this check catches will have to do
+the same. That is the price of mechanising a convention, and it is smaller than
+the convention rotting.
+
+---
+
+#### Five §10 rows whose premise had stopped being true
+
+*Checked against the tree rather than re-read.*
+[Manual testing §10](05-manual-testing.md) is the register of deferrals with
+owners, and its own §10.1 says what happens to a row nobody re-checks. **Four of
+its rows describe defects that were fixed and never came back to say so.**
+
+| # | The row | What the tree says |
+|---|---|---|
+| 17 | *P2 gate step 8 / F12 — an editor-page mount rather than a component mount*, unassigned | **Closed.** `packages/client/src/editor/` carries five page-level mounts, built across [P7B.1](24-p7b-presets-and-prompts.md), [P7B.3](24-p7b-presets-and-prompts.md) and [P7B.6](24-p7b-presets-and-prompts.md) |
+| 18 | *A killed process names no model call* — *the suite's one `it.todo`* | **Closed.** `routes/recovery.test.ts` asserts it by name, and **this repository has no `it.todo` at all**, so the row's own pointer had stopped existing |
+| 19 | *Two clock-effect constructors disagree; `clockEffect` has no production caller* | **Closed.** The production export went at [P7.0](23-p7-implementation.md); three test-local helpers remain, which is ordinary duplication in tests and not the dead code with a disagreement in it that the row describes |
+| 20 | *A turn carries no money total — `costOf()` never aggregates* | **Half true and worth re-stating.** `runner.ts` aggregates and the workbench renders it. What is absent is **money**: `TurnCost` is prompt tokens, completion tokens, wall time and model, and nothing in this repository holds a price for a model. The row should say *no price source* rather than *no aggregate*, because the two want completely different work |
+| 21 | *The record cannot say a block is advisory* — residue after the P3.0 repair | **Stands.** `assemble()` carries the flag and refuses advisory content to a deciding call, and `ModelCall.purpose` is written; nothing asserts the invariant **over a committed record**. One test, and it is [P11.0](#p110--the-audit-that-makes-the-list)'s to hand on rather than to write |
+
+***Four rows out of five, and every one of them closed by work that happened
+inside this corpus.*** Nobody was careless. What the register lacks is the
+*direction* this pass ran in: a row is written when a defect is found and is
+re-read when somebody goes looking for work, and **nothing re-reads it when the
+defect is fixed.** That is the same missing mechanism §0.3's row 21 arrived by —
+a condition clearing with nothing watching — and it is now two findings from two
+directions, which makes it a property of the register rather than an accident.
+
+---
+
+#### Six commitments with no owner, which is the list §1.2 says does not exist
+
+| # | The commitment | Where it is committed | The artifact, and the check | Routed to |
+|---|---|---|---|---|
+| 22 | **Session and Turn carry no provenance at all**, and the window shuts when the record freezes | [18 §4.1](../18-session-import.md), [03 §8](../03-data-model.md) — `origin: Provenance` is specified and unimplemented, and `stampImported` does not typecheck against a session | A field on both records before export publishes them. **Check:** `stampImported` accepts a session; `emit-schemas` produces the field | **[P11.10](#p1110--session-export-and-the-format-it-freezes)**, and it is the one item here that costs more by waiting: an edit now, a migration of a frozen portable format afterwards |
+| 23 | **Openings, and the seed → expand → edit → accept → promote loop** | [03 §6](../03-data-model.md), **PORT** in [triage](02-triage.md); `fromSeedId` has shipped since P1 with no writer anywhere | The loop, and a control beside the setup's other fields. **Check:** a seed expands, is edited, and the accepted text is what a session opens on | **Unowned.** [P7B §1.11](24-p7b-presets-and-prompts.md) held it *"with that cost named"* — the expand step is a model call and a new interaction, not a surface over a finished route |
+| 24 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — a collapsed in-flight line outside the workbench — with [R4](22-walkthrough-refinements.md) and [polish §11](06-polish.md) | [F-03](21-playable-log.md) from the pre-P6 walk; [P7B §1.11](24-p7b-presets-and-prompts.md) held all three together | One story or none: *"building one third of a scroll-and-progress story is how the other two thirds get built twice"* | **Unowned, and R4 still needs a paragraph in [10](../10-ui-surfaces.md) before it can have one** — which makes this the corpus's oldest genuine blank rather than an unscheduled item |
+| 25 | **The sign-in gallery's type-to-filter** | [12 §7](../12-account-gallery.md), [polish §7](06-polish.md) | §0.3's row 21, restated: one text affordance where there are now two | **Unowned.** Its blocker cleared at [P10.4](27-p10-implementation.md) and nothing noticed |
+| 26 | **`.sepack` import and export** | [P4](16-p4-implementation.md)'s *"P11-ish"*, the only assignment the corpus has ever given it; [P7B §1.9](24-p7b-presets-and-prompts.md) shipped the package editor without it | A bundle that travels. **Check:** a package exported from one install opens on another | **Routed *beside* [P11.10](#p1110--session-export-and-the-format-it-freezes) and never *into* it**, which is the distinction this audit exists to catch. §0.1 row 13 said the choice was cheaper to make at the revisit; **this is the revisit**, and §1.9 below is where it is made |
+| 27 | **[P8](25-p8-implementation.md)'s automatic extractor** — §0.2's row 20, carried twice | [08 §2](../08-cross-session-memory.md) is the feature; [P8 §5](25-p8-implementation.md) cut it deliberately and named no arrival | See below. **This audit decides it rather than carrying it a third time** | **[P11.12](#p1112--the-automatic-extractor), new** |
+
+---
+
+#### Row 20 decided: the extractor is [P11.12](#p1112--the-automatic-extractor)
+
+§0.3 said *"a third carry is a decision, and it should be made rather than
+arrived at."* Made, and these are the grounds rather than a preference:
+
+- **[08 §2](../08-cross-session-memory.md) is not what ships without it.** The
+  design's sentence is *"entries are **extracted** from sessions"*, and what
+  exists is a book a person fills by hand. A memory book nobody is obliged to
+  maintain is a lorebook with a suggestive name.
+- **It holds a phase's gate open, not a feature's.** [P8](25-p8-implementation.md)'s
+  C2 (*a hand correction survives the next extraction*) is **vacuous** under the
+  cut and C3's extraction half *"has no extractor to bleed"*, so
+  [sitting N](05-manual-testing.md) is one row and **two of P8's three criticals
+  cannot be walked by anybody**. Leaving it unowned does not defer a feature; it
+  leaves a closed phase's gate permanently unfinishable.
+- **The machinery is all here, which is why P8 could cut it safely.** The books,
+  the (actor × persona) association, the two-tier retrieval budget, the
+  workbench's injection report, the scope and intake toggles, the write path
+  that appends a turn with no model call, and `LoreEntry.locked` **with a writer
+  and no reader** — P8.3's record says outright that *"the extractor inherits an
+  obligation with subjects already on disk."* What is missing is a step, a
+  payload, a prompt and a dedupe rule.
+- **And the alternative is defensible, which is why it needed deciding rather
+  than assuming.** 1.0 could ship memory as a manual feature. It would be a
+  smaller, honest product — and it is **not** the one four design documents
+  describe, so choosing it would mean editing them. Nobody has proposed that.
+
+*Appended as P11.12 rather than inserted*, on §2's own convention: stages are
+cited by number across the corpus and renumbering to buy tidiness breaks live
+citations. By argument it belongs with the large user-facing items.
+
+---
+
+#### What this stage did **not** find, which is worth one line
+
+**No route without a caller, no config key without a consumer, and no `TODO`,
+`FIXME` or `it.todo` anywhere in the tree.** The two shapes §0.2 named — a
+shipped route with no surface, a shipped setting nothing reads — are both at
+zero outside their written exemptions, and the third shape a sweep usually finds
+is absent because this codebase does not use the marker. *That is the argument
+for why the twenty-seven items above are the shape they are*: what is left after
+six phases of instruments is **sentences that stopped being true**, and no
+instrument in this repository could see one until this stage built the first.
+
+---
+
 ## 1. Decisions this plan has to make
 
 ### 1.1 A hardening phase is a list, and a list without owners never ends
@@ -921,6 +1096,39 @@ rather than from the sizing.
 
 ---
 
+### 1.9 `.sepack` is [P11.10](#p1110--session-export-and-the-format-it-freezes)'s, and the reason is that it is not a second format
+
+***Decided 2026-09-17 by [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)'s item
+26***, which is the revisit [§0.1](#01-the-audit-run-early--2026-09-14)'s row 13
+said the choice was cheaper at. Three arms were open — this stage, a stage of its
+own, or [P7B](24-p7b-presets-and-prompts.md)'s package editor growing an export
+button — and the argument that separates them is not about scheduling.
+
+**The two things travel differently and serialise identically.** A session
+carries branch structure and channel state; a package carries an arbitrary
+bundle of library objects, every one of which is already a **portable kind** with
+a schema, a `Provenance` and an id that `stampImported` can key. So the package
+half needs no format decision at all: [04 §9](../04-schemas.md) describes the
+bundle and [18](../18-session-import.md)'s sweep already reads exactly those
+objects. *What P11.10 is actually deciding is the hard part — how a record with
+siblings, absent instrumentation and foreign identifiers survives a round trip —
+and none of those three questions is asked by a bag of actors.*
+
+**So the deciding consideration is the one §1.8 makes about import:** the four
+consequences are *"free while the format is being written and expensive
+afterwards"*, and an envelope is one of them. **One envelope, two payloads** — a
+manifest naming what is inside, a version, and the same provenance rules — is
+free if it is written once and is two formats forever if it is not. A stage of
+its own would write the second envelope; an export button on the package editor
+would write it *and* put it somewhere nothing else can reach.
+
+*What this does not do is grow P11.10's gate.* The round trip that has to be
+proved is the session's, for the reason §1.8 gives. The package half's proof is
+one line beside it — **a bundle exported from one install opens on another** —
+because every object in it round-trips through machinery six phases old.
+
+---
+
 ## 2. Stages
 
 The audit first, because §1.2 says the list does not exist; then the two large
@@ -928,20 +1136,23 @@ user-facing items; then the sweeps, which are cheapest once nothing new is
 landing; then release engineering, which gates the phase rather than being part
 of it.
 
-***Two stages were appended below release engineering rather than placed in that
-order*** — P11.10 and P11.11, added 2026-09-14 (§0.1, §1.8). **Appended, because
-stages are cited by number across the corpus and renumbering nine of them to put
-two in their right place would break live citations to buy tidiness.** By
-argument they belong with the large user-facing items: export is the largest
-single thing this phase builds and the only one with a design dependency outside
-the phase. Read §2 as P11.0, P11.10, P11.11, P11.1 … P11.9, and treat the
-numbers as filing order — the same convention the work-plan documents themselves
-run on.
+***Three stages were appended below release engineering rather than placed in
+that order*** — P11.10 and P11.11, added 2026-09-14 (§0.1, §1.8), and **P11.12,
+added 2026-09-17** ([§0.4](#04-the-audit-run--2026-09-17-at-45c613c)).
+**Appended, because stages are cited by number across the corpus and renumbering
+nine of them to put two in their right place would break live citations to buy
+tidiness** — an argument that got cheaper the second time it was used, which is
+what a convention is. By argument all three belong with the large user-facing
+items: export is the largest single thing this phase builds and the only one
+with a design dependency outside the phase, and the extractor is the half of
+[08](../08-cross-session-memory.md) that [P8](25-p8-implementation.md) cut. Read
+§2 as P11.0, P11.10, P11.11, P11.12, P11.1 … P11.9, and treat the numbers as
+filing order — the same convention the work-plan documents themselves run on.
 
 ***And since 2026-09-16 the reading order can be derived rather than asserted.***
 Every stage now carries a *Depends on* line, so the order is a topological sort of
-twelve stages of which **nine depend on nothing** (§5). That makes two constraints
-and one preference explicit:
+thirteen stages of which **ten depend on nothing** (§5). That makes two
+constraints and one preference explicit:
 
 - **P11.8 last but one, P11.9 last.** The sweep depends on everything that adds
   user-facing prose and the packaging depends on everything; these are the
@@ -1005,6 +1216,39 @@ they cover the two shapes a shipped-but-unreachable commitment takes (§0.2).
 can hold here is that the two countable things were counted; the rest is
 reading, and §0.2 is the evidence that reading finds what the instruments
 cannot.*
+
+#### Done — 2026-09-17, in [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)
+
+**Twenty-seven items, seven of them fixed by the running of it.** The list, the
+count and the two instruments' readings are §0.4; what belongs here is what the
+stage learned about itself.
+
+***The stage's own proof obligation turned out to be the least informative thing
+it produced***, and that is worth recording rather than hiding. Both instruments
+read exactly what §0.3 left them — four owed routes, two unread keys — because
+**neither can see what this audit was for.** `OWED` watches routes and
+`'unread'` watches config keys; twenty-two of the twenty-seven items are
+*sentences*. The obligation was honest and it was satisfied by a no-op.
+
+***So the stage built the instrument its own findings implied.***
+[`tools/citation-targets.test.ts`](../../../tools/citation-targets.test.ts) is
+[manual testing §10.1](05-manual-testing.md)'s lesson mechanised — a citation
+names a stage or a section that exists — and it found **sixteen defects on its
+first run**, one of which was a test asserting half of what its title claimed
+while owing the other half to `P2.7`, the never-created stage §10.1 is a whole
+section about. *That file predicted its own repair — "when that lands, this test
+changes shape, and it should be found by failing" — and the prediction did not
+fire, because the body never drove the watcher.* It does now.
+
+**§1.1's rule turned on this stage and answered rather than dodged**, which is
+what its *Proof obligation* line asked for: the countable things were counted,
+and the reading found what the instruments could not. The difference this time is
+that *some of the reading became countable* — which is the only way an audit
+stops having to be re-run by hand.
+
+**Row 20 is decided** — [P11.12](#p1112--the-automatic-extractor) — and
+§1.9 settles `.sepack`. Both were carried on the explicit promise that the
+revisit would decide them, and this is the revisit.
 
 ### P11.1 — The reading view
 
@@ -1476,6 +1720,61 @@ test that says so runs without a person.
 
 ---
 
+### P11.12 — The automatic extractor
+
+***Added 2026-09-17 by [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)***, which
+decided [§0.2](#02-re-audited-2026-09-16-at-2f3f5d9-after-p7b-p8-and-p9)'s row 20
+rather than carrying it a third time. [08 §2.1](../08-cross-session-memory.md) is
+the specification and none of it is restated here: *a step at session end, and
+periodically during long sessions, writes memory entries* — **discrete facts and
+events, not summaries**, because *"five memories are five things that can be
+retrieved independently, attributed separately, and deleted individually when one
+turns out to be wrong."*
+
+**Appended rather than placed**, on §2's convention. By argument it sits with the
+large user-facing items.
+
+***What P8 left, which is most of it.*** [P8](25-p8-implementation.md) cut this
+on its own named fallback and built everything around it: the (actor × persona)
+memory book, the retrieval path and budget the workbench already reports, manual
+capture with its escaped-effect write, the scope and intake toggles, and
+`LoreEntry.locked` **with a writer and no reader**. P8.3's record states the
+inheritance outright — *"the extractor inherits an obligation with subjects
+already on disk."* So this stage is a step, a narrowed payload, a prompt and a
+dedupe rule, over machinery that is six stages old and has run.
+
+**Two rules come with it rather than after it**, both from
+[08 §6](../08-cross-session-memory.md) and both cheaper to build than to retrofit:
+
+- **The extractor never rewrites a locked entry.** That is the reader `locked`
+  has been waiting for since P8.3, and a hand-written memory is locked from the
+  moment it is written — so the subjects exist before the rule does.
+- **It is handed the record, narrowed.** [P8 §1.5](25-p8-implementation.md)
+  settled the payload question, and its own argument is that *"what the extractor
+  declared `history` to get"* is verbatim what it is given — an extractor that
+  reads more than it declared is exactly what §6 rejects.
+
+*Depends on:* nothing in this phase. Everything it needs merged with
+[P8](25-p8-implementation.md).
+
+*Ends at:* a session played to its end leaves memories in the pair's book
+without anybody asking, **a hand-corrected one survives the next extraction**,
+and a second session about the same events does not double the book.
+
+*Proof obligation:* **[P8](25-p8-implementation.md)'s C2 and C3, which is the
+point of taking the stage rather than a side effect of it.** Those two criticals
+are *vacuous* under the cut — C2 asks whether a hand correction survives the next
+extraction and C3 whether a memory bleeds a spoiler, and neither can be walked
+while nothing extracts. **This stage is what makes
+[sitting N](05-manual-testing.md) more than one row.** The mechanical half is the
+locked rule, asserted where it can fail: a locked entry, a run that would have
+rewritten it, and the entry unchanged — which is a test and not a sitting. *The
+judgement half — whether the facts it picks are the ones a reader would have
+picked — is [G](05-manual-testing.md)'s, and belongs with the other tuning this
+phase cannot do at a desk.*
+
+---
+
 ## 3. Verification — the P11 exit gate
 
 ~~Sketch; expand on revisit.~~ **This gate is also the beta gate**, which is the
@@ -1632,10 +1931,11 @@ requires for beta to count.
 and now that every stage carries a *Depends on* the seam can be read off the
 dependencies rather than guessed from the headings.
 
-**Nine of the twelve stages depend on nothing.** P11.1, P11.2, P11.3, P11.4,
-P11.7, P11.11 and P11.0 are independent outright; P11.5 depends on a person's
-time and P11.6 on a paragraph in [P10](27-p10-implementation.md). **Only two have
-a dependency inside this phase**, and they are the seam:
+**Ten of the thirteen stages depend on nothing.** P11.1, P11.2, P11.3, P11.4,
+P11.7, P11.11, P11.12 and P11.0 are independent outright; P11.5 depends on a
+person's time and P11.6 on a paragraph in [P10](27-p10-implementation.md), which
+that phase has since answered. **Only two have a dependency inside this phase**,
+and they are the seam:
 
 - **P11.8** depends on everything that adds user-facing prose — the sweep run
   before P11.1, P11.3 and P11.7 is a sweep run twice.
