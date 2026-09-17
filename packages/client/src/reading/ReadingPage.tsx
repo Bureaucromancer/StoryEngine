@@ -89,8 +89,11 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
         </div>
       </div>
 
-      {/* The heading again, for the printed page, where the row above is gone. */}
-      <h1 className="hidden text-2xl print:block">{title}</h1>
+      {/* The heading again, for the printed page, where the row above is gone.
+          `text-title` rather than the raw `text-2xl` it used to spell: the token
+          resolves to the same size today, and spelling the step means the
+          printed title follows the scale the next time the scale moves. */}
+      <h1 className="hidden text-title print:block">{title}</h1>
 
       {props.from === undefined ? null : (
         <Note>
@@ -170,7 +173,14 @@ function Illustrated(props: {
     <img
       src={renditionAssetUrl(props.sessionId, shown.id, shown.asset?.digest ?? '')}
       alt={shown.scope?.anchor ?? ''}
-      className="w-full rounded-panel"
+      /**
+       * **Bounded by the measure, not stretched to it.** `w-full` set every
+       * illustration to the reading column's 48rem whatever its own size, so a
+       * small rendition was upscaled into a soft rectangle and a large one was
+       * the only case the class was right for. `max-w-full` keeps the ceiling
+       * and drops the floor; `mx-auto` centres what comes in narrower.
+       */
+      className="mx-auto h-auto max-w-full rounded-panel"
     />
   );
 

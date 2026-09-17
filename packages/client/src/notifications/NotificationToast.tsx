@@ -56,7 +56,7 @@ export function NotificationToast(props: { state: NotificationsState }): JSX.Ele
       // Fixed rather than in the layout flow: the shell is height-managed
       // ([P3.−1]) and a toast that took part in that flex column would push the
       // transcript up by its own height every time a turn finished.
-      className="fixed bottom-4 end-4 z-50 max-w-sm rounded-panel border border-line bg-surface p-4 shadow-lg"
+      className="fixed bottom-4 end-4 z-50 max-w-sm rounded-panel border border-line bg-surface p-4 shadow-lg print:hidden"
     >
       <p className="text-sm font-medium">
         {said.title}

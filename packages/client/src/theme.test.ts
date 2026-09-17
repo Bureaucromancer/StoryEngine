@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest';
  */
 
 const CSS = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8');
+const SHELL = readFileSync(fileURLToPath(new URL('./Shell.tsx', import.meta.url)), 'utf8');
 
 /** The declarations inside one brace-balanced block, as name → value. */
 function tokensIn(source: string): Map<string, string> {
@@ -88,5 +89,53 @@ describe('the theme', () => {
     expect(blockAt(CSS.indexOf('@media (prefers-color-scheme: dark)'))).toMatch(
       /color-scheme:\s*dark/,
     );
+  });
+});
+
+/**
+ * ***That the story prints at all*** — [10 §12.2], [P11.1], and manual row R2.
+ *
+ * §12.2 makes the browser's own print-to-PDF the **entire** PDF story, which is
+ * the reason this project ships no PDF renderer. That makes the print
+ * stylesheet a feature rather than a courtesy, and it was broken from the day
+ * the shell became height-managed: `<main>` is the scroll container rather than
+ * the document ([P3.−1]), and a box with a definite block-size and
+ * `overflow: auto` prints as its first page and nothing after it. A forty-turn
+ * story printed as whatever happened to be on screen.
+ *
+ * **Nothing caught it because nobody had printed.** Row R2 — *"then print it
+ * through the browser and look at the PDF"* — has sat with an empty result cell
+ * since P11.1. This is that row's cheap half: jsdom computes no layout, so the
+ * clipping itself still needs a person, but *the release being present at all*
+ * is mechanical and is what would go missing again.
+ *
+ * It spans two files on purpose, and the assertions follow the same split:
+ * `main`'s printed geometry belongs beside its printed width in the stylesheet,
+ * and the two ancestors are known only to the shell, which releases them at the
+ * call site as position always is here.
+ */
+describe('printing', () => {
+  const print = blockAt(CSS.indexOf('@media print'));
+
+  it('releases the scrollport, so more than the first page is printed', () => {
+    const main = print.slice(print.indexOf('main'));
+    expect(main).toMatch(/overflow:\s*visible/);
+    expect(main).toMatch(/block-size:\s*auto/);
+  });
+
+  it('releases the height-managed column the scrollport sits in', () => {
+    // Without these the stylesheet above frees `main` inside a parent that is
+    // still exactly one viewport tall, which prints the same single page by a
+    // different route — so the two halves are asserted together or neither is
+    // worth asserting.
+    expect(SHELL).toMatch(/h-dvh[^"]*print:h-auto/);
+    expect(SHELL).toMatch(/overflow-y-auto[^"]*print:overflow-visible/);
+  });
+
+  it('leaves the docks and the banners off the page', () => {
+    // By landmark, like every other entry in this list, so a restyle cannot
+    // quietly put the workbench back on the printed story.
+    expect(print).toMatch(/(^|,)\s*aside\s*(,|\{)/m);
+    expect(SHELL).toMatch(/bg-warn-surface[^"]*print:hidden/);
   });
 });

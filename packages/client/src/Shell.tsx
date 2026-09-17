@@ -116,7 +116,7 @@ export function Shell(): JSX.Element {
     // `h-dvh`, not `min-h-dvh`: the shell claims the viewport, which is what
     // lets `flex-1` below mean "the rest of it" and makes `<main>` the scroll
     // container instead of the document ([P3.−1]).
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col print:block print:h-auto">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-4">
@@ -213,8 +213,8 @@ export function Shell(): JSX.Element {
           remains — [P3 §1.1]'s reading of §3's "expands over" as a claim about
           navigation, not z-order. Closed is unmounted, not hidden: no queries
           run, and the landmark is absent rather than lurking. */}
-      <div className="flex min-h-0 flex-1">
-        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 print:block">
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
           <Outlet />
         </main>
         {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
@@ -332,7 +332,10 @@ function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const interrupts = notices.data?.interrupts ?? { mine: 0, others: 0 };
 
   return (
-    <div role="status" className="border-b border-warn-line bg-warn-surface px-6 py-2 text-sm">
+    <div
+      role="status"
+      className="border-b border-warn-line bg-warn-surface px-6 py-2 text-sm print:hidden"
+    >
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
         <p className="text-warn-ink">
           {draining

@@ -404,7 +404,8 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
   body > * > footer,
   header[class],
   footer[class],
-  nav[aria-label] {
+  nav[aria-label],
+  aside {
     display: none !important;
   }
 
@@ -414,9 +415,28 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     color: #000 !important;
   }
 
+  /**
+   * ***The scrollport, released*** — without this the story prints as one
+   * clipped page, which is the whole of §12.2's PDF story failing silently.
+   *
+   * `<main>` is the scroll container rather than the document ([P3.−1]): the
+   * shell claims the viewport with `h-dvh` and `main` takes what is left under
+   * `overflow-y-auto`. A box with a definite block-size and `overflow: auto`
+   * prints as its *first page* and nothing after it, in Chrome and Firefox
+   * alike — so a forty-turn story printed as whatever happened to be on screen.
+   *
+   * **Here for `main`, and at the call site for its two ancestors.** This rule
+   * already owns `main`'s printed geometry, so its height belongs beside its
+   * width. The `h-dvh` column and the dock row above it are known only to
+   * `Shell.tsx`, and they release themselves there with `print:` variants —
+   * position is a call-site concern in this codebase, and a selector here that
+   * had to describe the shell's tree would break the next time it changed.
+   */
   main {
     max-inline-size: none !important;
     padding: 0 !important;
+    block-size: auto !important;
+    overflow: visible !important;
   }
 
   /* A paragraph broken across a page break reads as two, and an illustration
