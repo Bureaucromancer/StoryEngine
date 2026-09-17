@@ -32,11 +32,11 @@ the seven journeys turned up. **The other three stood**, and they are features
 with arguments beside them, which is the shape this paragraph could not claim
 while a fourth thing sat in it with no argument at all.
 
-***Two, since later the same day: [10 §11.2c]'s entry travel is built too.*** Its
-record is [P11.2]'s Done block below. **What remains unbuilt for beta is
-[10 §11.2b]'s image slots and the assistant's docs lorebook**, and the honest
-reason both are still here is that one is a stage of work and the other is a
-corpus somebody has to write — neither is a decision waiting on a reader.
+***One, by the end of the same day: [10 §11.2c]'s entry travel and
+[10 §11.2b]'s image slots are built too.*** Both records are [P11.2]'s Done block
+below. **What remains unbuilt for beta is the assistant's docs lorebook**, which
+is not a decision waiting on a reader either: it is a corpus somebody has to
+write.
 
 ***What the fleshing out did, in one line: every one of the stages now
 names what it depends on, what it ends at, and the check that says it is done***
@@ -1534,13 +1534,32 @@ round trip is driven end to end beside it, because *the control is there* and
 ***What this stage's opening paragraph names and this does not build***, stated
 here rather than discovered by a reader of the gate:
 
-- **[10 §11.2b]'s image slots.** §11 lists *"every image slot can be generated,
-  uploaded, cropped and replaced"* as the second of its two capabilities, and
-  §11.2b is the lorebook half of it — a gallery on the book, a strip on each
-  entry. Its own text removes the *generated* arm from this phase — *"**No
-  assist.** Generating a location image is a rendition… so it arrives with them
-  and not before"*, which [P9](26-p9-implementation.md) has now shipped — and
-  leaves upload, crop and replace, which is a stage rather than a clause.
+- ~~**[10 §11.2b]'s image slots.**~~ ***Built 2026-09-17.*** §11 lists *"every
+  image slot can be generated, uploaded, cropped and replaced"* as the second of
+  its two capabilities, and §11.2b is the lorebook half of it — a gallery on the
+  book, a strip on each entry. Its own text removes the *generated* arm from this
+  phase — *"**No assist.** Generating a location image is a rendition… so it
+  arrives with them and not before"*, which [P9](26-p9-implementation.md) has now
+  shipped — and leaves upload, crop and replace.
+
+  ***It was unreachable rather than unbuilt***, which is what building it found.
+  `EmbeddedMedia` is a reference to bytes *the container* carries, and this build
+  had **one** container that carries them: a PNG's blob chunk. A lorebook is
+  `lorebook.json` in a folder, so `readMedia`'s `codecFor` returned null for one
+  and every read ended at *"that object is not in a container that carries
+  media"* — while `assetsRoot` had sat in `layout.ts` since P1 with nothing ever
+  writing to it. `library/assets.ts` is that container, and
+  [04 §5](../04-schemas.md) had already said where it goes: *"bulk, in the folder
+  rather than the manifest … a layout that already listed
+  `lorebooks/<slug>/lorebook.json + assets/`"*.
+
+  ***Two decisions are worth reading before the code.*** Assets are
+  **content-addressed**, so the same picture twice is one file and an orphan is
+  detectable — a file whose digest no manifest row carries — which is what makes
+  the sweep on save possible at all. And the upload route **stores bytes without
+  touching the object**: the gallery and each entry's strip are different arrays,
+  only the form knows which one a row belongs to, and a route that decided would
+  write the object behind the editor's draft.
 - ~~**[10 §11.2c]'s entry travel.**~~ ***Built 2026-09-17***, after the record
   named it: selection on the entry list, *Export selected*, *Import entries…*,
   and the review that goes with a merge. `editor/entry-travel.ts` is the model
@@ -2906,12 +2925,19 @@ gaps, and the docs lorebook is [P11.3]'s. *A phase claiming feature completeness
 has to answer for them at C4*, which is why they are here rather than only in
 their stages' Done blocks.
 
-***Entry travel was built on 2026-09-17***, so that list is one shorter — and it
-is the second thing this record named that then got made rather than argued
-about, after row 8. Both took a day; both were being carried because nobody had
-written down that they were missing, which is the case for writing a record at
-all. **Image slots and the docs lorebook stand**, and neither is waiting on a
-decision: one is a stage of work, the other a corpus somebody has to write.
+***Entry travel and image slots were both built on 2026-09-17***, so that list is
+empty — and with row 8 they are the second and third things this record named
+that then got made rather than argued about. Each took hours; each was being
+carried because nobody had written down that it was missing, which is the case
+for writing a record at all. **The docs lorebook stands**, and it is not waiting
+on a decision either: it is a corpus somebody has to write.
+
+***Image slots is the one that most argues for the exercise.*** It had been
+carried as *a stage of work*, and what it actually was is a **container that did
+not exist**: `EmbeddedMedia` names bytes a container carries, a lorebook's
+container is a folder, and nothing had ever written into one. So §11.2b was not
+unbuilt, it was **unreachable** — and the difference is invisible from a plan and
+obvious from an afternoon.
 
 **And row 8 was the one to argue about** — ~~*"whether beta can be declared
 without it is C4's reader's call and not this document's"*~~. Three of the four

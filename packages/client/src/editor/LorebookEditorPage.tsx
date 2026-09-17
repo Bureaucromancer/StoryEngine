@@ -48,6 +48,7 @@ import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
 import { EntryTravel } from './EntryTravel.js';
+import { MediaStrip } from './MediaStrip.js';
 
 import { OFF_LABELS } from '../library/gate-labels.js';
 
@@ -388,6 +389,34 @@ function Editor(props: EditorProps): JSX.Element {
         }}
       />
 
+      {/*
+       * ***The book's gallery*** — [10 §11.2b]: *"the book gets a gallery, one
+       * image designated as the library card's picture. Maps, establishing
+       * shots, style references for the world."* The cover control is what
+       * `primaryMediaId` is, and it is here rather than on the shelf because
+       * this is where the pictures are.
+       *
+       * ***Uncropped, unlike an entry's strip.*** A map is the case this exists
+       * for and a map is not square; the squaring that keeps a strip of
+       * thumbnails tidy would cut the corners off one.
+       */}
+      <section className="flex flex-col gap-3">
+        <SectionTitle as="h2">Pictures</SectionTitle>
+        <MediaStrip
+          kind="lorebooks"
+          objectId={props.initial.id}
+          media={book.media}
+          crop={false}
+          coverId={book.primaryMediaId}
+          onCover={(primaryMediaId) => {
+            edit({ ...draft, primaryMediaId });
+          }}
+          onChange={(media) => {
+            edit({ ...draft, media });
+          }}
+        />
+      </section>
+
       <FolderGates
         book={book}
         chosen={folder}
@@ -482,6 +511,22 @@ function Editor(props: EditorProps): JSX.Element {
             onPatch={(patch) => {
               edit(withEntry(draft, selected.id, patch));
             }}
+            /**
+             * ***The entry's own strip*** — [10 §11.2b]. **The bytes are stored
+             * beside the book**, not beside the entry, because an entry is not
+             * a file: `objectId` is the book's either way, and what differs is
+             * which `media` array the row lands in.
+             */
+            strip={
+              <MediaStrip
+                kind="lorebooks"
+                objectId={props.initial.id}
+                media={selected.media}
+                onChange={(media) => {
+                  edit(withEntry(draft, selected.id, { media }));
+                }}
+              />
+            }
           />
 
           <div className="flex items-center gap-3 text-sm">

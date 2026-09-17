@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { newLoreEntry, newLorebook, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
-import { ApiError, type Account, type LibraryObject } from '../api.js';
+import { api, ApiError, type Account, type LibraryObject } from '../api.js';
 
 /**
  * **Exit-gate step 5** —
@@ -1307,9 +1307,16 @@ describe('entries travelling on their own', () => {
     return caught;
   }
 
-  /** The hidden input, which has no accessible name on purpose — see `EntryTravel`. */
+  /**
+   * The hidden input, which has no accessible name on purpose — see
+   * `EntryTravel`.
+   *
+   * **Narrowed by `accept`**, because this page grew a second hidden file input
+   * when [10 §11.2b]'s picture strips landed, and a bare
+   * `input[type="file"]` then found the image picker instead.
+   */
   function filePicker(): HTMLInputElement {
-    const found = document.querySelector<HTMLInputElement>('input[type="file"]');
+    const found = document.querySelector<HTMLInputElement>('input[type="file"][accept*="json"]');
     if (found === null) throw new Error('no file input rendered');
     return found;
   }
@@ -1454,5 +1461,136 @@ describe('entries travelling on their own', () => {
     await waitFor(() => {
       expect(server.importedFrom).toBeUndefined();
     });
+  });
+});
+
+/**
+ * ***[10 §11.2b](../../../../docs/design/10-ui-surfaces.md) — image slots***, at
+ * the surface.
+ *
+ * `library/assets.test.ts` holds the container: bytes in, bytes out, an entry's
+ * row served as readily as the book's, and the sweep that collects what nothing
+ * names. **What is here is the two things §11.2b is actually about** — that the
+ * pictures are in *two* places, a gallery on the book and a strip inline with
+ * each entry, and that the row a person edits reaches the book through the
+ * ordinary save.
+ *
+ * *And one claim that is a sentence rather than a mechanism.* §11.2b: *"nothing
+ * here suggests the images are used. They are not sent, and an editor implying
+ * otherwise would be making a promise the engine does not keep — which matters
+ * more than usual here, because it is exactly the assumption the schema warns
+ * against."* A test is a poor guard against an implication, and a good one
+ * against the sentence being deleted.
+ */
+describe('image slots on a book and its entries', () => {
+  function uploads(): { sent: Blob[] } {
+    const sent: Blob[] = [];
+    vi.spyOn(api, 'uploadAsset').mockImplementation((_kind, _id, blob) => {
+      sent.push(blob);
+      return Promise.resolve({
+        asset: {
+          ref: `assets/${String(sent.length)}.png`,
+          digest: `sha256:${String(sent.length)}`,
+          bytes: 4,
+          mime: 'image/png',
+        },
+      });
+    });
+    return { sent };
+  }
+
+  function pickerIn(container: HTMLElement): HTMLInputElement {
+    const found = container.querySelector<HTMLInputElement>('input[type="file"][accept^="image"]');
+    if (found === null) throw new Error('no image picker rendered');
+    return found;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('adds a picture to the book and makes it the cover, through the ordinary save', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.click(await within(gallery).findByRole('button', { name: 'Use as the cover' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.media).toHaveLength(1);
+    expect(saved.media[0]?.ref).toBe('assets/1.png');
+    expect(saved.primaryMediaId).toBe(saved.media[0]?.id);
+  });
+
+  it('puts a strip on the entry rather than on the book', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    // The entry's own strip is the one below the entry heading, not the
+    // gallery above — §11.2b's *inline with the entry*.
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
+      ?.parentElement;
+    if (strip === undefined || strip === null) throw new Error('no entry section');
+
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['fake'], 'quay.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    // On the entry, and **not** on the book: the bytes are stored beside the
+    // book either way, and which array the row lands in is the whole difference.
+    expect(saved.media).toEqual([]);
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.media).toHaveLength(1);
+  });
+
+  it('offers role as a pick-list and tags as free text', async () => {
+    uploads();
+    renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    // §11.2b: *"role is a short pick-list the software understands, tags are
+    // free text the author organises by. Getting this wrong in the UI produces
+    // tag soup in the role field."*
+    expect(await within(gallery).findByRole('combobox', { name: 'Role' })).toBeTruthy();
+    expect(within(gallery).getByRole('textbox', { name: 'Tags' })).toBeTruthy();
+  });
+
+  it('says the pictures are never sent', async () => {
+    renderApp();
+    await openEditor();
+
+    // The one claim §11.2b makes that a mechanism cannot keep — so what is
+    // guarded is the sentence.
+    expect(screen.getAllByText(/never sent to a model/).length).toBeGreaterThan(0);
   });
 });

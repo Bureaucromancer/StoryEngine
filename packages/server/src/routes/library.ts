@@ -16,6 +16,9 @@ import { resolveObjectTags } from '../tags/resolve.js';
 import { usedBy } from '../index-db/links.js';
 import { exportPackage } from '../packaging/export.js';
 import { assistField } from '../library/assist.js';
+import { storeAsset, sweep } from '../library/assets.js';
+import { sniff } from '../auth/avatars.js';
+import { readOnePart } from './import.js';
 import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
@@ -536,6 +539,28 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           change,
           schemaId,
         );
+        /**
+         * ***Assets nothing names are collected here*** — [10 §11.2b], and the
+         * other half of `POST …/assets` storing bytes without touching the
+         * object. A picture uploaded by somebody who then closed the tab is a
+         * file with no manifest row, and this is the moment the manifest on
+         * disk is authoritative about which rows there are.
+         *
+         * **After the write and never before it**, because sweeping against a
+         * draft would delete the picture somebody had just added and not yet
+         * saved. Best-effort, and awaited rather than detached: the object is
+         * already on disk, so the worst a failure costs is a file the next save
+         * collects — but a detached sweep is one more thing writing into a
+         * directory after the request that caused it has answered, which is the
+         * shape that just cost a shutdown race one layer over.
+         */
+        await sweep(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+        );
+
         return await reply
           .header('etag', stored.contentHash)
           .send({ contentHash: stored.contentHash, object: stored.object });
@@ -639,6 +664,28 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           expected,
           schemaId,
         );
+        /**
+         * ***Assets nothing names are collected here*** — [10 §11.2b], and the
+         * other half of `POST …/assets` storing bytes without touching the
+         * object. A picture uploaded by somebody who then closed the tab is a
+         * file with no manifest row, and this is the moment the manifest on
+         * disk is authoritative about which rows there are.
+         *
+         * **After the write and never before it**, because sweeping against a
+         * draft would delete the picture somebody had just added and not yet
+         * saved. Best-effort, and awaited rather than detached: the object is
+         * already on disk, so the worst a failure costs is a file the next save
+         * collects — but a detached sweep is one more thing writing into a
+         * directory after the request that caused it has answered, which is the
+         * shape that just cost a shutdown race one layer over.
+         */
+        await sweep(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+        );
+
         return await reply
           .header('etag', stored.contentHash)
           .send({ contentHash: stored.contentHash, object: stored.object });
@@ -756,6 +803,81 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           .header('content-type', mime)
           .header('etag', digest)
           .send(Buffer.from(bytes));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * ***Bytes beside an object*** — [10 §11.2b](../../../../docs/design/10-ui-surfaces.md),
+   * [03 §5.2.3](../../../../docs/design/03-data-model.md), built at P11.
+   *
+   * §11 lists *"every image slot can be generated, uploaded, cropped and
+   * replaced"* and §11.2b is the lorebook half of it. **Three of those four are
+   * this route and the editor above it**; *generated* is a rendition
+   * ([06 §10](../../../../docs/design/06-modes-and-turn-pipeline.md)) and
+   * §11.2b sends it away by name, to arrive *"with the providers and not
+   * before"* — which [P9](../../../../docs/design/workplan/26-p9-implementation.md)
+   * has now shipped as the backdrop.
+   *
+   * ***It stores bytes and does not touch the object***, which is the decision
+   * worth reading twice. §11.2b puts a gallery on the **book** and a strip on
+   * **each entry**, so *which array does this row belong to* is a question only
+   * the form knows the answer to — a route that decided would need an arm per
+   * array, and it would write the object behind the editor's draft, which is
+   * the one thing the editor shell exists to prevent. So the manifest row
+   * travels in the ordinary save, hash-checked like every other field, and
+   * `library/assets.ts` explains what that costs and how it is paid back.
+   *
+   * ***Cropping happens in the browser, and the cropped bytes are what arrives
+   * here.*** A crop is a rectangle over pixels somebody is looking at; doing it
+   * on the server would mean shipping an image library to re-derive a decision
+   * the client had already made exactly, and then keeping an uncropped original
+   * nothing asks for. The canvas the browser already has is the better tool,
+   * and what reaches disk is what the person chose.
+   */
+  app.post(
+    '/library/:kind/:id/assets',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const part = await readOnePart(request, reply, services);
+      if (part === null) return;
+
+      /**
+       * **Sniffed, not trusted.** The part's own content type is what the browser
+       * said; this is what the bytes are, and it is the same `sniff` the avatar
+       * upload uses so the two doors accept the same set. A file that is not an
+       * image is refused here rather than stored and discovered by a broken
+       * picture later.
+       */
+      const kind = sniff(part.bytes);
+      if (kind === null) {
+        return reply
+          .code(415)
+          .send({ error: 'not-an-image', message: 'That is not a PNG, JPEG or WebP image.' });
+      }
+
+      try {
+        const stored = await storeAsset(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          part.bytes,
+          kind.mime,
+          schemaId,
+        );
+        // 201, and the body is the manifest row the editor is about to add — the
+        // caller has to be able to write `ref`, `digest`, `bytes` and `mime` into
+        // an `EmbeddedMedia` without computing any of them.
+        return await reply.code(201).send({ asset: stored });
       } catch (error) {
         respondToLibraryError(error, reply);
         return;

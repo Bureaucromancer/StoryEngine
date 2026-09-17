@@ -1814,6 +1814,33 @@ implying otherwise would be making a promise the engine does not keep — which
 matters more than usual here, because it is exactly the assumption the schema
 warns against.
 
+**Built at P11** ([P11.2](workplan/28-p11-implementation.md)), and the first
+thing building it found is that this section was **unreachable rather than
+unbuilt**. `EmbeddedMedia` is a reference to bytes *the container* carries
+([04 §3](04-schemas.md)), and this build had one container that carries them: a
+PNG's blob chunk. A lorebook is `lorebook.json` in a folder, so the media route's
+codec lookup found no magic number and every read ended at *"that object is not
+in a container that carries media."* The folder container — the one
+[04 §5](04-schemas.md) had already described as *"bulk, in the folder rather than
+the manifest … a layout that already listed `lorebooks/<slug>/lorebook.json +
+assets/`"* — is what §11.2b actually needed first.
+
+*Assets are content-addressed, and the upload does not touch the object.* A file
+is named by the digest of its own bytes, so uploading the same picture twice
+costs one file and *replace* is an add plus a manifest edit. The row itself
+travels in the ordinary save, because the gallery and each entry's strip are
+different arrays and only the form knows which one a picture belongs to — a route
+that decided would write the object behind the editor's draft. What that costs is
+an orphan, and what pays it back is a sweep on save: **a file no manifest row
+names is exactly a file whose digest nothing carries.**
+
+*The crop is a centred square, in the browser.* §11's *"uploaded, cropped and
+replaced"* is three of four here; a drag-to-choose rectangle is a better tool and
+a surface of its own, and what this does is stop a wide photograph being
+letterboxed into a square thumbnail. The **book's** gallery is uncropped, because
+the case it exists for is a map and a map is not square. A crop that fails
+uploads the original rather than failing the upload.
+
 ### 11.2c Entries travel on their own
 
 **Exporting a selection of entries, and importing entries into an open book, are

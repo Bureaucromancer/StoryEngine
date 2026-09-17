@@ -83,12 +83,26 @@ function openerOf(group: FieldGroup): string {
 export function EntryFields(props: {
   entry: LoreEntry;
   onPatch: (patch: Partial<LoreEntry>) => void;
+  /**
+   * ***The entry's picture strip*** — [10 §11.2b], passed in rather than built
+   * here.
+   *
+   * §11.2b wants it *"small and inline with the entry rather than behind a tab —
+   * the point is seeing the place while writing about it"*, so it goes at the
+   * top, under the identity fields and above the first disclosure. **A slot
+   * rather than a component**, because this file renders the entry's fields
+   * *from the schema* — `groupsOf(fieldsOf(...))` — and `media` is a field it
+   * would otherwise render as a generic array control. Handing the rendered
+   * strip in keeps this file's rule intact: what it knows how to draw comes from
+   * the schema, and what does not is somebody else's.
+   */
+  strip?: JSX.Element;
 }): JSX.Element {
   const groups = groupsOf(fieldsOf(loreEntrySchema(), props.entry));
 
   return (
     <div className="flex flex-col gap-6">
-      {groups.map((group) => {
+      {groups.map((group, at) => {
         const opener = openerOf(group);
 
         // The head group — `id`, `name`, `content`, `description` — is never a
@@ -98,7 +112,13 @@ export function EntryFields(props: {
         // differing from a fresh entry's by construction.
         if (group.title === null) {
           return (
-            <FieldRows key="head" rows={group.fields} entry={props.entry} onPatch={props.onPatch} />
+            <div key="head" className="flex flex-col gap-4">
+              <FieldRows rows={group.fields} entry={props.entry} onPatch={props.onPatch} />
+              {/* After the identity fields and before the first disclosure —
+                  §11.2b's *inline with the entry*, which is where somebody
+                  writing about a place is already looking. */}
+              {at === 0 ? props.strip : null}
+            </div>
           );
         }
 

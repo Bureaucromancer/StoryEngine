@@ -596,6 +596,29 @@ export const api = {
     contentHash: string,
   ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
 
+  /**
+   * ***Bytes beside an object*** — [10 §11.2b], [P11].
+   *
+   * **Multipart rather than a JSON body with base64 in it**, which is the same
+   * choice the library's own import takes: a picture is a file, `FormData` is
+   * what a browser sends one with, and base64 is a third more bytes on the wire
+   * for the privilege of not using it.
+   *
+   * The answer is the manifest row's four computed fields — `ref`, `digest`,
+   * `bytes` and `mime` — so a caller writes an `EmbeddedMedia` without deriving
+   * any of them. The row itself travels in the ordinary save.
+   */
+  uploadAsset: (
+    kind: LibraryKind,
+    id: string,
+    blob: Blob,
+    filename: string,
+  ): Promise<{ asset: { ref: string; digest: string; bytes: number; mime: string } }> => {
+    const form = new FormData();
+    form.append('file', blob, filename);
+    return requestForm(`/api/library/${kind}/${id}/assets`, form);
+  },
+
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 
