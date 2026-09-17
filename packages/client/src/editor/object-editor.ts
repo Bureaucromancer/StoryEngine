@@ -4,7 +4,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 
-import { uuidv7 } from '@storyengine/shared';
+import { uuidv7, type GeneratedFieldProvenance } from '@storyengine/shared';
 
 import { ApiError, type LibraryKind, type LibraryObject } from '../api.js';
 import { missingRequired, refusalFor } from '../library/fields.js';
@@ -133,6 +133,29 @@ export interface ObjectEditor<F> {
   dismissConflict: () => void;
   /** After a restore, so the page can re-seed without knowing how. */
   adopt: (object: Record<string, unknown>, contentHash: string, notice: string) => void;
+
+  /**
+   * ***Per-field generation provenance, the editor's copy*** —
+   * [10 §11.2](../../../../docs/design/10-ui-surfaces.md),
+   * [P11.2](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * **Held here rather than in each kind's form**, which is the same argument
+   * this hook exists for: `generated` is keyed by dotted path and is a fact
+   * about the *object*, so six form shapes would each have to carry it and each
+   * would get the merge-on-save slightly differently. `apply` still owns the
+   * fields; this is assigned over the top, in one place.
+   *
+   * *Marinara's shape, adopted as [10 §11.2] says to adopt it* — the original
+   * value, the time, the model and the prompt it ran from — and the fourth
+   * field is the one this build added: `unreviewed`, false the moment a person
+   * edits it, which is what makes *"which of these did I actually write?"*
+   * answerable later.
+   */
+  generatedAt: (path: string) => GeneratedFieldProvenance | null;
+  /** The assist accepted: the model's words are in the field, and this is why. */
+  recordGenerated: (path: string, record: GeneratedFieldProvenance) => void;
+  /** A hand edit landed on a generated field, so it is no longer unreviewed. */
+  markReviewed: (path: string) => void;
 }
 
 export function useObjectEditor<F>(
@@ -158,6 +181,14 @@ export function useObjectEditor<F>(
    * progress report and has to interrupt.
    */
   const [refusal, setRefusal] = useState<string | null>(null);
+  /**
+   * The provenance map as the form has it — seeded from the loaded object and
+   * re-seeded wherever `base` is, so a restore and a reload-and-reapply both
+   * carry the right one rather than the one from before.
+   */
+  const [generated, setGenerated] = useState<Record<string, GeneratedFieldProvenance>>(() =>
+    generatedOf(initial.object),
+  );
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const saveMutation = useSaveObject();
@@ -185,6 +216,10 @@ export function useObjectEditor<F>(
     setBase((previous) => ({ ...previous, object, contentHash }));
     setForm(descriptor.formOf(object));
     setPristineForm(descriptor.formOf(object));
+    // A restored version carries its own provenance, and keeping the current
+    // map would attribute this form's fields to generations that produced
+    // different words.
+    setGenerated(generatedOf(object));
     setNotice(message);
   }
 
@@ -207,7 +242,7 @@ export function useObjectEditor<F>(
 
     if (unsaved) {
       create.mutate(
-        { kind: descriptor.kind, object: descriptor.apply(base.object, form) },
+        { kind: descriptor.kind, object: withGenerated(descriptor.apply(base.object, form)) },
         {
           onSuccess: (result) => {
             // `ignoreBlocker`: the edits have just been written, and the guard
@@ -238,7 +273,7 @@ export function useObjectEditor<F>(
      * One shell cannot hold both, which is the point of having one. Settled the
      * way the argument went rather than the way the older code went.
      */
-    const object = descriptor.apply(base.object, form);
+    const object = withGenerated(descriptor.apply(base.object, form));
     saveMutation.mutate(
       { kind: descriptor.kind, id: base.id, object, contentHash: base.contentHash },
       {
@@ -295,7 +330,7 @@ export function useObjectEditor<F>(
      * parks the same question for *Copy to my library*. Fixing it in the stage
      * that unified two editors would be deciding it by accident.
      */
-    const object = descriptor.apply(base.object, form);
+    const object = withGenerated(descriptor.apply(base.object, form));
     object['id'] = uuidv7();
     object['name'] = `${descriptor.nameOf(form)} (copy)`;
     create.mutate(
@@ -324,6 +359,20 @@ export function useObjectEditor<F>(
   const heading =
     named === '' ? (unsaved ? descriptor.untitled.draft : descriptor.untitled.saved) : named;
 
+  /**
+   * The object with this editor's provenance assigned over it.
+   *
+   * **`null` rather than `{}` for an empty map**, because that is what the
+   * schema says an object with no generated fields has
+   * (`GeneratedMap` is `Record | null`) and an empty object would be a second
+   * spelling of the same fact — which is the kind of difference that makes a
+   * no-op save look like a change.
+   */
+  function withGenerated(object: Record<string, unknown>): Record<string, unknown> {
+    const entries = Object.entries(generated);
+    return { ...object, generated: entries.length === 0 ? null : Object.fromEntries(entries) };
+  }
+
   return {
     base,
     form,
@@ -340,6 +389,25 @@ export function useObjectEditor<F>(
     formRef,
     heading,
     save,
+    generatedAt: (path) => generated[path] ?? null,
+    recordGenerated: (path, record) => {
+      setGenerated((was) => ({ ...was, [path]: record }));
+      setNotice(null);
+      setRefusal(null);
+    },
+    /**
+     * ***Reviewed, not removed.*** A hand edit does not make the field
+     * un-generated — [10 §11.2] wants the original kept so *revert to what the
+     * model wrote* still works after the edit — it makes it **reviewed**, which
+     * is the flag a library-wide *what did I actually write* view reads.
+     */
+    markReviewed: (path) => {
+      setGenerated((was) => {
+        const held = was[path];
+        if (held?.unreviewed !== true) return was;
+        return { ...was, [path]: { ...held, unreviewed: false } };
+      });
+    },
     savePending: saveMutation.isPending,
     saveError:
       saveMutation.isError &&
@@ -359,4 +427,31 @@ export function useObjectEditor<F>(
     },
     adopt,
   };
+}
+
+/**
+ * The provenance map an object carries, or an empty one.
+ *
+ * *Read defensively* for the reason every reader in this codebase is: the file
+ * is hand-editable ([10 §4]), so `generated` can be a string, a number or an
+ * array of nothing in particular, and a form that threw on one would make a
+ * typo in a file somebody else edited into a page that will not open.
+ */
+function generatedOf(object: Record<string, unknown>): Record<string, GeneratedFieldProvenance> {
+  const held = object['generated'];
+  if (typeof held !== 'object' || held === null || Array.isArray(held)) return {};
+  const out: Record<string, GeneratedFieldProvenance> = {};
+  for (const [path, value] of Object.entries(held as Record<string, unknown>)) {
+    if (typeof value !== 'object' || value === null) continue;
+    const row = value as Partial<GeneratedFieldProvenance>;
+    if (typeof row.original !== 'string') continue;
+    out[path] = {
+      original: row.original,
+      at: typeof row.at === 'string' ? row.at : new Date(0).toISOString(),
+      model: typeof row.model === 'string' ? row.model : null,
+      seed: typeof row.seed === 'string' ? row.seed : null,
+      unreviewed: row.unreviewed === true,
+    };
+  }
+  return out;
 }

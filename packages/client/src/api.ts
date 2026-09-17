@@ -2225,3 +2225,36 @@ export function readTrash(): Promise<{ entries: TrashEntry[]; retentionDays: num
 export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
   return request('POST', '/api/me/trash/restore', { id });
 }
+
+/**
+ * ***Write this field for me*** —
+ * [10 §11.1](../../../docs/design/10-ui-surfaces.md), [P11.2].
+ *
+ * One call for every field of every editor, which is §11's *"a primitive the
+ * editors are built from"* on the wire. `guidance` absent is **generate**;
+ * present is **refine**, and §11.1 says why the difference matters — *"'make it
+ * darker' is the whole interaction, and without it the only recourse is
+ * regenerate-and-hope"*.
+ *
+ * `draft` is the **working** object rather than the saved one, deliberately: an
+ * assist blind to the three fields somebody just typed is the *generic slop*
+ * §11.1 warns the whole feature dies of.
+ */
+export interface AssistFieldRequest {
+  subject: string;
+  path: string;
+  label: string;
+  draft: unknown;
+  guidance?: string;
+  current?: string;
+}
+
+export interface AssistFieldResult {
+  text: string;
+  model: string;
+  seed: string;
+}
+
+export function assistField(body: AssistFieldRequest): Promise<AssistFieldResult> {
+  return request('POST', '/api/library/assist', body);
+}

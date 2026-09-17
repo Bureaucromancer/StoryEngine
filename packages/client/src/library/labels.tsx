@@ -23,6 +23,24 @@ export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
 });
 
 /**
+ * ***The same six kinds in the singular***, for a sentence rather than a
+ * heading — [P11.2].
+ *
+ * `KIND_LABELS` above is what a tab says; this is what a sentence about one
+ * object says, and the two cannot be derived from each other in a language
+ * where plurals are not suffixes. A separate table is what [19 §12.2]'s
+ * explicit keys are for.
+ */
+export const KIND_WORDS: Record<LibraryKind, string> = labels('library.kind-word', {
+  actors: 'actor',
+  lorebooks: 'lorebook',
+  treatments: 'treatment',
+  setups: 'setup',
+  presets: 'preset',
+  packages: 'package',
+});
+
+/**
  * The user-versus-system badge. The list merges both libraries into one
  * ([10 §5](../../../../docs/design/10-ui-surfaces.md)), and the badge is text first —
  * colour is the *second* channel, never the only one.

@@ -198,6 +198,7 @@ function EntryRow(props: {
       return (
         <Field
           label={row.label}
+          path={`entries.${entry.id}.${row.key}`}
           value={entry.name}
           onChange={(name) => {
             onPatch({ name });
@@ -209,6 +210,7 @@ function EntryRow(props: {
       return (
         <Field
           label={row.label}
+          path={`entries.${entry.id}.${row.key}`}
           value={entry.description}
           onChange={(description) => {
             onPatch({ description });
@@ -219,9 +221,17 @@ function EntryRow(props: {
         />
       );
     case 'content':
+      /**
+       * ***The path is the entry's id and the field's key*** — [10 §11.2],
+       * [P11.2]. A book's entries are reordered constantly — [10 §11.2c] makes
+       * that an ordinary action on the list — so an index in this key would
+       * attribute one entry's generated prose to whichever entry took its
+       * place. That is worse than no provenance, because it reads as an answer.
+       */
       return (
         <Field
           label={row.label}
+          path={`entries.${entry.id}.${row.key}`}
           value={entry.content}
           onChange={(content) => {
             onPatch({ content });

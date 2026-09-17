@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Type } from '@sinclair/typebox';
+import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
@@ -15,6 +15,7 @@ import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
 import { usedBy } from '../index-db/links.js';
 import { exportPackage } from '../packaging/export.js';
+import { assistField } from '../library/assist.js';
 import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
@@ -326,6 +327,65 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         .send(result.exported);
     },
   );
+
+  /**
+   * ***Write this field for me*** —
+   * [10 §11.1](../../../../docs/design/10-ui-surfaces.md), [P11.2].
+   *
+   * ***One route for every field of every editor***, which is §11's own
+   * instruction read literally: assist has to be *"a primitive the editors are
+   * built from"*, and a primitive with six endpoints behind it is six
+   * primitives. The kind travels as a word in the body because the model is
+   * told it in a sentence — this is not a route that looks anything up.
+   *
+   * **The draft is the body and that is the whole design.** §11.1: *"an assist
+   * that receives only the field label produces generic slop and trains people
+   * not to use it."* So the editor sends what the person is looking at,
+   * unsaved fields included, and the size of that is the cost of the sentence
+   * being true.
+   *
+   * ***It writes nothing.*** No provenance, no object, no history entry — the
+   * answer goes back to a form, and whether it is kept is the person's next
+   * decision. That is §11.1's *"nothing may require a model call to proceed,
+   * ever"* on the server's side of the line: a route that recorded the
+   * generation would have made accepting it the default by making refusing it
+   * a second write.
+   */
+  app.post('/library/assist', { schema: { body: AssistBody } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as Static<typeof AssistBody>;
+    const result = await assistField(
+      {
+        layout: services.library.layout,
+        accounts: services.accounts,
+        providers: services.providers,
+        config: services.config,
+      },
+      {
+        account: account.handle,
+        subject: body.subject,
+        path: body.path,
+        label: body.label,
+        draft: body.draft,
+        ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+        ...(body.current === undefined ? {} : { current: body.current }),
+      },
+    );
+
+    if (!result.ok) {
+      /**
+       * **A class, never a sentence** — [21 §1.4]. `not-bound` is a
+       * configuration fault with a remedy the client already knows how to
+       * word ([P11.6]'s `REMEDY_SENTENCES`), and `no-answer` is an endpoint
+       * that replied with nothing, which is not the same thing and must not
+       * be reported as one.
+       */
+      return reply.code(422).send({ error: result.reason });
+    }
+    return reply.send(result);
+  });
 
   /**
    * ***Who points at this*** —
@@ -866,3 +926,21 @@ function packFileName(name: string): string {
     .slice(0, 60);
   return `${slug === '' ? 'package' : slug}.sepack.json`;
 }
+
+/**
+ * What an assist needs to know — [10 §11.1], [P11.2].
+ *
+ * **`draft` is `Type.Unknown()` on purpose.** It is the object the editor is
+ * holding, which may be a draft of a kind this build validates and may equally
+ * be a half-typed one that would fail its own schema — refusing it here would
+ * make assist available only once the form was already correct, which is the
+ * opposite of when somebody wants it.
+ */
+const AssistBody = Type.Object({
+  subject: Type.String({ minLength: 1, maxLength: 60 }),
+  path: Type.String({ minLength: 1, maxLength: 200 }),
+  label: Type.String({ minLength: 1, maxLength: 200 }),
+  draft: Type.Unknown(),
+  guidance: Type.Optional(Type.String({ maxLength: 2000 })),
+  current: Type.Optional(Type.String({ maxLength: 100_000 })),
+});

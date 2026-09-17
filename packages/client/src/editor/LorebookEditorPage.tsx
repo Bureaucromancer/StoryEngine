@@ -361,6 +361,7 @@ function Editor(props: EditorProps): JSX.Element {
        */}
       <Field
         label="Book name"
+        path="name"
         value={nameOf(draft)}
         onChange={(name) => {
           edit({ ...draft, name });

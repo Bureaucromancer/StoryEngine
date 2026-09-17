@@ -1437,6 +1437,96 @@ not-at-its-default invariant is the row [P5 §2](17-p5-implementation.md) refuse
 to cut, and it is the one an assertion can hold exactly* — the others are
 rendering.
 
+#### Done — 2026-09-17: the contract, and what is not the contract
+
+***The assist slot has been empty since P1 and this is the stage that fills
+it.*** `ui/Field.tsx`'s own docstring has said so the whole time — *"What P1
+commits to is this component boundary, not the assist mechanism"* — and the
+boundary is what makes this one edit rather than thirty.
+
+***A context, not a prop, and that is [10 §11](../10-ui-surfaces.md)'s sentence
+read literally.*** The section's requirement is that assist be *"a primitive the
+editors are built from, so that 'does this field have AI assist?' is never a
+question anyone asks"*, and **a prop is exactly that question** — asked once per
+call site, answered by whoever was typing. So `EditorFrame` provides the slot
+once and every `Field` inside any of the six has it. A field gains assist by
+being in an editor and loses it by not being, which is also the right answer for
+a login form, a settings control and a secret.
+
+*What a field has to say for itself is its `path`* — the dotted key [10 §11.2]
+keys the provenance map by — and a field without one gets nothing. That is a
+fact about the field rather than a decision about the feature, which is the
+difference between this and a `hasAssist` boolean.
+
+***Two operations reach the server and two deliberately do not.*** §11.1 lists
+four: generate, refine, revert, accept as-is. **Accept is the absence of a
+control**, and that is the strongest available reading of *"nothing may require a
+model call to proceed, ever"* — a button labelled *accept* would imply the value
+is pending until blessed, which is the requirement rebuilt as an interface.
+Aventuras has one because its assist is a step in a wizard; here the field is
+just a field. **Revert is two buttons because §11.1 asks for two**: *before* is
+the value the field held when the assist ran and lives in a ref, *generated* is
+what the model wrote and lives in the file — one is about the last thirty
+seconds and the other is about the object's history, and a button offering to
+restore a value from a previous session would be offering to lose work.
+
+***Provenance is Marinara's shape, adopted as §11.2 says to adopt it***, with
+`unreviewed` cleared by the one event that means somebody looked: **an edit**.
+Not a form-wide diff — a diff cannot tell a hand edit from a restore, a reapply
+or a revert, and all three change the value without anybody having read it. So
+the flag rides on the same context the slot does.
+
+*The map is held by `useObjectEditor` rather than by six form shapes*, and
+assigned over `apply`'s output in one place. `generated` is keyed by dotted path
+and is a fact about the **object**; six forms carrying it would be six chances to
+get the merge-on-save subtly different.
+
+***The paths are ids, never indices***, in the three places a list is involved —
+an actor's sections and samples, a preset's blocks, a book's entries. All three
+are reordered by design ([10 §11.2c] makes reordering entries an ordinary
+action), and an index-keyed record would attribute one entry's generated prose to
+whichever entry took its place. **That is worse than no provenance, because it
+reads as an answer.**
+
+***The obligation is a loop and it found nothing***, which is worth saying
+plainly: `editor/contract.test.tsx` runs over `LIBRARY_KINDS` and asks each of
+the six for assist, disclosure and history — and every one answered on the first
+run, because the frame is the thing that changed. *The value is in what it
+refuses next*: a seventh kind with an editor and no affordance, or a `Field` that
+lost its `path`, which typechecks, lints and silently removes the control. One
+round trip is driven end to end beside it, because *the control is there* and
+*the feature works* are different claims and the loop only makes the first.
+
+---
+
+***What this stage's opening paragraph names and this does not build***, stated
+here rather than discovered by a reader of the gate:
+
+- **[10 §11.2b]'s image slots.** §11 lists *"every image slot can be generated,
+  uploaded, cropped and replaced"* as the second of its two capabilities, and
+  §11.2b is the lorebook half of it — a gallery on the book, a strip on each
+  entry. Its own text removes the *generated* arm from this phase — *"**No
+  assist.** Generating a location image is a rendition… so it arrives with them
+  and not before"*, which [P9](26-p9-implementation.md) has now shipped — and
+  leaves upload, crop and replace, which is a stage rather than a clause.
+- **[10 §11.2c]'s entry travel.** Exporting a selection of entries and importing
+  entries into an open book. **The reordering half already exists** — a drag with
+  a landing line, a keyboard pair, and a self-scrolling list — so what is missing
+  is *selection* and the two file actions over it. §11.2c is emphatic that the
+  unit matters — *"people do exactly that, which is evidence about the unit
+  rather than about the people"* — so this is a real 1.0 commitment and not a
+  polish item.
+
+**Neither is in *Ends at***, which reads *"every editor offers assist,
+provenance and history, and a collapsed section names what inside it is not at
+its default"* — and all four of those are true. The fourth was already true:
+`summaryOf` and `groupSummary` have carried [P5 §2](17-p5-implementation.md)'s
+refused cut since P5 and P7B, and `entry-defaults.test.ts` asserts it. *Recording
+the two gaps against the gate rather than against this stage is the honest
+filing*: they are section commitments this stage did not reach, and
+[§3](#3-verification--the-p11-exit-gate)'s row 12 is where a phase claiming
+feature completeness has to answer for them.
+
 ### P11.3 — The assistant
 
 §1.5's decision executed — ***and as of 2026-09-16 the decision is that all of it

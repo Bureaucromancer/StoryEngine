@@ -198,6 +198,15 @@ function FieldGroupView(props: {
   );
 }
 
+/**
+ * ***The path is the key, and that is [10 §11.2]'s own spelling*** — [P11.2].
+ *
+ * The provenance map is *"keyed by dotted field path (`treatment.themes`)"*, and
+ * a schema-derived field's path is its property name: this renderer walks one
+ * object's own properties, so there is no prefix to compose. A nested renderer
+ * would have one, and the day one exists the argument goes here rather than at
+ * thirty call sites.
+ */
 function OneField(props: {
   row: FieldRow;
   value: unknown;
@@ -240,6 +249,7 @@ function OneField(props: {
     return (
       <Field
         label={row.label}
+        path={row.key}
         value={linesOf(value)}
         onChange={(next) => {
           props.onChange(
@@ -262,6 +272,7 @@ function OneField(props: {
     return (
       <Field
         label={row.label}
+        path={row.key}
         value={text}
         onChange={props.onChange}
         // Presentation from the value: a field holding a paragraph gets room

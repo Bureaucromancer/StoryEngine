@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useId, type JSX } from 'react';
+import { useAssistContract, type AssistSubject } from './assist.js';
 import { control, fieldLabel } from './classes.js';
 
 /**
@@ -58,6 +59,21 @@ export interface FieldProps {
    * ([P2A §2.6]). The note points at `--data` and the file instead.
    */
   readOnlyNote?: string;
+  /**
+   * ***What this field is, in the object being edited*** — [10 §11.2], [P11.2].
+   *
+   * The dotted path the `generated` provenance map is keyed by, and the one
+   * thing a field has to say about itself for assist to be possible. **A field
+   * with no path gets no assist**, which is the right default for the two kinds
+   * that must never have one: a secret, and a control whose value is not the
+   * author's prose.
+   *
+   * *It is not a `hasAssist` boolean, and the difference is [10 §11]'s whole
+   * argument.* A boolean is the question *does this field have AI assist?* asked
+   * once per call site; a path is a fact about the field that happens to be
+   * enough.
+   */
+  path?: string;
 }
 
 /**
@@ -87,10 +103,43 @@ export function Field(props: FieldProps): JSX.Element {
   const invalid = props.error != null;
   const note = props.readOnlyNote ?? props.hint;
   const describedBy = invalid ? errorId : note === undefined ? undefined : hintId;
+  const contract = useAssistContract();
+
+  /**
+   * The field's own `onChange`, with the editor told that a person typed.
+   *
+   * *Every keystroke rather than a blur*, because the flag is idempotent and
+   * cheap — `markReviewed` returns the same map when there is nothing to clear —
+   * and a blur-based version would miss the case a reviewer most wants counted:
+   * somebody editing the model's paragraph and then navigating away.
+   */
+  function edited(next: string): void {
+    if (props.path !== undefined) contract?.onEdited(props.path);
+    props.onChange(next);
+  }
 
   return (
     <div>
-      <Label htmlFor={controlId} text={props.label} required={props.required} />
+      <Label
+        htmlFor={controlId}
+        text={props.label}
+        required={props.required}
+        {...(props.path === undefined || props.readOnlyNote !== undefined
+          ? {}
+          : {
+              // Read-only fields carry no assist, and the reason is the
+              // `readOnlyNote` itself: a control a person may not edit is one an
+              // assist could only write over, which would be the form
+              // contradicting its own explanation.
+              assist: {
+                path: props.path,
+                label: props.label,
+                value: props.value,
+                onChange: props.onChange,
+                multiline: props.multiline === true,
+              },
+            })}
+      />
       {props.multiline === true ? (
         <textarea
           id={controlId}
@@ -98,7 +147,7 @@ export function Field(props: FieldProps): JSX.Element {
           value={props.value}
           rows={props.rows ?? 4}
           onChange={(event) => {
-            props.onChange(event.target.value);
+            edited(event.target.value);
           }}
           aria-required={props.required === true ? true : undefined}
           aria-invalid={invalid || undefined}
@@ -112,7 +161,7 @@ export function Field(props: FieldProps): JSX.Element {
           value={props.value}
           readOnly={props.readOnlyNote !== undefined}
           onChange={(event) => {
-            props.onChange(event.target.value);
+            edited(event.target.value);
           }}
           aria-required={props.required === true ? true : undefined}
           aria-invalid={invalid || undefined}
@@ -285,9 +334,16 @@ function Label({
   text,
   required,
   hidden,
+  assist,
 }: {
   htmlFor: string;
   text: string;
+  /**
+   * What the slot is about, when there is a slot to fill — [P11.2]. Absent for
+   * a field with no path, a read-only field, and every field outside an editor,
+   * all three of which render the empty span this replaced.
+   */
+  assist?: AssistSubject | undefined;
   /** `| undefined` because `exactOptionalPropertyTypes` is on and this is
    *  forwarded from an optional prop rather than spelled at the call site. */
   required?: boolean | undefined;
@@ -319,10 +375,30 @@ function Label({
           </span>
         ) : null}
       </label>
-      {/* The assist slot. Empty — see the header comment. */}
-      <span aria-hidden="true" />
+      {/*
+       * ***The assist slot, filled from the context an editor provides*** —
+       * [10 §11.1], [P11.2]. It stays an `aria-hidden` empty span everywhere
+       * else, which is what it was from P1 to here: a field outside an editor —
+       * a login form, a settings control — is not a place where a model writes
+       * anything, and `ui/assist.tsx` makes that the default rather than a
+       * decision per call site.
+       */}
+      <AssistHere assist={assist} />
     </div>
   );
+}
+
+/**
+ * The slot's contents, or the empty span.
+ *
+ * *A component rather than an inline read*, because a hook cannot be called
+ * conditionally and `Label` returns early for a hidden label. Splitting it is
+ * the cheap way to keep the rule.
+ */
+function AssistHere({ assist }: { assist: AssistSubject | undefined }): JSX.Element {
+  const contract = useAssistContract();
+  if (assist === undefined || contract === null) return <span aria-hidden="true" />;
+  return <span className="relative flex items-center gap-1">{contract.slot(assist)}</span>;
 }
 
 /** The error or the hint under a control. An error hides the hint. */
