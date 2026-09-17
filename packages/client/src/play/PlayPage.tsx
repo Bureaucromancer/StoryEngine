@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useEffect, useRef, useState } from 'react';
-import { control, page } from '../ui/classes.js';
+import { control, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { remedyFor, uuidv7 } from '@storyengine/shared';
@@ -1231,8 +1231,12 @@ function TurnView({
 
       {/* Visible on hover and on focus. Focus is not decoration here: these are
           the only controls in the transcript, and a keyboard reaching them
-          would otherwise tab into things it cannot see. */}
-      <div className="flex gap-2 opacity-0 transition-opacity group-focus-within/turn:opacity-100 group-hover/turn:opacity-100">
+          would otherwise tab into things it cannot see — and, since this pass,
+          visible always on a device that cannot hover, which is what `reveal`
+          is for and why it is spelled once. */}
+      <div
+        className={`flex gap-2 ${reveal} group-focus-within/turn:opacity-100 group-hover/turn:opacity-100`}
+      >
         {rerunnable ? (
           <Button
             type="button"

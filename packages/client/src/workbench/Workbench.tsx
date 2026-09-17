@@ -115,7 +115,13 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
       // never re-render the subject. Logical properties throughout: the dock
       // sits at the inline end, so its one border faces the start side.
       style={{ '--workbench-size': `${String(size)}px` } as CSSProperties}
-      className="relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface"
+      // `max-sm:w-full` is [10 §3]'s sheet, at its cheapest: the stored width
+      // has a 280px floor and `shrink-0` forbids it to give any of that back,
+      // so on a phone the dock took three quarters of the screen and left the
+      // page a gutter. §3 already says what should happen there — *"on a phone
+      // the workbench **is** the main view"* — and the shell hides the outlet
+      // beneath this breakpoint to complete it.
+      className="relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full"
     >
       <ResizeHandle
         asideRef={asideRef}

@@ -75,6 +75,31 @@ export const link = {
  * The shell's primary navigation, which is three strings rather than one
  * because TanStack Router picks between them per route.
  */
+/**
+ * ***A row of controls that keeps out of the way until you look at it*** — the
+ * transcript's per-turn gestures, and the lorebook entry's reorder arrows.
+ *
+ * **The third variant is the one that had been missing, and it was not a
+ * nicety.** Tailwind compiles `hover:` to `@media (hover: hover)`, so on a
+ * device with no pointer the hover state is *unreachable* — the row stayed at
+ * `opacity-0` for ever while remaining in the tab order and hit-testable. On a
+ * phone or a tablet that is Redo, Reroll, Continue from here, Illustrate,
+ * Remember this and Undo: every per-turn gesture in the app, invisible, over a
+ * transparent strip that still swallows a tap. [10 §1] commits to *"responsive
+ * and genuinely usable on a phone"* as the 1.0 bar, and this is the single
+ * place that commitment was most obviously not met.
+ *
+ * `(hover: none)` rather than `(pointer: coarse)`: the question is whether this
+ * device can hover at all, not how precise it is. A laptop with a touchscreen
+ * has a fine pointer *and* a hover, and should keep the quiet version.
+ *
+ * Here rather than at the two call sites because it is appearance, and because
+ * the two of them had already been written twice — the same string with a
+ * different group name, which is how the next one comes to be written a third
+ * time with the media query left out again.
+ */
+export const reveal = 'opacity-0 transition-opacity [@media(hover:none)]:opacity-100';
+
 export const navLink = {
   base: 'rounded-control px-3 py-1 text-sm',
   idle: 'text-ink-muted hover:bg-surface-muted',

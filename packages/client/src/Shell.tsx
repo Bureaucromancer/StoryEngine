@@ -118,7 +118,12 @@ export function Shell(): JSX.Element {
     // container instead of the document ([P3.−1]).
     <div className="flex h-dvh flex-col print:block print:h-auto">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
+        {/* **It folds.** Eight controls in one row on every page of the app,
+            and nothing let them wrap — so a narrow window pushed Sign out past
+            the edge, and a long display name did it on a wide one. [10 §1]
+            asks for responsive down to a phone; this is the row that is on
+            every screen, so it is the one that pays first. */}
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-4">
             {/* ~~Goes to the library for now. It becomes home once home exists
                 ([10 §2.2]) — the wordmark is the arrival affordance, and
@@ -133,7 +138,7 @@ export function Shell(): JSX.Element {
             {account === null ? null : <SurfaceNav />}
           </div>
           {account === null ? null : (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {/* The workbench's visible opener — a *button*, never a nav
                   entry: the panel is not a place ([10 §3]), and the nav's own
                   docstring below holds that line. `Shell.test.tsx` pins the
@@ -172,7 +177,15 @@ export function Shell(): JSX.Element {
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
                 Settings
               </Link>
-              <span className="text-sm text-ink-subtle">{account.displayName}</span>
+              {/* Bounded and titled: a display name is somebody's to choose,
+                  and the header is not the place to let that choice decide
+                  whether Sign out is reachable. */}
+              <span
+                className="max-w-32 truncate text-sm text-ink-subtle"
+                title={account.displayName}
+              >
+                {account.displayName}
+              </span>
               <Button
                 type="button"
                 size="compact"
@@ -214,7 +227,19 @@ export function Shell(): JSX.Element {
           navigation, not z-order. Closed is unmounted, not hidden: no queries
           run, and the landmark is absent rather than lurking. */}
       <div className="flex min-h-0 flex-1 print:block">
-        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+        {/* **Below `sm` an open dock is the view, not a neighbour of it** —
+            [10 §3]. Two panels sharing 375px is two unusable panels, and the
+            design already settled this: on a phone the workbench is the main
+            view. The outlet is hidden rather than unmounted, so nothing
+            refetches when the dock closes again. */}
+        <main
+          ref={mainRef}
+          className={
+            workbenchOpen || assistantOpen
+              ? 'min-w-0 flex-1 overflow-y-auto max-sm:hidden print:overflow-visible'
+              : 'min-w-0 flex-1 overflow-y-auto print:overflow-visible'
+          }
+        >
           <Outlet />
         </main>
         {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}

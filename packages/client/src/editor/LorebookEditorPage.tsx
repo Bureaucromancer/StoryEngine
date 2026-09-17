@@ -29,7 +29,7 @@ import { landing, nudge } from '../ui/reorder.js';
 import { useAuthState, useEditorBase } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { page, table } from '../ui/classes.js';
+import { page, reveal, table } from '../ui/classes.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import {
@@ -953,7 +953,9 @@ function EntryList(props: {
                  * hover and on focus, so a pointer sees them where it is looking
                  * and a tab reaches them where it is.
                  */}
-                <span className="flex gap-1 opacity-0 transition-opacity group-focus-within/entry:opacity-100 group-hover/entry:opacity-100">
+                <span
+                  className={`flex gap-1 ${reveal} group-focus-within/entry:opacity-100 group-hover/entry:opacity-100`}
+                >
                   <button
                     type="button"
                     aria-label={`Move ${nameOfEntry(entry)} up`}

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -137,5 +138,48 @@ describe('printing', () => {
     // quietly put the workbench back on the printed story.
     expect(print).toMatch(/(^|,)\s*aside\s*(,|\{)/m);
     expect(SHELL).toMatch(/bg-warn-surface[^"]*print:hidden/);
+  });
+});
+
+/**
+ * ***A control nobody can reveal is a control that is not there*** — [10 §1].
+ *
+ * Tailwind compiles `hover:` to `@media (hover: hover)`. A row held at
+ * `opacity-0` until `group-hover` fires is therefore **permanently invisible**
+ * on a device with no pointer, while staying in the tab order and swallowing
+ * taps. Two rows in this client were written that way, and between them they
+ * are every per-turn gesture on the play surface — Redo, Reroll, Continue from
+ * here, Illustrate, Remember this, Undo — and the lorebook's entry reordering.
+ *
+ * `ui/classes.ts` owns the recipe now, with the `(hover: none)` arm in it. This
+ * is the rule that keeps the *next* one from being written without it: the
+ * mistake is invisible on every machine a developer owns, so it cannot be left
+ * to review. A file that genuinely wants a fade of its own may have it — by
+ * adding a second named recipe here, which is a decision rather than a default.
+ */
+describe('controls that hide until you look at them', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  it('reaches a device that cannot hover', () => {
+    const recipe = readFileSync(join(ROOT, 'ui/classes.ts'), 'utf8');
+    expect(recipe).toMatch(/export const reveal\b/);
+    expect(recipe).toMatch(/\[@media\(hover:none\)\]:opacity-100/);
+  });
+
+  it('is spelled in one place, so the media query cannot be left out of the next one', () => {
+    const offenders = sources(ROOT)
+      .filter((path) => !path.endsWith(join('ui', 'classes.ts')))
+      .filter((path) => /(?:^|\s|`)opacity-0(?:\s|`|")/.test(readFileSync(path, 'utf8')))
+      .map((path) => path.slice(ROOT.length));
+    expect(offenders).toEqual([]);
   });
 });

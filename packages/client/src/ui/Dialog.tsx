@@ -48,13 +48,20 @@ export interface DialogProps {
  * and `Button` already use, and each entry one whole class literal because
  * Tailwind emits only names that appear verbatim in the source it scans.
  *
- * `large` also gains a height cap and its own scroll: a registry of forty tags
- * is taller than the viewport, and a dialog that grows past the scrollport puts
- * its own controls where nothing can reach them.
+ * ***All three carry the height cap now, and `large` used to carry it alone.***
+ * The reason it was given one is general and was written as if it were not: *a
+ * registry of forty tags is taller than the viewport, and a dialog that grows
+ * past the scrollport puts its own controls where nothing can reach them*.
+ * Nothing in that sentence is about tables. A confirmation with four paragraphs
+ * of consequence in it, on a laptop in a video call, is the same dialog with
+ * its Cancel button below the fold and no way to scroll to it — and the one
+ * class of dialog where being unable to reach the controls is worst is the one
+ * you did not open on purpose.
  */
 const SIZE: Record<'default' | 'wide' | 'large', string> = {
-  default: 'w-full max-w-md rounded-panel border border-line bg-surface p-6',
-  wide: 'flex w-full max-w-lg flex-col gap-4 rounded-panel border border-line bg-surface p-6',
+  default:
+    'max-h-full w-full max-w-md overflow-y-auto rounded-panel border border-line bg-surface p-6',
+  wide: 'flex max-h-full w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',
   large:
     'flex max-h-full w-full max-w-3xl flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',
 };

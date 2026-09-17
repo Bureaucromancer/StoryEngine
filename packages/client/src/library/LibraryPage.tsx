@@ -489,65 +489,71 @@ function ObjectTable(props: {
             : 'Nothing on this shelf matches that search.'}
         </p>
       ) : (
-        <table className={table.root}>
-          <thead>
-            <tr className={table.head}>
-              <th scope="col" className={table.th}>
-                Name
-              </th>
-              {panel.columns.map((column) => (
-                <th
-                  key={column.id}
-                  scope="col"
-                  className={column.numeric === true ? table.thNumeric : table.th}
-                >
-                  {column.header}
+        /* The wrapper six other tables in this client already have
+           (`IndexRowTable`, `BlockTable`, the history panel…): a shelf with a
+           Tags column and four badges does not fit a narrow window, and without
+           it the overflow pushes the page sideways rather than the table. */
+        <div className="overflow-x-auto">
+          <table className={table.root}>
+            <thead>
+              <tr className={table.head}>
+                <th scope="col" className={table.th}>
+                  Name
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {folders.map((folder) => (
-              <tr key={`folder:${folder.tag.id}`} className={table.row}>
-                <td className={table.cell} colSpan={panel.columns.length + 1}>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 text-sm text-ink"
-                    aria-label={folderLabel(folder.tag.name, folder.open)}
-                    onClick={() => {
-                      /**
-                       * **Entering a folder is applying its filter** — [05 §5].
-                       * Not a second navigation model: the shelf already has a
-                       * filter, and this is another control that drives it, so
-                       * the chip in the bar is both the indicator and the way
-                       * back out.
-                       */
-                      const key = folder.tag.name.toLowerCase();
-                      const updated = new Map(tagFilters);
-                      if (folder.open) updated.delete(key);
-                      else updated.set(key, 'selected');
-                      setTagFilters(updated);
-                    }}
+                {panel.columns.map((column) => (
+                  <th
+                    key={column.id}
+                    scope="col"
+                    className={column.numeric === true ? table.thNumeric : table.th}
                   >
-                    <span aria-hidden="true">{folder.open ? '▾' : '▸'}</span>
-                    <TagChip name={folder.tag.name} swatch={folder.tag.swatch} />
-                    <span className="text-ink-subtle">{formatCount(folder.count, locale)}</span>
-                  </button>
-                </td>
+                    {column.header}
+                  </th>
+                ))}
               </tr>
-            ))}
-            {shown.map((object) => (
-              <ObjectRow
-                key={`${object.source}:${object.id}:${object.slug}`}
-                object={object}
-                kind={props.kind}
-                columns={panel.columns}
-                locale={locale}
-                hidden={hiddenTags}
-              />
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {folders.map((folder) => (
+                <tr key={`folder:${folder.tag.id}`} className={table.row}>
+                  <td className={table.cell} colSpan={panel.columns.length + 1}>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-sm text-ink"
+                      aria-label={folderLabel(folder.tag.name, folder.open)}
+                      onClick={() => {
+                        /**
+                         * **Entering a folder is applying its filter** — [05 §5].
+                         * Not a second navigation model: the shelf already has a
+                         * filter, and this is another control that drives it, so
+                         * the chip in the bar is both the indicator and the way
+                         * back out.
+                         */
+                        const key = folder.tag.name.toLowerCase();
+                        const updated = new Map(tagFilters);
+                        if (folder.open) updated.delete(key);
+                        else updated.set(key, 'selected');
+                        setTagFilters(updated);
+                      }}
+                    >
+                      <span aria-hidden="true">{folder.open ? '▾' : '▸'}</span>
+                      <TagChip name={folder.tag.name} swatch={folder.tag.swatch} />
+                      <span className="text-ink-subtle">{formatCount(folder.count, locale)}</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {shown.map((object) => (
+                <ObjectRow
+                  key={`${object.source}:${object.id}:${object.slug}`}
+                  object={object}
+                  kind={props.kind}
+                  columns={panel.columns}
+                  locale={locale}
+                  hidden={hiddenTags}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   );
