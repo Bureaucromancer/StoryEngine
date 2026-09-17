@@ -1,7 +1,7 @@
 # 27 — P10 implementation plan
 
-**Status: built on branch `p10`, 2026-09-16 to 2026-09-17. Open — sitting P is
-unwalked.** ~~Skeleton, re-audited 2026-09-16 at `fee56da`.~~ Drafted 2026-08-29
+**Status: ~~built on branch `p10`, 2026-09-16 to 2026-09-17~~ — merged into
+`main` 2026-09-17 at `b572c4c`, and open. Sitting P is unwalked.** ~~Skeleton, re-audited 2026-09-16 at `fee56da`.~~ Drafted 2026-08-29
 alongside
 [P7](23-p7-implementation.md), [P8](25-p8-implementation.md),
 [P9](26-p9-implementation.md) and [P11](28-p11-implementation.md); to be

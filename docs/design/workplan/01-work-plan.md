@@ -1383,7 +1383,8 @@ subsystem that spends money on its own from spending it per turn.
 ### P10 — Multi-user, notifications, deployment
 
 ~~**Skeleton: [P10](27-p10-implementation.md)**~~ ~~***re-audited 2026-09-16 at
-`fee56da`***~~ ***Built on branch `p10`, 2026-09-16 to 2026-09-17, and open***,
+`fee56da`***~~ ~~***Built on branch `p10`, 2026-09-16 to 2026-09-17, and open***~~
+***Merged into `main` 2026-09-17 at `b572c4c`, and open***,
 on the spine that document gives a remainder phase because it does not have one
 by default: *this is the phase that makes the install reachable, and safe, for
 someone who is not the developer.* Anything here off that line gets checked
@@ -1456,8 +1457,12 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 
-***Built on branch `p10`, 2026-09-17: thirteen stages, and the critical list is
-unwalked.*** [P11 §3.2](28-p11-implementation.md) is the record and
+~~***Built on branch `p10`, 2026-09-17***~~ ***Merged into `main` 2026-09-17 at
+`b572c4c`: thirteen stages, and the critical list is unwalked.***
+
+**The branch is `p10` for both phases**, which is why one merge carries two — it
+was opened for P10 and P11 together, and P11's own status line above says so
+rather than implying a `p11` that never existed. [P11 §3.2](28-p11-implementation.md) is the record and
 [sitting R](05-manual-testing.md) is the list. **Five criticals, two of them desk
 work**, and the phase does not close until they have results — which is
 [manual testing §0](05-manual-testing.md)'s rule and, here, the rule that decides

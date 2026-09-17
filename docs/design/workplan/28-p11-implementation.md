@@ -2,8 +2,8 @@
 
 **Status: ~~skeleton~~ ~~a register, re-audited 2026-09-16 at `2f3f5d9`~~
 ~~a register with a costed stage list, fleshed out 2026-09-16 at `7c5e0bd`~~
-**built on branch `p10`, 2026-09-17 — thirteen stages, and the critical list is
-unwalked.** Drafted 2026-08-29 alongside
+~~built on branch `p10`, 2026-09-17~~ — **merged into `main` 2026-09-17 at
+`b572c4c`, and open. Thirteen stages, and the critical list is unwalked.** Drafted 2026-08-29 alongside
 [P7](23-p7-implementation.md) through [P10](27-p10-implementation.md); revisited
 before the phase started, which is the one thing the old status line asked for
 and got.
