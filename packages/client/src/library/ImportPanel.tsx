@@ -845,7 +845,7 @@ function Preview(props: {
               <h5 className="text-sm font-medium text-ink">
                 {castCountLabel(scenario.cast.length)}
               </h5>
-              <p className="text-sm text-ink-subtle">{scenario.cast.join(', ')}</p>
+              <Note>{scenario.cast.join(', ')}</Note>
             </div>
           ) : null}
 
