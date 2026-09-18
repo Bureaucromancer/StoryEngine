@@ -51,6 +51,10 @@ export * from './import.js';
 // What an import *would* do — beside the review rather than in it, because a
 // report is written to disk and a prediction never is.
 export * from './import-preview.js';
+// The other direction: what a library object can be written out *as*. Shared
+// because the client builds the menu from the same table the server dispatches
+// on, and two copies of it would disagree about what a file will work in.
+export * from './export-formats.js';
 export * from './schema/banners.js';
 // Derived logic over a lorebook — whose gates are shut, and what a folder
 // governs. Beside the factories rather than in `schema/`: it reads the schema

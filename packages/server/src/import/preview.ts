@@ -2,7 +2,11 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  IMPORT_DESTINATIONS,
   PRESET_SCHEMA,
+  TREATMENT_SCHEMA,
+  LOREBOOK_SCHEMA,
+  type ImportDestination,
   type ImportNote,
   type ImportPreview,
   type ImportPreviewBlock,
@@ -14,6 +18,7 @@ import {
 
 import type { LibraryContext } from '../library.js';
 
+import { convertScenario } from './aventuras/scenario.js';
 import { identify, stampImported } from './identity.js';
 import { nameOf, PRESET_CONVERTERS } from './preset-converters.js';
 import type { ImportCandidate } from './source.js';
@@ -62,10 +67,22 @@ export interface PreviewRequest {
    * opinion about what a provider is.
    */
   forwarded: ReadonlySet<string>;
+  /**
+   * Which kind the preview should be computed for, when the file has a choice.
+   *
+   * **The preview is where the choice is made, which is why it is here and not
+   * only on the commit.** A control that changed what a commit produced without
+   * changing what the look showed would be a look at something else.
+   */
+  destination?: ImportDestination;
 }
 
 export async function previewOne(request: PreviewRequest): Promise<ImportPreview> {
   const { candidate, filename } = request;
+
+  // The second kind with a summary, and the first with a question in it.
+  if (candidate.format === 'aventuras.scenario') return previewScenario(request);
+
   const convert = PRESET_CONVERTERS[candidate.format];
 
   if (convert === undefined) {
@@ -145,6 +162,86 @@ export async function previewOne(request: PreviewRequest): Promise<ImportPreview
        * not that something upstream was careful.
        */
       compatKeys: Object.keys(preset.compat ?? {}),
+    },
+    reimport: identity.kind satisfies ImportPreviewReimport,
+  };
+}
+
+/**
+ * An Aventuras scenario, summarised — and asked about.
+ *
+ * **It converts twice as far as a preset preview does and no further.** The
+ * object is built, stamped and identified exactly as the commit would, for
+ * `previewOne`'s stated reason one screen up: a preview that asked a cheaper
+ * question than the commit would disagree with it about the very thing the
+ * person is deciding. Nothing is written, and the cast is *not* stored — which
+ * is why `reimport` here answers about the treatment alone, and the actors
+ * beside it are named rather than counted as new or unchanged.
+ *
+ * **The cast is read off the conversion rather than the file**, so the names
+ * shown are the ones that would land: an npc with no name is dropped by the
+ * converter, and a preview that counted the raw array would promise an actor
+ * that never arrives.
+ */
+async function previewScenario(request: PreviewRequest): Promise<ImportPreview> {
+  const { candidate, filename } = request;
+  const destination = request.destination ?? 'treatment';
+  const converted = convertScenario(candidate.payload, nameOf(filename), destination);
+
+  if (!converted.ok) {
+    return {
+      source: filename,
+      disposition: 'unrecognised',
+      notes: [
+        {
+          key: 'import.file.refused',
+          params: { file: filename, refusal: converted.refusal },
+          level: 'warn',
+        },
+      ],
+      advisories: [],
+      object: null,
+      reimport: 'unknown',
+    };
+  }
+
+  const { treatment, lorebook, cast, notes } = converted.value;
+  const object = treatment ?? lorebook;
+  if (object === null) {
+    return {
+      source: filename,
+      disposition: 'unrecognised',
+      notes,
+      advisories: [],
+      object: null,
+      reimport: 'unknown',
+    };
+  }
+
+  stampImported(object, filename);
+  const identity = await identify(
+    request.library,
+    request.handle,
+    treatment === null ? LOREBOOK_SCHEMA : TREATMENT_SCHEMA,
+    object,
+  );
+
+  const framing = treatment === null ? (lorebook?.entries[0]?.content ?? '') : treatment.framing;
+
+  return {
+    source: filename,
+    disposition: identity.kind === 'unchanged' ? 'unchanged' : 'converted',
+    notes,
+    advisories: [],
+    object: {
+      kind: 'scenario',
+      name: object.name,
+      blurb: treatment === null ? (lorebook?.description ?? '') : treatment.blurb,
+      framingChars: framing.length,
+      cast: cast.map((member) => member.actor.name),
+      openings: treatment === null ? 0 : treatment.openings.written.length,
+      destination,
+      alternatives: [...IMPORT_DESTINATIONS],
     },
     reimport: identity.kind satisfies ImportPreviewReimport,
   };

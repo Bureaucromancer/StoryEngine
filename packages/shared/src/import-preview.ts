@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ImportDisposition, ImportNote } from './import.js';
+import type { ImportDestination, ImportDisposition, ImportNote } from './import.js';
 
 /**
  * What a commit of these bytes *would* do, worked out without writing any of it.
@@ -81,6 +81,7 @@ export type ImportPreviewReimport = 'new' | 'unchanged' | 'changed' | 'unknown';
 
 export type ImportPreviewObject =
   | ImportPreviewPreset
+  | ImportPreviewScenario
   /**
    * A root in a file — an archive, or one of Marinara's export envelopes. It
    * sweeps, and a sweep keeps committing first: previewing one means a dry-run
@@ -94,6 +95,47 @@ export type ImportPreviewObject =
   | { kind: 'sweep' }
   /** Converts, and this build has no summary for its kind yet. */
   | { kind: 'opaque'; name: string };
+
+/**
+ * A scenario file, summarised — and the one preview that carries a **question**
+ * rather than only statements.
+ *
+ * Every other arm here describes what would land. This one also says what else
+ * it *could* land as, because Aventuras' `VaultScenario` is the conflated object
+ * ([04 §6](../../../docs/design/04-schemas.md)) and unconflating it is a reading
+ * of the file rather than a fact about it. Offering the alternative in the
+ * preview is what keeps that a decision somebody made instead of one a converter
+ * made for them.
+ *
+ * **`alternatives` travels rather than the client knowing the format string.**
+ * A panel that hardcoded *scenarios get a dropdown* would have to be edited again
+ * the first time a second conflated source arrives, and it would be edited in a
+ * different repository half from the converter that knows. The same rule
+ * `compatKeys` follows one field down: the preview describes, the client renders.
+ */
+export interface ImportPreviewScenario {
+  kind: 'scenario';
+  /** What the object would be called — the file's own `name`, or its stem. */
+  name: string;
+  /** The library-card line, which is the source's own preview text. */
+  blurb: string;
+  /**
+   * The length of the prose that would be injected every turn, in characters.
+   *
+   * **A measurement rather than the prose.** A preview is a set of statements
+   * about a file and not a rendering of it, and a settingSeed is the one field
+   * here big enough that showing it would turn the panel into a reader.
+   */
+  framingChars: number;
+  /** The names that would become Actors and be billed into the cast. */
+  cast: string[];
+  /** How many written openings the file carries — `firstMessage` plus alternates. */
+  openings: number;
+  /** What this preview was computed for. */
+  destination: ImportDestination;
+  /** What else it could be computed for, this one included. */
+  alternatives: ImportDestination[];
+}
 
 export interface ImportPreviewPreset {
   kind: 'preset';

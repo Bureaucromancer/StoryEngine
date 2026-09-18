@@ -4,7 +4,7 @@
 import { getRouteApi, Link } from '@tanstack/react-router';
 import { useState, type JSX, type ReactNode } from 'react';
 
-import type { Lorebook } from '@storyengine/shared';
+import { exportFormatsFor, type Lorebook } from '@storyengine/shared';
 
 import {
   ApiError,
@@ -33,6 +33,7 @@ import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
+import { labels } from '../i18n/catalogue.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -261,6 +262,8 @@ function ObjectView(props: {
         </a>
       ) : null}
 
+      <TakeItWithYou kind={kind} object={object} />
+
       <AsStored value={object.object} />
 
       <Controls>
@@ -315,6 +318,107 @@ function ObjectView(props: {
  * the by-field view renders whatever is actually on disk — which is more useful
  * than a book page insisting the file is a book.
  */
+
+/**
+ * ***Getting it out again*** —
+ * [10 §2.1](../../../../docs/design/10-ui-surfaces.md)'s *the library is the
+ * model*, finally with a door in it.
+ *
+ * **This page said *there is no export path* in a comment for two phases**, and
+ * the sentence was accurate: nothing in the build downloaded a library object
+ * except a `.sepack`. For a library whose whole claim is *these are your files,
+ * in folders you may edit by hand*, that is the wrong kind of quiet.
+ *
+ * **Two rows, and they are different promises.** *Download* is the object as
+ * stored, byte for byte — the primitive, no conversion, nothing lost because
+ * nothing was converted. The rest are **writers**, each of which loses
+ * something, and each of which says so: `EXPORT_FORMATS` carries `roundTrips`
+ * and a format whose target application cannot read its own export back gets
+ * that said under it rather than implied away. Aventuras is exactly that case.
+ *
+ * **Plain anchors**, on the package export's reasoning directly above: these are
+ * files, and a file is what a link is for.
+ */
+function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX.Element {
+  const { kind, object } = props;
+  const id = encodeURIComponent(object.id);
+  const formats = exportFormatsFor(object.schema);
+
+  return (
+    <section aria-label="Take it with you" className="flex flex-col gap-1">
+      {/*
+        **Each address written out whole rather than built from a shared stem**,
+        which looks redundant and is not: `route-callers.test.ts` scans this
+        package for `/api/...` literals to prove every route the server serves is
+        reached by something, and it resolves helper *functions* and not local
+        constants. A stem factored out here is two routes that read as orphaned.
+      */}
+      <a href={`/api/library/${kind}/${id}/download`} className={link.inline} download>
+        {downloadLabel(kind)}
+      </a>
+
+      {formats.map((format) => (
+        <span key={format.id} className="flex flex-col">
+          <a
+            href={`/api/library/${kind}/${id}/export/${format.id}`}
+            className={link.inline}
+            download
+          >
+            {exportLabel(format.label)}
+          </a>
+          {format.roundTrips ? null : (
+            <span className="text-xs text-ink-subtle">{archivalNote(format.label)}</span>
+          )}
+        </span>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * The kind, in the singular, for a sentence about one object.
+ *
+ * Derived from the kind rather than typed into the sentence, so the two cannot
+ * drift — the rule `editorRouteFor` states, applied to prose: this branch used
+ * to be the place a kind got named twice.
+ */
+const SINGULAR: Readonly<Record<LibraryKind, string>> = labels('library.kind.singular', {
+  actors: 'actor',
+  lorebooks: 'lorebook',
+  treatments: 'treatment',
+  setups: 'setup',
+  presets: 'preset',
+  packages: 'package',
+});
+
+/**
+ * Whole phrases, because half a phrase cannot be translated.
+ *
+ * Both of these were JSX with the value between two runs of text, which
+ * `no-restricted-syntax` refuses on [work plan §2]'s reasoning: word order
+ * differs between languages, so a sentence assembled by concatenation is the
+ * part of i18n that cannot be retrofitted. The kind is still derived rather than
+ * typed twice — that was the other thing the interpolation was doing right.
+ */
+function downloadLabel(kind: LibraryKind): string {
+  return `Download this ${SINGULAR[kind]}`;
+}
+
+function exportLabel(label: string): string {
+  return `Export as ${label}`;
+}
+
+/**
+ * Said under a format its own application cannot read back.
+ *
+ * **A whole sentence with the name substituted in**, on the `userFacing` rule:
+ * a caveat assembled from fragments around a value is the half of i18n that
+ * cannot be retrofitted.
+ */
+function archivalNote(label: string): string {
+  return `${label} is what that app writes, not what it reads — use this to archive or move the file, not to send it back.`;
+}
+
 function ObjectBody(props: {
   object: LibraryObject;
   kind: LibraryKind;

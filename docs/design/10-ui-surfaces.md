@@ -985,6 +985,45 @@ Where it should differ:
   one. A lorebook is the only kind this arises for, because it is the only kind
   whose object is a collection ([11 §1.1](11-lorebooks-as-a-format.md)).
 
+### 5.0a Getting it out again — the two doors, and why they are two
+
+**Added when the first foreign-format writer landed.** Until then this section
+specified import at length and export not at all, and the surface matched: the
+object detail page carried a comment saying *there is no export path*, and it was
+accurate — nothing in the build downloaded a library object except a `.sepack`.
+
+That is the wrong kind of quiet for a surface whose whole claim (§2.1) is *the
+library is the model*: these are your objects, in folders you may open in a text
+editor. A library you can put things into and not get out of makes that claim and
+does not keep it.
+
+**Two rows on the detail page, and they are different promises.**
+
+- **Download** is the object as stored, byte for byte. No conversion, so nothing
+  lost — this is the primitive, and it is available for every kind. *As stored*
+  ([polish §2](workplan/06-polish.md)) already shows these bytes in a fold; this
+  is the same bytes with somewhere to put them.
+- **Export as…** are **writers**, built from a shared table of formats. A writer
+  loses something by definition; what it must do is *say* what, in the same
+  `{ key, params }` vocabulary the import review uses — because an export leaves
+  no record behind, and the surface offering the download is the only place
+  anybody will ever be told.
+
+**One rule the table carries and the surface renders: whether the format
+round-trips.** Aventuras exports a `VaultScenario` and its own scenario import
+cannot read one back — every file it accepts goes through its character-card
+pipeline. So the faithful format is archival and the *card* is the one that
+travels, and the menu says which is which rather than letting somebody find out
+by losing an afternoon. `roundTrips: false` is a fact about another application,
+recorded where the menu can render it; writing a worse file to make the sentence
+nicer would be the wrong repair.
+
+**Not a second store and not a staging area**, on §5's import rules read
+backwards: a writer takes the stored object and produces a document, and nothing
+is kept. The bundle direction is unchanged — [04 §9.1](04-schemas.md)'s
+*export-as-package* is still how a closure travels, and this is how one object
+does.
+
 ### 5.1 Eight kinds is a lot to arrive at — and the library is not where that gets solved
 
 Worth stating as a presentation position, because the data model does not solve

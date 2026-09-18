@@ -507,7 +507,11 @@ describe('choosing one file', () => {
     await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
 
     await waitFor(() => {
-      expect(commit).toHaveBeenCalledWith(expect.anything(), 'keep-both');
+      // The policy, not the call's shape. `importFile` grew a third argument for
+      // the destination — `undefined` on a file with no choice in it — and an
+      // arity-exact assertion here would fail on every later argument too, which
+      // is not what this test is about.
+      expect(commit.mock.calls[0]?.[1]).toBe('keep-both');
     });
   });
 

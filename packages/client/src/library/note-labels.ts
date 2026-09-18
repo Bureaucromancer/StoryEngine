@@ -167,6 +167,62 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This is inside a Marinara storage folder. Point two folders up, at the data folder itself.',
   'import.root.marinaraTooOld':
     'This is a Marinara data folder from before version 1.5.7, which kept everything in one database file. This build reads only the newer file storage.',
+
+  /**
+   * **Aventuras' three single-file vault exports** — [P4 §1.5]'s *"honest
+   * remaining work"*, four phases after it was named.
+   *
+   * `settingAsFraming` is the sharpest sentence here and the one that earns its
+   * `warn`. [04 §6] is bold that *a Treatment contains no world facts*, and a
+   * scenario's `settingSeed` is world facts: the import puts them in `framing`
+   * anyway, because nothing can split one prose blob into tone and facts
+   * mechanically and the card importer has bent the same invariant the same way
+   * since P4. A bent invariant that says so is a decision; a silent one is a bug,
+   * and this is the saying-so.
+   */
+  'import.aventuras.settingAsFraming':
+    'The setting prose ({chars} characters) became this treatment’s framing, which is injected every turn. If it is really world detail, move it into a lorebook.',
+  'import.aventuras.npcsAsActors':
+    '{count} characters were imported beside “{name}” and billed into its cast.',
+  'import.aventuras.primaryNotInCast':
+    'The scenario names “{actor}” as its lead, and no character by that name came with it.',
+  'import.aventuras.linkedLorebookMissing':
+    'This scenario points at a lorebook that is not in the file. Export that lorebook from Aventuras separately and import it too.',
+  'import.aventuras.scenarioAsLorebook':
+    'The setting and its cast became {entries} entries. The setting is always active; each character fires on their own name.',
+  'import.aventuras.openingsDropped':
+    '{count} opening messages were not carried: a lorebook has nowhere to put them. Import it as a treatment instead to keep them.',
+  'import.aventuras.visualDescriptors':
+    '{count} appearance fields carried across to {actor} unchanged.',
+  'import.aventuras.portraitNotCarried':
+    'The portrait in this file was not imported. Add a picture in the editor instead.',
+  'import.aventuras.lorebookEntries': 'Read as an Aventuras lorebook: {count} entries.',
+  'import.aventuras.entryStateRecorded':
+    '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
+
+  /**
+   * **The other direction, and it is new at this stage.**
+   *
+   * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by
+   * preservation alone until the library grew writers, and a writer loses
+   * something by definition. These are what each one lost, said where somebody
+   * about to send the file will read it — the only place they ever would, since
+   * an export leaves no record behind.
+   */
+  'export.cast.unresolved':
+    '{count} characters in the cast are no longer in this library, so they are not in this file.',
+  'export.card.noCastMember':
+    '“{treatment}” has no character to name, so the card is named after the treatment itself.',
+  'export.card.castNarrowed':
+    'A character card holds one character, so {count} of the cast were left out.',
+  'export.aventuras.hooksDropped':
+    '{count} plot hooks were not carried: an Aventuras scenario has nowhere to put them.',
+  'export.aventuras.loreNotCarried':
+    '{count} linked lorebooks were not carried. Aventuras keeps a scenario’s lore as a separate file, so export those lorebooks too.',
+  'export.aventuras.sectionsFolded':
+    '{count} sections were folded into one description: {sections}.',
+  'export.aventuras.foldersDropped':
+    'Folders were not carried, so {count} entries lost the gate above them — any that a shut folder was holding off will arrive switched on.',
 });
 
 /**

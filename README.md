@@ -10,7 +10,8 @@ beside them. P7's buildable work landed 2026-09-13; **three of its exit-gate
 checks await a person**, which is the state its §3.2 records rather than
 glosses. What exists: the storage spine and a derived
 index that can be thrown away and rebuilt from it; accounts and sign-in; the
-library, with import from SillyTavern, Marinara and Aventuras; **the turn, end
+library, with import from SillyTavern, Marinara and Aventuras and export back
+out again; **the turn, end
 to end**, as a resumable server-side job with a streamed reply; the workbench
 that reads the record of it; lorebooks as documents to read and as retrieval
 that says why each entry fired or did not; the session as a tree you can
@@ -36,8 +37,11 @@ says why that is the point rather than a stage on the way to something.
 
 **The UI browses, plays, reads and configures.** Sign in and browse all six
 kinds of library object, or fill the library from a SillyTavern, Marinara or
-Aventuras directory and read the review of what resolved, what went to `compat`
-and what dangled. Start a session, take a turn, watch the reply stream. Branch
+Aventuras directory — or one Aventuras scenario, character or lorebook file —
+and read the review of what resolved, what went to `compat` and what dangled.
+Take any object back out as its own JSON, or written as a character card or one
+of Aventuras' own formats, with what each conversion could not carry named
+beside it. Start a session, take a turn, watch the reply stream. Branch
 from any earlier turn, rewrite or reroll a reply and move among the siblings it
 leaves, undo the newest turn, and search the lines you abandoned — every one of
 them is still there. Open the workbench beside Play to see what the turn was

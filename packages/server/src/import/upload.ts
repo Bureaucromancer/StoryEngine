@@ -5,6 +5,7 @@ import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengi
 
 import { codecFor } from '../storage/card/index.js';
 
+import { isAventurasLorebook, isVaultCharacter, isVaultScenario } from './aventuras/shapes.js';
 import type { ImportCandidate, SourceItem } from './source.js';
 
 /**
@@ -175,6 +176,26 @@ export function readUpload(
     ]);
   }
 
+  /**
+   * **A top-level array, which until now could not even reach the probe.**
+   *
+   * The guard below is right for every shape this build knew: a JSON document
+   * that is not an object is not one of ST's or Marinara's formats, and letting
+   * an array into `probe()` would mean every row of that table having to say so
+   * again. Aventuras' own lorebook export is a bare `Entry[]`
+   * (`exportToAventura`, `JSON.stringify(entries, null, 2)`), so the one format
+   * that is an array is answered here, above the guard, rather than by widening
+   * the guard and re-arguing the table.
+   *
+   * It is deliberately **not** gated on `confidence`. The shape test is four
+   * co-occurring field names on the first element including a nested
+   * `injection.mode`, which is on the `prompts`-array side of the line the gate
+   * exists to draw — a folder sweep can be trusted with a shape this specific.
+   */
+  if (isAventurasLorebook(parsed)) {
+    return candidate({ source: filename, format: 'aventuras.lorebook', payload: parsed });
+  }
+
   if (!isRecord(parsed)) {
     return observed(filename, 'unrecognised', [
       { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
@@ -266,6 +287,25 @@ function readCard(
 function probe(body: Record<string, unknown>, confidence: ProbeConfidence): string | null {
   if (Array.isArray(body['prompts'])) return 'sillytavern.preset.chat';
   if (body['entries'] !== undefined && body['entries'] !== null) return 'sillytavern.lorebook';
+
+  /**
+   * **Aventuras' two vault records, above the card probe on purpose.**
+   *
+   * Both carry a `name`, which is the collision this table's order exists to
+   * survive, and neither carries a `CARDISH` field — `alternateGreetings` is
+   * camelCase where the card spec's is `alternate_greetings`, so `looksLikeCard`
+   * would not in fact claim either of them today. They sit above it anyway,
+   * because *would not, today* is the kind of thing that stops being true when
+   * somebody adds a spelling to `CARDISH`, and the cost of the stronger order is
+   * nothing: each test demands two co-occurring fields no card has.
+   *
+   * [P4 §1.5] surveyed both shapes and named a converter for them *"the honest
+   * remaining work"*; the guards are in `aventuras/shapes.ts` so that the probe
+   * and the converter cannot disagree about what they recognise.
+   */
+  if (isVaultScenario(body)) return 'aventuras.scenario';
+  if (isVaultCharacter(body)) return 'aventuras.character';
+
   if (looksLikeCard(body)) return 'sillytavern.card';
 
   /**

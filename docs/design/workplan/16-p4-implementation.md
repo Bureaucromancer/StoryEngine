@@ -786,10 +786,50 @@ through the store reader:
     converter P4.2 already shipped, with **no Aventuras-specific code at all** —
     the best possible answer to the gating question, and one nothing in this
     plan anticipated.
-  - **Characters and scenarios export as their own raw JSON**
+  - ~~**Characters and scenarios export as their own raw JSON**
     (`export/vault.ts:137`) — `VaultCharacter` and `VaultScenario` verbatim,
     which is the shape [survey §4](../01-source-survey.md) already documented as
-    *not* V2. A converter for these is small and is the honest remaining work.
+    *not* V2. A converter for these is small and is the honest remaining work.~~
+
+    **Written, and the estimate held: small.** `server/src/import/aventuras/`
+    is three converters, a shape file and their tests. `VaultScenario` →
+    Treatment plus an Actor per npc; `VaultCharacter` → Actor, with the seven
+    `visualDescriptors` keys carrying across **unchanged** rather than mapped,
+    because ours was taken from theirs.
+
+    **Two things this stage got wrong, found by writing it.**
+
+    *There is a third single-file format and §1.5 counted it as the first.*
+    `export/formats.ts` offers `aventura`, `sillytavern` and `text`, and the
+    bullet above concluded from the second that Aventuras lore needs no
+    Aventuras code. True of that one. `exportToAventura` writes a bare `Entry[]`
+    **array**, which `readUpload` rejected before the probe table was reached —
+    so a person who took the default-looking format in Aventuras' own export
+    dialog got `unrecognised` with no note naming the format. That is §1.8's
+    silent arm, arriving through a door this stage had not checked.
+
+    *`VaultScenario` poses a question this phase had no vocabulary for.* It is
+    the **conflated** object [04 §6](../04-schemas.md) names when it records why
+    `Scenario` lost as a kind name, and unconflating it is a reading of the file
+    rather than a fact about it. So the single-file import door grew an optional
+    `destination`, and the preview is where it is asked. Treatment is the
+    default on three grounds: [03 §4](../03-data-model.md) aligns
+    `VaultScenario.description` with `blurb` **by name**; a Lorebook has no
+    `openings`, so that reading silently drops `firstMessage` and every
+    alternate; and `Writer.#rememberScenario` has turned a foreign *scenario*
+    into a Treatment with `framing` set since P4.2.
+
+    **And the invariant that gets bent, recorded rather than buried.** [04 §6]
+    is bold that *a Treatment contains no world facts*, and `settingSeed` is
+    world facts. Nothing can split one prose blob into tone and facts
+    mechanically — imports here are deterministic and offline by rule — and the
+    alternative that keeps the letter is a Treatment with an empty `framing`
+    beside a one-entry lorebook, which hands somebody an object whose every-turn
+    field says nothing. So the prose lands in `framing`, the review says so at
+    `warn`, and it points at [16 §3](../16-authoring.md)'s extraction, where the
+    real answer lives. The card converter has bent it exactly this far since
+    P4.2; being stricter here would make two importers disagree about what a
+    premise is.
   - **The whole vault exports as a zip of a SQLite snapshot**
     (`services/backupService.ts:45`), zipped in native Rust. This is the heavy
     path: a zip reader plus a SQLite reader, and `node:sqlite` is already here.
@@ -813,7 +853,8 @@ through the store reader:
   embedded book's `scan_depth` and `token_budget` were being silently replaced
   by our defaults. A book that imports and behaves differently. Fixed at P4.3,
   with the Aventuras export shape as its test.
-- What maps ~~if the path exists~~ *when the converter is written*:
+- What maps ~~if the path exists~~ ~~*when the converter is written*~~ *and what
+  the written converter does*:
   `VaultCharacter` → actor (its own shape, *not*
   V2 — the skeleton's "the other two orbit ST" holds for Marinara only);
   `Entry`'s static half → lorebook entries, its typed per-entry state being

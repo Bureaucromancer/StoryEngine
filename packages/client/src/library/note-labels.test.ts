@@ -33,7 +33,34 @@ import { describe, expect, it } from 'vitest';
  */
 
 const HERE = import.meta.dirname;
-const SERVER_IMPORT = join(HERE, '..', '..', '..', 'server', 'src', 'import');
+const SERVER = join(HERE, '..', '..', '..', 'server', 'src');
+const SERVER_IMPORT = join(SERVER, 'import');
+/**
+ * **The writers emit notes too, and they emit them for the same reason.**
+ *
+ * An export is a conversion run backwards, so every one of them loses something
+ * — a treatment's cast narrowed to a card's one character, a lorebook's folder
+ * gates flattened — and the surface offering the download is the only place
+ * anybody is told. Those notes are `{ key, params }` like every other, and they
+ * would drift the same way, so they are checked by the same three tests rather
+ * than by a fourth that would have to be remembered.
+ */
+const SERVER_EXPORT = join(SERVER, 'export');
+
+/** Both halves of the vocabulary — a note is `import.…` or `export.…`. */
+const EMITTED = /'((?:import|export)\.[a-zA-Z0-9.]+)'/g;
+const LABELLED = /'((?:import|export)\.[a-zA-Z0-9.]+)':/g;
+
+/** Every file the two directions are written in, plus the routes' own notes. */
+function allSources(): string[] {
+  return [
+    ...sourceFiles(SERVER_IMPORT),
+    ...sourceFiles(SERVER_EXPORT),
+    // The routes emit a few of their own — transport failures a converter never
+    // sees, like a file that is not JSON at all.
+    join(SERVER, 'routes', 'import.ts'),
+  ];
+}
 /**
  * The catalogue, which moved out of `ImportPanel.tsx` at [P5.0] when the book
  * page became its second renderer. This constant is the coupling that move has
@@ -71,20 +98,11 @@ function keysIn(text: string, pattern: RegExp): Set<string> {
 describe('the review vocabulary', () => {
   it('has a sentence for every class the converters emit', () => {
     const emitted = new Set<string>();
-    for (const file of sourceFiles(SERVER_IMPORT)) {
-      for (const key of keysIn(readFileSync(file, 'utf8'), /'(import\.[a-zA-Z0-9.]+)'/g)) {
-        emitted.add(key);
-      }
+    for (const file of allSources()) {
+      for (const key of keysIn(readFileSync(file, 'utf8'), EMITTED)) emitted.add(key);
     }
-    // The routes emit a few of their own — transport failures a converter never
-    // sees, like a file that is not JSON at all.
-    const routes = readFileSync(
-      join(HERE, '..', '..', '..', 'server', 'src', 'routes', 'import.ts'),
-      'utf8',
-    );
-    for (const key of keysIn(routes, /'(import\.[a-zA-Z0-9.]+)'/g)) emitted.add(key);
 
-    const labelled = keysIn(readFileSync(LABELS, 'utf8'), /'(import\.[a-zA-Z0-9.]+)':/g);
+    const labelled = keysIn(readFileSync(LABELS, 'utf8'), LABELLED);
 
     expect(emitted.size).toBeGreaterThan(30);
     const missing = [...emitted].filter((key) => !labelled.has(key)).sort();
@@ -108,16 +126,15 @@ describe('the review vocabulary', () => {
      * type would do better, which is the trade the file header already argues.
      */
     const panel = readFileSync(LABELS, 'utf8');
-    const sources = [
-      ...sourceFiles(SERVER_IMPORT),
-      join(HERE, '..', '..', '..', 'server', 'src', 'routes', 'import.ts'),
-    ].map((file) => readFileSync(file, 'utf8'));
+    const sources = allSources().map((file) => readFileSync(file, 'utf8'));
 
     const wrong: string[] = [];
     // Both quote styles: prettier reaches for double quotes as soon as a
     // sentence contains an apostrophe, so a single-quote-only pattern would
     // quietly stop checking exactly the labels most likely to read well.
-    for (const match of panel.matchAll(/'(import\.[a-zA-Z0-9.]+)':\s*\n?\s*(['"])(.*?)\2,/g)) {
+    for (const match of panel.matchAll(
+      /'((?:import|export)\.[a-zA-Z0-9.]+)':\s*\n?\s*(['"])(.*?)\2,/g,
+    )) {
       const key = match[1]!;
       // Group 2 is the quote character the pattern back-references; 3 is the text.
       const placeholders = [...match[3]!.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
@@ -152,16 +169,11 @@ describe('the review vocabulary', () => {
     // The other direction, and the cheaper bug: a label kept after its note was
     // renamed is dead weight that reads as coverage.
     const emitted = new Set<string>();
-    for (const file of [
-      ...sourceFiles(SERVER_IMPORT),
-      join(HERE, '..', '..', '..', 'server', 'src', 'routes', 'import.ts'),
-    ]) {
-      for (const key of keysIn(readFileSync(file, 'utf8'), /'(import\.[a-zA-Z0-9.]+)'/g)) {
-        emitted.add(key);
-      }
+    for (const file of allSources()) {
+      for (const key of keysIn(readFileSync(file, 'utf8'), EMITTED)) emitted.add(key);
     }
 
-    const labelled = keysIn(readFileSync(LABELS, 'utf8'), /'(import\.[a-zA-Z0-9.]+)':/g);
+    const labelled = keysIn(readFileSync(LABELS, 'utf8'), LABELLED);
     const orphaned = [...labelled].filter((key) => !emitted.has(key)).sort();
     expect(orphaned, 'these labels name a note no converter emits any more').toEqual([]);
   });
