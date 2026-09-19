@@ -734,6 +734,30 @@ unbound remains [P2B](10-p2b-provider-configuration.md)'s dangling posture —
 gate row 8 asserts it, and the step is kept **out of the plan** rather than
 failing a turn.
 
+#### The reversal condition, tested against a corpus — 2026-09-19
+
+***The condition above was written from reasoning. It has now been read against
+eighteen real image backends, and it holds — but what the reading actually
+found is more useful than a yes.*** Of `Pasta-Devs/Marinara-Engine`'s eighteen
+sources at `cc783dd`, **nine are the same provider wearing different hats**:
+thirty to seventy lines each whose whole content is a URL, three renamed fields
+and a response path. One of the eighteen — ComfyUI, with SwarmUI and RunPod
+behind it — is the graph this section predicted, and it is the only one.
+
+So the sentence *"that is the day `Provider` gets a second kind"* is correct and
+is **not** the sentence a reader should take away first. The prior finding is
+that a long provider list is mostly a **table of endpoints**, and that building
+it as adapters buys nothing. The decision that follows, with the families
+measured and the corpus's own three internal votes on which of its names matter,
+is [19 §5.6](../19-tech-stack.md).
+
+*Two things that section settles which this one had no way to reach.* OpenRouter
+is **not** OpenAI-compatible for images, so it needs a shim rather than a row.
+And the corpus's Pollinations path substitutes `Math.random()` for the caller's
+seed — which is this phase's own promise broken at the adapter, and is worth
+knowing as the shape of the failure a table invites when a row is written
+carelessly.
+
 ### 1.3 Old turns: recorded state or present state
 
 [06 §10.6](../06-modes-and-turn-pipeline.md)'s standing `[OPEN]` — whether an
