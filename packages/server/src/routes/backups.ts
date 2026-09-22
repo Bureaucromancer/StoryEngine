@@ -17,7 +17,6 @@ import {
   type BackupRecord,
 } from '../backup/archive.js';
 import { openFileRead } from '../storage/files.js';
-import { TarNameError } from '../storage/tar.js';
 
 /**
  * ***Taking a backup, and getting it off the machine*** —
@@ -108,26 +107,6 @@ function listingOf(backups: BackupRecord[]): Listing {
   return { backups, totalBytes: backups.reduce((sum, row) => sum + row.bytes, 0) };
 }
 
-/**
- * The refusals taking a backup can produce, in the API's vocabulary.
- *
- * `TarNameError` is **409**: the request is well formed and the caller is
- * permitted, and what refuses it is a file in their own library whose path the
- * archive format cannot express. 400 would say the body was wrong, which it was
- * not, and 500 would say this is nobody's to fix — it is, and the message names
- * the file.
- */
-async function respond(error: unknown, reply: FastifyReply): Promise<FastifyReply> {
-  if (error instanceof TarNameError) {
-    return reply.code(409).send({
-      error: 'unarchivable-path',
-      message: 'A file in this library has a path too long for an archive to carry.',
-      path: error.memberName,
-    });
-  }
-  throw error;
-}
-
 /** The four routes, once, for whichever owner the caller turned out to be. */
 function register(
   app: FastifyInstance,
@@ -140,16 +119,20 @@ function register(
     if (!owner) return;
 
     const { contents } = request.body as { contents: 'full' | 'redacted' };
-    try {
-      const backup = await takeBackup(backupContextOf(services), {
-        owner,
-        contents,
-        reason: 'manual',
-      });
-      return await reply.code(201).send({ backup });
-    } catch (error) {
-      return await respond(error, reply);
-    }
+    /**
+     * ***No refusal for a file the format cannot name.*** An earlier draft
+     * answered 409 for one, and the scheduler's tests settled it the other way:
+     * all-or-nothing is the right failure for a *restore*, and for a backup it
+     * means one pathological path in one library leaves an install with no
+     * archive at all. `takeBackup` skips it and names it in the manifest's
+     * `omitted` instead, so the file exists and says what it could not carry.
+     */
+    const backup = await takeBackup(backupContextOf(services), {
+      owner,
+      contents,
+      reason: 'manual',
+    });
+    return reply.code(201).send({ backup });
   });
 
   app.get(prefix, async (request, reply) => {

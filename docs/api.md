@@ -2427,10 +2427,13 @@ omits them, and restores to an install nobody can sign into.
 `contents` is **required and has no default**: the two produce genuinely
 different files and the difference is a person's to make.
 
-`409 unarchivable-path` when a file in the library has a path too long for a tar
-header to carry even split across its two name fields. The body names the path.
-It is 409 rather than 400 because the request was well formed and the caller was
-permitted — what refuses it is a file.
+***A file whose path no tar header can name does not fail the archive.*** ustar
+holds 255 bytes across its two name fields and our own longest path is about
+232, so this is reachable by hand rather than by us — the library is a folder
+somebody may open in a text editor. Such a file is **left out and named in the
+manifest's `omitted` at `warn`**, because all-or-nothing is the right failure
+for a *restore* and the wrong one for a backup: it would leave an install with
+no archive at all, discovered on the day somebody needed one.
 
 ### `GET /api/me/backups`
 

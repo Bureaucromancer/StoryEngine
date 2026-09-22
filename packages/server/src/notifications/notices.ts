@@ -66,3 +66,53 @@ export async function announceRestartPending(
     });
   }
 }
+
+/**
+ * Tells somebody that a backup the server was taking for them did not happen.
+ *
+ * ***Only failures, and that is the whole of the policy.*** A daily backup that
+ * announces itself every day is noise, and noise is how a person stops reading
+ * the one that matters. [10 §15.4](../../../../docs/design/10-ui-surfaces.md)
+ * sets the same bar for a panel — an *action*, not a statistic — and the action
+ * here is real: a schedule that is failing is one somebody has to look at, and
+ * the alternative to telling them is that they find out when they need the
+ * archive that was never written.
+ *
+ * ***Addressed by scope, which is `announceRestartPending`'s rule applied one
+ * step out.*** An install backup is a property of the install, so every enabled
+ * admin hears; an account's own is a property of one person's data, so only
+ * they do — and an admin reading *ned's backup failed* would be an admin being
+ * told about somebody's library on a surface that has never been about that.
+ */
+export async function announceBackupFailed(
+  context: NoticeContext,
+  scope: { kind: 'install' } | { kind: 'account'; handle: string },
+): Promise<void> {
+  const notice = 'backup-failed';
+  if (scope.kind === 'account') {
+    context.notify({
+      kind: 'system.notice',
+      account: scope.handle,
+      notice,
+      /**
+       * **Actionable**: their schedule is in Settings and turning it off, or
+       * deleting some archives, is a thing they can do about it.
+       */
+      actionable: true,
+      params: { scope: 'account' },
+    });
+    return;
+  }
+
+  const held = await context.accounts.list();
+  for (const account of held) {
+    if (account.role !== 'admin' || !account.enabled) continue;
+    context.notify({
+      kind: 'system.notice',
+      account: account.handle,
+      notice,
+      actionable: true,
+      params: { scope: 'install' },
+    });
+  }
+}

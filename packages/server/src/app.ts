@@ -32,6 +32,8 @@ import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
+import { backupContextOf } from './backup/archive.js';
+import { startBackupSchedule, type BackupSchedule } from './backup/schedule.js';
 import { BackupSettingsStore } from './backup/settings.js';
 import { startTrashSweep, type TrashSweep } from './storage/trash.js';
 import { rebuild } from './index-db/rebuild.js';
@@ -339,6 +341,17 @@ export interface AppServices {
    * writes archives to somebody's disk on the strength of it.
    */
   backupSettings: BackupSettingsStore;
+  /**
+   * The backup timer — [P12.5](../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * Beside `maturation` and `trash` because it is the same kind of thing:
+   * periodic work over files nobody is coming back for, `unref`ed, and stopped
+   * in `disposeServices` — or every test that builds an app leaks a timer.
+   * Assigned by `buildApp` rather than `buildServices`, for `startUpdateCheck`'s
+   * reason: it needs a logger, and a caller that only wants the services has no
+   * business writing archives to somebody's disk.
+   */
+  backupSchedule: BackupSchedule | null;
 }
 
 export interface BuildAppOptions {
@@ -775,6 +788,7 @@ async function assembleWithState(
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
     backupSettings: new BackupSettingsStore(layout),
+    backupSchedule: null,
     supervision: supervisionOf(process.env),
     // Wired by `main.ts`, which is the only caller that owns the process.
     exit: null,
@@ -881,6 +895,7 @@ export async function disposeServices(services: AppServices): Promise<void> {
    */
   await services.drainRenditions();
   services.stopUpdateCheck();
+  services.backupSchedule?.stop();
   for (const close of services.streams) close();
   services.streams.clear();
   services.maturation.stop();
@@ -1056,6 +1071,25 @@ export async function buildApp(
    * operator who just turned the setting on sees an answer while still looking.
    */
   startUpdateCheck(services, app.log);
+
+  /**
+   * ***The backup timer*** — [P12.5]. Here rather than in `buildServices` for
+   * the reason one line up, and with more force: a migration or a CLI action
+   * that quietly started writing gigabyte archives into somebody's data
+   * directory would be a surprising thing for `--reset-password` to do.
+   */
+  services.backupSchedule = startBackupSchedule({
+    backups: backupContextOf(services),
+    notices: { accounts: services.accounts, notify: services.notify },
+    accounts: () => services.accounts.list(),
+    settingsOf: (handle) => services.backupSettings.read(handle),
+    // **A closure, never a captured value** — all three keys are tiered `live`,
+    // and a number copied in here is what makes a live tier untrue.
+    install: () => services.config.backup,
+    log: (event, message) => {
+      app.log.info(event, message);
+    },
+  });
 
   const stranded = reconcileRenditionJobs(services.state.db);
   if (stranded.interrupted.length > 0) {

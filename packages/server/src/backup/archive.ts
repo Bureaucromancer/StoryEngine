@@ -20,6 +20,7 @@ import type { AppServices } from '../app.js';
 import type { BuildInfo } from '../build-info.js';
 import { listTreeFiles, statFile, unlinkFile, type TreeFile } from '../storage/files.js';
 import { assertValidHandle, type Layout } from '../storage/layout.js';
+import { TarNameError, splitName } from '../storage/tar.js';
 import { writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
 
 /**
@@ -284,6 +285,39 @@ export async function takeBackup(
     }
 
     for (const file of files) {
+      /**
+       * ***A file the format cannot name is skipped and said out loud, rather
+       * than failing the archive.***
+       *
+       * This project refuses rather than sanitises almost everywhere —
+       * `storage/zip.ts` says so about traversal, and `tar.ts` throws rather
+       * than truncating — and **a backup is the one place that trade runs the
+       * other way**. All-or-nothing is the right failure for a *restore*, where
+       * a partial result is a corrupt install. For a backup it means one
+       * pathological name in one person's library leaves the whole install with
+       * **no archive at all**, and finding that out on the day you need one is
+       * the worst outcome this feature has.
+       *
+       * It is reachable by hand rather than by us: the library is a folder
+       * somebody may open in a text editor ([10 §2.1]), and ustar's two name
+       * fields hold 255 bytes between them where our own longest path is about
+       * 232.
+       *
+       * ***So it is skipped and named in the manifest's `omitted` at `warn`.***
+       * The one thing it must never be is quiet, which is why this is a note in
+       * the file rather than a `catch` around the whole thing.
+       */
+      try {
+        splitName(file.name);
+      } catch (error) {
+        if (!(error instanceof TarNameError)) throw error;
+        omitted.push({
+          key: 'backup.omitted.unarchivablePath',
+          params: { path: file.name },
+          level: 'warn',
+        });
+        continue;
+      }
       members.push({
         name: file.name,
         path: join(context.layout.dataRoot, file.name),
