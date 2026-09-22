@@ -166,6 +166,15 @@ describe('a turn that ran through a whole server', () => {
 
     // The turn's own, by class. The picture's arrives separately and is waited
     // for below rather than raced against here.
+    //
+    // **Waited for rather than read once**, because `takeATurn` returns when
+    // the session's head has moved and this notification is written by a
+    // producer reacting to the same completion — a different listener, so the
+    // head moving does not mean the row is there yet. Reading once passed on an
+    // unloaded machine and failed on the Windows runner and under a full-suite
+    // run, which is the shape of every race this file has already paid for
+    // twice below.
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'turn.complete')));
     const completion = held().find((one) => one.class === 'turn.complete');
     expect(completion).toBeDefined();
     expect(completion?.params['sessionName']).toBe('The harbour');

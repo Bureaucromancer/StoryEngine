@@ -50,9 +50,16 @@ import { padding, tarHeader, trailer } from './tar.mjs';
  *   easy to miss: the gzip *container* has a timestamp independent of anything
  *   in the tar, and Node stamps it unless told otherwise.
  *
- * *The mode is preserved only as executable-or-not*, which is the one bit that
- * matters (`install.sh`) and the one bit a `umask` on the packing machine could
- * otherwise leak into the artifact.
+ * *The mode is decided by name, as executable-or-not*, which is the one bit
+ * that matters (`install.sh`) and the one bit a `umask` on the packing machine
+ * could otherwise leak into the artifact.
+ *
+ * **It is read from the name rather than from the file**, because the third
+ * decision above is not achievable any other way: Windows has no executable
+ * bit to read, so `stat` there reports `0644` for a file `chmod 0755` claims to
+ * have set, and the same tree packed on two machines produced two different
+ * artifacts — one of them shipping an `install.sh` the tier's one instruction
+ * cannot run. A name is the same on every machine.
  *
  * Usage:
  *   node tools/pack-tarball.mjs <deployed-dir> <extras-dir> <archive.tar.gz>
@@ -60,6 +67,17 @@ import { padding, tarHeader, trailer } from './tar.mjs';
 
 /** The prefix every member sits under, so an unpack cannot scatter a tree. */
 const ROOT = 'storyengine';
+
+/**
+ * Which members the artifact carries as executable, by name.
+ *
+ * A shell script is the only thing in this tree anybody runs, and `install.sh`
+ * is the one the deploy note names. Widening this to "whatever the filesystem
+ * says" is what the header paragraph rejects; narrowing it to the literal
+ * `install.sh` would leave a second script silently unrunnable, which is the
+ * same failure one file later.
+ */
+const isExecutable = (name) => name.endsWith('.sh');
 
 async function main() {
   const [tree, extras, archive] = process.argv.slice(2);
@@ -118,9 +136,9 @@ export async function pack(tree, extras, archive) {
 
   for (const member of members) {
     const info = await stat(member.from);
-    // Executable or not, and nothing else: a `umask` on the packing machine
-    // must not reach the artifact.
-    const mode = (info.mode & 0o111) === 0 ? 0o644 : 0o755;
+    // Executable or not, and nothing else: neither a `umask` nor a filesystem
+    // that cannot hold the bit may reach the artifact.
+    const mode = isExecutable(member.name) ? 0o755 : 0o644;
     gzip.write(tarHeader(`${ROOT}/${member.name}`, info.size, { mtime: 0, mode }));
     await pipeline(createReadStream(member.from), gzip, { end: false });
     const pad = padding(info.size);

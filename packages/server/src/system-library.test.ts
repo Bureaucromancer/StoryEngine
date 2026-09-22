@@ -44,6 +44,22 @@ async function start(dataDir?: string): Promise<TestServer> {
   return server;
 }
 
+/**
+ * Dispose one server now rather than at `afterEach`, and stop tracking it.
+ *
+ * **Required before removing the data directory, and only on Windows does
+ * skipping it fail.** `makeTestServer` is explicit that dispose does not remove
+ * the directory — whoever made it owns it — so these tests remove their own.
+ * POSIX unlinks a file the process still has open and the removal succeeds;
+ * Windows refuses with `EBUSY` while the index and state databases are open,
+ * which is how two tests that restart a server on the same directory came to
+ * fail on the Windows runner and nowhere else.
+ */
+async function stop(server: TestServer): Promise<void> {
+  await server.dispose();
+  servers = servers.filter((one) => one !== server);
+}
+
 describe('the built-in packs reach the system library', () => {
   it('writes one per registered mode, at the mode-derived slug', async () => {
     const server = await start();
@@ -73,8 +89,7 @@ describe('the built-in packs reach the system library', () => {
   it('writes nothing on a restart that changes nothing', async () => {
     const first = await start();
     const { dataDir } = first;
-    await first.dispose();
-    servers = servers.filter((server) => server !== first);
+    await stop(first);
 
     const second = await start(dataDir);
 
@@ -85,6 +100,7 @@ describe('the built-in packs reach the system library', () => {
     expect(again.length).toBeGreaterThan(0);
     expect(again.map((one) => one.written)).toEqual(again.map(() => false));
 
+    await stop(second);
     await rm(dataDir, { recursive: true, force: true });
   });
 
@@ -104,8 +120,7 @@ describe('the built-in packs reach the system library', () => {
     edited['name'] = 'Hand edited';
     await writeFile(path, `${JSON.stringify(edited, null, 2)}\n`);
 
-    await first.dispose();
-    servers = servers.filter((server) => server !== first);
+    await stop(first);
 
     const second = await start(dataDir);
     expect(await readFile(path, 'utf8')).toBe(original);
@@ -116,6 +131,7 @@ describe('the built-in packs reach the system library', () => {
     const again = await materialiseModePresets(second.services.index.db, second.services.layout);
     expect(again.map((one) => one.written)).toEqual(again.map(() => false));
 
+    await stop(second);
     await rm(dataDir, { recursive: true, force: true });
   });
 });
