@@ -2800,6 +2800,36 @@ rather than a bug report. The admin's panel adds a fourth box for the install's
 settings, and says which account in the archive — from **the archive's** list of
 handles, because an account here the archive holds nothing for is not a choice.
 
+### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22.* **Inside its own border, at the foot of the admin panel,
+after everything that adds to the install.** The order on that page is the order
+of how much each control costs to get wrong, and this is the last one. A control
+that sat in the same row as *Download* would be a destructive act wearing the
+clothes of a routine one.
+
+***It is absent where nothing would start the server again***, with a sentence
+giving the shell command instead — [09 §6.4](09-server-multiuser-deployment.md)'s
+trap, which that section states for the plain restart and which is sharper here:
+*a bare `node server.js` will simply exit and the admin who clicked the button
+now has no server and possibly no shell.* The route refuses it too, because
+§15's own rule is that a surface is never the boundary; what the absence buys is
+that a person who has done nothing wrong does not have to read an error.
+
+***The confirmation is the words typed back***, on the account-removal dialog's
+pattern and for its stated reason: *a destructive control whose confirmation is
+a second button is a control people click twice*. This is the most destructive
+control in the build, so it takes the strongest confirmation the build has — and
+the dialog says what will be replaced and where what is here now will be kept
+before asking for it.
+
+**A restore waiting for the next start is shown, with a way out.** A restore
+that worked leaves no marker — it lived in the directory that moved aside — so
+one visible after a restart always means something went wrong, and the notice
+saying what went wrong arrives with it. *Call it off* is the control that notice
+implies: without it, a failed restore is a state a person can read about and
+cannot leave, on an install whose whole premise is that nobody has a shell.
+
 ### 15.4 What this is not
 
 **Not a dashboard, and not a place to put anything that is nobody's job.** The

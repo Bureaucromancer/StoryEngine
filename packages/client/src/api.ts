@@ -2163,6 +2163,8 @@ export const adminApi = {
     interrupts: { mine: number; others: number };
     /** True while a restart is draining. */
     draining: boolean;
+    /** A restore is waiting for the next start, or has been refused one. */
+    restorePending: boolean;
     /**
      * The daily update check, and the connectivity signal it pays for —
      * [09 §6.5]. Read from the server's cache; nothing here triggers one.
@@ -2403,6 +2405,20 @@ export const backupApi = {
     request('GET', `/api/admin/backups/${id}/manifest`),
   importInstall: (body: BackupImportRequest): Promise<BackupImportResult> =>
     request('POST', '/api/admin/backups/import', body),
+
+  /**
+   * ***Restore, which is not import*** —
+   * [P12.13](../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * **No `onSuccess` invalidation anywhere it is used**, for `useRestart`'s
+   * reason: the answer is the last thing this process sends. The drain runs
+   * behind it, the process exits, and the swap happens on the next boot — so
+   * there is no cache here that will still be asked a question.
+   */
+  restoreInstall: (id: string, acceptRedacted: boolean): Promise<{ draining: boolean }> =>
+    request('POST', '/api/admin/restore', { id, acceptRedacted }),
+  /** Clears a marker the next boot would act on, or has refused to. */
+  cancelRestore: (): Promise<void> => request('DELETE', '/api/admin/restore'),
 };
 
 /**

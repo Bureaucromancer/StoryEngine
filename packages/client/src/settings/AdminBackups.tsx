@@ -4,10 +4,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
-import { backupApi, type BackupRecord } from '../api.js';
+import { backupApi, type BackupManifest, type BackupRecord } from '../api.js';
 import { formatTimestamp } from '../format.js';
+import { useNotices } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { SelectField } from '../ui/Field.js';
+import { Dialog } from '../ui/Dialog.js';
+import { Field, SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import { Fine, Note } from '../ui/Text.js';
 import { megabytes } from './Backups.js';
@@ -208,6 +210,279 @@ export function AdminBackups(): JSX.Element {
        * decide.
        */}
       <ImportBackup scope="install" rows={rows} />
+
+      {/**
+       * ***Last, and inside its own border.*** Import is above because it is
+       * the one people reach for; restore is below because it replaces
+       * everything, and the order on the page is the order of how much they
+       * cost to get wrong.
+       */}
+      <Restore rows={rows} />
     </section>
   );
+}
+
+/**
+ * ***Putting this install back as an archive*** —
+ * [P12.13](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***Visually apart from the list above, and that is the design rather than
+ * layout.*** Everything above this line adds to what is on the disk; this
+ * replaces it. A control that sat in the same row as *Download* would be a
+ * destructive act wearing the clothes of a routine one — which is the whole
+ * reason [P12] insisted the two verbs have two names.
+ *
+ * ***Absent where nothing would restart the process***, with a sentence giving
+ * the shell command instead. That is `SettingsPage.tsx`'s own mechanism and
+ * [09 §6.4]'s trap avoided in the same breath: *a bare `node server.js` will
+ * simply exit and the admin who clicked the button now has no server*. The
+ * route refuses it too — the surface is never the boundary — but a person who
+ * has done nothing wrong should not have to read an error to find that out.
+ *
+ * ***Typing the words is the confirmation***, on `AdminAccounts.tsx`'s
+ * `RemoveDialog` pattern and for its stated reason: *a destructive control
+ * whose confirmation is a second button is a control people click twice*. This
+ * is the most destructive control in the build, so it takes the strongest
+ * confirmation the build has.
+ */
+function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
+  const notices = useNotices(true);
+  const [chosen, setChosen] = useState<string>('');
+  const [confirming, setConfirming] = useState(false);
+
+  const supervision = notices.data?.supervision ?? 'none';
+  const canRestart = notices.data?.canRestart === true;
+
+  const manifest = useQuery({
+    queryKey: ['admin', 'backups', chosen, 'manifest'],
+    queryFn: () => backupApi.readInstallManifest(chosen),
+    enabled: chosen !== '',
+  });
+
+  const restore = useMutation({
+    mutationFn: (acceptRedacted: boolean) => backupApi.restoreInstall(chosen, acceptRedacted),
+  });
+
+  const client = useQueryClient();
+  const cancel = useMutation({
+    mutationFn: () => backupApi.cancelRestore(),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+    },
+  });
+
+  if (props.rows.length === 0) return null;
+
+  const held = manifest.data?.manifest;
+
+  return (
+    <section
+      className="mt-6 flex flex-col gap-3 rounded-panel border border-danger-line p-4"
+      aria-labelledby="restore-install"
+    >
+      <h4 id="restore-install" className="text-subsection text-danger-ink">
+        Restore this install
+      </h4>
+      <Fine>
+        This replaces the whole data directory with an archive — every account, every library, the
+        settings and the operational store. It is not an import: nothing is merged, and what is here
+        now is set aside rather than blended with what arrives.
+      </Fine>
+      <Fine>
+        The server stops, and restores as it starts again. What is here now is kept beside the new
+        directory and never deleted, which is how a restore is undone.
+      </Fine>
+
+      {/**
+       * ***A marker the next start will act on, or has refused to.***
+       *
+       * A restore that **worked** leaves none — the marker lived in the
+       * directory the swap moved aside — so seeing this after a restart always
+       * means something went wrong, and the notice that says what went wrong
+       * arrives in the same breath. This is the control that notice implies:
+       * without it, a failed restore is a state a person can read about and
+       * cannot leave, on an install whose whole premise is that nobody has a
+       * shell.
+       */}
+      {notices.data?.restorePending === true && !restore.isSuccess ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-panel bg-warn-surface p-3">
+          <p className="text-sm text-warn-ink">
+            A restore is waiting for the next start. If it has already been tried and failed, it
+            will not be tried again.
+          </p>
+          <Button
+            type="button"
+            size="compact"
+            className="ms-auto"
+            disabled={cancel.isPending}
+            onClick={() => {
+              cancel.mutate();
+            }}
+          >
+            Call it off
+          </Button>
+        </div>
+      ) : null}
+
+      {/**
+       * ***The absent control, and the sentence that replaces it.*** Not a
+       * disabled button: a person without a supervisor has a real way to do
+       * this and it is a shell command, so the surface says what it is rather
+       * than showing them a control that would refuse.
+       */}
+      {!canRestart ? (
+        <p className="text-sm text-warn-ink">{unsupervisedLine(supervision)}</p>
+      ) : (
+        <>
+          <SelectField
+            label="Which archive to become"
+            value={chosen}
+            options={[
+              ['', 'Choose one…'],
+              ...props.rows.map((row) => [row.id, restoreLabel(row)] as const),
+            ]}
+            onChange={(value) => {
+              setChosen(value);
+              setConfirming(false);
+              restore.reset();
+            }}
+          />
+          {held === undefined ? null : <Fine>{archiveLine(held)}</Fine>}
+          {held?.contents === 'redacted' ? (
+            <p className="text-sm text-warn-ink">
+              This archive carries no accounts, no connections and no session key. Restoring it
+              leaves an install nobody can sign into, which has to be set up from scratch.
+            </p>
+          ) : null}
+          <div>
+            <Button
+              type="button"
+              variant="dangerOutline"
+              disabled={chosen === '' || held === undefined || restore.isPending}
+              onClick={() => {
+                setConfirming(true);
+              }}
+            >
+              Restore this install…
+            </Button>
+          </div>
+        </>
+      )}
+
+      {restore.isError ? (
+        <p role="alert" className="text-danger-ink">
+          {restoreFailure(restore.error)}
+        </p>
+      ) : null}
+      {restore.isSuccess ? (
+        <p role="status" className="text-warn-ink">
+          The server is stopping. It will restore this archive as it starts again, and the page will
+          come back on its own.
+        </p>
+      ) : null}
+
+      {confirming && held !== undefined ? (
+        <Dialog
+          role="alertdialog"
+          labelledBy="confirm-restore"
+          size="wide"
+          onDismiss={() => {
+            setConfirming(false);
+          }}
+        >
+          <h4 id="confirm-restore" className="text-subsection text-ink">
+            Replace everything with this archive?
+          </h4>
+          <p className="text-sm text-ink-muted">{replacesLine(held)}</p>
+          <p className="text-sm text-ink-muted">
+            What is here now is moved aside on the server and kept. StoryEngine will not delete it —
+            remove that folder yourself when you are sure.
+          </p>
+          <ConfirmByTyping
+            onConfirm={() => {
+              restore.mutate(held.contents === 'redacted');
+              setConfirming(false);
+            }}
+            onCancel={() => {
+              setConfirming(false);
+            }}
+          />
+        </Dialog>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * The word, typed back.
+ *
+ * ***Its own component so the dialog above reads as the decision rather than as
+ * the mechanics of taking it***, and because the confirmed word is state that
+ * has to be thrown away when the dialog closes — which a local `useState` in
+ * the parent would not do.
+ */
+function ConfirmByTyping(props: { onConfirm: () => void; onCancel: () => void }): JSX.Element {
+  const [typed, setTyped] = useState('');
+  return (
+    <>
+      <Field label="Type restore to confirm" value={typed} onChange={setTyped} />
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="compact" onClick={props.onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          size="compact"
+          disabled={typed.trim().toLowerCase() !== 'restore'}
+          onClick={props.onConfirm}
+        >
+          Stop the server and restore
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** Whole sentences, one per state, as the sentence-assembly rule requires. */
+function unsupervisedLine(supervision: 'systemd' | 'declared' | 'none'): string {
+  if (supervision !== 'none') {
+    return 'This server cannot stop itself from here. Restore from a shell with `pnpm backup restore <archive> <data directory>`.';
+  }
+  return 'Nothing would start this server again if it stopped, so it will not restore itself. Stop it, run `pnpm backup restore <archive> <data directory>`, and start it again.';
+}
+
+function restoreLabel(record: BackupRecord): string {
+  const when = formatTimestamp(new Date(record.takenAt).toISOString());
+  return record.contents === 'full'
+    ? `${when} — everything, ${megabytes(record.bytes)}`
+    : `${when} — work only, ${megabytes(record.bytes)}`;
+}
+
+function archiveLine(manifest: BackupManifest): string {
+  const by =
+    manifest.takenBy.version === null
+      ? 'a build that did not record its version'
+      : `version ${manifest.takenBy.version}`;
+  return `Taken ${formatTimestamp(manifest.takenBy.at)} by ${by}, holding ${String(manifest.files)} files.`;
+}
+
+function replacesLine(manifest: BackupManifest): string {
+  const people =
+    manifest.handles.length === 1 ? 'one account' : `${String(manifest.handles.length)} accounts`;
+  return `Everything on this server is replaced by ${String(manifest.files)} files belonging to ${people}, taken ${formatTimestamp(manifest.takenBy.at)}.`;
+}
+
+function restoreFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message.includes('free space')) {
+    return 'There is not enough free space to unpack that archive. Delete some archives and try again.';
+  }
+  if (message.includes('end to end')) {
+    return 'That archive could not be read from end to end, so nothing was changed.';
+  }
+  if (message.includes('start this server again')) {
+    return 'Nothing would start this server again, so it will not stop itself.';
+  }
+  return 'That restore could not be started, and nothing was changed.';
 }

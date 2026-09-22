@@ -1247,6 +1247,23 @@ install is the import engine with one more source arm —
 transport costs a class rather than a second engine. Routing it anywhere else
 would be the duplication that seam exists to prevent.
 
+*And restore stayed a handoff rather than becoming one.* A running server cannot
+replace its own data directory in place — it holds open handles on the files the
+archive would overwrite, and the session key it would replace is the one
+validating the request asking for it. So `POST /api/admin/restore` checks every
+precondition **while the process is still answering** (a refusal after it has
+exited is one nobody can read), writes a marker, and drains; the next boot
+unpacks to a sibling, renames the live directory aside and renames the new one
+in. ***The directory that moved aside is kept and never deleted***, which is
+`removed/`'s promise and the one property that covers *the restore worked and
+was the wrong archive* — it is the closest thing this section's own sentence,
+*an untested restore is not a backup*, has to an insurance policy.
+
+*What this section refused and would still refuse* is a restore that quietly
+reorganises itself around being a subsystem: there is no restore queue, no
+snapshot chain, no second format, and the marker is a JSON file that the swap
+does not have to delete, because it lives in the directory being replaced.
+
 **What P12 does not build**, so that *do not build a subsystem* still binds
 something: no retention policy, no job queue, no second archive format, and no
 account created from an archive. The scheduler is one `setInterval` on

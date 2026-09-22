@@ -399,3 +399,58 @@ makes it restorable. Choose `redacted` for a file you are going to put somewhere
 you would not put those, and know that restoring one produces an install nobody
 can sign into.
 
+### Getting data back: import, or restore
+
+*Added at [P12](design/workplan/29-p12-implementation.md).* **Two operations,
+named apart, because conflating them is how somebody loses a week.**
+
+| | **Import** | **Restore** |
+|---|---|---|
+| Does what | Merges an archive's content into what is here | Replaces the data directory with the archive |
+| Server | Running | Stops, and restores as it starts again |
+| Touches | Library, sessions and tags; provider connections, preferences and settings only if ticked | Everything |
+| Refuses | Nothing structural — a clash is a policy you choose | An account archive; an unsupervised install; an archive that will not read end to end |
+| Undo | History keeps what each replaced object was | The previous directory, moved aside and never deleted |
+| Who | Anybody, for their own; an administrator, per account | An administrator |
+
+**Import** is **Settings → Backups → Import from a backup**, and for the whole
+install under Administration. It never touches accounts, the operational store
+or the system library — that line is what keeps the two verbs distinct rather
+than two positions on a slider, and it is why clicking the wrong one loses
+nothing. Clashes default to *leave what is here*, which is the opposite of the
+file-import default and deliberate: a backup meeting a live account is the past
+meeting the present.
+
+**Restore** is **Settings → Administration → Backups → Restore this install**,
+and it is only offered where something will start the server again — compose's
+`restart:`, a systemd unit, unraid, or `SE_SUPERVISED=1`. Everywhere else the
+panel gives the shell command instead, because a server that stopped and stayed
+stopped is worse than one that never offered.
+
+What happens is a handoff across a restart. The server checks everything while
+it is still answering — the archive reads end to end, it is an install archive,
+a `redacted` one has been confirmed, and there is disk for it — writes
+`state/restore.pending`, drains the turns in flight, and exits. On the next
+start, **before anything opens the data directory**, it unpacks the archive to a
+sibling directory, renames the live one to `data.replaced-<uuid>`, and renames
+the new one into place.
+
+```sh
+# After a restore, beside the data directory:
+ls -d /path/to/data.replaced-*
+```
+
+***That directory is the undo and StoryEngine will not delete it.*** Remove it
+yourself when you are sure — the same promise `data/removed/` makes about an
+account that was removed. A notice on that boot names it, which is the one place
+in this build that deliberately puts a filesystem path in front of a person.
+
+**A restore that fails changes nothing.** Everything is unpacked before anything
+is renamed, so a bad archive leaves the install exactly where it was; the marker
+is kept so the next start refuses it rather than trying again, and **Call it
+off** in the same panel clears it. A bad archive must not become a restart loop.
+
+**And the archive carries no index**, so the restored install rebuilds it on
+that same boot. Run a search afterwards: a search answering is the only
+observable proof it was rebuilt rather than carried.
+

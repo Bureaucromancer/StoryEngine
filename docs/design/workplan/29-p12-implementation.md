@@ -404,6 +404,24 @@ beside it, which is the undo.
 Visually apart from the list, with a type-the-words confirmation; **absent**
 when nothing will restart the process, with a sentence giving the command.
 
+***The `acceptRedacted` flag is derived from the archive rather than asked for
+in a second box.*** The panel already says, in the sentence beside the
+selection, what a redacted archive leaves — an install nobody can sign into,
+set up again from scratch — and the person has already typed the word. A
+checkbox repeating it would be a confirmation of a confirmation, which is the
+shape that trains people to click past both.
+
+***`restorePending` joins `GET /api/admin/notices` rather than getting a route
+of its own.*** It is one `stat`, on the one endpoint the shell already polls,
+and the state it reports is state a **boot** wrote — so a client cannot know
+whether a marker is there without asking, and the two moments one appears are
+the two moments nobody is looking.
+
+*Ends at:* `POST /api/admin/restore` and `DELETE /api/admin/restore` leave
+`route-callers.test.ts`'s `OWED` map, and `docs/deploy.md` carries the
+import-versus-restore table — the document the household operator actually
+reads, which is §0's first argument arriving at its destination.
+
 ---
 
 ***P12.7 is a real stopping point rather than a formality.*** Everything through

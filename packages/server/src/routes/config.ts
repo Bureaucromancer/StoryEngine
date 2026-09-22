@@ -23,6 +23,7 @@ import {
 } from '../config.js';
 import { contentHashOf } from '../index-db/ingest.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
+import { fileExists } from '../storage/files.js';
 
 /**
  * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
@@ -341,6 +342,22 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       interrupts: wouldInterrupt(services, request.account?.handle ?? ''),
       /** True while a restart is draining, so the surface stops offering one. */
       draining: services.draining,
+      /**
+       * ***Whether a restore is waiting for the next start*** —
+       * [P12.13](../../../../docs/design/workplan/29-p12-implementation.md).
+       *
+       * **Here rather than on a route of its own**, because this is the one
+       * thing the shell already polls and the answer is one `stat` — and
+       * because the state it reports is the state a **boot** wrote. A client
+       * cannot know whether a marker is there without asking, and the two
+       * moments it appears are the two moments nobody is looking: just after a
+       * restore was asked for, and just after one failed.
+       *
+       * *A restore that succeeded leaves none*, because the marker lived in the
+       * directory the swap moved aside — so a true here after a restart always
+       * means something is wrong, and there is a control for it.
+       */
+      restorePending: await fileExists(services.layout.restorePendingFile),
       /**
        * ***The update check, and the connectivity signal it pays for*** —
        * [09 §6.5], [P10.3].
