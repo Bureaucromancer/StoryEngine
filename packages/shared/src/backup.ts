@@ -110,7 +110,16 @@ export interface BackupManifest {
 /**
  * The manifest a document claims to be, or why it is not one.
  *
- * `readSessionExport`'s shape exactly, including the narrowing through
+ * ***`{ refusal }` where `readSessionExport` answers `{ reason }`***, and the
+ * difference is forced rather than stylistic: a manifest **has** a `reason`
+ * field of its own — why the backup ran — so `'reason' in manifest` would
+ * discriminate nothing and every caller would narrow to `never`. Found by the
+ * compiler on the first caller. `refusal` is the vocabulary `storage/zip.ts`
+ * and `import/source.ts` already use for *why this will not be read*, so the
+ * collision resolves toward the more consistent word rather than away from it.
+ *
+ * Otherwise `readSessionExport`'s shape exactly, including the narrowing
+ * through
  * `Record<string, unknown>` rather than `Partial<BackupManifest>` — the partial
  * would make every guard below unnecessary to the type checker, which would be
  * right about the type and wrong about the world.
@@ -121,20 +130,21 @@ export interface BackupManifest {
  * those is not a manifest this build can act on, whatever else is in it.
  * Unknown fields are carried, per [04 §2].
  */
-export function readBackupManifest(document: unknown): BackupManifest | { reason: string } {
-  if (typeof document !== 'object' || document === null) return { reason: 'unreadable' };
+export function readBackupManifest(document: unknown): BackupManifest | { refusal: string } {
+  if (typeof document !== 'object' || document === null) return { refusal: 'unreadable' };
   const row = document as Record<string, unknown>;
-  if (row['schema'] !== BACKUP_MANIFEST_SCHEMA) return { reason: 'wrong-schema' };
-  if (row['scope'] !== 'install' && row['scope'] !== 'account') return { reason: 'unreadable' };
-  if (row['contents'] !== 'full' && row['contents'] !== 'redacted') return { reason: 'unreadable' };
-  if (typeof row['unpackedBytes'] !== 'number') return { reason: 'unreadable' };
-  if (!Array.isArray(row['handles'])) return { reason: 'unreadable' };
+  if (row['schema'] !== BACKUP_MANIFEST_SCHEMA) return { refusal: 'wrong-schema' };
+  if (row['scope'] !== 'install' && row['scope'] !== 'account') return { refusal: 'unreadable' };
+  if (row['contents'] !== 'full' && row['contents'] !== 'redacted')
+    return { refusal: 'unreadable' };
+  if (typeof row['unpackedBytes'] !== 'number') return { refusal: 'unreadable' };
+  if (!Array.isArray(row['handles'])) return { refusal: 'unreadable' };
   /**
    * An `account` archive with no handle names a person it cannot identify, and
    * every caller that branches on the scope goes on to use the handle.
    */
   if (row['scope'] === 'account' && typeof row['handle'] !== 'string') {
-    return { reason: 'unreadable' };
+    return { refusal: 'unreadable' };
   }
   return document as BackupManifest;
 }
