@@ -95,8 +95,11 @@ const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as 
  * Field shapes vendored from a real install, on the mechanism §1.1 settled for
  * credentials:
  *   source  SillyTavern/default/content/presets/{instruct,context,reasoning}/
- *   commit  8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8 (2026-07-07)
- *   taken   2026-09-01
+ *   commit  06bde939fb1e9c4c8d8641d810f0a916b5bce127 (1.19.0, 2026-09-14)
+ *   taken   2026-09-22
+ *   was     8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8 (1.18.0+1, 2026-07-07),
+ *           byte-identical: those three preset directories are not in the
+ *           1.18.0-to-1.19.0 diff at all
  */
 export const NOT_CONVERTIBLE: Readonly<
   Record<string, { disposition: ImportDisposition; key: string; directory: string }>

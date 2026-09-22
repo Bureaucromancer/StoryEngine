@@ -26,7 +26,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * `world_info_logic`, from `SillyTavern/public/scripts/world-info.js:33` at
- * `8172dcd0` — and note that the numbers are **not** in the order our union
+ * `06bde939` (1.19.0, unchanged since `8172dcd0`) — and note that the numbers are **not** in the order our union
  * lists them. Writing this as an array indexed by the integer would have been
  * shorter and wrong.
  */

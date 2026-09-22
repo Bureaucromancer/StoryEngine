@@ -8,7 +8,12 @@ import { IMPORT_DISPOSITIONS } from '@storyengine/shared';
 import { NOT_CONVERTIBLE } from '../upload.js';
 
 import { MARINARA_DISPOSITIONS, MARINARA_TABLES } from './marinara.js';
-import { SILLYTAVERN_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './sillytavern.js';
+import {
+  SILLYTAVERN_DIRECTORIES,
+  SILLYTAVERN_DISPOSITIONS,
+  SILLYTAVERN_ROOT_DISPOSITIONS,
+  SILLYTAVERN_ROOT_FILES,
+} from './sillytavern.js';
 
 /**
  * **This is what makes *nothing is silently dropped* checkable**
@@ -39,6 +44,20 @@ const SOURCES = [
     names: [...MARINARA_TABLES],
     dispositions: MARINARA_DISPOSITIONS,
     expected: 83,
+  },
+  /**
+   * The files beside SillyTavern's thirty directories, which the template does
+   * not name and which therefore reached a real review as `unrecognised` rows
+   * saying nothing ([P4 §7.19]). A third source here rather than a test of its
+   * own, so the list inherits every check the other two already get — coverage,
+   * the reverse direction, the vocabulary, the size, and that none of them
+   * claims `unrecognised`.
+   */
+  {
+    name: 'SillyTavern root files',
+    names: [...SILLYTAVERN_ROOT_FILES],
+    dispositions: SILLYTAVERN_ROOT_DISPOSITIONS,
+    expected: 5,
   },
 ] as const;
 

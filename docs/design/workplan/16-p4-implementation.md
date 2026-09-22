@@ -2617,3 +2617,77 @@ start saying different things about the same kind. The doc is corrected.
   *Earlier imports* list, and `importNotesFor` can never find an uploaded
   object's own review. One `recordImport` call; it belongs to whoever needs
   [P5 §1.8](17-p5-implementation.md).
+
+### 7.19 SillyTavern, read the way SillyTavern writes it — 2026-09-22
+
+***Opened with the vocabularies, and grown by the stages that use them.*** The
+Marinara refusal recorded in §7.18 is what sent somebody upstream, and the same
+question asked of SillyTavern came back with a different answer: **nothing we
+read has drifted, and almost nothing we read was right.**
+
+**There is no drift.** Between the pin the readers were written against
+(`8172dcd0`, 1.18.0+1, 2026-07-07) and 1.19.0 (`06bde939`, 2026-09-14) —
+eighty-six commits, a hundred and two files — not one file that defines a shape
+we parse changed. `USER_DIRECTORY_TEMPLATE` is byte-identical, and so are
+`character-card-parser.js`, `TavernCardValidator.js`, `endpoints/worldinfo.js`,
+`scripts/personas.js` and `PromptManager.js`. The chat-completion preset gained
+one key, `pollinations_endpoint`, and the shipped model names moved. **The pin
+refresh is therefore provenance and nothing else**, which is worth saying
+plainly: it is the rare case where the honest diff is empty, and an empty diff
+is evidence rather than an excuse to skip looking.
+
+**The defects were all there at the old pin.** An audit against SillyTavern's
+own *write* paths — rather than against our reading of its files — found about
+thirty places where the import produces something the source did not mean. The
+worst of them are not ours alone: an embedded `character_book` is read in the
+world-file shape rather than the V2 spec shape it is written in, which is wrong
+for **every** V2 card from any source, not only SillyTavern's. They are listed
+with their fixes in the subsections this section grows as the stages land.
+
+**Why our tests could not see any of it.** `test-sillytavern.ts` was written
+from our reading of SillyTavern, so it agrees with the reader by construction:
+its cards carry one PNG chunk where SillyTavern writes two, its world file has a
+top-level `name` SillyTavern never writes, its preset carries the prompt order
+SillyTavern stopped using in 2023, and its comment calls position 4 an author's
+note when SillyTavern means at-depth. A fixture that shares the reader's
+mistakes is a fixture that can only confirm them — which is the same lesson
+[§7.18] records on the Marinara side, arrived at twice in one week and worth
+generalising: **a fixture nobody else wrote proves the reader agrees with
+itself.**
+
+#### The vocabularies, and what they are for
+
+§1.8's vendored snapshot answers *which directories hold convertible material*.
+It could not answer *which fields the files in them carry*, and that is where
+the defects were. `sillytavern/vocabulary.ts` vendors the second question's
+answer: the world-info entry template with the types SillyTavern declares, the
+V2 spec's entry and extension keys, the chat-completion and text-completion
+preset keys, the model field per provider, the default prompts and their order,
+the persona descriptor, the trigger vocabulary, and — kept deliberately apart —
+the two different world-info fallbacks.
+
+**The two fallbacks are the ones worth naming here.** A key missing from a
+present `settings.json` falls back to SillyTavern's *module* defaults, where
+whole-word matching and recursion are off. A folder with no `settings.json` at
+all — one uploaded book, a card from anywhere — is honestly read as a fresh
+install, whose shipped `settings.json` turns both on. They are not the same
+table, they disagree on exactly the fields that decide whether an entry fires,
+and collapsing them into one is a mistake that changes every imported entry in
+whichever direction the mistake ran.
+
+Every set was extracted from the source rather than transcribed, and every size
+is pinned, so a refresh that drops a name fails rather than drifts.
+
+#### The root files the template never named
+
+`USER_DIRECTORY_TEMPLATE` is directories. The five files beside them —
+`settings.json`, `secrets.json`, `stats.json`, `image-metadata.json`,
+`content.log` — had no disposition, so a real import reported each as
+`unrecognised`: the silent-drop failure §1.8 built the snapshot to prevent,
+one level down and unnoticed because no fixture had them. They are a third
+registry now, and they inherit every test the other two get.
+
+`secrets.json` is a `credential` on the same argument [§1.1] makes for
+Marinara's `.encryption-key`: named in the review, never opened. SillyTavern's
+own backup writer excludes it from the archive it builds, which is a second
+project arriving independently at the same position.
