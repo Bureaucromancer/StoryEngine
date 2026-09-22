@@ -2,6 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Buffer } from 'node:buffer';
+// Imported rather than taken from the global, because `tools/*.mjs` lint under a
+// globals set that does not carry it — and a script that runs under plain node
+// should name what it uses anyway.
+import { TextDecoder } from 'node:util';
 
 /**
  * One ustar header, and the whole of this project's tar writing.

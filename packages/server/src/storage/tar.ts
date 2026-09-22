@@ -162,6 +162,25 @@ export function headerName(block: Uint8Array): string {
   return prefix === '' ? name : `${prefix}/${name}`;
 }
 
+/**
+ * The size a header block declares, or null when the field is not octal.
+ *
+ * Null rather than a throw, and rather than `NaN`: a block whose size field is
+ * not a number is a block we are not positioned on, which is a fact about the
+ * archive rather than about this member — the reader stops there rather than
+ * guessing an offset and reporting whatever it lands in.
+ */
+export function headerSize(block: Uint8Array): number | null {
+  const raw = decoder.decode(block.subarray(124, 136)).replace(/\0.*$/s, '').trim();
+  if (!/^[0-7]+$/.test(raw)) return null;
+  return Number.parseInt(raw, 8);
+}
+
+/** Whether a block is the all-zero kind that ends an archive. */
+export function isTrailerBlock(block: Uint8Array): boolean {
+  return block.every((byte) => byte === 0);
+}
+
 /** The padding that takes a member's bytes up to a block boundary. */
 export function padding(size: number): number {
   return (BLOCK - (size % BLOCK)) % BLOCK;

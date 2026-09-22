@@ -1,0 +1,385 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import type { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
+
+import {
+  BACKUP_MANIFEST_MEMBER,
+  BACKUP_MANIFEST_SCHEMA,
+  type BackupContents,
+  type BackupManifest,
+  type BackupReason,
+  type BackupScope,
+  type ImportNote,
+  uuidv7,
+  uuidv7Timestamp,
+} from '@storyengine/shared';
+
+import type { BuildInfo } from '../build-info.js';
+import { listTreeFiles, statFile, unlinkFile, type TreeFile } from '../storage/files.js';
+import { assertValidHandle, type Layout } from '../storage/layout.js';
+import { writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
+
+/**
+ * ***What goes in an archive, and what it is called*** —
+ * [25 E6](../../../../docs/design/25-open-questions.md),
+ * [P12.2](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * **The policy half.** `storage/tar-archive.ts` knows how to write a gzipped tar
+ * and nothing about scopes, credentials or manifests; this knows all of those
+ * and nothing about streams. The split falls out of the no-direct-`fs` rule and
+ * is the right one anyway.
+ *
+ * ***Member names are relative to the data root in both scopes***, which is the
+ * decision everything else here follows from. An account archive is a strict
+ * **subset** of an install one rather than a differently-shaped thing, so there
+ * is one reader, one restore path, one import path, and a subset unpacks into a
+ * data directory exactly where it belongs. The cost is a sharp edge —
+ * `tools/backup.mjs restore` clears its destination first, so it has to refuse
+ * an account archive rather than erase an install for one person's tree — and
+ * that edge is worth one refusal.
+ */
+
+export interface BackupContext {
+  layout: Layout;
+  /** The operational store. Snapshotted with `VACUUM INTO`, never copied. */
+  state: DatabaseSync;
+  build: BuildInfo | null;
+}
+
+export type BackupOwner = { kind: 'install' } | { kind: 'account'; handle: string };
+
+export interface BackupRequest {
+  owner: BackupOwner;
+  contents: BackupContents;
+  reason: BackupReason;
+}
+
+/** One archive, as a listing row. Everything here is read off the filename. */
+export interface BackupRecord {
+  id: string;
+  scope: BackupScope;
+  handle: string | null;
+  contents: BackupContents;
+  /** When it was taken, read back out of the uuidv7 rather than from an mtime. */
+  takenAt: number;
+  /** The archive's own size on disk, compressed. */
+  bytes: number;
+}
+
+/**
+ * ***The name is the record, and there is no table.***
+ *
+ * A listing is `readdir` plus a parse plus a `stat`: no decompression, no
+ * database, and **deleting a file by hand is a non-event** — the posture
+ * [03 §5.1](../../../../docs/design/03-data-model.md) takes about the index,
+ * applied to something that is not derived but is disposable in the same way.
+ *
+ * ***The uuidv7 is the id and it carries the time.*** Its first forty-eight bits
+ * are the millisecond it was minted, so `uuidv7Timestamp` answers *when was this
+ * taken* from the name alone. That is `storage/trash.ts`'s argument and it is
+ * sharper here: **an mtime does not survive a `cp -r`, a restore or a container
+ * migration**, and these files exist specifically to be copied elsewhere.
+ *
+ * Scope and contents are in the name too, so that a person looking at these
+ * files in a folder somewhere else knows what they are holding without opening
+ * one. The date is for that person; nothing parses it back.
+ */
+const UUIDV7 = '[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+
+/**
+ * The tail of a backup filename: contents, day, id.
+ *
+ * ***The handle is not parsed out of the name, and that is deliberate.*** A
+ * handle may contain hyphens, so a pattern that tried to recover one from
+ * `account-my-backup-full-2026-09-22-…` would be guessing at a boundary the
+ * name does not mark. It never has to: a listing reads one directory, and the
+ * directory says whose it is.
+ */
+const TAIL = new RegExp(`^(full|redacted)-\\d{4}-\\d{2}-\\d{2}-(${UUIDV7})\\.tar\\.gz$`);
+
+function prefixFor(owner: BackupOwner): string {
+  return owner.kind === 'install' ? 'install-' : `account-${owner.handle}-`;
+}
+
+function rootFor(context: BackupContext, owner: BackupOwner): string {
+  return owner.kind === 'install'
+    ? context.layout.backupsRoot
+    : context.layout.userBackupsRoot(owner.handle);
+}
+
+/** `<prefix><contents>-<day>-<id>.tar.gz`. */
+function fileNameFor(owner: BackupOwner, contents: BackupContents, id: string): string {
+  const day = new Date(uuidv7Timestamp(id) ?? Date.now()).toISOString().slice(0, 10);
+  return `${prefixFor(owner)}${contents}-${day}-${id}.tar.gz`;
+}
+
+/**
+ * A filename as a record, or null when it is not one of ours.
+ *
+ * ***Anything that does not parse is not a backup and is not listed***, which is
+ * what makes a `.part` invisible while it is being written and what keeps a file
+ * somebody dropped in the directory out of the UI.
+ */
+function recordOf(owner: BackupOwner, name: string, bytes: number): BackupRecord | null {
+  const prefix = prefixFor(owner);
+  if (!name.startsWith(prefix)) return null;
+  const match = TAIL.exec(name.slice(prefix.length));
+  if (match === null) return null;
+  const [, contents, id] = match as unknown as [string, BackupContents, string];
+  const takenAt = uuidv7Timestamp(id);
+  if (takenAt === null) return null;
+  return {
+    id,
+    scope: owner.kind,
+    handle: owner.kind === 'account' ? owner.handle : null,
+    contents,
+    takenAt,
+    bytes,
+  };
+}
+
+const note = (key: string, params: ImportNote['params'] = {}): ImportNote => ({
+  key,
+  params,
+  level: 'info',
+});
+
+/**
+ * ***What is never in an archive, whatever the scope or the contents.***
+ *
+ * - **`index/`** is derived ([03 §5.1]). An archive carrying it restores
+ *   correctly today and restores *a stale belief about a newer tree* the first
+ *   time somebody restores across a version — silently, because a stale index
+ *   answers queries. This is the clause that makes it a restore rather than a
+ *   copy, and it is the one `tools/backup.mjs` wrote and never ran.
+ * - **`users/<handle>/trash/`** — [03 §10.2]: *restoring a backup should not
+ *   resurrect everything the user threw away before taking it.*
+ * - **The backups directories**, or every generation carries every one before
+ *   it.
+ * - **`state/*.sqlite-wal` and `-shm`**, because the database is snapshotted
+ *   rather than copied and the snapshot supersedes them. Taking the three
+ *   together from a running server restores a set that is neither current nor
+ *   consistent.
+ * - **`backup.json`**, so the manifest is always written fresh rather than being
+ *   a stale copy of an older archive's.
+ */
+function alwaysSkipped(context: BackupContext, name: string): boolean {
+  if (name === 'index' || name === BACKUP_MANIFEST_MEMBER) return true;
+  if (/^users\/[^/]+\/trash$/.test(name)) return true;
+  if (/^state\/.*\.sqlite(-wal|-shm)$/.test(name)) return true;
+  if (/^state\/state\.snapshot-.*\.sqlite$/.test(name)) return true;
+  return context.layout.isBackupPath(join(context.layout.dataRoot, name));
+}
+
+/**
+ * ***What a `redacted` archive leaves out.***
+ *
+ * Everything that is a credential, and nothing that is merely private. A person
+ * storing an archive off the machine should be able to do it without also
+ * handing over their provider account and everybody's password hashes — and a
+ * person restoring one should be told, before it happens, that nobody will be
+ * able to sign in afterwards.
+ *
+ * **Omitted rather than blanked.** Rewriting `accounts.json` with empty hashes
+ * would preserve the handles and roles, which sounds more useful and is worse:
+ * it produces an install that looks restored and that nobody can enter, and it
+ * puts a redaction bug one typo away from shipping a real hash.
+ */
+function credentialPath(name: string): boolean {
+  if (name === 'accounts.json') return true;
+  if (name === 'state/session.key' || name === 'state/setup.token') return true;
+  if (name === 'system/connections') return true;
+  if (/^users\/[^/]+\/connections$/.test(name)) return true;
+  // A removed account's directory carries theirs too, and it is as much a
+  // credential there as it was before they were removed.
+  if (/^removed\/[^/]+\/connections$/.test(name)) return true;
+  return false;
+}
+
+/**
+ * Takes one backup and answers what it wrote.
+ *
+ * The sequence is **metadata, then manifest, then bytes**, and the order is
+ * forced: the manifest is the first member and it states the file count and the
+ * uncompressed total, so both have to be known before a byte is written. That
+ * costs one `stat` per file, which the walk was doing anyway.
+ */
+export async function takeBackup(
+  context: BackupContext,
+  request: BackupRequest,
+): Promise<BackupRecord> {
+  const { owner, contents } = request;
+  if (owner.kind === 'account') assertValidHandle(owner.handle);
+
+  const id = uuidv7();
+  const takenAt = uuidv7Timestamp(id) ?? Date.now();
+  const omitted: ImportNote[] = [
+    note('backup.omitted.index'),
+    note('backup.omitted.trash'),
+    note('backup.omitted.backups'),
+  ];
+
+  const within = owner.kind === 'account' ? `users/${owner.handle}` : null;
+  const skip = (name: string): boolean => {
+    if (alwaysSkipped(context, name)) return true;
+    if (contents === 'redacted' && credentialPath(name)) return true;
+    /**
+     * An account archive is the install walk, narrowed. **Prefix-matched on a
+     * segment boundary**, because `users/ned` must not admit `users/nedra`.
+     */
+    if (
+      within !== null &&
+      !(name === 'users' || name === within || name.startsWith(`${within}/`))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  if (contents === 'redacted') omitted.push(note('backup.omitted.credentials'));
+
+  const files: TreeFile[] = await listTreeFiles(context.layout.dataRoot, skip);
+  const members: ArchiveMember[] = [];
+  let unpackedBytes = 0;
+
+  /**
+   * ***The operational store, snapshotted rather than copied*** — [21 §5.1]
+   * makes `state.sqlite` authoritative and not rebuildable, so it is the one
+   * file here that a torn copy actually loses something.
+   *
+   * `VACUUM INTO` writes a consistent image of the database as of one moment,
+   * while the server keeps writing to it. **This is [25 E6]'s quiesce argument
+   * answered rather than worked around**: E6 says there is no write-lock to take
+   * *from outside the process*, and that is true and is about the outside.
+   *
+   * Install scope only — an account archive holds no install state — and the
+   * snapshot is unlinked in a `finally` so a failure does not leave a copy of
+   * the operational store lying in `state/`.
+   */
+  let snapshot: string | null = null;
+  try {
+    if (owner.kind === 'install') {
+      snapshot = join(context.layout.stateRoot, `state.snapshot-${id}.sqlite`);
+      context.state.exec(`VACUUM INTO '${snapshot.replaceAll("'", "''")}'`);
+      const facts = await statFile(snapshot);
+      if (facts !== null) {
+        members.push({ name: 'state/state.sqlite', path: snapshot, size: facts.size });
+        unpackedBytes += facts.size;
+      }
+    }
+
+    for (const file of files) {
+      members.push({
+        name: file.name,
+        path: join(context.layout.dataRoot, file.name),
+        size: file.size,
+      });
+      unpackedBytes += file.size;
+    }
+
+    const manifest: BackupManifest = {
+      schema: BACKUP_MANIFEST_SCHEMA,
+      scope: owner.kind,
+      handle: owner.kind === 'account' ? owner.handle : null,
+      contents,
+      takenBy: { version: context.build?.version ?? null, at: new Date(takenAt).toISOString() },
+      reason: request.reason,
+      files: members.length,
+      unpackedBytes,
+      handles: handlesIn(owner, members),
+      omitted,
+    };
+
+    const body = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`);
+    const to = join(rootFor(context, owner), fileNameFor(owner, contents, id));
+    const written = await writeTarGz(
+      to,
+      [{ name: BACKUP_MANIFEST_MEMBER, bytes: body }, ...members],
+      takenAt / 1000,
+    );
+
+    return {
+      id,
+      scope: owner.kind,
+      handle: owner.kind === 'account' ? owner.handle : null,
+      contents,
+      takenAt,
+      bytes: (await statFile(to))?.size ?? written.bytes,
+    };
+  } finally {
+    if (snapshot !== null) await unlinkFile(snapshot).catch(() => undefined);
+  }
+}
+
+/** The handles an archive holds, so an install import can plan without a pass. */
+function handlesIn(owner: BackupOwner, members: readonly ArchiveMember[]): string[] {
+  if (owner.kind === 'account') return [owner.handle];
+  const found = new Set<string>();
+  for (const member of members) {
+    const match = /^users\/([^/]+)\//.exec(member.name);
+    if (match?.[1] !== undefined) found.add(match[1]);
+  }
+  return [...found].sort();
+}
+
+/** Every archive this owner has, newest first. */
+export async function listBackups(
+  context: BackupContext,
+  owner: BackupOwner,
+): Promise<BackupRecord[]> {
+  const root = rootFor(context, owner);
+  const found: BackupRecord[] = [];
+  for (const file of await listTreeFiles(root)) {
+    // One level only: a backups directory has no subdirectories, and a name
+    // with a slash in it did not come from `fileNameFor`.
+    if (file.name.includes('/')) continue;
+    const record = recordOf(owner, file.name, file.size);
+    if (record !== null) found.push(record);
+  }
+  return found.sort((left, right) => right.takenAt - left.takenAt);
+}
+
+/**
+ * The path of one archive, resolved **against the listing** rather than built
+ * from the id.
+ *
+ * ***Both halves of the traversal defence, and either alone is the one that gets
+ * edited away.*** The route's schema refuses anything that is not a uuidv7, and
+ * this never concatenates the caller's string into a path at all — it finds the
+ * entry whose parsed id matches and uses the name that was already on disk.
+ */
+async function pathOf(
+  context: BackupContext,
+  owner: BackupOwner,
+  id: string,
+): Promise<{ path: string; record: BackupRecord } | null> {
+  const root = rootFor(context, owner);
+  for (const file of await listTreeFiles(root)) {
+    if (file.name.includes('/')) continue;
+    const record = recordOf(owner, file.name, file.size);
+    if (record?.id === id) return { path: join(root, file.name), record };
+  }
+  return null;
+}
+
+export async function findBackup(
+  context: BackupContext,
+  owner: BackupOwner,
+  id: string,
+): Promise<{ path: string; record: BackupRecord } | null> {
+  return pathOf(context, owner, id);
+}
+
+/** Removes one archive. False when this owner has none with that id. */
+export async function removeBackup(
+  context: BackupContext,
+  owner: BackupOwner,
+  id: string,
+): Promise<boolean> {
+  const found = await pathOf(context, owner, id);
+  if (found === null) return false;
+  await unlinkFile(found.path);
+  return true;
+}

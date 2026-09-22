@@ -13,7 +13,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 /**
  * The read side of the storage layer.
@@ -247,4 +247,69 @@ export async function unlinkFile(path: string): Promise<void> {
 export async function moveTree(from: string, to: string): Promise<void> {
   await mkdir(dirname(to), { recursive: true });
   await rename(from, to);
+}
+
+/** A file found by {@link listTreeFiles}: its portable path, and its size now. */
+export interface TreeFile {
+  /** Relative to the root, `/`-separated whatever the platform stored. */
+  name: string;
+  size: number;
+}
+
+/**
+ * Every file under a root, with its size, sorted, minus what `skip` refuses —
+ * [P12.2](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***`skip` is asked about directories too, before the descent***, which is
+ * both halves of what a backup needs from a walk. `index/` costs one comparison
+ * rather than a traversal, and a rule can say *where* as well as *what* — the
+ * distinction `tools/backup.mjs` could not make when its exclusion was a
+ * filename test, which is how the derived index ended up in every archive it
+ * ever wrote.
+ *
+ * ***Sorted, because `readdir` order is a fact about a filesystem*** rather than
+ * about the tree — `pack-tarball.mjs` learned this for the release artifact and
+ * the reasoning is the same here: two backups of an unchanged directory should
+ * differ in their timestamps and nowhere else.
+ *
+ * **The size comes back with the name** because the caller needs it twice — once
+ * to declare the member's length in a tar header, and once, summed, to say how
+ * much disk a restore will need before it commits. Two walks would be two
+ * answers.
+ */
+export async function listTreeFiles(
+  root: string,
+  skip: (name: string) => boolean = () => false,
+  at = '',
+): Promise<TreeFile[]> {
+  let entries;
+  try {
+    entries = await readdir(at === '' ? root : join(root, at), { withFileTypes: true });
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+
+  const found: TreeFile[] = [];
+  for (const entry of entries) {
+    const name = at === '' ? entry.name : `${at}/${entry.name}`;
+    if (skip(name)) continue;
+    if (entry.isDirectory()) {
+      found.push(...(await listTreeFiles(root, skip, name)));
+    } else if (entry.isFile()) {
+      /**
+       * ***A symbolic link is not a file and is deliberately not followed.***
+       * `isFile()` is false for one, so a link inside a library is left out of
+       * the archive rather than dereferenced into a copy of something outside
+       * it — the same position `LibraryWatcher` takes with `followSymlinks:
+       * false`, and for the same reason: a link is a second path to content the
+       * containment rules were never asked about.
+       */
+      const facts = await statFile(at === '' ? join(root, entry.name) : join(root, at, entry.name));
+      if (facts !== null) found.push({ name, size: facts.size });
+    }
+  }
+  return found.sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
 }

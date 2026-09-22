@@ -189,11 +189,21 @@ export class LibraryWatcher {
       // compared mixed separators and never matched on Windows, which is the
       // development platform. It matches the root itself, so it covers single
       // files as well as directories.
+      //
+      // ***And the backups*** ([P12.2](../../../../docs/design/workplan/29-p12-implementation.md)).
+      // An archive is not an object, so `parseObjectPath` would answer `null`
+      // and nothing would be indexed either way — but that is the wrong test.
+      // `awaitWriteFinish` **stats a file repeatedly until it stops growing**,
+      // so a half-gigabyte install archive means minutes of polling for an
+      // answer known in advance, on every scheduled backup. `selfWrites` is not
+      // the mechanism here: its TTL is two seconds and it exists for small
+      // atomic writes, not for a stream that is open for as long as this one.
       ignored: (path) =>
         isContained(this.#layout.indexRoot, path) ||
         isContained(this.#layout.stateRoot, path) ||
         isContained(this.#layout.accountsFile, path) ||
-        isContained(this.#layout.configFile, path),
+        isContained(this.#layout.configFile, path) ||
+        this.#layout.isBackupPath(path),
     });
 
     watcher.on('add', (path) => {
