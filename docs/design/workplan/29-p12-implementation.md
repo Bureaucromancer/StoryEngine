@@ -373,6 +373,28 @@ a sibling, rename the live directory aside, rename the new one in.
 lives in the directory that just moved aside, so a successful restore cannot
 leave one behind and an unsuccessful one keeps exactly the state that describes
 itself. A second attempt refuses rather than looping.
+
+***It returns rather than logs, and that is not a small point.*** The swap runs
+before `buildServices`, which is before `buildApp`, which is where the logger
+comes from — and `main.ts`'s own rule is that everything this process reports
+goes through one mechanism. So `performPendingRestore` answers with an outcome
+and `main.ts` says it a few lines later, at `warn` for a **success** as much as
+for a failure: a restore is never routine, and the sentence somebody will go
+looking for months later — *where did my old data go* — is in it.
+
+***`DELETE /api/admin/restore` was not in the plan and the work asked for
+it.*** A failed restore keeps its marker on purpose, so that the next boot can
+refuse it rather than loop; but a marker nothing will act on and nobody can
+remove is a trap on exactly the install this feature was built for. [25 E6]'s
+operator has a shell. `docs/deploy.md`'s household one has a web page and
+nothing else, which is the first of the four arguments in §0 arriving from a
+different direction.
+
+*And the notice names a filesystem path*, which [21 §4.1] otherwise forbids in
+what a person reads. The exception is argued rather than taken: the directory
+that moved aside **is** the undo, and *your previous data is safe* without
+saying where would be worse than saying nothing.
+
 *Ends at:* a restored install serves the sessions the archive was taken from,
 with the index rebuilt rather than carried — and `data.replaced-<uuid>` sitting
 beside it, which is the undo.

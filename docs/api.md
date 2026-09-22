@@ -2669,6 +2669,42 @@ marker lives inside the directory the swap moves aside and **no archive carries
 one**, so a successful restore cannot leave one behind and an unsuccessful one
 keeps exactly the state that describes itself.
 
+### `DELETE /api/admin/restore`
+
+*Added at [P12.12](design/workplan/29-p12-implementation.md).* **Calls off a
+pending restore** → `204`, whether or not there was one.
+
+***The one door out of a marker the boot will not act on.*** A restore that
+fails to unpack keeps its marker deliberately — the failure has to survive into
+the next boot to be refused there, and deleting it would turn *this did not
+work* into *nobody ever asked*. But a marker nothing will act on and nobody can
+remove is a trap on exactly the install this feature exists for: [25 E6]'s
+operator has a shell, and `docs/deploy.md`'s household one has a web page and
+nothing else.
+
+**What happens on the next boot**, for an accepted restore: before anything
+opens a handle on the data directory, the archive is unpacked to a **sibling**
+directory, the live directory is renamed to `<dataRoot>.replaced-<uuidv7>`, and
+the new one is renamed into place. Two renames on one filesystem; the window
+between them is the only unsafe moment and it is microseconds wide.
+
+***The replaced directory is kept and never deleted***, on `removed/`'s
+precedent — *StoryEngine will not delete this; remove it yourself when you are
+sure*. That is the undo, and the only property that covers *the restore worked
+and was the wrong archive*. A `system.notice` names it on that boot, which is
+the one place in this build where a filesystem path is deliberately put in
+front of a person.
+
+**A failed unpack leaves the install untouched** — everything is written before
+anything is renamed — rewrites the marker with `attempts: 1`, and boots
+normally. **A second attempt is refused rather than made**: a supervisor
+restarts a process that exits, so an unpack that kept failing would take the
+install down rather than one boot.
+
+***And the archive carries no index***, so the restored install rebuilds it on
+that same boot — which is [P11.11](design/workplan/28-p11-implementation.md)'s
+proof obligation arriving for free.
+
 
 ## Errors
 

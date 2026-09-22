@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { relative } from 'node:path';
+import { join, relative } from 'node:path';
 
-import type { BackupManifest } from '@storyengine/shared';
+import { uuidv7, type BackupManifest } from '@storyengine/shared';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { freeBytes } from '../storage/files.js';
+import { freeBytes, moveTree, readFileBytes, removeTree } from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
-import { readTarGz } from '../storage/tar-archive.js';
+import { readTarGz, unpackTarGz } from '../storage/tar-archive.js';
 
 import { readArchiveManifest } from './archive.js';
 
@@ -205,4 +205,178 @@ async function scanArchive(
    */
   if (members - 1 !== manifest.files) return { ok: false, refusal: 'unreadable' };
   return { ok: true };
+}
+
+/**
+ * What a boot did about a pending restore, for the one place that can say so.
+ *
+ * ***Returned rather than logged, because there is no logger yet.*** The swap
+ * runs before `buildServices`, which is before `buildApp`, which is where the
+ * logger comes from — and `main.ts` states the rule this obeys: *"everything
+ * this process reports goes through one mechanism"*. So this answers, and the
+ * caller says it once the machinery to say it exists.
+ */
+export type RestoreOutcome =
+  /** No marker. The overwhelmingly common boot, and it costs one `stat`. */
+  | { kind: 'none' }
+  | {
+      kind: 'restored';
+      /** The archive, data-root-relative — the name the marker carried. */
+      archive: string;
+      /** Where the directory that was replaced now sits. **Not deleted.** */
+      moved: string;
+      files: number;
+      requestedBy: string;
+    }
+  | {
+      kind: 'failed';
+      archive: string;
+      why: string;
+      /** False once a second attempt has been refused rather than made. */
+      willRetry: boolean;
+    };
+
+/**
+ * Acts on `state/restore.pending`, before anything opens a handle —
+ * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***Called from `main.ts` before `buildServices`***, and the ordering is the
+ * whole design. `buildServices` opens the operational store, stamps the
+ * directory with this build and starts the index — all of which are handles on,
+ * or writes into, the directory about to be replaced. On Windows an open handle
+ * makes the rename fail outright; everywhere else it makes it succeed and leave
+ * a process writing into a directory that is no longer the install.
+ *
+ * **The sequence, and why each step is where it is:**
+ *
+ * 1. **Read the marker.** Absent is a normal boot and costs one read.
+ * 2. **Unpack to a sibling**, `<dataRoot>.restoring-<uuidv7>`. Everything is
+ *    written before anything is renamed, so a failure here has ruined a
+ *    directory nothing was using.
+ * 3. **Rename the live directory aside**, then rename the new one in. Two
+ *    renames on one filesystem; the window between them is the only unsafe
+ *    moment in the whole feature and it is microseconds wide.
+ * 4. ***Nothing deletes the marker.*** It lives inside the directory that just
+ *    moved aside, and no archive carries one — so a successful restore cannot
+ *    leave one behind, and an unsuccessful one keeps exactly the state that
+ *    describes itself. This is the property that makes the whole handoff
+ *    idempotent without a transaction.
+ * 5. ***The replaced directory is kept.*** `removed/`'s precedent — *StoryEngine
+ *    will not delete this; remove it yourself when you are sure* — and it is the
+ *    undo. It is the single most important safety property here, because it is
+ *    the only one that covers *the restore worked and was the wrong archive*.
+ *
+ * ***A failed unpack is retried exactly once, and then refused.*** A bad archive
+ * must not become a restart loop: a supervisor restarts a process that exits,
+ * so an attempt that keeps failing and keeps the marker would take the install
+ * down rather than one boot. The first failure rewrites the marker with
+ * `attempts: 1` and boots normally; the second refuses and boots normally, and
+ * `DELETE /api/admin/restore` is how a person clears it without a shell.
+ */
+export async function performPendingRestore(layout: Layout): Promise<RestoreOutcome> {
+  const plan = await readMarker(layout);
+  if (plan === null) return { kind: 'none' };
+
+  if (plan.attempts >= 1) {
+    return {
+      kind: 'failed',
+      archive: plan.archive,
+      why: 'This restore already failed once and will not be attempted again.',
+      willRetry: false,
+    };
+  }
+
+  const archive = join(layout.dataRoot, ...plan.archive.split('/'));
+  const staging = `${layout.dataRoot}.restoring-${uuidv7()}`;
+  const moved = `${layout.dataRoot}.replaced-${uuidv7()}`;
+
+  try {
+    const written = await unpackTarGz(archive, staging);
+    /**
+     * ***The count again, and here it is the last line of defence.*** The route
+     * checked it before the drain, but the archive has been sitting on a disk
+     * since — and this is the moment after which the old directory is gone from
+     * where anything looks for it.
+     *
+     * **Minus the manifest**, which `manifest.files` excludes by definition and
+     * which *is* written out: a restored directory keeping the `backup.json` it
+     * came from is a note to whoever looks at it later saying which archive
+     * this was. `takeBackup` excludes a root `backup.json` from the walk, so it
+     * never propagates into the next archive as a stale copy — that exclusion
+     * exists for exactly this file arriving exactly this way.
+     */
+    const files = written - 1;
+    if (files !== plan.manifest.files) {
+      throw new Error(
+        `Expected ${String(plan.manifest.files)} files and unpacked ${String(files)}`,
+      );
+    }
+
+    await moveTree(layout.dataRoot, moved);
+    await moveTree(staging, layout.dataRoot);
+  } catch (error) {
+    await removeTree(staging).catch(() => undefined);
+    /**
+     * ***The marker is rewritten rather than deleted***, because the failure has
+     * to survive into the next boot to be refused there — and because deleting
+     * it would turn *this did not work* into *nobody ever asked*, which is the
+     * state a person would find if they looked.
+     */
+    await writeJsonAtomic(layout.restorePendingFile, {
+      ...plan,
+      attempts: plan.attempts + 1,
+    }).catch(() => undefined);
+    return {
+      kind: 'failed',
+      archive: plan.archive,
+      why: error instanceof Error ? error.message : 'The archive could not be unpacked.',
+      willRetry: false,
+    };
+  }
+
+  return {
+    kind: 'restored',
+    archive: plan.archive,
+    moved,
+    files: plan.manifest.files,
+    requestedBy: plan.requestedBy,
+  };
+}
+
+/**
+ * The marker, or null.
+ *
+ * **A marker that will not parse is null**, which is the same answer as one
+ * that is not there. The alternative is a boot that refuses to start over a
+ * file nobody can reach to delete, and a restore nobody can confirm was
+ * intended is not a restore to perform.
+ */
+async function readMarker(layout: Layout): Promise<RestorePlan | null> {
+  const raw = await readFileBytes(layout.restorePendingFile);
+  if (raw === null) return null;
+  let document: unknown;
+  try {
+    document = JSON.parse(new TextDecoder().decode(raw));
+  } catch {
+    return null;
+  }
+
+  /**
+   * ***Narrowed from `unknown` rather than asserted***, because this file was
+   * written by a process that is gone and may have been interrupted while
+   * writing it — and the three fields below are the ones acted on. A cast here
+   * would make the type system agree that a half-written marker is a plan.
+   */
+  if (typeof document !== 'object' || document === null) return null;
+  const plan = document as Record<string, unknown>;
+  if (typeof plan['archive'] !== 'string' || plan['archive'] === '') return null;
+  if (typeof plan['attempts'] !== 'number') return null;
+
+  const manifest = plan['manifest'];
+  // `typeof null` is `'object'`, which is the one case a shape check here has
+  // to spell out rather than lean on.
+  if (typeof manifest !== 'object' || manifest === null) return null;
+  if (typeof (manifest as Record<string, unknown>)['files'] !== 'number') return null;
+
+  return plan as unknown as RestorePlan;
 }

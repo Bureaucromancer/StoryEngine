@@ -627,6 +627,26 @@ export function registerAdminBackupRoutes(app: FastifyInstance, services: AppSer
     return reply.code(202).send({ draining: true, plan: prepared.plan });
   });
 
+  /**
+   * ***Calling one off, which is the half a marker with no deletion needs*** —
+   * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * A restore that **fails** to unpack keeps its marker deliberately: the
+   * failure has to survive into the next boot to be refused there, and deleting
+   * it would turn *this did not work* into *nobody ever asked*. But a marker
+   * nothing will act on and nobody can remove is a trap on exactly the install
+   * this feature was built for — [25 E6]'s operator has a shell and
+   * `docs/deploy.md`'s household one has a web page and nothing else.
+   *
+   * So: one route, and it is the only door for the state the boot refuses.
+   * `204` whether or not there was one, because *there is no pending restore*
+   * is what the caller wanted either way.
+   */
+  app.delete('/restore', async (_request, reply) => {
+    await unlinkFile(services.layout.restorePendingFile);
+    return reply.code(204).send();
+  });
+
   app.post('/backups/import', { schema: { body: ImportBody } }, async (request, reply) => {
     const body = request.body as Parameters<typeof runImport>[4];
     /**

@@ -103,6 +103,23 @@ export const NOTIFICATION_LABELS: Record<string, NotificationLabel> = {
     title: 'A scheduled backup did not happen',
     body: 'Check the backups in Settings — the disk may be full.',
   },
+  /**
+   * ***The one notice whose body names a filesystem path, and it is deliberate***
+   * — [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+   * [21 §4.1] keeps paths out of what a person reads because a page somebody
+   * screenshots should not describe their disk; the exception is the directory
+   * that a restore moved aside, which **is** the undo. A sentence saying *your
+   * previous data is safe* without saying where it is would be worse than
+   * saying nothing.
+   */
+  'system.notice:restored': {
+    title: 'This install was restored from a backup',
+    body: '{files} files came from {archive}. What was here is kept at {moved} — this build will not delete it.',
+  },
+  'system.notice:restore-failed': {
+    title: 'A restore did not happen',
+    body: 'The install is unchanged. {why}',
+  },
 };
 
 /**

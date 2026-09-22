@@ -13,7 +13,7 @@ import { ensureDirectory, fileExists, readFileBytes, writeFileBytes } from '../s
 import { Layout } from '../storage/layout.js';
 import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import { findBackup, takeBackup, type BackupContext } from './archive.js';
-import { prepareRestore, type RestorePlan } from './restore.js';
+import { performPendingRestore, prepareRestore, type RestorePlan } from './restore.js';
 
 /**
  * The preconditions of a restore —
@@ -216,5 +216,130 @@ describe('preparing a restore', () => {
     const names: string[] = [];
     for await (const member of readTarGz(second)) names.push(member.name);
     expect(names).not.toContain('state/restore.pending');
+  });
+});
+
+/**
+ * The swap, on the next boot —
+ * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***What is asserted here is the undo.*** Everything else about a restore can
+ * be redone: a wrong archive can be restored over again, a failed unpack leaves
+ * the install where it was. The one thing that cannot be recovered is the
+ * directory that was replaced, so the claim that it is **moved rather than
+ * deleted** is the one this file exists to keep true.
+ */
+describe('performing a pending restore', () => {
+  /** A second data directory, archived, so there is something to become. */
+  async function archiveOfSomethingElse(): Promise<string> {
+    await put('users/ada/library/actors/other/card.png', 'somebody else entirely');
+    return archive(INSTALL);
+  }
+
+  it('does nothing at all without a marker, which is every ordinary boot', async () => {
+    expect(await performPendingRestore(layout)).toEqual({ kind: 'none' });
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+  });
+
+  it('replaces the directory and keeps what was there', async () => {
+    const path = await archiveOfSomethingElse();
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    // Written after the archive was taken, so its absence afterwards is proof
+    // the directory was replaced rather than written into.
+    await put('users/ned/library/actors/later/card.png', 'added after the backup');
+
+    const outcome = await performPendingRestore(layout);
+
+    expect(outcome.kind).toBe('restored');
+    if (outcome.kind !== 'restored') return;
+
+    // The archive's contents are the install now.
+    expect(
+      await fileExists(join(root, 'users', 'ada', 'library', 'actors', 'other', 'card.png')),
+    ).toBe(true);
+    expect(
+      await fileExists(join(root, 'users', 'ned', 'library', 'actors', 'later', 'card.png')),
+    ).toBe(false);
+
+    /**
+     * ***The undo, and `removed/`'s precedent.*** *StoryEngine will not delete
+     * this; remove it yourself when you are sure.* It is the only property that
+     * covers **the restore worked and was the wrong archive**.
+     */
+    expect(
+      await fileExists(
+        join(outcome.moved, 'users', 'ned', 'library', 'actors', 'later', 'card.png'),
+      ),
+    ).toBe(true);
+    await rm(outcome.moved, { recursive: true, force: true });
+  });
+
+  it('leaves no marker behind, because the archive carried none', async () => {
+    const path = await archiveOfSomethingElse();
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+
+    const outcome = await performPendingRestore(layout);
+
+    /**
+     * ***Nothing deleted this.*** The marker lived in the directory that just
+     * moved aside, and no archive holds one — which is what makes the handoff
+     * idempotent without a transaction, and what would silently stop being true
+     * if `state/restore.pending` ever left the always-skipped list.
+     */
+    expect(await marker()).toBeNull();
+    if (outcome.kind === 'restored') await rm(outcome.moved, { recursive: true, force: true });
+  });
+
+  it('leaves the install untouched when the archive will not unpack, and refuses the second time', async () => {
+    const path = await archiveOfSomethingElse();
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    // Broken *after* the preconditions passed, which is the case they cannot
+    // cover: the file has been sitting on a disk since the drain.
+    await writeFileBytes(path, bytes('no longer an archive'));
+
+    const first = await performPendingRestore(layout);
+    expect(first.kind).toBe('failed');
+    if (first.kind === 'failed') expect(first.willRetry).toBe(false);
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+    // The marker survives, because the failure has to be refusable next boot.
+    expect((await marker())?.attempts).toBe(1);
+
+    /**
+     * ***A bad archive must not become a restart loop.*** A supervisor restarts
+     * a process that exits, so an attempt that kept failing and kept trying
+     * would take the install down rather than one boot.
+     */
+    const second = await performPendingRestore(layout);
+    expect(second).toEqual({
+      kind: 'failed',
+      archive: (await marker())!.archive,
+      why: 'This restore already failed once and will not be attempted again.',
+      willRetry: false,
+    });
+  });
+
+  it('treats a marker it cannot read as no marker', async () => {
+    await writeFileBytes(layout.restorePendingFile, bytes('{ not json'));
+
+    expect(await performPendingRestore(layout)).toEqual({ kind: 'none' });
+    /**
+     * The alternative is a boot that refuses to start over a file nobody can
+     * reach to delete — and a restore nobody can confirm was intended is not a
+     * restore to perform.
+     */
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+  });
+
+  it('leaves no staging directory behind when it fails', async () => {
+    const path = await archiveOfSomethingElse();
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    await writeFileBytes(path, bytes('no longer an archive'));
+
+    await performPendingRestore(layout);
+
+    const { readdir } = await import('node:fs/promises');
+    const siblings = await readdir(join(root, '..'));
+    const mine = siblings.filter((name) => name.startsWith(`${root.split('/').pop() ?? ''}.`));
+    expect(mine).toEqual([]);
   });
 });

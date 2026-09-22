@@ -660,6 +660,28 @@ describe('restoring the install', () => {
     expect(await pending()).toBe(true);
   });
 
+  it('can be called off, which is the one door out of a refused one', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    server.services.exit = vi.fn();
+    const id = await take('/api/admin/backups');
+    await server.request({ method: 'POST', url: '/api/admin/restore', payload: { id } });
+    expect(await pending()).toBe(true);
+
+    const response = await server.request({ method: 'DELETE', url: '/api/admin/restore' });
+
+    expect(response.status).toBe(204);
+    expect(await pending()).toBe(false);
+
+    /**
+     * ***204 whether or not there was one***, because *there is no pending
+     * restore* is what the caller wanted either way — and because the state
+     * this clears is one a boot may have written, so a client cannot know
+     * whether it is there without asking.
+     */
+    const again = await server.request({ method: 'DELETE', url: '/api/admin/restore' });
+    expect(again.status).toBe(204);
+  });
+
   it('takes the marker back when the drain will not start', async () => {
     server.services.supervision = { supervised: true, how: 'declared' };
     // No `exit` seam — a harness, or a build that embeds the app.

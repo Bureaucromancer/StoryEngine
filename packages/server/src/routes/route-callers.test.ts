@@ -288,6 +288,10 @@ const OWED = new Map<string, string>([
     'P12.11 built it; P12.13 builds the type-the-words confirmation, visually apart from the list, and the sentence that gives the shell command where the control is absent.',
   ],
   [
+    'DELETE /api/admin/restore',
+    'P12.12 built it, as the one door out of a marker the boot refuses to act on; P12.13 builds the control beside the notice that reports one. A marker nothing will act on and nobody can remove is a trap on exactly the install this feature was built for.',
+  ],
+  [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",
   ],

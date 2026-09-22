@@ -116,3 +116,44 @@ export async function announceBackupFailed(
     });
   }
 }
+
+/**
+ * Tells the administrators what the boot they just missed did to the install —
+ * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***A restore is the one event where the surface reporting it is part of what
+ * changed.*** The person who asked for it watched the server go away and come
+ * back; what they cannot see is **which** archive arrived, or where the
+ * directory it replaced now sits — and that directory is the undo, so its name
+ * is the most important sentence this build ever writes.
+ *
+ * **Every enabled admin, not only whoever asked.** A restore is a property of
+ * the install, which is `announceBackupFailed`'s rule for an install backup and
+ * stronger here: an admin who did not ask is precisely the person who needs
+ * telling that everything moved.
+ *
+ * ***A failure is `actionable` and a success is not.*** A restore that did not
+ * happen leaves a marker somebody has to clear; one that did is a statement of
+ * fact about a directory they may want to delete when they are sure, which is
+ * their business and not a task.
+ */
+export async function announceRestored(
+  context: NoticeContext,
+  outcome:
+    | { ok: true; archive: string; moved: string; files: number }
+    | { ok: false; archive: string; why: string },
+): Promise<void> {
+  const held = await context.accounts.list();
+  for (const account of held) {
+    if (account.role !== 'admin' || !account.enabled) continue;
+    context.notify({
+      kind: 'system.notice',
+      account: account.handle,
+      notice: outcome.ok ? 'restored' : 'restore-failed',
+      actionable: !outcome.ok,
+      params: outcome.ok
+        ? { archive: outcome.archive, moved: outcome.moved, files: outcome.files }
+        : { archive: outcome.archive, why: outcome.why },
+    });
+  }
+}

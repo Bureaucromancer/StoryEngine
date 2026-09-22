@@ -4,12 +4,12 @@
 import { once } from 'node:events';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { rename } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip, createGzip } from 'node:zlib';
 
-import { ensureDirectory, unlinkFile } from './files.js';
+import { ensureDirectory, unlinkFile, writeFileBytes } from './files.js';
 import {
   BLOCK,
   headerName,
@@ -251,4 +251,64 @@ export async function* readTarGz(path: string): AsyncGenerator<ReadMember> {
     source.destroy();
     file.destroy();
   }
+}
+
+/**
+ * A name a member may be written out under, or null —
+ * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***Refused rather than sanitised***, which is `storage/zip.ts`'s posture and
+ * its argument: *"silently rewriting `../../x` to `x` imports a file the
+ * archive did not describe, under a name nobody chose."* Here the stakes are
+ * higher than an import's — what is being written is about to **become** the
+ * install — so a single bad name stops the whole unpack rather than being
+ * dropped from it.
+ *
+ * ***It runs on the rejoined name.*** A long member arrives as ustar's `prefix`
+ * and `name`, which `headerName` puts back together with a `/`, so checking
+ * either half alone would miss a `..` in the other.
+ */
+function safeMemberName(name: string): string | null {
+  const joined = name.replaceAll('\\', '/');
+  if (joined === '' || joined.startsWith('/') || /^[A-Za-z]:/.test(joined)) return null;
+  if (joined.includes('\0')) return null;
+  if (joined.split('/').some((part) => part === '..')) return null;
+  return joined;
+}
+
+export class UnpackError extends Error {}
+
+/**
+ * Writes every member of an archive under `toRoot` —
+ * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***The other end of `writeTarGz`, and the one that runs before a logger
+ * exists.*** A restore unpacks on the next boot, ahead of `buildServices`,
+ * because everything after that opens a handle on the directory being replaced
+ * or stamps it. So this throws rather than logging, and the caller turns it
+ * into the one thing a boot can say.
+ *
+ * ***It writes into a sibling directory rather than over the live one***, which
+ * is the caller's decision but the reason belongs here: every member is written
+ * before anything is renamed, so an unpack that fails half way has ruined a
+ * directory nothing is using. The live data is untouched until two renames,
+ * microseconds apart, at the end.
+ *
+ * **Not atomic per file, deliberately.** `writeAtomic`'s temp-and-rename is for
+ * a file a reader might be holding; nothing can be reading this tree, because
+ * nothing knows it exists yet.
+ */
+export async function unpackTarGz(path: string, toRoot: string): Promise<number> {
+  let files = 0;
+  for await (const member of readTarGz(path)) {
+    const name = safeMemberName(member.name);
+    if (name === null) {
+      throw new UnpackError(`This archive names a file outside the directory: ${member.name}`);
+    }
+    const to = join(toRoot, ...name.split('/'));
+    await ensureDirectory(dirname(to));
+    await writeFileBytes(to, member.bytes);
+    files += 1;
+  }
+  return files;
 }
