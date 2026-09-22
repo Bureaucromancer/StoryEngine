@@ -350,7 +350,52 @@ pnpm backup create /path/to/data backup.tar.gz
 pnpm backup restore backup.tar.gz /path/to/data
 ```
 
+***The bundled command did not, in fact, exclude it, from 2026-09-17 until
+2026-09-22.*** Its rule was a filename test applied at the data root and the
+index lives one directory down, so every archive it wrote carried the index —
+the exact failure the paragraph above describes. Fixed at
+[P12.0](design/workplan/29-p12-implementation.md); if you are holding an archive
+taken before then, delete `index/` out of the restored directory before starting
+the server. The `rsync` line was always correct, because its pattern matches at
+any depth.
+
 **An untested restore is not a backup.** Restore into a clean directory, start
 the server, and **run a search** — a search answering is the only observable
 proof the index was rebuilt rather than carried.
+
+### From the browser, without a shell
+
+*Added at [P12](design/workplan/29-p12-implementation.md).* The two deployment
+paths above both hand a person a web UI and nothing else, so **Settings →
+Backups** takes one, lists what is stored, and hands it over as a download.
+Administrators get the same for the whole install, and three `backup.*` settings
+turn it into a schedule — a frequency, and an independent *also on every server
+start* for a machine that is not on all the time.
+
+**A backup taken from inside a running server is more consistent than one taken
+from outside it, not less.** `state/state.sqlite` is snapshotted with
+`VACUUM INTO` rather than copied; every other write is already temp-and-rename.
+A session being written at that instant may lose its last, incomplete turn,
+which the turn reader already drops.
+
+**The archives are files in the data directory** — `data/backups/` for the
+install's, `data/users/<handle>/backups/` for a person's own — and they are
+**excluded from every archive**, so a backup never contains the backups. Nothing
+removes old ones yet: delete them from the same panel.
+
+**They are ordinary `.tar.gz` files**, so `pnpm backup restore` reads one:
+
+```sh
+# An install archive, into a stopped server's data directory.
+pnpm backup restore data/backups/install-full-2026-09-22-*.tar.gz /path/to/data
+
+# An account archive is a subset of an install one, so it unpacks in place.
+tar -xzf data/users/ned/backups/account-ned-full-*.tar.gz -C /path/to/data
+```
+
+**A `full` archive contains credentials** — the account's provider keys, and for
+an install archive `accounts.json` and the session signing key. That is what
+makes it restorable. Choose `redacted` for a file you are going to put somewhere
+you would not put those, and know that restoring one produces an install nobody
+can sign into.
 

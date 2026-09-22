@@ -332,6 +332,58 @@ wearing the same name.
 
 ---
 
+## 2.1 — What the changelog will say
+
+***Written here rather than in `CHANGELOG.md`, and the reason is a test.***
+`packages/shared/src/changelog.test.ts` asserts that **every `##` heading in
+that file is one the About surface can parse** — *"so there is nothing to decide
+yet"* — and an `## Unreleased` heading is not. Deciding how an unreleased
+section renders, or cutting `1.0.0-alpha.5` to have a heading to write under, is
+a release decision and [releases §7](04-repo-and-releases.md) owns it. So the
+prose is parked where the person cutting the release will find it.
+
+**Added**
+
+- **Backups you can take from the browser** — [25 E6](../25-open-questions.md),
+  [P12](29-p12-implementation.md). Settings → Backups takes
+  one, lists what is stored, hands it over as a download and deletes one. Same
+  again for the whole install, under Administration. Three `backup.*` settings
+  make it a schedule: a frequency, and an independent *also on every server
+  start* for a machine that is not on all the time — because a fixed frequency
+  may never come round on one that is off overnight.
+- **A backup taken from inside the server is more consistent than one taken from
+  outside it.** The operational store is snapshotted with `VACUUM INTO` while it
+  is being written to; everything else was already atomic. This is why
+  [25 E6](../25-open-questions.md) — *do not build a subsystem* — is
+  amended rather than ignored: it reasoned about a process on the **outside**.
+- **`scheduledBackups`, a fourth capability, default off.** Anyone may take a
+  backup of their own work; what an administrator grants is the *server* writing
+  them on a timer, which is the one way a setting somebody made once fills a
+  disk.
+- **`full` or `redacted`**, chosen per backup. A full archive restores to a
+  working install and therefore carries credentials; a redacted one is the file
+  you can keep somewhere else.
+
+**Fixed**
+
+- ***The derived index was in every archive `pnpm backup` had ever written.***
+  The exclusion was a filename test applied at the data root and
+  [03 §5.1](../03-data-model.md) puts the index one directory down, so
+  it never once fired — the exact failure that command exists to prevent, and
+  the restore test could not catch it because its fixture agreed with the
+  mistake. **If you hold an archive taken before this, delete `index/` from the
+  restored directory before starting the server.**
+- ***Long paths were being silently truncated out of archives.*** `tarHeader`
+  cut any member name past a hundred bytes rather than using ustar's `prefix`
+  field, which collapsed a lorebook's version payloads onto one name and lost
+  all but the last. Reachable in ordinary use: a version payload under a long
+  slug is about 232 bytes.
+- **The trash is excluded from backups**, which
+  [03 §10.2](../03-data-model.md) has specified since P4 and nothing
+  enforced.
+
+---
+
 ## 3 — The exit gate
 
 Two tiers, per [manual testing §0](05-manual-testing.md): a critical list a

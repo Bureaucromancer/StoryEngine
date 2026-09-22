@@ -2725,6 +2725,45 @@ account ones:
   is where `auth.minPasswordLength` ([09 §4.1](09-server-multiuser-deployment.md))
   is set.
 
+### 15.3a Backups, on both halves — [25 E6](25-open-questions.md), [P12.6](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22. This document contained the word* backup *zero times before
+it, which is what a feature designed as a shell command looks like from the UI's
+side.*
+
+**Two panels, and they are separate rather than one panel with a scope switch**,
+because the sentence they have to say differs in kind. A person's own archive
+carries their provider keys. The install's carries **everybody's** work, their
+password hashes and the key that validates every session — and the person
+choosing where that file goes is not the person whose password is in it.
+
+- **In the user half, beside the trash** (§15.1), and for the trash's reason: it
+  holds sessions as well as library objects, so a drawer inside the library
+  would be a library surface answering about something that is not a library
+  object — and nobody comes here to browse, they come because they want one
+  file. It lists what is stored, takes one, hands it over as a plain
+  `<a download>`, and deletes one in two steps.
+- **In the admin half**, the same for the whole install.
+
+***Taking one is not a capability and the schedule is*** ([09 §4.2.1](09-server-multiuser-deployment.md)'s
+list gains a fourth). Refusing somebody a copy of their own writing would be a
+strange thing for this software to do; what an administrator decides is whether
+the **server** writes archives for them on a timer nobody is watching, which is
+the one way a setting somebody made once fills a disk — and a full disk stops
+turns for everybody. The schedule form is therefore **absent** without the
+capability rather than disabled, which is §15's own mechanism.
+
+***The admin panel has no schedule form, and that is deliberate.*** The
+install's schedule is three keys in `config.json`, and the settings form (§15.3)
+derives its controls from the schema — so it shipped with the keys. A second
+copy here would be a second thing to keep true.
+
+**It passes §15.4's test.** There are three actions — take one, take it away,
+delete one — and the one number shown, what the stored archives weigh together,
+is the input to the third. Retention is deliberately not built, so that number
+is the only thing standing between an install with a schedule and somebody
+finding out when the disk is full.
+
 ### 15.4 What this is not
 
 **Not a dashboard, and not a place to put anything that is nobody's job.** The
