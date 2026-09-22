@@ -2501,7 +2501,101 @@ writing archives on a timer nobody is watching, which is the one way a setting
 somebody made once fills a data directory — and a full disk stops the server
 writing turns for everybody. A person pressing a button is not that.
 
-### `POST /api/admin/backups`, `GET /api/admin/backups`, `GET /api/admin/backups/:id/download`, `DELETE /api/admin/backups/:id`
+### `GET /api/me/backups/:id/manifest`
+
+*Added at [P12.10](design/workplan/29-p12-implementation.md).* **What is in
+that archive** → `200 {"manifest": …}`.
+
+```json
+{
+  "schema": "storyengine.backup-manifest/1",
+  "scope": "account",
+  "handle": "ned",
+  "contents": "full",
+  "takenBy": { "version": "1.0.0-alpha.1", "at": "2026-09-20T10:00:00.000Z" },
+  "reason": "manual",
+  "files": 42,
+  "unpackedBytes": 512000,
+  "handles": ["ned"],
+  "omitted": []
+}
+```
+
+**It costs one gzip block**, because `backup.json` is written as the archive's
+first member and this reads the first member or nothing. An install archive is
+not bounded by anything, so the difference between that and inflating it is the
+difference between a question a person can ask casually and one they cannot.
+
+`404` for an id this owner has no archive for. **`422 unreadable`** for a file
+that will not read as one of ours — not a 500: an archive is a file that
+survived, from a disk that may have had a bad week.
+
+***This is what a backup import offers instead of a preview.***
+[P4 §1.4](design/workplan/16-p4-implementation.md) settled that for every
+import: a **sweep** commits and reports, because a staging area for three
+hundred objects is a second library, and `import/preview.ts` is the other case —
+one hand-picked file. A backup import is a sweep, so what a person reads before
+committing is the archive's own account of itself, which is what the controls
+turn on. `unpackedBytes` is also [P12.11]'s free-disk check.
+
+### `POST /api/me/backups/import`
+
+*Added at [P12.9](design/workplan/29-p12-implementation.md).* **Brings an
+archive's content into this account** → `200`.
+
+```json
+{
+  "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60",
+  "onConflict": "skip",
+  "options": { "connections": false, "prefs": false }
+}
+```
+
+**Import is not restore.** This merges into a *running* server and touches
+nothing that is install authority: `accounts.json`, `state/` and
+`system/library/` are never read. That line is what keeps the two verbs distinct
+rather than a slider, and it is why somebody who clicks the wrong one loses
+nothing.
+
+**Work and tags always; everything else is a switch somebody ticked.** Library
+objects and sessions are what a person means by *my stuff*, and tags travel with
+them because objects reference tags **by id** ([05 §4](design/05-tagging.md)) —
+an import without them would leave every imported object pointing at names that
+resolve to nothing. `connections` and `prefs` each default **false** and each is
+**reported whether taken or not**, because *my keys did not come across* is a
+question with an answer rather than a bug report.
+
+`onConflict` is `skip` (the default), `keep-both` or `replace`. ***The default
+differs from `POST /api/import/sweep`'s deliberately***: a re-imported foreign
+file *is* the object that file produced, where a backup meeting a live account
+is the past meeting the present — and the present is usually what somebody wants
+to keep.
+
+The response carries the same `report` every other import returns, with its
+`jobId` in the same ledger, plus `sessions`, `tags` and the `notes` the optional
+groups produced:
+
+```json
+{
+  "report": { "jobId": "…", "source": "storyengine-backup", "items": [], "counts": {} },
+  "sessions": { "imported": 2, "skipped": 0 },
+  "tags": { "added": 1, "kept": 4 },
+  "notes": [{ "key": "import.backup.prefsNotTaken", "params": {}, "level": "info" }]
+}
+```
+
+`403` for a `handle` that is not this account's — a person may only read their
+own subtree. `422` for an archive that will not read, or that does not hold the
+handle asked for.
+
+***The archive is named by id rather than uploaded***, which is a scoping
+decision rather than an omission: a person's backups are already on this server,
+because that is where they land. Moving one **between** installs is the upload
+case, and an archive dropped into `data/backups/` by hand is listed and
+importable today — the same capability with the file transfer done by whatever
+already moves files onto that machine.
+
+### `POST /api/admin/backups`, `GET /api/admin/backups`, `GET /api/admin/backups/:id/download`, `GET /api/admin/backups/:id/manifest`, `DELETE /api/admin/backups/:id`
 
 **The same four, for the whole install.** Identical bodies and responses, with
 `scope: "install"` and `handle: null`. An install archive carries every
@@ -2513,6 +2607,25 @@ outside every user directory, for the reason `accounts.json` does.
 derived and whose presence would restore *a stale belief about a newer tree*;
 `users/<handle>/trash/` ([03 §10.2](design/03-data-model.md)); and the backups
 directories themselves.
+
+### `POST /api/admin/backups/import`
+
+**The same import, per account** — same body, same response, with two
+differences.
+
+`handle` is **required**, and a handle with no account on this install is
+`404 no-such-account` rather than an account created to receive it: **an account
+created from an archive has no password**, and who may sign in is not a thing an
+archive gets to decide. There is deliberately no *all of them* arm.
+
+`options.config` is offered here and only here. It merges the archive's
+`config.json` through the same path `PUT /api/admin/config` uses, so
+`pendingRestart` is computed as usual and announced to administrators — with
+**`dataDir` and `server.clientRoot` refused by name**, because both are
+filesystem paths on the machine the archive came from: one would point a running
+server at a directory that may be somebody else's, the other would make it serve
+a 404 where the built client used to be. Ticking it on an *account* archive is
+`403 not-install-scope`.
 
 
 ## Errors

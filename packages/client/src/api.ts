@@ -2321,11 +2321,75 @@ export interface BackupSettings {
   contents: 'full' | 'redacted';
 }
 
+/**
+ * ***What an archive says about itself*** —
+ * [04 §9.2](../../../docs/design/04-schemas.md),
+ * [P12.10](../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***Declared here rather than imported from `shared`***, which is what every
+ * other wire shape in this file does and for the same reason: this file is *the
+ * client's side of `docs/api.md`*, and a type imported from the server's
+ * vocabulary would make a field disappearing from a response a compile error in
+ * the wrong package. The fields are the manifest's, minus the ones no surface
+ * reads.
+ */
+export interface BackupManifest {
+  scope: 'install' | 'account';
+  handle: string | null;
+  contents: 'full' | 'redacted';
+  takenBy: { version: string | null; at: string };
+  reason: 'manual' | 'schedule' | 'start';
+  /** Members, excluding the manifest itself. */
+  files: number;
+  /** Their uncompressed total — the number a restore has to find room for. */
+  unpackedBytes: number;
+  /** The accounts in it, which is what the import's handle control offers. */
+  handles: string[];
+  /** What it does not carry, in the shared note vocabulary rather than prose. */
+  omitted: ImportItem['notes'];
+}
+
+/** Each off by default, and each reported whether taken or not. */
+export interface BackupImportOptions {
+  connections?: boolean;
+  prefs?: boolean;
+  /** Install scope and administrator only; refused elsewhere. */
+  config?: boolean;
+}
+
+export interface BackupImportRequest {
+  id: string;
+  handle?: string;
+  onConflict?: 'skip' | 'replace' | 'keep-both';
+  options?: BackupImportOptions;
+}
+
+/**
+ * What one import did, in four parts because they are four different things.
+ *
+ * The library half is an `ImportReport` — the same shape, the same review
+ * surface and the same ledger as a SillyTavern sweep, which is the whole return
+ * on routing a backup through `sweep`. Sessions and tags are counted rather
+ * than listed: neither is a library object, and a row per turn file is not a
+ * thing anybody reads. `notes` is what the **optional** groups did, including
+ * the ones that were not asked for.
+ */
+export interface BackupImportResult {
+  report: ImportReport;
+  sessions: { imported: number; skipped: number };
+  tags: { added: number; kept: number };
+  notes: ImportItem['notes'];
+}
+
 export const backupApi = {
   readMine: (): Promise<BackupListing> => request('GET', '/api/me/backups'),
   takeMine: (contents: 'full' | 'redacted'): Promise<{ backup: BackupRecord }> =>
     request('POST', '/api/me/backups', { contents }),
   deleteMine: (id: string): Promise<void> => request('DELETE', `/api/me/backups/${id}`),
+  readMineManifest: (id: string): Promise<{ manifest: BackupManifest }> =>
+    request('GET', `/api/me/backups/${id}/manifest`),
+  importMine: (body: BackupImportRequest): Promise<BackupImportResult> =>
+    request('POST', '/api/me/backups/import', body),
   readSettings: (): Promise<{ settings: BackupSettings }> =>
     request('GET', '/api/me/backups/settings'),
   writeSettings: (settings: BackupSettings): Promise<{ settings: BackupSettings }> =>
@@ -2335,6 +2399,10 @@ export const backupApi = {
   takeInstall: (contents: 'full' | 'redacted'): Promise<{ backup: BackupRecord }> =>
     request('POST', '/api/admin/backups', { contents }),
   deleteInstall: (id: string): Promise<void> => request('DELETE', `/api/admin/backups/${id}`),
+  readInstallManifest: (id: string): Promise<{ manifest: BackupManifest }> =>
+    request('GET', `/api/admin/backups/${id}/manifest`),
+  importInstall: (body: BackupImportRequest): Promise<BackupImportResult> =>
+    request('POST', '/api/admin/backups/import', body),
 };
 
 /**

@@ -11,6 +11,7 @@ import { SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import { Fine, Note } from '../ui/Text.js';
 import { megabytes } from './Backups.js';
+import { ImportBackup } from './ImportBackup.js';
 
 /**
  * ***The install's own backup*** —
@@ -197,6 +198,16 @@ export function AdminBackups(): JSX.Element {
           )}
         </>
       )}
+
+      {/**
+       * ***The install's import, which says whose work as well as which
+       * archive.*** An install archive holds every account, and there is no
+       * *all of them* arm: a handle with no account here would have to be
+       * created to receive a library, and **an account created from an archive
+       * has no password** — who may sign in is not a thing an archive gets to
+       * decide.
+       */}
+      <ImportBackup scope="install" rows={rows} />
     </section>
   );
 }

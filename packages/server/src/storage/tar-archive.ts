@@ -182,12 +182,22 @@ export interface ReadMember {
  * is the caller's, because the two callers want different answers: a restore
  * refuses an escaping name outright, and an import is reading into a sandbox it
  * chose. Deciding here would make one of them wrong.
+ *
+ * ***Both streams are destroyed in a `finally`, and that is for the caller who
+ * stops early.*** A reader that wants only the manifest breaks out of the
+ * `for await` after the first member — which calls `.return()` on this
+ * generator and runs nothing else, because the iterator over `source` is held
+ * in a closure here rather than by the loop. Without this, `readArchiveManifest`
+ * would leak a file descriptor and an inflate context **per request**, which is
+ * the kind of leak that looks like nothing until a schedule has run for a
+ * fortnight. `pipe` does not propagate a destroy, so both ends are named.
  */
 export async function* readTarGz(path: string): AsyncGenerator<ReadMember> {
   let held = new Uint8Array(0);
   let done = false;
 
-  const source = createReadStream(path).pipe(createGunzip());
+  const file = createReadStream(path);
+  const source = file.pipe(createGunzip());
   const chunks = source[Symbol.asyncIterator]();
 
   /** Fills `held` to at least `want` bytes, or gives up at the end of the stream. */
@@ -216,24 +226,29 @@ export async function* readTarGz(path: string): AsyncGenerator<ReadMember> {
     return new Uint8Array(slice);
   };
 
-  for (;;) {
-    if (!(await fill(BLOCK))) return;
-    const header = take(BLOCK);
-    // Two of these end the archive; one is enough to stop on, because there is
-    // nothing after it that a reader of ours should act on.
-    if (isTrailerBlock(header)) return;
+  try {
+    for (;;) {
+      if (!(await fill(BLOCK))) return;
+      const header = take(BLOCK);
+      // Two of these end the archive; one is enough to stop on, because there
+      // is nothing after it that a reader of ours should act on.
+      if (isTrailerBlock(header)) return;
 
-    const size = headerSize(header);
-    if (size === null) return;
-    const name = headerName(header);
+      const size = headerSize(header);
+      if (size === null) return;
+      const name = headerName(header);
 
-    if (!(await fill(size))) return;
-    const bytes = take(size);
-    const pad = padding(size);
-    if (pad > 0 && (await fill(pad))) take(pad);
+      if (!(await fill(size))) return;
+      const bytes = take(size);
+      const pad = padding(size);
+      if (pad > 0 && (await fill(pad))) take(pad);
 
-    // A directory member carries no bytes and is not a file; the paths imply
-    // the directories, exactly as `MemoryFileSource` has it.
-    if (!name.endsWith('/')) yield { name, bytes };
+      // A directory member carries no bytes and is not a file; the paths imply
+      // the directories, exactly as `MemoryFileSource` has it.
+      if (!name.endsWith('/')) yield { name, bytes };
+    }
+  } finally {
+    source.destroy();
+    file.destroy();
   }
 }

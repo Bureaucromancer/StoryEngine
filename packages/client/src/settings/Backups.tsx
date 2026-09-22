@@ -10,6 +10,7 @@ import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import { Fine, Note, SectionTitle } from '../ui/Text.js';
+import { ImportBackup } from './ImportBackup.js';
 
 /**
  * ***A copy of your work you can take away*** —
@@ -227,6 +228,15 @@ export function Backups(props: { capable: boolean }): JSX.Element {
       )}
 
       {props.capable ? <Schedule /> : null}
+
+      {/**
+       * ***After the schedule, because it is the rarer act.*** Taking one is
+       * something somebody does deliberately and often; importing one is what
+       * they do after something went wrong, and burying the everyday controls
+       * under a flow for a bad day is the wrong way round. It renders nothing
+       * at all when there is nothing to import from.
+       */}
+      <ImportBackup scope="account" rows={rows} />
     </section>
   );
 }

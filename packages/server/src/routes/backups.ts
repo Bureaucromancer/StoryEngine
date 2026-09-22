@@ -12,6 +12,7 @@ import {
   backupContextOf,
   findBackup,
   listBackups,
+  readArchiveManifest,
   removeBackup,
   takeBackup,
   type BackupOwner,
@@ -367,6 +368,50 @@ function register(
           `attachment; filename="${found.path.split('/').pop() ?? ''}"`,
         )
         .send(openFileRead(found.path));
+    },
+  );
+
+  /**
+   * ***What is in that archive, before anything is done with it*** —
+   * [P12.10](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * ***The look that stands in for a preview, and it is a better fit than the
+   * one the plan named.*** `import/preview.ts` predicts what **one hand-picked
+   * file** would become, and [P4 §1.4] is explicit that the other case works
+   * differently — *"a sweep still commits first and reports"* — because a
+   * staging area for three hundred objects is a second library. A backup import
+   * is a sweep. So what a person gets before they commit is not a per-object
+   * prediction but the archive's own account of itself: whose accounts it
+   * holds, whether it carries credentials, when it was taken and by which
+   * build. That is the question the controls actually turn on — *which handle*
+   * and *is this the one I meant* — and it costs one gzip block, because
+   * `takeBackup` writes the manifest first.
+   *
+   * **404 for an archive this owner does not have; 422 for one that will not
+   * read.** The second is not a server error: an archive is a file that
+   * survived, from a disk that may have had a bad week.
+   */
+  app.get(
+    `${prefix}/:id/manifest`,
+    { schema: { params: BackupParams } },
+    async (request, reply) => {
+      const owner = await ownerOf(request, reply);
+      if (!owner) return;
+
+      const { id } = request.params as { id: string };
+      const found = await findBackup(backupContextOf(services), owner, id);
+      if (found === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
+      }
+
+      const manifest = await readArchiveManifest(found.path);
+      if (manifest === null) {
+        return reply.code(422).send({
+          error: 'unreadable',
+          message: 'That archive could not be read.',
+        });
+      }
+      return reply.send({ manifest });
     },
   );
 

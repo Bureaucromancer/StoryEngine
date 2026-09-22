@@ -271,16 +271,58 @@ backup meeting a live account is the past meeting the present.
 
 ### P12.9 — Import routes, and what is optional
 
-Preview then apply, through `import/preview.ts` and `import/jobs.ts`, so a
-backup import lands in the same review surface and the same ledger as every
-other import. Work and tags always; **provider connections, preferences and
-configuration each a checkbox, each off by default, each reported whether taken
-or not**. A configuration import refuses `dataDir` and `server.clientRoot`:
-both are paths on another machine.
+Apply then report, through `sweep` and `import/jobs.ts`, so a backup import
+lands in the same review surface and the same ledger as every other import.
+Work and tags always; **provider connections, preferences and configuration
+each a checkbox, each off by default, each reported whether taken or not**. A
+configuration import refuses `dataDir` and `server.clientRoot`: both are paths
+on another machine.
+
+***This stage was planned as "preview then apply" and shipped as "apply then
+report", which is a correction rather than a cut.*** The plan named
+`import/preview.ts`, and reading it settled the question the other way:
+`previewOne` predicts what **one hand-picked file** would become, reaching the
+converters directly so that nothing is written, and
+[P4 §1.4](16-p4-implementation.md) is explicit that the bulk case works
+differently — *"a sweep still commits first and reports"* — because a staging
+area for three hundred objects is a second library, and a scratch copy on the
+server is that library. A backup import is a sweep of an entire subtree. Wiring
+it to the one-file preview would have meant either a second engine or a
+server-side staging copy, which are the two things [P4 §1.3] and §1.4
+respectively exist to prevent.
+
+*What a person gets instead is [P12.10]'s manifest read*, which answers the
+questions the controls actually turn on. The safety story is the one a sweep
+already has and it is written down rather than assumed: `skip` is the default
+so nothing here is touched, `replace` writes what was here into the object's
+history first, and a session is never replaced at all.
 
 ### P12.10 — The import flow
 
-The picker, the checkboxes, the preview, the review.
+`settings/ImportBackup.tsx`, one component for both halves because the
+difference is two fields: the admin says **which account in the archive** and
+may tick a fourth box, settings.
+
+***`GET …/backups/:id/manifest` is the stage's real addition***, and it is what
+stands in for the preview P12.9 could not have. `backup.json` is the archive's
+first member by construction, so reading the first member or nothing answers
+*when was this taken, whose accounts are in it, does it carry credentials, what
+does it weigh unpacked* for the cost of one gzip block rather than the cost of
+an install archive. The handle control offers **the archive's** handles rather
+than this install's accounts: an account here that the archive holds nothing for
+is not a choice, and a text box would make a typo indistinguishable from an
+account that is not in there. [P12.11] reads the same route for its free-disk
+and scope preconditions, so it earns its keep twice.
+
+*And `readTarGz` grew a `finally` for it.* A reader that breaks out after the
+first member calls `.return()` on the generator, which ran nothing — the
+iterator over the gunzip stream is held in a closure rather than by the loop —
+so without it every manifest read leaked a file descriptor and an inflate
+context. That is the kind of leak that looks like nothing until a schedule has
+run for a fortnight.
+
+*Ends at:* the two `POST …/backups/import` rows leave `route-callers.test.ts`'s
+`OWED` map, discharged by building the surface rather than by editing the map.
 
 ### P12.11 — `POST /api/admin/restore`
 

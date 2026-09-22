@@ -2764,6 +2764,42 @@ is the input to the third. Retention is deliberately not built, so that number
 is the only thing standing between an install with a schedule and somebody
 finding out when the disk is full.
 
+### 15.3b Import, which is not restore — [P12.10](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22.* **Two ways to get data back, named apart, in two different
+places.** *Import* merges an archive's content into a server that is **running**
+and touches nothing that is install authority — accounts, the operational store
+and the system library are never read. *Restore* ([P12.11]) puts an archive back
+**as** the install and cannot happen while it is running. They differ in what
+they touch, what they can break, and whether the server can be up. Conflating
+them is how somebody clicks *restore* meaning *import* and loses a week, so they
+are two controls with two names rather than one control with a mode.
+
+**The import flow sits at the foot of each backup panel**, after the schedule,
+because it is the rarer act: taking one is something a person does deliberately
+and often, importing one is what they do after something went wrong, and burying
+the everyday controls under a flow for a bad day is the wrong way round. It is
+**absent** when there is nothing to import from, rather than disabled — an
+account with no archives has no question to answer.
+
+***It shows the archive before it offers anything, and that is the substitute
+for a preview.*** [P4 §1.4](workplan/16-p4-implementation.md) settled the
+question for every import: a **sweep** commits and reports, because a staging
+area is a second library. So what a person reads first is the archive's own
+manifest — when it was taken, whose accounts are in it, whether it carries
+credentials, what it left out — which is what the controls actually turn on.
+§5's struck *"let the user fix it before committing"* is the same ruling seen
+from this document's side.
+
+**Work and tags always; everything else is a box that starts unticked.**
+Objects reference tags by id, so an import without the registry would leave
+every imported object pointing at names that resolve to nothing. Provider
+connections and preferences are each opt-in and each **reported whether taken or
+not**, because *my keys did not come across* should be a question with an answer
+rather than a bug report. The admin's panel adds a fourth box for the install's
+settings, and says which account in the archive — from **the archive's** list of
+handles, because an account here the archive holds nothing for is not a choice.
+
 ### 15.4 What this is not
 
 **Not a dashboard, and not a place to put anything that is nobody's job.** The

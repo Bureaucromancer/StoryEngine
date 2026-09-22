@@ -255,17 +255,14 @@ const EXEMPT = new Map<string, string>([
  */
 const OWED = new Map<string, string>([
   /**
-   * ***The import flow, owed to [P12.10] and paid there.*** Two rows because
-   * this map takes no wildcards, and they are one debt with one owner.
+   * ***The two backup-import rows stood here for one stage and are gone.***
+   *
+   * [P12.9] built the routes and [P12.10] built `settings/ImportBackup.tsx`,
+   * which names both addresses — so the scan reaches them and a line saying *a
+   * surface is owed* stopped being true. **Discharged by building the surface
+   * rather than by editing the map**, which is the only way out this map is
+   * meant to have, and the shortest a debt in it has ever stood.
    */
-  [
-    'POST /api/me/backups/import',
-    'P12.9 built it; P12.10 builds the picker, the checkboxes and the review. A person imports their own subtree of their own archive, so it takes no handle.',
-  ],
-  [
-    'POST /api/admin/backups/import',
-    'P12.9 built it; P12.10 builds the per-handle plan. There is no all-of-them arm: a handle with no account here would have to be created to receive a library, and an account created from an archive has no password.',
-  ],
   /**
    * ***`GET /api/search` was owed here from P2 to [P11.1] and is paid.***
    *

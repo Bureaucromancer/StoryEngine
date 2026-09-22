@@ -11,10 +11,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ensureDirectory, writeFileBytes } from '../storage/files.js';
 import { Layout } from '../storage/layout.js';
-import { readTarGz } from '../storage/tar-archive.js';
+import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import {
   findBackup,
   listBackups,
+  readArchiveManifest,
   removeBackup,
   takeBackup,
   type BackupContext,
@@ -213,6 +214,33 @@ describe('an install backup', () => {
       expect(manifest.unpackedBytes).toBeGreaterThan(0);
       expect(manifest.files).toBe(names.length - 1);
     }
+  });
+
+  /**
+   * ***The read that stops at the first member*** —
+   * [P12.10](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * The interesting half is the refusal. `readArchiveManifest` takes the
+   * **first** member or nothing rather than searching, because reading on to
+   * look for a manifest means inflating an arbitrary file handed to us to find
+   * out whether it was ours — which is the cost the function exists to avoid,
+   * paid exactly when the archive is least trustworthy.
+   */
+  it('reads the manifest without inflating the rest, and refuses an archive that is not ours', async () => {
+    const record = await takeBackup(context, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+    const found = await findBackup(context, INSTALL, record.id);
+
+    const manifest = await readArchiveManifest(found!.path);
+    expect(manifest?.scope).toBe('install');
+    expect(manifest?.handles).toEqual(['mari', 'ned']);
+
+    const foreign = join(root, 'not-ours.tar.gz');
+    await writeTarGz(foreign, [{ name: 'readme.txt', bytes: new TextEncoder().encode('hi') }], 0);
+    expect(await readArchiveManifest(foreign)).toBeNull();
   });
 });
 

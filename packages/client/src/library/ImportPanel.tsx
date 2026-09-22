@@ -53,7 +53,17 @@ import { labels } from '../i18n/catalogue.js';
  * blank.
  */
 
-const DISPOSITION_LABELS: Record<string, string> = labels('import.disposition', {
+/**
+ * ***Exported, because a second surface renders the same counts*** —
+ * [P12.10](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * `settings/ImportBackup.tsx` shows the disposition counts of a backup import,
+ * and a backup import **is** a sweep — same engine, same vocabulary, same
+ * ledger. A copy of this table there would let the two surfaces disagree about
+ * what an import did, which is the worst possible thing for them to disagree
+ * about; `ImportNotes.tsx` makes exactly that argument about `note-labels.ts`.
+ */
+export const DISPOSITION_LABELS: Record<string, string> = labels('import.disposition', {
   converted: 'Imported',
   unchanged: 'Already here',
   credential: 'Credential removed',
@@ -64,7 +74,7 @@ const DISPOSITION_LABELS: Record<string, string> = labels('import.disposition', 
 });
 
 /** What each class means, in the one place a person can read it. */
-const DISPOSITION_HELP: Record<string, string> = labels('import.disposition.help', {
+export const DISPOSITION_HELP: Record<string, string> = labels('import.disposition.help', {
   converted: 'Now in your library.',
   unchanged: 'Identical to what is already here, so nothing was written.',
   credential: 'A connection or password. Removed and never stored.',

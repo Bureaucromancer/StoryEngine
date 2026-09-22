@@ -358,6 +358,84 @@ describe('the schedule', () => {
  * door: who may ask, for whose subtree, and what the optional groups do when
  * nobody ticks them.
  */
+/**
+ * The manifest route —
+ * [P12.10](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***It is the look that stands in for a preview***, so what matters is that it
+ * answers the two questions the import controls turn on — *whose work is in
+ * there* and *does it carry credentials* — and that it is owned exactly as
+ * every other route here is.
+ */
+describe('reading what is in one', () => {
+  /**
+   * One file under `users/ned/`, because both claims below are read off the
+   * member names — a fresh account has written nothing, so an archive of it is
+   * a manifest and no members, which is correct and proves neither claim.
+   */
+  async function writeATag(): Promise<void> {
+    await server.services.tags.write('ned', [
+      {
+        id: 't1',
+        name: 'a tag',
+        swatch: null,
+        sortOrder: 0,
+        folder: 'general',
+        hidden: false,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }
+
+  it('answers with the archive’s own account of itself', async () => {
+    await writeATag();
+    const id = await take();
+
+    const response = await server.request({ method: 'GET', url: `/api/me/backups/${id}/manifest` });
+
+    expect(response.status).toBe(200);
+    const { manifest } = response.body as { manifest: Record<string, unknown> };
+    expect(manifest['scope']).toBe('account');
+    expect(manifest['contents']).toBe('full');
+    // The handles are what the admin's control offers, so an empty list here
+    // would be a picker with nothing in it rather than a visible failure.
+    expect(manifest['handles']).toEqual(['ned']);
+    expect(manifest['files']).toBeGreaterThan(0);
+    expect(manifest['unpackedBytes']).toBeGreaterThan(0);
+  });
+
+  it('cannot be pointed at another account’s archive', async () => {
+    const mine = await take();
+    await asUser();
+
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/me/backups/${mine}/manifest`,
+    });
+
+    // 404 rather than 403, per the download's argument: whether an id exists
+    // elsewhere is worth hiding.
+    expect(response.status).toBe(404);
+  });
+
+  it('is the install’s for an admin, and names every account in it', async () => {
+    // A file under `users/ned/`, because the handle list is read off the member
+    // names — an account with nothing written is an account with no subtree.
+    await writeATag();
+
+    const id = await take('/api/admin/backups');
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/admin/backups/${id}/manifest`,
+    });
+
+    expect(response.status).toBe(200);
+    const { manifest } = response.body as { manifest: { scope: string; handles: string[] } };
+    expect(manifest.scope).toBe('install');
+    expect(manifest.handles).toContain('ned');
+  });
+});
+
 describe('importing one', () => {
   it('reports what it did, and what it declined to do', async () => {
     const id = await take();

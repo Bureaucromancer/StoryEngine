@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import {
   BACKUP_MANIFEST_MEMBER,
   BACKUP_MANIFEST_SCHEMA,
+  readBackupManifest,
   type BackupContents,
   type BackupManifest,
   type BackupReason,
@@ -21,7 +22,7 @@ import type { BuildInfo } from '../build-info.js';
 import { listTreeFiles, statFile, unlinkFile, type TreeFile } from '../storage/files.js';
 import { assertValidHandle, type Layout } from '../storage/layout.js';
 import { TarNameError, splitName } from '../storage/tar.js';
-import { writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
+import { readTarGz, writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
 
 /**
  * ***What goes in an archive, and what it is called*** —
@@ -429,4 +430,48 @@ export async function removeBackup(
   if (found === null) return false;
   await unlinkFile(found.path);
   return true;
+}
+
+/**
+ * The manifest out of an archive, without inflating the rest of it —
+ * [P12.10](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***This is the return on writing `backup.json` first.*** `takeBackup` puts it
+ * at the head of the member list deliberately, and that ordering is what lets a
+ * caller learn what an archive **is** — whose accounts are in it, whether it
+ * carries credentials, what it weighs unpacked — for the cost of one gzip block
+ * rather than the cost of the archive. An install archive is not bounded by
+ * anything, so the difference between the two is the difference between a
+ * question a person can ask casually and one they cannot.
+ *
+ * ***Three callers, and each of them wants it before it acts.*** The import
+ * picker offers the handles the archive actually holds rather than a text box;
+ * the review says what it was about to take; and [P12.11]'s restore checks
+ * scope, `contents` and `unpackedBytes` against the disk **while the server is
+ * still running**, because a refusal after the process has exited is a refusal
+ * nobody can read.
+ *
+ * Null covers every way this can fail — not a gzip, not a tar, no manifest
+ * first, a manifest that is not ours — because the caller's answer is the same
+ * sentence for all of them: *that archive could not be read*.
+ */
+export async function readArchiveManifest(path: string): Promise<BackupManifest | null> {
+  for await (const member of readTarGz(path)) {
+    /**
+     * ***The first member or nothing, which is stricter than searching.***
+     *
+     * An archive whose manifest is not first is not one this build wrote, and
+     * reading on to look for one would mean inflating an arbitrary file handed
+     * to us to find out — which is the cost this function exists to avoid, paid
+     * exactly when the archive is least trustworthy.
+     */
+    if (member.name !== BACKUP_MANIFEST_MEMBER) return null;
+    try {
+      const read = readBackupManifest(JSON.parse(new TextDecoder().decode(member.bytes)));
+      return 'refusal' in read ? null : read;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }

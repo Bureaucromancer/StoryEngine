@@ -31,6 +31,11 @@ const takeMine = vi.fn();
 const deleteMine = vi.fn();
 const readSettings = vi.fn();
 const writeSettings = vi.fn();
+// The panel mounts `<ImportBackup />`, which asks nothing until an archive is
+// picked — but a mock missing them would fail as *undefined is not a function*
+// in whichever test first picks one, which is a long way from the cause.
+const readMineManifest = vi.fn();
+const importMine = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -40,6 +45,8 @@ vi.mock('../api.js', async (importOriginal) => ({
     deleteMine: (...a: unknown[]) => deleteMine(...a) as unknown,
     readSettings: (...a: unknown[]) => readSettings(...a) as unknown,
     writeSettings: (...a: unknown[]) => writeSettings(...a) as unknown,
+    readMineManifest: (...a: unknown[]) => readMineManifest(...a) as unknown,
+    importMine: (...a: unknown[]) => importMine(...a) as unknown,
   },
 }));
 
