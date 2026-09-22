@@ -3,9 +3,23 @@
 
 import { useState, type JSX } from 'react';
 
-import type { HookRow } from '../api.js';
-import { useSession, useSessionHooks, useWriteChannel } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
+import {
+  ApiError,
+  PROMOTE_DIRECTORIES,
+  type HookRow,
+  type LibraryObject,
+  type PromoteTarget,
+  type PromoteTargetKind,
+  type SessionSummary,
+} from '../api.js';
+import {
+  useLibrary,
+  usePromoteHook,
+  useSession,
+  useSessionHooks,
+  useWriteChannel,
+} from '../queries.js';
+import { Alert, AlertNote } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
@@ -100,17 +114,30 @@ function waitingLine(rows: readonly HookRow[]): string {
  * ***Adding one while the game is running*** — [03 §4.1]'s *primary path*,
  * [P7.5].
  *
- * **Two fields, and it is not an editor.** A `PlotHook` has eight of them and
- * [P7 §1.5] records that *"a hook has nowhere to be authored"* — there is no
- * treatment editor and no setup editor, and building one here would be a
- * different surface smuggled into a panel. What this is instead is the sentence
- * the feature exists for — *"I want this to happen"* — with the rest taking the
- * defaults a hook typed here would want: `local` blast radius, ordinary weight,
- * woven rather than expanded, once.
+ * **Two fields, and it is still not an editor.** A `PlotHook` has eight of
+ * them; this writes two and defaults the other six to what a hook typed here
+ * would want: `local` blast radius, ordinary weight, woven rather than
+ * expanded, once.
+ *
+ * ~~*there is no treatment editor and no setup editor*~~ — **there are both,
+ * since [P7B], and since [P11.2] all three of 03 §4.1's carriers edit their
+ * hooks.** What [P7 §1.5] recorded — *"a hook has nowhere to be authored"* —
+ * is answered, and it was never this form's job to answer it. **The argument
+ * for two fields survives the editors existing**, and it is [P7.5]'s: this is
+ * the sentence the feature exists for — *"I want this to happen"* — and an
+ * editor built inside a play-surface panel would still be a different surface
+ * smuggled into one. A person mid-scene is not filling in `notBefore`.
+ *
+ * **What changed is that the other six fields now have somewhere to be, and
+ * this panel can say where.** They are on whichever carrier holds the hook, in
+ * that kind's editor; `Save this to…` on a row is how a hook typed here reaches
+ * one, and everything this form defaulted is writable once it is there.
  *
  * *The id is the server's*, because a session's own hook is the one source with
  * no upstream object to keep one from, and without an id it could never be
- * committed, blocked, or recorded as fired.
+ * committed, blocked, or recorded as fired. **It is also the same id on the
+ * other side of a promotion** — [15 §5.1]'s obligation, and the reason saving
+ * the same hook twice is refused rather than renamed.
  */
 function AddHook(props: { sessionId: string }): JSX.Element {
   const hooks = useSessionHooks(props.sessionId);
@@ -287,6 +314,7 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
         </Alert>
       ) : (
         <Controls
+          sessionId={props.sessionId}
           row={row}
           pending={write.isPending || hooks.isPending}
           onCommit={commit}
@@ -308,18 +336,27 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
 /**
  * What a row offers, which depends on what has happened to it.
  *
- * **Nothing but Remove for a hook that has gone.** Committing a fired hook is
- * *un-firing* it — the states are exclusive on one channel — which is a real
- * thing a person may want and is not something to offer by accident from a row
- * that says *Fired*.
+ * **No Commit for a hook that has gone** — and it was *nothing but Remove*
+ * until the control below joined it. Committing a fired hook is *un-firing* it
+ * — the states are exclusive on one channel — which is a real thing a person
+ * may want and is not something to offer by accident from a row that says
+ * *Fired*.
  *
  * **Remove takes any hook, whichever source put it there**, which is
  * [00 §3.1]'s prefill-not-binding: the pool was **copied** at creation, so a
  * treatment-borne row is this session's copy and refusing to remove it would
  * make the copy a binding. It does not reach the treatment — the same asymmetry
  * running the other way.
+ *
+ * ***`Save this to…` takes any hook too, and for a second reason on top of
+ * that one.*** It is an act on the **library**, about the hook as authored
+ * material rather than about what has become of it here — so it sits outside
+ * the `gone` gate above, and a row that says *Fired* offers it as readily as a
+ * waiting one. Often more so: the hook worth keeping is frequently the one that
+ * has just gone off well.
  */
 function Controls(props: {
+  sessionId: string;
   row: HookRow;
   pending: boolean;
   onCommit: () => void;
@@ -331,7 +368,7 @@ function Controls(props: {
   const gone = row.state === 'fired' || row.state === 'provisional';
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap items-start gap-2">
       {gone ? null : row.state === 'committed' ? (
         <Button type="button" onClick={props.onRelease} disabled={props.pending}>
           Release
@@ -348,8 +385,202 @@ function Controls(props: {
       <Button type="button" onClick={props.onRemove} disabled={props.pending}>
         Remove
       </Button>
+      <SaveTo sessionId={props.sessionId} row={row} pending={props.pending} />
     </div>
   );
+}
+
+/**
+ * ***Saving a hook out of the session it was realised in*** — [03 §4.1],
+ * [06 §6.1], [15 §5.1], [P11.2].
+ *
+ * **The valve the pool has never had.** `hook-pool.ts` fills a session from the
+ * three carriers at creation and this panel adds more while playing, and until
+ * this control nothing ran the other way: a hook realised mid-play — which
+ * [06 §6.1] calls *most of why the feature earns its place* — died with the
+ * session it was realised in.
+ *
+ * ***Offered, never automatic.*** [03 §2.3] wrote the rule for session-local
+ * actors — *"an agent may suggest it; nothing auto-promotes"* — and this is the
+ * first place in the product with something for it to govern. A hook does not
+ * drift onto the treatment because it fired well, and playing on will never
+ * save one by itself.
+ *
+ * **The targets are the objects this session already names**, which is two
+ * lists joined rather than one: `session.treatment` and `session.lore`, plus
+ * whatever the pool's own rows say they came from. Neither alone is enough —
+ * `SessionSummary` has never carried a `setup` field, so the Setup's id reaches
+ * this client only as the `source` of a row it seeded; and a lorebook with no
+ * hooks seeds no row while being a perfectly good place to put one. **Offering
+ * the whole library instead would be a library browser grown inside a play
+ * panel**, and it would offer a treatment this session has never heard of as
+ * readily as its own.
+ *
+ * *Names rather than ids*, resolved through `useLibrary` the way `CastPanel`
+ * resolves an actor — **and an object the library cannot name falls back to its
+ * id rather than disappearing from the list.** A session can name something
+ * deleted since, and [00 §3.3]'s dangling reference is a thing to show:
+ * choosing it is answered *that one is gone*, which is a truer sentence than an
+ * option that was never offered.
+ *
+ * ***It has to say where the hook went, because the row will not.*** Nothing
+ * visible here changes after a successful save — the pool entry keeps its own
+ * source, the hook goes on being eligible in this session, and that is the
+ * design and not an oversight: the running game is unchanged by promotion. So
+ * the confirmation naming the object is the only evidence the act happened, and
+ * the refusal on a second press has to name it for the same reason.
+ */
+function SaveTo(props: { sessionId: string; row: HookRow; pending: boolean }): JSX.Element | null {
+  const session = useSession(props.sessionId);
+  const promote = usePromoteHook(props.sessionId);
+
+  /**
+   * *Three listings rather than one unfiltered `useLibrary()`.* Two of these
+   * keys are already held by the play page and the lore panel, so the ordinary
+   * case issues no request at all — the trade `LorePanel` makes beside it —
+   * while listing everything would be a fourth poll of the whole library for
+   * the sake of three names.
+   */
+  const treatments = useLibrary(PROMOTE_DIRECTORIES.treatment);
+  const setups = useLibrary(PROMOTE_DIRECTORIES.setup);
+  const books = useLibrary(PROMOTE_DIRECTORIES.lore);
+
+  const listed: Record<PromoteTargetKind, readonly LibraryObject[]> = {
+    treatment: treatments.data?.objects ?? [],
+    setup: setups.data?.objects ?? [],
+    lore: books.data?.objects ?? [],
+  };
+
+  const targets = targetsFor(session.data?.hooks.rows ?? [], session.data?.session);
+
+  /**
+   * **Nothing when there is nowhere**, which is the rule the neighbouring
+   * panels follow and the one place this surface can keep it: a session with no
+   * treatment, no Setup and no books has nowhere to save a hook to, and a
+   * select offering only its own placeholder would be an affordance for an act
+   * that cannot be performed.
+   */
+  if (targets.length === 0) return null;
+
+  const keyOf = (target: PromoteTarget): string => `${target.kind}:${target.id}`;
+  const nameOf = (target: PromoteTarget): string =>
+    listed[target.kind].find((one) => one.id === target.id)?.name ?? target.id;
+
+  /** Which one was asked for, so a refusal can name it. */
+  const chosen = promote.variables?.target;
+
+  return (
+    <div className="flex flex-col gap-1">
+      {/* A select written out rather than `SelectField`, for the reason
+          `Pacing` above is written out: the field wrapper has no disabled
+          state, and a control that cannot be pressed while the last press is
+          in flight has to look like one — which is the defect `Button`'s own
+          docstring exists to stop growing back. The visible affordance is the
+          placeholder option, so the label is the row's, out of sight and in
+          the accessibility tree: every row's control would otherwise be called
+          the same thing. */}
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <span className="sr-only">{`Save ${props.row.title} to`}</span>
+        <select
+          className="rounded-control border border-line bg-surface p-1 text-ink"
+          value=""
+          disabled={props.pending || promote.isPending}
+          onChange={(event) => {
+            const target = targets.find((one) => keyOf(one) === event.target.value);
+            if (target === undefined) return;
+            promote.mutate({ hookId: props.row.hookId, target });
+          }}
+        >
+          <option value="">Save this to…</option>
+          {targets.map((target) => (
+            <option key={keyOf(target)} value={keyOf(target)}>
+              {nameOf(target)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {promote.isError ? (
+        <AlertNote role="alert">
+          {promoteWords(promote.error, chosen === undefined ? 'it' : nameOf(chosen))}
+        </AlertNote>
+      ) : promote.isSuccess ? (
+        <Fine>{`Saved to “${promote.data.object.name}”.`}</Fine>
+      ) : null}
+    </div>
+  );
+}
+
+/** [03 §4.1]'s own order: treatment primary, Setup override, lorebook secondary. */
+const TARGET_ORDER: Record<PromoteTargetKind, number> = { treatment: 0, setup: 1, lore: 2 };
+
+/**
+ * The objects a hook can be saved onto, in the order 03 §4.1 ranks them.
+ *
+ * **Deduplicated by kind *and* id rather than by id alone**, because the two
+ * halves of the key are independent: nothing stops a treatment and a lorebook
+ * carrying the same id, and a list that collapsed them would silently drop a
+ * real target — quietly, and only for the people whose libraries happen to
+ * collide.
+ *
+ * *The pool contributes its sources rather than its own hooks' ids*: a row
+ * whose source is the session names nothing, which is right. Promoting a hook
+ * onto the session it is already in is not an act.
+ */
+function targetsFor(
+  rows: readonly HookRow[],
+  session: SessionSummary | undefined,
+): PromoteTarget[] {
+  const named: PromoteTarget[] = [];
+  if (session?.treatment != null) named.push({ kind: 'treatment', id: session.treatment });
+  for (const row of rows) {
+    if (row.source.kind === 'session' || row.source.id === undefined) continue;
+    named.push({ kind: row.source.kind, id: row.source.id });
+  }
+  for (const id of session?.lore ?? []) named.push({ kind: 'lore', id });
+
+  const seen = new Set<string>();
+  return named
+    .filter((target) => {
+      const key = `${target.kind}:${target.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => TARGET_ORDER[a.kind] - TARGET_ORDER[b.kind]);
+}
+
+/**
+ * What a refused save says — **where the hook already is, rather than that
+ * something went wrong**.
+ *
+ * ***A 409 here is the ordinary second press, not a failure.*** The row looks
+ * exactly as it did after a successful save, so pressing again is a thing
+ * people will do; what answers it is the fact that makes it a non-event. The
+ * server's own *that object already carries this hook* is true and leaves
+ * somebody hunting for which object, which is the same defect `hookWords`
+ * exists to prevent one panel over: the class crosses the wire and the
+ * sentence is the panel's.
+ *
+ * *`no-such-object` names it for the same reason.* The list is built from what
+ * the session names and a session can name something deleted since ([00 §3.3]),
+ * so *that object is gone* is a sentence about an option still on the screen.
+ *
+ * **Everything else is the server's sentence, unedited** — a `read-only` system
+ * library, a target edited underneath this one, a hook the carrier's schema
+ * refuses. Those are claims about the write, and a paraphrase here could only
+ * blur them.
+ */
+function promoteWords(error: Error, where: string): string {
+  if (!(error instanceof ApiError)) return error.message;
+  switch (error.code) {
+    case 'already-there':
+      return `This hook is already on “${where}”.`;
+    case 'no-such-object':
+      return `“${where}” is gone.`;
+    default:
+      return error.message;
+  }
 }
 
 /** Where the hook came from — [03 §4.1]'s *every hook shows its source*. */

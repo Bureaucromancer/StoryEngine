@@ -11,6 +11,7 @@ import {
   resolvedFolderId,
   type Lorebook,
   type LoreEntry,
+  type PlotHook,
 } from '@storyengine/shared';
 
 import { ApiError, type LibraryObject } from '../api.js';
@@ -29,7 +30,7 @@ import { landing, nudge } from '../ui/reorder.js';
 import { useAuthState, useEditorBase } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { page, reveal, table } from '../ui/classes.js';
+import { disclosure, page, reveal, table } from '../ui/classes.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import {
@@ -48,6 +49,8 @@ import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
 import { EntryTravel } from './EntryTravel.js';
+import { hooksOf, withHooks } from './hook-form.js';
+import { HookList } from './HookList.js';
 import { MediaStrip } from './MediaStrip.js';
 
 import { OFF_LABELS } from '../library/gate-labels.js';
@@ -573,8 +576,111 @@ function Editor(props: EditorProps): JSX.Element {
           </div>
         </section>
       )}
+
+      {/*
+       * ***The book's hooks — last on the page, and shut*** —
+       * [03 §4.1](../../../../docs/design/03-data-model.md),
+       * [10 §10.1](../../../../docs/design/10-ui-surfaces.md).
+       *
+       * **Where this sits is the mitigation rather than a layout preference.**
+       * §4.1 allows hooks on a lorebook and then names what it costs:
+       * *"Lorebooks are world facts; hooks are narrative intent. If
+       * hooks-on-lorebooks became the common path, the separation that keeps a
+       * lorebook portable and a treatment free of world content would erode."*
+       * Its answer is three words — ***allowed, secondary, and documented*** —
+       * and a hooks section with the entry list's billing would keep the first
+       * while quietly dropping the second, because a surface teaches what it
+       * puts in front of people far more reliably than a design note does. So
+       * it is below the entries, behind a fold, under a sentence saying that a
+       * Treatment is where a hook usually goes. The sentence is the *documented*
+       * clause arriving at the only place an author reads.
+       *
+       * **A fold still has to say what is behind it.**
+       * [SchemaFields](./SchemaFields.tsx)' invariant — *a closed section must
+       * name what is inside it that is not at its default* — is [10 §2.1]'s
+       * no-hidden-fields rule read through a disclosure, and it does not stop
+       * applying because this page draws its own sections rather than taking
+       * them from the schema. The default for `hooks` here is *nothing at all*,
+       * so the summary counts them: a book carrying three says so while shut,
+       * and a book carrying none says that too rather than standing under a
+       * heading that could be hiding anything.
+       *
+       * **Uncontrolled**, for the reason `SchemaFields` records at length:
+       * React writes a DOM prop only when the *prop* changes, so a fold
+       * somebody opened stays open through a form that re-renders on every
+       * keystroke, and one a browser opened by itself to show a find-in-page
+       * match stays open too. Nothing here passes `open`, so nothing here has
+       * to keep it in sync.
+       */}
+      <details className="rounded-control border border-line p-3">
+        <summary className={`${disclosure.titled} text-sm font-medium`}>
+          {hookFoldSummary(hooksOf(draft).length, locale)}
+        </summary>
+        <div className="mt-4">
+          <HookList
+            hooks={hooksOf(draft)}
+            onChange={(next) => {
+              edit(withBookHooks(draft, next));
+            }}
+            note="Hooks that are inseparable from this lore — the war over the island belongs with the kingdom that will declare it. One written here is eligible only while this book is active in a session, and it travels to anyone you give the book to. A treatment is the usual home for a hook; put one here when the lore is the reason it exists."
+          />
+        </div>
+      </details>
     </EditorFrame>
   );
+}
+
+/**
+ * The book with its hooks replaced — [`withHooks`](./hook-form.ts), plus the one
+ * thing that function cannot do from where it stands.
+ *
+ * **`Lorebook.hooks` is optional and the other two carriers' is required**,
+ * which is why the shared model keeps an empty list rather than deleting the
+ * key: doing that generically would strip a required property off a Treatment
+ * the moment somebody removed its last hook, leaving an object that no longer
+ * validates, written by the editor that was supposed to be authoring it. From
+ * here the kind is known, so the missing half can be supplied: on a lorebook an
+ * empty list and no key are the same claim, and *no key* is the one that says
+ * it. That is the rule `setSessionHooks` already keeps one package over
+ * (`packages/server/src/sessions/store.ts`), for the same reason — the field is
+ * optional there too.
+ *
+ * It matters more here than the difference between `[]` and absent usually
+ * does. 03 §4.1 makes hooks-on-lorebooks *secondary*, and a book that carries
+ * `"hooks": []` after somebody opened this fold and changed their mind is a
+ * book that has been quietly reclassified by a surface that rendered it —
+ * visible to every importer and to the compatible-export path, and saying
+ * something about narrative intent that its author did not mean to say.
+ *
+ * The one case this treats as the author's rather than as preservation is a
+ * book that arrived with an explicit `"hooks": []`: empty it through this
+ * control and the key goes. Both spellings mean *no hooks*, and only one of
+ * them is what this editor writes.
+ */
+function withBookHooks(draft: Draft, next: PlotHook[]): Draft {
+  if (next.length > 0) return withHooks(draft, next);
+  if (!Object.hasOwn(draft, 'hooks')) return draft;
+  const rest = { ...draft };
+  delete rest['hooks'];
+  return rest;
+}
+
+/**
+ * What the shut fold says about itself — the closed-section invariant, in the
+ * only form it can take here.
+ *
+ * `SchemaFields` names the non-default *fields* inside a group because it has a
+ * group of them. This fold holds one field whose whole content is a list, so
+ * what a reader needs from the outside is **how many** — enough to know whether
+ * opening it is worth the click, and enough that a book carrying hooks can
+ * never look like a book that does not. Titles would say more and do not fit: a
+ * hook is a whole sentence by design — 03 §4.1's own example is *"The Flower
+ * Kingdom will declare war over some damned island"* — and three of those make
+ * a summary longer than the section it stands over.
+ */
+function hookFoldSummary(count: number, locale: string | undefined): string {
+  if (count === 0) return 'Plot hooks — none carried';
+  return `Plot hooks — ${formatCount(count, locale)} carried`;
 }
 
 /**

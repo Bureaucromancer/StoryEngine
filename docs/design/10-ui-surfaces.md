@@ -1663,9 +1663,39 @@ source and its inclusion reason in plain language, so a fired hook is legible
 there the moment the selector names one — the panel here is for the hooks that
 have *not* fired, which is the half nothing else can show.
 
+**A third control, and the split above does not classify it.** *Save this to…*
+sits on a hook's row beside Commit, offers the treatment, the Setup and the
+lorebooks this session names, and copies the hook onto whichever is chosen —
+[03 §4.1](03-data-model.md)'s promotion, which is the only way a hook leaves a
+session. It is not *a move in the story* and it is not *a test of the material*;
+it is an **act on the library, performed while playing**, which is a third thing
+and is why the paragraph above could not simply be extended. It belongs here
+anyway, and for a reason that owes the taxonomy nothing: the hook somebody wants
+to keep is the one they wrote in this panel ten minutes ago, at the moment
+[06 §6.1](06-modes-and-turn-pipeline.md) says the feature earns its place, and a
+control kept in the workbench would be a control nobody reached for when they
+wanted it. Nothing is automatic and nothing is suggested —
+[03 §2.3](03-data-model.md)'s *offered* — and a second press earns a refusal
+rather than a second copy, because the id has to survive the move and re-minting
+it is the one thing that cannot be repaired afterwards
+([15 §5.1](15-world.md)).
+
 *Entrances are shown by label, never by text.* An unfired entrance is hidden
 content ([08 §6](08-cross-session-memory.md)), and a panel that spoils the
 arrival to the person about to read it defeats the feature.
+
+**That rule now has a second consumer holding it**, and the two hold it from
+opposite ends. The promote control cannot work by copying what the panel was
+shown, because the panel was deliberately not shown it: no unfired premise, no
+entrance text, and `involves`, `weight`, `delivery`, `once`, `notBefore` and
+`blockedBy` never sent at all. So promotion is a **server** act, keyed by the
+hook's id and carrying no content up the wire ([api.md](../api.md)) — the client
+names which hook and which object, and the server is the only party that ever
+holds the hook. The alternative was to widen what the panel is sent so that a
+client could assemble the copy itself, which would have spent this rule and
+[08 §6](08-cross-session-memory.md)'s to buy a button. **A redaction a feature
+can be built against is a redaction that survives; one the next feature has to
+undo was only ever a comment.**
 
 ---
 

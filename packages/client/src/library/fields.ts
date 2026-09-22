@@ -5,6 +5,7 @@ import {
   bannerOf,
   isKnownSchema,
   LOREBOOK_SCHEMA,
+  TREATMENT_SCHEMA,
   newActor,
   newPackage,
   newPreset,
@@ -504,4 +505,67 @@ export function boundsOf(schema: SchemaNode | undefined): {
 export function loreEntrySchema(): SchemaNode | undefined {
   const declared = schemaFor(LOREBOOK_SCHEMA)?.properties?.['entries'];
   return itemSchemaOf(asNode(declared));
+}
+
+/**
+ * `Treatment.hooks.items` — the plot-hook schema, which the hook editor reads
+ * the shape of.
+ *
+ * Here rather than beside its caller for the reason {@link loreEntrySchema}
+ * gives one function up: the walk from a carrier's schema to a hook's is
+ * `properties` and `items` chasing, and two copies of it is two places to
+ * discover that the emitted artefact spells something differently. That is the
+ * live risk rather than a hypothetical one, because **three carriers hold hooks**
+ * ([03 §4.1](../../../../docs/design/03-data-model.md) — a Treatment, a Setup,
+ * and optionally a Lorebook) and one editor renders all three.
+ *
+ * **Treatment is the source, and it is the right one twice over.** It is where
+ * hooks primarily live, and its `hooks` is *required*, so the property is
+ * always there — a Lorebook's is optional, which makes a walk through it one
+ * that returns `undefined` for a book that has never carried a hook and would
+ * leave the editor rendering nothing at the moment somebody wanted to write the
+ * first one. The emitted artefact inlines `PlotHook` rather than `$ref`-ing it
+ * (`packages/shared/schemas/storyengine.treatment.1.json`), so what comes back
+ * is the whole shape and no reference resolution is needed.
+ */
+export function plotHookSchema(): SchemaNode | undefined {
+  const declared = schemaFor(TREATMENT_SCHEMA)?.properties?.['hooks'];
+  return itemSchemaOf(asNode(declared));
+}
+
+/**
+ * The values of a closed union of `const`s — `sweeping`, `local`, `personal` —
+ * or null for a schema that is not one.
+ *
+ * **This is beside {@link boundsOf} because it is the same kind of question**:
+ * what does the schema permit here, asked of a keyword the emitted artefact is
+ * not obliged to carry, answered with what is actually there rather than with a
+ * guess.
+ *
+ * ***The reason it has to exist at all is a gap in the generic renderer.*** A
+ * TypeBox union of literals emits as `anyOf` of `const`s **with no top-level
+ * `type` keyword**, so `SchemaFields`' `controlFor` falls through its declared
+ * branches and chooses a control by looking at the *value* — which for any of
+ * these is a string, so a closed three-way union renders as a free-text box.
+ * `Treatment.hookPacing` is that box today. One helper rather than a second
+ * reading of the same `anyOf` per surface, so that fixing the pacing field
+ * later is a call to this rather than a fourth copy of the walk — which is the
+ * argument the module header makes about second descriptions, one keyword down.
+ *
+ * **Null rather than an empty list for a schema that is not a closed union**,
+ * and the distinction is load-bearing: `primaryEntranceId` is an `anyOf` too
+ * (`string | null`) with no `const` in it, and a caller handed `[]` could not
+ * tell *this field has no choices* from *this field is not that sort of field*
+ * — which is how a select over nothing gets rendered where a text box belongs.
+ */
+export function choicesOf(schema: SchemaNode | undefined): string[] | null {
+  const arms = (schema as { anyOf?: { const?: unknown }[] } | undefined)?.anyOf;
+  if (arms === undefined || arms.length === 0) return null;
+  const values = arms
+    .map((arm) => arm.const)
+    .filter((value): value is string => typeof value === 'string');
+  // Every arm, or none: a union with one non-`const` arm is open, and offering
+  // the closed part of it as the whole list would be a picker that silently
+  // refuses values the schema accepts.
+  return values.length === arms.length ? values : null;
 }

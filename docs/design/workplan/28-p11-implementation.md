@@ -1599,6 +1599,164 @@ filing*: they are section commitments this stage did not reach, and
 [§3](#3-verification--the-p11-exit-gate)'s row 12 is where a phase claiming
 feature completeness has to answer for them.
 
+#### And 2026-09-22: a hook gets somewhere to be written, and a way out
+
+***The deferral this stage was named in [P7 §1.5](23-p7-implementation.md)
+outlived the Done block above by five days.*** That document recorded *"a hook
+has nowhere to be authored"*, listed what it would take — *"either P7.5 inherits
+an editor… or the whole stage is exercised through hand-edited JSON"* — and
+deferred it to the editor sweep, which is this stage. The sweep ran on
+2026-09-17 and the deferral did not come with it, and **the reason is worth more
+than the fix**: *editors are not dumb forms* was read as a claim about what every
+editor **offers** — assist, provenance, history, a loop over `LIBRARY_KINDS` —
+and a hook is not an affordance a form offers, it is a **field that had no
+control at all**. The loop found nothing and was right to: what it looks for is a
+`Field` that lost its `path`, and `hooks` had no `Field` to lose one. So this is
+[§3.2](#32-what-was-answered--recorded-2026-09-17)'s general claim arriving a
+second time — a thing carried because nobody had written down that it was
+missing, found by writing the record rather than by running the check.
+
+***The observation that started it is not the one that was acted on.*** What was
+noticed is that plot hooks read as a **session-level feature**, and the answer to
+*what object should they attach to* turned out to be the one
+[03 §4.1](../03-data-model.md) had written down from the beginning: four sources,
+three of them portable carriers, Treatment the default. **Nothing about the
+attachment was changed.** What was built is the two things that would have made
+that true and never existed — a way to write a hook onto a carrier, and a way for
+a hook to leave the session it was realised in.
+
+**One editor, mounted three times.** `editor/hook-form.ts` is the model — pure
+functions over a `Draft`, returning new objects, the shape `book-form.ts` set —
+`HookFields.tsx` renders one hook from the schema's own shape the way
+`EntryFields.tsx` does, with everything the switch does not own rendered
+**read-only rather than invisible**, and `HookList.tsx` owns the list, the
+create, the delete, the reorder and the actor options it fetches itself. A caller
+mounts it with two props. The three carriers take it in [03 §4.1]'s own order of
+preference, and the lorebook's is kept **visibly secondary in the layout**:
+*allowed, secondary, and for hooks genuinely inseparable from a piece of lore* is
+a sentence that erodes first in a layout giving it equal billing to the entry
+list.
+
+- ~~`readOnly.hooks` on `TREATMENTS`~~ — *"Hooks are authored in the session's
+  hook panel. Shown here as stored."* — is deleted. It was the most honest line
+  in the editor for as long as it was true.
+- **Absent is not empty**, and it is the one thing that is not generic over the
+  three: `Treatment.hooks` and `Setup.hooks` are required, `Lorebook.hooks` is
+  optional, so `withHooks` leaves an absent key absent when the list it is given
+  is empty and keeps a present one as `[]`. That is the rule `setSessionHooks`
+  already kept for the session's pool, arriving at the carriers.
+- **The 412 merge acquired the keyed list its own comment said it lacked.**
+  `descriptorFor`'s `reapply` merges a conflict field by field, and the comment
+  beside it explains why the entry and block editors merge differently:
+  *"because those two have a keyed list where which one did I edit is
+  answerable. These do not."* ***After this stage they do***, so `hooks` merges
+  hook by hook. Left alone, the first conflict on a treatment with hooks would
+  have taken one side's whole list, silently, which is the failure that comment
+  was written to prevent one editor over.
+- **`plotHookSchema()` and `choicesOf()` in `library/fields.ts`**, the first
+  beside `loreEntrySchema()` for its stated reason — one walk from a carrier's
+  schema to a hook's, rather than one per surface. ***The second is a finding
+  rather than a helper.*** A TypeBox union of literals emits as `anyOf` of
+  `const`s **with no top-level `type` keyword**, so `SchemaFields`' `controlFor`
+  falls through to choosing by value and a closed three-way union renders as a
+  free-text box. **`Treatment.hookPacing` is that box today** — the authored
+  default [04 §6.1b](../04-schemas.md) writes, over the four levels
+  [25 C7e](../25-open-questions.md) spent a paragraph settling — and it is now
+  one call away from not being.
+
+**The promote route, and it is a route because it cannot be anything else.**
+`POST /api/sessions/:sessionId/hooks/:hookId/promote` ([api.md](../../api.md))
+copies a pooled hook onto the treatment, the Setup or one of the session's
+lorebooks. The panel could not have done it as a read-modify-write: `hookRows` is
+a **redaction** — `premise` only once a hook is spent, `entrances` by label and
+never by text, and `involves`, `weight`, `delivery`, `once`, `notBefore` and
+`blockedBy` never sent — so a client-side copy would have required handing the
+panel an unfired premise, which [08 §6](../08-cross-session-memory.md) and
+[10 §10.1](../10-ui-surfaces.md) forbid by name. **The redaction was built
+against rather than undone**, which is the interesting half: a rule that the next
+feature has to spend was never a rule.
+
+- **The id survives and a collision is a `409`**, never a second copy and never a
+  re-mint — [15 §5.1](../15-world.md) is the only reason this is not a
+  preference, and pressing the control twice is an ordinary thing to do because
+  the first press leaves the panel row looking exactly as it did.
+- **The session is not touched.** The pool entry keeps `source: { kind:
+  'session' }`: re-attributing it would claim the target owns the running copy,
+  and for a lorebook target it would silently add *eligible only while that book
+  is active* to a hook that never had that clause.
+- **The target's history is the record of the promotion**, through the existing
+  `manual` attribution with a reason naming the session rather than an eighth
+  `VersionSource` arm. That is [10 §11.2c](../10-ui-surfaces.md)'s rule for entry
+  imports read one kind over, and the arm it would have sat beside — `memory` —
+  was named separately because *who changed my character* has different answers
+  for *an extension did* and *a session did*. A person pressing a button is
+  neither.
+- **On the panel, not in the workbench.** [10 §10.1] splits the two controls it
+  already had by *a move in the story* versus *a test of the material*, and
+  promotion is neither; it is an act on the library performed while playing, and
+  it belongs where the hook somebody wants to keep actually is.
+
+**The reference edges hooks had never had.** `index-db/links.ts` read no hook
+field on any carrier and returned `[]` outright for `LOREBOOK_SCHEMA`, so an
+actor named only by a hook read as **used by nothing** — through
+[03 §10.1](../03-data-model.md)'s count-before-you-delete and the object page's
+*Used by*. Harmless while hooks could not be authored; not harmless afterwards.
+Both hook fields are read on all three carriers now, and ***the lorebook arm's
+old argument was kept rather than replaced***: *a lorebook's entries and a
+preset's blocks are inside the object* is true, and it never covered
+`introduces.actor`, which points outward. The preset's arm still returns `[]`
+with the half of the reasoning that survives intact.
+
+***What was not built, named here rather than left to a reader of the gate.***
+[04 §9.1](../04-schemas.md)'s export-closure walker still does not exist —
+`packaging/export.ts` resolves one level, a package's declared `contents[]` — so
+what this change owed it is the **table row**, which is precisely what
+[P7 §1.5] said P7 *"can, and must"* do and P7 did not: *"a walker built later
+against the table as it stands is precisely the 'only follows `cast`' walker the
+row exists to fail."* The three hook rows are written, and the Lorebook row is
+the first outbound reference that table has ever recorded for a book.
+
+**Two stale comments found on the way, and one of them ships.**
+`shared/src/schema/hook.ts` said the removed `requires` and `onFire` vocabulary
+*"is 2.0"*; [25 C7](../25-open-questions.md) re-scoped it to the **6.0 authoring
+tier** ([work plan §0.6](01-work-plan.md)) and the string is a TypeBox
+`description`, so it was emitted into three portable schemas and shipped in the
+build. `play/HookPanel.tsx` said *"there is no treatment editor and no setup
+editor"* — [P7B](24-p7b-presets-and-prompts.md) built both, and this stage gave
+the sentence its own refutation. **The two-field add form is unchanged**:
+[P7.5]'s argument survives the editors existing, because the panel is *the
+sentence the feature exists for* and not an editor. What changed is that it can
+now say where the other six fields live.
+
+***And the documents, which is where the change started.***
+[03 §4.1](../03-data-model.md)'s **[OPEN]** on hook packs is closed — against
+[25 C7b](../25-open-questions.md), which had already declined them flatly, so two
+documents had been disagreeing about the same decline — and the decline is
+recorded where the question is asked, with the positive half it never had: the
+three carriers, promotion out of a session, and a **Treatment carrying only
+hooks** as the shareable artifact, on exactly [10 §11.2c]'s *an entry export is a
+lorebook* argument. The one place hooks are **not** like entries is named there
+too, because it is what an implementer would get wrong by analogy: an entry id is
+book-local and re-mints on collision, a hook id may never be.
+
+***And §4.1 was carrying its own version of the stale comment above.*** Both of
+its opening lines still listed `requires` and `onFire` among what a hook carries,
+and one of them described [04 §6.1](../04-schemas.md) as defining them *"typed
+against the unstable rule vocabulary"* — which §6.1 stopped doing when it removed
+them. **The same drift twice in one change** — `hook.ts`'s description above and
+these two lines — is the argument for reading the section rather than the
+paragraph: the schema and the data model had each gone on describing a field set
+that stopped existing when the vocabulary went to 6.0, and neither was going to
+be corrected by anything but somebody working nearby.
+
+***The walk is owed, and it is not recorded in
+[§3.2](#32-what-was-answered--recorded-2026-09-17).*** This is
+[manual testing §0](05-manual-testing.md) critical-list material by
+clause (i) — the first authoring surface a portable field has had, and the first
+write into the library from inside a session — and nobody has walked it yet.
+Recording it in the second table before it is walked would spend that table's
+whole reason for existing on the first occasion it was inconvenient.
+
 ### P11.3 — The assistant
 
 §1.5's decision executed — ***and as of 2026-09-16 the decision is that all of it
