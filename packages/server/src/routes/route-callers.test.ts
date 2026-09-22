@@ -255,6 +255,39 @@ const EXEMPT = new Map<string, string>([
  */
 const OWED = new Map<string, string>([
   /**
+   * ***The backup surface, owed to [P12.6] and paid there.***
+   *
+   * Eight rows rather than one because this map takes no wildcards, and the
+   * reason it takes none is this exact shape: a pattern covering
+   * `/api/*\/backups*` would silence whatever route matched it next, which is
+   * the failure the whole check is about. They are one debt with one owner and
+   * they go together.
+   */
+  [
+    'POST /api/me/backups',
+    'P12.3 built the four routes and P12.6 builds settings/Backups.tsx. Taking one is deliberately not capability-gated, so this is the button every account gets.',
+  ],
+  [
+    'GET /api/me/backups',
+    'P12.3 built it; settings/Backups.tsx lists it at P12.6, beside the trash and for its reason — a person goes there because they want one thing.',
+  ],
+  [
+    'GET /api/me/backups/:p/download',
+    "P12.3 built it; the anchor is P12.6's. It is a plain `<a download>` like every other export here, because a fetch would rebuild what the browser already does.",
+  ],
+  [
+    'DELETE /api/me/backups/:p',
+    "P12.3 built it; P12.6 builds the two-step control, on DeleteObject.tsx's pattern. Retention is deferred, so this is how a person prunes.",
+  ],
+  [
+    'POST /api/admin/backups',
+    "P12.3 built it; settings/AdminBackups.tsx is P12.6's, under Administration beside the install's other actions.",
+  ],
+  ['GET /api/admin/backups', "P12.3 built it; the install listing is P12.6's."],
+  ['GET /api/admin/backups/:p/download', "P12.3 built it; the anchor is P12.6's."],
+  ['DELETE /api/admin/backups/:p', "P12.3 built it; the control is P12.6's."],
+
+  /**
    * ***`GET /api/search` was owed here from P2 to [P11.1] and is paid.***
    *
    * Nine phases, which is the longest a debt in this map has ever stood — and

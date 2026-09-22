@@ -16,6 +16,7 @@ import {
   uuidv7Timestamp,
 } from '@storyengine/shared';
 
+import type { AppServices } from '../app.js';
 import type { BuildInfo } from '../build-info.js';
 import { listTreeFiles, statFile, unlinkFile, type TreeFile } from '../storage/files.js';
 import { assertValidHandle, type Layout } from '../storage/layout.js';
@@ -49,6 +50,18 @@ export interface BackupContext {
 }
 
 export type BackupOwner = { kind: 'install' } | { kind: 'account'; handle: string };
+
+/**
+ * The three things an archive needs from the running server.
+ *
+ * **A narrowing rather than a field on `AppServices`**, because nothing here
+ * outlives a call: there is no timer to stop and no handle to close, so a
+ * service would be a lifetime nobody needs. The import is type-only, so this
+ * module still pulls nothing of the app in at runtime.
+ */
+export function backupContextOf(services: AppServices): BackupContext {
+  return { layout: services.layout, state: services.state.db, build: services.build };
+}
 
 export interface BackupRequest {
   owner: BackupOwner;

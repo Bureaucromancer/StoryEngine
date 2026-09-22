@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { constants } from 'node:fs';
+import { constants, createReadStream } from 'node:fs';
 import {
   access,
   appendFile,
@@ -14,6 +14,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import type { Readable } from 'node:stream';
 
 /**
  * The read side of the storage layer.
@@ -312,4 +313,24 @@ export async function listTreeFiles(
   return found.sort((left, right) =>
     left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
   );
+}
+
+/**
+ * A file as a stream, for a response that must not buffer it —
+ * [P12.3](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***The first thing in this build that streams a file body out.*** The four
+ * existing `content-disposition` routes all `.send()` an object they already
+ * hold, because a session export or a card is a document. An archive is not
+ * bounded by anything, and a download that read one into memory first would
+ * make the server's footprint a function of the largest backup anybody takes.
+ *
+ * **A `Readable` rather than bytes**, and the caller hands it to Fastify — which
+ * is the one thing in this file that returns something lazy, so it is the one
+ * thing here whose failure arrives *after* it returns. A missing file throws on
+ * the stream rather than here, and the route treats that as the 404 it is by
+ * checking the archive exists first.
+ */
+export function openFileRead(path: string): Readable {
+  return createReadStream(path);
 }

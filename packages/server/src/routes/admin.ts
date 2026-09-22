@@ -11,6 +11,7 @@ import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import { resolveConnections } from '../providers/connections.js';
 import { resolveRole } from '../providers/roles.js';
 import { listEntryNames } from '../storage/files.js';
+import { registerAdminBackupRoutes } from './backups.js';
 import { registerConfigRoutes } from './config.js';
 import { registerConnectionRoutes } from './connections.js';
 
@@ -208,6 +209,9 @@ export function registerAdminRoutes(app: FastifyInstance, services: AppServices)
   // property of the prefix rather than something each file remembers.
   registerConfigRoutes(app, services);
   registerConnectionRoutes(app, services);
+  // The install's own backups, inside the same prefix and therefore behind the
+  // same hook — [P12.3](../../../../docs/design/workplan/29-p12-implementation.md).
+  registerAdminBackupRoutes(app, services);
 
   app.get('/accounts', async (_request, reply) => {
     const accounts = await services.accounts.list();

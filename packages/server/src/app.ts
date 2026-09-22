@@ -41,6 +41,7 @@ import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
+import { registerBackupRoutes } from './routes/backups.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerModeRoutes } from './routes/modes.js';
@@ -1144,6 +1145,7 @@ export async function buildApp(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
+      registerBackupRoutes(api, services);
       registerNotificationRoutes(api, services);
       /**
        * ***Outside the `/api/admin` plugin, which is the whole point of it***

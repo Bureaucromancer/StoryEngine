@@ -2375,6 +2375,105 @@ I restart it?"* is a worse answer than one that says.
 
 ---
 
+## Backups
+
+*Added at [P12.3](design/workplan/29-p12-implementation.md).* An archive of a
+data directory, or of one account's part of it, written into the data directory
+itself and meant to be copied somewhere else.
+
+**Two halves that differ in one word.** `/api/me/backups` answers for the
+account holding the session cookie; `/api/admin/backups` answers for the
+install and sits behind the `adminOnly` hook on its prefix. There is **no
+`:handle` parameter anywhere here** — the owner comes from the cookie, which is
+[09 §4.3](design/09-server-multiuser-deployment.md)'s *the path is the owner*
+arriving at the API.
+
+**Taking one is gated by no capability.** `scheduledBackups`
+([P12.4](design/workplan/29-p12-implementation.md)) governs whether the *server*
+takes backups on a timer, because a misconfigured schedule is how a data
+directory fills up while nobody is looking. A person pressing a button is not
+that.
+
+### The backup record
+
+```json
+{
+  "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60",
+  "scope": "account",
+  "handle": "ned",
+  "contents": "full",
+  "takenAt": 1790000000000,
+  "bytes": 184320
+}
+```
+
+`id` is a uuidv7 and **is where `takenAt` comes from** — its first forty-eight
+bits are the millisecond it was minted. Nothing here is read from a database:
+the listing is a directory read, so deleting an archive by hand is a non-event.
+
+`contents` is `full` or `redacted`. A **full** archive carries credentials —
+the account's `connections/`, and for an install archive `accounts.json` and
+the session signing key — which is what makes it restorable. A **redacted** one
+omits them, and restores to an install nobody can sign into.
+
+### `POST /api/me/backups`
+
+**Takes one now** → `201 {"backup": …}`.
+
+```json
+{ "contents": "full" }
+```
+
+`contents` is **required and has no default**: the two produce genuinely
+different files and the difference is a person's to make.
+
+`409 unarchivable-path` when a file in the library has a path too long for a tar
+header to carry even split across its two name fields. The body names the path.
+It is 409 rather than 400 because the request was well formed and the caller was
+permitted — what refuses it is a file.
+
+### `GET /api/me/backups`
+
+**Everything this account has** → `200 {"backups": […], "totalBytes": n}`,
+newest first.
+
+`totalBytes` is what they weigh together. Retention is deliberately not built
+([P12](design/workplan/29-p12-implementation.md)), so this number and the delete
+below are how a person prunes.
+
+### `GET /api/me/backups/:id/download`
+
+**The archive** → `200`, `application/gzip`, with `content-length` and a
+`content-disposition` naming the file. `404` for an id this account has no
+archive for — including one that exists for somebody else, because whether an id
+exists elsewhere is worth hiding.
+
+***The one route in this API that streams a file body.*** Every other
+`content-disposition` route sends a document it already holds; an archive is not
+bounded by anything.
+
+`:id` must be a uuidv7 or the request is refused before a handler sees it, and
+the handler resolves it against the directory listing rather than building a
+path from it.
+
+### `DELETE /api/me/backups/:id`
+
+**Removes it** → `204`, or `404` if it is not there.
+
+### `POST /api/admin/backups`, `GET /api/admin/backups`, `GET /api/admin/backups/:id/download`, `DELETE /api/admin/backups/:id`
+
+**The same four, for the whole install.** Identical bodies and responses, with
+`scope: "install"` and `handle: null`. An install archive carries every
+account's work, `config.json`, `system/`, the operational store and — when it is
+`full` — `accounts.json` and the session key, so it lives at `data/backups/`,
+outside every user directory, for the reason `accounts.json` does.
+
+**What an archive never carries**, whatever the scope: `index/`, which is
+derived and whose presence would restore *a stale belief about a newer tree*;
+`users/<handle>/trash/` ([03 §10.2](design/03-data-model.md)); and the backups
+directories themselves.
+
+
 ## Errors
 
 | Status | `error` | Means |
