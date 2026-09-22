@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { BackupSettings } from '@storyengine/shared';
 
 import { requireAccount, type AppServices } from '../app.js';
+import { announceRestartPending } from '../notifications/notices.js';
 import {
   backupContextOf,
   findBackup,
@@ -16,7 +17,11 @@ import {
   type BackupOwner,
   type BackupRecord,
 } from '../backup/archive.js';
+import { DEFAULT_BACKUP_CONFLICT, importBackup } from '../backup/import.js';
+import { BackupFileSource } from '../import/backup-source.js';
+import { recordImport } from '../import/jobs.js';
 import { openFileRead } from '../storage/files.js';
+import { NOT_IMPORTABLE, applyConfigDocument } from './config.js';
 
 /**
  * ***Taking a backup, and getting it off the machine*** —
@@ -88,6 +93,49 @@ const WriteSettings = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * What an import is asked to do.
+ *
+ * ***The archive is named by id rather than uploaded***, which is a scoping
+ * decision worth stating: a person's backups are already on this server,
+ * because that is where they land. Moving one **between** installs is the
+ * upload case, and it is a door
+ * [P12](../../../../docs/design/workplan/29-p12-implementation.md) names rather
+ * than builds — an archive dropped into `data/backups/` by hand is listed and
+ * importable today, which is the same capability with the file transfer done by
+ * whatever already moves files onto that machine.
+ */
+const ImportBody = Type.Object(
+  {
+    id: Type.String({
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    }),
+    /** Whose subtree of the archive. An install archive holds several. */
+    handle: Type.Optional(Type.String({ minLength: 1, maxLength: 63 })),
+    onConflict: Type.Optional(
+      Type.Union([Type.Literal('skip'), Type.Literal('replace'), Type.Literal('keep-both')]),
+    ),
+    /**
+     * ***Each off by default, and each reported whether taken or not.***
+     * A person should be able to read what an import did **and** what it
+     * declined to do, because *my keys did not come across* is a question with
+     * an answer rather than a bug report.
+     */
+    options: Type.Optional(
+      Type.Object(
+        {
+          connections: Type.Optional(Type.Boolean()),
+          prefs: Type.Optional(Type.Boolean()),
+          /** Admin and install-scope only; refused elsewhere. */
+          config: Type.Optional(Type.Boolean()),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 interface Listing {
   backups: BackupRecord[];
   /**
@@ -105,6 +153,151 @@ interface Listing {
 
 function listingOf(backups: BackupRecord[]): Listing {
   return { backups, totalBytes: backups.reduce((sum, row) => sum + row.bytes, 0) };
+}
+
+/**
+ * Runs one import and records it, for whichever half asked.
+ *
+ * ***The job ledger is not optional here***, and that is `routes/import.ts`'s
+ * position rather than a new one: *why did my import not happen* is a question
+ * with an answer, and it should live where every other answer lives rather than
+ * in a toast somebody dismissed. A backup import lands in the same ledger, the
+ * same review surface and the same vocabulary as a SillyTavern folder — which
+ * is the whole return on routing it through `sweep`.
+ */
+async function runImport(
+  app: FastifyInstance,
+  services: AppServices,
+  owner: BackupOwner,
+  intoHandle: string,
+  body: {
+    id: string;
+    handle?: string;
+    onConflict?: 'skip' | 'replace' | 'keep-both';
+    options?: { connections?: boolean; prefs?: boolean; config?: boolean };
+  },
+  reply: FastifyReply,
+): Promise<FastifyReply> {
+  const found = await findBackup(backupContextOf(services), owner, body.id);
+  if (found === null) {
+    return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
+  }
+
+  const opened = await BackupFileSource.open(found.path);
+  if (!opened.ok) {
+    return reply.code(422).send({
+      error: opened.refusal,
+      message: 'That archive could not be read.',
+    });
+  }
+
+  /**
+   * ***Whose subtree, and the default is the person asking.*** An install
+   * archive holds several accounts, so an admin says which; a person importing
+   * their own backup means their own, and requiring them to say so would be
+   * asking a question with one answer.
+   */
+  const fromHandle = body.handle ?? intoHandle;
+
+  const outcome = await importBackup(
+    {
+      layout: services.layout,
+      library: services.library,
+      sessions: services.sessions,
+      tags: services.tags,
+      prefs: services.prefs,
+    },
+    {
+      files: opened.source,
+      fromHandle,
+      handle: intoHandle,
+      onConflict: body.onConflict ?? DEFAULT_BACKUP_CONFLICT,
+      ...(body.options === undefined ? {} : { options: body.options }),
+    },
+  );
+
+  if (!outcome.ok) {
+    return reply.code(422).send({
+      error: outcome.refusal,
+      message:
+        outcome.refusal === 'unreadable-root'
+          ? 'That archive does not hold the account you asked for.'
+          : 'That archive could not be read as a backup.',
+    });
+  }
+
+  const notes = [...outcome.result.notes];
+
+  /**
+   * ***Configuration is install-scope and admin-only, and `dataDir` and
+   * `server.clientRoot` are refused by name.*** Both are filesystem paths on
+   * the machine the archive came from: one would point a running server at a
+   * directory that may be somebody else's, the other would make it serve a 404
+   * where the built client used to be. Everything else in a config is a fact
+   * about how an install behaves and travels.
+   */
+  if (body.options?.config === true) {
+    if (owner.kind !== 'install') {
+      return reply.code(403).send({
+        error: 'not-install-scope',
+        message: 'Only an administrator importing an install backup may bring settings across.',
+      });
+    }
+    const document = await readArchivedConfig(opened.source);
+    if (document === null) {
+      notes.push({ key: 'import.backup.configMissing', params: {}, level: 'warn' });
+    } else {
+      const applied = await applyConfigDocument(app, services, document, NOT_IMPORTABLE);
+      if (!applied.ok) {
+        notes.push({
+          key: 'import.backup.configRefused',
+          params: { message: applied.message },
+          level: 'warn',
+        });
+      } else {
+        notes.push({
+          key: 'import.backup.configTaken',
+          params: {
+            pending: applied.pendingRestart.join(' '),
+            count: applied.pendingRestart.length,
+          },
+          level: 'info',
+        });
+        await announceRestartPending(
+          { accounts: services.accounts, notify: services.notify },
+          applied.pendingRestart,
+        );
+      }
+    }
+  } else if (owner.kind === 'install') {
+    notes.push({ key: 'import.backup.configNotTaken', params: {}, level: 'info' });
+  }
+
+  const jobId = recordImport(services.state.db, {
+    account: intoHandle,
+    root: found.path.split('/').pop() ?? body.id,
+    source: 'storyengine-backup',
+    items: outcome.result.report.items,
+    at: Date.now(),
+  });
+
+  return reply.send({
+    report: { ...outcome.result.report, jobId },
+    sessions: outcome.result.sessions,
+    tags: outcome.result.tags,
+    notes,
+  });
+}
+
+/** `config.json` out of an archive, or null when it carries none. */
+async function readArchivedConfig(files: BackupFileSource): Promise<unknown> {
+  const bytes = await files.read('config.json');
+  if (bytes === null) return null;
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
 }
 
 /** The four routes, once, for whichever owner the caller turned out to be. */
@@ -196,6 +389,35 @@ export function registerBackupRoutes(app: FastifyInstance, services: AppServices
     return account === null ? null : { kind: 'account', handle: account.handle };
   });
 
+  app.post('/me/backups/import', { schema: { body: ImportBody } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as Parameters<typeof runImport>[4];
+    /**
+     * ***A person may only read their own subtree of their own archive.***
+     * `handle` exists for the admin half; accepting it here would be a way to
+     * ask for somebody else's library out of an install archive they happened
+     * to be able to list, which they cannot — but the refusal is written down
+     * rather than left to that.
+     */
+    if (body.handle !== undefined && body.handle !== account.handle) {
+      return reply.code(403).send({
+        error: 'forbidden',
+        message: 'You can only import your own part of a backup.',
+      });
+    }
+
+    return runImport(
+      app,
+      services,
+      { kind: 'account', handle: account.handle },
+      account.handle,
+      { ...body, handle: account.handle },
+      reply,
+    );
+  });
+
   app.get('/me/backups/settings', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
@@ -240,4 +462,30 @@ export function registerBackupRoutes(app: FastifyInstance, services: AppServices
  */
 export function registerAdminBackupRoutes(app: FastifyInstance, services: AppServices): void {
   register(app, services, '/backups', () => Promise.resolve({ kind: 'install' }));
+
+  app.post('/backups/import', { schema: { body: ImportBody } }, async (request, reply) => {
+    const body = request.body as Parameters<typeof runImport>[4];
+    /**
+     * ***An install archive holds several accounts and the admin says which.***
+     * There is no *all of them* here, deliberately: a handle in the archive
+     * with no account on this install would have to be created to receive its
+     * library, and **an account created from an archive has no password** —
+     * who may sign in is not a thing an archive gets to decide. So the plan is
+     * per handle, and one that does not exist is reported rather than made.
+     */
+    if (body.handle === undefined) {
+      return reply.code(400).send({
+        error: 'invalid',
+        message: 'Say which account in the backup to import.',
+      });
+    }
+    if ((await services.accounts.find(body.handle)) === null) {
+      return reply.code(404).send({
+        error: 'no-such-account',
+        message: 'This install has no account with that handle.',
+      });
+    }
+
+    return runImport(app, services, { kind: 'install' }, body.handle, body, reply);
+  });
 }

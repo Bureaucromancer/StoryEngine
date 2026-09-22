@@ -349,3 +349,144 @@ describe('the schedule', () => {
     expect((response.body as { settings: { frequency: string } }).settings.frequency).toBe('off');
   });
 });
+
+/**
+ * ***Import is not restore, and the routes keep them apart*** —
+ * [P12.9](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * `reader.test.ts` proves what an import *does* to a library. This proves the
+ * door: who may ask, for whose subtree, and what the optional groups do when
+ * nobody ticks them.
+ */
+describe('importing one', () => {
+  it('reports what it did, and what it declined to do', async () => {
+    const id = await take();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/backups/import',
+      payload: { id },
+    });
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      report: { jobId: string; source: string };
+      notes: { key: string }[];
+    };
+    expect(body.report.source).toBe('storyengine-backup');
+    // **The ledger, not a toast.** A backup import is addressable afterwards
+    // exactly as every other import is.
+    expect(body.report.jobId).toMatch(/^[0-9a-f]{8}-/);
+
+    /**
+     * ***Each optional group reports whether it was taken or not.*** *My keys
+     * did not come across* is a question with an answer, and silence would make
+     * it a bug report.
+     */
+    const keys = body.notes.map((note) => note.key);
+    expect(keys).toContain('import.backup.connectionsNotTaken');
+    expect(keys).toContain('import.backup.prefsNotTaken');
+  });
+
+  it('will not be pointed at somebody else’s part of an archive', async () => {
+    const id = await take();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/backups/import',
+      payload: { id, handle: 'mara' },
+    });
+
+    expect(response.status).toBe(403);
+    expect((response.body as { error: string }).error).toBe('forbidden');
+  });
+
+  it('is a 404 for an archive this account does not have', async () => {
+    const theirs = await take();
+    await asUser();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/backups/import',
+      payload: { id: theirs },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  /**
+   * ***No all-of-them arm, and the refusal says why it is not an oversight.***
+   * A handle in the archive with no account here would have to be created to
+   * receive a library, and an account created from an archive has no password.
+   */
+  it('makes an admin say which account, and refuses one this install does not have', async () => {
+    const id = await take('/api/admin/backups');
+
+    const unsaid = await server.request({
+      method: 'POST',
+      url: '/api/admin/backups/import',
+      payload: { id },
+    });
+    expect(unsaid.status).toBe(400);
+
+    const stranger = await server.request({
+      method: 'POST',
+      url: '/api/admin/backups/import',
+      payload: { id, handle: 'nobody' },
+    });
+    expect(stranger.status).toBe(404);
+    expect((stranger.body as { error: string }).error).toBe('no-such-account');
+  });
+
+  /** Settings are an install-scope decision, so the account half refuses it. */
+  it('refuses a configuration import on an account archive', async () => {
+    const id = await take();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/backups/import',
+      payload: { id, options: { config: true } },
+    });
+
+    expect(response.status).toBe(403);
+    expect((response.body as { error: string }).error).toBe('not-install-scope');
+  });
+
+  it('brings settings across for an admin, and refuses the two that are paths', async () => {
+    /**
+     * ***The archive has to hold something of theirs, and a config to bring.***
+     * An account with nothing in it appears in no `users/<h>/…` member, so the
+     * manifest does not list it and the reader refuses — which is the right
+     * answer to *import ned's part* when the archive holds none, and is why
+     * this fixture creates one.
+     */
+    const { newLorebook } = await import('@storyengine/shared');
+    const { create } = await import('../library.js');
+    await create(server.services.library, 'ned', newLorebook('Rain City'));
+
+    const { writeJsonAtomic } = await import('../storage/atomic.js');
+    await writeJsonAtomic(server.services.configPath, {
+      trash: { retentionDays: 11 },
+      dataDir: '/somewhere/else/entirely',
+    });
+
+    const id = await take('/api/admin/backups');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/backups/import',
+      payload: { id, handle: 'ned', options: { config: true } },
+    });
+
+    expect(response.status).toBe(200);
+    const keys = (response.body as { notes: { key: string }[] }).notes.map((note) => note.key);
+    expect(keys).toContain('import.backup.configTaken');
+    expect(server.services.config.trash.retentionDays).toBe(11);
+    /**
+     * ***And the running data root is untouched***, which is the disaster the
+     * drop list exists to prevent: the archive's `config.json` names a
+     * directory on the machine it came from, and taking it would point this
+     * server at one that may not exist or may be somebody else's.
+     */
+    expect(server.services.config.dataDir).not.toBe('/somewhere/else/entirely');
+  });
+});

@@ -117,10 +117,72 @@ const ConfigWrite = Type.Object(
  */
 const NOT_WRITABLE = new Set(['dataDir']);
 
-function pickKnown(body: unknown): Record<string, unknown> {
+/**
+ * ***Keys an imported `config.json` must not carry across*** —
+ * [P12.9](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * **Both are filesystem paths on the machine the archive came from**, and that
+ * is the whole rule: `dataDir` would point a running server at a directory that
+ * may not exist or may be somebody else's — the same disaster
+ * {@link NOT_WRITABLE} exists to prevent, arriving by a new door —
+ * and `server.clientRoot` would make it serve a 404 where the built client used
+ * to be. Everything else in a config is a fact about how an install behaves and
+ * is portable; these two are facts about a disk.
+ *
+ * Refused **by name** rather than dropped quietly, so the review says which
+ * settings did not come across.
+ */
+export const NOT_IMPORTABLE = new Set(['dataDir', 'server.clientRoot']);
+
+/**
+ * Merges a config document into the running one, writes it, and applies it.
+ *
+ * ***Extracted so that importing a configuration is not a second way to write
+ * `config.json`.*** [P12.9] needed the same six steps the settings form does —
+ * pick the keys this build knows, merge onto the document on disk, validate
+ * **through the loader that boots on it**, restore the running `dataDir`, write
+ * atomically, and fan the `live` half out — and a second implementation of that
+ * would drift the way a second validator would: invisibly, until a server would
+ * not start after somebody saved.
+ *
+ * *What is deliberately not in here is the stale check.* That is the settings
+ * form's, and it is about two people editing one form. An import is a
+ * deliberate overwrite by somebody who just ticked a box, and offering them
+ * *the file changed since this page loaded* would be answering a question they
+ * did not ask.
+ *
+ * Returns the keys that now need a restart, for the caller to announce.
+ */
+export async function applyConfigDocument(
+  app: FastifyInstance,
+  services: AppServices,
+  incoming: unknown,
+  drop: ReadonlySet<string> = NOT_WRITABLE,
+): Promise<{ ok: true; pendingRestart: string[] } | { ok: false; message: string }> {
+  const onDisk = await readDocument(services);
+  const merged = mergeDocument(onDisk, pickKnown(incoming, drop));
+
+  let next: Config;
+  try {
+    next = validateConfigDocument(merged, services.configPath);
+    next.dataDir = services.config.dataDir;
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+    return { ok: false, message: error.message };
+  }
+
+  await writeJsonAtomic(services.configPath, merged);
+  services.configDocument = merged;
+  return { ok: true, pendingRestart: applyLiveConfig(app, services, next) };
+}
+
+function pickKnown(
+  body: unknown,
+  drop: ReadonlySet<string> = NOT_WRITABLE,
+): Record<string, unknown> {
   const picked: Record<string, unknown> = {};
   for (const key of configKeys()) {
-    if (NOT_WRITABLE.has(key)) continue;
+    if (drop.has(key)) continue;
     const value = valueAt(body, key);
     if (value === undefined) continue;
     assignAt(picked, key, value);

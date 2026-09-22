@@ -255,6 +255,18 @@ const EXEMPT = new Map<string, string>([
  */
 const OWED = new Map<string, string>([
   /**
+   * ***The import flow, owed to [P12.10] and paid there.*** Two rows because
+   * this map takes no wildcards, and they are one debt with one owner.
+   */
+  [
+    'POST /api/me/backups/import',
+    'P12.9 built it; P12.10 builds the picker, the checkboxes and the review. A person imports their own subtree of their own archive, so it takes no handle.',
+  ],
+  [
+    'POST /api/admin/backups/import',
+    'P12.9 built it; P12.10 builds the per-handle plan. There is no all-of-them arm: a handle with no account here would have to be created to receive a library, and an account created from an archive has no password.',
+  ],
+  /**
    * ***`GET /api/search` was owed here from P2 to [P11.1] and is paid.***
    *
    * Nine phases, which is the longest a debt in this map has ever stood — and
