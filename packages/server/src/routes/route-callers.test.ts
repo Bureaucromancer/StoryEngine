@@ -276,6 +276,17 @@ const OWED = new Map<string, string>([
    * *Discharged by building the surface rather than by editing the map*, which
    * is the only way out this map is meant to have.
    */
+  /**
+   * ***The restore control, owed to [P12.13].*** [P12.11] built the route and
+   * every precondition it refuses on; the control is deliberately a stage
+   * later, because it is **absent** rather than disabled where nothing would
+   * restart the process, and a control whose existence is a condition is worth
+   * building against a route that already refuses.
+   */
+  [
+    'POST /api/admin/restore',
+    'P12.11 built it; P12.13 builds the type-the-words confirmation, visually apart from the list, and the sentence that gives the shell command where the control is absent.',
+  ],
   [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",

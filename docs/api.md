@@ -2627,6 +2627,48 @@ server at a directory that may be somebody else's, the other would make it serve
 a 404 where the built client used to be. Ticking it on an *account* archive is
 `403 not-install-scope`.
 
+### `POST /api/admin/restore`
+
+*Added at [P12.11](design/workplan/29-p12-implementation.md).* **Puts an
+archive back as the install** → `202 {"draining": true, "plan": …}`, and this
+response is the last thing the process sends.
+
+```json
+{ "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60", "acceptRedacted": false }
+```
+
+***Restore is not import.*** It **replaces** the data directory rather than
+merging into it, and a running server cannot do that to itself in place: it
+holds open sqlite handles on files the archive would overwrite, and the session
+key it would replace is the one validating this request. So it is a handoff
+across a restart — write a marker, drain, exit, and swap on the next boot
+([P12.12](design/workplan/29-p12-implementation.md)).
+
+**Every precondition is checked while the server is still answering**, because
+a refusal after the process has exited is one nobody can read:
+
+| Status | `error` | When |
+|---|---|---|
+| 409 | `unsupervised` | Nothing would start the process again. The message carries the shell command instead |
+| 404 | `not-found` | No install archive with that id. An *account* archive lands here rather than at `wrong-scope`, because the install's listing does not hold one |
+| 409 | `wrong-scope` | An account archive reached the check anyway. Restoring one would leave the install holding that account and nothing else |
+| 409 | `needs-confirmation` | A `redacted` archive without `acceptRedacted: true`. It carries no accounts, connections or session key, so nobody could sign in afterwards |
+| 409 | `unreadable` | The archive does not read end to end, or holds fewer members than its manifest claims — a copy that ran out of space, a download that stopped |
+| 409 | `unsafe-path` | A member that would escape the data root when written out |
+| 507 | `no-space` | Less free space than `unpackedBytes` plus a tenth. **The directory being replaced is kept rather than deleted**, so a restore needs room for both |
+
+***The archive is read end to end, and that is the expensive check earning its
+place.*** A truncated archive is invisible from the manifest — the manifest is
+the first member, so it is the part that always survives — and finding out half
+way through the unpack means finding out after the old directory has been
+renamed aside.
+
+On success `state/restore.pending` is written with the archive's
+**data-root-relative** path, the manifest, who asked and `attempts: 0`. The
+marker lives inside the directory the swap moves aside and **no archive carries
+one**, so a successful restore cannot leave one behind and an unsuccessful one
+keeps exactly the state that describes itself.
+
 
 ## Errors
 

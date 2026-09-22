@@ -236,6 +236,25 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'build.json');
   }
 
+  /**
+   * ***A restore that has been asked for and not yet performed*** —
+   * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * In `state/` because it is operational by the same test as the three above:
+   * not derived from anything, and about the process rather than the contents.
+   *
+   * ***It is never carried in an archive, and that is the property the whole
+   * swap hangs on.*** The marker lives inside the directory that a successful
+   * restore moves aside, and no archive holds one — so a restore that worked
+   * cannot leave a marker behind to be acted on twice, and one that failed
+   * keeps exactly the state describing itself. Nothing has to delete it, which
+   * is the deletion that would otherwise have to happen after the process had
+   * already replaced the directory it was deleting from.
+   */
+  get restorePendingFile(): string {
+    return resolveWithin(this.stateRoot, 'restore.pending');
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }

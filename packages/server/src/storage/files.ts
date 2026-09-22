@@ -11,6 +11,7 @@ import {
   rename,
   rm,
   stat,
+  statfs,
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -333,4 +334,32 @@ export async function listTreeFiles(
  */
 export function openFileRead(path: string): Readable {
   return createReadStream(path);
+}
+
+/**
+ * How many bytes the filesystem holding `path` will still take —
+ * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***For the one check that has to happen before the process exits.*** A
+ * restore unpacks an archive on the **next** boot, so a refusal for lack of
+ * room after the drain is a refusal nobody can read — and a restore that fills
+ * the disk half way through is the failure this whole feature exists to
+ * prevent, arriving from the feature itself.
+ *
+ * `bavail` rather than `bfree`, which is the difference between *free* and
+ * *free to this process*: a filesystem reserves blocks for root, and counting
+ * them would let this promise room a restore cannot have.
+ *
+ * **Null when the answer is not available.** `statfs` is missing on some
+ * filesystems and platforms, and a caller that cannot learn the free space has
+ * to decide what to do about that rather than be handed a zero it would read as
+ * *no room*.
+ */
+export async function freeBytes(path: string): Promise<number | null> {
+  try {
+    const facts = await statfs(path);
+    return facts.bsize * facts.bavail;
+  } catch {
+    return null;
+  }
 }

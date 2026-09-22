@@ -22,7 +22,51 @@ import { DEFAULT_BACKUP_CONFLICT, importBackup } from '../backup/import.js';
 import { BackupFileSource } from '../import/backup-source.js';
 import { recordImport } from '../import/jobs.js';
 import { openFileRead } from '../storage/files.js';
+import { prepareRestore, type RestoreRefusal } from '../backup/restore.js';
+import { beginRestart, type RestartRefusal } from '../restart.js';
+import { unlinkFile } from '../storage/files.js';
 import { NOT_IMPORTABLE, applyConfigDocument } from './config.js';
+
+/**
+ * Which archive to become, and whether somebody meant the redacted one.
+ *
+ * **Stored by id, like the import** — an archive to restore from is one this
+ * install is already holding, and an upload of one would be a multipart body
+ * the size of the whole install arriving over a connection that has to survive
+ * it.
+ */
+const RestoreBody = Type.Object(
+  {
+    id: Type.String({
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    }),
+    /** Says out loud that an install nobody can sign into is what was meant. */
+    acceptRedacted: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+/** One sentence per refusal, naming what to do about it. */
+function restoreMessage(refusal: RestoreRefusal): string {
+  switch (refusal) {
+    case 'wrong-scope':
+      return 'That is one account’s archive, not a whole install. Restoring it would leave this install holding that account and nothing else.';
+    case 'needs-confirmation':
+      return 'That archive carries no accounts, no connections and no session key, so nobody would be able to sign in afterwards. Confirm to restore it anyway.';
+    case 'no-space':
+      return 'There is not enough free space to unpack that archive. The directory being replaced is kept rather than deleted, so a restore needs room for both.';
+    case 'unsafe-path':
+      return 'That archive names a file outside the data directory, so it will not be unpacked.';
+    default:
+      return 'That archive could not be read from end to end, so it will not be restored.';
+  }
+}
+
+function restartMessage(refusal: RestartRefusal): string {
+  if (refusal === 'already-restarting') return 'This server is already restarting.';
+  if (refusal === 'unavailable') return 'This build cannot restart itself.';
+  return 'Nothing would start this server again.';
+}
 
 /**
  * ***Taking a backup, and getting it off the machine*** —
@@ -507,6 +551,81 @@ export function registerBackupRoutes(app: FastifyInstance, services: AppServices
  */
 export function registerAdminBackupRoutes(app: FastifyInstance, services: AppServices): void {
   register(app, services, '/backups', () => Promise.resolve({ kind: 'install' }));
+
+  /**
+   * ***Putting an archive back as the install*** —
+   * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * ***Every precondition is checked here, while the process is still
+   * answering***, because a refusal after it has exited is one nobody can read.
+   * `prepareRestore` reads the archive end to end, checks its scope, confirms a
+   * redacted one and measures the disk — and only then writes the marker. The
+   * drain is the last thing that happens, and it happens after the response.
+   *
+   * **409 rather than 403 throughout.** The caller is permitted — they are an
+   * administrator and the prefix let them through — and what is wrong is the
+   * state of the install or of the file. `forbidden` would send them looking
+   * for a permission nobody can grant, which is `POST /api/admin/restart`'s own
+   * argument.
+   *
+   * ***Supervision is checked twice and neither check is redundant.*** This one
+   * refuses before the marker is written, because a marker written into a
+   * process that will never come back is a restore that happens whenever
+   * somebody next starts the server by hand — possibly months later, possibly
+   * not knowing it was pending. `beginRestart` checks again because *a route
+   * that trusts its own earlier check is a route that check has not met*.
+   */
+  app.post('/restore', { schema: { body: RestoreBody } }, async (request, reply) => {
+    const body = request.body as { id: string; acceptRedacted?: boolean };
+
+    if (!services.supervision.supervised) {
+      return reply.code(409).send({
+        error: 'unsupervised',
+        message:
+          'Nothing would start this server again after a restore, so it will not stop itself. Restore from a shell with `pnpm backup restore <archive> <data directory>` instead.',
+      });
+    }
+
+    const found = await findBackup(backupContextOf(services), { kind: 'install' }, body.id);
+    if (found === null) {
+      return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
+    }
+
+    const prepared = await prepareRestore(services.layout, {
+      path: found.path,
+      requestedBy: request.account?.handle ?? '',
+      ...(body.acceptRedacted === undefined ? {} : { acceptRedacted: body.acceptRedacted }),
+    });
+    if (!prepared.ok) {
+      return reply
+        .code(prepared.refusal === 'no-space' ? 507 : 409)
+        .send({ error: prepared.refusal, message: restoreMessage(prepared.refusal) });
+    }
+
+    const begun = beginRestart(services);
+    if (!begun.ok) {
+      /**
+       * ***The marker is removed again, and this is the only place it is ever
+       * deleted.*** The drain did not start, so the process is staying up — and
+       * a marker left behind by a refused restart would fire on the next
+       * ordinary restart instead, which is a restore nobody asked for at a
+       * moment nobody chose.
+       */
+      await unlinkFile(services.layout.restorePendingFile).catch(() => undefined);
+      return reply.code(409).send({ error: begun.why, message: restartMessage(begun.why) });
+    }
+
+    request.log.warn(
+      {
+        event: 'restore.requested',
+        account: request.account?.handle,
+        archive: prepared.plan.archive,
+        files: prepared.plan.manifest.files,
+      },
+      'Restore requested from the admin surface; draining and restoring on the next start',
+    );
+    return reply.code(202).send({ draining: true, plan: prepared.plan });
+  });
 
   app.post('/backups/import', { schema: { body: ImportBody } }, async (request, reply) => {
     const body = request.body as Parameters<typeof runImport>[4];

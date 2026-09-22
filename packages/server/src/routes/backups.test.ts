@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { fileExists } from '../storage/files.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -566,5 +567,117 @@ describe('importing one', () => {
      * server at one that may not exist or may be somebody else's.
      */
     expect(server.services.config.dataDir).not.toBe('/somewhere/else/entirely');
+  });
+});
+
+/**
+ * Restoring the install —
+ * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***`restore.test.ts` proves the preconditions; this proves that none of them
+ * is reached before the two the route owns.*** Supervision is checked here and
+ * again in `beginRestart`, and the first check is the one that matters: a
+ * marker written into a process that will never come back is a restore that
+ * fires whenever somebody next starts the server by hand, possibly months
+ * later, possibly not knowing it was pending.
+ */
+describe('restoring the install', () => {
+  /** The marker the next boot would act on. Absent is the interesting answer. */
+  async function pending(): Promise<boolean> {
+    return fileExists(server.services.layout.restorePendingFile);
+  }
+
+  it('refuses where nothing would start the server again, and writes no marker', async () => {
+    const id = await take('/api/admin/backups');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id },
+    });
+
+    expect(response.status).toBe(409);
+    expect((response.body as { error: string }).error).toBe('unsupervised');
+    // The message has to carry the way out, because the surface this refusal
+    // reaches is the only one that person has.
+    expect((response.body as { message: string }).message).toContain('pnpm backup restore');
+    expect(await pending()).toBe(false);
+  });
+
+  it('is not an ordinary account’s', async () => {
+    const id = await take('/api/admin/backups');
+    await asUser();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id },
+    });
+
+    expect(response.status).toBe(403);
+    expect(await pending()).toBe(false);
+  });
+
+  it('refuses an account archive by id, without reading it as an install', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    const mine = await take();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id: mine },
+    });
+
+    /**
+     * ***404 rather than `wrong-scope`, and that is the right answer.*** An
+     * account archive lives in that account's own directory, so the install's
+     * listing does not hold it — and `findBackup` resolves an id against a
+     * listing rather than building a path from it, which is what makes the two
+     * scopes genuinely separate rather than separated by a check.
+     */
+    expect(response.status).toBe(404);
+    expect(await pending()).toBe(false);
+  });
+
+  it('accepts, writes the marker, and drains', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    const exit = vi.fn();
+    server.services.exit = exit;
+    const id = await take('/api/admin/backups');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id },
+    });
+
+    // 202: accepted rather than done. The swap happens on the next boot, in a
+    // process this one is about to end.
+    expect(response.status).toBe(202);
+    const { plan } = response.body as { plan: { archive: string; attempts: number } };
+    expect(plan.attempts).toBe(0);
+    expect(plan.archive).toMatch(/^backups\//);
+    expect(await pending()).toBe(true);
+  });
+
+  it('takes the marker back when the drain will not start', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    // No `exit` seam — a harness, or a build that embeds the app.
+    const id = await take('/api/admin/backups');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id },
+    });
+
+    expect(response.status).toBe(409);
+    expect((response.body as { error: string }).error).toBe('unavailable');
+    /**
+     * ***The only place a marker is ever deleted.*** The process is staying up,
+     * so one left behind would fire on the next ordinary restart instead — a
+     * restore nobody asked for, at a moment nobody chose.
+     */
+    expect(await pending()).toBe(false);
   });
 });

@@ -331,6 +331,40 @@ refusal after the process has exited is one nobody can read: supervision, the
 archive parsing end to end, install scope, `acceptRedacted`, and free disk
 against `unpackedBytes`.
 
+`backup/restore.ts` is the half that runs while the server is up, and it writes
+**nothing** until every check has passed — which is the one claim
+`restore.test.ts` asserts in every case, refusal and absent marker together. A
+marker written beside a refusal is a restore that happens anyway, at a moment
+nobody chose, for a reason somebody was told was a refusal.
+
+***Supervision is checked twice and neither check is redundant.*** The route
+refuses before the marker is written, because a marker left in a process that
+will never come back is a restore that fires whenever somebody next starts the
+server by hand — possibly months later, possibly not knowing one was pending.
+`beginRestart` checks again, because *a route that trusts its own earlier check
+is a route that check has not met*. And when the drain will not start, the
+marker is taken back: that is the **only** place one is ever deleted.
+
+***Reading the archive end to end is the expensive check, and it earns its
+place.*** A truncated archive is the realistic failure — a copy that ran out of
+space, a download that stopped — and it is invisible from the manifest, which is
+the first member and therefore the part that always survives. The member count
+catches the other shape of the same lie: a valid archive whose manifest
+overstates it, which is what a writer interrupted between the manifest and the
+members would leave.
+
+*Two things fell out of the work.* `readArchiveManifest` had to become total —
+a file that is not a gzip **throws** where a file that is not ours returns, and
+every caller's answer is the same sentence. And `state/restore.pending` joins
+the always-skipped list: it is the one exclusion that is about the machine
+rather than about the data, and it is what lets a successful restore need no
+cleanup at all.
+
+*Ends at:* `POST /api/admin/restore` joins `route-callers.test.ts`'s `OWED` map,
+owed to [P12.13] — the control is a stage later because it is **absent** rather
+than disabled where nothing would restart the process, and a control whose
+existence is a condition is worth building against a route that already refuses.
+
 ### P12.12 — The swap, on the next boot
 
 Before `buildServices`, which opens handles and stamps the directory. Unpack to

@@ -185,6 +185,17 @@ function alwaysSkipped(context: BackupContext, name: string): boolean {
   if (/^users\/[^/]+\/trash$/.test(name)) return true;
   if (/^state\/.*\.sqlite(-wal|-shm)$/.test(name)) return true;
   if (/^state\/state\.snapshot-.*\.sqlite$/.test(name)) return true;
+  /**
+   * ***`state/restore.pending`, and it is the one exclusion that is about the
+   * machine rather than about the data*** —
+   * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md). The
+   * marker says *this install has been asked to become that archive*; carrying
+   * it into an archive would make restoring that archive ask for a restore, of
+   * a path that means something else here. It is also what lets a successful
+   * restore need no cleanup: no archive holds one, so the new directory has
+   * none.
+   */
+  if (name === 'state/restore.pending') return true;
   return context.layout.isBackupPath(join(context.layout.dataRoot, name));
 }
 
@@ -456,6 +467,23 @@ export async function removeBackup(
  * sentence for all of them: *that archive could not be read*.
  */
 export async function readArchiveManifest(path: string): Promise<BackupManifest | null> {
+  try {
+    return await firstManifest(path);
+  } catch {
+    /**
+     * ***A file that is not a gzip throws where a file that is not ours
+     * returns.*** `createGunzip` emits *incorrect header check* for the first
+     * and *unexpected end of file* for a truncated one, and both arrive here as
+     * a rejection from the iterator rather than as a value. Every caller's
+     * answer is the same sentence — *that archive could not be read* — so they
+     * become the same null, and a route is not left turning a zlib error into
+     * a 500.
+     */
+    return null;
+  }
+}
+
+async function firstManifest(path: string): Promise<BackupManifest | null> {
   for await (const member of readTarGz(path)) {
     /**
      * ***The first member or nothing, which is stricter than searching.***
