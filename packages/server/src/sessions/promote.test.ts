@@ -24,6 +24,7 @@ import { LibraryError, read, versionsOf } from '../library.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 import { promoteSessionHook } from './promote.js';
+import type { HookSource } from './types.js';
 import { sessionFilePath } from './store.js';
 
 /**
@@ -122,6 +123,7 @@ function promote(
   hookId: string,
   target: { kind: 'treatment' | 'setup' | 'lore'; id: string },
   onSession = sessionId,
+  from?: HookSource,
 ): ReturnType<typeof promoteSessionHook> {
   return promoteSessionHook(
     server.services.sessions,
@@ -130,7 +132,50 @@ function promote(
     onSession,
     hookId,
     target,
+    from,
   );
+}
+
+/**
+ * ***One hook id, two pooled rows, different content*** — the state `poolFor`
+ * refuses to collapse, built here the way an author would reach it.
+ *
+ * A treatment and one of its own lorebooks carrying the same hook is what that
+ * function's docstring calls *"a real authoring situation"*, and promotion makes
+ * it easier to reach rather than harder: saving a hook onto a second carrier is
+ * exactly how one id comes to sit on two of them, after which the two copies are
+ * edited on their own objects and drift.
+ */
+async function aSessionSeeingBothCopies(): Promise<{ treatment: string; book: string }> {
+  const treatmentMade = {
+    ...newTreatment('Rain City, noir'),
+    hooks: [aHook('hook-duke', 'The duke')],
+  };
+  treatmentMade.hooks[0]!.premise = 'The duke dies before the thaw.';
+  const treatment = (
+    await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: treatmentMade,
+    })
+  ).body.object.id as string;
+
+  const bookMade = {
+    ...newLorebook('The Flower Kingdom'),
+    hooks: [aHook('hook-duke', 'The duke')],
+  };
+  bookMade.hooks[0]!.premise = 'The duke is exiled before the thaw.';
+  const book = (
+    await server.request({ method: 'POST', url: '/api/library/lorebooks', payload: bookMade })
+  ).body.object.id as string;
+
+  const created = await server.request({
+    method: 'POST',
+    url: '/api/sessions',
+    payload: { name: 'Rain City', treatment, lore: [book] },
+  });
+  sessionId = created.body.session.id as string;
+  return { treatment, book };
 }
 
 describe('a hook promoted onto a library object', () => {
@@ -266,6 +311,94 @@ describe('a Setup, which the session holds a copy of rather than a link to', () 
       await readFile(sessionFilePath(server.services.layout, 'ned', sessionId), 'utf8'),
     );
     expect((file as { setup: Setup }).setup.hooks).toEqual([]);
+  });
+});
+
+/**
+ * ***An id does not name one pooled row, and the panel draws every row.***
+ *
+ * `poolFor` deliberately does not de-duplicate — *"collapsing them here would
+ * drop the attribution 03 §4.1 requires while making the pool disagree with what
+ * the author sees in two places"* — so the pool legitimately holds two entries
+ * under one id with **different content**, each drawn with its own control.
+ * Resolving by id alone copies the first of them, which is the row above the one
+ * somebody pressed; and because the id check then refuses every later attempt as
+ * `already-there`, the hook they meant can never reach that object at all. So
+ * the wrong copy is not merely wrong, it is **unrepairable by trying again**,
+ * which is what makes this worth an argument and a test rather than a caveat.
+ */
+describe('which of two pooled rows sharing an id', () => {
+  it('copies the row the caller names rather than the first with that id', async () => {
+    const { book } = await aSessionSeeingBothCopies();
+    const setupMade = newSetup('The Fixer’s Debt');
+    const setup = (
+      await server.request({ method: 'POST', url: '/api/library/setups', payload: setupMade })
+    ).body.object.id as string;
+
+    await promote('hook-duke', { kind: 'setup', id: setup }, sessionId, {
+      kind: 'lore',
+      id: book,
+    });
+
+    const held = read(server.services.library, 'ned', setup).body as Setup;
+    expect(held.hooks[0]?.premise).toBe('The duke is exiled before the thaw.');
+  });
+
+  it('copies the treatment’s when that is the row named', async () => {
+    const { treatment } = await aSessionSeeingBothCopies();
+    const setup = (
+      await server.request({
+        method: 'POST',
+        url: '/api/library/setups',
+        payload: newSetup('The Fixer’s Debt'),
+      })
+    ).body.object.id as string;
+
+    await promote('hook-duke', { kind: 'setup', id: setup }, sessionId, {
+      kind: 'treatment',
+      id: treatment,
+    });
+
+    const held = read(server.services.library, 'ned', setup).body as Setup;
+    expect(held.hooks[0]?.premise).toBe('The duke dies before the thaw.');
+  });
+
+  /**
+   * *A source the pool does not hold is the absence it says it is*, rather than
+   * a quiet fall back to the first match — which would be the same wrong copy
+   * arriving through the guard against it.
+   */
+  it('is no-such-hook for a source this pool does not carry', async () => {
+    await aSessionSeeingBothCopies();
+    const setup = (
+      await server.request({
+        method: 'POST',
+        url: '/api/library/setups',
+        payload: newSetup('The Fixer’s Debt'),
+      })
+    ).body.object.id as string;
+
+    expect(
+      await promote('hook-duke', { kind: 'setup', id: setup }, sessionId, { kind: 'session' }),
+    ).toEqual({ kind: 'no-such-hook' });
+  });
+
+  /** And an id on its own still means what it can only mean: the first of them. */
+  it('takes the first match when no source is named', async () => {
+    const { treatment } = await aSessionSeeingBothCopies();
+    const setup = (
+      await server.request({
+        method: 'POST',
+        url: '/api/library/setups',
+        payload: newSetup('The Fixer’s Debt'),
+      })
+    ).body.object.id as string;
+    expect(treatment).toBeTruthy();
+
+    await promote('hook-duke', { kind: 'setup', id: setup });
+
+    const held = read(server.services.library, 'ned', setup).body as Setup;
+    expect(held.hooks[0]?.premise).toBe('The duke dies before the thaw.');
   });
 });
 

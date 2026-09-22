@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { newLoreEntry, newLorebook, type LoreEntry, type LoreFolder } from '@storyengine/shared';
+import {
+  newLoreEntry,
+  newLorebook,
+  type LoreEntry,
+  type LoreFolder,
+  type PlotHook,
+} from '@storyengine/shared';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -472,5 +478,102 @@ describe('the merge, when I reordered', () => {
 
     // Their order stands for what is left, because I moved nothing.
     expect(ids(reapplyBookEdits(pristine, mine, theirs))).toEqual(['b']);
+  });
+});
+
+/**
+ * ***The hooks a lorebook carries, through the same 412*** — [03 §4.1],
+ * [P11.2].
+ *
+ * **This is the half that was left coarse when the fold was built.** Until this
+ * page could author `hooks`, the field was one more top-level value and the
+ * field rule was the honest unit for it: nothing here wrote one, so there was no
+ * edit of mine to lose. The fold changed that and the merge did not, so a save
+ * conflict took one side's **whole hook list** — mine if I had touched any hook,
+ * theirs if I had not — and dropped the other's without a word, inside the
+ * dialog whose entire offer is *reapply my edits*. It is the same loss the
+ * treatment and setup editors were given a hook-by-hook merge to avoid, on the
+ * one carrier that had not been given one.
+ *
+ * *And the absence rule survives the merge*, which is the second claim: a
+ * conflict must not be what leaves `"hooks": []` on a book that had no hooks,
+ * because 03 §4.1 makes hooks-on-lorebooks secondary and an empty list is a
+ * claim about narrative intent its author did not make.
+ */
+describe('reapplying my edits onto a newer book, for its hooks', () => {
+  function hook(id: string, title = id): PlotHook {
+    return {
+      id,
+      title,
+      premise: '',
+      magnitude: 'local',
+      involves: [],
+      weight: 1,
+      delivery: 'guidance',
+      once: true,
+    };
+  }
+
+  const withHooks = (draft: Draft, hooks: PlotHook[]): Draft => ({ ...draft, hooks });
+  const hookIds = (merged: Draft): string[] =>
+    ((merged['hooks'] ?? []) as PlotHook[]).map((one) => one.id);
+
+  /** The failure this exists to stop, in the direction that loses theirs. */
+  it('keeps a hook they added while I was editing one of mine', () => {
+    const a = hook('a');
+    const pristine = withHooks(book([]), [a]);
+    const mine = withHooks(pristine, [{ ...a, premise: 'The duke dies.' }]);
+    const theirs = withHooks(pristine, [a, hook('x')]);
+
+    const merged = reapplyBookEdits(pristine, mine, theirs);
+
+    expect(hookIds(merged)).toEqual(['a', 'x']);
+    expect((merged['hooks'] as PlotHook[])[0]?.premise).toBe('The duke dies.');
+  });
+
+  /** And in the direction that loses mine, which the old rule also did. */
+  it('keeps a hook I added while they were editing one of theirs', () => {
+    const a = hook('a');
+    const pristine = withHooks(book([]), [a]);
+    const mine = withHooks(pristine, [a, hook('mine')]);
+    const theirs = withHooks(pristine, [{ ...a, premise: 'The duke is exiled.' }]);
+
+    const merged = reapplyBookEdits(pristine, mine, theirs);
+
+    expect(hookIds(merged)).toEqual(['a', 'mine']);
+    expect((merged['hooks'] as PlotHook[])[0]?.premise).toBe('The duke is exiled.');
+  });
+
+  /** A delete of mine is a delete, not an entry to resurrect from their copy. */
+  it('does not bring back a hook I removed', () => {
+    const a = hook('a');
+    const b = hook('b');
+    const pristine = withHooks(book([]), [a, b]);
+    const mine = withHooks(pristine, [a]);
+    const theirs = withHooks(pristine, [a, b]);
+
+    expect(hookIds(reapplyBookEdits(pristine, mine, theirs))).toEqual(['a']);
+  });
+
+  /**
+   * The absence rule, through the merge: neither of us has hooks, so the book
+   * must not come out of a conflict carrying an empty list.
+   */
+  it('leaves a book with no hooks without the key', () => {
+    const pristine = book([entry('Harbour')]);
+    const mine = withEntry(pristine, entryList(pristine)[0]!.id, { content: 'Cranes.' });
+    const theirs = book([entry('Harbour')]);
+
+    expect(Object.hasOwn(reapplyBookEdits(pristine, mine, theirs), 'hooks')).toBe(false);
+  });
+
+  /** And when I emptied the fold, the key goes rather than becoming `[]`. */
+  it('takes the key off when I removed the last hook', () => {
+    const a = hook('a');
+    const pristine = withHooks(book([]), [a]);
+    const mine = book([]);
+    const theirs = withHooks(pristine, [a]);
+
+    expect(Object.hasOwn(reapplyBookEdits(pristine, mine, theirs), 'hooks')).toBe(false);
   });
 });

@@ -1775,4 +1775,47 @@ describe('the hooks a lorebook carries', () => {
     expect(fold.open).toBe(false);
     expect(fold.querySelector('summary')?.textContent).toBe('Plot hooks — 2 carried');
   });
+
+  /**
+   * ***A `hooks` a hand edit broke refuses the editor rather than the
+   * application*** — the rule `editableBookShape`'s own docstring states and the
+   * one this page's guard did not yet cover.
+   *
+   * The entry and folder id checks are there because *every edit here addresses
+   * one by id and a merge keys on it*; `patchHook`, `removeHook` and `moveHook`
+   * are the same three operations one field over, and `HookList` additionally
+   * dereferences `hook.title` for every control's accessible name. With no error
+   * boundary anywhere in this package, a throw in there is the whole
+   * application — *"a white screen is the one answer this surface may not give"*
+   * a hand-edited file.
+   *
+   * *Refused through the same panel the other shapes use*, so a person whose
+   * file is wrong is told which file and what about it.
+   */
+  it('refuses to open a book whose hooks a hand edit broke', async () => {
+    server.handEdit({ ...makeBook(), hooks: 'none' } as unknown as Lorebook);
+
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library/lorebooks/$id/edit', params: { id: BOOK_ID } });
+    });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('This lorebook cannot be opened in the editor.');
+    expect(alert.textContent).toContain('its "hooks" is not a list');
+  });
+
+  it('refuses to open a book carrying a hook with no id', async () => {
+    server.handEdit({
+      ...makeBook(),
+      hooks: [{ title: 'No id at all' }],
+    } as unknown as Lorebook);
+
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library/lorebooks/$id/edit', params: { id: BOOK_ID } });
+    });
+
+    expect((await screen.findByRole('alert')).textContent).toContain('a hook has no "id" string');
+  });
 });

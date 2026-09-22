@@ -53,8 +53,10 @@ const WAR = {
 
 /**
  * *The objects a session names*, which is where the promote control's list
- * comes from — and the Setup is reachable **only** through a pooled row's
- * source, because `SessionSummary` has never carried a `setup` field.
+ * comes from — a Setup reaches it through the session's own `setup` field and
+ * through the `source` of any row it seeded, and the two are collapsed by the
+ * kind-and-id dedupe. This row is the second of those; `answerWith`'s `setup`
+ * option is the first.
  */
 const DEBT = {
   ...WAR,
@@ -69,9 +71,15 @@ const LIBRARY: Record<string, { id: string; name: string }[]> = {
   lorebooks: [{ id: 'book-rain', name: 'Rain City' }],
 };
 
-function answerWith(rows: unknown[], pacing = 'normal'): void {
+function answerWith(rows: unknown[], pacing = 'normal', setup?: { id: string }): void {
   readSession.mockResolvedValue({
-    session: { id: SESSION_ID, name: 'A wet week', treatment: 't1', lore: ['book-rain'] },
+    session: {
+      id: SESSION_ID,
+      name: 'A wet week',
+      treatment: 't1',
+      lore: ['book-rain'],
+      ...(setup === undefined ? {} : { setup }),
+    },
     activeJob: null,
     health: [],
     hud: [],
@@ -380,10 +388,11 @@ describe('the hook panel', () => {
   describe('saving a hook onto a library object', () => {
     /**
      * **The objects this session already names, and nothing else.** Two lists
-     * joined: `treatment` and `lore` off the session, plus the sources the pool
-     * itself reports — which is the *only* way the Setup's id reaches this
-     * client, since `SessionSummary` has no `setup` field. Offering the whole
-     * library instead would be a library browser grown inside a play panel.
+     * joined: `treatment`, `setup` and `lore` off the session, plus the sources
+     * the pool itself reports — neither half alone is enough, because a carrier
+     * with no hooks seeds no row and the pool can name a carrier the session
+     * fields do not. Offering the whole library instead would be a library
+     * browser grown inside a play panel.
      */
     it('offers the objects this session names, by name', async () => {
       answerWith([WAR, DEBT]);
@@ -402,6 +411,50 @@ describe('the hook panel', () => {
       ).toEqual(['Save this to…', 'Rain City, noir', 'The Fixer’s Debt', 'Rain City']);
     });
 
+    /**
+     * ***The first hook anybody puts on a Setup is the case the pool cannot
+     * seed.*** A Setup usually exists for cast, goals and openings and carries
+     * no `hooks[]` at all, so there is no row whose `source` names it — and a
+     * control that learned the Setup only from such a row would offer every
+     * other carrier and never the one somebody was trying to start. Both
+     * [10 §10.1] and [03 §4.1] say the control offers the Setup; this is the
+     * sentence holding them.
+     */
+    it('offers a Setup that carries no hooks of its own', async () => {
+      answerWith([WAR], 'normal', { id: 's1' });
+      await renderPanel();
+
+      const save = await screen.findByRole('combobox', {
+        name: 'Save War with the Flower Kingdom to',
+      });
+
+      expect(
+        within(save)
+          .getAllByRole('option')
+          .map((one) => one.textContent),
+      ).toEqual(['Save this to…', 'Rain City, noir', 'The Fixer’s Debt', 'Rain City']);
+    });
+
+    /**
+     * *And the two routes to it are one option.* A session whose Setup seeded a
+     * row names that Setup twice — once as a session field, once as the row's
+     * source — and the kind-and-id dedupe is what keeps the menu from saying so.
+     */
+    it('offers a Setup once when the pool names it too', async () => {
+      answerWith([WAR, DEBT], 'normal', { id: 's1' });
+      await renderPanel();
+
+      const save = await screen.findByRole('combobox', {
+        name: 'Save War with the Flower Kingdom to',
+      });
+
+      expect(
+        within(save)
+          .getAllByRole('option')
+          .map((one) => one.textContent),
+      ).toEqual(['Save this to…', 'Rain City, noir', 'The Fixer’s Debt', 'Rain City']);
+    });
+
     it('saves the row’s own hook onto the object that was picked', async () => {
       answerWith([WAR, DEBT]);
       await renderPanel();
@@ -413,11 +466,16 @@ describe('the hook panel', () => {
         'treatment:t1',
       );
 
+      // The fourth argument is the row's own source, which is what makes the
+      // request name *this* pooled row rather than the first one holding that
+      // id — see `sessions/promote.ts` for what an id alone costs.
       await waitFor(() => {
-        expect(promoteSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-debt', {
-          kind: 'treatment',
-          id: 't1',
-        });
+        expect(promoteSessionHook).toHaveBeenCalledWith(
+          SESSION_ID,
+          'hook-debt',
+          { kind: 'treatment', id: 't1' },
+          { kind: 'setup', id: 's1' },
+        );
       });
 
       /**
@@ -468,10 +526,12 @@ describe('the hook panel', () => {
       );
 
       await waitFor(() => {
-        expect(promoteSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-lore', {
-          kind: 'treatment',
-          id: 't1',
-        });
+        expect(promoteSessionHook).toHaveBeenCalledWith(
+          SESSION_ID,
+          'hook-lore',
+          { kind: 'treatment', id: 't1' },
+          { kind: 'lore', id: 'book-rain' },
+        );
       });
     });
 

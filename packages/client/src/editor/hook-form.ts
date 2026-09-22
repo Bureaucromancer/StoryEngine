@@ -66,11 +66,20 @@ export function hooksOf(carrier: Draft): PlotHook[] {
  * session's `hooks` is optional and the file is the session's own. Doing it
  * here would mean deleting a **required** property off a Treatment the moment
  * somebody removed its last hook — an object that no longer validates, written
- * by the editor that was supposed to be authoring it. The rule that tells those
- * two apart without asking which kind it is holding is *keep what was there*,
- * and its whole cost is that a lorebook which once had a hook keeps an empty
- * list after its last one is removed. That is visible, valid, and inert, which
- * is the cheaper of the two mistakes.
+ * by the editor that was supposed to be authoring it. So the rule that tells
+ * the two apart without asking which kind it is holding is *keep what was
+ * there*: this function is the **required**-carrier half, and a carrier whose
+ * `hooks` is optional is served by {@link withOptionalHooks} below rather than
+ * by living with the emptied list.
+ *
+ * ~~Its whole cost is that a lorebook which once had a hook keeps an empty list
+ * after its last one is removed.~~ ***That cost was written before the other
+ * half existed and never materialised.*** Nothing calls this on an optional
+ * carrier: the lorebook editor calls `withOptionalHooks`, and the 412 merge in
+ * [book-form.ts](./book-form.ts) does too. Keeping the sentence would leave the
+ * module claiming a behaviour a reader could not find, which is the *one
+ * description, two renderings* failure this file's header argues against,
+ * turned inward.
  *
  * A carrier whose key is absent and whose next list is empty comes back **by
  * identity**, so an editor's change test stays false and a mount that touched
@@ -79,6 +88,41 @@ export function hooksOf(carrier: Draft): PlotHook[] {
 export function withHooks(carrier: Draft, next: PlotHook[]): Draft {
   if (next.length === 0 && !Object.hasOwn(carrier, 'hooks')) return carrier;
   return { ...carrier, hooks: next };
+}
+
+/**
+ * The same replacement, for a carrier whose `hooks` is **optional** — the
+ * lorebook, and only the lorebook.
+ *
+ * ***The deleting half, and it lives here rather than in the editor that needed
+ * it first.*** It was written in `LorebookEditorPage` as `withBookHooks`, which
+ * left the absent-versus-empty decision in two files giving two answers, and
+ * then a third caller arrived that could not reach either: `reapplyBookEdits`
+ * merges a lorebook's hooks after a 412 and has to write the merged list under
+ * the same rule the form writes it under, or a conflict would put back the
+ * `"hooks": []` the form is careful never to leave. Two callers is this
+ * repository's stated threshold for lifting a decision, so it is lifted.
+ *
+ * **On a lorebook an empty list and no key are the same claim, and *no key* is
+ * the one that says it.** 03 §4.1 makes hooks-on-lorebooks deliberately
+ * secondary, and a book carrying `"hooks": []` because somebody opened a fold
+ * and changed their mind is a book quietly reclassified by a surface that
+ * rendered it — visible to every importer and to the compatible-export path,
+ * saying something about narrative intent its author did not mean to say. The
+ * one case this treats as the author's rather than as preservation is a book
+ * that arrived with an explicit `"hooks": []`: empty it through this and the key
+ * goes, because both spellings mean *no hooks* and only one of them is what this
+ * editor writes.
+ *
+ * A carrier that has no key and is given no hooks comes back **by identity**,
+ * for the reason {@link withHooks} gives.
+ */
+export function withOptionalHooks(carrier: Draft, next: PlotHook[]): Draft {
+  if (next.length > 0) return withHooks(carrier, next);
+  if (!Object.hasOwn(carrier, 'hooks')) return carrier;
+  const rest = { ...carrier };
+  delete rest['hooks'];
+  return rest;
 }
 
 /**
@@ -117,11 +161,35 @@ export function newHook(title: string): PlotHook {
 }
 
 /**
+ * A patch, with **`undefined` meaning *take the key off*** rather than *set it
+ * to undefined*.
+ *
+ * `Partial<PlotHook>` cannot say this: `exactOptionalPropertyTypes` is on, so
+ * `{ notBefore: undefined }` is not assignable to it, and that is the right
+ * refusal for a type describing *a hook* — a hook with a `notBefore` key holding
+ * `undefined` is not a shape the schema has. This is a type describing *an
+ * edit*, which is a different thing, and removal is one of the edits.
+ */
+export type HookPatch = { [K in keyof PlotHook]?: PlotHook[K] | undefined };
+
+/**
  * The list with one hook's fields changed.
  *
  * **Spread over the hook rather than rebuilt from it**, for [04 §2]'s reason:
  * a hook is an object, the promise is per-object, and a hook rebuilt from the
  * fields this build knows would strip whatever a newer one wrote into it.
+ *
+ * ***And a key set to `undefined` is removed rather than written***, which is
+ * the one edit a spread cannot express and the reason {@link HookPatch} exists.
+ * Three of a hook's fields are optional — `blockedBy`, `notBefore` and
+ * `introduces` — and {@link newHook} states the rule they follow: **absent
+ * rather than empty**, because *a hook that has never been given an eligibility
+ * filter says nothing about one*. A control that cleared its last token to
+ * `blockedBy: []`, or its last gate to `notBefore: {}`, would be writing a hook
+ * that is no longer byte-identical to one that never had the field — into the
+ * portable file, every export and every diff — for an edit whose whole meaning
+ * was *never mind*. This is how those controls get back to absence, and it is
+ * the same edit `introduces` already had a bespoke function for.
  *
  * **The first match, not every match**, which is the defence `withEntry` makes
  * next door. Hook ids are meant to be unique and are not guaranteed to be: the
@@ -131,12 +199,23 @@ export function newHook(title: string): PlotHook {
  * *one of the two is uneditable*, which is visible; patching both would edit
  * two hooks from one form and save both, which is not.
  */
-export function patchHook(hooks: PlotHook[], id: string, fields: Partial<PlotHook>): PlotHook[] {
+export function patchHook(hooks: PlotHook[], id: string, fields: HookPatch): PlotHook[] {
   let done = false;
   return hooks.map((hook) => {
     if (done || hook.id !== id) return hook;
     done = true;
-    return { ...hook, ...fields };
+    // Spread first and *then* dropped, rather than filtering the patch before
+    // it is applied: the key has to come off the hook that had it, and a patch
+    // entry naming a key the hook never carried has to leave it absent. Both
+    // fall out of this order; neither does from the other one. Rebuilt rather
+    // than `delete`d because a stored value is never `undefined` — these
+    // objects come off disk as JSON — so the two are the same edit and only one
+    // of them is a dynamic delete.
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries({ ...hook, ...fields })) {
+      if (value !== undefined) next[key] = value;
+    }
+    return next as unknown as PlotHook;
   });
 }
 

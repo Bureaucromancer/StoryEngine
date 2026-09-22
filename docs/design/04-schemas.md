@@ -1824,13 +1824,13 @@ follow outbound references transitively and collect what they reach:
 | Treatment | `lore[]` where `required` ([§3](#3-shared-substructures)) | included, and cannot be silently dropped |
 | Treatment | `lore[]` where not required | included, can be unchecked |
 | Treatment | `cast[].ref` | included |
-| Treatment | `hooks[].involves[].ref` and `hooks[].introduces.actor` ([§6.1](#61-plothook), [§6.1a](#61a-a-character-as-a-hook)) | included |
+| Treatment | its bare `hooks[].involves[]` `Ref`s and `hooks[].introduces.actor` ([§6.1](#61-plothook), [§6.1a](#61a-a-character-as-a-hook)) | included |
 | Actor | its bare lore `Ref[]` ([§4](#4-actor)) | included |
 | Setup | `treatment`, and the closure above | included |
 | Setup | its own `lore[]`, and `cast.personaOptions` / `partyDefault` / `narrator` | included |
 | Setup | its own `hooks[]`, the same two fields | included |
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
-| Lorebook | `hooks[].introduces.actor`, and `hooks[].involves[].ref` with it | included |
+| Lorebook | `hooks[].introduces.actor`, and its bare `hooks[].involves[]` `Ref`s with it | included |
 
 Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be
@@ -1848,6 +1848,18 @@ reason that has cost nothing is that the walker does not exist either** —
 already declares — which means the omission was never going to be found by a bug
 report. It was going to be found by somebody building the walker correctly
 against a table that was wrong.
+
+***Both are **bare** `Ref`s and the rows say so, which is the distinction this
+table is careful about everywhere else.*** `Treatment | cast[].ref` is written
+with the wrapper because a `CastEntry` wraps one, and the Actor row says *bare*
+out loud for the same reason. `PlotHook.involves` is `Type.Array(Ref)` and
+`Introduction.actor` is a `Ref` — neither has a `.ref` — so a walker built
+against a row spelling `hooks[].involves[].ref` would resolve `undefined` on
+every element and drop every `involves` edge **silently**, while
+`introduces.actor` beside it worked. That is the failure quoted above arriving
+through the row written to prevent it, which is why the spelling is worth a
+paragraph. *(Corrected 2026-09-22; the server's own `hookActorIds` had it right,
+which is the harder direction to notice from.)*
 
 **Both hook fields, because they point for opposite reasons and an export needs
 them for the same one.** `involves` is the eligibility test —

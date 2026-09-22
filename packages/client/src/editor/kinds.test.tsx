@@ -69,6 +69,9 @@ const TREATMENT_ID = '01a008de-7e08-70d0-899c-0000000000a0';
 const BARE_TREATMENT_ID = '01a008de-7e08-70d0-899c-0000000000a1';
 const SETUP_ID = '01a008de-7e08-70d0-899c-0000000000a2';
 const PACKAGE_ID = '01a008de-7e08-70d0-899c-0000000000a3';
+const BROKEN_HOOKS_ID = '01a008de-7e08-70d0-899c-0000000000a4';
+const IDLESS_HOOK_ID = '01a008de-7e08-70d0-899c-0000000000a5';
+const HOOKED_PACKAGE_ID = '01a008de-7e08-70d0-899c-0000000000a6';
 
 const OBJECTS: Record<string, Record<string, unknown>> = {
   [TREATMENT_ID]: {
@@ -90,6 +93,28 @@ const OBJECTS: Record<string, Record<string, unknown>> = {
   [PACKAGE_ID]: {
     ...(newPackage('The harbour set') as unknown as Record<string, unknown>),
     id: PACKAGE_ID,
+  },
+  /**
+   * ***Three hand-edited files, because the storage thesis invites them.***
+   * `hooks` holding something that is not a list of hooks is what a text editor
+   * and a bad merge both produce, and the list component dereferences all three
+   * of these: `.map` on the first, `hook.id` as a React key on the second,
+   * `hook.title` in every control's accessible name on the third.
+   */
+  [BROKEN_HOOKS_ID]: {
+    ...(newTreatment('Broken') as unknown as Record<string, unknown>),
+    id: BROKEN_HOOKS_ID,
+    hooks: 'none',
+  },
+  [IDLESS_HOOK_ID]: {
+    ...(newTreatment('Idless') as unknown as Record<string, unknown>),
+    id: IDLESS_HOOK_ID,
+    hooks: [{ title: 'No id at all' }],
+  },
+  [HOOKED_PACKAGE_ID]: {
+    ...(newPackage('The harbour set') as unknown as Record<string, unknown>),
+    id: HOOKED_PACKAGE_ID,
+    hooks: 'none',
   },
 };
 
@@ -152,6 +177,72 @@ async function openEditor(kind: LibraryKind, id: string): Promise<void> {
 
 beforeEach(() => {
   saved = [];
+});
+
+/**
+ * ***A hand-edited `hooks` refuses the editor rather than the application*** —
+ * [10 §2.1], and `lorebookShape`'s own sentence: *a hand edit is the storage
+ * thesis working, and a white screen is the one answer this surface may not give
+ * it.*
+ *
+ * **Why this arrived with the hook editor rather than before it.** The page's
+ * guard checked `name` alone, and its docstring said why — everything else went
+ * through `SchemaFields`, which reads a value of any shape and draws what it
+ * finds. `HookList` does not: it **walks a keyed list**, so a `hooks` that is
+ * not one throws, and there is no error boundary anywhere in this package, which
+ * makes that throw the whole application rather than the section. The server
+ * half of the same change pinned the identical cases one package over
+ * (`links.test.ts`'s *survives hooks that are absent, or not hooks at all*); this
+ * is the client's.
+ *
+ * *The refusal is the existing one*, naming the problem and pointing at the
+ * file, because a person whose file is wrong needs to know which file and what
+ * about it.
+ */
+describe('a carrier whose hooks a hand edit broke', () => {
+  async function openBroken(kind: LibraryKind, id: string): Promise<HTMLElement> {
+    await act(async () => {
+      await router.navigate({ to: `/library/${kind}/$id/edit`, params: { id } });
+    });
+    return screen.findByRole('alert');
+  }
+
+  it('refuses to open a treatment whose hooks is not a list', async () => {
+    renderApp();
+
+    const alert = await openBroken('treatments', BROKEN_HOOKS_ID);
+
+    expect(alert.textContent).toContain('its "hooks" is not a list');
+    expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
+  });
+
+  /**
+   * The id check is `editableBookShape`'s argument one field over: every edit
+   * here addresses a hook by id and the 412 merge keys on it, so two hooks
+   * whose ids are not strings collapse to one under any of them — an edit to
+   * one silently editing or deleting the other.
+   */
+  it('refuses to open a treatment carrying a hook with no id', async () => {
+    renderApp();
+
+    const alert = await openBroken('treatments', IDLESS_HOOK_ID);
+
+    expect(alert.textContent).toContain('a hook has no "id" string');
+  });
+
+  /**
+   * ***And the guard is about what this page dereferences, not about what the
+   * schema permits.*** A package does not author hooks, so a `hooks` a hand edit
+   * left on one still goes through the opaque fallback and still renders — and a
+   * guard that refused it would be inventing a validity rule for a kind that has
+   * no such field.
+   */
+  it('opens a package with a stray hooks field, because nothing draws it', async () => {
+    renderApp();
+    await openEditor('packages', HOOKED_PACKAGE_ID);
+
+    expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
+  });
 });
 
 describe('the carriers that author their own hooks', () => {

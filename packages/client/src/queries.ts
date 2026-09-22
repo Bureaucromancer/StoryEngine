@@ -59,6 +59,7 @@ import {
   type ObjectImportNotes,
   type ObjectVersion,
   type PendingInput,
+  type HookRow,
   type PromoteTarget,
   type PromoteTargetKind,
   type MemoryConfig,
@@ -896,12 +897,12 @@ export function usePromoteHook(
 ): UseMutationResult<
   { object: { id: string; name: string; kind: PromoteTargetKind } },
   Error,
-  { hookId: string; target: PromoteTarget }
+  { hookId: string; target: PromoteTarget; from?: HookRow['source'] }
 > {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (what: { hookId: string; target: PromoteTarget }) =>
-      promoteSessionHook(sessionId, what.hookId, what.target),
+    mutationFn: (what: { hookId: string; target: PromoteTarget; from?: HookRow['source'] }) =>
+      promoteSessionHook(sessionId, what.hookId, what.target, what.from),
     onSuccess: (result) => {
       void client.invalidateQueries({
         queryKey: ['library', PROMOTE_DIRECTORIES[result.object.kind]],

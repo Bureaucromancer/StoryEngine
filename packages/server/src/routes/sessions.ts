@@ -46,6 +46,7 @@ import {
 import { castRows } from '../sessions/cast.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
+import type { HookSource } from '../sessions/types.js';
 import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
@@ -415,6 +416,21 @@ const HookParams = Type.Object({
  * *`kind` is the pool's own vocabulary* — `treatment`, `setup`, `lore` — because
  * the targets are lined up against the pool's sources by eye on the panel, and a
  * second name for the lorebook arm would be a third spelling of one thing.
+ *
+ * ***`from` is which pooled row, and it exists because an id does not name
+ * one.*** `poolFor` refuses to de-duplicate by id on purpose — *"the same hook
+ * reaching a session through two sources is a real authoring situation"* — so a
+ * pool legitimately holds two entries under one id with **different content**,
+ * drawn as two rows each with its own control. Without this the handler takes
+ * the first match, which is the row above the one that was pressed, and the
+ * second attempt is then refused `already-there` forever: the hook the person
+ * meant can never reach that object at all. The client sends the row's own
+ * `source`, so the handler can resolve the entry rather than guess at it.
+ *
+ * *Optional, and the absence means the first match*, which is what a caller that
+ * has only an id can honestly ask for. It carries no hook content either — a
+ * `kind` and an id the server already holds — so it widens nothing the paragraph
+ * above closes.
  */
 const PromoteBody = Type.Object(
   {
@@ -424,6 +440,29 @@ const PromoteBody = Type.Object(
         id: Type.String({ minLength: 1, maxLength: 200 }),
       },
       { additionalProperties: false },
+    ),
+    from: Type.Optional(
+      /**
+       * `HookSource`'s own four arms, spelled out rather than loosened into one
+       * object with an optional id: a `session` row has no id and the other
+       * three always have one, and a body that allowed either everywhere would
+       * accept `{ kind: 'lore' }` — which names every lorebook in the pool and
+       * so resolves to none of them.
+       */
+      Type.Union([
+        Type.Object({ kind: Type.Literal('session') }, { additionalProperties: false }),
+        Type.Object(
+          {
+            kind: Type.Union([
+              Type.Literal('treatment'),
+              Type.Literal('setup'),
+              Type.Literal('lore'),
+            ]),
+            id: Type.String({ minLength: 1, maxLength: 200 }),
+          },
+          { additionalProperties: false },
+        ),
+      ]),
     ),
   },
   { additionalProperties: false },
@@ -1381,6 +1420,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * [15 §5.1] is why the alternative is not *rename it*: a re-minted id is the
    * one thing that cannot be repaired afterwards, because a corpus of sessions
    * whose hooks have unrelated ids cannot be retro-fitted into a continuity.
+   *
+   * ***And one library refusal is answered here rather than delegated*** — a
+   * target that moved under the write is `409 target-moved` rather than the
+   * shared `412 stale`, because that arm's body carries the whole object and
+   * this is the one caller for which that object is hidden content. The catch
+   * block below argues it.
    */
   app.post(
     '/sessions/:sessionId/hooks/:hookId/promote',
@@ -1390,7 +1435,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
 
       const { sessionId, hookId } = request.params as { sessionId: string; hookId: string };
-      const { target } = request.body as { target: PromoteTarget };
+      const { target, from } = request.body as { target: PromoteTarget; from?: HookSource };
 
       let outcome;
       try {
@@ -1401,13 +1446,47 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           sessionId,
           hookId,
           target,
+          from,
         );
       } catch (error) {
         /**
+         * ***`stale` is answered here rather than delegated, and it is the one
+         * refusal this route may not pass through.*** `respondToLibraryError`'s
+         * 412 arm attaches `current` — the **whole target object** — so that an
+         * editor can offer reload-and-reapply. That envelope is a treatment's or
+         * a lorebook's every hook, which means every **unfired** `premise` and
+         * every `Entrance.text` on it, delivered to the play client: exactly the
+         * content [08 §6](../../../../docs/design/08-cross-session-memory.md) and
+         * [10 §10.1](../../../../docs/design/10-ui-surfaces.md) name as hidden,
+         * at the surface they name it about, through the error path of the route
+         * whose whole reason for being server-side is that redaction. It is
+         * reachable without a race: a hand-edited `treatment.json` ([03 §1]
+         * makes that first-class) promoted against before the watcher settles.
+         *
+         * **And the envelope buys nothing here.** There is no reload-and-reapply
+         * for this act — the client never held the hook, and cannot merge one it
+         * has never been shown — so the honest answer is *try again*, with the
+         * `diverged` arm's shape and for the `diverged` arm's reason: a 409 that
+         * cannot be read as *here is the newer state, resolve against it*.
+         *
+         * Everything else — `read-only`, `invalid`, `not-found`, `refused-path`,
+         * `diverged` — keeps the shared mapping, which is right for each of them
+         * and carries no object.
+         */
+        if (error instanceof LibraryError && error.code === 'stale') {
+          return reply.code(409).send({
+            error: 'target-moved',
+            message: 'That object changed while you were saving. Try again.',
+          });
+        }
+        /**
          * A system-library target (403 — *copy to my library* first, then
-         * promote into the copy), a target edited underneath us (412), a file
-         * the index has lost track of (409) — the library's own refusals, in
-         * the library's own statuses, through the library routes' own mapping.
+         * promote into the copy), a file the index has lost track of (409), a
+         * path the layout refuses (422) — the library's own refusals, in the
+         * library's own statuses, through the library routes' own mapping.
+         * *`stale` is not in this list*, because the arm above took it; naming
+         * it here as a 412 is what this comment said until the envelope it
+         * carries turned out to be a spoiler leak.
          *
          * **`invalid` is reachable from here in a way it is not from those
          * routes**, and that is this call site's one piece of news: the add

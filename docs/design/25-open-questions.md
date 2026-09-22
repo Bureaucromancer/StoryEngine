@@ -577,7 +577,12 @@ update would mean editing a treatment could silently alter a story in progress,
 which is the failure prefill-not-binding exists to prevent.
 
 "Hook packs" as a separately shareable kind stay declined; C7c covers the case
-that motivated them. *[03 §4.1, 06 §6.1]*
+that motivated them. **And the positive answer is recorded at
+[03 §4.1](03-data-model.md) (2026-09-22)**: the three carriers, promotion out of
+a running session, and — where a hooks-only artifact is wanted — a **Treatment
+carrying only hooks**, on [10 §11.2c](10-ui-surfaces.md)'s *an entry export is a
+lorebook* argument. So the decline stands and the need it was declining has
+somewhere to go, which is the half this entry did not carry. *[03 §4.1, 06 §6.1]*
 
 **C7c. Plot hooks on lorebooks. — RESOLVED: allowed, secondary.** Hooks are
 treatment-shaped rather than lorebook-shaped, and multi-sourcing is genuinely

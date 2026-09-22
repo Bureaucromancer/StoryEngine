@@ -407,14 +407,24 @@ function Controls(props: {
  * save one by itself.
  *
  * **The targets are the objects this session already names**, which is two
- * lists joined rather than one: `session.treatment` and `session.lore`, plus
- * whatever the pool's own rows say they came from. Neither alone is enough —
- * `SessionSummary` has never carried a `setup` field, so the Setup's id reaches
- * this client only as the `source` of a row it seeded; and a lorebook with no
- * hooks seeds no row while being a perfectly good place to put one. **Offering
- * the whole library instead would be a library browser grown inside a play
- * panel**, and it would offer a treatment this session has never heard of as
- * readily as its own.
+ * lists joined rather than one: `session.treatment`, `session.setup` and
+ * `session.lore`, plus whatever the pool's own rows say they came from. Neither
+ * alone is enough — a carrier with no hooks seeds no row while being a perfectly
+ * good place to put one, and the pool's rows are the only thing that names a
+ * carrier the session fields do not. **Offering the whole library instead would
+ * be a library browser grown inside a play panel**, and it would offer a
+ * treatment this session has never heard of as readily as its own.
+ *
+ * ~~`SessionSummary` has never carried a `setup` field, so the Setup's id
+ * reaches this client only as the `source` of a row it seeded.~~ ***That was
+ * true of the interface and never of the route***, and reading it as a fact
+ * about the wire cost the Setup the one case it most needed: a Setup with no
+ * `hooks[]` — which is what a Setup looks like before anybody has written one —
+ * could never be offered, so the first hook somebody wanted to put on one had
+ * nowhere to go. `GET /api/sessions/:id` sends the whole session file and
+ * `SessionFile.setup` is a copy of the Setup carrying its library id, so the
+ * field is claimed in `api.ts` on the terms that interface sets and read here.
+ * [10 §10.1] and [03 §4.1] both say the control offers the Setup; now it does.
  *
  * *Names rather than ids*, resolved through `useLibrary` the way `CastPanel`
  * resolves an actor — **and an object the library cannot name falls back to its
@@ -488,7 +498,11 @@ function SaveTo(props: { sessionId: string; row: HookRow; pending: boolean }): J
           onChange={(event) => {
             const target = targets.find((one) => keyOf(one) === event.target.value);
             if (target === undefined) return;
-            promote.mutate({ hookId: props.row.hookId, target });
+            // **The row's own source travels with the request**, because the
+            // pool may hold two rows under one hook id with different content
+            // and an id alone names the first of them rather than this one.
+            // `sessions/promote.ts` argues what that costs when it is missing.
+            promote.mutate({ hookId: props.row.hookId, target, from: props.row.source });
           }}
         >
           <option value="">Save this to…</option>
@@ -526,6 +540,14 @@ const TARGET_ORDER: Record<PromoteTargetKind, number> = { treatment: 0, setup: 1
  * *The pool contributes its sources rather than its own hooks' ids*: a row
  * whose source is the session names nothing, which is right. Promoting a hook
  * onto the session it is already in is not an act.
+ *
+ * ***All three of the session's own carriers are pushed before the rows are
+ * walked***, so a carrier that seeded no pool row — a Setup or a lorebook
+ * carrying no hooks of its own, which is the ordinary state of both — is offered
+ * anyway. The rows then add whatever the session fields do not name, and the
+ * dedupe collapses the overlap. Leaving any of the three to the rows alone makes
+ * *can I save a hook here* depend on whether a hook was already here, which is
+ * backwards.
  */
 function targetsFor(
   rows: readonly HookRow[],
@@ -533,6 +555,7 @@ function targetsFor(
 ): PromoteTarget[] {
   const named: PromoteTarget[] = [];
   if (session?.treatment != null) named.push({ kind: 'treatment', id: session.treatment });
+  if (session?.setup?.id != null) named.push({ kind: 'setup', id: session.setup.id });
   for (const row of rows) {
     if (row.source.kind === 'session' || row.source.id === undefined) continue;
     named.push({ kind: row.source.kind, id: row.source.id });

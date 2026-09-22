@@ -18,6 +18,7 @@ import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { TokenField, type TokenOption } from '../ui/TokenField.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
 import { disclosure } from '../ui/classes.js';
+import type { HookPatch } from './hook-form.js';
 
 /**
  * One plot hook, as the schema's own shape —
@@ -62,7 +63,7 @@ import { disclosure } from '../ui/classes.js';
 export function HookFields(props: {
   hook: PlotHook;
   /** One field changed. The list is the caller's; this only describes the edit. */
-  onPatch: (patch: Partial<PlotHook>) => void;
+  onPatch: (patch: HookPatch) => void;
   /**
    * The introduction, set or **removed** — the one field whose absence is a
    * different claim from its emptiness, so the one that cannot go through
@@ -112,7 +113,7 @@ export function HookFields(props: {
 function HookRow(props: {
   row: FieldRow;
   hook: PlotHook;
-  onPatch: (patch: Partial<PlotHook>) => void;
+  onPatch: (patch: HookPatch) => void;
   onIntroduce: (next: Introduction | null) => void;
   siblings: PlotHook[];
   actors: { id: string; name: string }[];
@@ -215,7 +216,12 @@ function HookRow(props: {
           values={hook.blockedBy ?? []}
           siblings={props.siblings}
           onChange={(blockedBy) => {
-            onPatch({ blockedBy });
+            // Emptied is **absent**, not `[]` — `newHook`'s rule for the three
+            // optional fields, kept by the control that can undo it. A hook
+            // whose last blocker was removed has to come back byte-identical to
+            // one that never had the field, or *never mind* leaves a mark in
+            // the portable file, every export and every diff.
+            onPatch({ blockedBy: blockedBy.length === 0 ? undefined : blockedBy });
           }}
           hint="Hooks that would make this one nonsensical once they have fired."
         />
@@ -417,22 +423,29 @@ function SiblingHooks(props: {
  * somebody would be surprised by — [10 §2.1]'s rule, which is the whole licence
  * for a disclosure being here at all.
  *
- * **Cleared to an empty object rather than to an absent one.** Both halves are
- * optional and the engine reads an absent one as *no constraint*
- * (`packages/server/src/sessions/hooks.ts`), so `notBefore: {}` and no
- * `notBefore` are the same claim — unlike `introduces` beside it, where the
- * two differ. Nothing is gained by the extra callback the removal would need.
+ * ***Cleared to an **absent** `notBefore`, not to an empty one.*** The engine
+ * reads the two the same way — an absent half is *no constraint*
+ * (`packages/server/src/sessions/hooks.ts`) — so this is not about eligibility.
+ * It is about what the file says: [`newHook`](./hook-form.ts) states the rule
+ * that `blockedBy`, `notBefore` and `introduces` are *absent rather than empty,
+ * which is what [04 §2] means by additive — a hook that has never been given an
+ * eligibility filter says nothing about one*, and a control that wrote
+ * `notBefore: {}` on the way back from a floor somebody typed and thought
+ * better of would leave a hook that is no longer byte-identical to one that
+ * never had a gate, in the portable file and in every diff of it. `patchHook`
+ * takes `undefined` as *remove the key*, so the removal costs no extra callback
+ * — which is what the paragraph this replaces was trading the rule away for.
  */
 function NotBefore(props: {
   row: FieldRow;
   hook: PlotHook;
   siblings: PlotHook[];
-  onPatch: (patch: Partial<PlotHook>) => void;
+  onPatch: (patch: HookPatch) => void;
 }): JSX.Element {
   const gate = props.hook.notBefore ?? {};
 
   function set(next: { turn?: number; afterHook?: string }): void {
-    props.onPatch({ notBefore: next });
+    props.onPatch({ notBefore: Object.keys(next).length === 0 ? undefined : next });
   }
 
   return (
@@ -512,6 +525,16 @@ function notBeforeSummary(gate: { turn?: number; afterHook?: string }, label: st
  * draws across all of them — so the empty option is the ordinary state of a
  * hook whose author has not picked a favourite, and it is spelled as one rather
  * than as an absence somebody has to infer.
+ *
+ * ***The subject's `Ref` is rebuilt on a change of subject, which `ActorRefs`
+ * above is careful not to do, and the asymmetry is accepted rather than
+ * overlooked.*** That control keeps a held `Ref` by identity so a `fingerprint`
+ * survives somebody merely re-ordering `involves`; here there is exactly one
+ * ref, the only edit that touches it is *choose somebody else*, and a ref for
+ * the new subject was never held to keep. What is genuinely lost is the
+ * fingerprint of a subject switched away from and back again in one sitting —
+ * a re-link of a link the author just broke, which is what the field records
+ * anyway, and not worth a component that remembers refs it no longer shows.
  */
 function Introduces(props: {
   row: FieldRow;
@@ -676,7 +699,15 @@ function Entrances(props: {
             label="Note"
             value={entrance.note ?? ''}
             onChange={(note) => {
-              props.onChange(patchEntrance(props.entrances, entrance.id, { note }));
+              // Blanked is **absent**, which is `newEntrance`'s rule below: *an
+              // entrance whose author has not said when it fits has not said it
+              // fits nowhere*. The same edit the gate above makes, one level
+              // down.
+              props.onChange(
+                patchEntrance(props.entrances, entrance.id, {
+                  note: note.trim() === '' ? undefined : note,
+                }),
+              );
             }}
             hint="When this one fits — guidance to the selector, not to the narrator."
           />
@@ -702,9 +733,24 @@ function Entrances(props: {
  * One entrance's fields changed — the same spread-over-the-object rule
  * [hook-form.ts](./hook-form.ts) keeps one level up, so a field a newer build
  * wrote into an entrance survives an edit to its label.
+ *
+ * *And the same `undefined` removes the key*, for `patchHook`'s reason read one
+ * level down: `note` is the entrance's one optional field, and a blanked box has
+ * to leave it the way `newEntrance` leaves it.
  */
-function patchEntrance(entrances: Entrance[], id: string, fields: Partial<Entrance>): Entrance[] {
-  return entrances.map((entrance) => (entrance.id === id ? { ...entrance, ...fields } : entrance));
+function patchEntrance(
+  entrances: Entrance[],
+  id: string,
+  fields: { [K in keyof Entrance]?: Entrance[K] | undefined },
+): Entrance[] {
+  return entrances.map((entrance) => {
+    if (entrance.id !== id) return entrance;
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries({ ...entrance, ...fields })) {
+      if (value !== undefined) next[key] = value;
+    }
+    return next as unknown as Entrance;
+  });
 }
 
 /**

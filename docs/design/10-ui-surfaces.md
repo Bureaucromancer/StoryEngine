@@ -1674,8 +1674,10 @@ anyway, and for a reason that owes the taxonomy nothing: the hook somebody wants
 to keep is the one they wrote in this panel ten minutes ago, at the moment
 [06 §6.1](06-modes-and-turn-pipeline.md) says the feature earns its place, and a
 control kept in the workbench would be a control nobody reached for when they
-wanted it. Nothing is automatic and nothing is suggested —
-[03 §2.3](03-data-model.md)'s *offered* — and a second press earns a refusal
+wanted it. Nothing is automatic, and nothing suggests it today —
+[03 §2.3](03-data-model.md)'s *offered*, which permits an agent to suggest and
+forbids only auto-promotion, so the absence of a suggestion is what was built
+rather than what the rule requires — and a second press earns a refusal
 rather than a second copy, because the id has to survive the move and re-minting
 it is the one thing that cannot be repaired afterwards
 ([15 §5.1](15-world.md)).

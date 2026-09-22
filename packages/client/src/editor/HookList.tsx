@@ -28,9 +28,9 @@ import { moveHook, newHook, patchHook, removeHook } from './hook-form.js';
  * back out of one. A component per carrier would have been three surfaces to
  * keep in agreement about a schema all three share.
  *
- * **Two props and nothing else.** A caller hands over the list and a way to
- * hear about a new one; everything else — the actor options, the ordering, the
- * per-hook controls — is this component's. That is what makes it mountable in
+ * **A list, a way to hear about a new one, and a sentence of its own.** No
+ * kind, no schema id, no page state: everything else — the actor options, the
+ * ordering, the per-hook controls — is this component's. That is what makes it mountable in
  * `SimpleEditorPage`'s schema-driven form and in the lorebook editor's
  * hand-written one without either of them learning what a hook is.
  *
@@ -151,11 +151,16 @@ export function HookList(props: {
               props.onChange(patchHook(props.hooks, hook.id, patch));
             }}
             onIntroduce={(next) => {
-              props.onChange(
-                next === null
-                  ? withoutIntroduction(props.hooks, hook.id)
-                  : patchHook(props.hooks, hook.id, { introduces: next }),
-              );
+              /**
+               * ***`null` unsets rather than blanks***, and the actor picker's
+               * empty option is the only thing in the application that turns an
+               * arrival back into an ordinary hook. `HookFields`' own docstring
+               * has the reason it must remove rather than blank: an
+               * `Introduction` with no subject is a hook that is ineligible
+               * forever, with a visible reason, which is worse than the hook the
+               * author was trying to get back to.
+               */
+              props.onChange(patchHook(props.hooks, hook.id, { introduces: next ?? undefined }));
             }}
           />
         </Panel>
@@ -198,30 +203,6 @@ export function HookList(props: {
       </span>
     </section>
   );
-}
-
-/**
- * The list with one hook's `introduces` **removed** — the one edit `patchHook`
- * cannot express, because a spread can set a key and never unset one.
- *
- * Written here rather than in [hook-form.ts](./hook-form.ts) because it is a
- * fact about this control rather than about the model: the actor picker's empty
- * option is the only thing in the application that turns an arrival back into
- * an ordinary hook, and the reason it must *remove* rather than blank is in
- * `HookFields`' own docstring — an `Introduction` with no subject is a hook
- * that is ineligible forever, with a visible reason, which is worse than the
- * hook the author was trying to get back to.
- */
-function withoutIntroduction(hooks: PlotHook[], id: string): PlotHook[] {
-  return hooks.map((hook) => {
-    if (hook.id !== id) return hook;
-    // A copy with the key taken back off, rather than a rebuild from the
-    // fields this build knows: [04 §2]'s promise is per object, and a hook
-    // reassembled here would lose whatever a newer build wrote into it.
-    const rest = { ...hook };
-    delete rest.introduces;
-    return rest;
-  });
 }
 
 /** Which card this is, as a whole phrase rather than a shape in the tree. */

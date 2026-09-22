@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { newLoreEntry, type LoreEntry, type LoreFolder } from '@storyengine/shared';
+import { newLoreEntry, type LoreEntry, type LoreFolder, type PlotHook } from '@storyengine/shared';
+
+import { hooksOf } from './hook-form.js';
 
 /**
  * The lorebook editor's edits, as functions over the object
@@ -274,41 +276,143 @@ function inMyOrder(merged: LoreEntry[], draft: Draft): LoreEntry[] {
  * excluded here, because their merge is finer than *did this change*.
  */
 export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): Draft {
-  const mine = new Map(entriesOf(draft).map((entry) => [entry.id, entry]));
-  const before = new Map(entriesOf(pristine).map((entry) => [entry.id, entry]));
-  const theirs = entriesOf(fresh);
+  const merged = mergeKeyed(
+    entriesOf(pristine),
+    entriesOf(draft),
+    entriesOf(fresh),
+    (was, held, theirs) => (was === undefined ? held : withMyFields(was, held, theirs)),
+  );
 
-  const kept = theirs.flatMap((entry) => {
-    const held = mine.get(entry.id);
+  const book: Draft = {
+    ...withMyBookFields(pristine, draft, fresh),
+    entries: reorderedByMe(pristine, draft) ? inMyOrder(merged, draft) : merged,
+    folders: mergedFolders(pristine, draft, fresh),
+  };
+
+  const hooks = mergedHooks(pristine, draft, fresh);
+  return hooks.length > 0 || keepsHooksKey(pristine, draft, fresh) ? { ...book, hooks } : book;
+}
+
+/**
+ * Whether the merged book should carry a `hooks` key at all, when the merge
+ * produced no hooks.
+ *
+ * ***`Lorebook.hooks` is optional, so this is a question and not a formality.***
+ * An absent key and `"hooks": []` are different claims — *this book carries no
+ * hooks* against *this book carries a hook list that is empty* — and 03 §4.1
+ * makes hooks-on-lorebooks deliberately secondary, so a book that gains an empty
+ * list from **losing a save race** would be a book reclassified by a conflict
+ * dialog. `withOptionalHooks` is what keeps the form's own writes out of that,
+ * and this is the same rule for the one write the form does not make.
+ *
+ * **Presence follows the field rule rather than a preference**, which is what
+ * makes the three empty-merge cases each come out right. *I emptied the fold*
+ * leaves my draft with no key and takes mine, so the key goes. *They emptied it*
+ * leaves mine untouched and takes theirs, so it goes too. And a book that
+ * arrived carrying an explicit `"hooks": []` that neither of us touched keeps
+ * it, because normalising somebody's file on the way through a conflict is not
+ * this function's business.
+ */
+function keepsHooksKey(pristine: Draft, draft: Draft, fresh: Draft): boolean {
+  const changedByMe = JSON.stringify(draft['hooks']) !== JSON.stringify(pristine['hooks']);
+  return Object.hasOwn(changedByMe ? draft : fresh, 'hooks');
+}
+
+/**
+ * Their list with mine put back — keyed on `id`, resolved against the list as it
+ * read when I opened it.
+ *
+ * ***What makes the finer unit available is a fact about the items rather than
+ * a better idea***: a `LoreEntry` and a `PlotHook` both carry an id that
+ * survives a copy, so *was this here when I opened it* is answerable and the
+ * three cases can each be given the answer they actually want. The per-item
+ * resolution differs between the two callers and nothing else does, so that is
+ * the parameter and the walk is shared.
+ *
+ * - **In both** — `resolve` decides, with `was` for the caller that wants to
+ *   know which of us changed what.
+ * - **In theirs and not in mine** — I removed it *if it was in `pristine`*, and
+ *   otherwise they added it while I was editing. Those want opposite outcomes
+ *   and `pristine` is the only thing that tells them apart: without it a merge
+ *   either resurrects every deletion or discards every concurrent addition.
+ * - **In mine and not in theirs** — I added it, and it stays; or they removed
+ *   it, and it stays only if I had edited it, because keeping an untouched copy
+ *   of something somebody deleted is undoing their delete rather than saving
+ *   any work of mine.
+ *
+ * Order follows theirs with anything of mine they do not have appended, so a
+ * concurrent insertion is not shuffled to the end of somebody else's list and an
+ * item rescued from their delete loses its position, which is the cheaper of the
+ * two losses. *A caller that also has to keep **my** ordering does that on the
+ * result* — `reapplyBookEdits` does, through `inMyOrder`, because the entry list
+ * can reorder and a hook list's order is for the person reading it.
+ *
+ * **One walk rather than two**, which is this repository's own threshold
+ * arriving: it was written once for entries and copied for hooks, comment
+ * included, and a fix to the `pristine`-distinguishes-delete-from-addition rule
+ * would then have had two places to be made and one of them to be forgotten.
+ */
+export function mergeKeyed<T extends { id: string }>(
+  pristine: readonly T[],
+  mine: readonly T[],
+  theirs: readonly T[],
+  resolve: (was: T | undefined, held: T, theirs: T) => T,
+): T[] {
+  const held = new Map(mine.map((one) => [one.id, one]));
+  const before = new Map(pristine.map((one) => [one.id, one]));
+
+  const kept = theirs.flatMap((one) => {
+    const ours = held.get(one.id);
     // Not in my draft at all: gone because I deleted it, or new because they
     // added it. `pristine` is what distinguishes the two.
-    if (held === undefined) return before.has(entry.id) ? [] : [entry];
-
-    const was = before.get(entry.id);
-    return [was === undefined ? held : withMyFields(was, held, entry)];
+    if (ours === undefined) return before.has(one.id) ? [] : [one];
+    return [resolve(before.get(one.id), ours, one)];
   });
 
-  const seen = new Set(theirs.map((entry) => entry.id));
-  const rescued = entriesOf(draft).filter((entry) => {
-    if (seen.has(entry.id)) return false;
-    const was = before.get(entry.id);
+  const seen = new Set(theirs.map((one) => one.id));
+  const rescued = mine.filter((one) => {
+    if (seen.has(one.id)) return false;
+    const was = before.get(one.id);
     // Not theirs any more, which is two different situations. I made it, and it
     // stays; or they deleted it, and it stays only if I had changed it — an
     // untouched copy kept here would be undoing their delete rather than saving
     // any work of mine. Spelled as two statements rather than one disjunction
     // because as one it is silently unfalsifiable: `JSON.stringify(undefined)`
     // is `undefined`, so the comparison below is already true for a created
-    // entry and the first arm could be deleted with nothing going red.
+    // item and the first arm could be deleted with nothing going red.
     if (was === undefined) return true;
-    return JSON.stringify(entry) !== JSON.stringify(was);
+    return JSON.stringify(one) !== JSON.stringify(was);
   });
 
-  const merged = [...kept, ...rescued];
-  return {
-    ...withMyBookFields(pristine, draft, fresh),
-    entries: reorderedByMe(pristine, draft) ? inMyOrder(merged, draft) : merged,
-    folders: mergedFolders(pristine, draft, fresh),
-  };
+  return [...kept, ...rescued];
+}
+
+/**
+ * Their hooks with mine put back — the same three-way walk, resolved a **whole
+ * hook at a time**.
+ *
+ * ***Here rather than in the page that needed it first, because both 412 merges
+ * need it.*** A treatment's and a setup's `hooks` are merged by
+ * `descriptorFor`'s `reapply` in [SimpleEditorPage](./SimpleEditorPage.tsx), and
+ * a lorebook's by `reapplyBookEdits` above; without a shared one the third
+ * carrier kept the coarse field rule it had before it could author hooks at all,
+ * so a conflict took one side's **whole list** — mine if I had touched any hook,
+ * theirs if I had not — and dropped the other's without a word, inside the
+ * dialog whose entire offer is *reapply my edits*.
+ *
+ * ***The whole hook rather than field by field, which is where this is coarser
+ * than the entry merge beside it.*** An entry is forty fields and a book is
+ * usually opened to change one of them, so taking a whole entry from one side
+ * would discard the other's edit to a field neither of us contested. A hook is
+ * eight fields on one card, written and read as a unit, and the case a per-field
+ * merge would improve is two people editing *different fields of the same hook*
+ * at the same time — one conflict finer than the one this exists to stop.
+ * `withMyFields` is right there if that turns out to be worth having.
+ */
+export function mergedHooks(pristine: Draft, draft: Draft, fresh: Draft): PlotHook[] {
+  return mergeKeyed(hooksOf(pristine), hooksOf(draft), hooksOf(fresh), (was, held, theirs) =>
+    was !== undefined && JSON.stringify(was) === JSON.stringify(held) ? theirs : held,
+  );
 }
 
 /**
@@ -316,17 +420,25 @@ export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): D
  *
  * **`withMyFields` reused rather than restated**, which is the whole reason this
  * is four lines: the question *did I change this from what I opened* is the same
- * question at both levels, and the answer has the same three cases. The two
+ * question at both levels, and the answer has the same three cases. The
  * container fields are overwritten by the caller immediately after, so they are
  * stripped here rather than special-cased inside — a merge that ran over
  * `entries` would compare two forty-entry arrays by `JSON.stringify` to produce
  * a value nothing reads.
+ *
+ * ***`hooks` joined them when the fold that writes them did.*** It is a keyed
+ * list like the other two, so *which one did I edit* is answerable for it and
+ * the coarse field rule is only a loss: left here, a conflict would silently
+ * take one side's whole hook list. The one asymmetry is that the caller writes
+ * it back through `withOptionalHooks` rather than as a plain key, because on a
+ * lorebook an emptied list and an absent one are different claims and a merge
+ * must not be what puts `"hooks": []` on a book.
  */
 function withMyBookFields(pristine: Draft, draft: Draft, fresh: Draft): Draft {
   const without = (book: Draft): Draft => {
     const rest: Draft = {};
     for (const [key, value] of Object.entries(book)) {
-      if (key !== 'entries' && key !== 'folders') rest[key] = value;
+      if (key !== 'entries' && key !== 'folders' && key !== 'hooks') rest[key] = value;
     }
     return rest;
   };

@@ -252,9 +252,7 @@ describe('the list', () => {
 
   /**
    * The eligibility gates, which are the other thing no surface could set —
-   * [04 §6.1a]. Cleared, `notBefore` stays present and empty rather than going
-   * away: both halves are optional and the engine reads an absent one as *no
-   * constraint*, so the two say the same thing here, unlike `introduces`.
+   * [04 §6.1a].
    */
   it('gates a hook on a turn and on another hook, and lets both go', async () => {
     mount([hook('The war'), hook('The marriage')]);
@@ -271,6 +269,86 @@ describe('the list', () => {
 
     await userEvent.clear(screen.getAllByLabelText('Turn')[0]!);
     expect(latest[0]?.notBefore).toEqual({ afterHook: latest[1]!.id });
+  });
+
+  /**
+   * ***Cleared is absent, and the assertion is byte equality with a hook that
+   * never had the field.***
+   *
+   * `newHook` leaves `blockedBy`, `notBefore` and `introduces` unset and states
+   * the rule: *a hook that has never been given an eligibility filter says
+   * nothing about one*. The engine cannot tell `notBefore: {}` from no
+   * `notBefore`, which is exactly why this needs holding somewhere — the cost
+   * of getting it wrong is invisible in play and permanent in the file, in
+   * every export of it and every diff. Type a floor, think better of it, and
+   * what is left has to be what you started with.
+   */
+  it('leaves a cleared gate byte-identical to a hook that never had one', async () => {
+    const plain = hook('The war');
+    mount([plain, hook('The marriage')]);
+    await screen.findAllByLabelText('Title');
+
+    await userEvent.type(screen.getAllByLabelText('Turn')[0]!, '12');
+    await userEvent.clear(screen.getAllByLabelText('Turn')[0]!);
+
+    expect(Object.hasOwn(latest[0]!, 'notBefore')).toBe(false);
+    expect(JSON.stringify(latest[0])).toBe(JSON.stringify(plain));
+  });
+
+  /** And the same for a blocker list emptied of its last token. */
+  it('leaves an emptied blocker list absent rather than empty', async () => {
+    const plain = hook('The war');
+    mount([plain, hook('The marriage')]);
+    await screen.findAllByLabelText('Title');
+
+    const box = screen.getAllByLabelText('Blocked by')[0]!;
+    await userEvent.click(box);
+    const popup = document.getElementById(box.getAttribute('aria-controls') ?? '');
+    await userEvent.click(within(popup!).getByRole('option', { name: 'The marriage' }));
+    expect(latest[0]?.blockedBy).toEqual([latest[1]!.id]);
+
+    // The token's own control, which `TokenField` names by the stored **value**
+    // rather than by the title it draws — so this cannot land on the card's
+    // *Remove The marriage* button beside it.
+    await userEvent.click(screen.getByRole('button', { name: `Remove ${latest[1]!.id}` }));
+
+    expect(Object.hasOwn(latest[0]!, 'blockedBy')).toBe(false);
+    expect(JSON.stringify(latest[0])).toBe(JSON.stringify(plain));
+  });
+
+  /**
+   * ***A held `Ref` comes through by identity, which is what keeps a
+   * fingerprint.***
+   *
+   * `ActorRefs` rebuilds the list around the combobox's ids on every commit, so
+   * the thing to hold is that it rebuilds *around* them rather than rebuilding
+   * *them*: a `Ref` carries an optional `fingerprint` recording what the actor
+   * looked like when it was linked ([04 §3]), and a control that minted a fresh
+   * one per commit would drop it from every actor somebody merely re-ordered or
+   * sat beside a second one.
+   */
+  it('keeps a ref already held byte-identical when another is added', async () => {
+    const linked = {
+      id: 'actor-vera',
+      name: 'Vera Kohl',
+      fingerprint: 'sha256:vera-as-she-was',
+    } as PlotHook['involves'][number];
+    listLibrary.mockResolvedValue({ objects: [VERA, { ...VERA, id: 'actor-ash', name: 'Ash' }] });
+    mount([hook('The war', { involves: [linked] })]);
+    await screen.findAllByLabelText('Title');
+
+    // A second actor, committed through the same control, so the first ref is
+    // carried across a rebuild of the list rather than simply left alone.
+    const box = screen.getAllByLabelText('Involves')[0]!;
+    await userEvent.click(box);
+    const popup = document.getElementById(box.getAttribute('aria-controls') ?? '');
+    await waitFor(() => {
+      expect(within(popup!).queryByRole('option', { name: 'Ash' })).toBeTruthy();
+    });
+    await userEvent.click(within(popup!).getByRole('option', { name: 'Ash' }));
+
+    expect(latest[0]?.involves).toHaveLength(2);
+    expect(JSON.stringify(latest[0]?.involves[0])).toBe(JSON.stringify(linked));
   });
 
   /** A hook cannot gate itself: the blockers offered are the other hooks. */

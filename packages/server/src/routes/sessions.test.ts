@@ -11,6 +11,7 @@ import {
   newPreset,
   newSetup,
   newTreatment,
+  TREATMENT_SCHEMA,
   uuidv7,
   type PlotHook,
 } from '@storyengine/shared';
@@ -20,7 +21,7 @@ import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
-import { Layout } from '../storage/layout.js';
+import { Layout, userOwner } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
 /**
@@ -1942,11 +1943,12 @@ describe('a session’s hook pool', () => {
       session: string,
       hookId: string,
       target: { kind: string; id: string },
+      from?: { kind: string; id?: string },
     ): Promise<{ status: number; body: any }> {
       return server.request({
         method: 'POST',
         url: `/api/sessions/${session}/hooks/${hookId}/promote`,
-        payload: { target },
+        payload: from === undefined ? { target } : { target, from },
       });
     }
 
@@ -2111,6 +2113,57 @@ describe('a session’s hook pool', () => {
     });
 
     /**
+     * ***A target that moved underneath the write answers `409 target-moved`,
+     * and the thing being asserted is what the body does **not** carry.***
+     *
+     * Every other library refusal this route can raise goes through
+     * `respondToLibraryError`, which is right for each of them. `stale` is the
+     * exception, and it is the exception because of what its 412 arm attaches:
+     * `current`, the whole target object, so that an *editor* can offer
+     * reload-and-reapply. On this route that object is a treatment's hooks —
+     * every **unfired** `premise` and every `Entrance.text` on it — sent to the
+     * play client, which is the content [08 §6] and [10 §10.1] name as hidden
+     * and the surface they name it about. The whole reason promotion is a server
+     * act is that redaction, so its own error path is the last place that may
+     * break it.
+     *
+     * *Reachable without a race*: a hand-edited `treatment.json` is first-class
+     * ([03 §1]), and promoting against one before the watcher settles is this
+     * test verbatim. And there is nothing the envelope could buy — the client has
+     * never held the hook, so there is no *reapply my edits* for it to offer.
+     */
+    it('answers a moved target without handing the panel the object', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+
+      const row = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${treatment}`,
+      });
+      const path = server.services.layout.objectFile(
+        userOwner('ned'),
+        TREATMENT_SCHEMA,
+        row.body.slug as string,
+      );
+      const stored = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+      await writeFile(
+        path,
+        JSON.stringify({ ...stored, hooks: [hook('hook-secret')] }, null, 2),
+        'utf8',
+      );
+
+      const saved = await promote(session, 'hook-war', { kind: 'treatment', id: treatment });
+
+      expect(saved.status).toBe(409);
+      expect(saved.body.error).toBe('target-moved');
+      // The assertion the paragraph above is about: no envelope, under any
+      // spelling. `current` is what the 412 arm calls it, and a body with no
+      // hook content at all is what the panel is owed.
+      expect(saved.body.current).toBeUndefined();
+      expect(JSON.stringify(saved.body)).not.toContain('hook-secret');
+    });
+
+    /**
      * The refusal every other write to a system object already gets ([10 §4.2]):
      * app-shipped, and a release would overwrite the edit anyway. *Copy to my
      * library* first, and the copy is an ordinary target.
@@ -2122,6 +2175,58 @@ describe('a session’s hook pool', () => {
 
       expect(saved.status).toBe(403);
       expect(saved.body.error).toBe('read-only');
+    });
+
+    /**
+     * ***The separation is structural here, and that is exactly why it is worth
+     * a test.*** This route does not go through `mine` — its docstring argues
+     * why, and the argument is that `readSession` and `read` both resolve
+     * **under the account's handle**, so the path is the owner ([09 §4.3]) and
+     * somebody else's object is the same absence it has always been. That is a
+     * property of two functions three files away rather than of a check on this
+     * route, which makes it precisely the kind of protection that survives
+     * review and dies to a later refactor nobody connected to it.
+     *
+     * *Both halves, because they fail through different code.* The session is
+     * `readSession` returning `null`; the target is `read` raising `not-found`
+     * from a collection this handle does not own. And both are **404**, never
+     * 403: the route beside them answers *another account's session* with the
+     * same absence, because confirming an id exists elsewhere leaks the one
+     * fact the separation is keeping.
+     */
+    it('answers 404 for another account’s session and another account’s target', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+
+      await server.services.accounts.create({
+        handle: 'sister',
+        password: 'correct horse battery',
+        role: 'user',
+      });
+      await server.request({ method: 'POST', url: '/api/auth/logout' });
+      await server.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { handle: 'sister', password: 'correct horse battery' },
+      });
+
+      // Hers now, and neither of the two objects is.
+      const theirSession = await promote(session, 'hook-war', {
+        kind: 'treatment',
+        id: treatment,
+      });
+      expect(theirSession.status).toBe(404);
+      expect(theirSession.body.error).toBe('no-session');
+
+      // And with a session of her own, the treatment is still not reachable —
+      // the second half, which the first cannot reach past.
+      const mine = await aSessionWith(hook('hook-war'));
+      const theirTreatment = await promote(mine, 'hook-war', {
+        kind: 'treatment',
+        id: treatment,
+      });
+      expect(theirTreatment.status).toBe(404);
+      expect(theirTreatment.body.error).toBe('no-such-object');
     });
   });
 

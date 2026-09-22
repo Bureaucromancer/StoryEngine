@@ -11,6 +11,7 @@ import {
   patchHook,
   removeHook,
   withHooks,
+  withOptionalHooks,
   type Draft,
 } from './hook-form.js';
 
@@ -171,6 +172,91 @@ describe('the absence rule', () => {
 
   it('reads a carrier with no hooks as none rather than throwing', () => {
     expect(hooksOf(newLorebook('Harbour lore') as unknown as Draft)).toEqual([]);
+  });
+
+  /**
+   * ***The optional-carrier half, which is the rule the two carriers do not
+   * share.*** `withHooks` above keeps an emptied list because deleting it
+   * generically would strip a **required** property off a Treatment; a lorebook
+   * has the opposite need, because 03 §4.1 makes hooks-on-lorebooks deliberately
+   * secondary and a book carrying `"hooks": []` is a book quietly reclassified
+   * by a surface that rendered it.
+   */
+  it('takes the key back off a lorebook whose last hook is removed', () => {
+    const book = newLorebook('Harbour lore') as unknown as Draft;
+    const one = hook('The war');
+
+    const carried = withOptionalHooks(book, [one]);
+    expect(Object.hasOwn(carried, 'hooks')).toBe(true);
+
+    const emptied = withOptionalHooks(carried, removeHook([one], one.id));
+    expect(Object.hasOwn(emptied, 'hooks')).toBe(false);
+    // And byte-identical to the book that never had one, which is the claim
+    // *absent is not an emptied list* is worth anything for.
+    expect(JSON.stringify(emptied)).toBe(JSON.stringify(book));
+  });
+
+  it('returns a lorebook that never had one by identity', () => {
+    const book = newLorebook('Harbour lore') as unknown as Draft;
+    expect(withOptionalHooks(book, [])).toBe(book);
+  });
+
+  /**
+   * A book that arrived carrying an explicit `"hooks": []` and is emptied
+   * *through this control* loses the key: both spellings mean *no hooks*, and
+   * only one of them is what this editor writes.
+   */
+  it('drops an explicit empty list a hand edit left behind', () => {
+    const book = { ...(newLorebook('Harbour lore') as unknown as Draft), hooks: [] };
+
+    expect(Object.hasOwn(withOptionalHooks(book, []), 'hooks')).toBe(false);
+  });
+});
+
+/**
+ * ***Clearing an optional field, which is the edit a spread cannot express.***
+ *
+ * `newHook` above leaves `blockedBy`, `notBefore` and `introduces` **absent**,
+ * and states why: *a hook that has never been given an eligibility filter says
+ * nothing about one*. The controls that set them have to be able to get back
+ * there — type a turn floor, think better of it, and the hook has to end up
+ * byte-identical to one that never had a gate, because what it ends up as is
+ * what goes into the portable file and every diff of it.
+ */
+describe('unsetting a field', () => {
+  it('removes the key rather than writing undefined into it', () => {
+    const one = hook('The war', { notBefore: { turn: 4 }, blockedBy: ['other'] });
+
+    const [after] = patchHook([one], one.id, { notBefore: undefined, blockedBy: undefined });
+
+    expect(Object.hasOwn(after!, 'notBefore')).toBe(false);
+    expect(Object.hasOwn(after!, 'blockedBy')).toBe(false);
+  });
+
+  it('leaves the hook byte-identical to one that never carried the field', () => {
+    const plain = hook('The war');
+    const gated = { ...plain, notBefore: { turn: 4 } };
+
+    const [after] = patchHook([gated], plain.id, { notBefore: undefined });
+
+    expect(JSON.stringify(after)).toBe(JSON.stringify(plain));
+  });
+
+  it('leaves a key the hook never had absent rather than adding it', () => {
+    const plain = hook('The war');
+
+    const [after] = patchHook([plain], plain.id, { introduces: undefined });
+
+    expect(JSON.stringify(after)).toBe(JSON.stringify(plain));
+  });
+
+  it('still sets a key given a value, in the same patch', () => {
+    const one = hook('The war', { notBefore: { turn: 4 } });
+
+    const [after] = patchHook([one], one.id, { notBefore: undefined, premise: 'Soon.' });
+
+    expect(after).toMatchObject({ premise: 'Soon.' });
+    expect(Object.hasOwn(after!, 'notBefore')).toBe(false);
   });
 });
 

@@ -52,8 +52,22 @@ import type { DatabaseSync } from 'node:sqlite';
  * route's blanket catch, which answers *"that search query could not be
  * parsed"* — a missing table reported to the user as a mistake in their own
  * typing, on every search, forever.
+ *
+ * **9 is 4's shape again: not a change of shape but of what is *derived*.**
+ * `referencesIn` learned to read `hooks[].involves[]` and
+ * `hooks[].introduces.actor` on a Treatment and a Setup, and `LOREBOOK_SCHEMA`
+ * gained a real arm instead of returning `[]` — so `object_link` now holds
+ * edges it did not hold before, from the same files. No table changed, which is
+ * exactly why the bump has to be deliberate: `migrate` returns
+ * `rebuildRequired: false` whenever `user_version` already matches, the watcher
+ * starts with `ignoreInitial: true`, and nothing re-ingests a file that has not
+ * changed. Without the bump an upgraded install would show *Used by* — and
+ * [03 §10.1](../../../../docs/design/03-data-model.md)'s count-before-you-delete
+ * — as **zero** for an actor a hook names, indefinitely, until somebody happened
+ * to save the object for an unrelated reason. The index is derived and
+ * disposable by design, so one rescan is the whole cost.
  */
-export const INDEX_SCHEMA_VERSION = 8;
+export const INDEX_SCHEMA_VERSION = 9;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for

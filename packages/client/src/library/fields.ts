@@ -549,8 +549,14 @@ export function plotHookSchema(): SchemaNode | undefined {
  * these is a string, so a closed three-way union renders as a free-text box.
  * `Treatment.hookPacing` is that box today. One helper rather than a second
  * reading of the same `anyOf` per surface, so that fixing the pacing field
- * later is a call to this rather than a fourth copy of the walk — which is the
+ * later is a call to this rather than a third copy of the walk — which is the
  * argument the module header makes about second descriptions, one keyword down.
+ *
+ * *The copy it was extracted over is `positionOptions` in
+ * [EntryFields](../editor/EntryFields.tsx), and it was rewritten onto this in
+ * the same change rather than left as the duplicate this paragraph names.* A
+ * helper introduced on a no-duplication argument that does not absorb the
+ * duplicate it cites is the argument being made and not taken.
  *
  * **Null rather than an empty list for a schema that is not a closed union**,
  * and the distinction is load-bearing: `primaryEntranceId` is an `anyOf` too

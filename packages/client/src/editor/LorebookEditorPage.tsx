@@ -11,7 +11,6 @@ import {
   resolvedFolderId,
   type Lorebook,
   type LoreEntry,
-  type PlotHook,
 } from '@storyengine/shared';
 
 import { ApiError, type LibraryObject } from '../api.js';
@@ -49,7 +48,8 @@ import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
 import { EntryTravel } from './EntryTravel.js';
-import { hooksOf, withHooks } from './hook-form.js';
+import { hooksOf, withOptionalHooks } from './hook-form.js';
+import { hookShape } from './SimpleEditorPage.js';
 import { HookList } from './HookList.js';
 import { MediaStrip } from './MediaStrip.js';
 
@@ -140,6 +140,15 @@ function EditorLoader(props: { id: string }): JSX.Element {
  * ids are not strings collapse to one under any id-keyed operation, which would
  * delete an entry silently — the failure a read surface cannot have and a write
  * surface can.
+ *
+ * ***And `hooks` since this page grew a fold that writes them***, on exactly the
+ * same argument one field over: `HookList` maps the list, keys each card on
+ * `hook.id`, and names every control from `hook.title`, so a hand-edited
+ * `"hooks": "none"` would throw where the entry list is carefully guarded. The
+ * check itself is [SimpleEditorPage](./SimpleEditorPage.tsx)'s `hookShape`,
+ * shared rather than restated, because the three carriers fail identically and
+ * the sentence a reader is shown should not depend on which one they opened.
+ * *Absent stays legal*, because on a lorebook it is the ordinary state.
  */
 export function editableBookShape(object: Record<string, unknown>): string | null {
   const readable = lorebookShape(object);
@@ -152,7 +161,7 @@ export function editableBookShape(object: Record<string, unknown>): string | nul
     if (typeof folder['id'] !== 'string') return 'a folder has no "id" string';
     if (typeof folder['enabled'] !== 'boolean') return 'a folder has no "enabled" flag';
   }
-  return null;
+  return hookShape(object['hooks']);
 }
 
 function Unopenable(props: { id: string; problem: string }): JSX.Element {
@@ -620,7 +629,7 @@ function Editor(props: EditorProps): JSX.Element {
           <HookList
             hooks={hooksOf(draft)}
             onChange={(next) => {
-              edit(withBookHooks(draft, next));
+              edit(withOptionalHooks(draft, next));
             }}
             note="Hooks that are inseparable from this lore — the war over the island belongs with the kingdom that will declare it. One written here is eligible only while this book is active in a session, and it travels to anyone you give the book to. A treatment is the usual home for a hook; put one here when the lore is the reason it exists."
           />
@@ -628,41 +637,6 @@ function Editor(props: EditorProps): JSX.Element {
       </details>
     </EditorFrame>
   );
-}
-
-/**
- * The book with its hooks replaced — [`withHooks`](./hook-form.ts), plus the one
- * thing that function cannot do from where it stands.
- *
- * **`Lorebook.hooks` is optional and the other two carriers' is required**,
- * which is why the shared model keeps an empty list rather than deleting the
- * key: doing that generically would strip a required property off a Treatment
- * the moment somebody removed its last hook, leaving an object that no longer
- * validates, written by the editor that was supposed to be authoring it. From
- * here the kind is known, so the missing half can be supplied: on a lorebook an
- * empty list and no key are the same claim, and *no key* is the one that says
- * it. That is the rule `setSessionHooks` already keeps one package over
- * (`packages/server/src/sessions/store.ts`), for the same reason — the field is
- * optional there too.
- *
- * It matters more here than the difference between `[]` and absent usually
- * does. 03 §4.1 makes hooks-on-lorebooks *secondary*, and a book that carries
- * `"hooks": []` after somebody opened this fold and changed their mind is a
- * book that has been quietly reclassified by a surface that rendered it —
- * visible to every importer and to the compatible-export path, and saying
- * something about narrative intent that its author did not mean to say.
- *
- * The one case this treats as the author's rather than as preservation is a
- * book that arrived with an explicit `"hooks": []`: empty it through this
- * control and the key goes. Both spellings mean *no hooks*, and only one of
- * them is what this editor writes.
- */
-function withBookHooks(draft: Draft, next: PlotHook[]): Draft {
-  if (next.length > 0) return withHooks(draft, next);
-  if (!Object.hasOwn(draft, 'hooks')) return draft;
-  const rest = { ...draft };
-  delete rest['hooks'];
-  return rest;
 }
 
 /**

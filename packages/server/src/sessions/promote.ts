@@ -14,6 +14,7 @@ import {
 import { LibraryError, read, update, type LibraryContext } from '../library.js';
 
 import { readSession, type SessionContext } from './store.js';
+import type { HookSource, PooledHook } from './types.js';
 
 /**
  * ***A hook realised mid-play, saved back out of the session*** —
@@ -44,9 +45,10 @@ import { readSession, type SessionContext } from './store.js';
  * unfired entrance is hidden content*, and a surface that spoils the arrival to
  * the person about to read it defeats the feature.
  *
- * Promotion is therefore keyed by **hook id** and nothing else travels up the
- * wire. The client names which hook and which object; the server is the only
- * party that ever holds the hook itself.
+ * Promotion is therefore keyed by **which pooled row** — a hook id and the
+ * attribution already on the row — and no hook content travels up the wire. The
+ * client names which hook and which object; the server is the only party that
+ * ever holds the hook itself.
  *
  * ---
  *
@@ -68,6 +70,32 @@ import { readSession, type SessionContext } from './store.js';
  * pressing a button, deliberately, on an object they are looking at. `manual` is
  * the honest answer to what changed it; the reason says where they were standing
  * when they did.
+ *
+ * ***What §11.2c's rule is is `import`, and this deliberately does not take
+ * it.*** Saying so out loud rather than citing the section and quietly choosing
+ * a different arm, because the section's sentence is concrete: the book takes a
+ * history entry with `source: "import"` *"naming what came in and from where"*,
+ * and `VersionSource` has that arm — `{ kind: 'import'; from: string }`, whose
+ * first writer is [10 §11.2c]'s own entry travel, one stage over from this one.
+ * So what is borrowed here is §11.2c's **conclusion** — *the target's history is
+ * the record, and nothing new is stored to say so* — and not its mechanism.
+ *
+ * **Why not the mechanism.** `import` in this codebase means *content that was
+ * not in this library arrived in it*: a `.sepack`, a character card, a lorebook
+ * somebody sent you, and `from` is what it came out of. A promoted hook came
+ * from the library — it was copied *into* the session from one of these same
+ * three carriers at creation, or typed in the panel by the person now saving it
+ * — and nothing crossed a boundary. An `import` row naming a session would put a
+ * session where every other row in that stream holds a file, and would answer
+ * *where did this come from* with a place that is not outside.
+ *
+ * **What that costs, stated rather than stepped around.** `manual` plus prose
+ * is not queryable: a later feature wanting *which sessions contributed hooks to
+ * this treatment* has to match a string, and this is where it would have to be
+ * changed. That is a real cost and it is the cheaper of the two — the alternative
+ * is a provenance vocabulary that says *outside* about something that never was,
+ * which is the sort of wrong answer nothing later can detect. If the query
+ * arrives, the honest repair is an eighth arm, not a reinterpretation of this one.
  */
 
 /** Which of the three carriers is being written to — [03 §4.1]'s own three. */
@@ -144,6 +172,21 @@ type HookCarrier = Treatment | Setup | Lorebook;
  * wrote it in. Promotion adds a copy somewhere else. It changes nothing about
  * the game in progress.
  *
+ * ***`blockedBy` and `notBefore.afterHook` come across as written, and they are
+ * the one thing a change of carrier can break.*** Both address **sibling hooks
+ * by id**, and the siblings a hook travelled with need not be on the object it
+ * is being saved onto: promote H2 — gated *after H1* — onto a lorebook that does
+ * not carry H1, and `refuse` (`hooks.ts`) reads `!fired.has(afterHook)` in every
+ * later session that uses that book without the treatment, so the panel says
+ * *not yet* about a hook that can never become eligible. `blockedBy` degrades
+ * harmlessly in the same situation — a blocker that never fires never blocks —
+ * so the asymmetry is real rather than symmetrical caution. **Copied anyway**,
+ * because the gate is authored intent and stripping it silently would change
+ * what the hook means; promoting the sibling first is the repair, and it is one
+ * the same control performs. Named here rather than refused because a refusal
+ * is a new arm on the wire for a case the author can also want on purpose, and
+ * an unargued refusal is the more expensive of the two mistakes to undo.
+ *
  * *A malformed pooled hook is refused by the library's own validator*, not here.
  * The add route is deliberately open — *a hook the schema would refuse is an
  * authoring mistake to show rather than a request to reject* — so a hook can sit
@@ -163,11 +206,12 @@ export async function promoteSessionHook(
   sessionId: string,
   hookId: string,
   target: PromoteTarget,
+  from?: HookSource,
 ): Promise<PromoteOutcome> {
   const session = await readSession(sessions, handle, sessionId);
   if (session === null) return { kind: 'no-session' };
 
-  const pooled = (session.hooks ?? []).find((entry) => entry.hook.id === hookId);
+  const pooled = pooledHook(session.hooks ?? [], hookId, from);
   if (pooled === undefined) return { kind: 'no-such-hook' };
 
   const inKind = SCHEMA_FOR[target.kind];
@@ -224,4 +268,45 @@ export async function promoteSessionHook(
    */
   const name = (written.object as HookCarrier).name;
   return { kind: 'promoted', object: { id: target.id, name, kind: target.kind } };
+}
+
+/**
+ * Which pooled entry the caller meant — **the id, narrowed by the attribution
+ * the row was drawn with**.
+ *
+ * ***An id does not name one entry, and `poolFor` says so on purpose.*** Its
+ * docstring refuses to de-duplicate because *"the same hook reaching a session
+ * through two sources is a real authoring situation — a treatment and one of its
+ * own lorebooks"*, and this change makes that situation easier to produce rather
+ * than harder: promoting a hook onto a second carrier is exactly how one id
+ * comes to sit on two of them. The two copies then **diverge**, because each is
+ * edited on its own object. So the panel draws two rows under one id, each with
+ * its own control, and the first match is the row above the one that was
+ * pressed.
+ *
+ * **Worse than copying the wrong content, it is unrepairable by trying again**:
+ * the first press writes one of them, and every later press is refused
+ * `already-there` by the id check, so the hook the person meant can never reach
+ * that object.
+ *
+ * *`from` is matched on `kind` **and** `id`*, because `kind` alone collapses two
+ * lorebooks. A caller that sends none gets the first match, which is the only
+ * thing an id on its own can honestly mean — and a `from` that matches nothing
+ * is `no-such-hook` rather than a silent fall back to the first, because a row
+ * the pool does not hold is exactly what that refusal says.
+ */
+function pooledHook(
+  pool: readonly PooledHook[],
+  hookId: string,
+  from: HookSource | undefined,
+): PooledHook | undefined {
+  const byId = pool.filter((entry) => entry.hook.id === hookId);
+  if (from === undefined) return byId[0];
+
+  const wanted = from.kind === 'session' ? undefined : from.id;
+  return byId.find(
+    (entry) =>
+      entry.source.kind === from.kind &&
+      (entry.source.kind === 'session' || entry.source.id === wanted),
+  );
 }

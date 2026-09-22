@@ -957,6 +957,25 @@ export interface SessionSummary {
    * the chain is `Goal` objects and this names the two the panel reads.
    */
   goals?: { id: string; statement: string }[];
+  /**
+   * The **Setup** this session was created from — the id, and only the id.
+   *
+   * ***On the wire since P7.4 and undeclared here until the promote control
+   * needed it***, which is the same shape `preset` above records: `GET
+   * /api/sessions/:id` sends the whole session file, and `SessionFile.setup` is
+   * a **copy of the Setup** carrying its library id — the same id `poolFor`
+   * stamps into a pooled hook's `source`. Nothing on the client had a use for
+   * it, so nothing claimed it, and a docstring one package over went on saying
+   * *`SessionSummary` has never carried a `setup` field* as though that were a
+   * fact about the route.
+   *
+   * *Only the field a client has a use for*, on the terms this interface sets
+   * for `treatment`, `lore` and `goals`. The Setup's cast, openings, goals and
+   * hooks are all on the wire too and all of them are a copy of an object the
+   * library can be asked for; what cannot be got any other way is **which
+   * object it was a copy of**.
+   */
+  setup?: { id: string };
 }
 
 /**
@@ -1311,20 +1330,33 @@ export const PROMOTE_DIRECTORIES: Record<PromoteTargetKind, LibraryKind> = {
  * there to be said back: the row looks exactly as it did afterwards, so the
  * confirmation naming where it went is the only evidence anything happened.
  *
+ * ***`from` is the row's own source, and it is what makes *which hook* an
+ * answerable question.*** The pool does not de-duplicate by id on purpose — the
+ * same hook can reach a session from a treatment and from one of its own
+ * lorebooks — so two rows can share an id and carry different content, and an id
+ * alone names the first of them rather than the one somebody pressed. Sending
+ * the attribution the row was drawn with costs nothing (it is a kind and an id
+ * the server already holds, never hook content) and is the difference between
+ * copying the hook that was shown and copying a different one.
+ *
  * *The refusals are `already-there` (409, the target carries this id already —
  * never a second copy and never a fresh id, [15 §5.1]), `no-session`,
  * `no-such-hook` and `no-such-object`, three 404s that are three different
- * claims and send a person to three different places.*
+ * claims and send a person to three different places, and `target-moved` (409,
+ * the object changed underneath the write — deliberately **not** the library's
+ * 412, whose body would carry the whole object and with it every unfired
+ * premise on it).*
  */
 export function promoteSessionHook(
   sessionId: string,
   hookId: string,
   target: PromoteTarget,
+  from?: HookRow['source'],
 ): Promise<{ object: { id: string; name: string; kind: PromoteTargetKind } }> {
   return request(
     'POST',
     `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}/promote`,
-    { target },
+    from === undefined ? { target } : { target, from },
   );
 }
 

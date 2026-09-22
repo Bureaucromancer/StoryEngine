@@ -162,7 +162,10 @@ function loreIds(lore: unknown): (string | undefined)[] {
  *
  * ***Three carriers, one reader, because a hook is the same object on all
  * three.*** [03 §4.1] names four sources for hooks — a treatment's primarily, a
- * setup's as an override, a lorebook's as the secondary case, and the session's
+ * setup's added on top of it rather than replacing it (*"A Setup may add its own
+ * on top"*, and `Setup.hooks` is annotated *"Additional to the treatment's, not
+ * a replacement"* — `openings` is the field a setup overrides, and it sits four
+ * lines above), a lorebook's as the secondary case, and the session's
  * own ad-hoc pool. The first three are portable objects and arrive here; the
  * fourth never does, for the reason `setupCastIds` gives about sessions
  * generally — a session is not a portable object and `indexSession` hands

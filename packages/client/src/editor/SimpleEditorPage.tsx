@@ -3,14 +3,12 @@
 
 import { useState, type JSX } from 'react';
 
-import type { PlotHook } from '@storyengine/shared';
-
 import { ApiError, type LibraryObject } from '../api.js';
 import { blankFor, isRequiredField, type EditorKind as Kind } from '../library/fields.js';
 import { useEditorBase } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
-import type { Draft } from './book-form.js';
+import { mergedHooks, type Draft } from './book-form.js';
 import { EditorFrame } from './EditorFrame.js';
 import { hooksOf, withHooks } from './hook-form.js';
 import { HookList } from './HookList.js';
@@ -125,13 +123,63 @@ function nameOf(draft: Draft): string {
 /**
  * Why this object cannot back the form, or null.
  *
- * **One check, because one field is all these editors dereference.** The actor
+ * ~~**One check, because one field is all these editors dereference.** The actor
  * and preset guards are longer because their editors walk a list; these walk
  * nothing the schema renderer does not already survive — it reads values and
- * draws what it finds, including nothing.
+ * draws what it finds, including nothing.~~
+ *
+ * ***That stopped being true the moment a kind could declare `hooks`.*** The
+ * reasoning above is exactly right about `SchemaFields`, which renders a value
+ * of any shape opaquely and survives anything a hand edit can put in a file. It
+ * does not reach [HookList](./HookList.tsx), which **walks a keyed list**: it
+ * maps over `hooks`, keys each card on `hook.id`, and reads `hook.title` to name
+ * every control on it. A treatment on disk whose `hooks` is `"none"` or `{}`
+ * throws on the map; `[null]` throws on the key; `[{}]` throws in `nameOfHook`.
+ * There is no error boundary anywhere in this package, so the throw takes the
+ * **whole application** rather than the section — which is the one answer
+ * `lorebookShape`'s own docstring forbids a surface to give a hand-edited file:
+ * *"a hand edit is the storage thesis working, and a white screen is the one
+ * answer this surface may not give it."*
+ *
+ * **The string ids are checked for the reason `editableBookShape` checks an
+ * entry's.** `patchHook`, `removeHook` and `moveHook` all address a hook by id,
+ * so two hooks whose ids are not strings collapse to one under any of them — an
+ * edit to one silently editing or deleting the other, which is the failure a
+ * read surface can live with and a write surface cannot.
+ *
+ * **Gated on the flag, because the check is about what this page *dereferences*
+ * rather than about what the schema permits.** A package's `hooks`, if a hand
+ * edit put one there, still goes through `SchemaFields` and still renders
+ * opaquely, and refusing to open the editor over it would be this guard
+ * inventing a validity rule the kind does not have.
  */
-function shapeOf(object: Record<string, unknown>): string | null {
-  return typeof object['name'] === 'string' ? null : 'its "name" is not a string';
+function shapeOf(object: Record<string, unknown>, kind: SimpleKind): string | null {
+  if (typeof object['name'] !== 'string') return 'its "name" is not a string';
+  return kind.hooks === undefined ? null : hookShape(object['hooks']);
+}
+
+/**
+ * Why a carrier's `hooks` cannot be drawn, or null — shared by the three
+ * editors that draw it, because a hand-edited treatment and a hand-edited
+ * lorebook fail in the same three ways.
+ *
+ * *Absent is fine and is not the same as empty*: `Lorebook.hooks` is optional,
+ * and `hooksOf` reads a missing key as the empty list. What is refused is a key
+ * holding something that is not a list of objects with ids.
+ */
+export function hookShape(hooks: unknown): string | null {
+  if (hooks === undefined) return null;
+  if (!Array.isArray(hooks)) return 'its "hooks" is not a list';
+  for (const hook of hooks as unknown[]) {
+    if (typeof hook !== 'object' || hook === null) return 'a hook is not an object';
+    if (typeof (hook as Record<string, unknown>)['id'] !== 'string') {
+      return 'a hook has no "id" string';
+    }
+    if (typeof (hook as Record<string, unknown>)['title'] !== 'string') {
+      return 'a hook has no "title" string';
+    }
+  }
+  return null;
 }
 
 export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
@@ -140,7 +188,7 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
     formOf: (object) => structuredClone(object),
     apply: (_base, draft) => draft,
     changed: (base, draft) => JSON.stringify(draft) !== JSON.stringify(base),
-    shape: shapeOf,
+    shape: (object) => shapeOf(object, kind),
     /**
      * The 412 merge — field by field at the top level, and hook by hook inside
      * `hooks`.
@@ -191,76 +239,6 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
 }
 
 /**
- * Their hooks with mine put back — per hook, keyed on id, resolved against the
- * draft as it read when I opened it.
- *
- * **What makes the finer unit available is a fact about hooks rather than a
- * better idea**, which is the same sentence [book-form.ts](./book-form.ts)
- * writes about entries: a hook's `id` is a uuid that must survive every copy of
- * the hook ([15 §5.1](../../../../docs/design/15-world.md) — a hook fired in
- * one session must not fire again in the next of the same continuity), so *was
- * this here when I opened it* is answerable, and the three cases can each be
- * given the answer they actually want.
- *
- * - **In both** — whichever of us changed it from `pristine` wins; if neither
- *   did, it stays theirs, which is what an untouched field means everywhere
- *   else in this merge.
- * - **In theirs and not in mine** — I removed it *if it was in `pristine`*, and
- *   otherwise they added it while I was editing. Those want opposite outcomes
- *   and `pristine` is the only thing that tells them apart: without it a merge
- *   either resurrects every deletion or discards every concurrent addition.
- * - **In mine and not in theirs** — I added it, and it stays; or they removed
- *   it, and it stays only if I had edited it, because keeping an untouched copy
- *   of something somebody deleted is undoing their delete rather than saving
- *   any work of mine.
- *
- * ***The whole hook rather than field by field, which is where this is coarser
- * than the entry merge it is modelled on.*** An entry is forty fields and a
- * book is usually opened to change one of them, so taking a whole entry from
- * one side would discard the other's edit to a field neither of us contested.
- * A hook is eight fields on one card, written and read as a unit, and the case
- * a per-field merge would improve is two people editing *different fields of
- * the same hook* at the same time — one conflict finer than the one this change
- * exists to stop. The finer version already exists as `withMyFields` in
- * `book-form.ts`; the way to have it here is to export that, not to keep a
- * second copy of it, which is the duplication that module's own docstring
- * argues against.
- *
- * Order follows theirs with anything of mine they do not have appended, so a
- * concurrent addition is not shuffled to the end of somebody else's list. The
- * loss that takes is my *reorder*, and it is a cheap one here in a way it would
- * not be for a lorebook: a hook list's order is for the person reading it and
- * nothing downstream depends on it, which `poolFor`
- * (`packages/server/src/sessions/hook-pool.ts`) states from the other side —
- * *"nothing downstream depends on it — selection is weighted"*.
- */
-function mergedHooks(pristine: Draft, draft: Draft, fresh: Draft): PlotHook[] {
-  const was = new Map(hooksOf(pristine).map((hook) => [hook.id, JSON.stringify(hook)]));
-  const mine = new Map(hooksOf(draft).map((hook) => [hook.id, hook]));
-
-  const kept = hooksOf(fresh).flatMap((hook) => {
-    const held = mine.get(hook.id);
-    if (held === undefined) return was.has(hook.id) ? [] : [hook];
-    return [was.get(hook.id) === JSON.stringify(held) ? hook : held];
-  });
-
-  const theirs = new Set(hooksOf(fresh).map((hook) => hook.id));
-  const rescued = hooksOf(draft).filter((hook) => {
-    if (theirs.has(hook.id)) return false;
-    const before = was.get(hook.id);
-    // Not theirs any more, which is two situations. I made it, and it stays; or
-    // they deleted it, and it stays only if I had changed it. Two statements
-    // rather than one disjunction, because as one the first arm is silently
-    // unfalsifiable — `was.get` of a hook I created is `undefined`, so the
-    // comparison below is already true for it.
-    if (before === undefined) return true;
-    return JSON.stringify(hook) !== before;
-  });
-
-  return [...kept, ...rescued];
-}
-
-/**
  * ***The column belongs here, and it is six routes at once***
  * ([`kinds.tsx`](./kinds.tsx) delegates all three editors to this component and
  * all three create routes to the one below).
@@ -305,7 +283,7 @@ function SimpleEditorBody(props: { kind: SimpleKind; id: string }): JSX.Element 
     );
   }
 
-  const problem = shapeOf(base.data.object);
+  const problem = shapeOf(base.data.object, props.kind);
   if (problem !== null) {
     return (
       <p role="alert" className="text-danger-ink">

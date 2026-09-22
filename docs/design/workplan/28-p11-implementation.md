@@ -1643,8 +1643,30 @@ list.
 - **Absent is not empty**, and it is the one thing that is not generic over the
   three: `Treatment.hooks` and `Setup.hooks` are required, `Lorebook.hooks` is
   optional, so `withHooks` leaves an absent key absent when the list it is given
-  is empty and keeps a present one as `[]`. That is the rule `setSessionHooks`
-  already kept for the session's pool, arriving at the carriers.
+  is empty and keeps a present one as `[]`, while `withOptionalHooks` beside it
+  takes the key back off a **lorebook** whose last hook is removed. Both live in
+  `hook-form.ts`, which is the repair of a first draft that had the deleting half
+  written into the lorebook page: two callers needed it — the fold and the 412
+  merge — and a rule stated in two places is a rule that gets two answers. That
+  is `setSessionHooks`'s rule for the session's pool, arriving at the carriers.
+- ***And the same distinction inside a hook***, which the first draft got wrong
+  in the other direction. `newHook` leaves `blockedBy`, `notBefore` and
+  `introduces` **unset** and argues why — *a hook that has never been given an
+  eligibility filter says nothing about one* — and the controls that set them
+  have to be able to get back there, or clearing a turn floor leaves
+  `notBefore: {}` in the portable file, every export of it and every diff,
+  forever. `patchHook` takes `undefined` as *remove the key*, so all three clear
+  to absence through one mechanism rather than one of them through a bespoke
+  function and the other two not at all.
+- ***A hand-edited `hooks` refuses the editor rather than the application.***
+  The page's guard checked `name` alone and said why: everything else went
+  through `SchemaFields`, which draws a value of any shape. `HookList` does not —
+  it walks a keyed list, keys each card on `hook.id` and names every control from
+  `hook.title` — and with no error boundary anywhere in `packages/client` a throw
+  in there is the **whole application**, which is the one answer
+  `lorebookShape`'s own docstring forbids a surface to give a hand-edited file.
+  Both guards now check the field, through one shared `hookShape`, and a bad file
+  falls to the *unopenable* panel that names the problem and points at it.
 - **The 412 merge acquired the keyed list its own comment said it lacked.**
   `descriptorFor`'s `reapply` merges a conflict field by field, and the comment
   beside it explains why the entry and block editors merge differently:
@@ -1652,7 +1674,16 @@ list.
   answerable. These do not."* ***After this stage they do***, so `hooks` merges
   hook by hook. Left alone, the first conflict on a treatment with hooks would
   have taken one side's whole list, silently, which is the failure that comment
-  was written to prevent one editor over.
+  was written to prevent one editor over. ***And the lorebook's merge got the
+  same treatment***, which the first draft left out: `reapplyBookEdits` stripped
+  only `entries` and `folders`, so the third carrier — the one this change had
+  just made writable — kept the coarse rule and would have dropped a promoted
+  hook on the first conflict, inside the dialog whose entire offer is *reapply my
+  edits*. The keyed three-way walk is one `mergeKeyed` in `book-form.ts` with a
+  per-item resolver, because it had been written once for entries and copied for
+  hooks, comment included, and a fix to the
+  `pristine`-distinguishes-delete-from-addition rule would have had two homes and
+  one of them forgotten.
 - **`plotHookSchema()` and `choicesOf()` in `library/fields.ts`**, the first
   beside `loreEntrySchema()` for its stated reason — one walk from a carrier's
   schema to a hook's, rather than one per surface. ***The second is a finding
@@ -1662,7 +1693,10 @@ list.
   free-text box. **`Treatment.hookPacing` is that box today** — the authored
   default [04 §6.1b](../04-schemas.md) writes, over the four levels
   [25 C7e](../25-open-questions.md) spent a paragraph settling — and it is now
-  one call away from not being.
+  one call away from not being. *`positionOptions` in `EntryFields.tsx` was
+  rewritten onto it in the same change*, because a helper introduced on a
+  no-duplication argument that leaves the duplicate it names standing is the
+  argument made rather than taken.
 
 **The promote route, and it is a route because it cannot be anything else.**
 `POST /api/sessions/:sessionId/hooks/:hookId/promote` ([api.md](../../api.md))
@@ -1686,15 +1720,49 @@ feature has to spend was never a rule.
   is active* to a hook that never had that clause.
 - **The target's history is the record of the promotion**, through the existing
   `manual` attribution with a reason naming the session rather than an eighth
-  `VersionSource` arm. That is [10 §11.2c](../10-ui-surfaces.md)'s rule for entry
-  imports read one kind over, and the arm it would have sat beside — `memory` —
-  was named separately because *who changed my character* has different answers
-  for *an extension did* and *a session did*. A person pressing a button is
-  neither.
+  `VersionSource` arm. The **conclusion** is
+  [10 §11.2c](../10-ui-surfaces.md)'s, read one kind over — *the book's history
+  is the record of the import* — and the arm this one would have sat beside,
+  `memory`, was named separately because *who changed my character* has
+  different answers for *an extension did* and *a session did*. A person
+  pressing a button is neither. ***What is not taken is §11.2c's mechanism***,
+  and that is stated rather than stepped around: the section's rule is
+  concretely `source: "import"` *naming what came in and from where*, and that
+  arm exists and got its first writer one stage over. It is declined because
+  `import` here means content arriving from **outside** the library, which a
+  promoted hook is not; the cost — `manual` plus prose is not queryable — is
+  named in `sessions/promote.ts` and in [api.md](../../api.md), with an eighth
+  arm as the honest repair if the query ever arrives.
 - **On the panel, not in the workbench.** [10 §10.1] splits the two controls it
   already had by *a move in the story* versus *a test of the material*, and
   promotion is neither; it is an act on the library performed while playing, and
   it belongs where the hook somebody wants to keep actually is.
+- ***The targets are the three carriers the session names, and all three are
+  offered whether or not they already carry a hook.*** The control joins
+  `session.treatment`, `session.setup` and `session.lore` with the sources the
+  pool's own rows report, because neither half alone is enough: a Setup or a
+  lorebook with no hooks seeds no row while being a perfectly good place to put
+  one — and a Setup with no hooks is what a Setup looks like before anybody has
+  written one, so leaving it to the rows would have made *can I save a hook here*
+  depend on whether a hook was already here. `SessionSummary` gained `setup` for
+  it, on the terms that interface already sets: the route has been sending the
+  whole session file all along, and only the field a client has a use for is
+  claimed.
+- ***And the request names the row rather than the hook id***, because `poolFor`
+  refuses to de-duplicate by id — *the same hook reaching a session through two
+  sources is a real authoring situation* — so two rows can share an id, carry
+  different content, and each draw their own control. The row's `source` travels
+  with the request; without it the handler copies the first match, and the 409
+  above then refuses every later attempt, so the hook somebody meant could never
+  reach that object at all.
+- ***`412 stale` does not pass through to this caller.*** Every other library
+  refusal goes through the shared mapping, which is right for each of them; that
+  one attaches `current`, the whole target object, so an editor can offer
+  reload-and-reapply — and here that object is every **unfired** premise and
+  entrance text on a treatment, sent to the play client through the error path of
+  the route whose entire reason for being server-side is that redaction. It
+  answers `409 target-moved` with no envelope, and nothing is lost: the client
+  never held the hook, so it has no edits to reapply.
 
 **The reference edges hooks had never had.** `index-db/links.ts` read no hook
 field on any carrier and returned `[]` outright for `LOREBOOK_SCHEMA`, so an
@@ -1706,6 +1774,17 @@ old argument was kept rather than replaced***: *a lorebook's entries and a
 preset's blocks are inside the object* is true, and it never covered
 `introduces.actor`, which points outward. The preset's arm still returns `[]`
 with the half of the reasoning that survives intact.
+
+***And `INDEX_SCHEMA_VERSION` went to 9 with it***, which is the half that would
+have made the rest inert. What changed is not the index's shape but what is
+**derived** into `object_link`, and `migrate` returns `rebuildRequired: false`
+whenever the stored version already matches while the watcher starts with
+`ignoreInitial: true` — so nothing re-ingests a file that has not changed, and an
+upgraded install would have gone on answering *Used by* with **zero** for an
+actor a hook names until somebody happened to save the object for an unrelated
+reason. Version 4 is the precedent the constant's own docstring records, and it
+was bumped for exactly this: *not a change of shape but of what `path` contains*.
+The index is derived and disposable, so one rescan is the whole cost.
 
 ***What was not built, named here rather than left to a reader of the gate.***
 [04 §9.1](../04-schemas.md)'s export-closure walker still does not exist —
@@ -1751,11 +1830,27 @@ be corrected by anything but somebody working nearby.
 
 ***The walk is owed, and it is not recorded in
 [§3.2](#32-what-was-answered--recorded-2026-09-17).*** This is
-[manual testing §0](05-manual-testing.md) critical-list material by
-clause (i) — the first authoring surface a portable field has had, and the first
-write into the library from inside a session — and nobody has walked it yet.
-Recording it in the second table before it is walked would spend that table's
-whole reason for existing on the first occasion it was inconvenient.
+[manual testing §0](05-manual-testing.md) critical-list material, and the
+criterion is *all three* clauses rather than the first one, so all three are
+stated. **(i)** it can falsify this stage's own claim — a hook that cannot be
+written on a carrier, or cannot be saved back out of a session, is P11.2's
+editor sweep not having happened for the field it was deferred over. **(ii)**
+what this gate compounds into is the **beta declaration** rather than a later
+phase, which is [§3.1](#31-the-critical-list-and-what-a-test-answers)'s P11-specific
+re-reading of that clause. **(iii)** it is walkable with what is to hand — one
+`pnpm dev` sitting, no live endpoint and nothing on the standing-prerequisites
+list.
+
+***And it is a row rather than a paragraph.*** It is
+[sitting R](05-manual-testing.md)'s **R6**, written into the standing document
+where the pile is meant to be visible — because a deferral that lives only
+inside a phase document is [manual testing §10.1](05-manual-testing.md)'s own
+failure mode, *"a deferral nobody collects is not merely lost; it stops being
+read"*,
+and the person who sits down to close P11 reads R. *Recording the **result** in
+§3.2 before it is walked would spend that table's whole reason for existing on
+the first occasion it was inconvenient*, and the thirteen rows in §3 are
+untouched either way.
 
 ### P11.3 — The assistant
 

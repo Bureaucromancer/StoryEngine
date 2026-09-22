@@ -1256,10 +1256,22 @@ state the caller asked for — while a missing **session** is still a `404`.
 
 ### `POST /api/sessions/:sessionId/hooks/:hookId/promote`
 
-`{ target: { kind: 'treatment' | 'setup' | 'lore', id } }` →
+`{ target: { kind: 'treatment' | 'setup' | 'lore', id }, from? }` →
 `{ object: { id, name, kind } }`. The pooled hook named by `:hookId` is appended
 to that library object's `hooks`, **keeping its id**, and the object is written
 through the ordinary library update path.
+
+**`from` is which pooled row, and an id alone cannot say.** It is the row's own
+`source` — `{ kind: 'treatment' | 'setup' | 'lore', id }` or `{ kind: 'session' }`,
+the vocabulary `GET /hooks` already returns — and the pool needs it because
+`poolFor` deliberately does not de-duplicate: *the same hook reaching a session
+through two sources is a real authoring situation*, so two rows can share an id
+and carry different content, and the panel draws both. Without it the handler
+takes the first match, which is the row above the one that was pressed — and the
+409 below then refuses every later attempt, so the hook somebody meant can never
+reach that object. It carries no hook content, only a kind and an id the server
+already holds. Omitting it means *the first row with that id*, which is the
+honest reading of a request that names only one.
 
 **The valve the pair above never had.** A session copies hooks in from all four
 of [03 §4.1](design/03-data-model.md)'s sources and may gain its own while
@@ -1304,10 +1316,21 @@ object, not the session, which is why the reply carries the object.
 
 **The target's history is the record.** The write goes through the same path
 every other library edit takes, with a `manual` change attribution whose reason
-names the session — [10 §11.2c](design/10-ui-surfaces.md)'s rule for entry
-imports, read one kind over: *the book's history is the record of the import*.
-Nothing new is stored to say a hook came from a session, because the version the
-write leaves behind says it, where somebody looking at the object will look.
+names the session. The **conclusion** is [10 §11.2c](design/10-ui-surfaces.md)'s,
+read one kind over — *the book's history is the record of the import*, so nothing
+new is stored to say a hook came from a session, because the version the write
+leaves behind says it where somebody looking at the object will look.
+
+***The mechanism is deliberately not §11.2c's, and that is worth saying rather
+than stepping around.*** That section's rule is concretely `source: "import"`
+*naming what came in and from where*, and `VersionSource` has exactly that arm.
+It is not taken here because `import` in this build means *content that was not
+in this library arrived in it* — a `.sepack`, a card, a book somebody sent you —
+and a promoted hook came **from** the library and never crossed a boundary. The
+cost is real and is named in `sessions/promote.ts`: `manual` plus prose is not
+queryable, so a later feature wanting *which sessions contributed hooks to this
+treatment* would have to match a string, and the honest repair then is an eighth
+`VersionSource` arm rather than a reinterpretation of this one.
 
 **Four refusals, and each claims something different.** `404 no-session`, `404
 no-such-hook` when this pool has no such id, and `404 no-such-object` when the
@@ -1315,8 +1338,21 @@ target has been deleted since the panel listed it — three answers rather than 
 shared *not found*, because a person sent to the wrong one of them looks in the
 wrong place. `409 already-there` is above. Beyond those the library's own
 refusals apply unchanged: `403 read-only` for a system-library target
-(copy-to-my-library is the move), and `412 stale` / `409 diverged` if the target
-moved or broke underneath the write.
+(copy-to-my-library is the move), `400 invalid` if the pooled hook is one the
+carrier's schema refuses, and `409 diverged` if the target's file broke
+underneath the write.
+
+***`412 stale` is the one library refusal this route does not pass through***,
+and answers `409 target-moved` with **no envelope** instead. The 412 arm attaches
+`current` — the whole target object — so that an *editor* can offer
+reload-and-reapply; on this route that object is a treatment's or a lorebook's
+every hook, which means every **unfired** premise and every entrance text on it,
+sent to the play client. That is exactly the content [08 §6](design/08-cross-session-memory.md)
+and [10 §10.1](design/10-ui-surfaces.md) name as hidden, at the surface they name
+it about, arriving through the error path of the route whose whole reason for
+being server-side is that redaction. Nothing is lost by withholding it: the
+client has never held the hook, so there is no *reapply my edits* it could offer,
+and *try again* is the whole of the recovery.
 
 ### `PUT /api/sessions/:sessionId/lore`
 
