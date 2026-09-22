@@ -38,7 +38,7 @@ const SOURCES = [
     name: 'Marinara',
     names: [...MARINARA_TABLES],
     dispositions: MARINARA_DISPOSITIONS,
-    expected: 81,
+    expected: 83,
   },
 ] as const;
 

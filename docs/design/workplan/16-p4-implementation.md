@@ -932,16 +932,17 @@ rides along.
 ### 1.8 What the sweep does with everything else in ~~an ST user directory~~ a source tree
 
 A real ST user tree is thirty directories and a Marinara store is
-eighty-one tables; the sweep must have a stated disposition for each class or
+~~eighty-one~~ **eighty-three** tables (*2026-09-22, [P4 §7.18]*); the sweep
+must have a stated disposition for each class or
 the review's "nothing silently dropped" is a lie. **Widened at the amendment to
 cover both**, because keeping the dispositions in one section is what makes
 that claim a single checkable thing rather than two claims that drift.
 
 **The claim is made checkable the way §1.1 already decided for credentials: by
 vendored snapshot.** ST's `USER_DIRECTORY_TEMPLATE` (`src/constants.js:16`,
-thirty-one keys) and Marinara's `FILE_BACKED_TABLES`
-(`Marinara-Engine/packages/server/src/db/file-backed-store.ts:349`, eighty-one
-tables) are each committed as a snapshot with a provenance comment naming the
+thirty-one keys) and Marinara's ~~`FILE_BACKED_TABLES`~~
+**`BUILT_IN_FILE_BACKED_TABLES`** (`file-backed-store.ts:329` at staging,
+eighty-three tables) are each committed as a snapshot with a provenance comment naming the
 source file, commit and date, and a test asserts that **every name in the
 snapshot has a disposition**. A name that appears in a real install but in
 neither the snapshot nor the map is not a hole — it is the *unrecognised*
@@ -972,8 +973,11 @@ counted* — `thumbnails` and its three children, `movingUI`, `extensions`,
 any plan, and a disposition nobody wrote is the silent drop this section exists
 to prevent.
 
-**Marinara.** By family, because eighty-one names is a code artefact rather
-than prose:
+**Marinara.** By family, because ~~eighty-one~~ eighty-three names is a code
+artefact rather than prose. **The two added in the 2026-09-22 refresh**
+([P4 §7.18]) are `game_dice_pools`, which records with the rest of the `game_*`
+family, and `advanced_memory_records`, which is skipped beside `memory_chunks`
+for the reason that row already gives:
 
 | Class | Tables |
 |---|---|

@@ -17,11 +17,21 @@ import type { ImportDisposition } from '@storyengine/shared';
  *
  * Snapshot provenance:
  *   source  Marinara-Engine/packages/server/src/db/file-backed-store.ts,
- *           `FILE_BACKED_TABLES`
- *   commit  34442e26da577ff0d95ee890a87024e35831bfa9 (v2.4.3, 2026-08-18)
- *   taken   2026-08-30
+ *           `BUILT_IN_FILE_BACKED_TABLES`
+ *   commit  459f8b85b9af8b674a86826ab1a5316d02139168 (staging, storage
+ *           format 7, 2026-09-17)
+ *   taken   2026-09-22
+ *   was     34442e26da577ff0d95ee890a87024e35831bfa9 (v2.4.3, 2026-08-18),
+ *           eighty-one tables, taken 2026-08-30
  *
- * **Twenty-four of the eighty-one are the social feed** — the `noodle_*` and
+ * **The constant was renamed upstream and the list became a registry.** It is
+ * `BUILT_IN_FILE_BACKED_TABLES` now, and `FILE_BACKED_TABLES` is that list plus
+ * whatever a capability package registered at runtime. Which means a table this
+ * snapshot has never heard of is *expected* in an install that runs packages,
+ * and `unrecognised` is the honest answer for it rather than a sign the
+ * snapshot rotted.
+ *
+ * **Twenty-four of the eighty-three are the social feed** — the `noodle_*` and
  * `slurp_*` families, nearly a third of the store, a subsystem
  * [triage §4](../../../../../docs/design/workplan/02-triage.md) discards
  * outright. Worth knowing before anyone estimates this conversion by table
@@ -89,6 +99,7 @@ export const MARINARA_TABLES = [
   'game_scene_videos',
   'game_turn_storyboards',
   'game_turn_storyboard_keyframes',
+  'game_dice_pools',
   'regex_scripts',
   'chat_images',
   'character_images',
@@ -100,6 +111,7 @@ export const MARINARA_TABLES = [
   'ooc_influences',
   'conversation_notes',
   'memory_chunks',
+  'advanced_memory_records',
   'chat_folders',
   'api_connection_folders',
   'custom_themes',
@@ -122,7 +134,13 @@ export const MARINARA_TABLES = [
  * decision rather than twenty-five.
  */
 export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> = {
-  // ── Converted: the library half, and it is entirely unsharded ─────────────
+  // ── Converted: the library half ───────────────────────────────────────────
+  //
+  // ~~and it is entirely unsharded~~ *Struck 2026-09-22 ([P4 §7.18]).* That was
+  // true of storage format 4 and stopped being true at format 5, which shards
+  // every table by its owner — these tables included. The reader asks the
+  // filesystem rather than this comment, which is why the claim could sit here
+  // wrong for three weeks without a test noticing.
   characters: 'converted',
   character_images: 'converted',
   personas: 'converted',
@@ -178,6 +196,7 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   game_scene_videos: 'recorded',
   game_turn_storyboards: 'recorded',
   game_turn_storyboard_keyframes: 'recorded',
+  game_dice_pools: 'recorded',
   spatial_context_snapshots: 'recorded',
   // Agent- and extension-shaped: waiting on the extension host P7 makes real.
   agent_configs: 'recorded',
@@ -225,6 +244,7 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   slurp_refresh_runs: 'skipped',
   /** Embeddings and derived state ([00 §2.8]). An imported library has no memories. */
   memory_chunks: 'skipped',
+  advanced_memory_records: 'skipped',
   achievement_unlocks: 'skipped',
   conversation_call_sessions: 'skipped',
   conversation_call_messages: 'skipped',
