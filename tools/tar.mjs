@@ -130,11 +130,20 @@ export function tarHeader(name, size, options = {}) {
  * fields stop at the first NUL, and an unset `prefix` is 155 zero bytes.
  */
 export function headerName(block) {
+  /**
+   * ***`TextDecoder`, not `block.toString('utf8')`.***
+   *
+   * The second is a `Buffer` method, and on a plain `Uint8Array` it resolves to
+   * `Array.prototype.toString` — which does not throw. It returns
+   * `"115,116,97,..."`, a string of comma-joined byte values that every caller
+   * here would accept as a member name. `backup.mjs` happens to hand this a
+   * `Buffer` and so never met it; `tar-seam.test.ts` handed it the server
+   * writer's `Uint8Array` on its first run and found it immediately, which is
+   * the seam earning its keep before the archive format did.
+   */
+  const decoder = new TextDecoder();
   const field = (at, length) =>
-    block
-      .subarray(at, at + length)
-      .toString('utf8')
-      .replace(/\0.*$/s, '');
+    decoder.decode(block.subarray(at, at + length)).replace(/\0.*$/s, '');
   const name = field(0, NAME_MAX);
   const prefix = field(345, PREFIX_MAX);
   return prefix === '' ? name : `${prefix}/${name}`;
