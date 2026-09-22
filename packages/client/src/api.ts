@@ -2286,6 +2286,58 @@ export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
 }
 
 /**
+ * ***An archive of your work, or of the whole install*** —
+ * [P12.6](../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * **Every address is written out whole**, which is a rule about
+ * `route-callers.test.ts` rather than about style: that check scans this
+ * package for `/api/...` string literals to prove no route is unreachable, and
+ * it resolves helper *functions* rather than local constants. A stem factored
+ * out of these would read as several orphaned routes.
+ *
+ * **There is no download function**, deliberately. A download is a plain
+ * `<a download>` at the route — a `fetch` would have to rebuild what the
+ * browser already does, and the route sends a `content-disposition`. The
+ * address still appears in the component, so the scan reaches it.
+ */
+export interface BackupRecord {
+  id: string;
+  scope: 'install' | 'account';
+  handle: string | null;
+  contents: 'full' | 'redacted';
+  takenAt: number;
+  bytes: number;
+}
+
+export interface BackupListing {
+  backups: BackupRecord[];
+  /** What the stored archives weigh together — the number before the action. */
+  totalBytes: number;
+}
+
+export interface BackupSettings {
+  frequency: 'off' | 'daily' | 'weekly';
+  onStart: boolean;
+  contents: 'full' | 'redacted';
+}
+
+export const backupApi = {
+  readMine: (): Promise<BackupListing> => request('GET', '/api/me/backups'),
+  takeMine: (contents: 'full' | 'redacted'): Promise<{ backup: BackupRecord }> =>
+    request('POST', '/api/me/backups', { contents }),
+  deleteMine: (id: string): Promise<void> => request('DELETE', `/api/me/backups/${id}`),
+  readSettings: (): Promise<{ settings: BackupSettings }> =>
+    request('GET', '/api/me/backups/settings'),
+  writeSettings: (settings: BackupSettings): Promise<{ settings: BackupSettings }> =>
+    request('PUT', '/api/me/backups/settings', settings),
+
+  readInstall: (): Promise<BackupListing> => request('GET', '/api/admin/backups'),
+  takeInstall: (contents: 'full' | 'redacted'): Promise<{ backup: BackupRecord }> =>
+    request('POST', '/api/admin/backups', { contents }),
+  deleteInstall: (id: string): Promise<void> => request('DELETE', `/api/admin/backups/${id}`),
+};
+
+/**
  * ***Write this field for me*** —
  * [10 §11.1](../../../docs/design/10-ui-surfaces.md), [P11.2].
  *

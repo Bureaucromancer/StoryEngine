@@ -89,6 +89,20 @@ export const NOTIFICATION_LABELS: Record<string, NotificationLabel> = {
     title: 'A setting needs a restart',
     body: 'Waiting for a restart: {keys}.',
   },
+  /**
+   * ***Only failures are ever announced*** —
+   * [P12.5](../../../../docs/design/workplan/29-p12-implementation.md). A daily
+   * backup that says so every day is noise, and noise is how somebody stops
+   * reading the one that matters.
+   *
+   * **The body says where to look rather than what went wrong**, because the
+   * cause is in the server log and the *action* is in Settings: turn the
+   * schedule off, or delete some archives and free the disk.
+   */
+  'system.notice:backup-failed': {
+    title: 'A scheduled backup did not happen',
+    body: 'Check the backups in Settings — the disk may be full.',
+  },
 };
 
 /**
