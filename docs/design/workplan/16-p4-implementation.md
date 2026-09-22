@@ -2618,6 +2618,79 @@ start saying different things about the same kind. The doc is corrected.
   object's own review. One `recordImport` call; it belongs to whoever needs
   [P5 §1.8](17-p5-implementation.md).
 
+### 7.18 Marinara moved a fourth time, and the reader had not been reading the third — 2026-09-22
+
+***The refusal that started it.*** A live v2.4.x install was pointed at the
+importer and came back *"That folder was written by a newer version than this
+build understands."* — `detect.ts`'s version gate, which this section replaces,
+and which was pinned at storage format 4 while Marinara had reached 6 on `main`
+and 7 on `staging`.
+
+**Three bumps since the pin, and only one of them was about the layout.**
+
+- **Format 5** (`fa3971d5f`, 2026-08-20) shards *every* table into
+  `storage/tables/<t>/<encoded-owner>.json`. Format 4 sharded sixteen
+  chat-scoped tables; from 5 the half of the store a library import reads —
+  characters, personas, lorebooks, presets — shards too.
+- **Format 6** (`e390e3619`, 2026-08-28) is a bare number. It pairs with the
+  writer-lease record gaining fields so that an older *Marinara* refuses a
+  store whose lease it cannot parse.
+- **Format 7** (`5d6d7c52e`, 2026-09-17) adds nullable provenance columns to
+  `lorebook_entries`, so that an older *Marinara writer* cannot silently drop
+  them on the next save.
+
+**Two of the three protect Marinara's own writers against a downgrade, and a
+read-only importer is not a writer.** That is the observation the rest of this
+section rests on: the number in the manifest is the wrong question for us,
+and §1.3 had already said so in a sentence it then did not act on — *"the
+manifest states the version without establishing the layout"*.
+
+#### Four defects the refusal was hiding
+
+The gate had made the reader unreachable for any recent store, so none of these
+had ever run against one.
+
+1. **Every object would have been imported twice.** `#rows` read *every* file
+   under a sharded table's directory, and upstream writes a `.bak` beside most
+   shards. At format 4 that cost nothing, because the tables we convert were
+   single files; from format 5 it is a second copy of every character, lorebook
+   and preset — and because the copies are identical, the review says
+   `unchanged` rather than anything alarming.
+2. **The mid-migration check has never once fired.** We probed
+   `storage/.migrating`. Marinara writes the sentinel per table, at
+   `storage/tables/<t>/.migrating`, and did so at format 4 as well. The refusal
+   that exists to stop a torn read was looking at a path that has never
+   existed.
+3. **The disposition lookup had the prototype hole** §7.8 closed on the
+   SillyTavern side: a table named `constructor` was handed a function.
+4. **Unreadable and malformed files vanished.** A table file that could not be
+   read, or that parsed to something other than a list of rows, produced no row
+   in the review at all — the silent drop that *nothing is silently dropped*
+   exists to prevent, and the same class of defect as 2 in that a person is
+   given no reason to doubt the result.
+
+**Smaller things found with them:** a single file won over shards where
+upstream gives shards the win and quarantines the file; the automatic
+`.pre-shard` backups, the `.corrupt-` quarantines and the launcher's
+`.post-unshard-` directories were reported as `unrecognised` rather than
+recognised and skipped; and `persona_images` was filtered by `characterId` in
+code that could never run.
+
+#### What shipped
+
+`marinara/store-format.ts` ports the naming rules from upstream rather than
+inferring them: the shard-key encoder byte for byte, the shard-file rule, the
+whole shard-owner map, and a classifier that answers what any path under
+`storage/tables/` is. `litter.ts` beside it holds the names a filesystem
+leaves behind, as a *closed* list — the tempting rule, *a dot-file is not
+data*, would swallow exactly the sentinels defect 2 is about.
+
+The reader reads through a store built on that, with upstream's own precedence
+between shards, single files and the pre-shard restore; the version gate
+becomes a structural one; and the converters behind it are corrected against
+what Marinara actually writes. Each is recorded in its own subsection as it
+lands.
+
 ### 7.19 SillyTavern, read the way SillyTavern writes it — 2026-09-22
 
 ***Opened with the vocabularies, and grown by the stages that use them.*** The

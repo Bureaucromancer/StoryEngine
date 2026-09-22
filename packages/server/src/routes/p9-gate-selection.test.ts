@@ -157,31 +157,37 @@ describe('a place already rendered dispatches no job', () => {
      * changes, so the step dispatches; moving it *back* restores the recipe, so
      * the digest matches a rendition already on disk.
      */
+    /**
+     * **Waited for by count, not merely by non-emptiness.** `every` over an
+     * empty list is **true**, so a wait without a length clause waits for
+     * nothing at all while no record has been written — *found 2026-09-16 under
+     * the full suite's load, where it presented as "the backdrop never landed"
+     * in one file and passed in isolation every time.* The dispatch is
+     * fire-and-forget by [P9.2]'s deliberate design, so *no renditions yet* and
+     * *all renditions settled* are the same answer.
+     *
+     * **`> 0` is only enough for the first one.** *Found 2026-09-22, the same
+     * way.* After the second turn the first turn's rendition is already there
+     * and already `ready`, so the wait returns at once and the assertion below
+     * reads the provider's log before the second image was ever asked for. A
+     * stale answer satisfies the same predicate an empty one did.
+     */
+    const settled = async (count: number): Promise<void> => {
+      await eventually(async () => {
+        const all = await renditionsOf();
+        return all.length >= count && all.every((one) => one.state === 'ready');
+      });
+    };
+
     await write('se.location', 'the taproom');
     await takeATurn();
-    await eventually(async () => {
-      const all = await renditionsOf();
-      // **Non-empty, and that clause is load-bearing.** `every` over an empty
-      // list is **true**, so without it this waits for nothing at all whenever
-      // the record has not been written yet — and the next line reads
-      // `[0]` off an empty array. *Found 2026-09-16 under the full suite's
-      // load, where it presented as "the backdrop never landed" in one file and
-      // passed in isolation every time.* It is the vacuous half of the same
-      // fire-and-forget design [P9.2] chose deliberately: the dispatch is
-      // detached, so *no renditions yet* and *all renditions settled* are the
-      // same answer to `every`.
-      return all.length > 0 && all.every((one) => one.state === 'ready');
-    });
+    await settled(1);
     expect(fake.images).toHaveLength(1);
 
     // A second room. A new place is a new recipe, so this one is paid for.
     await write('se.location', 'the cellar');
     await takeATurn();
-    await eventually(async () => {
-      const all = await renditionsOf();
-      // Non-empty, for the reason spelled out on the first of these.
-      return all.length > 0 && all.every((one) => one.state === 'ready');
-    });
+    await settled(2);
     expect(fake.images).toHaveLength(2);
 
     // And back upstairs. **Nothing is dispatched**, which is the whole row.
