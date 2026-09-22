@@ -286,6 +286,14 @@ const OWED = new Map<string, string>([
   ['GET /api/admin/backups', "P12.3 built it; the install listing is P12.6's."],
   ['GET /api/admin/backups/:p/download', "P12.3 built it; the anchor is P12.6's."],
   ['DELETE /api/admin/backups/:p', "P12.3 built it; the control is P12.6's."],
+  [
+    'GET /api/me/backups/settings',
+    'P12.4 built it; P12.6 renders the schedule form — only for an account whose scheduledBackups is true, which is why it is absent rather than disabled.',
+  ],
+  [
+    'PUT /api/me/backups/settings',
+    'P12.4 built it, and it is the one route here the capability gates. P12.6 builds the form that writes it.',
+  ],
 
   /**
    * ***`GET /api/search` was owed here from P2 to [P11.1] and is paid.***

@@ -66,6 +66,8 @@ export interface Account {
     privateConnections: boolean;
     fileAccess: string;
     enableExtensions: boolean;
+    /** May have the server take their backups on a timer — [P12.4]. */
+    scheduledBackups: boolean;
   };
   createdAt: number;
 }

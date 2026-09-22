@@ -69,7 +69,12 @@ const ACCOUNT: Account = {
   role: 'owner',
   enabled: true,
   locale: null,
-  capabilities: { privateConnections: true, fileAccess: 'full', enableExtensions: false },
+  capabilities: {
+    privateConnections: true,
+    fileAccess: 'full',
+    enableExtensions: false,
+    scheduledBackups: false,
+  },
   createdAt: 0,
 };
 

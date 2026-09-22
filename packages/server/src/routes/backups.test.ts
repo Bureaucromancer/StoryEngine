@@ -245,3 +245,107 @@ describe('the install’s own', () => {
     expect((mine.body as { backups: unknown[] }).backups).toEqual([]);
   });
 });
+
+/**
+ * ***The one thing a capability gates here.***
+ *
+ * `scheduledBackups` governs the **server** writing archives on a timer nobody
+ * is watching, which is the one way a misconfigured setting fills a data
+ * directory — and a full disk stops the server writing turns, so the cost lands
+ * on everybody. Taking one by hand is never gated, and the pair of tests below
+ * is what keeps those two facts from drifting into each other.
+ */
+describe('the schedule', () => {
+  it('is off for an account that has never set one', async () => {
+    const response = await server.request({ method: 'GET', url: '/api/me/backups/settings' });
+
+    expect(response.status).toBe(200);
+    expect((response.body as { settings: unknown }).settings).toEqual({
+      frequency: 'off',
+      onStart: false,
+      contents: 'full',
+    });
+  });
+
+  it('is refused to an account an admin has not enabled it for', async () => {
+    await asUser();
+
+    const response = await server.request({
+      method: 'PUT',
+      url: '/api/me/backups/settings',
+      payload: { frequency: 'daily', onStart: true, contents: 'full' },
+    });
+
+    expect(response.status).toBe(403);
+    expect((response.body as { error: string }).error).toBe('no-scheduled-backups');
+  });
+
+  it('is written once an admin grants the capability, and read back', async () => {
+    await asUser();
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'ned', password: 'correct horse battery' },
+    });
+    await server.request({
+      method: 'PATCH',
+      url: '/api/admin/accounts/mara',
+      payload: { capabilities: { scheduledBackups: true } },
+    });
+
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'mara', password: 'another long password' },
+    });
+
+    const written = await server.request({
+      method: 'PUT',
+      url: '/api/me/backups/settings',
+      payload: { frequency: 'weekly', onStart: true, contents: 'redacted' },
+    });
+    expect(written.status).toBe(200);
+
+    const read = await server.request({ method: 'GET', url: '/api/me/backups/settings' });
+    expect((read.body as { settings: unknown }).settings).toEqual({
+      frequency: 'weekly',
+      onStart: true,
+      contents: 'redacted',
+    });
+  });
+
+  /**
+   * **A whole document, every field required.** A patch would let a client that
+   * knew about two fields leave the third at whatever it was, and the failure
+   * there is a schedule somebody believes they turned off.
+   */
+  it('refuses a partial schedule, and an unknown key', async () => {
+    const partial = await server.request({
+      method: 'PUT',
+      url: '/api/me/backups/settings',
+      payload: { frequency: 'daily' },
+    });
+    expect(partial.status).toBe(400);
+
+    const extra = await server.request({
+      method: 'PUT',
+      url: '/api/me/backups/settings',
+      payload: { frequency: 'daily', onStart: false, contents: 'full', keepLast: 5 },
+    });
+    expect(extra.status).toBe(400);
+  });
+
+  /** Granting the capability does not, by itself, turn a schedule on. */
+  it('stays off until somebody sets one', async () => {
+    await server.request({
+      method: 'PATCH',
+      url: '/api/admin/accounts/ned',
+      payload: { capabilities: { scheduledBackups: true } },
+    });
+
+    const response = await server.request({ method: 'GET', url: '/api/me/backups/settings' });
+    expect((response.body as { settings: { frequency: string } }).settings.frequency).toBe('off');
+  });
+});

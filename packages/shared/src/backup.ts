@@ -150,3 +150,49 @@ export function readBackupManifest(document: unknown): BackupManifest | { reason
  * of an older one.
  */
 export const BACKUP_MANIFEST_MEMBER = 'backup.json';
+
+/**
+ * How often the server takes somebody's backups for them.
+ *
+ * ***A frequency and an independent* also on every server start *switch, rather
+ * than one list holding both*** — [P12](../../../docs/design/workplan/29-p12-implementation.md)
+ * §1.4. A machine that is up for an hour and a machine that is up for a month
+ * want different halves of that, and a machine that is usually up but
+ * occasionally rebooted wants both; a single list can express the first two and
+ * not the third.
+ */
+export type BackupFrequency = 'off' | 'daily' | 'weekly';
+
+export const BACKUP_SETTINGS_SCHEMA = 'storyengine.backup-settings/1';
+
+/**
+ * One account's schedule.
+ *
+ * ***Validated and schema'd, which puts it on `tags.json`'s side of the line
+ * `layout.ts` draws against `prefs.json`***: the preferences file is
+ * deliberately a bag the server does not interpret, and this is a document the
+ * server reads on a timer and acts on. A setting that decides whether a file
+ * gets written to somebody's disk is not a preference.
+ *
+ * **Absent means everything off**, so an account that has never opened the
+ * panel costs nothing and no migration is owed to one created before this
+ * existed.
+ */
+export interface BackupSettings {
+  frequency: BackupFrequency;
+  onStart: boolean;
+  contents: BackupContents;
+}
+
+export const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
+  frequency: 'off',
+  onStart: false,
+  contents: 'full',
+};
+
+/** How long a frequency waits, in milliseconds. `off` is null. */
+export function backupIntervalMs(frequency: BackupFrequency): number | null {
+  if (frequency === 'daily') return 24 * 60 * 60 * 1000;
+  if (frequency === 'weekly') return 7 * 24 * 60 * 60 * 1000;
+  return null;
+}

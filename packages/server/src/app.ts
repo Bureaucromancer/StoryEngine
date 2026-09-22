@@ -32,6 +32,7 @@ import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
+import { BackupSettingsStore } from './backup/settings.js';
 import { startTrashSweep, type TrashSweep } from './storage/trash.js';
 import { rebuild } from './index-db/rebuild.js';
 import { materialiseModePresets } from './system-library.js';
@@ -328,6 +329,16 @@ export interface AppServices {
    * would not do.
    */
   tags: TagStore;
+  /**
+   * Per-account backup schedules — [P12.4](../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * Beside `prefs` and `tags` and for `tags`' structural reason rather than
+   * `prefs`': it has a schema, it is validated on the way out, and it owns a
+   * write queue because two tabs saving one form is a read-modify-write across
+   * an `await`. What separates it from both is who reads it — a timer, which
+   * writes archives to somebody's disk on the strength of it.
+   */
+  backupSettings: BackupSettingsStore;
 }
 
 export interface BuildAppOptions {
@@ -763,6 +774,7 @@ async function assembleWithState(
     trash,
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
+    backupSettings: new BackupSettingsStore(layout),
     supervision: supervisionOf(process.env),
     // Wired by `main.ts`, which is the only caller that owns the process.
     exit: null,

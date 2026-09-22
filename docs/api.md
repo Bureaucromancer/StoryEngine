@@ -2460,6 +2460,44 @@ path from it.
 
 **Removes it** → `204`, or `404` if it is not there.
 
+### `GET /api/me/backups/settings`
+
+**This account's schedule** → `200 {"settings": …}`.
+
+```json
+{ "frequency": "weekly", "onStart": true, "contents": "redacted" }
+```
+
+`frequency` is `off`, `daily` or `weekly`. `onStart` is **independent of it**
+rather than a fourth value in the list: a machine that is up for an hour and a
+machine that is up for a month want different halves, and one that is usually up
+but occasionally rebooted wants both.
+
+An account that has never set one reads back `off`, `false`, `full`. **Readable
+without the capability**, and the body carries no *may they* flag — the client
+gates the form on `capabilities.scheduledBackups` from `auth/state`, the same
+way the connections panel is gated on `privateConnections`.
+
+### `PUT /api/me/backups/settings`
+
+**Replaces it** → `200 {"settings": …}`.
+
+**Every field is required**, and unknown keys are refused. A patch would let a
+client that knew about two fields leave the third at whatever it was, where the
+failure is a schedule somebody believes they turned off.
+
+`403 no-scheduled-backups` when an administrator has not granted
+`scheduledBackups` for this account. **The route is the boundary and the UI is
+never it** ([09 §4.5](design/09-server-multiuser-deployment.md) calls a UI-level
+check a trivial bypass), which is how `fileAccess` is enforced at
+`POST /api/import/sweep`. It is 403 rather than 404 because a client needs to
+tell *you may not* from *there is no such thing*.
+
+***Taking a backup is never gated by this.*** The capability governs the server
+writing archives on a timer nobody is watching, which is the one way a setting
+somebody made once fills a data directory — and a full disk stops the server
+writing turns for everybody. A person pressing a button is not that.
+
 ### `POST /api/admin/backups`, `GET /api/admin/backups`, `GET /api/admin/backups/:id/download`, `DELETE /api/admin/backups/:id`
 
 **The same four, for the whole install.** Identical bodies and responses, with

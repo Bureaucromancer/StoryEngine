@@ -4,6 +4,8 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import type { BackupSettings } from '@storyengine/shared';
+
 import { requireAccount, type AppServices } from '../app.js';
 import {
   backupContextOf,
@@ -66,6 +68,24 @@ const BackupParams = Type.Object(
  */
 const TakeBackup = Type.Object(
   { contents: Type.Union([Type.Literal('full'), Type.Literal('redacted')]) },
+  { additionalProperties: false },
+);
+
+/**
+ * A whole schedule, every field required.
+ *
+ * ***No partial, deliberately.*** Three fields arrive together from one form,
+ * and a patch would let a client that knew about two of them leave the third at
+ * whatever it was — where the failure is a schedule somebody believes they
+ * turned off. Closed to unknown keys like every other body here, so a client
+ * learns it was wrong rather than learning that it worked.
+ */
+const WriteSettings = Type.Object(
+  {
+    frequency: Type.Union([Type.Literal('off'), Type.Literal('daily'), Type.Literal('weekly')]),
+    onStart: Type.Boolean(),
+    contents: Type.Union([Type.Literal('full'), Type.Literal('redacted')]),
+  },
   { additionalProperties: false },
 );
 
@@ -191,6 +211,43 @@ export function registerBackupRoutes(app: FastifyInstance, services: AppServices
   register(app, services, '/me/backups', async (request, reply) => {
     const account = await requireAccount(request, reply);
     return account === null ? null : { kind: 'account', handle: account.handle };
+  });
+
+  app.get('/me/backups/settings', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    /**
+     * ***Readable without the capability, and there is no `capable` flag in the
+     * body.*** The client gates the form on `account.capabilities` from
+     * `auth/state`, exactly as `SettingsPage.tsx` gates `<MyConnections />` on
+     * `privateConnections` — *absent is implemented as absent*, so a person
+     * without it issues no request to be refused. A second copy of that fact
+     * here would be a second thing to keep true.
+     */
+    return reply.send({ settings: await services.backupSettings.read(account.handle) });
+  });
+
+  app.put('/me/backups/settings', { schema: { body: WriteSettings } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    /**
+     * ***The boundary, and the UI is never it.*** [09 §4.5] calls a UI-level
+     * check a trivial bypass, and `routes/import.ts` refuses `fileAccess:
+     * 'none'` at the route for the same reason. **403 rather than 404**: the
+     * route's existence is not a secret and a client needs to tell *you may
+     * not* from *there is no such thing*.
+     */
+    if (!account.capabilities.scheduledBackups) {
+      return reply.code(403).send({
+        error: 'no-scheduled-backups',
+        message: 'An administrator has not enabled scheduled backups for this account.',
+      });
+    }
+
+    const settings = request.body as BackupSettings;
+    return reply.send({ settings: await services.backupSettings.write(account.handle, settings) });
   });
 }
 

@@ -152,6 +152,31 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
             />
 
             {/**
+             * ***What this grants is a timer, not an export*** —
+             * [P12.4](../../../../docs/design/workplan/29-p12-implementation.md).
+             *
+             * **Anyone may take a backup of their own work whenever they like,
+             * and no switch here changes that**: refusing somebody a copy of
+             * what they wrote would be a strange thing for this software to do.
+             * What an administrator is deciding is whether the **server** writes
+             * archives for them on a schedule nobody is watching — which is the
+             * one way a setting somebody made once fills a data directory, and a
+             * full disk stops the server writing turns for everybody.
+             *
+             * So the hint names the **disk** rather than the permission, because
+             * disk is the thing being spent and the thing an administrator
+             * actually has to know the size of.
+             */}
+            <CheckboxField
+              label="May schedule automatic backups"
+              checked={row.capabilities.scheduledBackups}
+              onChange={(checked) => {
+                patch({ capabilities: { scheduledBackups: checked } });
+              }}
+              hint="Everyone can take a backup by hand whenever they want, and this does not change that. What it allows is the server writing one for them daily or weekly, which spends disk on a schedule nobody is watching — and a full disk stops turns for everybody."
+            />
+
+            {/**
              * **Moved out of *Recorded for later* at the P4 audit, and relabelled
              * to name what it actually grants** ([10 §4.2.2]).
              *

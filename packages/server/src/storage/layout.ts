@@ -306,6 +306,22 @@ export class Layout {
   }
 
   /**
+   * `users/<handle>/backup.json` — one account's schedule
+   * ([P12.4](../../../../docs/design/workplan/29-p12-implementation.md)).
+   *
+   * **Beside `tags.json` rather than inside `prefs.json`**, and the line is the
+   * one `tagsFile` already draws: the preferences file carries a decision that
+   * it is a bag the server does not validate, and the whole return on that
+   * decision is that a preference the client stops using rots quietly instead
+   * of needing a migration. This document has a schema, is validated on the way
+   * out, and is **read by a timer that writes files to somebody's disk** — which
+   * is exactly what does not belong in the bag.
+   */
+  backupSettingsFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'backup.json');
+  }
+
+  /**
    * Whether a path is inside either backups directory.
    *
    * ***Two callers, and they want it for opposite reasons.*** The archive
