@@ -1,6 +1,7 @@
 # 29 — P12 implementation plan
 
-**Status: in progress, on `claude/data-backup-system-0sir4i`, from 2026-09-22.**
+**Status: stages P12.0–P12.13 landed on `claude/data-backup-system-0sir4i`,
+2026-09-22. The exit gate ([§3](#3--the-exit-gate)) has not been walked.**
 One feature and its two halves, which is smaller than a phase usually is and is
 filed as one anyway — see [§1.5](#15-a-feature-in-its-own-document-and-a-branch-that-is-not-p12).
 
@@ -526,6 +527,14 @@ walked** — a second table records what was answered.
 | 8 | The disk filling during a backup leaves no `.part` and says so | [manual testing](05-manual-testing.md) |
 | 9 | An install import across handles, one of which does not exist here | [manual testing](05-manual-testing.md) |
 | 10 | A configuration import refuses `dataDir` and names it | [manual testing](05-manual-testing.md) |
+| 11 | A restore whose archive breaks between the request and the boot: the install is untouched, the notice says so, the second start refuses rather than retrying, and **Call it off** clears it | [manual testing](05-manual-testing.md) |
+| 12 | The import picker's manifest read is quick on an install archive of a real size — it is one gzip block, and this is the claim that would rot into *inflate the whole thing* without anybody noticing | [manual testing](05-manual-testing.md) |
+
+***Rows 11 and 12 were added as the work grew rather than to match what was
+walked***, which is the distinction [§0](05-manual-testing.md) draws: the
+critical list above is untouched, and these extend the remainder because
+[P12.12] and [P12.13] built two surfaces the plan did not name —
+`DELETE /api/admin/restore` and the manifest read that stands in for a preview.
 
 *Proof obligations that belong to a test rather than a person are in the stage
 commits and are named there.* The one this phase inherits is
