@@ -51,8 +51,18 @@ export interface FileSource {
    * An async iterable because a real SillyTavern tree is years of data and a
    * sweep that materialises the list before starting has already lost. Order is
    * not guaranteed; a reader that needs one sorts what it kept.
+   *
+   * **`under` scopes the walk to one directory** ([P4 §7.18]): relative,
+   * `/`-separated, no trailing slash, and the paths yielded are still relative
+   * to the root. It exists because the whole-root walk is bounded — a real
+   * directory source stops at fifty thousand files, silently, and skips
+   * symlinks — so a reader that finds the data it *converts* by walking the
+   * whole root converts less of a large install without saying so. Finding a
+   * table by listing its own directory keeps the bound where it belongs: on the
+   * report of everything else. A prefix naming a file, or nothing, yields
+   * nothing.
    */
-  list(): AsyncIterable<string>;
+  list(under?: string): AsyncIterable<string>;
 
   /** Bytes at a relative path, or `null` when it is missing or unreadable. */
   read(path: string): Promise<Uint8Array | null>;
