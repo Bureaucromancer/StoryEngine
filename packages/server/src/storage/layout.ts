@@ -236,6 +236,25 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'build.json');
   }
 
+  /**
+   * ***A restore that has been asked for and not yet performed*** —
+   * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * In `state/` because it is operational by the same test as the three above:
+   * not derived from anything, and about the process rather than the contents.
+   *
+   * ***It is never carried in an archive, and that is the property the whole
+   * swap hangs on.*** The marker lives inside the directory that a successful
+   * restore moves aside, and no archive holds one — so a restore that worked
+   * cannot leave a marker behind to be acted on twice, and one that failed
+   * keeps exactly the state describing itself. Nothing has to delete it, which
+   * is the deletion that would otherwise have to happen after the process had
+   * already replaced the directory it was deleting from.
+   */
+  get restorePendingFile(): string {
+    return resolveWithin(this.stateRoot, 'restore.pending');
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }
@@ -268,6 +287,79 @@ export class Layout {
 
   get usersRoot(): string {
     return resolveWithin(this.dataRoot, 'users');
+  }
+
+  /**
+   * `data/backups/` — where an install backup lands
+   * ([P12.2](../../../../docs/design/workplan/29-p12-implementation.md)).
+   *
+   * ***Outside every user directory, and that is `accounts.json`'s argument
+   * exactly.*** An install archive contains every account's library, every
+   * account's connections and — when it is a `full` one — the password hashes
+   * and the session signing key. A future file browser over a user's own
+   * directory ([10 §4.2.1](../../../../docs/design/10-ui-surfaces.md)) must not
+   * be able to reach it whatever `fileAccess` that user is granted, and the
+   * cheapest way to guarantee that is for it never to be in there.
+   *
+   * Beside `removed/` for the same structural reason: both are the install's
+   * rather than a person's, and neither is content.
+   */
+  get backupsRoot(): string {
+    return resolveWithin(this.dataRoot, 'backups');
+  }
+
+  /**
+   * `users/<handle>/backups/` — where a person's own backups land.
+   *
+   * ***Inside their directory, which is the mirror of the decision above and
+   * settled by the same test the avatar was.*** An account archive holds that
+   * account's work and nothing else, so it is theirs in the sense
+   * [09 §4.3](../../../../docs/design/09-server-multiuser-deployment.md) means:
+   * the path is the owner. **And removal clinches it** — taking an account
+   * moves the whole directory to `data/removed/<handle>-<uuid>`, and their
+   * backups should leave in that same gesture rather than becoming a second
+   * account-adjacent orphan with its own sweep to write.
+   */
+  userBackupsRoot(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'backups');
+  }
+
+  /**
+   * `users/<handle>/backup.json` — one account's schedule
+   * ([P12.4](../../../../docs/design/workplan/29-p12-implementation.md)).
+   *
+   * **Beside `tags.json` rather than inside `prefs.json`**, and the line is the
+   * one `tagsFile` already draws: the preferences file carries a decision that
+   * it is a bag the server does not validate, and the whole return on that
+   * decision is that a preference the client stops using rots quietly instead
+   * of needing a migration. This document has a schema, is validated on the way
+   * out, and is **read by a timer that writes files to somebody's disk** — which
+   * is exactly what does not belong in the bag.
+   */
+  backupSettingsFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'backup.json');
+  }
+
+  /**
+   * Whether a path is inside either backups directory.
+   *
+   * ***Two callers, and they want it for opposite reasons.*** The archive
+   * walker excludes these paths because an archive of the archives makes every
+   * generation carry every one before it. The watcher
+   * (`index-db/watcher.ts`) excludes them because chokidar's
+   * `awaitWriteFinish` would otherwise poll a half-gigabyte file for the whole
+   * time it is being written — and `selfWrites` is not the answer there, being
+   * a two-second TTL built for small atomic writes.
+   *
+   * **By portable path rather than by `isContained`**, because the per-user
+   * directories are one per account rather than one root, and a predicate that
+   * had to be handed a list would be a predicate that went stale the moment an
+   * account was created.
+   */
+  isBackupPath(path: string): boolean {
+    const relative = this.portablePath(path);
+    if (relative === null) return false;
+    return /^backups(\/|$)/.test(relative) || /^users\/[^/]+\/backups(\/|$)/.test(relative);
   }
 
   /**

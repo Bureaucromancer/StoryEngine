@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { constants } from 'node:fs';
+import { constants, createReadStream } from 'node:fs';
 import {
   access,
   appendFile,
@@ -11,9 +11,11 @@ import {
   rename,
   rm,
   stat,
+  statfs,
   writeFile,
 } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import type { Readable } from 'node:stream';
 
 /**
  * The read side of the storage layer.
@@ -247,4 +249,117 @@ export async function unlinkFile(path: string): Promise<void> {
 export async function moveTree(from: string, to: string): Promise<void> {
   await mkdir(dirname(to), { recursive: true });
   await rename(from, to);
+}
+
+/** A file found by {@link listTreeFiles}: its portable path, and its size now. */
+export interface TreeFile {
+  /** Relative to the root, `/`-separated whatever the platform stored. */
+  name: string;
+  size: number;
+}
+
+/**
+ * Every file under a root, with its size, sorted, minus what `skip` refuses —
+ * [P12.2](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***`skip` is asked about directories too, before the descent***, which is
+ * both halves of what a backup needs from a walk. `index/` costs one comparison
+ * rather than a traversal, and a rule can say *where* as well as *what* — the
+ * distinction `tools/backup.mjs` could not make when its exclusion was a
+ * filename test, which is how the derived index ended up in every archive it
+ * ever wrote.
+ *
+ * ***Sorted, because `readdir` order is a fact about a filesystem*** rather than
+ * about the tree — `pack-tarball.mjs` learned this for the release artifact and
+ * the reasoning is the same here: two backups of an unchanged directory should
+ * differ in their timestamps and nowhere else.
+ *
+ * **The size comes back with the name** because the caller needs it twice — once
+ * to declare the member's length in a tar header, and once, summed, to say how
+ * much disk a restore will need before it commits. Two walks would be two
+ * answers.
+ */
+export async function listTreeFiles(
+  root: string,
+  skip: (name: string) => boolean = () => false,
+  at = '',
+): Promise<TreeFile[]> {
+  let entries;
+  try {
+    entries = await readdir(at === '' ? root : join(root, at), { withFileTypes: true });
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+
+  const found: TreeFile[] = [];
+  for (const entry of entries) {
+    const name = at === '' ? entry.name : `${at}/${entry.name}`;
+    if (skip(name)) continue;
+    if (entry.isDirectory()) {
+      found.push(...(await listTreeFiles(root, skip, name)));
+    } else if (entry.isFile()) {
+      /**
+       * ***A symbolic link is not a file and is deliberately not followed.***
+       * `isFile()` is false for one, so a link inside a library is left out of
+       * the archive rather than dereferenced into a copy of something outside
+       * it — the same position `LibraryWatcher` takes with `followSymlinks:
+       * false`, and for the same reason: a link is a second path to content the
+       * containment rules were never asked about.
+       */
+      const facts = await statFile(at === '' ? join(root, entry.name) : join(root, at, entry.name));
+      if (facts !== null) found.push({ name, size: facts.size });
+    }
+  }
+  return found.sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
+}
+
+/**
+ * A file as a stream, for a response that must not buffer it —
+ * [P12.3](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***The first thing in this build that streams a file body out.*** The four
+ * existing `content-disposition` routes all `.send()` an object they already
+ * hold, because a session export or a card is a document. An archive is not
+ * bounded by anything, and a download that read one into memory first would
+ * make the server's footprint a function of the largest backup anybody takes.
+ *
+ * **A `Readable` rather than bytes**, and the caller hands it to Fastify — which
+ * is the one thing in this file that returns something lazy, so it is the one
+ * thing here whose failure arrives *after* it returns. A missing file throws on
+ * the stream rather than here, and the route treats that as the 404 it is by
+ * checking the archive exists first.
+ */
+export function openFileRead(path: string): Readable {
+  return createReadStream(path);
+}
+
+/**
+ * How many bytes the filesystem holding `path` will still take —
+ * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***For the one check that has to happen before the process exits.*** A
+ * restore unpacks an archive on the **next** boot, so a refusal for lack of
+ * room after the drain is a refusal nobody can read — and a restore that fills
+ * the disk half way through is the failure this whole feature exists to
+ * prevent, arriving from the feature itself.
+ *
+ * `bavail` rather than `bfree`, which is the difference between *free* and
+ * *free to this process*: a filesystem reserves blocks for root, and counting
+ * them would let this promise room a restore cannot have.
+ *
+ * **Null when the answer is not available.** `statfs` is missing on some
+ * filesystems and platforms, and a caller that cannot learn the free space has
+ * to decide what to do about that rather than be handed a zero it would read as
+ * *no room*.
+ */
+export async function freeBytes(path: string): Promise<number | null> {
+  try {
+    const facts = await statfs(path);
+    return facts.bsize * facts.bavail;
+  } catch {
+    return null;
+  }
 }

@@ -273,6 +273,31 @@ export const ConfigSchema = Type.Object(
     trash: Type.Object({
       retentionDays: Type.Integer({ minimum: 0, default: 30 }),
     }),
+    /**
+     * ***The install's own backup, on a timer*** —
+     * [P12.5](../../../docs/design/workplan/29-p12-implementation.md).
+     *
+     * **These three are about the install archive only.** A person's own
+     * schedule is theirs, kept in `users/<handle>/backup.json` and gated by the
+     * `scheduledBackups` capability — an operator does not set somebody's
+     * schedule for them, they decide whether that person may have one.
+     *
+     * ***`onStart` is independent of `frequency` rather than a fourth value in
+     * it***, and that is the whole shape of the option. A machine up for an hour
+     * and a machine up for a month want different halves of this; a machine
+     * that is usually up but occasionally rebooted wants **both**, and a single
+     * list can express the first two and not the third.
+     *
+     * **Off by default**, because a key that writes files to a disk on a timer
+     * should be something somebody turned on.
+     */
+    backup: Type.Object({
+      frequency: Type.Union([Type.Literal('off'), Type.Literal('daily'), Type.Literal('weekly')], {
+        default: 'off',
+      }),
+      onStart: Type.Boolean({ default: false }),
+      contents: Type.Union([Type.Literal('full'), Type.Literal('redacted')], { default: 'full' }),
+    }),
     history: Type.Object({
       /** Pinned versions are exempt ([03 §11.3](../../../docs/design/03-data-model.md)). */
       keepPerObject: Type.Integer({ minimum: 0, default: 50 }),
@@ -346,6 +371,9 @@ export const CONFIG_TIERS = {
   'limits.reservedCompletionTokens': 'live',
   'limits.providerTimeoutMs': 'live',
   'trash.retentionDays': 'live',
+  'backup.frequency': 'live',
+  'backup.onStart': 'live',
+  'backup.contents': 'live',
   'history.keepPerObject': 'live',
   'updates.checkEnabled': 'live',
   'updates.channel': 'live',
@@ -463,6 +491,22 @@ export const LIVE_APPLIERS = {
    * and the mistake `watcher.ts` records about `history.keepPerObject`.
    */
   'trash.retentionDays': 'applied',
+  /**
+   * Read per pass by `startBackupSchedule`, through a closure rather than a
+   * captured value — `startTrashSweep`'s arrangement, and for the reason
+   * `watcher.ts`'s docstring records about `history.keepPerObject`.
+   */
+  'backup.frequency': 'applied',
+  /**
+   * ***`unread` by construction, not by omission.*** The boot pass has already
+   * happened by the time anybody can change this, so a running server never
+   * reads it again — and the tier stays `live` because the *intent* is that it
+   * takes effect without a restart, which it does: the next boot is the next
+   * time it means anything. [21 §4.3] is exactly the disagreement this table
+   * exists to record rather than paper over.
+   */
+  'backup.onStart': 'unread',
+  'backup.contents': 'applied',
 
   // Read per write through the shared `LibraryContext`, which the watcher now
   // holds rather than copying a number out of.
@@ -513,6 +557,7 @@ export const DEFAULT_CONFIG: Config = {
     providerTimeoutMs: 300_000,
   },
   trash: { retentionDays: 30 },
+  backup: { frequency: 'off', onStart: false, contents: 'full' },
   history: { keepPerObject: 50 },
   updates: { checkEnabled: true, channel: 'latest' },
   dev: { enabled: false },

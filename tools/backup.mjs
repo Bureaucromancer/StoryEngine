@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { createGzip, createGunzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 
-import { BLOCK, padding, tarHeader, trailer } from './tar.mjs';
+import { BLOCK, headerName, padding, tarHeader, trailer } from './tar.mjs';
 
 /**
  * Backs up and restores a data directory —
@@ -54,20 +54,54 @@ import { BLOCK, padding, tarHeader, trailer } from './tar.mjs';
  */
 
 /**
- * ***What never goes in the archive.***
+ * ***What never goes in the archive***, as paths relative to the data root.
  *
- * `index.sqlite` and its two companions — SQLite writes a `-wal` and a `-shm`
+ * **`index/` — the derived index, whole.** SQLite writes a `-wal` and a `-shm`
  * beside the database, and an archive that took the database without them (or
  * with them, from a running server) would restore a file that is neither
- * current nor empty. All three are derived, so all three go.
+ * current nor empty. All three are derived, so the directory goes rather than a
+ * list of filenames.
+ *
+ * ***This rule was written and did not fire, for six days.*** It read
+ * `if (at === '' && DERIVED.test(entry.name))` — a filename test applied only at
+ * the data root — and [03 §5.1] puts the index at **`index/index.sqlite`**, one
+ * level down, where `at === ''` is false. So every archive this script has ever
+ * written carried the index, which is the exact failure [25 E6], [P11.11] and
+ * `docs/deploy.md` all exist to prevent: *a stale belief about a newer tree,
+ * silently, because a stale index answers queries.* `restore.test.ts` did not
+ * catch it because its fixture wrote `index.sqlite` at the **root**, agreeing
+ * with the mistake rather than with the layout. Found by reading `layout.ts`
+ * beside this file.
+ *
+ * **`users/<handle>/trash/`** — [03 §10.2]: *"trash is excluded from export and
+ * from backup by default… restoring a backup should not resurrect everything the
+ * user threw away before taking it."* That sentence cites [25 E6] and has never
+ * had an enforcer.
+ *
+ * **`backups/` and `users/<handle>/backups/`** — where the in-app backups land.
+ * An archive of the archives grows without bound, and each generation contains
+ * every one before it.
  */
-const DERIVED = /^index\.sqlite(-wal|-shm)?$/;
+const EXCLUDED = [
+  /^index$/,
+  // The root-level spelling, which nothing writes and the old rule named. Kept
+  // as a belt: a data directory somebody assembled by hand may carry one, and it
+  // is as derived there as anywhere.
+  /^index\.sqlite(-wal|-shm)?$/,
+  /^backups$/,
+  /^users\/[^/]+\/(trash|backups)$/,
+];
+
+/** Whether a path relative to the data root is one of {@link EXCLUDED}. */
+function excluded(path) {
+  return EXCLUDED.some((rule) => rule.test(path));
+}
 
 async function main() {
   const [command, first, second] = process.argv.slice(2);
   if (command === 'create' && first && second) {
     const count = await create(resolve(first), resolve(second));
-    console.log(`${second}: ${String(count)} files, index excluded.`);
+    console.log(`${second}: ${String(count)} files; index, trash and backups excluded.`);
     return;
   }
   if (command === 'restore' && first && second) {
@@ -90,12 +124,20 @@ async function main() {
   process.exit(1);
 }
 
-/** Every file under a root, relative and POSIX-separated, with the index left out. */
+/**
+ * Every file under a root, relative and POSIX-separated, minus {@link EXCLUDED}.
+ *
+ * **The test is on the path rather than the filename, and it runs before the
+ * recursion** — which is both halves of the fix. A directory that is excluded is
+ * never descended into, so `index/` costs one comparison rather than a walk, and
+ * a rule can say *where* as well as *what*. The old filename-at-the-root form
+ * could express neither.
+ */
 async function filesUnder(root, at = '') {
   const found = [];
   for (const entry of await readdir(join(root, at), { withFileTypes: true })) {
     const here = at === '' ? entry.name : `${at}/${entry.name}`;
-    if (at === '' && DERIVED.test(entry.name)) continue;
+    if (excluded(here)) continue;
     if (entry.isDirectory()) found.push(...(await filesUnder(root, here)));
     else if (entry.isFile()) found.push(here);
   }
@@ -147,7 +189,12 @@ async function restore(archive, dataDir) {
     const block = tar.subarray(at, at + BLOCK);
     if (block.every((byte) => byte === 0)) break;
 
-    const name = block.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
+    // **Both name fields, rejoined** — `headerName`, not the first hundred
+    // bytes. A long member is written as a 155-byte `prefix` plus a `name`, and
+    // a reader that took only the second would write `history/v/<hex>.json` to
+    // the destination root, scattering one library's version payloads into a
+    // flat pile at the top of somebody's data directory.
+    const name = headerName(block);
     const size = Number.parseInt(
       block.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim(),
       8,

@@ -34,6 +34,15 @@ export * from './remedy.js';
  * [25 B12](../../../docs/design/25-open-questions.md), [P11.10].
  */
 export * from './session-export.js';
+/**
+ * ***What a backup archive says it is*** — [25 E6](../../../docs/design/25-open-questions.md),
+ * [P12](../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * Beside the interchange formats rather than in `schema/`, and for their reason:
+ * an envelope is not an object somebody edits, so it carries a `schema` string
+ * and a hand-written reader rather than an emitted JSON Schema.
+ */
+export * from './backup.js';
 // The tag registry — internal tier, beside the turn record and for the same
 // reason: it decorates names inside one install and never crosses a boundary
 // ([05](../../../docs/design/05-tagging.md)).

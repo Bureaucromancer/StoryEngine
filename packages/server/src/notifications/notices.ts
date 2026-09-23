@@ -66,3 +66,94 @@ export async function announceRestartPending(
     });
   }
 }
+
+/**
+ * Tells somebody that a backup the server was taking for them did not happen.
+ *
+ * ***Only failures, and that is the whole of the policy.*** A daily backup that
+ * announces itself every day is noise, and noise is how a person stops reading
+ * the one that matters. [10 §15.4](../../../../docs/design/10-ui-surfaces.md)
+ * sets the same bar for a panel — an *action*, not a statistic — and the action
+ * here is real: a schedule that is failing is one somebody has to look at, and
+ * the alternative to telling them is that they find out when they need the
+ * archive that was never written.
+ *
+ * ***Addressed by scope, which is `announceRestartPending`'s rule applied one
+ * step out.*** An install backup is a property of the install, so every enabled
+ * admin hears; an account's own is a property of one person's data, so only
+ * they do — and an admin reading *ned's backup failed* would be an admin being
+ * told about somebody's library on a surface that has never been about that.
+ */
+export async function announceBackupFailed(
+  context: NoticeContext,
+  scope: { kind: 'install' } | { kind: 'account'; handle: string },
+): Promise<void> {
+  const notice = 'backup-failed';
+  if (scope.kind === 'account') {
+    context.notify({
+      kind: 'system.notice',
+      account: scope.handle,
+      notice,
+      /**
+       * **Actionable**: their schedule is in Settings and turning it off, or
+       * deleting some archives, is a thing they can do about it.
+       */
+      actionable: true,
+      params: { scope: 'account' },
+    });
+    return;
+  }
+
+  const held = await context.accounts.list();
+  for (const account of held) {
+    if (account.role !== 'admin' || !account.enabled) continue;
+    context.notify({
+      kind: 'system.notice',
+      account: account.handle,
+      notice,
+      actionable: true,
+      params: { scope: 'install' },
+    });
+  }
+}
+
+/**
+ * Tells the administrators what the boot they just missed did to the install —
+ * [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * ***A restore is the one event where the surface reporting it is part of what
+ * changed.*** The person who asked for it watched the server go away and come
+ * back; what they cannot see is **which** archive arrived, or where the
+ * directory it replaced now sits — and that directory is the undo, so its name
+ * is the most important sentence this build ever writes.
+ *
+ * **Every enabled admin, not only whoever asked.** A restore is a property of
+ * the install, which is `announceBackupFailed`'s rule for an install backup and
+ * stronger here: an admin who did not ask is precisely the person who needs
+ * telling that everything moved.
+ *
+ * ***A failure is `actionable` and a success is not.*** A restore that did not
+ * happen leaves a marker somebody has to clear; one that did is a statement of
+ * fact about a directory they may want to delete when they are sure, which is
+ * their business and not a task.
+ */
+export async function announceRestored(
+  context: NoticeContext,
+  outcome:
+    | { ok: true; archive: string; moved: string; files: number }
+    | { ok: false; archive: string; why: string },
+): Promise<void> {
+  const held = await context.accounts.list();
+  for (const account of held) {
+    if (account.role !== 'admin' || !account.enabled) continue;
+    context.notify({
+      kind: 'system.notice',
+      account: account.handle,
+      notice: outcome.ok ? 'restored' : 'restore-failed',
+      actionable: !outcome.ok,
+      params: outcome.ok
+        ? { archive: outcome.archive, moved: outcome.moved, files: outcome.files }
+        : { archive: outcome.archive, why: outcome.why },
+    });
+  }
+}

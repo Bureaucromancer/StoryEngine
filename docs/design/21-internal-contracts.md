@@ -610,6 +610,11 @@ interface Config {
     providerTimeoutMs: number                // [P2C §1.3]
   }
   trash: { retentionDays: number }          // [03 §10.2]
+  backup: {                                  // [25 E6], [P12.5]
+    frequency: "off" | "daily" | "weekly"
+    onStart: boolean
+    contents: "full" | "redacted"
+  }
   history: { keepPerObject: number }        // [03 §11.3]
   updates: { checkEnabled: boolean; channel: "latest" | "testing" | "nightly" }
   dev: { enabled: boolean }                  // [19 §14]
@@ -639,6 +644,9 @@ interface Config {
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
 | `limits.providerTimeoutMs` | `live` | `300000` | How long one call may make **no progress** before the turn abandons it ([P2C §1.3](workplan/12-p2c-first-real-run.md)). Silence rather than duration — a streamed chunk re-arms it — because a multi-minute first token is ordinary on a local runtime and a wall-clock ceiling would kill healthy generations. The resulting failure is `terminal`: it is transient in the ordinary sense, but two retries at the full timeout is three times the hang the key exists to end. `0` disables it |
 | `trash.retentionDays` | `live` | `30` | |
+| `backup.frequency` | `live` | `off` | The **install's** backup, not anybody's own — a person's schedule is theirs, gated by `scheduledBackups` ([P12.4](workplan/29-p12-implementation.md)) |
+| `backup.onStart` | `live` | `false` | Independent of the frequency rather than a value in it: a machine that is usually up but occasionally rebooted wants both, and a single list cannot say so. `unread` in [§4.3](#43-what-a-live-key-actually-does-which-is-not-always-what-its-tier-says) by construction — the boot pass is over before anybody can change it |
+| `backup.contents` | `live` | `full` | `redacted` leaves out `accounts.json`, the connections and the session key, and restores to an install nobody can sign into |
 | `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([09 §6.5](09-server-multiuser-deployment.md)) |
 | `updates.channel` | `live` | `latest` | |

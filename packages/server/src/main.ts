@@ -4,10 +4,12 @@
 import { resolve } from 'node:path';
 
 import { buildApp, buildServices, disposeServices } from './app.js';
+import { performPendingRestore } from './backup/restore.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
 import { advertise } from './mdns/responder.js';
+import { announceRestored } from './notifications/notices.js';
 import { describeUnusableDataDirectory, ensureWritableDirectory } from './storage/files.js';
 import { Layout } from './storage/layout.js';
 
@@ -99,6 +101,29 @@ async function main(): Promise<void> {
     );
   }
 
+  /**
+   * ***A restore that was asked for last time this process was up*** —
+   * [P12.12](../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * **Here, and the position is the design.** `buildServices` below opens the
+   * operational store, stamps the directory with this build and starts the
+   * index — every one of which is a handle on, or a write into, the directory
+   * about to be replaced. On Windows an open handle makes the rename fail;
+   * everywhere else it makes it succeed and leaves a process writing into a
+   * directory that is no longer the install.
+   *
+   * **After `ensureWritableDirectory`**, which is the one check that has to
+   * come first either way: a restore is a great deal of writing, and *can this
+   * process write here at all* is answered in one line rather than half way
+   * through an unpack.
+   *
+   * ***It returns rather than logs***, because there is no logger yet — and
+   * this file's own rule is that everything this process reports goes through
+   * one mechanism. So the answer is carried down to where that mechanism
+   * exists, a few lines below, and said there.
+   */
+  const restored = await performPendingRestore(layout);
+
   // The path travels with the config, so the settings route writes back to the
   // file this process actually read ([P2A §2.5]).
   const services = await buildServices({
@@ -121,6 +146,42 @@ async function main(): Promise<void> {
   // the same voice as "everything is fine". A person who chose no config file
   // reads one `warn` per start; a person who lost theirs reads the one line
   // that says why the server is not where they left it.
+  /**
+   * ***Said first, and loudly, because everything else this process reports is
+   * about a directory that arrived a moment ago.*** A line about the config
+   * path means something different when the config came out of an archive.
+   *
+   * **`warn` for a success as much as for a failure**, which inverts this
+   * file's usual levels on purpose: a restore is never routine, and the one
+   * sentence somebody will go looking for months later — *where did my old
+   * data go* — is in it.
+   */
+  if (restored.kind === 'restored') {
+    app.log.warn(
+      {
+        event: 'restore.completed',
+        archive: restored.archive,
+        moved: restored.moved,
+        files: restored.files,
+        requestedBy: restored.requestedBy,
+      },
+      'Restored this data directory from a backup; the previous one was moved aside and kept',
+    );
+    await announceRestored(
+      { accounts: services.accounts, notify: services.notify },
+      { ok: true, archive: restored.archive, moved: restored.moved, files: restored.files },
+    );
+  } else if (restored.kind === 'failed') {
+    app.log.error(
+      { event: 'restore.failed', archive: restored.archive, why: restored.why },
+      'A pending restore did not happen; this data directory is unchanged',
+    );
+    await announceRestored(
+      { accounts: services.accounts, notify: services.notify },
+      { ok: false, archive: restored.archive, why: restored.why },
+    );
+  }
+
   if (fileFound) {
     app.log.info({ configPath, fileFound }, 'Config loaded');
   } else {

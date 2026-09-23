@@ -520,6 +520,7 @@ describe('creating, patching and removing', () => {
       privateConnections: true,
       fileAccess: 'read',
       enableExtensions: false,
+      scheduledBackups: false,
     });
   });
 
