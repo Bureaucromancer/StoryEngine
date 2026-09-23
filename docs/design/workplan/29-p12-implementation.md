@@ -1,6 +1,6 @@
 # 29 — P12 implementation plan
 
-**Status: stages P12.0–P12.13 merged to `main` 2026-09-23, from
+**Status: stages P12.0–P12.13 merged to `main` 2026-09-23 at `671950f`, from
 `claude/data-backup-system-0sir4i`. ***The exit gate
 ([§3](#3--the-exit-gate)) has not been walked***, so by
 [manual testing §0](05-manual-testing.md) this phase is **not closed** — the
