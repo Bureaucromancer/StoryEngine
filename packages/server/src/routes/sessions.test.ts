@@ -7,18 +7,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   newActor,
+  newLorebook,
   newPreset,
   newSetup,
   newTreatment,
+  TREATMENT_SCHEMA,
   uuidv7,
   type PlotHook,
 } from '@storyengine/shared';
 
+import { DOCS_LOREBOOK_ID } from '../docs-lorebook.js';
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
-import { Layout } from '../storage/layout.js';
+import { Layout, userOwner } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
 /**
@@ -1895,6 +1898,335 @@ describe('a session’s hook pool', () => {
       });
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  /**
+   * ***The same copy running the other way*** — [03 §4.1], [15 §5.1].
+   *
+   * The block above pins *copies a treatment's hooks, keeping their ids*. This
+   * is its counterpart: a hook the session gained while playing, saved back onto
+   * one of the three carriers [03 §4.1] already gives hooks a home on. **Until
+   * it existed there was no way out of a session at all**, so a hook realised
+   * mid-play — which [06 §6.1] calls *most of why the feature earns its place* —
+   * died with the session it was realised in.
+   *
+   * *Through the route rather than only the function*, because two of the claims
+   * are the route's own: the three 404s are three different claims a client has
+   * to tell apart, and the system-library refusal reaches this route through a
+   * mapping that lives in a file this one cannot call into.
+   */
+  describe('saving one back out of a session', () => {
+    async function aLorebook(): Promise<string> {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/library/lorebooks',
+        payload: newLorebook('The Flower Kingdom'),
+      });
+      return response.body.object.id as string;
+    }
+
+    /** A session whose pool holds one hook of its own — the case with no upstream. */
+    async function aSessionWith(
+      one: PlotHook,
+      over: Record<string, unknown> = {},
+    ): Promise<string> {
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { name: 'Rain City', hooks: [one], ...over },
+      });
+      return created.body.session.id as string;
+    }
+
+    function promote(
+      session: string,
+      hookId: string,
+      target: { kind: string; id: string },
+      from?: { kind: string; id?: string },
+    ): Promise<{ status: number; body: any }> {
+      return server.request({
+        method: 'POST',
+        url: `/api/sessions/${session}/hooks/${hookId}/promote`,
+        payload: from === undefined ? { target } : { target, from },
+      });
+    }
+
+    /**
+     * ***The id survives, which is the obligation [15 §5.1] calls unrecoverable
+     * later.*** A session's own hook has no upstream, so the id it carries onto
+     * the treatment is the only one it will ever have — and every session
+     * started from that treatment afterwards copies *that* id, which is what
+     * makes cross-session de-duplication possible at all.
+     */
+    it('keeps the hook’s id on the treatment it lands on', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+
+      const saved = await promote(session, 'hook-war', { kind: 'treatment', id: treatment });
+
+      expect(saved.status).toBe(200);
+      expect(saved.body.object).toEqual({
+        id: treatment,
+        name: 'Rain City, noir',
+        kind: 'treatment',
+      });
+      const after = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${treatment}`,
+      });
+      // The whole hook, not the panel's redaction of it: `hookRows` sends
+      // `premise` only once a hook is spent and never sends `involves`,
+      // `weight`, `delivery` or `once` at all — which is the entire reason this
+      // is a server route rather than a client read-modify-write.
+      expect(after.body.object.hooks).toEqual([hook('hook-war')]);
+    });
+
+    it('takes it onto the session’s Setup', async () => {
+      const made = newSetup('The Fixer’s Debt');
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/library/setups',
+        payload: made,
+      });
+      const setup = response.body.object.id as string;
+      const session = await aSessionWith(hook('hook-war'), { setup });
+
+      const saved = await promote(session, 'hook-war', { kind: 'setup', id: setup });
+
+      expect(saved.status).toBe(200);
+      expect(saved.body.object).toMatchObject({ id: setup, kind: 'setup' });
+      const after = await server.request({ method: 'GET', url: `/api/library/setups/${setup}` });
+      expect(after.body.object.hooks.map((one: PlotHook) => one.id)).toEqual(['hook-war']);
+    });
+
+    /**
+     * **Allowed, secondary, and for hooks genuinely inseparable from a piece of
+     * lore** — [03 §4.1]'s own three words for the lorebook carrier. `hooks` is
+     * optional there, and the distinction the whole feature keeps is that
+     * *absent is not an emptied list*: the key appears on the first promotion
+     * and is never written as `[]`.
+     */
+    it('takes it onto one of the session’s lorebooks, creating the key', async () => {
+      const book = await aLorebook();
+      const session = await aSessionWith(hook('hook-war'), { lore: [book] });
+
+      const before = await server.request({
+        method: 'GET',
+        url: `/api/library/lorebooks/${book}`,
+      });
+      expect('hooks' in (before.body.object as object)).toBe(false);
+
+      const saved = await promote(session, 'hook-war', { kind: 'lore', id: book });
+
+      expect(saved.status).toBe(200);
+      const after = await server.request({ method: 'GET', url: `/api/library/lorebooks/${book}` });
+      expect(after.body.object.hooks).toEqual([hook('hook-war')]);
+    });
+
+    /**
+     * Pressing the control twice is a thing people do — the first press leaves
+     * the panel row looking exactly as it did. **Never a silent duplicate and
+     * never a re-minted id**: [15 §5.1] calls the re-mint the one thing that
+     * cannot be repaired afterwards, because a corpus of sessions whose hooks
+     * have unrelated ids cannot be retro-fitted into a continuity.
+     */
+    it('refuses the second promotion of the same hook, and writes nothing', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+      await promote(session, 'hook-war', { kind: 'treatment', id: treatment });
+      const once = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${treatment}`,
+      });
+
+      const again = await promote(session, 'hook-war', { kind: 'treatment', id: treatment });
+
+      expect(again.status).toBe(409);
+      expect(again.body.error).toBe('already-there');
+      const now = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${treatment}`,
+      });
+      // The hash is the assertion that nothing at all was written — a second
+      // copy, a re-minted id and a no-op rewrite are all excluded by it.
+      expect(now.body.contentHash).toBe(once.body.contentHash);
+      expect(now.body.object.hooks).toHaveLength(1);
+    });
+
+    /**
+     * ***The omission the feature rests on*** — [06 §6.1]'s *pulled, never
+     * pushed*, in the direction that bites. Re-attributing the pool entry to the
+     * object it was just saved to would claim the target owns the running copy,
+     * and for a lorebook it would silently add `refuse`'s `book-inactive` clause
+     * to a hook that did not have one — so a hook somebody wrote in the panel
+     * and then saved would stop being eligible in the session they wrote it in.
+     */
+    it('leaves the session’s pool and the entry’s source exactly as they were', async () => {
+      const book = await aLorebook();
+      const session = await aSessionWith(hook('hook-war'), { lore: [book] });
+      const before = await server.request({ method: 'GET', url: `/api/sessions/${session}` });
+      const record = JSON.stringify(before.body.session);
+
+      await promote(session, 'hook-war', { kind: 'lore', id: book });
+
+      const after = await server.request({ method: 'GET', url: `/api/sessions/${session}` });
+      // The whole record rather than the pool alone: a rewrite that restamped
+      // `updatedAt` or reordered the pool would satisfy a comparison of the one
+      // field somebody thought to assert on.
+      expect(JSON.stringify(after.body.session)).toBe(record);
+      expect(after.body.session.hooks[0].source).toEqual({ kind: 'session' });
+    });
+
+    it('is a 404 naming the object when the target is gone', async () => {
+      const session = await aSessionWith(hook('hook-war'));
+
+      const saved = await promote(session, 'hook-war', { kind: 'treatment', id: uuidv7() });
+
+      expect(saved.status).toBe(404);
+      // Three 404s, three claims. A person told *not found* about a promotion
+      // cannot tell whether to look for their session, their hook or the
+      // treatment they picked.
+      expect(saved.body.error).toBe('no-such-object');
+    });
+
+    it('is a 404 naming the hook when the pool does not carry it', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+
+      const saved = await promote(session, 'hook-elsewhere', {
+        kind: 'treatment',
+        id: treatment,
+      });
+
+      expect(saved.status).toBe(404);
+      expect(saved.body.error).toBe('no-such-hook');
+    });
+
+    it('is a 404 naming the session when there is no such session', async () => {
+      const treatment = await aTreatment([]);
+
+      const saved = await promote(uuidv7(), 'hook-war', { kind: 'treatment', id: treatment });
+
+      expect(saved.status).toBe(404);
+      expect(saved.body.error).toBe('no-session');
+    });
+
+    /**
+     * ***A target that moved underneath the write answers `409 target-moved`,
+     * and the thing being asserted is what the body does **not** carry.***
+     *
+     * Every other library refusal this route can raise goes through
+     * `respondToLibraryError`, which is right for each of them. `stale` is the
+     * exception, and it is the exception because of what its 412 arm attaches:
+     * `current`, the whole target object, so that an *editor* can offer
+     * reload-and-reapply. On this route that object is a treatment's hooks —
+     * every **unfired** `premise` and every `Entrance.text` on it — sent to the
+     * play client, which is the content [08 §6] and [10 §10.1] name as hidden
+     * and the surface they name it about. The whole reason promotion is a server
+     * act is that redaction, so its own error path is the last place that may
+     * break it.
+     *
+     * *Reachable without a race*: a hand-edited `treatment.json` is first-class
+     * ([03 §1]), and promoting against one before the watcher settles is this
+     * test verbatim. And there is nothing the envelope could buy — the client has
+     * never held the hook, so there is no *reapply my edits* for it to offer.
+     */
+    it('answers a moved target without handing the panel the object', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+
+      const row = await server.request({
+        method: 'GET',
+        url: `/api/library/treatments/${treatment}`,
+      });
+      const path = server.services.layout.objectFile(
+        userOwner('ned'),
+        TREATMENT_SCHEMA,
+        row.body.slug as string,
+      );
+      const stored = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+      await writeFile(
+        path,
+        JSON.stringify({ ...stored, hooks: [hook('hook-secret')] }, null, 2),
+        'utf8',
+      );
+
+      const saved = await promote(session, 'hook-war', { kind: 'treatment', id: treatment });
+
+      expect(saved.status).toBe(409);
+      expect(saved.body.error).toBe('target-moved');
+      // The assertion the paragraph above is about: no envelope, under any
+      // spelling. `current` is what the 412 arm calls it, and a body with no
+      // hook content at all is what the panel is owed.
+      expect(saved.body.current).toBeUndefined();
+      expect(JSON.stringify(saved.body)).not.toContain('hook-secret');
+    });
+
+    /**
+     * The refusal every other write to a system object already gets ([10 §4.2]):
+     * app-shipped, and a release would overwrite the edit anyway. *Copy to my
+     * library* first, and the copy is an ordinary target.
+     */
+    it('refuses a system-library target through the library’s own read-only path', async () => {
+      const session = await aSessionWith(hook('hook-war'));
+
+      const saved = await promote(session, 'hook-war', { kind: 'lore', id: DOCS_LOREBOOK_ID });
+
+      expect(saved.status).toBe(403);
+      expect(saved.body.error).toBe('read-only');
+    });
+
+    /**
+     * ***The separation is structural here, and that is exactly why it is worth
+     * a test.*** This route does not go through `mine` — its docstring argues
+     * why, and the argument is that `readSession` and `read` both resolve
+     * **under the account's handle**, so the path is the owner ([09 §4.3]) and
+     * somebody else's object is the same absence it has always been. That is a
+     * property of two functions three files away rather than of a check on this
+     * route, which makes it precisely the kind of protection that survives
+     * review and dies to a later refactor nobody connected to it.
+     *
+     * *Both halves, because they fail through different code.* The session is
+     * `readSession` returning `null`; the target is `read` raising `not-found`
+     * from a collection this handle does not own. And both are **404**, never
+     * 403: the route beside them answers *another account's session* with the
+     * same absence, because confirming an id exists elsewhere leaks the one
+     * fact the separation is keeping.
+     */
+    it('answers 404 for another account’s session and another account’s target', async () => {
+      const treatment = await aTreatment([]);
+      const session = await aSessionWith(hook('hook-war'));
+
+      await server.services.accounts.create({
+        handle: 'sister',
+        password: 'correct horse battery',
+        role: 'user',
+      });
+      await server.request({ method: 'POST', url: '/api/auth/logout' });
+      await server.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { handle: 'sister', password: 'correct horse battery' },
+      });
+
+      // Hers now, and neither of the two objects is.
+      const theirSession = await promote(session, 'hook-war', {
+        kind: 'treatment',
+        id: treatment,
+      });
+      expect(theirSession.status).toBe(404);
+      expect(theirSession.body.error).toBe('no-session');
+
+      // And with a session of her own, the treatment is still not reachable —
+      // the second half, which the first cannot reach past.
+      const mine = await aSessionWith(hook('hook-war'));
+      const theirTreatment = await promote(mine, 'hook-war', {
+        kind: 'treatment',
+        id: treatment,
+      });
+      expect(theirTreatment.status).toBe(404);
+      expect(theirTreatment.body.error).toBe('no-such-object');
     });
   });
 

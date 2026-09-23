@@ -1,0 +1,792 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { useState, type JSX } from 'react';
+
+import {
+  uuidv7,
+  type Entrance,
+  type Introduction,
+  type PlotHook,
+  type Ref,
+} from '@storyengine/shared';
+
+import { ReadOnlyField } from '../library/ByField.js';
+import { choicesOf, fieldsOf, labelFor, plotHookSchema, type FieldRow } from '../library/fields.js';
+import { Button } from '../ui/Button.js';
+import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
+import { TokenField, type TokenOption } from '../ui/TokenField.js';
+import { Fine, SubsectionTitle } from '../ui/Text.js';
+import { disclosure } from '../ui/classes.js';
+import type { HookPatch } from './hook-form.js';
+
+/**
+ * One plot hook, as the schema's own shape —
+ * [04 §6.1a](../../../../docs/design/04-schemas.md),
+ * [10 §10.1](../../../../docs/design/10-ui-surfaces.md), and the write side of
+ * what [P7 §1.5](../../../../docs/design/workplan/23-p7-implementation.md)
+ * recorded as *"a hook has nowhere to be authored"*.
+ *
+ * **Modelled on [EntryFields](./EntryFields.tsx), and it inherits that file's
+ * two corrections rather than restating them.**
+ *
+ * The first: ***the switch is the list.*** There is no membership set beside it
+ * saying which keys this editor owns. EntryFields had one, and removing the
+ * guard in front of its switch rendered every field as the last case's control
+ * while the suite stayed green — a list of what is owned and a switch deciding
+ * what each one renders as are two descriptions of one thing, and this is the
+ * one that cannot disagree with itself.
+ *
+ * The second: ***a field with no case is visible and read-only***, through the
+ * read surface's own `ReadOnlyField` ([ByField.tsx](../library/ByField.tsx)), so
+ * a field added to `PlotHook` later arrives in this editor **shown and
+ * unwritable** rather than invisible. [10 §2.1] forbids a hidden field, and an
+ * editor that silently omitted one would be the reason somebody could not
+ * discover it exists. `id` is the standing case: addressed by every other
+ * hook's `blockedBy`, never typed by anybody.
+ *
+ * **Rows come from the schema, so the order and the labels are the file's.**
+ * `fieldsOf(plotHookSchema(), hook)` is the same derivation the read surface
+ * uses, which is [polish §1](../../../../docs/design/workplan/06-polish.md)'s
+ * *one description of a kind's fields, two renderings of it* holding inside a
+ * single form — this one alternates between the two renderings field by field.
+ *
+ * ***Two disclosures, and deliberately only two.*** A `LoreEntry` has around
+ * forty fields and needs [10 §11.2d]'s whole banner apparatus; a `PlotHook` has
+ * eight, so the disclosure problem barely exists here and inventing groups for
+ * it would be a second arrangement of a schema that declares none. What is
+ * folded is the two fields that are *structures* — `notBefore`, which is a pair
+ * of gates most hooks never set, and `introduces`, which is a whole character
+ * arrival with a list inside it. Everything else stands in place.
+ */
+
+export function HookFields(props: {
+  hook: PlotHook;
+  /** One field changed. The list is the caller's; this only describes the edit. */
+  onPatch: (patch: HookPatch) => void;
+  /**
+   * The introduction, set or **removed** — the one field whose absence is a
+   * different claim from its emptiness, so the one that cannot go through
+   * `onPatch`.
+   *
+   * `introduces` present means *this hook **is** a character's arrival*, which
+   * [04 §6.1a] says inverts the hook's whole eligibility test: an ordinary hook
+   * wants its cast alive and met, an introduction wants its subject **not** met.
+   * An empty `Introduction` would therefore be a hook claiming to be an arrival
+   * for nobody, ineligible forever with a visible reason. So turning it off
+   * removes the key, and `null` is how this editor says so.
+   */
+  onIntroduce: (next: Introduction | null) => void;
+  /**
+   * The other hooks on this carrier — what `blockedBy` and `notBefore.afterHook`
+   * can point at, offered by title rather than by id.
+   *
+   * *The carrier's, not the session's pool.* A hook can only name a sibling it
+   * travels with: the pool a session builds is four sources deep
+   * ([03 §4.1](../../../../docs/design/03-data-model.md)) and exists only while
+   * that session does, so an id borrowed from it would be an eligibility gate
+   * that could never resolve in the object it was saved into.
+   */
+  siblings: PlotHook[];
+  /** The library's actors, for the two fields that point at one. */
+  actors: { id: string; name: string }[];
+}): JSX.Element {
+  const rows = fieldsOf(plotHookSchema(), props.hook);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {rows.map((row) => (
+        <HookRow key={row.key} row={row} {...props} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One field — a control where this editor owns it, the read-only rendering
+ * where it does not.
+ *
+ * The branch is on the property name, which is an identifier rather than
+ * displayed text; the label beside it is `labelFor`'s in both arms, so the words
+ * a reader sees are the schema's either way.
+ */
+function HookRow(props: {
+  row: FieldRow;
+  hook: PlotHook;
+  onPatch: (patch: HookPatch) => void;
+  onIntroduce: (next: Introduction | null) => void;
+  siblings: PlotHook[];
+  actors: { id: string; name: string }[];
+}): JSX.Element {
+  const { row, hook, onPatch } = props;
+
+  switch (row.key) {
+    case 'title':
+      return (
+        <Field
+          label={row.label}
+          path={`hooks.${hook.id}.${row.key}`}
+          value={hook.title}
+          onChange={(title) => {
+            onPatch({ title });
+          }}
+          hint="For your list, and for naming this hook to another one. Never injected."
+        />
+      );
+    case 'premise':
+      /**
+       * ***The path is the hook's id and the field's key*** — [10 §11.2],
+       * [P11.2]. Hooks are reordered by the nudge buttons beside them, so an
+       * index in this key would attribute one hook's generated prose to
+       * whichever hook took its place — worse than no provenance, because it
+       * reads as an answer.
+       */
+      return (
+        <Field
+          label={row.label}
+          path={`hooks.${hook.id}.${row.key}`}
+          value={hook.premise}
+          onChange={(premise) => {
+            onPatch({ premise });
+          }}
+          multiline
+          rows={4}
+          hint="What happens. Held out of the story until the selector judges the moment, and never shown before it fires."
+        />
+      );
+    case 'magnitude':
+      return (
+        <EnumField
+          row={row}
+          value={hook.magnitude}
+          onChange={(magnitude) => {
+            onPatch({ magnitude: magnitude as PlotHook['magnitude'] });
+          }}
+          hint="Blast radius rather than location: how big a turn this is."
+        />
+      );
+    case 'delivery':
+      return (
+        <EnumField
+          row={row}
+          value={hook.delivery}
+          onChange={(delivery) => {
+            onPatch({ delivery: delivery as PlotHook['delivery'] });
+          }}
+          hint="Woven as guidance, expanded from the premise, or played immediately."
+        />
+      );
+    case 'weight':
+      return (
+        <WeightField
+          label={row.label}
+          value={hook.weight}
+          onChange={(weight) => {
+            onPatch({ weight });
+          }}
+        />
+      );
+    case 'once':
+      return (
+        <CheckboxField
+          label={row.label}
+          checked={hook.once}
+          onChange={(once) => {
+            onPatch({ once });
+          }}
+          hint="Off lets this hook fire again later. It is moot on a hook that introduces somebody, which is self-limiting anyway."
+        />
+      );
+    case 'involves':
+      return (
+        <ActorRefs
+          label={row.label}
+          values={hook.involves}
+          actors={props.actors}
+          onChange={(involves) => {
+            onPatch({ involves });
+          }}
+          hint="Moot if these are dead, gone, or never introduced. Firing a hook about somebody who died four sessions ago is what this prevents."
+        />
+      );
+    case 'blockedBy':
+      return (
+        <SiblingHooks
+          label={row.label}
+          values={hook.blockedBy ?? []}
+          siblings={props.siblings}
+          onChange={(blockedBy) => {
+            // Emptied is **absent**, not `[]` — `newHook`'s rule for the three
+            // optional fields, kept by the control that can undo it. A hook
+            // whose last blocker was removed has to come back byte-identical to
+            // one that never had the field, or *never mind* leaves a mark in
+            // the portable file, every export and every diff.
+            onPatch({ blockedBy: blockedBy.length === 0 ? undefined : blockedBy });
+          }}
+          hint="Hooks that would make this one nonsensical once they have fired."
+        />
+      );
+    case 'notBefore':
+      return <NotBefore row={row} hook={hook} siblings={props.siblings} onPatch={onPatch} />;
+    case 'introduces':
+      return (
+        <Introduces row={row} hook={hook} actors={props.actors} onIntroduce={props.onIntroduce} />
+      );
+    default:
+      return (
+        <ReadOnlyField row={row} value={(hook as unknown as Record<string, unknown>)[row.key]} />
+      );
+  }
+}
+
+/**
+ * A closed union, as a picker over the schema's own arms.
+ *
+ * **The options are read out of the schema rather than listed here**, which is
+ * the argument `positionOptions` makes in [EntryFields](./EntryFields.tsx) and
+ * `AdminInstall` made before it: a hand-written list of a union's values is a
+ * second copy of the schema, and a second copy drifts. `labelFor` turns the
+ * value into words by the same rule every field label is derived by, so
+ * `sweeping` reads as *Sweeping* without a table of nicer English.
+ *
+ * *An unreadable schema falls back to the hook's own value*, so a build that
+ * cannot parse what it was given renders a picker holding what is stored rather
+ * than an empty one that would clear the field on the first change event.
+ */
+function EnumField(props: {
+  row: FieldRow;
+  value: string;
+  onChange: (value: string) => void;
+  hint: string;
+}): JSX.Element {
+  const values = choicesOf(props.row.schema) ?? [props.value];
+  return (
+    <SelectField
+      label={props.row.label}
+      value={props.value}
+      options={values.map((value) => [value, labelFor(value)] as const)}
+      onChange={props.onChange}
+      hint={props.hint}
+    />
+  );
+}
+
+/**
+ * A number held as text while it is being typed.
+ *
+ * **The text is state and the number is derived**, for the reason
+ * [form.ts](./form.ts) keeps its own buffers and `NumberField` takes a string:
+ * `''` and `-` are states a person passes through, and a control that read the
+ * empty box as zero would write a weight nobody chose into the object on the
+ * way to typing a different one.
+ *
+ * *`weight` is required, so a blank box writes nothing at all* rather than
+ * removing the field — the last number typed stands until another one is. The
+ * box is allowed to look empty while that is true, which is the honest half:
+ * what is in the object is what the hook had, and what is on screen is what the
+ * person is in the middle of doing.
+ *
+ * **Re-seeded on the value rather than on the text**, the way `LinesField` is
+ * next door: typing hands the parent the number this component produced, so it
+ * comes back equal and the buffer is left alone; a value from anywhere else — a
+ * version restored, a newer copy after a 412 — differs, and re-seeds.
+ */
+function WeightField(props: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}): JSX.Element {
+  const [held, setHeld] = useState<{ text: string; from: number }>(() => ({
+    text: String(props.value),
+    from: props.value,
+  }));
+
+  if (props.value !== held.from) {
+    setHeld({ text: String(props.value), from: props.value });
+  }
+
+  return (
+    <NumberField
+      label={props.label}
+      value={held.text}
+      onChange={(text) => {
+        const parsed = Number(text);
+        if (text.trim() === '' || !Number.isFinite(parsed)) {
+          setHeld({ text, from: props.value });
+          return;
+        }
+        setHeld({ text, from: parsed });
+        props.onChange(parsed);
+      }}
+      hint="Relative likelihood among the hooks that are eligible at the same moment."
+    />
+  );
+}
+
+/**
+ * A list of actors, committed as `Ref`s.
+ *
+ * **The combobox deals in ids and this rebuilds the `Ref`s around them**, which
+ * is what keeps [04 §3](../../../../docs/design/04-schemas.md)'s link intact: a
+ * `Ref` carries a name for display and name-fallback resolution and an optional
+ * `fingerprint` recording what it looked like when it was linked. A control that
+ * minted a fresh `Ref` per commit would drop the fingerprint of every actor
+ * somebody merely re-ordered, so a ref already held comes through **by
+ * identity** and only a newly added one is built.
+ *
+ * *An actor the library no longer has keeps its chip and its stored name.* 03
+ * §4.1 says a dangling `involves` entry retires a hook quietly, which is mercy
+ * for a cast that is gone — and a control that silently dropped the ref would
+ * be doing the retiring on the author's behalf without telling them.
+ */
+function ActorRefs(props: {
+  label: string;
+  values: Ref[];
+  actors: { id: string; name: string }[];
+  onChange: (values: Ref[]) => void;
+  hint: string;
+}): JSX.Element {
+  const held = new Map(props.values.map((ref) => [ref.id, ref] as const));
+  const known = new Map(props.actors.map((actor) => [actor.id, actor.name] as const));
+
+  return (
+    <TokenField
+      label={props.label}
+      values={props.values.map((ref) => ref.id)}
+      onChange={(ids) => {
+        props.onChange(ids.map((id) => held.get(id) ?? { id, name: known.get(id) ?? id }));
+      }}
+      optionsFor={(term) => offer(props.actors, term, held)}
+      renderToken={(id) => held.get(id)?.name ?? known.get(id) ?? id}
+      hint={props.hint}
+    />
+  );
+}
+
+/** The actors this term matches that are not already carried. */
+function offer(
+  actors: { id: string; name: string }[],
+  term: string,
+  held: ReadonlyMap<string, unknown>,
+): TokenOption[] {
+  const wanted = term.trim().toLowerCase();
+  return actors
+    .filter((actor) => !held.has(actor.id))
+    .filter((actor) => wanted === '' || actor.name.toLowerCase().includes(wanted))
+    .map((actor) => ({ value: actor.id, label: actor.name }));
+}
+
+/**
+ * A list of sibling hooks, by title.
+ *
+ * The same combobox over a different set, and the same reason for the mapping:
+ * what is stored is an **id**, because a hook's title is editable and a gate
+ * that pointed at one would come undone the moment somebody renamed it. What is
+ * offered and what is drawn is the title, because an id is not something anybody
+ * can pick from a list.
+ */
+function SiblingHooks(props: {
+  label: string;
+  values: string[];
+  siblings: PlotHook[];
+  onChange: (values: string[]) => void;
+  hint: string;
+}): JSX.Element {
+  const held = new Set(props.values);
+  const titles = new Map(props.siblings.map((hook) => [hook.id, nameOfHook(hook)] as const));
+
+  return (
+    <TokenField
+      label={props.label}
+      values={props.values}
+      onChange={props.onChange}
+      optionsFor={(term) => {
+        const wanted = term.trim().toLowerCase();
+        return props.siblings
+          .filter((hook) => !held.has(hook.id))
+          .filter((hook) => wanted === '' || nameOfHook(hook).toLowerCase().includes(wanted))
+          .map((hook) => ({ value: hook.id, label: nameOfHook(hook) }));
+      }}
+      renderToken={(id) => titles.get(id) ?? id}
+      hint={props.hint}
+    />
+  );
+}
+
+/**
+ * The two gates that say *not yet* — a turn count and a hook that has to have
+ * fired first.
+ *
+ * **Folded, because most hooks have neither**, and a pair of empty boxes on
+ * every hook in the list is the noise [10 §11.2d]'s disclosure argument is
+ * about. The summary says what is set, so a closed fold never hides a gate
+ * somebody would be surprised by — [10 §2.1]'s rule, which is the whole licence
+ * for a disclosure being here at all.
+ *
+ * ***Cleared to an **absent** `notBefore`, not to an empty one.*** The engine
+ * reads the two the same way — an absent half is *no constraint*
+ * (`packages/server/src/sessions/hooks.ts`) — so this is not about eligibility.
+ * It is about what the file says: [`newHook`](./hook-form.ts) states the rule
+ * that `blockedBy`, `notBefore` and `introduces` are *absent rather than empty,
+ * which is what [04 §2] means by additive — a hook that has never been given an
+ * eligibility filter says nothing about one*, and a control that wrote
+ * `notBefore: {}` on the way back from a floor somebody typed and thought
+ * better of would leave a hook that is no longer byte-identical to one that
+ * never had a gate, in the portable file and in every diff of it. `patchHook`
+ * takes `undefined` as *remove the key*, so the removal costs no extra callback
+ * — which is what the paragraph this replaces was trading the rule away for.
+ */
+function NotBefore(props: {
+  row: FieldRow;
+  hook: PlotHook;
+  siblings: PlotHook[];
+  onPatch: (patch: HookPatch) => void;
+}): JSX.Element {
+  const gate = props.hook.notBefore ?? {};
+
+  function set(next: { turn?: number; afterHook?: string }): void {
+    props.onPatch({ notBefore: Object.keys(next).length === 0 ? undefined : next });
+  }
+
+  return (
+    <details>
+      <summary className={disclosure.quiet}>
+        <SubsectionTitle as="h4">{notBeforeSummary(gate, props.row.label)}</SubsectionTitle>
+      </summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <NumberField
+          label="Turn"
+          value={gate.turn === undefined ? '' : String(gate.turn)}
+          min={0}
+          onChange={(text) => {
+            const parsed = Number(text);
+            const blank = text.trim() === '' || !Number.isFinite(parsed);
+            // Spread conditionally rather than assigning `undefined`:
+            // `exactOptionalPropertyTypes` makes `{ turn: undefined }` and *no
+            // `turn`* different objects, and only the second one is *no floor*.
+            set({
+              ...(gate.afterHook === undefined ? {} : { afterHook: gate.afterHook }),
+              ...(blank ? {} : { turn: parsed }),
+            });
+          }}
+          hint="How many turns have to have happened first. Blank is no floor."
+        />
+        <SelectField
+          label="After hook"
+          value={gate.afterHook ?? ''}
+          options={[
+            ['', 'No hook first'],
+            ...props.siblings.map((hook) => [hook.id, nameOfHook(hook)] as const),
+          ]}
+          onChange={(id) => {
+            set({
+              ...(gate.turn === undefined ? {} : { turn: gate.turn }),
+              ...(id === '' ? {} : { afterHook: id }),
+            });
+          }}
+          hint="This one waits until that one has fired."
+        />
+      </div>
+    </details>
+  );
+}
+
+/** What the closed gate fold says about itself — the whole phrase, computed. */
+function notBeforeSummary(gate: { turn?: number; afterHook?: string }, label: string): string {
+  if (gate.turn !== undefined && gate.afterHook !== undefined) {
+    return `${label} — a turn and another hook`;
+  }
+  if (gate.turn !== undefined) return `${label} — turn ${String(gate.turn)}`;
+  if (gate.afterHook !== undefined) return `${label} — after another hook`;
+  return label;
+}
+
+/**
+ * The hook as a character's arrival — [04 §6.1a], added to the schema at
+ * [P7.5](../../../../docs/design/workplan/23-p7-implementation.md) and given a
+ * surface here for the first time.
+ *
+ * **Choosing the subject is what turns it on, and choosing nobody is what turns
+ * it off.** There is no separate switch, because there is nothing an
+ * introduction without a subject could mean: the field exists to declare *who
+ * arrives*, and 04 §6.1a makes a dangling subject the one place a `Ref`'s
+ * never-block rule needs a second answer — ineligible, with a visible reason,
+ * rather than quietly retired.
+ *
+ * ***The entrances are content and the premise is the instruction***, which is
+ * the division the schema draws and the reason both are editable here: with
+ * entrances present the selector weaves the one it picks, and with none the
+ * premise is expanded into an arrival. The **note** on an entrance is neither —
+ * it is guidance to the *selector* about when that arrival fits, which 04 §6.1a
+ * is careful to distinguish from an `Opening.note`'s *this steers the
+ * expansion*.
+ *
+ * *`primaryEntranceId` is **not** always-use-this* — the selector otherwise
+ * draws across all of them — so the empty option is the ordinary state of a
+ * hook whose author has not picked a favourite, and it is spelled as one rather
+ * than as an absence somebody has to infer.
+ *
+ * ***The subject's `Ref` is rebuilt on a change of subject, which `ActorRefs`
+ * above is careful not to do, and the asymmetry is accepted rather than
+ * overlooked.*** That control keeps a held `Ref` by identity so a `fingerprint`
+ * survives somebody merely re-ordering `involves`; here there is exactly one
+ * ref, the only edit that touches it is *choose somebody else*, and a ref for
+ * the new subject was never held to keep. What is genuinely lost is the
+ * fingerprint of a subject switched away from and back again in one sitting —
+ * a re-link of a link the author just broke, which is what the field records
+ * anyway, and not worth a component that remembers refs it no longer shows.
+ */
+function Introduces(props: {
+  row: FieldRow;
+  hook: PlotHook;
+  actors: { id: string; name: string }[];
+  onIntroduce: (next: Introduction | null) => void;
+}): JSX.Element {
+  const held = props.hook.introduces;
+  const entrances = held?.entrances ?? [];
+
+  function set(next: Partial<Introduction>): void {
+    if (held === undefined) return;
+    props.onIntroduce({ ...held, ...next });
+  }
+
+  return (
+    <details>
+      <summary className={disclosure.quiet}>
+        <SubsectionTitle as="h4">{introducesSummary(held, props.row.label)}</SubsectionTitle>
+      </summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <Fine>
+          A hook that introduces somebody is eligible only while they have not been met, which is
+          the opposite of the test every other hook gets.
+        </Fine>
+
+        <SelectField
+          label="Arrives"
+          value={held?.actor.id ?? ''}
+          options={[
+            ['', 'Not an arrival'],
+            ...props.actors.map((actor) => [actor.id, actor.name] as const),
+            // An actor the library no longer has still has to be shown, or the
+            // picker would silently re-point the hook at somebody else.
+            ...(held !== undefined && !props.actors.some((actor) => actor.id === held.actor.id)
+              ? [[held.actor.id, held.actor.name] as const]
+              : []),
+          ]}
+          onChange={(id) => {
+            if (id === '') {
+              props.onIntroduce(null);
+              return;
+            }
+            const name = props.actors.find((actor) => actor.id === id)?.name ?? id;
+            props.onIntroduce(
+              held === undefined
+                ? { actor: { id, name }, entrances: [], primaryEntranceId: null }
+                : { ...held, actor: { id, name } },
+            );
+          }}
+          hint="Who this hook brings into the story. Choosing nobody makes it an ordinary hook again."
+        />
+
+        {held === undefined ? null : (
+          <>
+            <Entrances
+              hookId={props.hook.id}
+              entrances={entrances}
+              onChange={(next) => {
+                set({
+                  entrances: next,
+                  // A primary that has just been removed stops being one, rather
+                  // than staying as an id pointing at nothing — which a manual
+                  // fire would read as *use this* and find nothing to use.
+                  ...(held.primaryEntranceId !== null &&
+                  !next.some((entrance) => entrance.id === held.primaryEntranceId)
+                    ? { primaryEntranceId: null }
+                    : {}),
+                });
+              }}
+            />
+            <SelectField
+              label="Primary entrance"
+              value={held.primaryEntranceId ?? ''}
+              options={[
+                ['', 'No favourite'],
+                ...entrances.map((entrance) => [entrance.id, nameOfEntrance(entrance)] as const),
+              ]}
+              onChange={(id) => {
+                set({ primaryEntranceId: id === '' ? null : id });
+              }}
+              hint="The one a manual fire uses, and the one shown first. The selector still draws across all of them."
+            />
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/** What the closed arrival fold says about itself. */
+function introducesSummary(held: Introduction | undefined, label: string): string {
+  if (held === undefined) return label;
+  if (held.entrances.length === 0) return `${label} — ${held.actor.name}`;
+  return `${label} — ${held.actor.name}, ${String(held.entrances.length)} written`;
+}
+
+/**
+ * The written alternates, added and removed one at a time.
+ *
+ * **Every entrance is shown in full here and by label everywhere else**, and
+ * that asymmetry is the feature rather than an inconsistency: [08 §6] and
+ * [10 §10.1] both require that an unfired entrance is shown *by label, never by
+ * text*, because an unfired entrance is hidden content and a panel that spoils
+ * the arrival defeats the hook. This is the one surface where the author is
+ * writing the thing, so this is the one surface where the text belongs.
+ *
+ * *Empty is legal*, which is why there is no floor on the list: with no
+ * entrances the premise steers an improvised arrival, and an empty premise is
+ * legal when entrances are present.
+ */
+function Entrances(props: {
+  hookId: string;
+  entrances: Entrance[];
+  onChange: (next: Entrance[]) => void;
+}): JSX.Element {
+  return (
+    <div className="flex flex-col gap-3">
+      <SubsectionTitle as="h4">Entrances</SubsectionTitle>
+      {props.entrances.length === 0 ? (
+        <Fine>None written. The premise steers the arrival instead.</Fine>
+      ) : null}
+
+      {props.entrances.map((entrance, at) => (
+        <div
+          key={entrance.id}
+          className="flex flex-col gap-3 rounded-control border border-line p-3"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-ink">{entranceHeading(at)}</p>
+            <Button
+              type="button"
+              variant="quiet"
+              size="tiny"
+              onClick={() => {
+                props.onChange(props.entrances.filter((each) => each.id !== entrance.id));
+              }}
+            >
+              {removeEntranceLabel(entrance)}
+            </Button>
+          </div>
+          <Field
+            label="Label"
+            value={entrance.label}
+            onChange={(label) => {
+              props.onChange(patchEntrance(props.entrances, entrance.id, { label }));
+            }}
+            hint="What a panel shows instead of the text. It exists so there is something to show that is not the spoiler."
+          />
+          <Field
+            label="Text"
+            path={`hooks.${props.hookId}.introduces.entrances.${entrance.id}.text`}
+            value={entrance.text}
+            onChange={(text) => {
+              props.onChange(patchEntrance(props.entrances, entrance.id, { text }));
+            }}
+            multiline
+            rows={4}
+            hint="The written arrival, woven when this entrance is the one chosen."
+          />
+          <Field
+            label="Note"
+            value={entrance.note ?? ''}
+            onChange={(note) => {
+              // Blanked is **absent**, which is `newEntrance`'s rule below: *an
+              // entrance whose author has not said when it fits has not said it
+              // fits nowhere*. The same edit the gate above makes, one level
+              // down.
+              props.onChange(
+                patchEntrance(props.entrances, entrance.id, {
+                  note: note.trim() === '' ? undefined : note,
+                }),
+              );
+            }}
+            hint="When this one fits — guidance to the selector, not to the narrator."
+          />
+        </div>
+      ))}
+
+      <div>
+        <Button
+          type="button"
+          size="compact"
+          onClick={() => {
+            props.onChange([...props.entrances, newEntrance()]);
+          }}
+        >
+          Add an entrance
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One entrance's fields changed — the same spread-over-the-object rule
+ * [hook-form.ts](./hook-form.ts) keeps one level up, so a field a newer build
+ * wrote into an entrance survives an edit to its label.
+ *
+ * *And the same `undefined` removes the key*, for `patchHook`'s reason read one
+ * level down: `note` is the entrance's one optional field, and a blanked box has
+ * to leave it the way `newEntrance` leaves it.
+ */
+function patchEntrance(
+  entrances: Entrance[],
+  id: string,
+  fields: { [K in keyof Entrance]?: Entrance[K] | undefined },
+): Entrance[] {
+  return entrances.map((entrance) => {
+    if (entrance.id !== id) return entrance;
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries({ ...entrance, ...fields })) {
+      if (value !== undefined) next[key] = value;
+    }
+    return next as unknown as Entrance;
+  });
+}
+
+/**
+ * A blank entrance.
+ *
+ * **`uuidv7` rather than an index or a slug of the label**, because
+ * `primaryEntranceId` points at this id and both of the cheaper alternatives
+ * move: an index changes when an entrance above it is removed, and a label is
+ * the field an author is most likely to rewrite. The shared minter is the one
+ * every other id in the repository comes from
+ * ([ids.ts](../../../shared/src/ids.ts)), so an entrance written here and one
+ * written by an importer are the same sort of thing.
+ *
+ * `note` is absent rather than empty: it is optional, and an entrance whose
+ * author has not said when it fits has not said it fits nowhere.
+ */
+function newEntrance(): Entrance {
+  return { id: uuidv7(), label: '', text: '' };
+}
+
+/** The heading over one entrance — a whole phrase, so no sentence is a shape. */
+function entranceHeading(at: number): string {
+  return `Entrance ${String(at + 1)}`;
+}
+
+/** The button's accessible name, built whole for the same reason. */
+function removeEntranceLabel(entrance: Entrance): string {
+  return entrance.label.trim() === '' ? 'Remove this entrance' : `Remove ${entrance.label.trim()}`;
+}
+
+/** What an entrance is called in a picker, when its author has not said. */
+function nameOfEntrance(entrance: Entrance): string {
+  return entrance.label.trim() === '' ? 'Unlabelled entrance' : entrance.label;
+}
+
+/** The name a hook is offered under, which is also what a control says. */
+export function nameOfHook(hook: PlotHook): string {
+  return hook.title.trim() === '' ? 'Untitled hook' : hook.title;
+}

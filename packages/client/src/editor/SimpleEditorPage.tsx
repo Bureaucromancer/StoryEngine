@@ -8,8 +8,10 @@ import { blankFor, isRequiredField, type EditorKind as Kind } from '../library/f
 import { useEditorBase } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
-import type { Draft } from './book-form.js';
+import { mergedHooks, type Draft } from './book-form.js';
 import { EditorFrame } from './EditorFrame.js';
+import { hooksOf, withHooks } from './hook-form.js';
+import { HookList } from './HookList.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { SchemaFields } from './SchemaFields.js';
 import { Note } from '../ui/Text.js';
@@ -26,6 +28,16 @@ import { Note } from '../ui/Text.js';
  * [SchemaFields](./SchemaFields.tsx) can read out of the schema, in the
  * schema's own order and under its own group names
  * ([10 §11.2d](../../../../docs/design/10-ui-surfaces.md)).
+ *
+ * ***One field turned out to be such a thing after all***, and naming it here
+ * is cheaper than letting the paragraph above quietly stop being true. A
+ * `PlotHook`'s `magnitude` and `delivery` emit as `anyOf` of `const`s with no
+ * top-level `type`, so the schema says *closed union* in a way the generic
+ * renderer cannot read and it falls through to a free-text box; `introduces`
+ * is a nested object with a list inside it. So `hooks` is drawn by
+ * [HookList](./HookList.tsx) on the kinds that declare it, and the exception is
+ * one flag on the declaration rather than a section slot — see `SimpleKind`
+ * below for why that distinction is the point.
  *
  * ***The bar is [P7B §0.4]'s, and saying it plainly is part of the work:
  * usable, not complete.*** *Create, rename, delete, and the durable core …
@@ -64,6 +76,44 @@ export interface SimpleKind {
   editorRoute: string;
   /** Fields this page leaves to `SchemaFields` to show read-only, with a reason. */
   readOnly?: Readonly<Record<string, string>>;
+  /**
+   * Whether this page authors the carrier's `hooks` itself —
+   * [03 §4.1](../../../../docs/design/03-data-model.md).
+   *
+   * ***A named field rather than a section slot***, and that is a decision
+   * about this file rather than about hooks. The thing that keeps these three
+   * editors honest is that everything on the page comes out of the schema
+   * except what this interface names out loud; a `sections?: ReactNode[]` would
+   * let any kind mount anything here and quietly turn a declaration into a
+   * component again. There is exactly one field the schema renderer cannot
+   * draw — `PlotHook`'s two enums emit as `anyOf` of `const`s with no top-level
+   * type, so `SchemaFields` would give a closed union a free-text box — so it
+   * is spelled as the exception it is. A second one is a second field, and by
+   * the third the generalisation will have been earned rather than guessed.
+   *
+   * **`true` is the only value, because *off* is the field's absence.** A kind
+   * that wrote `hooks: false` would be making a claim about a kind that has no
+   * hooks at all, which `PACKAGES` is: a package carries objects, and the hooks
+   * it travels with belong to them.
+   */
+  hooks?: true;
+  /**
+   * The sentence under the hook list's heading — what *this* carrier's hooks
+   * are.
+   *
+   * Held here rather than written into `HookList` because the three carriers
+   * mean three different things by the same field, which is the whole of
+   * [03 §4.1](../../../../docs/design/03-data-model.md)'s *where hooks live*: a
+   * Treatment is the primary home, a Setup adds to it rather than replacing it,
+   * and a Lorebook is deliberately secondary. A component that guessed which of
+   * them it was mounted on would be a component that has to be told the kind,
+   * which is the coupling these declarations exist to avoid.
+   *
+   * Separate from the flag rather than folded into it, because `HookList`'s own
+   * note is optional and the flag is the thing that decides the section exists
+   * at all — a carrier with nothing distinguishing to say gets the heading.
+   */
+  hookNote?: string;
 }
 
 function nameOf(draft: Draft): string {
@@ -73,13 +123,63 @@ function nameOf(draft: Draft): string {
 /**
  * Why this object cannot back the form, or null.
  *
- * **One check, because one field is all these editors dereference.** The actor
+ * ~~**One check, because one field is all these editors dereference.** The actor
  * and preset guards are longer because their editors walk a list; these walk
  * nothing the schema renderer does not already survive — it reads values and
- * draws what it finds, including nothing.
+ * draws what it finds, including nothing.~~
+ *
+ * ***That stopped being true the moment a kind could declare `hooks`.*** The
+ * reasoning above is exactly right about `SchemaFields`, which renders a value
+ * of any shape opaquely and survives anything a hand edit can put in a file. It
+ * does not reach [HookList](./HookList.tsx), which **walks a keyed list**: it
+ * maps over `hooks`, keys each card on `hook.id`, and reads `hook.title` to name
+ * every control on it. A treatment on disk whose `hooks` is `"none"` or `{}`
+ * throws on the map; `[null]` throws on the key; `[{}]` throws in `nameOfHook`.
+ * There is no error boundary anywhere in this package, so the throw takes the
+ * **whole application** rather than the section — which is the one answer
+ * `lorebookShape`'s own docstring forbids a surface to give a hand-edited file:
+ * *"a hand edit is the storage thesis working, and a white screen is the one
+ * answer this surface may not give it."*
+ *
+ * **The string ids are checked for the reason `editableBookShape` checks an
+ * entry's.** `patchHook`, `removeHook` and `moveHook` all address a hook by id,
+ * so two hooks whose ids are not strings collapse to one under any of them — an
+ * edit to one silently editing or deleting the other, which is the failure a
+ * read surface can live with and a write surface cannot.
+ *
+ * **Gated on the flag, because the check is about what this page *dereferences*
+ * rather than about what the schema permits.** A package's `hooks`, if a hand
+ * edit put one there, still goes through `SchemaFields` and still renders
+ * opaquely, and refusing to open the editor over it would be this guard
+ * inventing a validity rule the kind does not have.
  */
-function shapeOf(object: Record<string, unknown>): string | null {
-  return typeof object['name'] === 'string' ? null : 'its "name" is not a string';
+function shapeOf(object: Record<string, unknown>, kind: SimpleKind): string | null {
+  if (typeof object['name'] !== 'string') return 'its "name" is not a string';
+  return kind.hooks === undefined ? null : hookShape(object['hooks']);
+}
+
+/**
+ * Why a carrier's `hooks` cannot be drawn, or null — shared by the three
+ * editors that draw it, because a hand-edited treatment and a hand-edited
+ * lorebook fail in the same three ways.
+ *
+ * *Absent is fine and is not the same as empty*: `Lorebook.hooks` is optional,
+ * and `hooksOf` reads a missing key as the empty list. What is refused is a key
+ * holding something that is not a list of objects with ids.
+ */
+export function hookShape(hooks: unknown): string | null {
+  if (hooks === undefined) return null;
+  if (!Array.isArray(hooks)) return 'its "hooks" is not a list';
+  for (const hook of hooks as unknown[]) {
+    if (typeof hook !== 'object' || hook === null) return 'a hook is not an object';
+    if (typeof (hook as Record<string, unknown>)['id'] !== 'string') {
+      return 'a hook has no "id" string';
+    }
+    if (typeof (hook as Record<string, unknown>)['title'] !== 'string') {
+      return 'a hook has no "title" string';
+    }
+  }
+  return null;
 }
 
 export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
@@ -88,22 +188,47 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
     formOf: (object) => structuredClone(object),
     apply: (_base, draft) => draft,
     changed: (base, draft) => JSON.stringify(draft) !== JSON.stringify(base),
-    shape: shapeOf,
+    shape: (object) => shapeOf(object, kind),
     /**
-     * The 412 merge, field by field at the top level.
+     * The 412 merge — field by field at the top level, and hook by hook inside
+     * `hooks`.
      *
-     * Coarser than the lorebook's entry-by-entry merge and the preset's
+     * ~~Coarser than the lorebook's entry-by-entry merge and the preset's
      * block-by-block one, and that is right rather than lazy: those two have a
      * keyed list where *which one did I edit* is answerable. These do not, so
      * the honest unit is the field — an untouched field takes the newer value,
-     * which is the rule the 412's first offer means.
+     * which is the rule the 412's first offer means.~~
+     *
+     * ***The premise changed, and the reasoning is kept because it is still the
+     * reasoning for every other field.*** These pages now *do* have a keyed list
+     * they write: a treatment's and a setup's `hooks`, authored here rather than
+     * shown as stored. So *which one did I edit* is answerable for that one
+     * field, and the field stopped being the honest unit for it.
+     *
+     * Left as it was, the first save conflict on a treatment with hooks would
+     * take one side's whole list — mine if I had touched any hook at all,
+     * theirs if I had not — and drop the other's without a word, inside the
+     * dialog whose entire offer is *reapply my edits*. That is the same
+     * take-one-side-whole `reapplyEdits` still makes for an actor's writing
+     * samples, and it is defensible *there* for the reason that function gives:
+     * a sample has no id, so *did this one change* is not an answerable
+     * question. A hook has one, and it is an id that must survive every copy of
+     * the hook, so here the question is answerable and the coarse answer is
+     * only a loss.
+     *
+     * Everything outside `hooks` keeps the field rule, including `hooks` itself
+     * on a kind that does not author it — a package's draft has no such field,
+     * and a merge that wrote one would be inventing a key from a page that
+     * never showed it.
      */
     reapply: (pristine, mine, fresh) => {
       const merged = structuredClone(fresh);
       for (const key of Object.keys(mine)) {
+        if (key === 'hooks' && kind.hooks !== undefined) continue;
         if (JSON.stringify(pristine[key]) !== JSON.stringify(mine[key])) merged[key] = mine[key];
       }
-      return merged;
+      if (kind.hooks === undefined) return merged;
+      return withHooks(merged, mergedHooks(pristine, mine, fresh));
     },
     requiredValues: (draft) => ({ name: nameOf(draft) }),
     requiredLabels: { name: 'Name' },
@@ -158,7 +283,7 @@ function SimpleEditorBody(props: { kind: SimpleKind; id: string }): JSX.Element 
     );
   }
 
-  const problem = shapeOf(base.data.object);
+  const problem = shapeOf(base.data.object, props.kind);
   if (problem !== null) {
     return (
       <p role="alert" className="text-danger-ink">
@@ -233,12 +358,33 @@ function SimpleEditor(props: {
       <SchemaFields
         schemaId={props.kind.schemaId}
         value={draft}
-        handled={['name']}
+        // `hooks` joins `name` as a field this page draws itself. Without it
+        // the array is rendered twice — once by the generic renderer, which
+        // reads an array of objects as a structure it will not invent a form
+        // for and prints it as JSON, and once by the list below that does.
+        handled={props.kind.hooks === undefined ? ['name'] : ['name', 'hooks']}
         {...(props.kind.readOnly === undefined ? {} : { readOnly: props.kind.readOnly })}
         onChange={(key, next) => {
           editor.patch({ ...draft, [key]: next });
         }}
       />
+
+      {/*
+       * **After the schema's fields rather than lifted above them**, which is
+       * the order the rest of this page already reads in: the identity of the
+       * thing first, then the structures that hang off it. A hook list put
+       * above `framing` would stand a treatment's plot pool in front of the
+       * sentence that is injected into every single turn.
+       */}
+      {props.kind.hooks === undefined ? null : (
+        <HookList
+          hooks={hooksOf(draft)}
+          onChange={(next) => {
+            editor.patch(withHooks(draft, next));
+          }}
+          {...(props.kind.hookNote === undefined ? {} : { note: props.kind.hookNote })}
+        />
+      )}
     </EditorFrame>
   );
 }

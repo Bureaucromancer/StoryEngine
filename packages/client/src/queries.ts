@@ -20,6 +20,8 @@ import {
   adminApi,
   api,
   previewTurn,
+  promoteSessionHook,
+  PROMOTE_DIRECTORIES,
   readSession,
   readTranscript,
   readTurn,
@@ -57,6 +59,9 @@ import {
   type ObjectImportNotes,
   type ObjectVersion,
   type PendingInput,
+  type HookRow,
+  type PromoteTarget,
+  type PromoteTargetKind,
   type MemoryConfig,
   type MemoryPanel,
   type SessionSummary,
@@ -856,6 +861,52 @@ export function useAddGoal(
     mutationFn: (goal: Record<string, unknown>) => addSessionGoal(sessionId, goal),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+/**
+ * A hook saved out of a session onto one of [03 §4.1]'s carriers — [06 §6.1],
+ * [15 §5.1].
+ *
+ * ***It invalidates the library and not the session, and that asymmetry is the
+ * whole of what promotion means.*** Every other mutation in this file that a
+ * play surface calls refreshes `['session', id]`, because the thing it changed
+ * is the session. This one changes a **library object** — a treatment, a Setup,
+ * a lorebook — and leaves the running game exactly as it was, by design and not
+ * by omission: the pool entry keeps its own `source`, the row on the panel
+ * still reads *added to this session*, and the hook goes on being eligible in
+ * the session somebody wrote it in. Refetching the session here would be this
+ * hook's own claim about itself, and it would be false.
+ *
+ * *The one kind rather than the whole prefix*, because `['library']` is every
+ * listing in the client and a promotion touched one folder. Prefix matching
+ * carries the rest: `['library', kind]` also covers `useLibraryObject` and
+ * `useObjectHistory` for that kind, which is right — the object gained a hook
+ * and its history gained the version that says where the hook came from.
+ *
+ * **`useEditorBase` is outside the prefix and stays outside it.** Its docstring
+ * is emphatic that the object under an open editor must not shift beneath the
+ * form, and a promotion is exactly the concurrent change the 412 exists to
+ * answer. Somebody who has that treatment open in another tab is told when they
+ * save, which is the designed mechanism, rather than having the list they are
+ * editing rewritten underneath them.
+ */
+export function usePromoteHook(
+  sessionId: string,
+): UseMutationResult<
+  { object: { id: string; name: string; kind: PromoteTargetKind } },
+  Error,
+  { hookId: string; target: PromoteTarget; from?: HookRow['source'] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (what: { hookId: string; target: PromoteTarget; from?: HookRow['source'] }) =>
+      promoteSessionHook(sessionId, what.hookId, what.target, what.from),
+    onSuccess: (result) => {
+      void client.invalidateQueries({
+        queryKey: ['library', PROMOTE_DIRECTORIES[result.object.kind]],
+      });
     },
   });
 }

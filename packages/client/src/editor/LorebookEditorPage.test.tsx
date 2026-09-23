@@ -7,9 +7,16 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { newLoreEntry, newLorebook, type LoreEntry, type Lorebook } from '@storyengine/shared';
+import {
+  newLoreEntry,
+  newLorebook,
+  type LoreEntry,
+  type Lorebook,
+  type PlotHook,
+} from '@storyengine/shared';
 
 import { api, ApiError, type Account, type LibraryObject } from '../api.js';
+import { newHook } from './hook-form.js';
 
 /**
  * **Exit-gate step 5** —
@@ -1597,5 +1604,223 @@ describe('image slots on a book and its entries', () => {
     // The one claim §11.2b makes that a mechanism cannot keep — so what is
     // guarded is the sentence.
     expect(screen.getAllByText(/never sent to a model/).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * ***The hooks a lorebook carries*** —
+ * [03 §4.1](../../../../docs/design/03-data-model.md), and the lorebook's third
+ * of [P7 §1.5](../../../../docs/design/workplan/23-p7-implementation.md)'s *"a
+ * hook has nowhere to be authored"*.
+ *
+ * **Two claims, and the quieter one is the load-bearing one.** The first is
+ * ordinary: a hook can be written, changed and taken off a book here, through
+ * the same whole-book write path every other edit on this page uses.
+ *
+ * The second is about **absence and proportion**, which is where §4.1 puts the
+ * risk. Hooks on a lorebook are *"allowed, secondary, and documented"* and the
+ * failure mode it names is conceptual drift rather than a wrong value — so this
+ * section is shut by default, sits below the entries, and says how many hooks
+ * are behind it while it is shut. And `hooks` is the one field of the three
+ * carriers that is **optional**, which makes *no key* and `[]` two different
+ * claims: a book that has never had a hook has to come back out of this editor
+ * without one. An editor that wrote an empty list onto every book somebody
+ * merely opened would be reclassifying a library one save at a time, and the
+ * only place it would show is in the file.
+ */
+describe('the hooks a lorebook carries', () => {
+  /** The disclosure, found by the summary that names it rather than by shape. */
+  function hookFold(): HTMLDetailsElement {
+    const summary = screen.getByText(/^Plot hooks —/);
+    const fold = summary.closest('details');
+    if (fold === null) throw new Error('the hooks section is not behind a disclosure');
+    return fold;
+  }
+
+  /**
+   * Opens it by setting the attribute rather than by clicking the summary, the
+   * way `HookList.test.tsx` opens the two folds inside a hook: whether jsdom
+   * toggles a `details` on a `summary` click is not a thing these tests should
+   * be asserting on the way to asserting something else. The fold is
+   * uncontrolled — nothing passes `open` — so what is set here stays set
+   * through the re-renders each edit below causes.
+   */
+  function openHookFold(): HTMLDetailsElement {
+    const fold = hookFold();
+    fold.setAttribute('open', '');
+    return fold;
+  }
+
+  function aHook(title: string, over: Partial<PlotHook> = {}): PlotHook {
+    return { ...newHook(title), ...over };
+  }
+
+  /**
+   * ***The absence rule, end to end*** — the claim the model's own unit test
+   * cannot make, because what is being asserted is that a *surface* which
+   * rendered the field wrote nothing to it.
+   *
+   * The save carries an unrelated edit because Save is disabled while nothing
+   * has changed, so *save it untouched* is not a gesture this editor offers.
+   * What is asserted is stronger than the phrase anyway: every byte of the book
+   * apart from the name it was asked to change comes back identical, and the
+   * `hooks` key is still absent rather than present and empty.
+   */
+  it('renders the section shut and leaves a book that never had a hook without the key', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const fold = hookFold();
+    expect(fold.open).toBe(false);
+    expect(fold.querySelector('summary')?.textContent).toBe('Plot hooks — none carried');
+
+    // Opened, so the whole component has mounted and had its chance to write.
+    openHookFold();
+    expect(within(fold).getByRole('heading', { name: 'Plot hooks' })).toBeTruthy();
+
+    const before = server.stored();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Harbour');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(Object.hasOwn(saved, 'hooks')).toBe(false);
+    expect(JSON.stringify(saved)).toBe(JSON.stringify({ ...before, name: 'Ardent Harbour' }));
+  });
+
+  /**
+   * The other half of the same rule, in the direction an author moves: the key
+   * arrives with the first hook and leaves with the last, so a book emptied of
+   * hooks is indistinguishable from one that never had any — which is what an
+   * optional field means and what `setSessionHooks` already does for the
+   * session's own pool.
+   */
+  it('creates the key with the first hook and takes it away with the last', async () => {
+    const client = renderApp();
+    await openEditor();
+    openHookFold();
+
+    await userEvent.type(
+      screen.getByLabelText('Something you want to happen'),
+      'The Flower Kingdom declares war',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add a hook' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const carried = server.stored();
+    expect(carried.hooks?.map((each) => each.title)).toEqual(['The Flower Kingdom declares war']);
+    // The shut summary follows the draft, which is the whole use of it.
+    expect(hookFold().querySelector('summary')?.textContent).toBe('Plot hooks — 1 carried');
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove The Flower Kingdom declares war' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Waited on the file rather than on *Saved.*, which is still on screen from
+    // the save above and would resolve before this one had happened.
+    await waitFor(() => {
+      expect(Object.hasOwn(server.stored(), 'hooks')).toBe(false);
+    });
+    await settled(client);
+    expect(JSON.stringify(server.stored().entries)).toBe(JSON.stringify(carried.entries));
+  });
+
+  /**
+   * [04 §2](../../../../docs/design/04-schemas.md)'s promise at the surface
+   * that could break it: the draft here is the whole book, so a hook edit is a
+   * write of every entry and every folder beside it. What makes that safe is
+   * that nothing on this path rebuilds them, and the way to find out is to
+   * compare the bytes.
+   */
+  it('edits a hook and leaves every entry and folder byte-identical', async () => {
+    const hook = aHook('The Flower Kingdom declares war', { magnitude: 'sweeping' });
+    const before: Lorebook = { ...makeBook(), hooks: [hook] };
+    server.handEdit(before);
+
+    const client = renderApp();
+    await openEditor();
+    const fold = openHookFold();
+
+    await userEvent.type(within(fold).getByLabelText('Premise'), 'Over some damned island.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(JSON.stringify(saved.entries)).toBe(JSON.stringify(before.entries));
+    expect(JSON.stringify(saved.folders)).toBe(JSON.stringify(before.folders));
+    // And the hook itself is the one it was, plus the premise — not a hook
+    // rebuilt out of the fields this build happens to know about.
+    expect(JSON.stringify(saved.hooks)).toBe(
+      JSON.stringify([{ ...hook, premise: 'Over some damned island.' }]),
+    );
+  });
+
+  /**
+   * The closed-section invariant, which this page owes as much as
+   * `SchemaFields` does: *a closed section must name what is inside it that is
+   * not at its default*. The default for a lorebook's hooks is none at all, so
+   * a fold standing over two of them has to say two — a bare heading here would
+   * be [10 §2.1]'s hidden field wearing a disclosure.
+   */
+  it('counts the hooks behind it while it is shut', async () => {
+    server.handEdit({
+      ...makeBook(),
+      hooks: [aHook('The Flower Kingdom declares war'), aHook('They announce the marriage')],
+    });
+
+    renderApp();
+    await openEditor();
+
+    const fold = hookFold();
+    expect(fold.open).toBe(false);
+    expect(fold.querySelector('summary')?.textContent).toBe('Plot hooks — 2 carried');
+  });
+
+  /**
+   * ***A `hooks` a hand edit broke refuses the editor rather than the
+   * application*** — the rule `editableBookShape`'s own docstring states and the
+   * one this page's guard did not yet cover.
+   *
+   * The entry and folder id checks are there because *every edit here addresses
+   * one by id and a merge keys on it*; `patchHook`, `removeHook` and `moveHook`
+   * are the same three operations one field over, and `HookList` additionally
+   * dereferences `hook.title` for every control's accessible name. With no error
+   * boundary anywhere in this package, a throw in there is the whole
+   * application — *"a white screen is the one answer this surface may not give"*
+   * a hand-edited file.
+   *
+   * *Refused through the same panel the other shapes use*, so a person whose
+   * file is wrong is told which file and what about it.
+   */
+  it('refuses to open a book whose hooks a hand edit broke', async () => {
+    server.handEdit({ ...makeBook(), hooks: 'none' } as unknown as Lorebook);
+
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library/lorebooks/$id/edit', params: { id: BOOK_ID } });
+    });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('This lorebook cannot be opened in the editor.');
+    expect(alert.textContent).toContain('its "hooks" is not a list');
+  });
+
+  it('refuses to open a book carrying a hook with no id', async () => {
+    server.handEdit({
+      ...makeBook(),
+      hooks: [{ title: 'No id at all' }],
+    } as unknown as Lorebook);
+
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library/lorebooks/$id/edit', params: { id: BOOK_ID } });
+    });
+
+    expect((await screen.findByRole('alert')).textContent).toContain('a hook has no "id" string');
   });
 });

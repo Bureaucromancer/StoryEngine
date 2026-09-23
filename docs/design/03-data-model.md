@@ -524,14 +524,23 @@ carries and a step fires at an opportune moment. "X and Y have been having an
 affair and will soon announce their marriage." "The Flower Kingdom will declare
 war over some damned island."
 
-> **Definition: [04 §6.1](04-schemas.md)**, including the note that its
-> `requires` and `onFire` fields are typed against the *unstable* rule
-> vocabulary while its content fields are committed.
+> **Definition: [04 §6.1](04-schemas.md).**
 
 A hook carries its premise and `magnitude` — blast radius, renamed from `scope`
 so the word means one thing across the portable schemas — mechanical eligibility
-(`involves`, `requires`, `blockedBy`, `notBefore`), and firing behaviour
-(`weight`, `delivery`, `onFire`).
+(`involves`, `blockedBy`, `notBefore`), and firing behaviour (`weight`,
+`delivery`, `once`).
+
+*(Corrected 2026-09-22, while the open question at the end of this section was
+being closed. Both lines above named `requires` and `onFire`, and the blockquote
+described the definition as carrying them "typed against the unstable rule
+vocabulary while its content fields are committed". §6.1 does not: the two
+fields were **removed** rather than carried with a warning, because the
+vocabulary they were typed against is the 6.0 authoring tier's
+([25 C7](25-open-questions.md), [work plan §0.4](workplan/01-work-plan.md)) and
+a `/1` schema with two fields pointing at something unwritten is worse than a
+`/1` schema without them. They return additively, so nothing here has to move
+when the vocabulary arrives.)*
 
 #### Where hooks live
 
@@ -568,7 +577,13 @@ Compatible export to third-party lorebook formats drops them, like everything
 else we add ([04 §2](04-schemas.md)) — worth knowing, not a reason to decline.
 
 Session creation copies hooks from all sources, per prefill-not-binding
-([00 §3.1](00-stance.md)).
+([00 §3.1](00-stance.md)). **The valve runs the other way too, and only when it
+is asked to**: a hook realised while playing is *promoted* back out onto the
+treatment, the Setup or one of the books the session names — an explicit, offered
+act, settled in the decision that closes this section. Copying in is what
+prefill-not-binding requires; copying out is what keeps the copy from being a
+one-way door, and without it the fourth source is the only one a hook can never
+leave.
 
 **Which have fired is channel state, not a session field.** *(Correction. This
 said "the session tracks which have fired", and a session-level set is exactly
@@ -687,10 +702,82 @@ this happens — the narrator introduces the character spontaneously and the
 authored entrance is pre-empted. Quiet retirement is for a cast that is gone;
 this is not that, and the author wants to know.
 
-**[OPEN]** Whether hooks are also a shareable kind in their own right — a "hook
-pack" droppable onto any treatment. Attractive for generic material ("a stranger
-arrives with news"), and it cuts against hooks being specific, which is where
-their value is. Lean: not at 1.0.
+**Decision: hooks are not a shareable kind of their own. The three carriers
+above are the answer, and a hook leaves a session by promotion.** *(Closed
+2026-09-22. What stood here was **[OPEN]** ~~whether hooks are also a shareable
+kind in their own right — a "hook pack" droppable onto any treatment~~, leaning
+"not at 1.0" — which was already weaker than the position the corpus had taken
+elsewhere: [25 C7b](25-open-questions.md) says flatly that "'Hook packs' as a
+separately shareable kind stay declined". Two documents disagreeing about a
+decline is how a decline gets relitigated, and the place the question is asked is
+the place a reader asks it again, so it is answered here rather than pointed
+at.)*
+
+**The negative half is the easy one**, and the question states most of it: a
+hook's value is in being specific, and a droppable pack of generic ones produces
+*a stranger arrives with news* in a story that already had the stranger. The
+structural objection it does not state is worse — **a pack would be a fifth
+source**, added to a feature whose own cost paragraph above calls four *more
+sourcing than any other object has*, and every one of those four is a mitigation
+somebody has to keep working: a source label on every hook, and *edit this*
+navigating to whichever object owns it.
+
+**The positive half is that the carrier is the unit.** A hook attaches to a
+Treatment by default, to a Setup when it belongs to one way of starting rather
+than to the story, and to a Lorebook when it is genuinely inseparable from a
+piece of world — the three above, in that order of preference, with the session's
+pool as the fourth and the only one that is not an object anybody can send. That
+is not a new answer; it is the answer this section already gave, and what it
+lacked was anything that made it true. A hook had nowhere to be authored on any
+of the three ([P7 §1.5](workplan/23-p7-implementation.md) recorded exactly that)
+and no way out of the fourth, which is how a feature designed across four
+carriers came to read as a session-level one.
+
+**A hook reaches a carrier from a session by promotion, which is offered and
+never automatic.** [§2.3](#23-session-local-actors) settled the shape for
+session-local actors — *"Promotion to the library is an explicit user action —
+and per Marinara's own conclusion, an offered one"* — and hooks are where that
+sentence first became something a person can press
+([10 §10.1](10-ui-surfaces.md), [api.md](../api.md),
+[P11.2](workplan/28-p11-implementation.md)). It is the same rule read in the
+direction that bites here rather than the one §2.3 was written for: an abandoned
+session must leave nothing behind, and a hook somebody wrote at turn forty is the
+one thing in it that was **authored** rather than played, so the cost of no valve
+is not clutter, it is the loss of the thing
+[06 §6.1](06-modes-and-turn-pipeline.md) calls most of why the feature earns its
+place. Promotion does not touch the
+session: the pool entry stays the session's own, because re-attributing it would
+claim the target owns the running copy — and for a lorebook target it would
+quietly add *eligible only while that book is active* to a hook that never had
+that clause.
+
+**So the shareable artifact is a Treatment carrying only hooks**, and it needs
+nothing built. [10 §11.2c](10-ui-surfaces.md) reached the same answer one kind
+over, for lore entries, and the sentence transfers intact: *an entry export is a
+lorebook* — no fragment schema, nothing new to version, and the file opens in
+anything that already reads the kind. A treatment whose `hooks` is the whole of
+its content is a hook pack in every respect except the one that would have cost a
+schema, a version, an editor, a library shelf and an import path; it rides the
+export and package machinery that exists ([04 §9.1](04-schemas.md)), and a
+recipient drops it in beside their own treatments rather than learning a sixth
+noun.
+
+**And one place hooks are not like entries, which is what an implementer would
+get wrong by analogy.** [10 §11.2c](10-ui-surfaces.md)'s merge rule is *"ids
+are book-local, so the default is add and never overwrite"*, and an incoming
+entry whose id collides
+takes a fresh one, on the reasoning that two books holding an entry under one id
+is a sign of shared ancestry rather than permission to overwrite. **A hook id may
+never be re-minted.** [15 §5.1](15-world.md) makes preserving it across a copy an
+obligation — it is the only thing by which a World knows that the hook which
+fired in session one is the one declining to fire in session two — and names the
+failure *"unrecoverable later"*, because once two firings carry unrelated ids
+nothing remains to match them against each other. So a hook arriving at a carrier
+that already holds that id is **refused, not renamed**: the person is told it is
+already there, which costs them a moment, where the rename costs a continuity
+that cannot be reassembled afterwards. The asymmetry is the whole of it — an
+entry id is local to its book, a hook id is the key a continuity is keyed by, and
+the same collision therefore has opposite correct answers.
 
 **Decision: a Treatment owns no lorebook. It only links.** A "primary lorebook"
 would have made the *add a location* affordance obvious and cost more than it

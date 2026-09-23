@@ -1,0 +1,226 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { useState, type JSX } from 'react';
+
+import type { PlotHook } from '@storyengine/shared';
+
+import { useLibrary } from '../queries.js';
+import { Button } from '../ui/Button.js';
+import { Field } from '../ui/Field.js';
+import { Panel } from '../ui/Panel.js';
+import { nudge } from '../ui/reorder.js';
+import { Fine, Note, SectionTitle } from '../ui/Text.js';
+import { HookFields, nameOfHook } from './HookFields.js';
+import { moveHook, newHook, patchHook, removeHook } from './hook-form.js';
+
+/**
+ * The hooks of one carrier, written rather than shown —
+ * [03 §4.1](../../../../docs/design/03-data-model.md),
+ * [10 §10.1](../../../../docs/design/10-ui-surfaces.md).
+ *
+ * ***One component for three carriers***, which is the whole shape of the
+ * change it belongs to. 03 §4.1 names a Treatment as the primary home for
+ * hooks, a Setup as the place to add to it, and a Lorebook as the secondary
+ * home *"for hooks that are genuinely inseparable from a piece of lore"* — and
+ * until this existed none of the three could be authored anywhere, so the only
+ * surface that could write a hook was a running session and there was no way
+ * back out of one. A component per carrier would have been three surfaces to
+ * keep in agreement about a schema all three share.
+ *
+ * **A list, a way to hear about a new one, and a sentence of its own.** No
+ * kind, no schema id, no page state: everything else — the actor options, the
+ * ordering, the per-hook controls — is this component's. That is what makes it mountable in
+ * `SimpleEditorPage`'s schema-driven form and in the lorebook editor's
+ * hand-written one without either of them learning what a hook is.
+ *
+ * ***Deliberately smaller than the entry list.*** `EntryList` carries a name
+ * box, a folder rail, a drag-and-drop gesture with its own scroll loop, and an
+ * unsaved mark per row, because a real lorebook is two hundred and forty-seven
+ * entries. A hook list is a handful, so none of that is ported: the reorder is
+ * two nudge buttons, which is [work plan §2.1]'s keyboard path anyway and the
+ * half of the entry list's gesture that everybody can reach.
+ *
+ * **The note is the caller's**, because each carrier means something different
+ * by its hooks and [10 §2.1]'s objection to a surface that does not say what it
+ * is applies hardest where the same control appears three times.
+ */
+
+export function HookList(props: {
+  hooks: PlotHook[];
+  onChange: (next: PlotHook[]) => void;
+  /** A sentence under the heading — each carrier says something different. */
+  note?: string;
+}): JSX.Element {
+  const [title, setTitle] = useState('');
+  const [moved, setMoved] = useState('');
+
+  /**
+   * ***The actor options are fetched here rather than passed in***, which is
+   * the one place this component reaches past its own props.
+   *
+   * Two fields of a hook point at an actor — `involves`, which decides whether
+   * the hook is still moot, and `introduces.actor`, which is the arrival
+   * itself — and both are `Ref`s that have to be *picked* rather than typed, or
+   * the id in them is whatever somebody transcribed. Asking three mounting
+   * pages to each fetch the library and pass it down would put the same query
+   * in three places to serve one component's two controls, and the query is
+   * cached by key: the page that also lists actors pays for one fetch, not two.
+   */
+  const actors = useLibrary('actors');
+  const cast = (actors.data?.objects ?? []).map((object) => ({
+    id: object.id,
+    name: object.name,
+  }));
+
+  function add(): void {
+    const made = newHook(title.trim());
+    props.onChange([...props.hooks, made]);
+    setTitle('');
+  }
+
+  function move(hook: PlotHook, to: number): void {
+    props.onChange(moveHook(props.hooks, hook.id, to));
+    // Announced rather than only shown: what changed is a *position*, and a row
+    // moving under the pointer is exactly the change the DOM does not report.
+    setMoved(movedLine(hook, to, props.hooks.length));
+  }
+
+  return (
+    <section className="flex flex-col gap-4" aria-label="Plot hooks">
+      <div>
+        <SectionTitle as="h2">Plot hooks</SectionTitle>
+        {props.note === undefined ? null : <Note>{props.note}</Note>}
+      </div>
+
+      {props.hooks.length === 0 ? <Fine>None here yet.</Fine> : null}
+
+      {props.hooks.map((hook, at) => (
+        <Panel key={hook.id} variant="card" className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-ink-muted">{positionLine(at, props.hooks.length)}</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label={moveLabel(hook, 'up')}
+                disabled={at === 0}
+                className={nudge}
+                onClick={() => {
+                  move(hook, at - 1);
+                }}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                aria-label={moveLabel(hook, 'down')}
+                disabled={at === props.hooks.length - 1}
+                className={nudge}
+                onClick={() => {
+                  move(hook, at + 1);
+                }}
+              >
+                ↓
+              </button>
+              <Button
+                type="button"
+                variant="dangerOutline"
+                size="tiny"
+                onClick={() => {
+                  props.onChange(removeHook(props.hooks, hook.id));
+                }}
+              >
+                {removeLabel(hook)}
+              </Button>
+            </div>
+          </div>
+
+          <HookFields
+            hook={hook}
+            /**
+             * ***The other hooks, not all of them.*** `blockedBy` and
+             * `notBefore.afterHook` are gates one hook sets on another, and a
+             * hook that named *itself* would be a hook that can never fire —
+             * which the engine would report as blocked rather than as a
+             * mistake, since a self-reference is indistinguishable from an
+             * unfired sibling from the inside.
+             */
+            siblings={props.hooks.filter((other) => other.id !== hook.id)}
+            actors={cast}
+            onPatch={(patch) => {
+              props.onChange(patchHook(props.hooks, hook.id, patch));
+            }}
+            onIntroduce={(next) => {
+              /**
+               * ***`null` unsets rather than blanks***, and the actor picker's
+               * empty option is the only thing in the application that turns an
+               * arrival back into an ordinary hook. `HookFields`' own docstring
+               * has the reason it must remove rather than blank: an
+               * `Introduction` with no subject is a hook that is ineligible
+               * forever, with a visible reason, which is worse than the hook the
+               * author was trying to get back to.
+               */
+              props.onChange(patchHook(props.hooks, hook.id, { introduces: next ?? undefined }));
+            }}
+          />
+        </Panel>
+      ))}
+
+      {/*
+       * **The create control is a title and nothing else**, which is the same
+       * judgement the session panel makes from the other side: a hook is worth
+       * naming before it is worth describing, and a form that demanded the
+       * premise first would be an editor standing in front of an editor. The
+       * rest of the fields are one click away, in the card this makes.
+       */}
+      <div className="flex items-end gap-2">
+        <div className="grow">
+          <Field
+            label="Something you want to happen"
+            value={title}
+            onChange={setTitle}
+            placeholder="A title for your list"
+          />
+        </div>
+        <Button
+          type="button"
+          disabled={title.trim() === ''}
+          onClick={() => {
+            add();
+          }}
+        >
+          Add a hook
+        </Button>
+      </div>
+
+      {/*
+       * One region for the whole list rather than a message per card: what is
+       * announced is the outcome of a gesture, and a live region that moves
+       * with the rows is one that gets re-read whenever the list re-renders.
+       */}
+      <span aria-live="polite" className="sr-only">
+        {moved}
+      </span>
+    </section>
+  );
+}
+
+/** Which card this is, as a whole phrase rather than a shape in the tree. */
+function positionLine(at: number, total: number): string {
+  return `Hook ${String(at + 1)} of ${String(total)}`;
+}
+
+/** A nudge button's accessible name. */
+function moveLabel(hook: PlotHook, direction: 'up' | 'down'): string {
+  return direction === 'up' ? `Move ${nameOfHook(hook)} up` : `Move ${nameOfHook(hook)} down`;
+}
+
+/** The remove button's words, which are also its accessible name. */
+function removeLabel(hook: PlotHook): string {
+  return `Remove ${nameOfHook(hook)}`;
+}
+
+/** What the live region says after a nudge. */
+function movedLine(hook: PlotHook, to: number, total: number): string {
+  return `Moved ${nameOfHook(hook)} to position ${String(to + 1)} of ${String(total)}.`;
+}

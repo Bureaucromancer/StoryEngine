@@ -1152,8 +1152,18 @@ function refusedPathMessage(error: PathEscapeError): string {
  * disk, so a directory hand-named `con` or `evil.` is indexed happily and then
  * refused the moment a route rebuilds a path from it. That is a 422: the
  * request is well-formed and the thing it names is not usable.
+ *
+ * **Exported because a second caller arrived** — the hook-promotion route in
+ * [sessions.ts](./sessions.js), which writes a library object from outside this
+ * file and so can be refused by every code below. It was briefly a copy of this
+ * switch living over there, which is the shape this repository keeps having to
+ * undo: *one description, two renderings*, where the second is discovered when
+ * a caller learns *403 means the system library* from one route and something
+ * else from another. The threshold `ui/reorder.ts` states for the client is the
+ * one being kept here — the second occurrence is when a decision is lifted, not
+ * the third.
  */
-function respondToLibraryError(error: unknown, reply: FastifyReply): void {
+export function respondToLibraryError(error: unknown, reply: FastifyReply): void {
   if (error instanceof PathEscapeError) {
     void reply.code(422).send({ error: 'refused-path', message: refusedPathMessage(error) });
     return;

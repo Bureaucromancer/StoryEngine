@@ -1254,6 +1254,106 @@ remove it would make the copy a binding ([00 §3.1](design/00-stance.md)). It do
 not reach the treatment. Removing one that is already gone succeeds — it is the
 state the caller asked for — while a missing **session** is still a `404`.
 
+### `POST /api/sessions/:sessionId/hooks/:hookId/promote`
+
+`{ target: { kind: 'treatment' | 'setup' | 'lore', id }, from? }` →
+`{ object: { id, name, kind } }`. The pooled hook named by `:hookId` is appended
+to that library object's `hooks`, **keeping its id**, and the object is written
+through the ordinary library update path.
+
+**`from` is which pooled row, and an id alone cannot say.** It is the row's own
+`source` — `{ kind: 'treatment' | 'setup' | 'lore', id }` or `{ kind: 'session' }`,
+the vocabulary `GET /hooks` already returns — and the pool needs it because
+`poolFor` deliberately does not de-duplicate: *the same hook reaching a session
+through two sources is a real authoring situation*, so two rows can share an id
+and carry different content, and the panel draws both. Without it the handler
+takes the first match, which is the row above the one that was pressed — and the
+409 below then refuses every later attempt, so the hook somebody meant can never
+reach that object. It carries no hook content, only a kind and an id the server
+already holds. Omitting it means *the first row with that id*, which is the
+honest reading of a request that names only one.
+
+**The valve the pair above never had.** A session copies hooks in from all four
+of [03 §4.1](design/03-data-model.md)'s sources and may gain its own while
+playing; until this route there was no way back out of one, so a hook realised
+mid-play — which [06 §6.1](design/06-modes-and-turn-pipeline.md) calls most of
+why the feature earns its place — died with the session it was realised in. This
+is the other direction, and it is an **offered** act rather than an automatic
+one: it is [03 §2.3](design/03-data-model.md)'s rule for session-local actors —
+*promotion to the library is an explicit user action, and an offered one* —
+arriving at its first implementation, one object at a time and only because
+somebody pressed something.
+
+**Why this is a route at all, which is not a preference.** The client cannot do
+this as a read-modify-write because **it has never been shown the hook**. The
+panel's surface ([10 §10.1](design/10-ui-surfaces.md)) is a redaction: a
+`premise` only once the hook is spent, `entrances` by label and never by text,
+and `involves`, `weight`, `delivery`, `once`, `notBefore` and `blockedBy` not
+sent at all. Making a client-side copy possible would mean handing the panel an
+unfired premise and unfired entrance text, which
+[08 §6](design/08-cross-session-memory.md) and 10 §10.1 forbid by name — an
+unfired entrance is hidden content, and the person reading the panel is the
+person the arrival is being kept from. So the request carries **no hook
+content**: it names which hook and which object, and the server is the only party
+that ever holds the thing being copied.
+
+**The id survives, and that is what the 409 protects.** A promoted hook is the
+same hook, and [15 §5.1](design/15-world.md) makes keeping its id an obligation
+whose failure is *unrecoverable later* — a corpus of sessions whose hooks carry
+unrelated ids cannot be assembled into a continuity afterwards, because the
+information that would have linked them was never written. So a target that
+already carries a hook with this id is **`409 already-there`** rather than a
+second copy or a re-mint. Pressing the control twice is an ordinary thing to do:
+the first press leaves the panel row looking exactly as it did.
+
+**The session is not touched.** The pool entry keeps `source: { kind: 'session'
+}` and no turn is appended. Re-attributing it to the target would claim the
+target owns the copy that is running, and for a `lore` target it would silently
+add *eligible only while that book is active* to a hook that never had that
+clause — 06 §6.1's *pulled, never pushed*, read in the direction that bites here.
+A client that wants the panel to say where the hook now also lives reads the
+object, not the session, which is why the reply carries the object.
+
+**The target's history is the record.** The write goes through the same path
+every other library edit takes, with a `manual` change attribution whose reason
+names the session. The **conclusion** is [10 §11.2c](design/10-ui-surfaces.md)'s,
+read one kind over — *the book's history is the record of the import*, so nothing
+new is stored to say a hook came from a session, because the version the write
+leaves behind says it where somebody looking at the object will look.
+
+***The mechanism is deliberately not §11.2c's, and that is worth saying rather
+than stepping around.*** That section's rule is concretely `source: "import"`
+*naming what came in and from where*, and `VersionSource` has exactly that arm.
+It is not taken here because `import` in this build means *content that was not
+in this library arrived in it* — a `.sepack`, a card, a book somebody sent you —
+and a promoted hook came **from** the library and never crossed a boundary. The
+cost is real and is named in `sessions/promote.ts`: `manual` plus prose is not
+queryable, so a later feature wanting *which sessions contributed hooks to this
+treatment* would have to match a string, and the honest repair then is an eighth
+`VersionSource` arm rather than a reinterpretation of this one.
+
+**Four refusals, and each claims something different.** `404 no-session`, `404
+no-such-hook` when this pool has no such id, and `404 no-such-object` when the
+target has been deleted since the panel listed it — three answers rather than a
+shared *not found*, because a person sent to the wrong one of them looks in the
+wrong place. `409 already-there` is above. Beyond those the library's own
+refusals apply unchanged: `403 read-only` for a system-library target
+(copy-to-my-library is the move), `400 invalid` if the pooled hook is one the
+carrier's schema refuses, and `409 diverged` if the target's file broke
+underneath the write.
+
+***`412 stale` is the one library refusal this route does not pass through***,
+and answers `409 target-moved` with **no envelope** instead. The 412 arm attaches
+`current` — the whole target object — so that an *editor* can offer
+reload-and-reapply; on this route that object is a treatment's or a lorebook's
+every hook, which means every **unfired** premise and every entrance text on it,
+sent to the play client. That is exactly the content [08 §6](design/08-cross-session-memory.md)
+and [10 §10.1](design/10-ui-surfaces.md) name as hidden, at the surface they name
+it about, arriving through the error path of the route whose whole reason for
+being server-side is that redaction. Nothing is lost by withholding it: the
+client has never held the hook, so there is no *reapply my edits* it could offer,
+and *try again* is the whole of the recovery.
+
 ### `PUT /api/sessions/:sessionId/lore`
 
 `{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`
@@ -2736,6 +2836,8 @@ proof obligation arriving for free.
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
 | 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
+| 404 | `no-session` / `no-such-hook` / `no-such-object` | Promoting a pooled hook out of a session ([03 §4.1]): the session is gone, this pool has no hook with that id, or the library object being promoted to has been deleted. **Three answers rather than one**, because they send a person to three different places and the union of them helps nobody |
+| 409 | `already-there` | The promotion target already carries a hook with this id. **Never a second copy and never a fresh id** — [15 §5](design/15-world.md) makes the id the only thing that links two firings of one hook across sessions, so re-minting it is the move that cannot be undone |
 | 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
