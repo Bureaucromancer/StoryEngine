@@ -1,7 +1,12 @@
 # 29 — P12 implementation plan
 
-**Status: stages P12.0–P12.13 landed on `claude/data-backup-system-0sir4i`,
-2026-09-22. The exit gate ([§3](#3--the-exit-gate)) has not been walked.**
+**Status: stages P12.0–P12.13 merged to `main` 2026-09-23, from
+`claude/data-backup-system-0sir4i`. ***The exit gate
+([§3](#3--the-exit-gate)) has not been walked***, so by
+[manual testing §0](05-manual-testing.md) this phase is **not closed** — the
+code is on `main` and the critical list is still owed. It is the **seventh** phase to
+be merged and left open — P7, P7B, P8, P9, P10 and P11 are the others — which
+is what §0 exists to keep visible rather than to excuse.**
 One feature and its two halves, which is smaller than a phase usually is and is
 filed as one anyway — see [§1.5](#15-a-feature-in-its-own-document-and-a-branch-that-is-not-p12).
 
