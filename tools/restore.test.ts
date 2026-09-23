@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -78,9 +78,35 @@ async function populate(): Promise<void> {
   );
   await writeFile(join(source, 'accounts.json'), JSON.stringify({ accounts: [] }));
 
-  // The derived half, which must not survive the round trip.
-  await writeFile(join(source, 'index.sqlite'), 'a stale belief about a newer tree');
-  await writeFile(join(source, 'index.sqlite-wal'), 'and its write-ahead log');
+  /**
+   * ***The derived half, at the depth it actually has.***
+   *
+   * This fixture wrote `index.sqlite` at the **source root** for six days, which
+   * is not where [03 §5.1] puts it — `Layout.indexFile` is `index/index.sqlite`
+   * — and the script's exclusion was a filename test applied only at the root.
+   * The two agreed with each other and neither agreed with the layout, so the
+   * suite was green over an archive that carried the index every time. Writing
+   * it where it lives is the whole of what makes the assertion below mean
+   * anything.
+   */
+  await mkdir(join(source, 'index'), { recursive: true });
+  await writeFile(join(source, 'index', 'index.sqlite'), 'a stale belief about a newer tree');
+  await writeFile(join(source, 'index', 'index.sqlite-wal'), 'and its write-ahead log');
+
+  // What [03 §10.2] says must not travel: *restoring a backup should not
+  // resurrect everything the user threw away before taking it.*
+  await mkdir(join(source, 'users', 'ned', 'trash', 'actors', 'gone-0199'), { recursive: true });
+  await writeFile(
+    join(source, 'users', 'ned', 'trash', 'actors', 'gone-0199', 'actor.json'),
+    JSON.stringify({ name: 'Deliberately discarded' }),
+  );
+
+  // And the archives themselves, which would otherwise make every generation
+  // carry every one before it.
+  await mkdir(join(source, 'backups'), { recursive: true });
+  await writeFile(join(source, 'backups', 'install-full-2026-09-21-x.tar.gz'), 'an older archive');
+  await mkdir(join(source, 'users', 'ned', 'backups'), { recursive: true });
+  await writeFile(join(source, 'users', 'ned', 'backups', 'account-ned-full-x.tar.gz'), 'theirs');
 }
 
 describe('a backup of a data directory', () => {
@@ -91,8 +117,34 @@ describe('a backup of a data directory', () => {
     expect(listed).toContain('users/ned/library/actors/vera/actor.json');
     expect(listed).toContain('users/ned/sessions/session-1/turns/0000.jsonl');
     expect(listed).toContain('accounts.json');
-    // **The assertion that makes it a restore rather than a copy.**
-    expect(listed.some((name: string) => name.startsWith('index.sqlite'))).toBe(false);
+    /**
+     * ***The assertion that makes it a restore rather than a copy***, and it is
+     * written against the path rather than a filename on purpose: the version
+     * of this line that tested `startsWith('index.sqlite')` passed for six days
+     * over archives that carried `index/index.sqlite`, because no member name
+     * ever *starts* with that string once the index is one directory down.
+     */
+    expect(listed.some((name: string) => name.startsWith('index/'))).toBe(false);
+  });
+
+  it('leaves the trash behind, which the design has always said and nothing enforced', async () => {
+    await populate();
+
+    const listed: string[] = await filesUnder(source);
+    expect(listed.some((name: string) => name.includes('/trash/'))).toBe(false);
+  });
+
+  /**
+   * ***An archive of the archives is how a data directory fills a disk.*** Each
+   * generation would carry every one before it, so the growth is not linear in
+   * the library but in the number of backups taken.
+   */
+  it('leaves the stored backups behind, at both of their homes', async () => {
+    await populate();
+
+    const listed: string[] = await filesUnder(source);
+    expect(listed.some((name: string) => name.startsWith('backups/'))).toBe(false);
+    expect(listed.some((name: string) => name.includes('/backups/'))).toBe(false);
   });
 });
 
@@ -125,8 +177,44 @@ describe('restoring into a clean directory', () => {
     await create(source, archive);
     await restore(archive, destination);
 
-    const restored: string[] = await filesUnder(destination);
-    expect(restored.some((name: string) => name.startsWith('index.sqlite'))).toBe(false);
+    /**
+     * ***Asked of the filesystem, not of `filesUnder`.***
+     *
+     * `filesUnder` is the function that decides what an archive excludes, so
+     * asking it whether the index arrived is asking the exclusion to confirm
+     * itself — it would answer *no index* over a destination with one sitting in
+     * it. The only witness that means anything is the directory.
+     */
+    await expect(stat(join(destination, 'index'))).rejects.toThrow();
+    await expect(stat(join(destination, 'users', 'ned', 'trash'))).rejects.toThrow();
+  });
+
+  /**
+   * ***A name past a hundred bytes, which this project reaches in ordinary
+   * use.*** A version payload under a long slug —
+   * `users/<handle>/library/lorebooks/<slug>/history/v/<64-hex>.json` — is about
+   * 232 bytes, and the header's `name` field holds 100. The writer used to cut
+   * it there, which does not produce a broken archive but a plausible one, in
+   * which every version payload under that object lands on the same truncated
+   * name and all but the last is lost. ustar's `prefix` field is the answer and
+   * has been since 1988; this asserts the round trip rather than the header.
+   */
+  it('carries a member whose name needs the ustar prefix field', async () => {
+    const slug = 'a-lorebook-with-a-name-somebody-actually-typed-out-in-full-abcd';
+    const digest = 'c'.repeat(64);
+    const deep = join('users', 'ned', 'library', 'lorebooks', slug, 'history', 'v');
+    await mkdir(join(source, deep), { recursive: true });
+    await writeFile(join(source, deep, `${digest}.json`), '{"version":"kept whole"}');
+
+    const name = `${deep.split(sep).join('/')}/${digest}.json`;
+    expect(name.length).toBeGreaterThan(100);
+
+    await create(source, archive);
+    await restore(archive, destination);
+
+    expect(await readFile(join(destination, deep, `${digest}.json`), 'utf8')).toBe(
+      '{"version":"kept whole"}',
+    );
   });
 
   /**

@@ -758,6 +758,8 @@ disposable index**.
         setups/     <slug>/setup.json
         packages/   <slug>/...             (see §7)
       trash/                  # deleted objects awaiting the retention window §10.2
+      backup.json             # this account's backup schedule. [P12.4]
+      backups/                # their own archives. Never inside another archive.
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
         session.json
@@ -766,9 +768,17 @@ disposable index**.
         summaries/             # derived, content-addressed. [07 §5.1], P8.0
         renditions/            # one file per rendition — the recipe. §5.5, P9.0
         assets/                # the pixels, and the one disposable directory
+  backups/              # the install's archives — [25 E6], [P12.2]
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
 ```
+
+***The two `backups/` directories are outside every archive***, which is not
+tidiness: an archive of the archives makes every generation carry every one
+before it, so the growth is in the number of backups taken rather than in the
+library. The install's sits at the data root rather than inside a user
+directory, for `accounts.json`'s reason — it holds everybody's work and, when it
+is a full archive, their password hashes.
 
 ***~~`memories/`~~ is gone from the tree above, 2026-09-16 at P8.2.*** It sat
 there from the first draft, beside `library/` and outside everything the index
@@ -1618,7 +1628,10 @@ Four properties worth fixing now:
   recoverable, not to make deletion impossible for someone who means it.
 - **Trash is excluded from export and from backup by default**
   ([25 E6](25-open-questions.md)) — restoring a backup should not resurrect
-  everything the user threw away before taking it.
+  everything the user threw away before taking it. ***This sentence had no
+  enforcer from P4 until [P12.0](workplan/29-p12-implementation.md)***: delete
+  became a move at P4.4 and `tools/backup.mjs` archived `trash/` along with
+  everything else. Both the script and `backup/archive.ts` exclude it now.
 
 ### 10.3 Sessions delete the same way, with one addition
 

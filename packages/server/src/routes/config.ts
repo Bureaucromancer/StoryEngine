@@ -23,6 +23,7 @@ import {
 } from '../config.js';
 import { contentHashOf } from '../index-db/ingest.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
+import { fileExists } from '../storage/files.js';
 
 /**
  * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
@@ -117,10 +118,72 @@ const ConfigWrite = Type.Object(
  */
 const NOT_WRITABLE = new Set(['dataDir']);
 
-function pickKnown(body: unknown): Record<string, unknown> {
+/**
+ * ***Keys an imported `config.json` must not carry across*** —
+ * [P12.9](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * **Both are filesystem paths on the machine the archive came from**, and that
+ * is the whole rule: `dataDir` would point a running server at a directory that
+ * may not exist or may be somebody else's — the same disaster
+ * {@link NOT_WRITABLE} exists to prevent, arriving by a new door —
+ * and `server.clientRoot` would make it serve a 404 where the built client used
+ * to be. Everything else in a config is a fact about how an install behaves and
+ * is portable; these two are facts about a disk.
+ *
+ * Refused **by name** rather than dropped quietly, so the review says which
+ * settings did not come across.
+ */
+export const NOT_IMPORTABLE = new Set(['dataDir', 'server.clientRoot']);
+
+/**
+ * Merges a config document into the running one, writes it, and applies it.
+ *
+ * ***Extracted so that importing a configuration is not a second way to write
+ * `config.json`.*** [P12.9] needed the same six steps the settings form does —
+ * pick the keys this build knows, merge onto the document on disk, validate
+ * **through the loader that boots on it**, restore the running `dataDir`, write
+ * atomically, and fan the `live` half out — and a second implementation of that
+ * would drift the way a second validator would: invisibly, until a server would
+ * not start after somebody saved.
+ *
+ * *What is deliberately not in here is the stale check.* That is the settings
+ * form's, and it is about two people editing one form. An import is a
+ * deliberate overwrite by somebody who just ticked a box, and offering them
+ * *the file changed since this page loaded* would be answering a question they
+ * did not ask.
+ *
+ * Returns the keys that now need a restart, for the caller to announce.
+ */
+export async function applyConfigDocument(
+  app: FastifyInstance,
+  services: AppServices,
+  incoming: unknown,
+  drop: ReadonlySet<string> = NOT_WRITABLE,
+): Promise<{ ok: true; pendingRestart: string[] } | { ok: false; message: string }> {
+  const onDisk = await readDocument(services);
+  const merged = mergeDocument(onDisk, pickKnown(incoming, drop));
+
+  let next: Config;
+  try {
+    next = validateConfigDocument(merged, services.configPath);
+    next.dataDir = services.config.dataDir;
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+    return { ok: false, message: error.message };
+  }
+
+  await writeJsonAtomic(services.configPath, merged);
+  services.configDocument = merged;
+  return { ok: true, pendingRestart: applyLiveConfig(app, services, next) };
+}
+
+function pickKnown(
+  body: unknown,
+  drop: ReadonlySet<string> = NOT_WRITABLE,
+): Record<string, unknown> {
   const picked: Record<string, unknown> = {};
   for (const key of configKeys()) {
-    if (NOT_WRITABLE.has(key)) continue;
+    if (drop.has(key)) continue;
     const value = valueAt(body, key);
     if (value === undefined) continue;
     assignAt(picked, key, value);
@@ -279,6 +342,22 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       interrupts: wouldInterrupt(services, request.account?.handle ?? ''),
       /** True while a restart is draining, so the surface stops offering one. */
       draining: services.draining,
+      /**
+       * ***Whether a restore is waiting for the next start*** —
+       * [P12.13](../../../../docs/design/workplan/29-p12-implementation.md).
+       *
+       * **Here rather than on a route of its own**, because this is the one
+       * thing the shell already polls and the answer is one `stat` — and
+       * because the state it reports is the state a **boot** wrote. A client
+       * cannot know whether a marker is there without asking, and the two
+       * moments it appears are the two moments nobody is looking: just after a
+       * restore was asked for, and just after one failed.
+       *
+       * *A restore that succeeded leaves none*, because the marker lived in the
+       * directory the swap moved aside — so a true here after a restart always
+       * means something is wrong, and there is a control for it.
+       */
+      restorePending: await fileExists(services.layout.restorePendingFile),
       /**
        * ***The update check, and the connectivity signal it pays for*** —
        * [09 §6.5], [P10.3].

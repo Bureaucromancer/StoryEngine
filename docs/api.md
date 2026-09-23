@@ -2375,6 +2375,337 @@ I restart it?"* is a worse answer than one that says.
 
 ---
 
+## Backups
+
+*Added at [P12.3](design/workplan/29-p12-implementation.md).* An archive of a
+data directory, or of one account's part of it, written into the data directory
+itself and meant to be copied somewhere else.
+
+**Two halves that differ in one word.** `/api/me/backups` answers for the
+account holding the session cookie; `/api/admin/backups` answers for the
+install and sits behind the `adminOnly` hook on its prefix. There is **no
+`:handle` parameter anywhere here** — the owner comes from the cookie, which is
+[09 §4.3](design/09-server-multiuser-deployment.md)'s *the path is the owner*
+arriving at the API.
+
+**Taking one is gated by no capability.** `scheduledBackups`
+([P12.4](design/workplan/29-p12-implementation.md)) governs whether the *server*
+takes backups on a timer, because a misconfigured schedule is how a data
+directory fills up while nobody is looking. A person pressing a button is not
+that.
+
+### The backup record
+
+```json
+{
+  "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60",
+  "scope": "account",
+  "handle": "ned",
+  "contents": "full",
+  "takenAt": 1790000000000,
+  "bytes": 184320
+}
+```
+
+`id` is a uuidv7 and **is where `takenAt` comes from** — its first forty-eight
+bits are the millisecond it was minted. Nothing here is read from a database:
+the listing is a directory read, so deleting an archive by hand is a non-event.
+
+`contents` is `full` or `redacted`. A **full** archive carries credentials —
+the account's `connections/`, and for an install archive `accounts.json` and
+the session signing key — which is what makes it restorable. A **redacted** one
+omits them, and restores to an install nobody can sign into.
+
+### `POST /api/me/backups`
+
+**Takes one now** → `201 {"backup": …}`.
+
+```json
+{ "contents": "full" }
+```
+
+`contents` is **required and has no default**: the two produce genuinely
+different files and the difference is a person's to make.
+
+***A file whose path no tar header can name does not fail the archive.*** ustar
+holds 255 bytes across its two name fields and our own longest path is about
+232, so this is reachable by hand rather than by us — the library is a folder
+somebody may open in a text editor. Such a file is **left out and named in the
+manifest's `omitted` at `warn`**, because all-or-nothing is the right failure
+for a *restore* and the wrong one for a backup: it would leave an install with
+no archive at all, discovered on the day somebody needed one.
+
+### `GET /api/me/backups`
+
+**Everything this account has** → `200 {"backups": […], "totalBytes": n}`,
+newest first.
+
+`totalBytes` is what they weigh together. Retention is deliberately not built
+([P12](design/workplan/29-p12-implementation.md)), so this number and the delete
+below are how a person prunes.
+
+### `GET /api/me/backups/:id/download`
+
+**The archive** → `200`, `application/gzip`, with `content-length` and a
+`content-disposition` naming the file. `404` for an id this account has no
+archive for — including one that exists for somebody else, because whether an id
+exists elsewhere is worth hiding.
+
+***The one route in this API that streams a file body.*** Every other
+`content-disposition` route sends a document it already holds; an archive is not
+bounded by anything.
+
+`:id` must be a uuidv7 or the request is refused before a handler sees it, and
+the handler resolves it against the directory listing rather than building a
+path from it.
+
+### `DELETE /api/me/backups/:id`
+
+**Removes it** → `204`, or `404` if it is not there.
+
+### `GET /api/me/backups/settings`
+
+**This account's schedule** → `200 {"settings": …}`.
+
+```json
+{ "frequency": "weekly", "onStart": true, "contents": "redacted" }
+```
+
+`frequency` is `off`, `daily` or `weekly`. `onStart` is **independent of it**
+rather than a fourth value in the list: a machine that is up for an hour and a
+machine that is up for a month want different halves, and one that is usually up
+but occasionally rebooted wants both.
+
+An account that has never set one reads back `off`, `false`, `full`. **Readable
+without the capability**, and the body carries no *may they* flag — the client
+gates the form on `capabilities.scheduledBackups` from `auth/state`, the same
+way the connections panel is gated on `privateConnections`.
+
+### `PUT /api/me/backups/settings`
+
+**Replaces it** → `200 {"settings": …}`.
+
+**Every field is required**, and unknown keys are refused. A patch would let a
+client that knew about two fields leave the third at whatever it was, where the
+failure is a schedule somebody believes they turned off.
+
+`403 no-scheduled-backups` when an administrator has not granted
+`scheduledBackups` for this account. **The route is the boundary and the UI is
+never it** ([09 §4.5](design/09-server-multiuser-deployment.md) calls a UI-level
+check a trivial bypass), which is how `fileAccess` is enforced at
+`POST /api/import/sweep`. It is 403 rather than 404 because a client needs to
+tell *you may not* from *there is no such thing*.
+
+***Taking a backup is never gated by this.*** The capability governs the server
+writing archives on a timer nobody is watching, which is the one way a setting
+somebody made once fills a data directory — and a full disk stops the server
+writing turns for everybody. A person pressing a button is not that.
+
+### `GET /api/me/backups/:id/manifest`
+
+*Added at [P12.10](design/workplan/29-p12-implementation.md).* **What is in
+that archive** → `200 {"manifest": …}`.
+
+```json
+{
+  "schema": "storyengine.backup-manifest/1",
+  "scope": "account",
+  "handle": "ned",
+  "contents": "full",
+  "takenBy": { "version": "1.0.0-alpha.1", "at": "2026-09-20T10:00:00.000Z" },
+  "reason": "manual",
+  "files": 42,
+  "unpackedBytes": 512000,
+  "handles": ["ned"],
+  "omitted": []
+}
+```
+
+**It costs one gzip block**, because `backup.json` is written as the archive's
+first member and this reads the first member or nothing. An install archive is
+not bounded by anything, so the difference between that and inflating it is the
+difference between a question a person can ask casually and one they cannot.
+
+`404` for an id this owner has no archive for. **`422 unreadable`** for a file
+that will not read as one of ours — not a 500: an archive is a file that
+survived, from a disk that may have had a bad week.
+
+***This is what a backup import offers instead of a preview.***
+[P4 §1.4](design/workplan/16-p4-implementation.md) settled that for every
+import: a **sweep** commits and reports, because a staging area for three
+hundred objects is a second library, and `import/preview.ts` is the other case —
+one hand-picked file. A backup import is a sweep, so what a person reads before
+committing is the archive's own account of itself, which is what the controls
+turn on. `unpackedBytes` is also [P12.11]'s free-disk check.
+
+### `POST /api/me/backups/import`
+
+*Added at [P12.9](design/workplan/29-p12-implementation.md).* **Brings an
+archive's content into this account** → `200`.
+
+```json
+{
+  "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60",
+  "onConflict": "skip",
+  "options": { "connections": false, "prefs": false }
+}
+```
+
+**Import is not restore.** This merges into a *running* server and touches
+nothing that is install authority: `accounts.json`, `state/` and
+`system/library/` are never read. That line is what keeps the two verbs distinct
+rather than a slider, and it is why somebody who clicks the wrong one loses
+nothing.
+
+**Work and tags always; everything else is a switch somebody ticked.** Library
+objects and sessions are what a person means by *my stuff*, and tags travel with
+them because objects reference tags **by id** ([05 §4](design/05-tagging.md)) —
+an import without them would leave every imported object pointing at names that
+resolve to nothing. `connections` and `prefs` each default **false** and each is
+**reported whether taken or not**, because *my keys did not come across* is a
+question with an answer rather than a bug report.
+
+`onConflict` is `skip` (the default), `keep-both` or `replace`. ***The default
+differs from `POST /api/import/sweep`'s deliberately***: a re-imported foreign
+file *is* the object that file produced, where a backup meeting a live account
+is the past meeting the present — and the present is usually what somebody wants
+to keep.
+
+The response carries the same `report` every other import returns, with its
+`jobId` in the same ledger, plus `sessions`, `tags` and the `notes` the optional
+groups produced:
+
+```json
+{
+  "report": { "jobId": "…", "source": "storyengine-backup", "items": [], "counts": {} },
+  "sessions": { "imported": 2, "skipped": 0 },
+  "tags": { "added": 1, "kept": 4 },
+  "notes": [{ "key": "import.backup.prefsNotTaken", "params": {}, "level": "info" }]
+}
+```
+
+`403` for a `handle` that is not this account's — a person may only read their
+own subtree. `422` for an archive that will not read, or that does not hold the
+handle asked for.
+
+***The archive is named by id rather than uploaded***, which is a scoping
+decision rather than an omission: a person's backups are already on this server,
+because that is where they land. Moving one **between** installs is the upload
+case, and an archive dropped into `data/backups/` by hand is listed and
+importable today — the same capability with the file transfer done by whatever
+already moves files onto that machine.
+
+### `POST /api/admin/backups`, `GET /api/admin/backups`, `GET /api/admin/backups/:id/download`, `GET /api/admin/backups/:id/manifest`, `DELETE /api/admin/backups/:id`
+
+**The same four, for the whole install.** Identical bodies and responses, with
+`scope: "install"` and `handle: null`. An install archive carries every
+account's work, `config.json`, `system/`, the operational store and — when it is
+`full` — `accounts.json` and the session key, so it lives at `data/backups/`,
+outside every user directory, for the reason `accounts.json` does.
+
+**What an archive never carries**, whatever the scope: `index/`, which is
+derived and whose presence would restore *a stale belief about a newer tree*;
+`users/<handle>/trash/` ([03 §10.2](design/03-data-model.md)); and the backups
+directories themselves.
+
+### `POST /api/admin/backups/import`
+
+**The same import, per account** — same body, same response, with two
+differences.
+
+`handle` is **required**, and a handle with no account on this install is
+`404 no-such-account` rather than an account created to receive it: **an account
+created from an archive has no password**, and who may sign in is not a thing an
+archive gets to decide. There is deliberately no *all of them* arm.
+
+`options.config` is offered here and only here. It merges the archive's
+`config.json` through the same path `PUT /api/admin/config` uses, so
+`pendingRestart` is computed as usual and announced to administrators — with
+**`dataDir` and `server.clientRoot` refused by name**, because both are
+filesystem paths on the machine the archive came from: one would point a running
+server at a directory that may be somebody else's, the other would make it serve
+a 404 where the built client used to be. Ticking it on an *account* archive is
+`403 not-install-scope`.
+
+### `POST /api/admin/restore`
+
+*Added at [P12.11](design/workplan/29-p12-implementation.md).* **Puts an
+archive back as the install** → `202 {"draining": true, "plan": …}`, and this
+response is the last thing the process sends.
+
+```json
+{ "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60", "acceptRedacted": false }
+```
+
+***Restore is not import.*** It **replaces** the data directory rather than
+merging into it, and a running server cannot do that to itself in place: it
+holds open sqlite handles on files the archive would overwrite, and the session
+key it would replace is the one validating this request. So it is a handoff
+across a restart — write a marker, drain, exit, and swap on the next boot
+([P12.12](design/workplan/29-p12-implementation.md)).
+
+**Every precondition is checked while the server is still answering**, because
+a refusal after the process has exited is one nobody can read:
+
+| Status | `error` | When |
+|---|---|---|
+| 409 | `unsupervised` | Nothing would start the process again. The message carries the shell command instead |
+| 404 | `not-found` | No install archive with that id. An *account* archive lands here rather than at `wrong-scope`, because the install's listing does not hold one |
+| 409 | `wrong-scope` | An account archive reached the check anyway. Restoring one would leave the install holding that account and nothing else |
+| 409 | `needs-confirmation` | A `redacted` archive without `acceptRedacted: true`. It carries no accounts, connections or session key, so nobody could sign in afterwards |
+| 409 | `unreadable` | The archive does not read end to end, or holds fewer members than its manifest claims — a copy that ran out of space, a download that stopped |
+| 409 | `unsafe-path` | A member that would escape the data root when written out |
+| 507 | `no-space` | Less free space than `unpackedBytes` plus a tenth. **The directory being replaced is kept rather than deleted**, so a restore needs room for both |
+
+***The archive is read end to end, and that is the expensive check earning its
+place.*** A truncated archive is invisible from the manifest — the manifest is
+the first member, so it is the part that always survives — and finding out half
+way through the unpack means finding out after the old directory has been
+renamed aside.
+
+On success `state/restore.pending` is written with the archive's
+**data-root-relative** path, the manifest, who asked and `attempts: 0`. The
+marker lives inside the directory the swap moves aside and **no archive carries
+one**, so a successful restore cannot leave one behind and an unsuccessful one
+keeps exactly the state that describes itself.
+
+### `DELETE /api/admin/restore`
+
+*Added at [P12.12](design/workplan/29-p12-implementation.md).* **Calls off a
+pending restore** → `204`, whether or not there was one.
+
+***The one door out of a marker the boot will not act on.*** A restore that
+fails to unpack keeps its marker deliberately — the failure has to survive into
+the next boot to be refused there, and deleting it would turn *this did not
+work* into *nobody ever asked*. But a marker nothing will act on and nobody can
+remove is a trap on exactly the install this feature exists for: [25 E6]'s
+operator has a shell, and `docs/deploy.md`'s household one has a web page and
+nothing else.
+
+**What happens on the next boot**, for an accepted restore: before anything
+opens a handle on the data directory, the archive is unpacked to a **sibling**
+directory, the live directory is renamed to `<dataRoot>.replaced-<uuidv7>`, and
+the new one is renamed into place. Two renames on one filesystem; the window
+between them is the only unsafe moment and it is microseconds wide.
+
+***The replaced directory is kept and never deleted***, on `removed/`'s
+precedent — *StoryEngine will not delete this; remove it yourself when you are
+sure*. That is the undo, and the only property that covers *the restore worked
+and was the wrong archive*. A `system.notice` names it on that boot, which is
+the one place in this build where a filesystem path is deliberately put in
+front of a person.
+
+**A failed unpack leaves the install untouched** — everything is written before
+anything is renamed — rewrites the marker with `attempts: 1`, and boots
+normally. **A second attempt is refused rather than made**: a supervisor
+restarts a process that exits, so an unpack that kept failing would take the
+install down rather than one boot.
+
+***And the archive carries no index***, so the restored install rebuilds it on
+that same boot — which is [P11.11](design/workplan/28-p11-implementation.md)'s
+proof obligation arriving for free.
+
+
 ## Errors
 
 | Status | `error` | Means |

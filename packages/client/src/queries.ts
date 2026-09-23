@@ -1327,6 +1327,7 @@ export function useNotices(enabled: boolean): UseQueryResult<{
   supervision: 'systemd' | 'declared' | 'none';
   interrupts: { mine: number; others: number };
   draining: boolean;
+  restorePending: boolean;
   updates: {
     state: 'disabled' | 'unknown' | 'current' | 'behind' | 'unreachable';
     latest: string | null;

@@ -76,7 +76,18 @@ export type ImportSourceKind =
   /** The V3 spec's zip container: one `card.json`, and its assets beside it. */
   | 'charx'
   /** A directory of files somebody assembled by hand. The walker's plain mode. */
-  | 'loose-files';
+  | 'loose-files'
+  /**
+   * ***One of ours*** — [P12.8](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * The only arm here that is not somebody else's format, and the reader for it
+   * is the only one that converts nothing: it decides what it is looking at and
+   * refuses what it cannot vouch for. It is an arm rather than a separate
+   * engine because *"an archive is a root read through a different file
+   * source"* is as true of ours as of a CHARX, and everything downstream — the
+   * conflict policy, the review vocabulary, the job ledger — is the same work.
+   */
+  | 'storyengine-backup';
 
 /**
  * Why a root was refused **before anything was written**.

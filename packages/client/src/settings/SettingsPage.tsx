@@ -8,6 +8,8 @@ import { UpdateBadge } from '../about/UpdateBadge.js';
 import { useAuthState } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { AdminAccounts } from './AdminAccounts.js';
+import { AdminBackups } from './AdminBackups.js';
+import { Backups } from './Backups.js';
 import { AdminConnections, MyConnections } from './Connections.js';
 import { AdminInstall } from './AdminInstall.js';
 import { MyRoles } from './MyRoles.js';
@@ -101,6 +103,18 @@ export function SettingsPage(): JSX.Element {
       */}
       <Trash />
 
+      {/**
+        ***Beside the trash, and for the trash's reason*** — [25 E6], [P12.6].
+        It holds sessions as well as library objects, so a drawer inside the
+        library would be a library surface answering about something that is not
+        a library object; and nobody comes here to browse.
+
+        **For every account**, because taking a backup of your own work is never
+        gated — `scheduledBackups` governs the *server* writing them on a timer,
+        which is a different question and is asked inside this panel.
+      */}
+      <Backups capable={account?.capabilities.scheduledBackups === true} />
+
       {account?.role === 'admin' ? (
         <section className="flex flex-col gap-8" aria-labelledby="administration">
           <h2 id="administration" className="text-section text-ink">
@@ -116,6 +130,14 @@ export function SettingsPage(): JSX.Element {
           */}
           <AdminConnections />
           <AdminInstall />
+          {/**
+            ***After the settings form rather than before it***, because the
+            install's schedule *is* three config keys and the form above derives
+            its controls from the schema. This panel is the list and the two
+            buttons; a second copy of the schedule here would be a second thing
+            to keep true.
+          */}
+          <AdminBackups />
         </section>
       ) : null}
     </div>

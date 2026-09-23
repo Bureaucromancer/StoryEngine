@@ -1198,7 +1198,88 @@ ruled with, because a corrected figure would disagree with the drops the
 verdict recorded, and the margin already lives in `reserveOutputTokens`. A
 better approximator remains open; a fudge factor at the surface is closed.
 
-### E6. Backup and restore — a command, not a feature
+### E6. Backup and restore — ~~a command, not a feature~~ a command **and** a feature
+
+***Amended 2026-09-22 at [P12](workplan/29-p12-implementation.md), which is the
+one place in this corpus where an* Opinionated *verdict has been reversed.***
+The original is kept below in full rather than rewritten, because a position
+worth overturning is worth being able to read.
+
+**What stands.** `rsync` is still a legitimate strategy and
+[docs/deploy.md](../deploy.md) still documents it. The archive still excludes
+the index, and that is still the clause that makes it a restore rather than a
+copy. And the sentence this section is best for —
+***an untested restore is not a backup*** — is the bar P12 is held to rather
+than something it got past.
+
+**What was wrong, and it was one word: *outside*.** The quiesce paragraph below
+reads *"there is no write-lock to take from outside the process, and inventing
+one would be the subsystem E6 forbids."* Every word of that is about a process
+on the outside, and it was read as a fact about backups generally. From the
+**inside**: `state/state.sqlite` is copied with `VACUUM INTO`, a
+transactionally consistent snapshot of a database being written to; library
+objects, `accounts.json`, `prefs.json` and the bindings go through
+`storage/atomic.ts`'s temp-and-rename, so a reader sees the old file or the new
+one; and a turn segment is append-only, so a prefix is whole turns plus possibly
+a partial last line that `sessions/segments.ts` already drops. **The in-process
+backup is strictly more consistent than the command**, not less.
+
+**And three things this section never considered.**
+
+*Its caller had a shell.* [docs/deploy.md](../deploy.md)'s two supported paths
+are an unraid template and a compose file, and
+[09 §5.1](09-server-multiuser-deployment.md) designs for a household where the
+operator and the user are the same person. **A backup command nobody can reach
+is not a backup story**, and the gap did not show at [P11.11](workplan/28-p11-implementation.md)
+because the person writing the script had a terminal open.
+
+*Half of it was never this section's subject.* E6 reasons about the **install**.
+*Export my account* is portability, in the family of session export
+(B12 above) and library
+download ([10 §5.0a](10-ui-surfaces.md)) — and it is how
+[the fourth commitment](README.md) (*"drag a folder out of the storage directory
+and you have exported it"*) is kept for somebody who cannot reach the storage
+directory.
+
+*And import is not restore.* Bringing an archive's **content** into a running
+install is the import engine with one more source arm —
+[P4 §1.3](workplan/16-p4-implementation.md) built `FileSource` so that a new
+transport costs a class rather than a second engine. Routing it anywhere else
+would be the duplication that seam exists to prevent.
+
+*And restore stayed a handoff rather than becoming one.* A running server cannot
+replace its own data directory in place — it holds open handles on the files the
+archive would overwrite, and the session key it would replace is the one
+validating the request asking for it. So `POST /api/admin/restore` checks every
+precondition **while the process is still answering** (a refusal after it has
+exited is one nobody can read), writes a marker, and drains; the next boot
+unpacks to a sibling, renames the live directory aside and renames the new one
+in. ***The directory that moved aside is kept and never deleted***, which is
+`removed/`'s promise and the one property that covers *the restore worked and
+was the wrong archive* — it is the closest thing this section's own sentence,
+*an untested restore is not a backup*, has to an insurance policy.
+
+*What this section refused and would still refuse* is a restore that quietly
+reorganises itself around being a subsystem: there is no restore queue, no
+snapshot chain, no second format, and the marker is a JSON file that the swap
+does not have to delete, because it lives in the directory being replaced.
+
+**What P12 does not build**, so that *do not build a subsystem* still binds
+something: no retention policy, no job queue, no second archive format, and no
+account created from an archive. The scheduler is one `setInterval` on
+`startTrashSweep`'s shape, and **its state is the archives themselves** — there
+is no last-run row, which is what makes *the machine was off for three days*
+work and what keeps deleting a file by hand a non-event.
+
+*Two defects in what P11.11 shipped were found while reading it and are fixed at
+`aaf7345`*: the index exclusion was a filename test at the data root and the
+index is a directory down, so **it never once fired**; and `tarHeader` cut any
+name past a hundred bytes, which collapsed a lorebook's version payloads onto
+one truncated name. [P12 §0.5](workplan/29-p12-implementation.md) has both.
+
+---
+
+*The original, unedited:*
 
 **Opinionated: the design already did most of this, so do not build a
 subsystem.**

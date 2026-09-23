@@ -19,12 +19,15 @@ import {
   type EmbeddedMedia,
   type Lorebook,
   type Treatment,
+  isKnownSchema,
+  schemaIdOf,
+  validate,
 } from '@storyengine/shared';
 
 import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook } from './aventuras/lorebook.js';
 import { convertScenario } from './aventuras/scenario.js';
-import { identify, stampImported, type ConflictPolicy } from './identity.js';
+import { identify, identifyNative, stampImported, type ConflictPolicy } from './identity.js';
 import { create, update, type LibraryContext } from '../library.js';
 import { contentHashOf } from '../index-db/ingest.js';
 import { codecFor } from '../storage/card/index.js';
@@ -32,6 +35,7 @@ import type { BlobStore } from '../storage/card/envelope.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
+import { BackupReader } from './storyengine/reader.js';
 import { CharxReader } from './charx/reader.js';
 import { MarinaraReader } from './marinara/reader.js';
 import { nameOf, PRESET_CONVERTERS, type PresetConverter } from './preset-converters.js';
@@ -80,6 +84,16 @@ export interface SweepRequest {
    */
   onConflict?: ConflictPolicy;
   /**
+   * Which account's subtree a backup root is read for —
+   * [P12.8](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * **Only one source reads it**, exactly as `asKind` below is read by one.
+   * An install archive holds several accounts and *which of them are you
+   * importing* is a fact about the request rather than about the archive, so
+   * the reader is told. Absent means `handle` — a person importing their own.
+   */
+  fromHandle?: string;
+  /**
    * Which kind a source with a genuine choice should become.
    *
    * **Optional, and only one format reads it.** Aventuras' `VaultScenario` is
@@ -107,7 +121,11 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
     return { ok: false, refusal: classification.refusal };
   }
 
-  const reader = readerFor(classification.kind, request.files);
+  const reader = readerFor(
+    classification.kind,
+    request.files,
+    request.fromHandle ?? request.handle,
+  );
   if (reader === null) {
     throw new ImportNotImplementedError(`a ${classification.kind} root`);
   }
@@ -166,7 +184,7 @@ export async function convertOne(
   return [first, ...(await writer.flushTreatments())];
 }
 
-function readerFor(kind: string, files: FileSource): SourceReader | null {
+function readerFor(kind: string, files: FileSource, forHandle: string): SourceReader | null {
   // `loose-files` is swept by the same walker: a folder of cards somebody
   // assembled by hand is the ST tree with most of it missing, and the walker
   // already reports what it does not recognise.
@@ -178,6 +196,9 @@ function readerFor(kind: string, files: FileSource): SourceReader | null {
   // A card in a zip rather than in a PNG chunk ([P4 §7.5]). One entry, one
   // candidate, and the same converter on the other side of it.
   if (kind === 'charx') return new CharxReader(files);
+  // One of ours — [P12.8]. Told whose subtree to read, because an install
+  // archive holds several and the archive does not know which was asked for.
+  if (kind === 'storyengine-backup') return new BackupReader(files, forHandle);
   return null;
 }
 
@@ -241,9 +262,69 @@ class Writer {
       case 'aventuras.lorebook':
         return this.#aventurasLorebook(candidate);
 
+      /**
+       * ***One of ours, which needs no conversion and therefore needs a
+       * check*** — [P12.8]. Every other arm above turns somebody else's format
+       * into one of our objects; this one is handed one and has to decide
+       * whether to believe it.
+       */
+      case 'storyengine.object':
+        return this.#native(candidate);
+
       default:
         return { source: candidate.source, disposition: 'unrecognised', notes: [] };
     }
+  }
+
+  /**
+   * ***An object of ours, out of a backup*** — [P12.8].
+   *
+   * ***It validates rather than converts, and the difference is the whole
+   * arm.*** A stored object arrives as `unknown` because the library is a
+   * folder somebody may hand-edit ([10 §2.1]) and an archive is a file that
+   * survived a disk that may have had a bad week — so *typed* and *conformant*
+   * are different claims about it, which is the distinction
+   * `export/writers.ts` makes going the other way. Below the guard, every field
+   * is one the schema guarantees.
+   *
+   * ***It is deliberately not stamped as imported, and the first run of the
+   * test is what settled that.***
+   *
+   * Every other arm calls `stampImported`, because a foreign file has no
+   * provenance of its own and `originalFilename` is the only identity it will
+   * ever have. A backup's contents already carry theirs — **this object was not
+   * imported from anywhere, it is the one that was backed up** — and stamping
+   * would rewrite two fields on the way in, so the re-encoded object would
+   * never compare equal to the stored one.
+   *
+   * The consequence is the whole point: **importing a backup over a library it
+   * came from reports `unchanged` and writes nothing**, where stamping made it
+   * report `replaced` for every object and push a version into every history.
+   * The first test written against this said `unchanged` and got `replaced`,
+   * which is how the decision arrived.
+   *
+   * *Nothing is lost by not stamping*: the review row carries the archive path
+   * as its `source`, and the import ledger records the job — so *where did this
+   * come from* is answered by the things that exist to answer it.
+   */
+  async #native(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const checked = validate(candidate.payload);
+    if (!checked.valid) return refusedItem(candidate, 'does-not-validate');
+
+    const schemaId = schemaIdOf(candidate.payload);
+    if (schemaId === null || !isKnownSchema(schemaId)) {
+      return refusedItem(candidate, 'unknown-schema');
+    }
+
+    const object = candidate.payload as { id: string; name: string; provenance: Provenance };
+
+    const notes: ImportNote[] = [];
+    const outcome = await this.store(object, schemaId, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      notes,
+    };
   }
 
   async #card(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -428,7 +509,18 @@ class Writer {
     media?: BlobStore,
   ): Promise<'created' | 'unchanged' | 'replaced' | 'kept-both' | 'skipped' | 'failed'> {
     const { library, handle } = this.#request;
-    const identity = await identify(library, handle, schemaId, object);
+    /**
+     * ***Which identity rule applies is a property of the source.***
+     * `identify` keys on `Provenance.originalFilename` *"because foreign files
+     * have no id we could key on"*; a backup's contents are our own objects and
+     * do have one, so keying on a filename there would be throwing away the
+     * better answer and keeping the workaround — and would double a library
+     * whose slugs happen to differ. [P12.8].
+     */
+    const identity =
+      this.#request.fromHandle === undefined
+        ? await identify(library, handle, schemaId, object)
+        : await identifyNative(library, handle, schemaId, object);
 
     if (identity.kind === 'unchanged') {
       notes.push({

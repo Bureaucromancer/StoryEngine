@@ -368,6 +368,16 @@ works today and should be documented. The part that matters is the CI restore
 test ([testing testing](03-testing.md)); an untested restore is not a backup, and
 shipping a self-hosted data product without one is a gap rather than a deferral.
 
+***~~Small~~ — and the sizing above is what [P12](29-p12-implementation.md)
+reopened, 2026-09-22.*** It shipped that small at
+[P11.11](28-p11-implementation.md) and the result was a command nobody on the
+two supported deployment paths can reach: both hand a person a browser and
+nothing else. So backups grew a surface, a schedule and an import — and
+[25 E6](../25-open-questions.md)'s *do not build a subsystem* is amended rather
+than quietly ignored, with the one word that was wrong (*outside*) named there.
+**The sentence that survives intact is the one this row was always really
+about**: an untested restore is not a backup.
+
 **The three lore-entry fields land at 1.0** ([13 §13](../13-write-mode.md)).
 
 The AI-context value, the track flag and the exclusion list, added as *optional*

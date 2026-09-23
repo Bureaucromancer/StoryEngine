@@ -1865,6 +1865,57 @@ the diff.
 
 ---
 
+## 9.2 The backup manifest — what an archive says it is
+
+*Added at [P12.2](workplan/29-p12-implementation.md).* `backup.json`, the first
+member of every backup archive, carrying
+`schema: "storyengine.backup-manifest/1"`.
+
+```ts
+interface BackupManifest {
+  schema: "storyengine.backup-manifest/1"
+  scope: "install" | "account"
+  handle: string | null           // the account, for an account archive
+  contents: "full" | "redacted"   // whether it carries credentials
+  takenBy: { version: string | null; at: string }
+  reason: "manual" | "schedule" | "start"
+  files: number
+  unpackedBytes: number           // so a restore can size a disk before committing
+  handles: string[]               // so an install import can plan per account
+  omitted: ImportNote[]           // what this archive does not carry, and why
+}
+```
+
+**Here rather than in [21](21-internal-contracts.md) because it travels.** That
+document's header states that nothing in it carries a `schema` field or a
+version number; this does both, for the reason every portable record does — an
+archive written by one install is read by another, and possibly by an older one.
+
+***It is deliberately not in `PORTABLE_SCHEMAS`***, and neither is
+`storyengine.session-export/1`. That registry holds the six library kinds and
+`emit-schemas` writes one JSON Schema artefact per entry; an envelope is not an
+object somebody edits, and shipping a schema for it would suggest it were.
+
+**First member, so a reader can answer *what am I holding* without inflating the
+rest.** A listing, an import preview and a restore's free-disk check all need
+that before they need the bytes — and `unpackedBytes` is here precisely because
+the only other way to know it is to inflate the archive, which is the thing
+being checked for room.
+
+***`omitted` is `{ key, params }` rather than prose***, the vocabulary the
+import review uses and `export/writers.ts` already answers *what this file does
+not carry* in. A person handed a redacted archive should be able to read what
+was left out of it rather than discover it during a restore — and a file whose
+path no tar header can name is reported here at `warn` rather than failing the
+whole archive, because all-or-nothing is the right failure for a restore and the
+wrong one for a backup.
+
+**It carries no path from the machine that wrote it.**
+[21 §4.1](21-internal-contracts.md)'s rule about logs applies with more force to
+a file that travels.
+
+---
+
 ## 10. Not defined here, deliberately
 
 | Structure | Why not |
@@ -1874,6 +1925,7 @@ the diff.
 | **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
+| **Backup settings** (`users/<handle>/backup.json`) | Internal, and never in an archive's manifest: a schedule is a fact about *this* install's disk, not about the data. [P12.4](workplan/29-p12-implementation.md). |
 
 ---
 
