@@ -932,16 +932,17 @@ rides along.
 ### 1.8 What the sweep does with everything else in ~~an ST user directory~~ a source tree
 
 A real ST user tree is thirty directories and a Marinara store is
-eighty-one tables; the sweep must have a stated disposition for each class or
+~~eighty-one~~ **eighty-three** tables (*2026-09-22, [P4 §7.18]*); the sweep
+must have a stated disposition for each class or
 the review's "nothing silently dropped" is a lie. **Widened at the amendment to
 cover both**, because keeping the dispositions in one section is what makes
 that claim a single checkable thing rather than two claims that drift.
 
 **The claim is made checkable the way §1.1 already decided for credentials: by
 vendored snapshot.** ST's `USER_DIRECTORY_TEMPLATE` (`src/constants.js:16`,
-thirty-one keys) and Marinara's `FILE_BACKED_TABLES`
-(`Marinara-Engine/packages/server/src/db/file-backed-store.ts:349`, eighty-one
-tables) are each committed as a snapshot with a provenance comment naming the
+thirty-one keys) and Marinara's ~~`FILE_BACKED_TABLES`~~
+**`BUILT_IN_FILE_BACKED_TABLES`** (`file-backed-store.ts:329` at staging,
+eighty-three tables) are each committed as a snapshot with a provenance comment naming the
 source file, commit and date, and a test asserts that **every name in the
 snapshot has a disposition**. A name that appears in a real install but in
 neither the snapshot nor the map is not a hole — it is the *unrecognised*
@@ -972,8 +973,11 @@ counted* — `thumbnails` and its three children, `movingUI`, `extensions`,
 any plan, and a disposition nobody wrote is the silent drop this section exists
 to prevent.
 
-**Marinara.** By family, because eighty-one names is a code artefact rather
-than prose:
+**Marinara.** By family, because ~~eighty-one~~ eighty-three names is a code
+artefact rather than prose. **The two added in the 2026-09-22 refresh**
+([P4 §7.18]) are `game_dice_pools`, which records with the rest of the `game_*`
+family, and `advanced_memory_records`, which is skipped beside `memory_chunks`
+for the reason that row already gives:
 
 | Class | Tables |
 |---|---|
@@ -2613,3 +2617,150 @@ start saying different things about the same kind. The doc is corrected.
   *Earlier imports* list, and `importNotesFor` can never find an uploaded
   object's own review. One `recordImport` call; it belongs to whoever needs
   [P5 §1.8](17-p5-implementation.md).
+
+### 7.18 Marinara moved a fourth time, and the reader had not been reading the third — 2026-09-22
+
+***The refusal that started it.*** A live v2.4.x install was pointed at the
+importer and came back *"That folder was written by a newer version than this
+build understands."* — `detect.ts`'s version gate, which this section replaces,
+and which was pinned at storage format 4 while Marinara had reached 6 on `main`
+and 7 on `staging`.
+
+**Three bumps since the pin, and only one of them was about the layout.**
+
+- **Format 5** (`fa3971d5f`, 2026-08-20) shards *every* table into
+  `storage/tables/<t>/<encoded-owner>.json`. Format 4 sharded sixteen
+  chat-scoped tables; from 5 the half of the store a library import reads —
+  characters, personas, lorebooks, presets — shards too.
+- **Format 6** (`e390e3619`, 2026-08-28) is a bare number. It pairs with the
+  writer-lease record gaining fields so that an older *Marinara* refuses a
+  store whose lease it cannot parse.
+- **Format 7** (`5d6d7c52e`, 2026-09-17) adds nullable provenance columns to
+  `lorebook_entries`, so that an older *Marinara writer* cannot silently drop
+  them on the next save.
+
+**Two of the three protect Marinara's own writers against a downgrade, and a
+read-only importer is not a writer.** That is the observation the rest of this
+section rests on: the number in the manifest is the wrong question for us,
+and §1.3 had already said so in a sentence it then did not act on — *"the
+manifest states the version without establishing the layout"*.
+
+#### Four defects the refusal was hiding
+
+The gate had made the reader unreachable for any recent store, so none of these
+had ever run against one.
+
+1. **Every object would have been imported twice.** `#rows` read *every* file
+   under a sharded table's directory, and upstream writes a `.bak` beside most
+   shards. At format 4 that cost nothing, because the tables we convert were
+   single files; from format 5 it is a second copy of every character, lorebook
+   and preset — and because the copies are identical, the review says
+   `unchanged` rather than anything alarming.
+2. **The mid-migration check has never once fired.** We probed
+   `storage/.migrating`. Marinara writes the sentinel per table, at
+   `storage/tables/<t>/.migrating`, and did so at format 4 as well. The refusal
+   that exists to stop a torn read was looking at a path that has never
+   existed.
+3. **The disposition lookup had the prototype hole** §7.8 closed on the
+   SillyTavern side: a table named `constructor` was handed a function.
+4. **Unreadable and malformed files vanished.** A table file that could not be
+   read, or that parsed to something other than a list of rows, produced no row
+   in the review at all — the silent drop that *nothing is silently dropped*
+   exists to prevent, and the same class of defect as 2 in that a person is
+   given no reason to doubt the result.
+
+**Smaller things found with them:** a single file won over shards where
+upstream gives shards the win and quarantines the file; the automatic
+`.pre-shard` backups, the `.corrupt-` quarantines and the launcher's
+`.post-unshard-` directories were reported as `unrecognised` rather than
+recognised and skipped; and `persona_images` was filtered by `characterId` in
+code that could never run.
+
+#### What shipped
+
+`marinara/store-format.ts` ports the naming rules from upstream rather than
+inferring them: the shard-key encoder byte for byte, the shard-file rule, the
+whole shard-owner map, and a classifier that answers what any path under
+`storage/tables/` is. `litter.ts` beside it holds the names a filesystem
+leaves behind, as a *closed* list — the tempting rule, *a dot-file is not
+data*, would swallow exactly the sentinels defect 2 is about.
+
+The reader reads through a store built on that, with upstream's own precedence
+between shards, single files and the pre-shard restore; the version gate
+becomes a structural one; and the converters behind it are corrected against
+what Marinara actually writes. Each is recorded in its own subsection as it
+lands.
+
+### 7.19 SillyTavern, read the way SillyTavern writes it — 2026-09-22
+
+***Opened with the vocabularies, and grown by the stages that use them.*** The
+Marinara refusal recorded in §7.18 is what sent somebody upstream, and the same
+question asked of SillyTavern came back with a different answer: **nothing we
+read has drifted, and almost nothing we read was right.**
+
+**There is no drift.** Between the pin the readers were written against
+(`8172dcd0`, 1.18.0+1, 2026-07-07) and 1.19.0 (`06bde939`, 2026-09-14) —
+eighty-six commits, a hundred and two files — not one file that defines a shape
+we parse changed. `USER_DIRECTORY_TEMPLATE` is byte-identical, and so are
+`character-card-parser.js`, `TavernCardValidator.js`, `endpoints/worldinfo.js`,
+`scripts/personas.js` and `PromptManager.js`. The chat-completion preset gained
+one key, `pollinations_endpoint`, and the shipped model names moved. **The pin
+refresh is therefore provenance and nothing else**, which is worth saying
+plainly: it is the rare case where the honest diff is empty, and an empty diff
+is evidence rather than an excuse to skip looking.
+
+**The defects were all there at the old pin.** An audit against SillyTavern's
+own *write* paths — rather than against our reading of its files — found about
+thirty places where the import produces something the source did not mean. The
+worst of them are not ours alone: an embedded `character_book` is read in the
+world-file shape rather than the V2 spec shape it is written in, which is wrong
+for **every** V2 card from any source, not only SillyTavern's. They are listed
+with their fixes in the subsections this section grows as the stages land.
+
+**Why our tests could not see any of it.** `test-sillytavern.ts` was written
+from our reading of SillyTavern, so it agrees with the reader by construction:
+its cards carry one PNG chunk where SillyTavern writes two, its world file has a
+top-level `name` SillyTavern never writes, its preset carries the prompt order
+SillyTavern stopped using in 2023, and its comment calls position 4 an author's
+note when SillyTavern means at-depth. A fixture that shares the reader's
+mistakes is a fixture that can only confirm them — which is the same lesson
+[§7.18] records on the Marinara side, arrived at twice in one week and worth
+generalising: **a fixture nobody else wrote proves the reader agrees with
+itself.**
+
+#### The vocabularies, and what they are for
+
+§1.8's vendored snapshot answers *which directories hold convertible material*.
+It could not answer *which fields the files in them carry*, and that is where
+the defects were. `sillytavern/vocabulary.ts` vendors the second question's
+answer: the world-info entry template with the types SillyTavern declares, the
+V2 spec's entry and extension keys, the chat-completion and text-completion
+preset keys, the model field per provider, the default prompts and their order,
+the persona descriptor, the trigger vocabulary, and — kept deliberately apart —
+the two different world-info fallbacks.
+
+**The two fallbacks are the ones worth naming here.** A key missing from a
+present `settings.json` falls back to SillyTavern's *module* defaults, where
+whole-word matching and recursion are off. A folder with no `settings.json` at
+all — one uploaded book, a card from anywhere — is honestly read as a fresh
+install, whose shipped `settings.json` turns both on. They are not the same
+table, they disagree on exactly the fields that decide whether an entry fires,
+and collapsing them into one is a mistake that changes every imported entry in
+whichever direction the mistake ran.
+
+Every set was extracted from the source rather than transcribed, and every size
+is pinned, so a refresh that drops a name fails rather than drifts.
+
+#### The root files the template never named
+
+`USER_DIRECTORY_TEMPLATE` is directories. The five files beside them —
+`settings.json`, `secrets.json`, `stats.json`, `image-metadata.json`,
+`content.log` — had no disposition, so a real import reported each as
+`unrecognised`: the silent-drop failure §1.8 built the snapshot to prevent,
+one level down and unnoticed because no fixture had them. They are a third
+registry now, and they inherit every test the other two get.
+
+`secrets.json` is a `credential` on the same argument [§1.1] makes for
+Marinara's `.encryption-key`: named in the review, never opened. SillyTavern's
+own backup writer excludes it from the archive it builds, which is a second
+project arriving independently at the same position.

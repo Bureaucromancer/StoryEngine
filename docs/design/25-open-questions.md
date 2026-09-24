@@ -1492,3 +1492,54 @@ Reopening conditions: a surface that lists many sessions at once, where a column
 of *Untitled session* stops being honest and starts being useless; and session
 export (B12), where a file leaving the install wants a name a human chose.
 *[03 §8, 10 §11.1a, 15 §8]*
+
+### E14. Midjourney — deferred, and the reason is not technical
+
+**Position: not built, and not refused on principle either.** It is the one
+image backend people ask for by name that this project cannot simply go and
+implement, and the obstacle is worth stating precisely rather than as a shrug.
+
+**There is no API to write against.** As of 2026 Midjourney publishes no public
+API, no developer programme and no enterprise offering; access is the Discord bot
+and the web app on a subscription. Its terms are explicit rather than silent —
+*"You may not use automated tools to access, interact with, or generate
+Assets."* Every product sold as a "Midjourney API" is an unofficial wrapper
+driving consumer accounts, and the documented failure mode is permanent
+suspension with the remaining GPU credits gone.
+
+***Why that lands differently on this project than on a desktop app.***
+StoryEngine is a multi-user server somebody runs for a household
+([09 §1](09-server-multiuser-deployment.md)). The operator supplies the
+connection, and the account at risk is theirs — but the people who lose the
+feature, mid-story, are everyone in the install. A risk one person accepts on
+their own behalf is a different thing from one an operator accepts on four
+people's behalf without their knowing there was a choice. Shipping named support
+would also be this project distributing code whose only purpose is automating a
+service that forbids automation, which is a thing to decide deliberately and not
+by adding a row to a table.
+
+**There is a structural mismatch as well**, recorded so a later builder does not
+rediscover it: a Midjourney prompt returns a **grid of four**, and a chosen tile
+is then upscaled by a second call. That is two round trips producing two
+artefacts, where `renderImage` assumes one call returns one picture. The shape
+that fits is the grid splitting into **four sibling renditions** at ingest —
+which is very close to what [P9.3](workplan/26-p9-implementation.md) already
+models, since variation there is already siblings rather than a batch parameter —
+with upscale as an action on the chosen sibling. Somebody should confirm that
+against a real endpoint rather than take it from here.
+
+**Where it belongs instead.** Not in core. [22 §11](22-extensions.md) commits to
+a renderer contract published through the SDK, timed to ComfyUI — and that is
+the honest home for this: an extension somebody who actually uses Midjourney
+writes, installs on their own server, and accepts the terms of. The deferral is
+recorded here rather than left implicit **because a deferral with nowhere to land
+is how something becomes nobody's** — §10.1 of the manual-testing list is a whole
+section about exactly that failure.
+
+Reopening conditions: an official API or a documented developer programme, which
+would make this an ordinary table row overnight; or the renderer contract
+landing, after which this stops being a question for the project at all. Until
+one of those, the nearest backends with real APIs and comparable output are Nano
+Banana Pro, FLUX through OpenRouter, and Stability — all of which
+[19 §5.6](19-tech-stack.md) already reaches.
+*[19 §5.6, 22 §11, 09 §1]*

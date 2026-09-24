@@ -61,7 +61,8 @@ export const DEFAULT_LOCAL_LIMITS: LocalSourceLimits = {
 };
 
 export interface LocalSource {
-  list(): AsyncIterable<string>;
+  /** See `FileSource.list`, whose `under` this honours by walking only that subtree. */
+  list(under?: string): AsyncIterable<string>;
   read(path: string): Promise<Uint8Array | null>;
   exists(path: string): Promise<boolean>;
 }
@@ -245,7 +246,20 @@ class DirectorySource implements LocalSource {
     return full === this.#dataRoot || contains(this.#dataRoot, full);
   }
 
-  async *list(): AsyncIterable<string> {
+  async *list(under?: string): AsyncIterable<string> {
+    // A scoped walk starts at its directory, gets its own file budget, and
+    // counts depth from the root, so the same bounds hold whichever way a path
+    // is reached. Anything that resolves outside the root or into our own data
+    // directory yields nothing, for the reason `#resolve` gives.
+    let start = this.#root;
+    let startDepth = 0;
+    if (under !== undefined && under !== '') {
+      const full = this.#resolve(under);
+      if (full === null) return;
+      start = full;
+      startDepth = under.split('/').filter((segment) => segment !== '').length;
+    }
+
     let seen = 0;
     const walk = async function* (
       this: DirectorySource,
@@ -289,7 +303,7 @@ class DirectorySource implements LocalSource {
       }
     };
 
-    yield* walk.call(this, this.#root, 0);
+    yield* walk.call(this, start, startDepth);
   }
 
   async read(path: string): Promise<Uint8Array | null> {

@@ -49,15 +49,16 @@ export class MemoryFileSource implements FileSource {
   // interface synchronous to suit the simplest implementation would be the tail
   // wagging the dog.
   // eslint-disable-next-line @typescript-eslint/require-await
-  async *list(): AsyncIterable<string> {
+  async *list(under?: string): AsyncIterable<string> {
+    const within = scope(under);
     for (const path of this.#files.keys()) {
-      yield path;
+      if (within(path)) yield path;
     }
     // Declared paths are listed too, which is the whole point of declaring
     // them: a walker that never saw them could not report them, and a report
     // that omits what it did not carry is the silent drop this exists to avoid.
     for (const path of this.#declared) {
-      yield path;
+      if (within(path)) yield path;
     }
   }
 
@@ -82,4 +83,16 @@ export class MemoryFileSource implements FileSource {
 /** Leading `./` and `/` are noise; a path is relative or it is not a path here. */
 function normalise(path: string): string {
   return path.replace(/^\.?\//, '');
+}
+
+/**
+ * A predicate for `list(under)`: everything when unscoped, otherwise paths
+ * strictly beneath the directory. Exported for `ZipFileSource`, whose entries
+ * are implied directories the same way, so the two cannot disagree about what
+ * "under" means — including that a prefix naming a file yields nothing.
+ */
+export function scope(under: string | undefined): (path: string) => boolean {
+  if (under === undefined || under === '') return () => true;
+  const prefix = `${normalise(under).replace(/\/+$/, '')}/`;
+  return (path) => path.startsWith(prefix);
 }

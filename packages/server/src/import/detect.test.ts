@@ -3,7 +3,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { classifyRoot, MARINARA_KNOWN_FORMAT, readMarinaraFormat } from './detect.js';
+import { classifyRoot, MARINARA_LIVE_MARKS } from './detect.js';
+import { MARINARA_KNOWN_FORMAT } from './marinara/store-format.js';
+import { MARINARA_TABLES } from './registries/marinara.js';
 import { MemoryFileSource } from './memory-source.js';
 
 /**
@@ -76,17 +78,44 @@ describe('classifying a root', () => {
   });
 
   it('refuses a live Marinara, because reading one produces a torn library quietly', async () => {
-    expect(await classifyRoot(marinaraRoot({ 'storage/.writer-lease': 'held' }))).toEqual({
+    expect(await classifyRoot(marinaraRoot({ 'storage/.writer-lease/owner.json': '{}' }))).toEqual({
       ok: false,
       refusal: 'live-install',
     });
   });
 
-  it('refuses a store part-way through its shard migration', async () => {
-    expect(await classifyRoot(marinaraRoot({ 'storage/.migrating': '' }))).toEqual({
-      ok: false,
-      refusal: 'live-install',
-    });
+  /**
+   * **Per table, which is where Marinara writes it.** ~~`storage/.migrating`~~
+   * was the path this checked until 2026-09-22 ([P4 §7.18]), and no version of
+   * Marinara has ever written it — so the refusal that exists to stop a torn read
+   * could not fire. Both a table the reader converts and one it does not are
+   * probed, because a migration in progress anywhere means the store as a whole
+   * is mid-change.
+   */
+  it('refuses a store part-way through its shard migration, in any table', async () => {
+    for (const table of ['characters', 'messages']) {
+      expect(
+        await classifyRoot(marinaraRoot({ [`storage/tables/${table}/.migrating`]: '' })),
+        table,
+      ).toEqual({ ok: false, refusal: 'live-install' });
+    }
+  });
+
+  it('probes every registry table, and the writer lease', () => {
+    expect(MARINARA_LIVE_MARKS).toHaveLength(MARINARA_TABLES.length + 1);
+    expect(MARINARA_LIVE_MARKS).toContain('storage/.writer-lease');
+    expect(MARINARA_LIVE_MARKS).not.toContain('storage/.migrating');
+  });
+
+  /**
+   * The launcher's marker is not a live install: only the launcher removes it,
+   * and an interrupted unshard followed by an ordinary restart leaves it for good
+   * beside a perfectly readable store. It is a note on the review instead.
+   */
+  it('does not refuse over an unfinished offline unshard', async () => {
+    expect(await classifyRoot(marinaraRoot({ 'storage/tables/.unshard-in-progress': '' }))).toEqual(
+      { ok: true, kind: 'marinara' },
+    );
   });
 
   it('refuses a storage format newer than this build knows', async () => {
@@ -109,18 +138,16 @@ describe('classifying a root', () => {
       });
     }
   });
-});
 
-describe('reading the declared storage format', () => {
-  it('is null when there is no manifest, and null when it is damaged', async () => {
-    expect(await readMarinaraFormat(new MemoryFileSource({}))).toBeNull();
-    expect(
-      await readMarinaraFormat(new MemoryFileSource({ 'storage/manifest.json': '{ broken' })),
-    ).toBeNull();
-    expect(
-      await readMarinaraFormat(
-        new MemoryFileSource({ 'storage/manifest.json': '{"version":"4"}' }),
-      ),
-    ).toBeNull();
+  /** The version a v2.4.x install actually writes, which is what started this. */
+  it('accepts storage formats 5, 6 and 7', async () => {
+    for (const version of [5, 6, 7]) {
+      const root = marinaraRoot({ 'storage/manifest.json': JSON.stringify({ version }) });
+
+      expect(await classifyRoot(root), `format ${String(version)}`).toEqual({
+        ok: true,
+        kind: 'marinara',
+      });
+    }
   });
 });

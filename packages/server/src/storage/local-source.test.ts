@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { openLocalSource } from './local-source.js';
+import { DEFAULT_LOCAL_LIMITS, type LocalSourceLimits, openLocalSource } from './local-source.js';
 
 /**
  * The server-path transport, and the one refusal that makes
@@ -141,6 +141,55 @@ describe('what it refuses', () => {
 
     expect(await open(file)).toEqual({ ok: false, refusal: 'unreadable-root' });
     expect(await open(join(root, 'nope'))).toEqual({ ok: false, refusal: 'unreadable-root' });
+  });
+});
+
+describe('a walk scoped to one directory', () => {
+  /**
+   * **What lets a reader find its tables without the whole-root walk**
+   * ([P4 §7.18](../../../../docs/design/workplan/16-p4-implementation.md)).
+   * The whole-root walk stops silently at its file budget, and a store with
+   * years of chats reaches it before the tables a library import reads — so
+   * those are found by listing their own directories, each with its own budget.
+   */
+  async function listed(under: string, limits: Partial<LocalSourceLimits> = {}): Promise<string[]> {
+    const opened = await openLocalSource(root, dataRoot, { ...DEFAULT_LOCAL_LIMITS, ...limits });
+    if (!opened.ok) throw new Error('did not open');
+    const paths: string[] = [];
+    for await (const path of opened.source.list(under)) paths.push(path);
+    return paths.sort();
+  }
+
+  beforeEach(async () => {
+    await mkdir(join(root, 'storage', 'tables', 'characters'), { recursive: true });
+    await mkdir(join(root, 'OpenAI Settings'), { recursive: true });
+    await writeFile(join(root, 'storage', 'tables', 'characters', 'a.json'), '[]');
+    await writeFile(join(root, 'storage', 'tables', 'characters', 'b.json'), '[]');
+    await writeFile(join(root, 'storage', 'tables', 'personas.json'), '[]');
+    await writeFile(join(root, 'OpenAI Settings', 'Default.json'), '{}');
+  });
+
+  it('yields only what is under the directory, still relative to the root', async () => {
+    expect(await listed('storage/tables/characters')).toEqual([
+      'storage/tables/characters/a.json',
+      'storage/tables/characters/b.json',
+    ]);
+  });
+
+  it('takes a directory whose name has a space in it', async () => {
+    expect(await listed('OpenAI Settings')).toEqual(['OpenAI Settings/Default.json']);
+  });
+
+  it('yields nothing for a file, for nothing, and for a path out of the root', async () => {
+    expect(await listed('storage/tables/personas.json')).toEqual([]);
+    expect(await listed('storage/tables/nothing')).toEqual([]);
+    expect(await listed('../elsewhere')).toEqual([]);
+  });
+
+  /** Its own budget: a full whole-root walk does not starve a scoped one. */
+  it('spends its own file budget rather than the whole walk’s', async () => {
+    expect(await listed('', { maxFiles: 1 })).toHaveLength(1);
+    expect(await listed('storage/tables/characters', { maxFiles: 2 })).toHaveLength(2);
   });
 });
 

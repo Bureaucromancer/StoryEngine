@@ -435,6 +435,67 @@ Node/Express server, jQuery-ish browser client, per-user directory tree on disk.
 The oldest and most widely deployed; the ecosystem reference for card and
 lorebook formats.
 
+### The library on disk — surveyed 2026-09-22, at `06bde939` (1.19.0)
+
+**Written from SillyTavern's write paths rather than from its files**, which is
+the difference that matters: every claim below is what some function in its
+source *emits*, and the reader had been built from what its files *looked
+like*. [P4 §7.19] records what that cost.
+
+**The tree is stable and the files inside it are not.**
+`USER_DIRECTORY_TEMPLATE` has changed seven times ever, and not once in the
+year before this survey; nothing we parse moved between 1.18.0 and 1.19.0.
+Format change happens *inside* files, is recognised by shape rather than by a
+version, and is migrated on load. There is no storage format number, no lock
+file and no migration marker a reader could wait on: `settings.json`'s
+`currentVersion` is the version of the app that last saved *settings*, it is
+absent until the first save, and it says nothing about the worlds and cards
+beside it.
+
+**Five files sit at the root** that the template does not name:
+`settings.json`, `secrets.json` (a credential; its own backup writer excludes
+it), `stats.json`, `image-metadata.json`, and `content.log`, which lists the
+default content a fresh install seeded and is therefore how *shipped* is told
+from *the person's own*. `write-file-atomic` can leave `<file>.<digits>`
+behind, and `sysprompt/` carries an empty `.migrated` marker.
+
+**A card is written twice into the same PNG.** `chara` holds the V2 JSON and
+`ccv3` the same JSON with its `spec` switched to v3; both are `tEXt`, keywords
+are compared lowercased, and `ccv3` wins on read. `characters/<name>/` beside
+the cards holds expression sprites, whose label is the lowercased name up to
+the first `-` or `.`, so `joy-1.png` and `joy.png` are both *joy*. Only
+top-level `.png` is listed as a character.
+
+**A linked lorebook is stored twice, in two different shapes.** The world lives
+in `worlds/<name>.json` keyed by uid, and a *copy* of it is embedded in the
+card as `character_book` in the V2 spec's shape — `keys`, `secondary_keys`,
+`insertion_order`, `enabled`, a string `position`, and everything else under
+`extensions`. The embedded copy is dormant in SillyTavern: it is read on import
+and never again.
+
+**Null means *ask the install*.** `scanDepth`, `caseSensitive`,
+`matchWholeWords` and `useGroupScoring` are declared nullable by SillyTavern
+itself, and null on any of them means take the global setting — which lives
+under `world_info_settings`, or at the top level in an older file, and falls
+back *per missing key* to module defaults that disagree with what a fresh
+install ships. A key is a regex when it is written `/pattern/flags`; inclusion
+groups are comma-separated; `delayUntilRecursion` is a recursion *level*, not a
+flag; and depth 0 means scan nothing.
+
+**A persona is a row in `settings.json`, not a file.** `power_user.personas`
+maps an avatar filename to a name, `persona_descriptions` holds the
+description, position, depth, role, title, lorebook link and connections, and
+an image with no name is called `[Unnamed Persona]`. The library's own
+organisation — `tags` and `tag_map`, and the `charLore` extra-book links — is
+in the same file, keyed by avatar filename.
+
+**The prompt order a chat-completion preset carries twice.** `100001` is the
+one the prompt manager has written since 2023-08; `100000` is the class default
+it overrides, so a file carrying both carries one order nobody has edited in
+two years. SillyTavern restores missing default prompts rather than dropping
+the order entries that name them. In text-completion presets `genamt` is the
+response length and `max_length` is the *context* size.
+
 ### What it gets right and we should take
 
 **Multi-user already exists and the model is instructive.**

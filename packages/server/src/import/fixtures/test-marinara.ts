@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
 import { makePng } from '../../storage/card/test-png.js';
+import { encodeShardKey } from '../marinara/store-format.js';
 
 /**
  * A synthesised Marinara data root
@@ -178,4 +182,158 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
     // cost the whole character. A bad portrait must cost the portrait.
     'avatars/char_broken.png': 'pretend this is a portrait',
   };
+}
+
+/**
+ * The same library as a storage format 5–7 store
+ * ([P4 §7.18](../../../../../docs/design/workplan/16-p4-implementation.md)).
+ *
+ * **Every table sharded, and every file a real store leaves lying about beside
+ * the shards**, because each of those files is a way the old reader was wrong:
+ * the `.bak` beside most shards that doubled the library, the automatic
+ * `.pre-shard` backups a migration keeps for ever, a torn `.tmp-`, a quarantined
+ * `.corrupt-`, the launcher's `.post-unshard-` directory, a monolith an older
+ * build wrote back after the migration, a shard that survives only as its
+ * backup, a torn primary with a good backup, a row stranded in the wrong file,
+ * and the orphan shard.
+ *
+ * Several of those carry *distinct, valid* rows on purpose. A decoy that holds
+ * the same row as the real file is removed by the dedupe and proves nothing
+ * about the filename filter; one holding `char_ghost_tmp` shows up in the
+ * library the moment a reader stops filtering names.
+ *
+ * File names come from the production `encodeShardKey`, but **the owner column
+ * each table shards by is spelled here, from upstream's map** (`file-backed-
+ * store.ts:442-485` at `459f8b85b`), rather than read from `store-format.ts` —
+ * a fixture that asked the reader which file a row belongs in would agree with
+ * the reader by construction.
+ */
+export function marinaraShardedFixture({ version = 7 }: { version?: number } = {}): Record<
+  string,
+  Uint8Array | string
+> {
+  const tables = 'storage/tables';
+  const at = (table: string, owner: string): string =>
+    `${tables}/${table}/${encodeShardKey(owner)}.json`;
+  const stamp = '2026-09-01T10-00-00-000Z';
+
+  const maris = {
+    id: 'char_maris',
+    data: JSON.stringify({
+      name: 'Maris Okonkwo',
+      description: 'Ferry pilot.',
+      first_mes: 'Aboard.',
+    }),
+    createdAt: '2026-08-02T00:00:00.000Z',
+    updatedAt: '2026-08-02T00:00:00.000Z',
+  };
+  // A copy of Vera stranded in Maris's file, older, and named so a wrong pick
+  // shows. Upstream keeps the copy in the file Vera's own id names.
+  const strandedVera = {
+    ...CHARACTER_ROW,
+    data: JSON.stringify({ name: 'Vera Solano (stranded copy)', description: 'stale' }),
+    createdAt: '2026-07-01T00:00:00.000Z',
+  };
+  const ghost = (id: string, name: string) => ({
+    id,
+    data: JSON.stringify({ name, description: 'Only in a file no reader should open.' }),
+    createdAt: '2026-06-01T00:00:00.000Z',
+  });
+  const orphan = {
+    id: 'entry_orphan',
+    lorebookId: null,
+    keys: ['nowhere'],
+    content: 'An entry whose book was deleted.',
+  };
+
+  return {
+    'storage/manifest.json': json({
+      version,
+      savedAt: '2026-09-20T12:00:00.000Z',
+      backend: 'file-native',
+      tables: {
+        characters: 2,
+        personas: 0,
+        lorebooks: 1,
+        lorebook_entries: 2,
+        lorebook_folders: 0,
+        lorebook_character_links: 1,
+        prompt_presets: 1,
+        prompt_sections: 2,
+        prompt_groups: 0,
+        choice_blocks: 0,
+        messages: 2,
+      },
+    }),
+    'storage/manifest.json.bak': json({ version, backend: 'file-native', tables: {} }),
+
+    // characters, sharded by `id`. The stale backup is inserted before its
+    // primary, so a reader that keeps the first copy it meets keeps the wrong one.
+    [`${at('characters', 'char_vera')}.bak`]: json([
+      { ...CHARACTER_ROW, data: JSON.stringify({ name: 'Vera Solano (one save ago)' }) },
+    ]),
+    [at('characters', 'char_vera')]: json([CHARACTER_ROW]),
+    [at('characters', 'char_maris')]: json([maris, strandedVera]),
+    [`${at('characters', 'char_maris')}.bak`]: json([maris]),
+    [`${at('characters', 'char_vera')}.tmp-4242-1758000000000`]: json([
+      ghost('char_ghost_tmp', 'Ghost from a torn write'),
+    ]),
+    [`${at('characters', 'char_vera')}.corrupt-${stamp}`]: json([
+      ghost('char_ghost_corrupt', 'Ghost from quarantine'),
+    ]),
+    // What the migration kept, and what the launcher's unshard set aside.
+    [`${tables}/characters.json.pre-shard`]: json([
+      ghost('char_ghost_preshard', 'Ghost from before the migration'),
+    ]),
+    [`${tables}/characters.json.bak.pre-shard`]: json([]),
+    [`${tables}/characters.post-unshard-${stamp}/${encodeShardKey('char_vera')}.json`]: json([
+      {
+        ...CHARACTER_ROW,
+        data: JSON.stringify({ name: 'Vera Solano (unsharded)' }),
+        createdAt: '2026-05-01T00:00:00.000Z',
+      },
+    ]),
+
+    // lorebooks, sharded by `id`, surviving only as a backup.
+    [`${at('lorebooks', 'book_rain_city')}.bak`]: json([LOREBOOK]),
+    // lorebook_entries, sharded by `lorebookId` — and the orphan shard.
+    [at('lorebook_entries', 'book_rain_city')]: json(LOREBOOK_ENTRIES),
+    [`${at('lorebook_entries', 'book_rain_city')}.bak`]: json(LOREBOOK_ENTRIES),
+    [`${tables}/lorebook_entries/orphaned-rows.json`]: json([orphan]),
+    [at('lorebook_character_links', 'book_rain_city')]: json([
+      { id: 'link_1', lorebookId: 'book_rain_city', characterId: 'char_vera' },
+    ]),
+
+    // prompt_presets by `id`, with a monolith an older build wrote back beside it.
+    [at('prompt_presets', 'preset_harbour')]: json([PROMPT_PRESET]),
+    [`${at('prompt_presets', 'preset_harbour')}.bak`]: json([PROMPT_PRESET]),
+    [`${tables}/prompt_presets.json`]: json([{ ...PROMPT_PRESET, name: 'Harbour (downgrade)' }]),
+    // prompt_sections by `presetId`: a torn primary and the good backup beside it.
+    [at('prompt_sections', 'preset_harbour')]: '[{"id":"section_main","presetId":',
+    [`${at('prompt_sections', 'preset_harbour')}.bak`]: json(PROMPT_SECTIONS),
+
+    // Chat data, which import records rather than converts.
+    [at('messages', 'chat_1')]: json([{ id: 'm1', chatId: 'chat_1', content: 'hi' }]),
+    [`${at('messages', 'chat_1')}.bak`]: json([{ id: 'm1', chatId: 'chat_1', content: 'hi' }]),
+    [`${tables}/messages/orphaned-rows.json`]: json([{ id: 'm2', chatId: null, content: '?' }]),
+    [`${tables}/chats.json.post-downgrade-${stamp}`]: json([]),
+
+    [at('api_connections', 'conn_1')]: json([
+      { id: 'conn_1', name: 'local', apiKey: 'this must never reach disk' },
+    ]),
+    '.encryption-key': 'not a real key, and not one that should be read either',
+    'avatars/char_vera.png': makePng(),
+  };
+}
+
+/** Writes a fixture tree under `root`, for the tests that read from a real directory. */
+export async function writeFixtureTree(
+  root: string,
+  tree: Record<string, Uint8Array | string>,
+): Promise<void> {
+  for (const [path, value] of Object.entries(tree)) {
+    const full = join(root, ...path.split('/'));
+    await mkdir(dirname(full), { recursive: true });
+    await writeFile(full, value);
+  }
 }

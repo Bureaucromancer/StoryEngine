@@ -201,6 +201,26 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
 
   /**
+   * **What a Marinara store's own files said** ([P4 §7.18]). Each is a thing
+   * Marinara's store does on its own boot — fall back to a backup, restore a
+   * table from before a migration, set aside a file an older build wrote — and
+   * the review says so because the person otherwise has no way to know the
+   * library came from somewhere other than the file they would have guessed.
+   */
+  'import.marinara.backupUsed':
+    '{file} could not be used, so the backup copy beside it was read instead. It may be one save older.',
+  'import.marinara.rowsMalformed':
+    '{count} entries in {file} were not rows this build could read, and were left out.',
+  'import.marinara.monolithSuperseded':
+    '{file} is an older copy an earlier version of Marinara wrote beside the newer one, and was not read. Marinara sets it aside too; anything only in it has to be recovered by hand.',
+  'import.marinara.preShardRestored':
+    'The {table} table was read from {file}, the backup Marinara keeps from before it reorganised its files — the same copy Marinara would restore on its next start.',
+  'import.marinara.rowsMissing':
+    'Marinara counts {expected} rows in {table}; {found} were found here.',
+  'import.marinara.unshardUnfinished':
+    '{file} says an offline reorganisation of this folder did not finish. What is here was read as it stands.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by

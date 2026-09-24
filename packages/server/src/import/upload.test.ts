@@ -18,7 +18,7 @@ import { readUpload, type ProbeConfidence } from './upload.js';
  *
  * The fixtures are the real thing rather than plausible ones:
  *   source  SillyTavern/default/content/presets/{instruct,context,reasoning}/
- *   commit  8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8 (2026-07-07)
+ *   commit  06bde939fb1e9c4c8d8641d810f0a916b5bce127 (1.19.0, 2026-09-14)
  *   taken   2026-09-01
  * — the same snapshot commit `registries/sillytavern.ts` and
  * `sensitive-fields.ts` already vendor from, which is worth keeping true.

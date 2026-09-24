@@ -16,8 +16,10 @@ import type { ImportDisposition } from '@storyengine/shared';
  *
  * Snapshot provenance:
  *   source  SillyTavern/src/constants.js, `USER_DIRECTORY_TEMPLATE`
- *   commit  8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8 (2026-07-07)
- *   taken   2026-08-30
+ *   commit  06bde939fb1e9c4c8d8641d810f0a916b5bce127 (1.19.0, 2026-09-14)
+ *   taken   2026-09-22
+ *   was     8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8 (1.18.0+1, 2026-07-07),
+ *           byte-identical: the template has not moved since 2025-06
  *
  * Counting it is how P4 found that its own plan named about eighteen of these
  * and the template has thirty-one. A disposition nobody wrote is exactly the
@@ -140,3 +142,66 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
   'user/files': 'skipped',
   'user/workflows': 'skipped',
 };
+
+/**
+ * The files that sit at the root of a user directory, beside the thirty
+ * directories ([P4 §7.19]).
+ *
+ * **The template does not name them, and the reader met them as
+ * `unrecognised`.** `USER_DIRECTORY_TEMPLATE` is directories only, so every one
+ * of these arrived in a real import as a row saying nothing was recognised —
+ * which is the same silent-drop failure §1.8 built the directory snapshot to
+ * prevent, one level down. They are files somebody would recognise the names
+ * of, and each one has an answer:
+ *
+ *   settings.json       `src/constants.js:9`           — read: personas, tags
+ *                                                        and the world-info
+ *                                                        settings every book
+ *                                                        here matches by
+ *   secrets.json        `src/endpoints/secrets.js:8`   — a credential, never
+ *                                                        opened
+ *   stats.json          `src/endpoints/stats.js:13`    — usage counters
+ *   image-metadata.json `src/endpoints/image-metadata.js:15`
+ *   content.log         `src/endpoints/content-manager.js:195` — which default
+ *                                                        files were seeded
+ */
+export const SILLYTAVERN_ROOT_FILES = [
+  'settings.json',
+  'secrets.json',
+  'stats.json',
+  'image-metadata.json',
+  'content.log',
+] as const;
+
+/** What becomes of each root file. */
+export const SILLYTAVERN_ROOT_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> = {
+  /** An input to the sweep rather than an object in it, like the directory above. */
+  'settings.json': 'converted',
+  /**
+   * The same answer `.encryption-key` gets on the Marinara side ([P4 §1.1]):
+   * named in the review, never read, never in `compat`. SillyTavern's own
+   * backup writer leaves it out of the archive it builds, which is independent
+   * arrival at the same position.
+   */
+  'secrets.json': 'credential',
+  'stats.json': 'skipped',
+  'image-metadata.json': 'skipped',
+  'content.log': 'skipped',
+};
+
+/**
+ * The newest SillyTavern this build has been checked against.
+ *
+ * **It is a claim about us, not about them.** SillyTavern has no storage format
+ * number; the only version in a user directory is `settings.json`'s
+ * `currentVersion`, which records the app that last *saved settings* — not the
+ * shape of the worlds, cards and presets beside it. So this constant says what
+ * the vocabularies in `sillytavern/vocabulary.ts` were read against and what
+ * the fixtures were written from, and above it the sweep is careful rather than
+ * trusting ([P4 §7.19]).
+ *
+ * To move it: re-extract every set in `vocabulary.ts` from the new tag, run the
+ * suite, and change this line in the same commit. The sizes are pinned, so a
+ * set that gained a key fails rather than drifts.
+ */
+export const SILLYTAVERN_CHECKED_VERSION = '1.19.0';

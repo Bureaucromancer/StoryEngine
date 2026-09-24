@@ -390,6 +390,138 @@ instruct/context template surface stays discarded
 
 ---
 
+### 5.6 Image connections: one adapter, a table of endpoints, and the two that are not
+
+**Decided 2026-09-19.** [P9 §1.2](workplan/26-p9-implementation.md) made
+`Provider` grow one optional arm, `renderImage`, rather than a second provider
+*kind*, and wrote down what would reverse that: *an endpoint whose request is not
+prompt-plus-scalars*. This section is the first test of that condition against a
+real corpus rather than against reasoning, and the condition holds — but it
+holds in a way that is more useful than a yes: **most of what looks like a
+provider list is a table.**
+
+**The evidence.** `Pasta-Devs/Marinara-Engine` at `cc783dd` carries eighteen
+image sources in `EXPLICIT_IMAGE_SOURCES` — `openai`, `arli`, `nanogpt`,
+`openrouter`, `pollinations`, `stability`, `togetherai`, `novelai`, `horde`,
+`xai`, `venice`, `zai`, `atlas`, `comfyui`, `swarmui`, `automatic1111`,
+`runpod_comfyui`, `gemini_image` — plus `drawthings` aliased onto
+`automatic1111`. Measured by brace-matched body length, excluding shared
+helpers, they fall into four families and the sizes are the argument:
+
+| Family | Sources | Own body |
+|---|---|---|
+| Bearer, JSON POST, b64-or-url back | openai (71), nanogpt (67), xai (44), togetherai (37), arli (36), venice (34), zai (34), atlas (30), openrouter's images call (42) | 30–71 lines |
+| Its own request encoding | stability, multipart (57 + 41 legacy); pollinations, a GET of a URL (21); gemini through chat completions (50) | 21–57 |
+| Its own *lifecycle* | horde — submit, job id, poll (100) | 100 |
+| Its own *request kind* | comfyui (154), swarmui (18 + a 104-line session helper), runpod_comfyui | 154+ |
+
+**Nine of the eighteen are one provider wearing different hats.** Each is thirty
+to seventy lines whose entire content is: build a URL, rename three fields, find
+the image in the response — over shared `imageFetch`, `withImageCustomParameters`
+and `downloadImageUrl` helpers. That is a **table of endpoints**, and treating it
+as nine adapters is how a provider layer acquires nine things to maintain in
+exchange for nothing.
+
+**The corpus also votes, three times, on which of its own names matter**, and
+the three votes agree:
+
+- `IMAGE_DEFAULTS_SERVICES` is `["automatic1111", "comfyui", "novelai"]` — only
+  three get per-service settings profiles (sampler, scheduler, steps, cfg, clip
+  skip, denoising, LoRAs).
+- `LOCAL_IMAGE_BACKENDS` is `["comfyui", "swarmui", "automatic1111"]` — only
+  three get local-URL and mDNS network policy.
+- `SCENE_ILLUSTRATION_IMAGE_BACKENDS` holds thirteen of the eighteen, excluding
+  `arli`, `venice`, `zai`, `atlas` and `swarmui`.
+
+Four names are outside every vote: **Arli, Venice, Z.AI and Atlas** are API-key
+resellers with no settings and no access to the illustration path. They are the
+clearest possible statement that a long provider list is not the same as a
+supported one.
+
+#### What StoryEngine builds, and in what order
+
+**One adapter and a table.** `openai-compatible` plus `renderImage` plus a
+per-connection `rendersImages` ([P9.2](workplan/26-p9-implementation.md)) already
+covers the first family. What a new endpoint costs is a row: its size vocabulary,
+whether it answers in base64 or a URL, and its field renames. **NanoGPT is
+already reachable with no code at all** — `POST /v1/images/generations`,
+OpenAI-compatible, `b64_json` by default.
+
+**OpenAI is a named kind rather than a generic endpoint**, which is a deliberate
+exception to the paragraph above. `gpt-image-*` is the most-used name on the
+list; naming it means the model vocabulary, the size vocabulary and the
+reference-image limit are *known* rather than inferred from a base URL, and
+reference images route to `/images/edits` as multipart rather than failing
+confusingly. The rule stands and this is the one endpoint worth the exception.
+
+**OpenRouter needs its own shape, and the reason is worth recording** because
+the obvious assumption is wrong: it is **not** OpenAI-compatible for images. Its
+unified image API is `POST /api/v1/images` with `model`, `prompt`, `n`,
+`resolution`, `aspect_ratio`, `size`, `quality`, `output_format`, `seed` and
+`stream`, answering in base64. It is still prompt-plus-scalars, so it costs a
+request/response shim and nothing structural — and it is the one path that
+reports real cost in `usage`, which is the first thing able to improve on
+`renderImage`'s unconditional `cost: null`.
+
+**Gemini is a connection kind; *nano banana* is a model family on it.** The
+family as of 2026-09: **Nano Banana Pro** (Gemini 3 Pro Image, generally
+available June 2026, $0.134 at 1K and 2K, $0.24 at 4K), **Nano Banana 2**
+(Gemini 3.1 Flash Image) and **Nano Banana 2 Lite**. Two routes exist — the
+native `generateContent` call with image parts, or chat-completions-with-image-
+output, which is what the corpus does. **Take the native one**, because it is
+also the connection wanted when Gemini arrives on the text side, and because the
+chat-completions route is a workaround for not having a Gemini connection rather
+than a design. Note also that these models emit **SynthID watermarking**: a
+rendition is a provenance-bearing record ([06 §10](06-modes-and-turn-pipeline.md)),
+so that belongs in what the record knows about its source rather than in a pixel
+diff somebody runs later.
+
+**AUTOMATIC1111 is the one local backend worth an adapter now.** Its own REST
+(`/sdapi/v1/txt2img`, needing `--api`) is not OpenAI-compatible and is still
+prompt-plus-scalars — prompt, negative prompt, steps, cfg scale, sampler, seed,
+width, height — so it maps onto `renderImage` and onto the scalars-only
+`workflow` field without bending either. Eighty-eight lines in the corpus, and
+**DrawThings comes free** as a service hint onto the same adapter, which is how
+the corpus does it. Upstream A1111 being largely dormant is an argument *for*
+owning this rather than against: Forge, reForge and SD.Next keep the same
+surface, so one adapter serves the living forks.
+
+**ComfyUI is the reversal condition arriving, and it is a phase rather than an
+adapter.** A workflow graph is posted to `/prompt`, a `prompt_id` comes back,
+progress arrives on a websocket, and the bytes are fetched from `/history` and
+`/view`. **There is no prompt field** — the prompt lives inside a node, and which
+node is a property of the workflow. Calling that "scalars" would make
+`ImageRequest.workflow` a lie and would poison the reuse digest that
+[P9.3](workplan/26-p9-implementation.md) hashes. It wants a second verb, and
+connection-level storage for a workflow template plus a node mapping. SwarmUI and
+RunPod ComfyUI ride on that work once it exists.
+
+#### What is not built, and why
+
+**Midjourney is deferred, and the reason is not technical** — recorded at
+[25 E14](25-open-questions.md).
+
+**Horde is a maybe.** Its submit-and-poll lifecycle actually suits the detached
+rendition job model ([P9.2](workplan/26-p9-implementation.md)) better than most,
+and the same adapter would serve any async relay. It is niche, and that is the
+only thing against it.
+
+**Pollinations cannot be taken as the corpus has it.** Twenty-one lines and no
+API key make it an appealing zero-configuration path, and its generator ignores
+`request.seed` and substitutes `Math.random()`. That breaks two rules at once:
+`Math.random` outside the randomness service is a build error
+([§14](19-tech-stack.md)), and [06 §10.7](06-modes-and-turn-pipeline.md) makes
+the seed the load-bearing field of a recipe, echoed back and hashed into the
+digest. A Pollinations rendition could never be re-created while the record
+claimed a seed nobody honoured. It needs the seed plumbed through, or it needs a
+way for a rendition to declare itself non-reproducible — which does not exist and
+should not be invented for one endpoint.
+
+**Arli, Venice, Z.AI and Atlas are not built**, on the corpus's own evidence
+above.
+
+---
+
 ## 6. Client: React + Vite, with the framework decision deliberately reversible
 
 **CONFIRMED ([25 A6](25-open-questions.md)): React + TypeScript + Vite. TanStack Query / Router / Virtual /

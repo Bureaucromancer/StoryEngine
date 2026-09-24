@@ -114,6 +114,91 @@ describe('what a Marinara data root has to carry', () => {
   });
 });
 
+describe('what a Marinara store spends its budget on first', () => {
+  /**
+   * **Priority, not the browser's order** ([P4 §7.18]). From storage format 5
+   * every chat is a directory of shards under `storage/`, and a picker that
+   * lists them first used to spend the whole budget before reaching the one
+   * directory of characters — which then arrived declared, read as nothing, and
+   * imported as nothing.
+   */
+  it('carries the tables it converts before the chats it only reports', () => {
+    const plan = planUpload(
+      'marinara',
+      [
+        { path: 'storage/tables/messages/chat%5F1.json', bytes: 400 },
+        { path: 'storage/tables/messages/chat%5F2.json', bytes: 400 },
+        { path: 'storage/tables/characters/char%5Fvera.json', bytes: 50 },
+        { path: 'storage/tables/characters/char%5Fvera.json.bak', bytes: 50 },
+        { path: 'avatars/char_vera.png', bytes: 100 },
+        { path: 'storage/manifest.json', bytes: 5 },
+      ],
+      300,
+    );
+
+    // Wanted in manifest order, which the upload route relies on.
+    expect(plan.wanted).toEqual([
+      'storage/tables/characters/char%5Fvera.json',
+      'storage/tables/characters/char%5Fvera.json.bak',
+      'avatars/char_vera.png',
+      'storage/manifest.json',
+    ]);
+    expect(plan.declared).toEqual([
+      'storage/tables/messages/chat%5F1.json',
+      'storage/tables/messages/chat%5F2.json',
+    ]);
+  });
+
+  /**
+   * **A shard and its backup travel together.** The reader reads a `.bak` when
+   * its primary reads as nothing — and a declared primary reads as nothing — so
+   * a budget that carried the backup and not the primary would import the
+   * backup, one save stale.
+   */
+  it('never carries a backup its primary was ranked below', () => {
+    const plan = planUpload(
+      'marinara',
+      [
+        { path: 'storage/tables/characters/char%5Fvera.json.bak', bytes: 50 },
+        { path: 'avatars/char_vera.png', bytes: 60 },
+        { path: 'storage/tables/characters/char%5Fvera.json', bytes: 50 },
+      ],
+      100,
+    );
+
+    expect(plan.wanted).toContain('storage/tables/characters/char%5Fvera.json');
+    expect(plan.declared).toEqual(['avatars/char_vera.png']);
+  });
+
+  it('only names what it never reads, however large the budget', () => {
+    const plan = planUpload(
+      'marinara',
+      entries(
+        'storage/tables/messages/chat%5F1.json',
+        'storage/tables/noodle_posts/acct.json',
+        'storage/tables/characters/char%5Fvera.json.tmp-1-2',
+        'storage/tables/characters/.migrating',
+      ),
+      HUGE,
+    );
+
+    expect(plan.wanted).toEqual([]);
+  });
+
+  it('carries a pre-migration backup last, since it is read only when nothing else is', () => {
+    const plan = planUpload(
+      'marinara',
+      [
+        { path: 'storage/tables/characters.json.pre-shard', bytes: 90 },
+        { path: 'avatars/char_vera.png', bytes: 60 },
+      ],
+      100,
+    );
+
+    expect(plan.wanted).toEqual(['avatars/char_vera.png']);
+  });
+});
+
 describe('a folder nobody arranged', () => {
   it('carries everything, because the probe reads every file', () => {
     // [P4 §7.8]: a loose root has no positions to route by, so it asks each file
