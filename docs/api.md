@@ -1254,6 +1254,106 @@ remove it would make the copy a binding ([00 §3.1](design/00-stance.md)). It do
 not reach the treatment. Removing one that is already gone succeeds — it is the
 state the caller asked for — while a missing **session** is still a `404`.
 
+### `POST /api/sessions/:sessionId/hooks/:hookId/promote`
+
+`{ target: { kind: 'treatment' | 'setup' | 'lore', id }, from? }` →
+`{ object: { id, name, kind } }`. The pooled hook named by `:hookId` is appended
+to that library object's `hooks`, **keeping its id**, and the object is written
+through the ordinary library update path.
+
+**`from` is which pooled row, and an id alone cannot say.** It is the row's own
+`source` — `{ kind: 'treatment' | 'setup' | 'lore', id }` or `{ kind: 'session' }`,
+the vocabulary `GET /hooks` already returns — and the pool needs it because
+`poolFor` deliberately does not de-duplicate: *the same hook reaching a session
+through two sources is a real authoring situation*, so two rows can share an id
+and carry different content, and the panel draws both. Without it the handler
+takes the first match, which is the row above the one that was pressed — and the
+409 below then refuses every later attempt, so the hook somebody meant can never
+reach that object. It carries no hook content, only a kind and an id the server
+already holds. Omitting it means *the first row with that id*, which is the
+honest reading of a request that names only one.
+
+**The valve the pair above never had.** A session copies hooks in from all four
+of [03 §4.1](design/03-data-model.md)'s sources and may gain its own while
+playing; until this route there was no way back out of one, so a hook realised
+mid-play — which [06 §6.1](design/06-modes-and-turn-pipeline.md) calls most of
+why the feature earns its place — died with the session it was realised in. This
+is the other direction, and it is an **offered** act rather than an automatic
+one: it is [03 §2.3](design/03-data-model.md)'s rule for session-local actors —
+*promotion to the library is an explicit user action, and an offered one* —
+arriving at its first implementation, one object at a time and only because
+somebody pressed something.
+
+**Why this is a route at all, which is not a preference.** The client cannot do
+this as a read-modify-write because **it has never been shown the hook**. The
+panel's surface ([10 §10.1](design/10-ui-surfaces.md)) is a redaction: a
+`premise` only once the hook is spent, `entrances` by label and never by text,
+and `involves`, `weight`, `delivery`, `once`, `notBefore` and `blockedBy` not
+sent at all. Making a client-side copy possible would mean handing the panel an
+unfired premise and unfired entrance text, which
+[08 §6](design/08-cross-session-memory.md) and 10 §10.1 forbid by name — an
+unfired entrance is hidden content, and the person reading the panel is the
+person the arrival is being kept from. So the request carries **no hook
+content**: it names which hook and which object, and the server is the only party
+that ever holds the thing being copied.
+
+**The id survives, and that is what the 409 protects.** A promoted hook is the
+same hook, and [15 §5.1](design/15-world.md) makes keeping its id an obligation
+whose failure is *unrecoverable later* — a corpus of sessions whose hooks carry
+unrelated ids cannot be assembled into a continuity afterwards, because the
+information that would have linked them was never written. So a target that
+already carries a hook with this id is **`409 already-there`** rather than a
+second copy or a re-mint. Pressing the control twice is an ordinary thing to do:
+the first press leaves the panel row looking exactly as it did.
+
+**The session is not touched.** The pool entry keeps `source: { kind: 'session'
+}` and no turn is appended. Re-attributing it to the target would claim the
+target owns the copy that is running, and for a `lore` target it would silently
+add *eligible only while that book is active* to a hook that never had that
+clause — 06 §6.1's *pulled, never pushed*, read in the direction that bites here.
+A client that wants the panel to say where the hook now also lives reads the
+object, not the session, which is why the reply carries the object.
+
+**The target's history is the record.** The write goes through the same path
+every other library edit takes, with a `manual` change attribution whose reason
+names the session. The **conclusion** is [10 §11.2c](design/10-ui-surfaces.md)'s,
+read one kind over — *the book's history is the record of the import*, so nothing
+new is stored to say a hook came from a session, because the version the write
+leaves behind says it where somebody looking at the object will look.
+
+***The mechanism is deliberately not §11.2c's, and that is worth saying rather
+than stepping around.*** That section's rule is concretely `source: "import"`
+*naming what came in and from where*, and `VersionSource` has exactly that arm.
+It is not taken here because `import` in this build means *content that was not
+in this library arrived in it* — a `.sepack`, a card, a book somebody sent you —
+and a promoted hook came **from** the library and never crossed a boundary. The
+cost is real and is named in `sessions/promote.ts`: `manual` plus prose is not
+queryable, so a later feature wanting *which sessions contributed hooks to this
+treatment* would have to match a string, and the honest repair then is an eighth
+`VersionSource` arm rather than a reinterpretation of this one.
+
+**Four refusals, and each claims something different.** `404 no-session`, `404
+no-such-hook` when this pool has no such id, and `404 no-such-object` when the
+target has been deleted since the panel listed it — three answers rather than a
+shared *not found*, because a person sent to the wrong one of them looks in the
+wrong place. `409 already-there` is above. Beyond those the library's own
+refusals apply unchanged: `403 read-only` for a system-library target
+(copy-to-my-library is the move), `400 invalid` if the pooled hook is one the
+carrier's schema refuses, and `409 diverged` if the target's file broke
+underneath the write.
+
+***`412 stale` is the one library refusal this route does not pass through***,
+and answers `409 target-moved` with **no envelope** instead. The 412 arm attaches
+`current` — the whole target object — so that an *editor* can offer
+reload-and-reapply; on this route that object is a treatment's or a lorebook's
+every hook, which means every **unfired** premise and every entrance text on it,
+sent to the play client. That is exactly the content [08 §6](design/08-cross-session-memory.md)
+and [10 §10.1](design/10-ui-surfaces.md) name as hidden, at the surface they name
+it about, arriving through the error path of the route whose whole reason for
+being server-side is that redaction. Nothing is lost by withholding it: the
+client has never held the hook, so there is no *reapply my edits* it could offer,
+and *try again* is the whole of the recovery.
+
 ### `PUT /api/sessions/:sessionId/lore`
 
 `{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`
@@ -2375,6 +2475,337 @@ I restart it?"* is a worse answer than one that says.
 
 ---
 
+## Backups
+
+*Added at [P12.3](design/workplan/29-p12-implementation.md).* An archive of a
+data directory, or of one account's part of it, written into the data directory
+itself and meant to be copied somewhere else.
+
+**Two halves that differ in one word.** `/api/me/backups` answers for the
+account holding the session cookie; `/api/admin/backups` answers for the
+install and sits behind the `adminOnly` hook on its prefix. There is **no
+`:handle` parameter anywhere here** — the owner comes from the cookie, which is
+[09 §4.3](design/09-server-multiuser-deployment.md)'s *the path is the owner*
+arriving at the API.
+
+**Taking one is gated by no capability.** `scheduledBackups`
+([P12.4](design/workplan/29-p12-implementation.md)) governs whether the *server*
+takes backups on a timer, because a misconfigured schedule is how a data
+directory fills up while nobody is looking. A person pressing a button is not
+that.
+
+### The backup record
+
+```json
+{
+  "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60",
+  "scope": "account",
+  "handle": "ned",
+  "contents": "full",
+  "takenAt": 1790000000000,
+  "bytes": 184320
+}
+```
+
+`id` is a uuidv7 and **is where `takenAt` comes from** — its first forty-eight
+bits are the millisecond it was minted. Nothing here is read from a database:
+the listing is a directory read, so deleting an archive by hand is a non-event.
+
+`contents` is `full` or `redacted`. A **full** archive carries credentials —
+the account's `connections/`, and for an install archive `accounts.json` and
+the session signing key — which is what makes it restorable. A **redacted** one
+omits them, and restores to an install nobody can sign into.
+
+### `POST /api/me/backups`
+
+**Takes one now** → `201 {"backup": …}`.
+
+```json
+{ "contents": "full" }
+```
+
+`contents` is **required and has no default**: the two produce genuinely
+different files and the difference is a person's to make.
+
+***A file whose path no tar header can name does not fail the archive.*** ustar
+holds 255 bytes across its two name fields and our own longest path is about
+232, so this is reachable by hand rather than by us — the library is a folder
+somebody may open in a text editor. Such a file is **left out and named in the
+manifest's `omitted` at `warn`**, because all-or-nothing is the right failure
+for a *restore* and the wrong one for a backup: it would leave an install with
+no archive at all, discovered on the day somebody needed one.
+
+### `GET /api/me/backups`
+
+**Everything this account has** → `200 {"backups": […], "totalBytes": n}`,
+newest first.
+
+`totalBytes` is what they weigh together. Retention is deliberately not built
+([P12](design/workplan/29-p12-implementation.md)), so this number and the delete
+below are how a person prunes.
+
+### `GET /api/me/backups/:id/download`
+
+**The archive** → `200`, `application/gzip`, with `content-length` and a
+`content-disposition` naming the file. `404` for an id this account has no
+archive for — including one that exists for somebody else, because whether an id
+exists elsewhere is worth hiding.
+
+***The one route in this API that streams a file body.*** Every other
+`content-disposition` route sends a document it already holds; an archive is not
+bounded by anything.
+
+`:id` must be a uuidv7 or the request is refused before a handler sees it, and
+the handler resolves it against the directory listing rather than building a
+path from it.
+
+### `DELETE /api/me/backups/:id`
+
+**Removes it** → `204`, or `404` if it is not there.
+
+### `GET /api/me/backups/settings`
+
+**This account's schedule** → `200 {"settings": …}`.
+
+```json
+{ "frequency": "weekly", "onStart": true, "contents": "redacted" }
+```
+
+`frequency` is `off`, `daily` or `weekly`. `onStart` is **independent of it**
+rather than a fourth value in the list: a machine that is up for an hour and a
+machine that is up for a month want different halves, and one that is usually up
+but occasionally rebooted wants both.
+
+An account that has never set one reads back `off`, `false`, `full`. **Readable
+without the capability**, and the body carries no *may they* flag — the client
+gates the form on `capabilities.scheduledBackups` from `auth/state`, the same
+way the connections panel is gated on `privateConnections`.
+
+### `PUT /api/me/backups/settings`
+
+**Replaces it** → `200 {"settings": …}`.
+
+**Every field is required**, and unknown keys are refused. A patch would let a
+client that knew about two fields leave the third at whatever it was, where the
+failure is a schedule somebody believes they turned off.
+
+`403 no-scheduled-backups` when an administrator has not granted
+`scheduledBackups` for this account. **The route is the boundary and the UI is
+never it** ([09 §4.5](design/09-server-multiuser-deployment.md) calls a UI-level
+check a trivial bypass), which is how `fileAccess` is enforced at
+`POST /api/import/sweep`. It is 403 rather than 404 because a client needs to
+tell *you may not* from *there is no such thing*.
+
+***Taking a backup is never gated by this.*** The capability governs the server
+writing archives on a timer nobody is watching, which is the one way a setting
+somebody made once fills a data directory — and a full disk stops the server
+writing turns for everybody. A person pressing a button is not that.
+
+### `GET /api/me/backups/:id/manifest`
+
+*Added at [P12.10](design/workplan/29-p12-implementation.md).* **What is in
+that archive** → `200 {"manifest": …}`.
+
+```json
+{
+  "schema": "storyengine.backup-manifest/1",
+  "scope": "account",
+  "handle": "ned",
+  "contents": "full",
+  "takenBy": { "version": "1.0.0-alpha.1", "at": "2026-09-20T10:00:00.000Z" },
+  "reason": "manual",
+  "files": 42,
+  "unpackedBytes": 512000,
+  "handles": ["ned"],
+  "omitted": []
+}
+```
+
+**It costs one gzip block**, because `backup.json` is written as the archive's
+first member and this reads the first member or nothing. An install archive is
+not bounded by anything, so the difference between that and inflating it is the
+difference between a question a person can ask casually and one they cannot.
+
+`404` for an id this owner has no archive for. **`422 unreadable`** for a file
+that will not read as one of ours — not a 500: an archive is a file that
+survived, from a disk that may have had a bad week.
+
+***This is what a backup import offers instead of a preview.***
+[P4 §1.4](design/workplan/16-p4-implementation.md) settled that for every
+import: a **sweep** commits and reports, because a staging area for three
+hundred objects is a second library, and `import/preview.ts` is the other case —
+one hand-picked file. A backup import is a sweep, so what a person reads before
+committing is the archive's own account of itself, which is what the controls
+turn on. `unpackedBytes` is also [P12.11]'s free-disk check.
+
+### `POST /api/me/backups/import`
+
+*Added at [P12.9](design/workplan/29-p12-implementation.md).* **Brings an
+archive's content into this account** → `200`.
+
+```json
+{
+  "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60",
+  "onConflict": "skip",
+  "options": { "connections": false, "prefs": false }
+}
+```
+
+**Import is not restore.** This merges into a *running* server and touches
+nothing that is install authority: `accounts.json`, `state/` and
+`system/library/` are never read. That line is what keeps the two verbs distinct
+rather than a slider, and it is why somebody who clicks the wrong one loses
+nothing.
+
+**Work and tags always; everything else is a switch somebody ticked.** Library
+objects and sessions are what a person means by *my stuff*, and tags travel with
+them because objects reference tags **by id** ([05 §4](design/05-tagging.md)) —
+an import without them would leave every imported object pointing at names that
+resolve to nothing. `connections` and `prefs` each default **false** and each is
+**reported whether taken or not**, because *my keys did not come across* is a
+question with an answer rather than a bug report.
+
+`onConflict` is `skip` (the default), `keep-both` or `replace`. ***The default
+differs from `POST /api/import/sweep`'s deliberately***: a re-imported foreign
+file *is* the object that file produced, where a backup meeting a live account
+is the past meeting the present — and the present is usually what somebody wants
+to keep.
+
+The response carries the same `report` every other import returns, with its
+`jobId` in the same ledger, plus `sessions`, `tags` and the `notes` the optional
+groups produced:
+
+```json
+{
+  "report": { "jobId": "…", "source": "storyengine-backup", "items": [], "counts": {} },
+  "sessions": { "imported": 2, "skipped": 0 },
+  "tags": { "added": 1, "kept": 4 },
+  "notes": [{ "key": "import.backup.prefsNotTaken", "params": {}, "level": "info" }]
+}
+```
+
+`403` for a `handle` that is not this account's — a person may only read their
+own subtree. `422` for an archive that will not read, or that does not hold the
+handle asked for.
+
+***The archive is named by id rather than uploaded***, which is a scoping
+decision rather than an omission: a person's backups are already on this server,
+because that is where they land. Moving one **between** installs is the upload
+case, and an archive dropped into `data/backups/` by hand is listed and
+importable today — the same capability with the file transfer done by whatever
+already moves files onto that machine.
+
+### `POST /api/admin/backups`, `GET /api/admin/backups`, `GET /api/admin/backups/:id/download`, `GET /api/admin/backups/:id/manifest`, `DELETE /api/admin/backups/:id`
+
+**The same four, for the whole install.** Identical bodies and responses, with
+`scope: "install"` and `handle: null`. An install archive carries every
+account's work, `config.json`, `system/`, the operational store and — when it is
+`full` — `accounts.json` and the session key, so it lives at `data/backups/`,
+outside every user directory, for the reason `accounts.json` does.
+
+**What an archive never carries**, whatever the scope: `index/`, which is
+derived and whose presence would restore *a stale belief about a newer tree*;
+`users/<handle>/trash/` ([03 §10.2](design/03-data-model.md)); and the backups
+directories themselves.
+
+### `POST /api/admin/backups/import`
+
+**The same import, per account** — same body, same response, with two
+differences.
+
+`handle` is **required**, and a handle with no account on this install is
+`404 no-such-account` rather than an account created to receive it: **an account
+created from an archive has no password**, and who may sign in is not a thing an
+archive gets to decide. There is deliberately no *all of them* arm.
+
+`options.config` is offered here and only here. It merges the archive's
+`config.json` through the same path `PUT /api/admin/config` uses, so
+`pendingRestart` is computed as usual and announced to administrators — with
+**`dataDir` and `server.clientRoot` refused by name**, because both are
+filesystem paths on the machine the archive came from: one would point a running
+server at a directory that may be somebody else's, the other would make it serve
+a 404 where the built client used to be. Ticking it on an *account* archive is
+`403 not-install-scope`.
+
+### `POST /api/admin/restore`
+
+*Added at [P12.11](design/workplan/29-p12-implementation.md).* **Puts an
+archive back as the install** → `202 {"draining": true, "plan": …}`, and this
+response is the last thing the process sends.
+
+```json
+{ "id": "0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60", "acceptRedacted": false }
+```
+
+***Restore is not import.*** It **replaces** the data directory rather than
+merging into it, and a running server cannot do that to itself in place: it
+holds open sqlite handles on files the archive would overwrite, and the session
+key it would replace is the one validating this request. So it is a handoff
+across a restart — write a marker, drain, exit, and swap on the next boot
+([P12.12](design/workplan/29-p12-implementation.md)).
+
+**Every precondition is checked while the server is still answering**, because
+a refusal after the process has exited is one nobody can read:
+
+| Status | `error` | When |
+|---|---|---|
+| 409 | `unsupervised` | Nothing would start the process again. The message carries the shell command instead |
+| 404 | `not-found` | No install archive with that id. An *account* archive lands here rather than at `wrong-scope`, because the install's listing does not hold one |
+| 409 | `wrong-scope` | An account archive reached the check anyway. Restoring one would leave the install holding that account and nothing else |
+| 409 | `needs-confirmation` | A `redacted` archive without `acceptRedacted: true`. It carries no accounts, connections or session key, so nobody could sign in afterwards |
+| 409 | `unreadable` | The archive does not read end to end, or holds fewer members than its manifest claims — a copy that ran out of space, a download that stopped |
+| 409 | `unsafe-path` | A member that would escape the data root when written out |
+| 507 | `no-space` | Less free space than `unpackedBytes` plus a tenth. **The directory being replaced is kept rather than deleted**, so a restore needs room for both |
+
+***The archive is read end to end, and that is the expensive check earning its
+place.*** A truncated archive is invisible from the manifest — the manifest is
+the first member, so it is the part that always survives — and finding out half
+way through the unpack means finding out after the old directory has been
+renamed aside.
+
+On success `state/restore.pending` is written with the archive's
+**data-root-relative** path, the manifest, who asked and `attempts: 0`. The
+marker lives inside the directory the swap moves aside and **no archive carries
+one**, so a successful restore cannot leave one behind and an unsuccessful one
+keeps exactly the state that describes itself.
+
+### `DELETE /api/admin/restore`
+
+*Added at [P12.12](design/workplan/29-p12-implementation.md).* **Calls off a
+pending restore** → `204`, whether or not there was one.
+
+***The one door out of a marker the boot will not act on.*** A restore that
+fails to unpack keeps its marker deliberately — the failure has to survive into
+the next boot to be refused there, and deleting it would turn *this did not
+work* into *nobody ever asked*. But a marker nothing will act on and nobody can
+remove is a trap on exactly the install this feature exists for: [25 E6]'s
+operator has a shell, and `docs/deploy.md`'s household one has a web page and
+nothing else.
+
+**What happens on the next boot**, for an accepted restore: before anything
+opens a handle on the data directory, the archive is unpacked to a **sibling**
+directory, the live directory is renamed to `<dataRoot>.replaced-<uuidv7>`, and
+the new one is renamed into place. Two renames on one filesystem; the window
+between them is the only unsafe moment and it is microseconds wide.
+
+***The replaced directory is kept and never deleted***, on `removed/`'s
+precedent — *StoryEngine will not delete this; remove it yourself when you are
+sure*. That is the undo, and the only property that covers *the restore worked
+and was the wrong archive*. A `system.notice` names it on that boot, which is
+the one place in this build where a filesystem path is deliberately put in
+front of a person.
+
+**A failed unpack leaves the install untouched** — everything is written before
+anything is renamed — rewrites the marker with `attempts: 1`, and boots
+normally. **A second attempt is refused rather than made**: a supervisor
+restarts a process that exits, so an unpack that kept failing would take the
+install down rather than one boot.
+
+***And the archive carries no index***, so the restored install rebuilds it on
+that same boot — which is [P11.11](design/workplan/28-p11-implementation.md)'s
+proof obligation arriving for free.
+
+
 ## Errors
 
 | Status | `error` | Means |
@@ -2405,6 +2836,8 @@ I restart it?"* is a worse answer than one that says.
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
 | 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
+| 404 | `no-session` / `no-such-hook` / `no-such-object` | Promoting a pooled hook out of a session ([03 §4.1]): the session is gone, this pool has no hook with that id, or the library object being promoted to has been deleted. **Three answers rather than one**, because they send a person to three different places and the union of them helps nobody |
+| 409 | `already-there` | The promotion target already carries a hook with this id. **Never a second copy and never a fresh id** — [15 §5](design/15-world.md) makes the id the only thing that links two firings of one hook across sessions, so re-minting it is the move that cannot be undone |
 | 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |

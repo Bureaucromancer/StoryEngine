@@ -103,6 +103,17 @@ what the user is doing at that moment, not by taste:
 | Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([12](12-account-gallery.md)) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
+***"Quiet" was only ever the negative half, and the positive half is now written
+down*** (2026-09-22). The right-hand column says what the story surfaces
+*strip* — no tool chrome, no panel background, no instrument panel on arrival —
+and then leaves what they *are* to whoever builds one next, which is how a
+surface ends up quiet in the sense of unfinished. The other half is
+**atmospheric but legible**: those surfaces carry the fiction's own furniture — a
+face for whoever is speaking, a picture of where this is happening, motion when
+something arrives — under a rule the tooling side never needs, which is that
+none of it may cost a word of the prose. §1.3 is that direction, where it came
+from, and what it does not take with it.
+
 **The play surfaces have one element that tests this directly**, and it is worth
 naming here rather than only where it is specified: the **backdrop** (§2.3), an
 image the engine generates and puts behind the story. *Clean prose first* is the
@@ -206,6 +217,163 @@ measured **1.01 to 1**. What separates the two families is **type** (`text-story
 at looser leading against the tooling steps), **measure** (`--container-reading`
 against the shell's width), and **chrome**: the story surfaces carry no border
 and no panel background, so tool chrome cannot land on one by accident.
+
+### 1.3 The Marinara direction, and the three layers it has to be separated into
+
+**Added 2026-09-22**, on a directive: push the client toward Marinara Engine's
+sensibilities, minus its colour palette, and keep rejecting anything whose only
+argument is *that is how SillyTavern did it*. This section is that direction
+written down so it is a position rather than a mood, and it is the positive half
+§1.1's Quiet column was missing.
+
+**Where the claims come from, because the corpus is careful about this.**
+Marinara's client component tree was on [01](01-source-survey.md)'s
+*not examined in any depth* list until this pass, so everything below is a fresh
+read of `packages/client/src`, `PRODUCT.md` and `DESIGN.md` (the latter states
+Marinara's own intended taste as named rules), with SillyTavern's
+`public/index.html` read beside it to tell inheritance from invention.
+[01](01-source-survey.md) records the read and what it covered.
+
+#### The three layers
+
+Marinara is not one taste. Sorting it is most of the work, and the sort is what
+makes this a direction rather than a resemblance:
+
+1. **Its own taste** — what it invented, and what its design document asks of
+   it. This is the layer the directive points at.
+2. **Its SillyTavern inheritance** — a large fraction of its surface area, and
+   its own `DESIGN.md` says so: *don't make it a bland SillyTavern clone*, and
+   it ships an explicit SillyTavern compatibility skin to keep the two apart.
+3. **Its excess** — the places it breaks its own written rules. Its
+   *No Tiny Mystery Rule* asks for readable controls, and the client carries
+   more than fourteen hundred uses of 8–10px type; its *no hover-only
+   essentials* rule sits beside about twelve hover-revealed icon buttons per
+   message.
+
+**The rule is symmetric, and that is the point of stating it.** Nothing here is
+adopted because a source does it, and nothing is rejected because SillyTavern
+does it. Every adoption below carries a reason that already exists in this
+corpus; every rejection carries one too. A convention's ancestry is evidence
+about how carefully it was chosen, never the verdict.
+
+#### What is taken
+
+Each of these is a Marinara sensibility, and each stands on something this
+project already committed to:
+
+- **Characters have faces wherever they speak.** Marinara puts a portrait rail
+  beside a message, a name plate above it, and the avatar first in an editor
+  header. The reason to want it here is not atmosphere, it is
+  [00 §3.6](00-stance.md): a face beside a line is the engine's **attribution
+  claim**, rendered, and §13.1 already marks that claim by confidence and offers
+  to correct it. This is the largest felt difference between the two clients and
+  the one place where ours can be better than theirs, because a wrong face is a
+  link into the cast panel (§13.2) rather than a decoration.
+- **World state as a strip of widgets you can edit in place.** Marinara's
+  roleplay HUD shows location, time and stats along the top, each opening an
+  editable popover. That is [00 §3.6](00-stance.md)'s *shown and correctable* in
+  the right form, and it is what §13's affordances were reaching for.
+- **Atmosphere behind the prose, with the prose always winning.** Crossfade,
+  vignette, scrim. §2.3 already decides the policy; what Marinara supplies is
+  the *mechanism*, and its own **Reading Surface Rule** — never heavy blur
+  behind long text, editors or logs — is the same sentence from the other end.
+  Glass is for chrome floating over a backdrop, never a panel style.
+- **Motion as a small named vocabulary.** A turn arriving, the streaming state,
+  a panel entering, a scene changing. Roughly five motions with names, honouring
+  `prefers-reduced-motion`. §9's *something happens between Send and the first
+  token* is the first word of it.
+- **Editors navigated by section jumps, not tabs.** Marinara has both — a tab
+  rail and anchor chips over one long form. Only the chips come across. They
+  give orientation without hiding a field, which is the only version compatible
+  with §1.1's rule against reflexive disclosure and with §11.2d, where the
+  editor's shape is the schema's shape. Tabs would break both.
+- **A gallery where a kind has images.** A card view beside the list for actors
+  and anything else carrying a portrait — §11.2b already points here.
+- **Setup that explains itself as it goes.** §6 takes *every step but the first
+  has a working default* from Marinara already; take the per-step explanation
+  with it.
+- **Arrival with some weight to it.** Not Marinara's simulated web browser with
+  tabs and an address bar — §2.2's four things, built as cards that carry a
+  portrait and a backdrop thumbnail, so resuming looks like the story you are
+  resuming. **This is [polish §5](workplan/06-polish.md)'s item and not a new
+  one**; what the direction adds to it is how it looks.
+- **A face for the prose itself.** Marinara gets its personality from effects
+  and runs one sans stack throughout; `--text-story` is where a distinct reading
+  face belongs here. This is Marinara's goal reached by a cheaper and quieter
+  means, and it is the one item on this list it did not think of.
+
+#### What is not taken
+
+The left column is Marinara-as-SillyTavern. The right column is why it fails
+here on its own merits — which is the form the argument has to take, because
+*SillyTavern does it* is not one:
+
+| The convention | Why not |
+|---|---|
+| A top-bar row of icons, one drawer per resource kind, beside the chat | The workbench (§3) follows what you are looking at and has no entry point of its own. A drawer per kind is depth charged per visit (§1.1). |
+| Twelve hover-revealed icon buttons on every message | A turn is a record ([03 §8](03-data-model.md)). A few actions stay visible; the rest is *inspect this turn*, which is a surface we already have. |
+| Swipes — including Marinara's improved jump-to-N control | §7's branches, P6's siblings and the attempt slot are the same idea with an identity and a history. A swipe is a reroll that forgets. |
+| A drag-sortable prompt manager with marker sections | It is the mega-string assembler [00 §2.1](00-stance.md) exists to replace. Blocks, budgets and inclusion reasons live in §3. |
+| Lorebook entries as World Info cards | §5.3 makes a book a document. Marinara's own row component says it was modelled on SillyTavern's card layout. |
+| `/impersonate`-style slash commands and quick replies as the command language | A keyboard command palette on the dense side would stand on §1.1 by itself; a chat-line command syntax stands on nothing but inheritance. |
+| The character card's V2 fields as the editor's shape | [00 §2.4](00-stance.md) rejected the card as a prompt configuration file; §11.2d says the editor follows the schema. |
+| A per-chat settings drawer of some seventeen sections | [00 §3.2](00-stance.md): content and production settings never mix. Marinara's samplers appear in three editors and its settings in four places, which is the failure this rule was written against. |
+
+**And Marinara's excess stays out**: the eight-to-ten-pixel type, the ten
+overlays a roleplay screen can stack, the eighty-eight keyframe animations, the
+ambient decoration, and — the structural one — a separate presentation of every
+feature per mode. Our defence against the last is architectural rather than
+disciplinary: a mode is a configuration of the pipeline
+([06 §1](06-modes-and-turn-pipeline.md)), and its presentation belongs in the
+mode region, not in a fork of each feature.
+
+#### What this does not do to §1.1
+
+**It does not move the tooling surfaces.** Marinara's `DESIGN.md` says *don't
+build developer-only control panels that assume technical confidence*, and that
+is a direct contradiction of §1.1's audience and of §2.1's near-raw library. The
+contradiction is resolved by the split rather than by a compromise: the
+left-hand column of §1.1's table is untouched, and this direction governs the
+right-hand one. Someone with forty actors is still working, and the library
+still shows them the model.
+
+**One item crosses the line anyway, and is meant to.** *Characters have faces*
+applies in the library, the editors and the cast panel as much as in play,
+because identity is not atmosphere — it is the thing [00 §3.6](00-stance.md)
+says must be visible and correctable everywhere it is inferred.
+
+**[25 E10](25-open-questions.md) is unaffected.** Whether the dense side ever
+becomes dialable is still open, and nothing here is an instalment on it.
+
+#### What this costs, and who owns it
+
+**Beta is a completeness gate** ([releases §0](workplan/04-repo-and-releases.md)):
+feature complete to the 1.0 spec, checkable against these documents. So a
+sentence written here is a sentence that gates beta, and a direction added to a
+design note without an owner is precisely the defect
+[P11 §0.1](workplan/28-p11-implementation.md) had to register nineteen of.
+
+The split is therefore explicit, and it is the last thing this section does:
+
+- **1.0, owned by [P12A](workplan/30-p12a-the-look.md)** — faces, the editable
+  channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
+  section jumps, the story face, and the phone rules below. Each discharges a
+  commitment this corpus already made; P12A is where each is sized.
+- **Not 1.0, and not commitments** — the gallery view and per-step setup
+  explanation. They are on the feature list ([24](24-roadmap.md))'s priorities,
+  and if P12A reaches them they ship early rather than late.
+- **Arrival is neither, and the distinction is not a quibble.**
+  [polish §5](workplan/06-polish.md) already carries the full home as
+  *nominally a 1.0 feature, expected immediately before the cut-over to
+  feature-complete beta* — and explicitly pushable past it. That item is
+  unchanged by this section: what is written here is what it should **look**
+  like when it is built, not a second commitment beside it, and no phase is
+  being asked to build home because a look argument mentioned it.
+
+**The phone rules come with the direction** and cost nothing to state: sheets
+rather than shrunken panels, and **no essential action that exists only on
+hover** — Marinara's own rule, which Marinara breaks. §1's 1.0 bar is unchanged:
+responsive and genuinely usable, not phone-first.
 
 ---
 
@@ -1663,9 +1831,41 @@ source and its inclusion reason in plain language, so a fired hook is legible
 there the moment the selector names one — the panel here is for the hooks that
 have *not* fired, which is the half nothing else can show.
 
+**A third control, and the split above does not classify it.** *Save this to…*
+sits on a hook's row beside Commit, offers the treatment, the Setup and the
+lorebooks this session names, and copies the hook onto whichever is chosen —
+[03 §4.1](03-data-model.md)'s promotion, which is the only way a hook leaves a
+session. It is not *a move in the story* and it is not *a test of the material*;
+it is an **act on the library, performed while playing**, which is a third thing
+and is why the paragraph above could not simply be extended. It belongs here
+anyway, and for a reason that owes the taxonomy nothing: the hook somebody wants
+to keep is the one they wrote in this panel ten minutes ago, at the moment
+[06 §6.1](06-modes-and-turn-pipeline.md) says the feature earns its place, and a
+control kept in the workbench would be a control nobody reached for when they
+wanted it. Nothing is automatic, and nothing suggests it today —
+[03 §2.3](03-data-model.md)'s *offered*, which permits an agent to suggest and
+forbids only auto-promotion, so the absence of a suggestion is what was built
+rather than what the rule requires — and a second press earns a refusal
+rather than a second copy, because the id has to survive the move and re-minting
+it is the one thing that cannot be repaired afterwards
+([15 §5.1](15-world.md)).
+
 *Entrances are shown by label, never by text.* An unfired entrance is hidden
 content ([08 §6](08-cross-session-memory.md)), and a panel that spoils the
 arrival to the person about to read it defeats the feature.
+
+**That rule now has a second consumer holding it**, and the two hold it from
+opposite ends. The promote control cannot work by copying what the panel was
+shown, because the panel was deliberately not shown it: no unfired premise, no
+entrance text, and `involves`, `weight`, `delivery`, `once`, `notBefore` and
+`blockedBy` never sent at all. So promotion is a **server** act, keyed by the
+hook's id and carrying no content up the wire ([api.md](../api.md)) — the client
+names which hook and which object, and the server is the only party that ever
+holds the hook. The alternative was to widen what the panel is sent so that a
+client could assemble the copy itself, which would have spent this rule and
+[08 §6](08-cross-session-memory.md)'s to buy a button. **A redaction a feature
+can be built against is a redaction that survives; one the next feature has to
+undo was only ever a comment.**
 
 ---
 
@@ -2724,6 +2924,111 @@ account ones:
   value past its range looked exactly like a value that had been accepted. That
   is where `auth.minPasswordLength` ([09 §4.1](09-server-multiuser-deployment.md))
   is set.
+
+### 15.3a Backups, on both halves — [25 E6](25-open-questions.md), [P12.6](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22. This document contained the word* backup *zero times before
+it, which is what a feature designed as a shell command looks like from the UI's
+side.*
+
+**Two panels, and they are separate rather than one panel with a scope switch**,
+because the sentence they have to say differs in kind. A person's own archive
+carries their provider keys. The install's carries **everybody's** work, their
+password hashes and the key that validates every session — and the person
+choosing where that file goes is not the person whose password is in it.
+
+- **In the user half, beside the trash** (§15.1), and for the trash's reason: it
+  holds sessions as well as library objects, so a drawer inside the library
+  would be a library surface answering about something that is not a library
+  object — and nobody comes here to browse, they come because they want one
+  file. It lists what is stored, takes one, hands it over as a plain
+  `<a download>`, and deletes one in two steps.
+- **In the admin half**, the same for the whole install.
+
+***Taking one is not a capability and the schedule is*** ([09 §4.2.1](09-server-multiuser-deployment.md)'s
+list gains a fourth). Refusing somebody a copy of their own writing would be a
+strange thing for this software to do; what an administrator decides is whether
+the **server** writes archives for them on a timer nobody is watching, which is
+the one way a setting somebody made once fills a disk — and a full disk stops
+turns for everybody. The schedule form is therefore **absent** without the
+capability rather than disabled, which is §15's own mechanism.
+
+***The admin panel has no schedule form, and that is deliberate.*** The
+install's schedule is three keys in `config.json`, and the settings form (§15.3)
+derives its controls from the schema — so it shipped with the keys. A second
+copy here would be a second thing to keep true.
+
+**It passes §15.4's test.** There are three actions — take one, take it away,
+delete one — and the one number shown, what the stored archives weigh together,
+is the input to the third. Retention is deliberately not built, so that number
+is the only thing standing between an install with a schedule and somebody
+finding out when the disk is full.
+
+### 15.3b Import, which is not restore — [P12.10](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22.* **Two ways to get data back, named apart, in two different
+places.** *Import* merges an archive's content into a server that is **running**
+and touches nothing that is install authority — accounts, the operational store
+and the system library are never read. *Restore* ([P12.11]) puts an archive back
+**as** the install and cannot happen while it is running. They differ in what
+they touch, what they can break, and whether the server can be up. Conflating
+them is how somebody clicks *restore* meaning *import* and loses a week, so they
+are two controls with two names rather than one control with a mode.
+
+**The import flow sits at the foot of each backup panel**, after the schedule,
+because it is the rarer act: taking one is something a person does deliberately
+and often, importing one is what they do after something went wrong, and burying
+the everyday controls under a flow for a bad day is the wrong way round. It is
+**absent** when there is nothing to import from, rather than disabled — an
+account with no archives has no question to answer.
+
+***It shows the archive before it offers anything, and that is the substitute
+for a preview.*** [P4 §1.4](workplan/16-p4-implementation.md) settled the
+question for every import: a **sweep** commits and reports, because a staging
+area is a second library. So what a person reads first is the archive's own
+manifest — when it was taken, whose accounts are in it, whether it carries
+credentials, what it left out — which is what the controls actually turn on.
+§5's struck *"let the user fix it before committing"* is the same ruling seen
+from this document's side.
+
+**Work and tags always; everything else is a box that starts unticked.**
+Objects reference tags by id, so an import without the registry would leave
+every imported object pointing at names that resolve to nothing. Provider
+connections and preferences are each opt-in and each **reported whether taken or
+not**, because *my keys did not come across* should be a question with an answer
+rather than a bug report. The admin's panel adds a fourth box for the install's
+settings, and says which account in the archive — from **the archive's** list of
+handles, because an account here the archive holds nothing for is not a choice.
+
+### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22.* **Inside its own border, at the foot of the admin panel,
+after everything that adds to the install.** The order on that page is the order
+of how much each control costs to get wrong, and this is the last one. A control
+that sat in the same row as *Download* would be a destructive act wearing the
+clothes of a routine one.
+
+***It is absent where nothing would start the server again***, with a sentence
+giving the shell command instead — [09 §6.4](09-server-multiuser-deployment.md)'s
+trap, which that section states for the plain restart and which is sharper here:
+*a bare `node server.js` will simply exit and the admin who clicked the button
+now has no server and possibly no shell.* The route refuses it too, because
+§15's own rule is that a surface is never the boundary; what the absence buys is
+that a person who has done nothing wrong does not have to read an error.
+
+***The confirmation is the words typed back***, on the account-removal dialog's
+pattern and for its stated reason: *a destructive control whose confirmation is
+a second button is a control people click twice*. This is the most destructive
+control in the build, so it takes the strongest confirmation the build has — and
+the dialog says what will be replaced and where what is here now will be kept
+before asking for it.
+
+**A restore waiting for the next start is shown, with a way out.** A restore
+that worked leaves no marker — it lived in the directory that moved aside — so
+one visible after a restart always means something went wrong, and the notice
+saying what went wrong arrives with it. *Call it off* is the control that notice
+implies: without it, a failed restore is a state a person can read about and
+cannot leave, on an install whose whole premise is that nobody has a shell.
 
 ### 15.4 What this is not
 

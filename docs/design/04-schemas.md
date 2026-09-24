@@ -1824,14 +1824,68 @@ follow outbound references transitively and collect what they reach:
 | Treatment | `lore[]` where `required` ([§3](#3-shared-substructures)) | included, and cannot be silently dropped |
 | Treatment | `lore[]` where not required | included, can be unchecked |
 | Treatment | `cast[].ref` | included |
+| Treatment | its bare `hooks[].involves[]` `Ref`s and `hooks[].introduces.actor` ([§6.1](#61-plothook), [§6.1a](#61a-a-character-as-a-hook)) | included |
 | Actor | its bare lore `Ref[]` ([§4](#4-actor)) | included |
 | Setup | `treatment`, and the closure above | included |
 | Setup | its own `lore[]`, and `cast.personaOptions` / `partyDefault` / `narrator` | included |
+| Setup | its own `hooks[]`, the same two fields | included |
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
+| Lorebook | `hooks[].introduces.actor`, and its bare `hooks[].involves[]` `Ref`s with it | included |
 
 Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be
 answerable before the file exists rather than after.
+
+***The three hook rows were written 2026-09-22, and they were owed since P7.***
+[P7 §1.5](workplan/23-p7-implementation.md) says this document *can, and must*
+carry them once `introduces` lands, and states the reason better than a new
+sentence would: *"a walker built later against the table as it stands is
+precisely the 'only follows `cast`' walker the row exists to fail."*
+`introduces` landed at P7.5 and the rows did not, so the table has spent every
+phase since describing a closure that stops at `cast`, `lore` and `preset`. **The only
+reason that has cost nothing is that the walker does not exist either** —
+`packaging/export.ts` resolves exactly one level, the `contents[]` a package
+already declares — which means the omission was never going to be found by a bug
+report. It was going to be found by somebody building the walker correctly
+against a table that was wrong.
+
+***Both are **bare** `Ref`s and the rows say so, which is the distinction this
+table is careful about everywhere else.*** `Treatment | cast[].ref` is written
+with the wrapper because a `CastEntry` wraps one, and the Actor row says *bare*
+out loud for the same reason. `PlotHook.involves` is `Type.Array(Ref)` and
+`Introduction.actor` is a `Ref` — neither has a `.ref` — so a walker built
+against a row spelling `hooks[].involves[].ref` would resolve `undefined` on
+every element and drop every `involves` edge **silently**, while
+`introduces.actor` beside it worked. That is the failure quoted above arriving
+through the row written to prevent it, which is why the spelling is worth a
+paragraph. *(Corrected 2026-09-22; the server's own `hookActorIds` had it right,
+which is the harder direction to notice from.)*
+
+**Both hook fields, because they point for opposite reasons and an export needs
+them for the same one.** `involves` is the eligibility test —
+[03 §4.1](03-data-model.md) retires a hook whose cast is gone, quietly and by
+design — and `introduces.actor` is the hook's subject, eligible only while that
+actor is *not* yet present. A package that dropped the first arrives with hooks
+that are silently ineligible; one that dropped the second arrives with an arrival
+and nobody to arrive. Both are this section's opening complaint exactly —
+*remember the actor whose own lorebook the cast depends on, check nothing
+dangles* — reached through the one field nobody thinks of as a link.
+
+**The Lorebook row is the first time a lorebook follows anything at all**, and
+that is worth a sentence because the previous answer was categorical rather than
+accidental. Its entries are inside it, its folders are inside it, and the nearest
+thing it has ever had to an outward pointer is `LoreEntry.actorFilter`
+([§5](#5-lorebook)) — a list of bare strings matched against whoever is in the
+session, which is a filter and not a reference to a library object.
+`introduces.actor` is a `Ref` ([§3](#3-shared-substructures)), and
+[25 C7d](25-open-questions.md) allowed it onto lorebook-carried hooks knowing
+exactly that, *"over the objection that it makes a Lorebook depend on an Actor
+for the first time"*, on the ground that **the dependency is soft**: *"an
+unresolvable subject breaks the hook, never the book."* That is why the row is an
+ordinary *included* and not the warned case a `required` lore link is — the
+recipient who unchecks it gets a world that reads and one hook that sits
+ineligible with a clause the panel can state ([10 §10.1](10-ui-surfaces.md)),
+rather than a book missing its content.
 
 **Review, for the same reason import is a review step** ([10 §5](10-ui-surfaces.md)).
 Unchecking a `required` link is permitted and warned about, since `required`
@@ -1865,6 +1919,57 @@ the diff.
 
 ---
 
+## 9.2 The backup manifest — what an archive says it is
+
+*Added at [P12.2](workplan/29-p12-implementation.md).* `backup.json`, the first
+member of every backup archive, carrying
+`schema: "storyengine.backup-manifest/1"`.
+
+```ts
+interface BackupManifest {
+  schema: "storyengine.backup-manifest/1"
+  scope: "install" | "account"
+  handle: string | null           // the account, for an account archive
+  contents: "full" | "redacted"   // whether it carries credentials
+  takenBy: { version: string | null; at: string }
+  reason: "manual" | "schedule" | "start"
+  files: number
+  unpackedBytes: number           // so a restore can size a disk before committing
+  handles: string[]               // so an install import can plan per account
+  omitted: ImportNote[]           // what this archive does not carry, and why
+}
+```
+
+**Here rather than in [21](21-internal-contracts.md) because it travels.** That
+document's header states that nothing in it carries a `schema` field or a
+version number; this does both, for the reason every portable record does — an
+archive written by one install is read by another, and possibly by an older one.
+
+***It is deliberately not in `PORTABLE_SCHEMAS`***, and neither is
+`storyengine.session-export/1`. That registry holds the six library kinds and
+`emit-schemas` writes one JSON Schema artefact per entry; an envelope is not an
+object somebody edits, and shipping a schema for it would suggest it were.
+
+**First member, so a reader can answer *what am I holding* without inflating the
+rest.** A listing, an import preview and a restore's free-disk check all need
+that before they need the bytes — and `unpackedBytes` is here precisely because
+the only other way to know it is to inflate the archive, which is the thing
+being checked for room.
+
+***`omitted` is `{ key, params }` rather than prose***, the vocabulary the
+import review uses and `export/writers.ts` already answers *what this file does
+not carry* in. A person handed a redacted archive should be able to read what
+was left out of it rather than discover it during a restore — and a file whose
+path no tar header can name is reported here at `warn` rather than failing the
+whole archive, because all-or-nothing is the right failure for a restore and the
+wrong one for a backup.
+
+**It carries no path from the machine that wrote it.**
+[21 §4.1](21-internal-contracts.md)'s rule about logs applies with more force to
+a file that travels.
+
+---
+
 ## 10. Not defined here, deliberately
 
 | Structure | Why not |
@@ -1874,6 +1979,7 @@ the diff.
 | **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
+| **Backup settings** (`users/<handle>/backup.json`) | Internal, and never in an archive's manifest: a schedule is a fact about *this* install's disk, not about the data. [P12.4](workplan/29-p12-implementation.md). |
 
 ---
 

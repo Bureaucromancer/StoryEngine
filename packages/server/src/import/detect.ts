@@ -58,6 +58,17 @@ const PROBES: readonly Probe[] = [
    * `storage/manifest.json`.
    */
   { kind: 'charx', requires: ['card.json'] },
+  /**
+   * ***One of ours*** — [P12.8]. `backup.json` is the archive's manifest and is
+   * written as its **first** member, so a probe costs one read rather than a
+   * pass.
+   *
+   * *The name alone is the probe, and the manifest's schema is the check.*
+   * `BackupReader.survey()` refuses `unknown-format` for a `backup.json` that
+   * is not ours — which is the same division the Marinara probe makes between
+   * *is this that kind of root* and *is it one this build can read*.
+   */
+  { kind: 'storyengine-backup', requires: ['backup.json'] },
 ];
 
 /**

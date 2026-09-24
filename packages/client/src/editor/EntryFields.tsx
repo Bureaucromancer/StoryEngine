@@ -8,6 +8,7 @@ import type { LoreEntry } from '@storyengine/shared';
 import { ReadOnlyField } from '../library/ByField.js';
 import { groupSummary } from '../library/entry-defaults.js';
 import {
+  choicesOf,
   fieldsOf,
   groupsOf,
   labelFor,
@@ -301,7 +302,7 @@ function EntryRow(props: {
         <SelectField
           label={row.label}
           value={entry.position}
-          options={positionOptions(row)}
+          options={positionOptions(row, entry.position)}
           onChange={(next) => {
             onPatch({ position: next as LoreEntry['position'] });
           }}
@@ -356,15 +357,24 @@ function EntryRow(props: {
  * avoid — and it would be a table of English in a file [01 §2] keeps English out
  * of, which is the same objection one level up.
  *
- * *An empty union falls back to the entry's own value*, so a build reading a
- * schema it cannot parse renders a picker with one option rather than an empty
- * one that would silently clear the field on focus.
+ * *A schema that is not a closed union falls back to the entry's own value*, so
+ * a build reading a schema it cannot parse renders a picker with one option
+ * rather than an empty one that would silently clear the field on focus.
+ *
+ * ***The `anyOf` walk itself is [`choicesOf`](../library/fields.ts)***, which
+ * was extracted for this: a TypeBox union of literals emits with no top-level
+ * `type` keyword, so the generic renderer cannot see that it is closed, and
+ * every surface that wants a picker over one was reading the same `anyOf` by
+ * hand. That helper's own docstring says a fourth copy of the walk is what it
+ * exists to prevent; this was the third, and leaving it would have made the
+ * sentence false on the day it was written. Its **null rather than empty list**
+ * rule is exactly what the fallback above needs — *this is not that sort of
+ * field* and *this field has no choices* are different answers, and only the
+ * first one means *show what is stored*.
  */
-function positionOptions(row: FieldRow): [string, string][] {
-  const arms = (row.schema as { anyOf?: { const?: unknown }[] } | undefined)?.anyOf ?? [];
-  const values = arms
-    .map((arm) => arm.const)
-    .filter((value): value is string => typeof value === 'string');
+function positionOptions(row: FieldRow, current: string): [string, string][] {
+  const values = choicesOf(row.schema);
+  if (values === null || values.length === 0) return [[current, labelFor(current)]];
   return values.map((value) => [value, labelFor(value)]);
 }
 

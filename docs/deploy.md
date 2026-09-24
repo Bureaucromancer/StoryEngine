@@ -350,7 +350,107 @@ pnpm backup create /path/to/data backup.tar.gz
 pnpm backup restore backup.tar.gz /path/to/data
 ```
 
+***The bundled command did not, in fact, exclude it, from 2026-09-17 until
+2026-09-22.*** Its rule was a filename test applied at the data root and the
+index lives one directory down, so every archive it wrote carried the index —
+the exact failure the paragraph above describes. Fixed at
+[P12.0](design/workplan/29-p12-implementation.md); if you are holding an archive
+taken before then, delete `index/` out of the restored directory before starting
+the server. The `rsync` line was always correct, because its pattern matches at
+any depth.
+
 **An untested restore is not a backup.** Restore into a clean directory, start
 the server, and **run a search** — a search answering is the only observable
 proof the index was rebuilt rather than carried.
+
+### From the browser, without a shell
+
+*Added at [P12](design/workplan/29-p12-implementation.md).* The two deployment
+paths above both hand a person a web UI and nothing else, so **Settings →
+Backups** takes one, lists what is stored, and hands it over as a download.
+Administrators get the same for the whole install, and three `backup.*` settings
+turn it into a schedule — a frequency, and an independent *also on every server
+start* for a machine that is not on all the time.
+
+**A backup taken from inside a running server is more consistent than one taken
+from outside it, not less.** `state/state.sqlite` is snapshotted with
+`VACUUM INTO` rather than copied; every other write is already temp-and-rename.
+A session being written at that instant may lose its last, incomplete turn,
+which the turn reader already drops.
+
+**The archives are files in the data directory** — `data/backups/` for the
+install's, `data/users/<handle>/backups/` for a person's own — and they are
+**excluded from every archive**, so a backup never contains the backups. Nothing
+removes old ones yet: delete them from the same panel.
+
+**They are ordinary `.tar.gz` files**, so `pnpm backup restore` reads one:
+
+```sh
+# An install archive, into a stopped server's data directory.
+pnpm backup restore data/backups/install-full-2026-09-22-*.tar.gz /path/to/data
+
+# An account archive is a subset of an install one, so it unpacks in place.
+tar -xzf data/users/ned/backups/account-ned-full-*.tar.gz -C /path/to/data
+```
+
+**A `full` archive contains credentials** — the account's provider keys, and for
+an install archive `accounts.json` and the session signing key. That is what
+makes it restorable. Choose `redacted` for a file you are going to put somewhere
+you would not put those, and know that restoring one produces an install nobody
+can sign into.
+
+### Getting data back: import, or restore
+
+*Added at [P12](design/workplan/29-p12-implementation.md).* **Two operations,
+named apart, because conflating them is how somebody loses a week.**
+
+| | **Import** | **Restore** |
+|---|---|---|
+| Does what | Merges an archive's content into what is here | Replaces the data directory with the archive |
+| Server | Running | Stops, and restores as it starts again |
+| Touches | Library, sessions and tags; provider connections, preferences and settings only if ticked | Everything |
+| Refuses | Nothing structural — a clash is a policy you choose | An account archive; an unsupervised install; an archive that will not read end to end |
+| Undo | History keeps what each replaced object was | The previous directory, moved aside and never deleted |
+| Who | Anybody, for their own; an administrator, per account | An administrator |
+
+**Import** is **Settings → Backups → Import from a backup**, and for the whole
+install under Administration. It never touches accounts, the operational store
+or the system library — that line is what keeps the two verbs distinct rather
+than two positions on a slider, and it is why clicking the wrong one loses
+nothing. Clashes default to *leave what is here*, which is the opposite of the
+file-import default and deliberate: a backup meeting a live account is the past
+meeting the present.
+
+**Restore** is **Settings → Administration → Backups → Restore this install**,
+and it is only offered where something will start the server again — compose's
+`restart:`, a systemd unit, unraid, or `SE_SUPERVISED=1`. Everywhere else the
+panel gives the shell command instead, because a server that stopped and stayed
+stopped is worse than one that never offered.
+
+What happens is a handoff across a restart. The server checks everything while
+it is still answering — the archive reads end to end, it is an install archive,
+a `redacted` one has been confirmed, and there is disk for it — writes
+`state/restore.pending`, drains the turns in flight, and exits. On the next
+start, **before anything opens the data directory**, it unpacks the archive to a
+sibling directory, renames the live one to `data.replaced-<uuid>`, and renames
+the new one into place.
+
+```sh
+# After a restore, beside the data directory:
+ls -d /path/to/data.replaced-*
+```
+
+***That directory is the undo and StoryEngine will not delete it.*** Remove it
+yourself when you are sure — the same promise `data/removed/` makes about an
+account that was removed. A notice on that boot names it, which is the one place
+in this build that deliberately puts a filesystem path in front of a person.
+
+**A restore that fails changes nothing.** Everything is unpacked before anything
+is renamed, so a bad archive leaves the install exactly where it was; the marker
+is kept so the next start refuses it rather than trying again, and **Call it
+off** in the same panel clears it. A bad archive must not become a restart loop.
+
+**And the archive carries no index**, so the restored install rebuilds it on
+that same boot. Run a search afterwards: a search answering is the only
+observable proof it was rebuilt rather than carried.
 

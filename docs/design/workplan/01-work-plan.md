@@ -368,6 +368,16 @@ works today and should be documented. The part that matters is the CI restore
 test ([testing testing](03-testing.md)); an untested restore is not a backup, and
 shipping a self-hosted data product without one is a gap rather than a deferral.
 
+***~~Small~~ — and the sizing above is what [P12](29-p12-implementation.md)
+reopened, 2026-09-22.*** It shipped that small at
+[P11.11](28-p11-implementation.md) and the result was a command nobody on the
+two supported deployment paths can reach: both hand a person a browser and
+nothing else. So backups grew a surface, a schedule and an import — and
+[25 E6](../25-open-questions.md)'s *do not build a subsystem* is amended rather
+than quietly ignored, with the one word that was wrong (*outside*) named there.
+**The sentence that survives intact is the one this row was always really
+about**: an untested restore is not a backup.
+
 **The three lore-entry fields land at 1.0** ([13 §13](../13-write-mode.md)).
 
 The AI-context value, the track flag and the exclusion list, added as *optional*
@@ -1548,6 +1558,47 @@ nothing did.
 **No longer here:** the file
 browser ([25 D3](../25-open-questions.md)) and Tailscale ([25 D1](../25-open-questions.md)),
 both moved to the roadmap.
+
+### P12A — The look
+
+***Written 2026-09-22 at the same sitting as [10 §1.3](../10-ui-surfaces.md), and
+it is the phase between P12 and the beta declaration.*** Skeleton:
+[P12A](30-p12a-the-look.md). *Written as P11A, on a branch cut before
+[P12](29-p12-implementation.md) existed, and renamed when P12 — backups, which
+has no row in this section — merged first on 2026-09-23.*
+
+**Why there is a phase after the beta-hardening phase**, since that reads as a
+contradiction and the answer is mechanical. A directive to push the client
+toward Marinara Engine's sensibilities produced
+[10 §1.3](../10-ui-surfaces.md) — a written direction with a list of what is
+taken, what is rejected and why, and, crucially, **an owner for every item that
+is 1.0's**. [releases §0](04-repo-and-releases.md) makes beta a *completeness*
+gate against the design corpus, and [P11 §3](28-p11-implementation.md)'s **R4**
+is a person reading that corpus capability by capability. So the note moved the
+gate the moment it was written, and P12A is the phase that puts it back.
+**R1, R2, R3 and R5 are unaffected and should be walked now; only R4 waits.**
+
+**Nine stages, three of which are the phase**: the backdrop behaving as
+[10 §2.3](../10-ui-surfaces.md) specifies rather than as a picture in the
+column, faces wherever the engine claims an identity
+([00 §3.6](../00-stance.md)), and the play column that has grown seven
+disclosures above the prose. Around them: the tokens the appearance layer never
+got ([polish §6](06-polish.md) stopped at colour, radius and type step, which was
+right then), a reading face, five named motions with the
+`prefers-reduced-motion` story the client does not have, section jumps in the
+editors, and two phone rules that were written and never enforced.
+
+**What it is not** is a second theme, a density setting
+([25 E10](../25-open-questions.md)), or a pass over the tooling surfaces —
+[10 §1.3](../10-ui-surfaces.md) leaves the dense half of
+[10 §1.1](../10-ui-surfaces.md)'s table exactly as it was, and the library still
+shows the model. Three items of the direction are explicitly **not 1.0** and are
+on [24](../24-roadmap.md) rather than in a stage, which is the same discipline
+[P11 §0.1](28-p11-implementation.md)'s register exists to enforce.
+
+**Its gate is [sitting T](05-manual-testing.md)** — six rows, registered before
+the phase opened, and the first list here that could be written that early
+because the claims were written before the code.
 
 ---
 

@@ -108,6 +108,29 @@ export const Capabilities = Type.Object(
     }),
     /** May enable installed extensions. Installing stays admin-only ([22 §7]). */
     enableExtensions: Type.Boolean({ default: false }),
+    /**
+     * ***May have the server take their backups on a timer*** —
+     * [P12.4](../../../../docs/design/workplan/29-p12-implementation.md).
+     *
+     * **Exporting is never gated, and only scheduling is.** A person pressing
+     * *back up now* is asking for a copy of their own work, and refusing that
+     * would be refusing somebody their own writing. What this governs is the
+     * **server** writing archives on a schedule nobody is watching, which is
+     * the one way a misconfigured setting fills a data directory — and a full
+     * disk stops the server writing turns, so the failure lands on everybody.
+     *
+     * ***Default false***, which is the opposite of `privateConnections` and
+     * for a reason that is about cost rather than about trust. That one is
+     * permissive because the threat model is access separation among people who
+     * trust each other; this one consumes disk on a timer, so it is a thing an
+     * admin turns **on** for somebody deliberately, having looked at how much
+     * room the machine has.
+     *
+     * *Enforced at the route* — `PUT /api/me/backups/settings` refuses — the
+     * way `fileAccess` is enforced at `POST /api/import/sweep`, rather than in
+     * the UI, which [09 §4.5] calls a trivial bypass.
+     */
+    scheduledBackups: Type.Boolean({ default: false }),
   },
   { title: 'Capabilities' },
 );
@@ -117,6 +140,7 @@ export const DEFAULT_CAPABILITIES: Capabilities = {
   privateConnections: true,
   fileAccess: 'none',
   enableExtensions: false,
+  scheduledBackups: false,
 };
 
 export const Account = Type.Object(

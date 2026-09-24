@@ -5,7 +5,7 @@ import type { PortableSchemaId, Provenance } from '@storyengine/shared';
 
 import { contentHashOf } from '../index-db/ingest.js';
 import { findPriorImport } from '../index-db/query.js';
-import { encodeForCompare, type LibraryContext } from '../library.js';
+import { LibraryError, encodeForCompare, read, type LibraryContext } from '../library.js';
 import { userOwner } from '../storage/layout.js';
 
 /**
@@ -154,4 +154,67 @@ export async function identify(
 export function stableId(namespace: string, ...parts: readonly string[]): string {
   const hash = contentHashOf(new TextEncoder().encode([namespace, ...parts].join(' ')));
   return `im-${namespace}-${hash.slice(7, 31)}`;
+}
+
+/**
+ * ***The same question, asked of an object that has an id*** —
+ * [P12.8](../../../../docs/design/workplan/29-p12-implementation.md).
+ *
+ * The rule above keys on `(owner, kind, originalFilename)` and its docstring
+ * says exactly why: *"the argument for it is that foreign files have no id we
+ * could key on."* **A backup archive does.** Its contents are this project's
+ * own objects, minted here, carrying the identifier the library indexes them
+ * by — so keying on a filename would be throwing away the better answer and
+ * keeping the workaround.
+ *
+ * ***It matters in the case the filename rule gets wrong.*** Somebody renames
+ * an actor, which moves nothing on disk but changes what a later archive calls
+ * it; or they import from a backup of an install whose slugs differ. Filename
+ * identity reports those as new objects and doubles the library. The id says
+ * they are the same thing, because they are.
+ *
+ * Everything after the lookup is the rule above, including the reason the
+ * timestamps are carried over — a re-import of an object *is* that object, so
+ * its `createdAt` is when it entered this library rather than when the import
+ * ran.
+ */
+export async function identifyNative(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  object: { id: string; provenance: Provenance },
+): Promise<ImportIdentity> {
+  let prior;
+  try {
+    prior = read(context, handle, object.id, schemaId);
+  } catch (error) {
+    if (error instanceof LibraryError && error.code === 'not-found') return { kind: 'new' };
+    throw error;
+  }
+
+  const priorProvenance = (prior.body as { provenance?: Provenance }).provenance;
+  const wasCreated = object.provenance.createdAt;
+  const wasUpdated = object.provenance.updatedAt;
+  if (priorProvenance !== undefined) {
+    object.provenance.createdAt = priorProvenance.createdAt;
+    object.provenance.updatedAt = priorProvenance.updatedAt;
+  }
+
+  try {
+    const encoded = await encodeForCompare(
+      context,
+      userOwner(handle),
+      schemaId,
+      prior.slug,
+      object,
+    );
+    if (encoded === prior.contentHash) return { kind: 'unchanged', id: prior.id };
+    return { kind: 'changed', id: prior.id, contentHash: prior.contentHash };
+  } catch {
+    // As above: encoding is the only way to know, so a failure means we cannot
+    // say — and treating it as new is the reading that destroys nothing.
+    object.provenance.createdAt = wasCreated;
+    object.provenance.updatedAt = wasUpdated;
+    return { kind: 'new' };
+  }
 }

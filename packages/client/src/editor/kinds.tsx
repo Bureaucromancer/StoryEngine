@@ -37,14 +37,26 @@ const TREATMENTS: SimpleKind = {
     `This treatment cannot be opened in the editor because ${problem}. Fix the file on disk, then reload this page.`,
   untitled: { draft: 'New treatment', saved: 'Untitled treatment' },
   editorRoute: '/library/treatments/$id/edit',
-  readOnly: {
-    /**
-     * [P7B §1.5]: the authored pool is shown as the schema has it, and the panel
-     * that makes a pool authorable is [P7.5]'s and [P11.5]'s. This editor is the
-     * object beneath that panel, not a second one.
-     */
-    hooks: 'Hooks are authored in the session’s hook panel. Shown here as stored.',
-  },
+  /**
+   * ***The primary home, finally writable here*** —
+   * [03 §4.1](../../../../docs/design/03-data-model.md),
+   * [P11.2](../../../../docs/design/workplan/28-p11-implementation.md).
+   *
+   * What stood here was a `readOnly` note reading *"Hooks are authored in the
+   * session's hook panel. Shown here as stored."* — true when it was written
+   * and the exact thing this change ends. It made the panel the only surface
+   * in the application that could write a hook, which left a hook realised
+   * mid-play dying with the session it was realised in, since there was no way
+   * back out of one either. [P7 §1.5]'s *"a hook has nowhere to be authored"*
+   * is the record of it being noticed and deferred to this sweep.
+   *
+   * The panel keeps its two-field form and its job. [P7.5]'s argument survives
+   * the editors existing: it is the sentence the feature exists for, not an
+   * editor.
+   */
+  hooks: true,
+  hookNote:
+    'Hooks live here first: a session started from this treatment begins with a copy of every one of them.',
 };
 
 const SETUPS: SimpleKind = {
@@ -61,6 +73,22 @@ const SETUPS: SimpleKind = {
     `This setup cannot be opened in the editor because ${problem}. Fix the file on disk, then reload this page.`,
   untitled: { draft: 'New setup', saved: 'Untitled setup' },
   editorRoute: '/library/setups/$id/edit',
+  /**
+   * ***Additional to the treatment's, not a replacement*** — which is the
+   * schema's own sentence about this field
+   * (`packages/shared/src/schema/setup.ts`) and the one thing the note has to
+   * say out loud.
+   *
+   * A Setup overrides its treatment's `openings` and *adds to* its `hooks`, and
+   * the two sit four lines apart in the same object. An author who read the
+   * first rule and assumed the second would write a setup's hooks expecting the
+   * treatment's to go away, and would find out only in a session that they had
+   * not — so the difference is stated where the list is, rather than left to
+   * whoever reads the schema.
+   */
+  hooks: true,
+  hookNote:
+    'Added to whatever the treatment already carries, not instead of them — a session started from this setup gets both.',
 };
 
 const PACKAGES: SimpleKind = {
@@ -77,6 +105,18 @@ const PACKAGES: SimpleKind = {
     `This package cannot be opened in the editor because ${problem}. Fix the file on disk, then reload this page.`,
   untitled: { draft: 'New package', saved: 'Untitled package' },
   editorRoute: '/library/packages/$id/edit',
+  /**
+   * ***No `hooks` here, and the absence is the decision***
+   * ([03 §4.1](../../../../docs/design/03-data-model.md)).
+   *
+   * A Package has no hooks of its own — it carries the objects that do, and
+   * §4.1 says so in as many words: *"a package carries all of them by carrying
+   * the objects."* A hook list on this page would be a fifth source of hooks
+   * attached to the one kind whose whole job is to hold other kinds, which is
+   * the *"hook pack"* the same section declines by name. It is written down
+   * rather than merely omitted because an omission reads the same whether it
+   * was decided or forgotten.
+   */
 };
 
 const treatmentRoute = getRouteApi('/library/treatments/$id/edit');

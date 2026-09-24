@@ -77,20 +77,48 @@ export function referencesIn(schemaId: string, payload: unknown): string[] {
     found.push(refId(object['treatment']), refId(object['preset']));
     found.push(...setupCastIds(object['cast']));
     found.push(...loreIds(object['lore']));
+    found.push(...hookActorIds(object['hooks']));
   } else if (schemaId === TREATMENT_SCHEMA) {
     found.push(...loreIds(object['lore']));
     // A treatment's cast is a list of entries rather than a persona-plus-actors
     // pair, so it is read as a list of refs.
     found.push(...asArray(object['cast']).map((entry) => refId(entryRef(entry))));
+    // A treatment is where hooks primarily live, so this is the arm the edge
+    // was most conspicuously missing from.
+    found.push(...hookActorIds(object['hooks']));
   } else if (schemaId === PACKAGE_SCHEMA) {
     found.push(...asArray(object['contents']).map((one) => idOf(one)));
-  } else if (schemaId === LOREBOOK_SCHEMA || schemaId === PRESET_SCHEMA) {
+  } else if (schemaId === LOREBOOK_SCHEMA) {
     /**
-     * **Neither points at anything, and saying so is the point.** A lorebook's
-     * entries and a preset's blocks are *inside* the object, so a table that
-     * recorded them would answer *used by* with the object's own contents —
-     * which is the failure the generic walk above would have had, arriving
-     * through the one kind where it looks most reasonable.
+     * ***Its entries are its own; the actors its hooks name are not.***
+     *
+     * This arm and the preset's below were one arm returning `[]`, and the
+     * argument they shared holds for everything it was written about: **a
+     * lorebook's entries and a preset's blocks are *inside* the object, so a
+     * table that recorded them would answer *used by* with the object's own
+     * contents** — which is the failure the generic walk above would have had,
+     * arriving through the one kind where it looks most reasonable.
+     *
+     * What that argument never covered is `hooks`, which [03 §4.1] allows on a
+     * lorebook as the secondary case — *hooks genuinely inseparable from a
+     * piece of lore*. A hook's `involves` and `introduces.actor` are `Ref`s to
+     * **actors**, which a lorebook does not contain and cannot own, so they
+     * point outward exactly as a treatment's `cast` does. The rule was never
+     * *a lorebook points at nothing*; it was *contents are not references*, and
+     * an actor a hook names was never a content of the book. So the exception
+     * is added and the reasoning kept, rather than the reasoning replaced by
+     * the exception.
+     *
+     * `Lorebook.hooks` is optional, unlike the other two carriers', so absent
+     * is the ordinary state and this arm usually still finds nothing.
+     */
+    found.push(...hookActorIds(object['hooks']));
+  } else if (schemaId === PRESET_SCHEMA) {
+    /**
+     * **A preset points at nothing, and saying so is the point.** Its blocks
+     * are inside it, it carries no `Ref` of any kind, and the half of the
+     * argument above that survives intact survives here: there is no field
+     * whose purpose is to point, so there is no edge to record.
      */
     return [];
   }
@@ -126,6 +154,62 @@ function setupCastIds(cast: unknown): (string | undefined)[] {
 
 function loreIds(lore: unknown): (string | undefined)[] {
   return asArray(lore).map((link) => refId((link as { ref?: unknown } | null)?.ref));
+}
+
+/**
+ * The actors a carrier's hooks name — [04 §6.1a](../../../../docs/design/04-schemas.md),
+ * [03 §4.1](../../../../docs/design/03-data-model.md).
+ *
+ * ***Three carriers, one reader, because a hook is the same object on all
+ * three.*** [03 §4.1] names four sources for hooks — a treatment's primarily, a
+ * setup's added on top of it rather than replacing it (*"A Setup may add its own
+ * on top"*, and `Setup.hooks` is annotated *"Additional to the treatment's, not
+ * a replacement"* — `openings` is the field a setup overrides, and it sits four
+ * lines above), a lorebook's as the secondary case, and the session's
+ * own ad-hoc pool. The first three are portable objects and arrive here; the
+ * fourth never does, for the reason `setupCastIds` gives about sessions
+ * generally — a session is not a portable object and `indexSession` hands
+ * `writeLinks` its ids directly.
+ *
+ * ***Two fields, and they point for opposite reasons***, which is why both are
+ * read and neither would have done on its own. `involves` is the eligibility
+ * test — *moot if these are dead, gone, or never introduced* — and
+ * `introduces.actor` is the hook's **subject**, eligible only while that actor
+ * is *not* yet introduced. [04 §6.1a] keeps them separate fields precisely
+ * because one field cannot mean *must be here* and *must not be here* at once.
+ * For *used by* that distinction collapses: both are an author naming an actor
+ * in a field whose whole purpose is to point, which is the entire test this
+ * table applies.
+ *
+ * ***This is not [04 §9.1]'s closure walker, and the two are easy to mistake
+ * for each other.*** That table describes export-as-package following outbound
+ * references **transitively** from a chosen object, deciding per edge what is
+ * included by default and what can be unchecked. It does not exist:
+ * `packaging/export.ts` resolves exactly one level, the `contents[]` a package
+ * already declares. What this feeds is `object_link` — a flat *who names whom*,
+ * answering [03 §10.1]'s count-before-you-delete and the object page's *Used
+ * by*. A walker built later is written against §9.1's table, not against this
+ * function, and the two agreeing about hooks is a thing to check rather than a
+ * thing either one inherits.
+ *
+ * **Defensive like everything else in this file**, and here the defensiveness
+ * has a second edge: `entryRef` is applied to values the schema says are bare
+ * `Ref`s, because the fields they sit beside in hand-written files —
+ * `cast[].ref`, `lore[].ref` — do carry the wrapper, and unwrapping one that is
+ * not there costs nothing while failing to unwrap one that is loses the edge
+ * silently.
+ */
+function hookActorIds(hooks: unknown): (string | undefined)[] {
+  return asArray(hooks).flatMap((hook) => {
+    if (typeof hook !== 'object' || hook === null) return [];
+    const shape = hook as { involves?: unknown; introduces?: unknown };
+    const introduces = shape.introduces;
+    const subject =
+      typeof introduces === 'object' && introduces !== null
+        ? refId(entryRef((introduces as { actor?: unknown }).actor))
+        : undefined;
+    return [...asArray(shape.involves).map((one) => refId(entryRef(one))), subject];
+  });
 }
 
 function entryRef(entry: unknown): unknown {

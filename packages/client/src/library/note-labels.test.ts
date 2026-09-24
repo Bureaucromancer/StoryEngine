@@ -59,6 +59,20 @@ function allSources(): string[] {
     // The routes emit a few of their own — transport failures a converter never
     // sees, like a file that is not JSON at all.
     join(SERVER, 'routes', 'import.ts'),
+    /**
+     * ***And the backup import's*** —
+     * [P12.9](../../../../docs/design/workplan/29-p12-implementation.md).
+     *
+     * Its orchestration sits beside the archive writer rather than under
+     * `import/`, because what it does **above** the sweep is copy files and
+     * merge documents rather than convert anything — and the route emits the
+     * configuration group's notes, for the same reason `routes/import.ts` is
+     * already here. Both had to be added by hand, which is the cost of this
+     * list being a list; the check failing loudly when they were not is what
+     * makes that cost payable.
+     */
+    join(SERVER, 'backup', 'import.ts'),
+    join(SERVER, 'routes', 'backups.ts'),
   ];
 }
 /**
