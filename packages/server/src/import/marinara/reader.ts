@@ -13,6 +13,23 @@ import type {
   SourceSurvey,
 } from '../source.js';
 
+import {
+  READ_TABLES,
+  TABLES,
+  UNSHARD_SENTINEL,
+  classifyTablePath,
+  isReadTable,
+} from './store-format.js';
+import {
+  MANIFEST,
+  openStore,
+  readMarinaraManifest,
+  shortfalls,
+  type FileFate,
+  type MarinaraManifest,
+  type MarinaraStore,
+} from './store.js';
+
 /**
  * A Marinara data root, read as candidates
  * ([P4 §1.3](../../../../../docs/design/workplan/16-p4-implementation.md)).
@@ -23,21 +40,23 @@ import type {
  * a file walker — which is what the plan said before the amendment — could not
  * have expressed this without a second, unlike path bolted on beside it.
  *
- * Two layouts, and which one a table is in is a question for the filesystem
- * rather than for the manifest: at storage format 4 sixteen tables shard into
- * `storage/tables/<table>/<key>.json` while the rest stay a single file, and a
- * crash between the migration and its first flush leaves sharded data under a
- * version-2 manifest. Marinara's own code says so.
+ * ~~Two layouts, and which one a table is in is a question for the filesystem
+ * rather than for the manifest: at storage format 4 sixteen tables shard …~~
+ * *Rewritten 2026-09-22 ([P4 §7.18]).* **Which layout a table is in, and which
+ * file in it holds the truth, is answered by `store.ts`, which ports the
+ * answers from the store that writes them.** From storage format 5 every table
+ * shards, the tables this reader converts included, and the rules for which of
+ * a single file, a directory of shards, a `.bak` and a pre-migration backup is
+ * the table are upstream's rather than ours. This file decides only what to
+ * *say* about each of them — which is the half of the job that is ours, and the
+ * half where the old reader stayed silent.
  */
-
-const TABLES = 'storage/tables/';
 
 export class MarinaraReader implements SourceReader {
   readonly kind = 'marinara' as const;
 
   readonly #files: FileSource;
-  /** Table name → its rows, loaded once. */
-  readonly #tables = new Map<string, Record<string, unknown>[]>();
+  #opened: Promise<{ manifest: MarinaraManifest | null; store: MarinaraStore }> | null = null;
 
   constructor(files: FileSource) {
     this.#files = files;
@@ -50,28 +69,61 @@ export class MarinaraReader implements SourceReader {
   }
 
   async *items(): AsyncIterable<SourceItem> {
-    yield* this.#reportUnreadPaths();
+    const { manifest, store } = await this.#open();
 
-    yield* this.#lorebooks();
-    yield* this.#presets();
-    yield* this.#actors('characters', 'marinara.character');
-    yield* this.#actors('personas', 'marinara.persona');
+    // Every table this reader converts is loaded before anything is reported,
+    // so the report of the files knows what became of each of them.
+    for (const table of Object.keys(READ_TABLES)) await store.rows(table);
+
+    yield* this.#reportUnreadPaths(manifest, store);
+
+    yield* this.#lorebooks(store);
+    yield* this.#presets(store);
+    yield* this.#actors(store, 'characters', 'marinara.character');
+    yield* this.#actors(store, 'personas', 'marinara.persona');
+  }
+
+  /** The store and its manifest, opened once for the sweep. */
+  #open(): Promise<{ manifest: MarinaraManifest | null; store: MarinaraStore }> {
+    this.#opened ??= (async () => {
+      const manifest = await readMarinaraManifest(this.#files);
+      return { manifest, store: openStore(this.#files, manifest) };
+    })();
+    return this.#opened;
   }
 
   /**
-   * Everything the sweep saw and is not converting, one row each.
+   * Everything the sweep saw and is not converting, one row each — and, for the
+   * files it did read, a row wherever something happened to them worth saying.
    *
    * The disposition comes from §1.8's vendored registry, so a table Marinara
    * adds is `unrecognised` and counted rather than passed over — which is what
    * makes *nothing is silently dropped* checkable rather than promised.
    */
-  async *#reportUnreadPaths(): AsyncIterable<SourceItem> {
-    const converted = new Set<string>();
-    for (const [table, disposition] of Object.entries(MARINARA_DISPOSITIONS)) {
-      if (disposition === 'converted') converted.add(table);
+  async *#reportUnreadPaths(
+    manifest: MarinaraManifest | null,
+    store: MarinaraStore,
+  ): AsyncIterable<SourceItem> {
+    const manifestNotes: ImportNote[] = [];
+    for (const { table, expected, found } of await shortfalls(store, manifest)) {
+      manifestNotes.push(note('import.marinara.rowsMissing', { table, expected, found }, 'warn'));
     }
 
     for await (const path of this.#files.list()) {
+      if (path === MANIFEST || path === `${MANIFEST}.bak`) {
+        const item = manifestRow(path, manifest, manifestNotes);
+        if (item !== null) yield item;
+        continue;
+      }
+      if (path === '.encryption-key') {
+        yield observed(path, 'credential');
+        continue;
+      }
+      if (path.startsWith(TABLES)) {
+        const item = tableRow(path, store);
+        if (item !== null) yield item;
+        continue;
+      }
       // A `.bak` holds the same rows rather than more of them. Reading one
       // doubles the library, and does it in the way hardest to notice, because
       // both copies are valid.
@@ -79,56 +131,18 @@ export class MarinaraReader implements SourceReader {
         yield observed(path, 'skipped');
         continue;
       }
-      if (path === '.encryption-key') {
-        yield observed(path, 'credential');
-        continue;
-      }
-      if (path === 'storage/manifest.json') continue;
-
-      if (path.startsWith(TABLES)) {
-        const table = tableNameOf(path);
-        // Converted tables are reported by the objects they produce, not by the
-        // file they came out of — otherwise `characters.json` would appear as
-        // one row beside the four characters it yielded.
-        if (converted.has(table)) continue;
-        yield observed(path, MARINARA_DISPOSITIONS[table] ?? 'unrecognised');
-        continue;
-      }
 
       yield observed(path, assetDisposition(path));
     }
   }
 
-  /** A table's rows, from either layout, loaded once and cached. */
-  async #rows(table: string): Promise<Record<string, unknown>[]> {
-    const held = this.#tables.get(table);
-    if (held !== undefined) return held;
-
-    const rows: Record<string, unknown>[] = [];
-    const flat = await this.#files.read(`${TABLES}${table}.json`);
-    if (flat !== null) {
-      rows.push(...parseRows(flat));
-    } else {
-      // Sharded: every file under the table's directory is a slice of the same
-      // table, and `orphaned-rows.json` is one of them.
-      for await (const path of this.#files.list()) {
-        if (!path.startsWith(`${TABLES}${table}/`)) continue;
-        const bytes = await this.#files.read(path);
-        if (bytes !== null) rows.push(...parseRows(bytes));
-      }
-    }
-
-    this.#tables.set(table, rows);
-    return rows;
-  }
-
-  async *#lorebooks(): AsyncIterable<SourceItem> {
-    const books = await this.#rows('lorebooks');
+  async *#lorebooks(store: MarinaraStore): AsyncIterable<SourceItem> {
+    const books = await store.rows('lorebooks');
     if (books.length === 0) return;
 
-    const entries = await this.#rows('lorebook_entries');
-    const folders = await this.#rows('lorebook_folders');
-    const links = await this.#rows('lorebook_character_links');
+    const entries = await store.rows('lorebook_entries');
+    const folders = await store.rows('lorebook_folders');
+    const links = await store.rows('lorebook_character_links');
 
     for (const book of books) {
       const id = str(book['id']);
@@ -147,16 +161,19 @@ export class MarinaraReader implements SourceReader {
     }
   }
 
-  async *#presets(): AsyncIterable<SourceItem> {
-    const presets = await this.#rows('prompt_presets');
+  async *#presets(store: MarinaraStore): AsyncIterable<SourceItem> {
+    const presets = await store.rows('prompt_presets');
     if (presets.length === 0) return;
 
-    const sections = await this.#rows('prompt_sections');
-    const choices = await this.#rows('choice_blocks');
+    const sections = await store.rows('prompt_sections');
+    const choices = await store.rows('choice_blocks');
 
     for (const preset of presets) {
       const id = str(preset['id']);
       yield candidate({
+        // `…json#id` whatever the layout, because it is re-import identity: a
+        // store that moved from one file to shards must re-import as the same
+        // objects, not as new ones beside the old.
         source: `${TABLES}prompt_presets.json#${id}`,
         format: 'marinara.preset',
         payload: {
@@ -177,9 +194,8 @@ export class MarinaraReader implements SourceReader {
    * one poisoned *row* never aborts a table, which is the row-level sibling of
    * the rule F22 already paid for ([21 §4.1.1]).
    */
-  async *#actors(table: string, format: string): AsyncIterable<SourceItem> {
-    const rows = await this.#rows(table);
-    const images = await this.#rows(table === 'characters' ? 'character_images' : 'persona_images');
+  async *#actors(store: MarinaraStore, table: string, format: string): AsyncIterable<SourceItem> {
+    const rows = await store.rows(table);
 
     for (const row of rows) {
       const id = str(row['id']);
@@ -197,23 +213,133 @@ export class MarinaraReader implements SourceReader {
       }
 
       const avatar = str(row['avatarPath']) || `avatars/${id}.png`;
-      const held = images.filter((image) => str(image['characterId']) === id).length;
 
       yield candidate({
         source,
         format,
         payload: card,
         assets: (await this.#files.exists(avatar)) ? [avatar] : [],
-        ...(held > 0 ? {} : {}),
       });
     }
   }
 }
 
-/** `storage/tables/foo.json` and `storage/tables/foo/bar.json` are both `foo`. */
-function tableNameOf(path: string): string {
-  const rest = path.slice(TABLES.length);
-  return rest.includes('/') ? (rest.split('/')[0] ?? rest) : rest.replace(/\.json$/, '');
+/**
+ * The manifest's own row, which it has only when there is something to say.
+ *
+ * A manifest that parsed is an input, not an object, and says nothing by
+ * existing — so it had no row, and still has none unless a count it declares
+ * went unmet. A torn primary is the exception: it is a file that could not be
+ * read, and a person restoring from a backup wants to know which one was used.
+ */
+function manifestRow(
+  path: string,
+  manifest: MarinaraManifest | null,
+  notes: readonly ImportNote[],
+): SourceItem | null {
+  if (path === MANIFEST && manifest?.tornPrimary === true) {
+    return observed(path, 'unrecognised', [note('import.file.notJson', { file: path }, 'warn')]);
+  }
+  if (manifest?.path === path && notes.length > 0) return observed(path, 'skipped', [...notes]);
+  // The backup of a manifest that read fine holds the same counts, and is
+  // counted as the copy it is.
+  return path === MANIFEST ? null : observed(path, 'skipped');
+}
+
+/**
+ * One path under `storage/tables/`, reported for what became of it.
+ *
+ * **The fate comes first**, because a name can be innocent and its file still
+ * worth a line: a shard that would not parse, a backup that had to be read
+ * instead, the single file shards overruled. Only when the store did not touch
+ * a file does its name decide — artifacts and sentinels skipped, names upstream
+ * never writes unrecognised, and whole tables this reader does not convert
+ * given the registry's answer.
+ */
+function tableRow(path: string, store: MarinaraStore): SourceItem | null {
+  const found = classifyTablePath(path);
+  const fate = store.fate(path);
+  if (fate !== undefined) return fateRow(path, fate, store);
+
+  if (found.role === 'sentinel') {
+    return path === `${TABLES}${UNSHARD_SENTINEL}`
+      ? observed(path, 'skipped', [
+          note('import.marinara.unshardUnfinished', { file: path }, 'warn'),
+        ])
+      : observed(path, 'skipped');
+  }
+  if (found.role === 'artifact' || found.role === 'backup') return observed(path, 'skipped');
+  if (found.role === 'unknown') {
+    return observed(path, 'unrecognised', [
+      note('import.file.unrecognised', { file: path }, 'warn'),
+    ]);
+  }
+
+  // A data file. The tables this reader converts are reported by the objects
+  // they produce rather than by the file they came out of — otherwise
+  // `characters.json` would appear as one row beside the four characters it
+  // yielded.
+  const table = found.table ?? '';
+  if (isReadTable(table)) return null;
+  const disposition = dispositionOf(table);
+  if (disposition === 'converted') return null;
+  return disposition === 'unrecognised'
+    ? observed(path, 'unrecognised', [note('import.file.unrecognised', { file: path }, 'warn')])
+    : observed(path, disposition);
+}
+
+/** What the store did with a file, as a row — or nothing, when it simply read it. */
+function fateRow(path: string, fate: FileFate, store: MarinaraStore): SourceItem | null {
+  switch (fate.kind) {
+    case 'read':
+      return fate.malformed > 0
+        ? observed(path, 'skipped', [
+            note('import.marinara.rowsMalformed', { file: path, count: fate.malformed }, 'warn'),
+          ])
+        : null;
+    case 'recovered':
+      return observed(path, 'skipped', [
+        note('import.marinara.backupUsed', { file: path }, 'warn'),
+      ]);
+    case 'backup-read': {
+      // The note belongs on whichever file failed. When the primary is there and
+      // was recovered it carries it; when only the backup survived, the backup
+      // is the file the person needs to hear about.
+      const primary = path.slice(0, -'.bak'.length);
+      return store.fate(primary)?.kind === 'recovered'
+        ? observed(path, 'skipped')
+        : observed(path, 'skipped', [note('import.marinara.backupUsed', { file: path }, 'warn')]);
+    }
+    case 'unreadable':
+      return observed(path, 'unrecognised', [
+        note('import.file.unreadable', { file: path }, 'warn'),
+      ]);
+    case 'not-json':
+      return observed(path, 'unrecognised', [note('import.file.notJson', { file: path }, 'warn')]);
+    case 'not-rows':
+      return observed(path, 'unrecognised', [
+        note('import.file.unrecognised', { file: path }, 'warn'),
+      ]);
+    case 'superseded':
+      // Upstream quarantines this file and says to recover its rows by hand:
+      // they can be edits an older build made after the store was sharded.
+      return path.endsWith('.bak')
+        ? observed(path, 'skipped')
+        : observed(path, 'skipped', [
+            note('import.marinara.monolithSuperseded', { file: path }, 'warn'),
+          ]);
+    case 'restored':
+      return observed(path, 'skipped', [
+        note('import.marinara.preShardRestored', { file: path, table: fate.table }, 'warn'),
+      ]);
+  }
+}
+
+/** The registry's answer, without the prototype hole a bare lookup has. */
+function dispositionOf(table: string): ImportDisposition {
+  return Object.hasOwn(MARINARA_DISPOSITIONS, table)
+    ? (MARINARA_DISPOSITIONS[table] ?? 'unrecognised')
+    : 'unrecognised';
 }
 
 /**
@@ -227,21 +353,15 @@ function assetDisposition(path: string): ImportDisposition {
   return carried.some((prefix) => path.startsWith(prefix)) ? 'converted' : 'skipped';
 }
 
-function parseRows(bytes: Uint8Array): Record<string, unknown>[] {
-  try {
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (row): row is Record<string, unknown> =>
-        typeof row === 'object' && row !== null && !Array.isArray(row),
-    );
-  } catch {
-    // A table that will not parse costs that table and nothing else.
-    return [];
-  }
-}
-
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+function note(
+  key: string,
+  params: Record<string, string | number>,
+  level: ImportNote['level'],
+): ImportNote {
+  return { key, params, level };
+}
 
 function candidate(value: ImportCandidate): SourceItem {
   return { outcome: 'candidate', candidate: value };

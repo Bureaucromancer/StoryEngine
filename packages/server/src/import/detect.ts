@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { MARINARA_KNOWN_FORMAT } from './marinara/store-format.js';
+import { readMarinaraManifest } from './marinara/store.js';
+import { MARINARA_TABLES } from './registries/marinara.js';
 import type { FileSource, ImportSourceKind, SourceRefusal } from './source.js';
 
 /**
@@ -57,11 +60,36 @@ const PROBES: readonly Probe[] = [
   { kind: 'charx', requires: ['card.json'] },
 ];
 
-/** The sentinels a Marinara data root carries while it is not safe to read. */
-const MARINARA_LIVE_MARKS = ['storage/.writer-lease', 'storage/.migrating'] as const;
-
-/** The highest storage format this build knows how to read. */
-export const MARINARA_KNOWN_FORMAT = 4;
+/**
+ * The sentinels a Marinara data root carries while it is not safe to read
+ * ([P4 §7.18](../../../../docs/design/workplan/16-p4-implementation.md)).
+ *
+ * - **`storage/.writer-lease`** is a directory Marinara creates when it opens
+ *   the store and removes when it closes (`file-backed-store.ts:2370` at
+ *   `459f8b85b`). Present means running — or a copy taken while it ran, which
+ *   the refusal message has to say, because the fix is different.
+ * - **`storage/tables/<table>/.migrating`** is written into each table's own
+ *   directory while that table moves from one file to shards (`:2640`).
+ *
+ * ~~`storage/.migrating`~~ *Corrected 2026-09-22.* That path was the only
+ * mid-migration check this had, and **no version of Marinara has ever written
+ * it**: the sentinel is per table, and was at storage format 4 as well. The
+ * refusal that exists to stop a torn read had never once been able to fire.
+ *
+ * One probe per registry table, all `exists()`, so they work at `/plan` — where
+ * an upload has named its files and carried none of them — and never need a
+ * listing. A package table outside the registry is not probed, and a package
+ * table is never migrated: upstream registers them already sharded.
+ *
+ * `storage/tables/.unshard-in-progress` is deliberately **not** here. It is the
+ * launcher's, only the launcher removes it, and an interrupted `unshard`
+ * followed by an ordinary restart leaves it for good while the store beside it
+ * is perfectly readable — so it is a note on the review, not a refusal.
+ */
+export const MARINARA_LIVE_MARKS: readonly string[] = [
+  'storage/.writer-lease',
+  ...MARINARA_TABLES.map((table) => `storage/tables/${table}/.migrating`),
+];
 
 export type RootClassification =
   | { ok: true; kind: ImportSourceKind }
@@ -147,32 +175,11 @@ export async function marinaraPreflight(files: FileSource): Promise<SourceRefusa
   for (const mark of MARINARA_LIVE_MARKS) {
     if (await files.exists(mark)) return 'live-install';
   }
-  const format = await readMarinaraFormat(files);
+  const manifest = await readMarinaraManifest(files);
   // An unreadable or absent manifest is not a refusal: the store recovers one
   // from its `.bak` or infers it, so requiring it would refuse a directory the
   // app itself would open. A manifest that *states* a version we do not know is
   // a different thing, and stops us.
+  const format = manifest?.version ?? null;
   return format !== null && format > MARINARA_KNOWN_FORMAT ? 'unknown-format' : null;
-}
-
-/**
- * The storage format a Marinara root declares, or `null` if it does not.
- *
- * **The manifest states the version and cannot be trusted for the layout** —
- * Marinara's own comment records that a crash between the shard migration and
- * its first flush leaves sharded data under a version-2 manifest. So this is
- * read for the version gate only; whether a table is a file or a directory of
- * shards is a question for the filesystem, asked per table by the reader.
- */
-export async function readMarinaraFormat(files: FileSource): Promise<number | null> {
-  const bytes = await files.read('storage/manifest.json');
-  if (bytes === null) return null;
-  try {
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const version = (parsed as { version?: unknown }).version;
-    return typeof version === 'number' ? version : null;
-  } catch {
-    return null;
-  }
 }

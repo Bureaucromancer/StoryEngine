@@ -1,13 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { rm } from 'node:fs/promises';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { validate } from '@storyengine/shared';
+import { type ImportItemReport, validate } from '@storyengine/shared';
 
-import { makeTestServer, setUpAdmin, type TestServer, ownObjects } from '../../test-server.js';
-import { marinaraFixture } from '../fixtures/test-marinara.js';
+import { openLocalSource } from '../../storage/local-source.js';
+import {
+  makeTestServer,
+  setUpAdmin,
+  tempRoot,
+  type TestServer,
+  ownObjects,
+} from '../../test-server.js';
+import {
+  marinaraFixture,
+  marinaraShardedFixture,
+  writeFixtureTree,
+} from '../fixtures/test-marinara.js';
 import { MemoryFileSource } from '../memory-source.js';
+import type { FileSource } from '../source.js';
 import { malformedInputs } from '../parse.js';
 import { sweep } from '../sweep.js';
 import { profileAsFileSource, readEnvelope, singleObjectAsFileSource } from './envelope.js';
@@ -286,15 +300,6 @@ describe('sweeping a Marinara data root', () => {
     expect(presets.body.objects.map((row: { name: string }) => row.name)).toContain('Harbour');
   });
 
-  it('reads the sharded table without being told the manifest lied', () => {
-    // The fixture declares format 2 while `messages` is stored sharded, which is
-    // format 4's layout — Marinara's own comment records that a crash between
-    // the migration and its first flush leaves exactly that. The reader asks the
-    // filesystem per table rather than trusting the manifest, so this is a
-    // non-event, which is the point.
-    expect(Object.keys(marinaraFixture())).toContain('storage/tables/messages/chat_1.json');
-  });
-
   it('never lets the credentials reach the library', async () => {
     const outcome = await run();
     expect(outcome.ok).toBe(true);
@@ -350,6 +355,256 @@ describe('sweeping a Marinara data root', () => {
 
     expect(outcome).toEqual({ ok: false, refusal: 'unknown-format' });
     expect((await ownObjects(server, 'actors')).objects).toEqual([]);
+  });
+});
+
+/**
+ * **A storage format 5–7 store, which is what every recent Marinara writes**
+ * ([P4 §7.18](../../../../../docs/design/workplan/16-p4-implementation.md)).
+ *
+ * Every table sharded, with everything a real store leaves beside the shards.
+ * The assertions are on the report's items and on the library's own objects,
+ * never on counts alone: two identical copies of a row reach the library as one
+ * object marked `unchanged`, so a library count cannot see the doubling this
+ * stage exists to stop, and only the items can.
+ */
+describe('sweeping a store every table of which is sharded', () => {
+  let server: TestServer;
+
+  beforeEach(async () => {
+    server = await makeTestServer();
+    await setUpAdmin(server);
+  });
+
+  afterEach(async () => {
+    await server.dispose();
+  });
+
+  async function sweepTree(files: FileSource) {
+    const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+    if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
+    return outcome.report;
+  }
+
+  async function names(kind: string): Promise<string[]> {
+    return (await ownObjects(server, kind)).objects
+      .map((row) => (typeof row['name'] === 'string' ? row['name'] : ''))
+      .sort();
+  }
+
+  async function assertTheLibrary(report: Awaited<ReturnType<typeof sweepTree>>) {
+    const bySource = (suffix: string) =>
+      report.items.filter((item) => item.source.endsWith(suffix));
+
+    // One row per object, whatever else sat beside its shard.
+    for (const suffix of [
+      'characters.json#char_vera',
+      'characters.json#char_maris',
+      'lorebooks.json#book_rain_city',
+      'prompt_presets.json#preset_harbour',
+    ]) {
+      expect(bySource(suffix), suffix).toHaveLength(1);
+      expect(bySource(suffix)[0]?.disposition, suffix).toBe('converted');
+    }
+    expect(report.counts.unchanged).toBe(0);
+
+    // The right copy of each: not the backup, not the stranded row, not a
+    // ghost from a file no reader should open.
+    expect(await names('actors')).toEqual(['Maris Okonkwo', 'Vera Solano']);
+    expect(await names('presets')).toEqual(['Harbour']);
+    expect(await names('lorebooks')).toEqual(['Rain City']);
+  }
+
+  it('imports each object once, and the right copy of it', async () => {
+    await assertTheLibrary(await sweepTree(new MemoryFileSource(marinaraShardedFixture())));
+  });
+
+  /**
+   * **Every file beside a shard is named, and none of them is a mystery.** The
+   * backups, the migration's own backups, the torn and quarantined leftovers,
+   * the launcher's directory and the monolith an older build wrote back are all
+   * files Marinara writes on purpose, so each is `skipped` with its reason where
+   * it has one — and nothing under `storage/tables/` is `unrecognised`.
+   */
+  it('reports every leftover for what it is', async () => {
+    const report = await sweepTree(new MemoryFileSource(marinaraShardedFixture()));
+    const at = (path: string) => report.items.find((item) => item.source === path);
+    const T = 'storage/tables';
+
+    const strange = report.items.filter(
+      (item) => item.source.startsWith(`${T}/`) && item.disposition === 'unrecognised',
+    );
+    expect(strange.map((item) => item.source)).toEqual([]);
+
+    for (const path of [
+      `${T}/characters/char%5Fvera.json.bak`,
+      `${T}/characters/char%5Fvera.json.tmp-4242-1758000000000`,
+      `${T}/characters/char%5Fvera.json.corrupt-2026-09-01T10-00-00-000Z`,
+      `${T}/characters.json.pre-shard`,
+      `${T}/characters.post-unshard-2026-09-01T10-00-00-000Z/char%5Fvera.json`,
+      `${T}/chats.json.post-downgrade-2026-09-01T10-00-00-000Z`,
+    ]) {
+      expect(at(path)?.disposition, path).toBe('skipped');
+    }
+
+    // The ones with something to say.
+    expect(at(`${T}/prompt_sections/preset%5Fharbour.json`)?.notes.map((n) => n.key)).toEqual([
+      'import.marinara.backupUsed',
+    ]);
+    expect(at(`${T}/lorebooks/book%5Frain%5Fcity.json.bak`)?.notes.map((n) => n.key)).toEqual([
+      'import.marinara.backupUsed',
+    ]);
+    expect(at(`${T}/prompt_presets.json`)?.notes.map((n) => n.key)).toEqual([
+      'import.marinara.monolithSuperseded',
+    ]);
+  });
+
+  /** The same tree on a real disk, walked by the source a server path sweep uses. */
+  it('reads the same store from a real directory', async () => {
+    const root = await tempRoot('se-marinara-7-');
+    try {
+      await writeFixtureTree(root, marinaraShardedFixture());
+      const opened = await openLocalSource(root, server.dataDir);
+      if (!opened.ok) throw new Error(opened.refusal);
+
+      await assertTheLibrary(await sweepTree(opened.source));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * **Sharded tables under a version-2 manifest**, which is what a crash between
+   * the shard migration and its first flush leaves. The manifest states a
+   * version and does not establish the layout, so the reader asks the files.
+   *
+   * *This replaces a test that claimed the same thing and asserted only that the
+   * fixture contained a path* — `messages`, which is recorded rather than read,
+   * so no reader ever opened it ([P4 §7.18]).
+   */
+  it('reads the files rather than trusting the version it is told', async () => {
+    await assertTheLibrary(
+      await sweepTree(new MemoryFileSource(marinaraShardedFixture({ version: 2 }))),
+    );
+  });
+
+  it('refuses a table part-way through its shard migration, and writes nothing', async () => {
+    const outcome = await sweep({
+      library: server.services.library,
+      handle: 'ned',
+      files: new MemoryFileSource({
+        ...marinaraShardedFixture(),
+        'storage/tables/characters/.migrating': '2026-09-20T12:00:00.000Z',
+      }),
+    });
+
+    expect(outcome).toEqual({ ok: false, refusal: 'live-install' });
+    expect((await ownObjects(server, 'actors')).objects).toEqual([]);
+  });
+
+  it('imports past an unfinished offline unshard, and says so', async () => {
+    const report = await sweepTree(
+      new MemoryFileSource({
+        ...marinaraShardedFixture(),
+        'storage/tables/.unshard-in-progress': '',
+      }),
+    );
+
+    const marker = report.items.find(
+      (item) => item.source === 'storage/tables/.unshard-in-progress',
+    );
+    expect(marker?.notes.map((n) => n.key)).toEqual(['import.marinara.unshardUnfinished']);
+    expect(await names('actors')).toEqual(['Maris Okonkwo', 'Vera Solano']);
+  });
+});
+
+/**
+ * **Every file that did not become something says why**
+ * ([P4 §7.18](../../../../../docs/design/workplan/16-p4-implementation.md)).
+ *
+ * Before this stage each of these produced no row at all: a table file that
+ * could not be read, or that was not a list of rows, simply was not in the
+ * review — which is the silent drop *nothing is silently dropped* exists to
+ * prevent, arriving by the one route nobody tested.
+ */
+describe('the rows a store gets for what it could not read', () => {
+  let server: TestServer;
+
+  beforeEach(async () => {
+    server = await makeTestServer();
+    await setUpAdmin(server);
+  });
+
+  afterEach(async () => {
+    await server.dispose();
+  });
+
+  async function report(files: FileSource) {
+    const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+    if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
+    return outcome.report;
+  }
+
+  const item = (items: readonly ImportItemReport[], source: string) =>
+    items.find((one) => one.source === source);
+
+  it('names a table file an upload did not carry', async () => {
+    const tree = { ...marinaraFixture() };
+    delete tree['storage/tables/choice_blocks.json'];
+    const { items } = await report(
+      new MemoryFileSource(tree, ['storage/tables/choice_blocks.json']),
+    );
+
+    expect(item(items, 'storage/tables/choice_blocks.json')).toMatchObject({
+      disposition: 'unrecognised',
+      notes: [{ key: 'import.file.unreadable' }],
+    });
+  });
+
+  it('names a table file that is not JSON', async () => {
+    const { items } = await report(
+      new MemoryFileSource({
+        ...marinaraFixture(),
+        'storage/tables/lorebook_entries.json': '{ torn',
+      }),
+    );
+
+    expect(item(items, 'storage/tables/lorebook_entries.json')).toMatchObject({
+      disposition: 'unrecognised',
+      notes: [{ key: 'import.file.notJson' }],
+    });
+  });
+
+  /** The prototype hole: a table named for a property of `Object` is still a stranger. */
+  it('does not mistake a table named constructor for a known one', async () => {
+    const { items } = await report(
+      new MemoryFileSource({
+        ...marinaraFixture(),
+        'storage/tables/constructor.json': '[]',
+        'storage/tables/toString.json': '[]',
+      }),
+    );
+
+    for (const source of ['storage/tables/constructor.json', 'storage/tables/toString.json']) {
+      expect(item(items, source)?.disposition, source).toBe('unrecognised');
+    }
+  });
+
+  it('puts an unmet count on the manifest, which is the only signal left for it', async () => {
+    const { items } = await report(
+      new MemoryFileSource({
+        ...marinaraFixture(),
+        'storage/manifest.json': JSON.stringify({ version: 2, tables: { characters: 3 } }),
+      }),
+    );
+
+    expect(item(items, 'storage/manifest.json')?.notes).toEqual([
+      {
+        key: 'import.marinara.rowsMissing',
+        params: { table: 'characters', expected: 3, found: 1 },
+        level: 'warn',
+      },
+    ]);
   });
 });
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { uploadPriority } from './marinara/store-format.js';
 import type { ImportSourceKind } from './source.js';
 import { SILLYTAVERN_DISPOSITIONS } from './registries/sillytavern.js';
 
@@ -52,68 +53,71 @@ export interface UploadPlan {
 }
 
 /**
- * Marinara reads its store and four asset trees; everything else beside them is
- * `skipped` by the reader's own `assetDisposition`, without ever being opened.
- */
-const MARINARA_WANTED = [
-  'storage/',
-  'avatars/',
-  'sprites/',
-  'lorebooks/images/',
-  'prompts/images/',
-] as const;
-
-/**
- * Whether the reader for `kind` will open this path.
+ * How much the reader for `kind` wants a path, lower first, or `null` when
+ * naming it is enough ([P4 §7.18](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * A loose root is the expensive case and honestly so: [P4 §7.8] made it probe
  * *every* file by content, because a folder nobody arranged has no positions to
  * route by. There is nothing to narrow, so everything is wanted and the size cap
  * is what bounds it.
  */
-function isWanted(kind: ImportSourceKind, path: string): boolean {
-  if (kind === 'marinara') {
-    return MARINARA_WANTED.some((prefix) => path.startsWith(prefix));
-  }
+function priorityOf(kind: ImportSourceKind, path: string): number | null {
+  if (kind === 'marinara') return uploadPriority(path);
   if (kind === 'sillytavern') {
     // Personas are a join between the settings file and `User Avatars/`, so the
     // settings file is read even though it is not in any directory.
-    if (path === 'settings.json') return true;
+    if (path === 'settings.json') return 0;
     const top = path.includes('/') ? (path.split('/')[0] ?? path) : path;
     // `Object.hasOwn`, not a bare lookup: the registry is an object literal, so
     // a directory named `constructor` would otherwise be handed a function.
     // The same prototype-chain hole [P4 §7.8] found on the other side of this.
-    if (!Object.hasOwn(SILLYTAVERN_DISPOSITIONS, top)) return false;
-    return SILLYTAVERN_DISPOSITIONS[top] === 'converted';
+    if (!Object.hasOwn(SILLYTAVERN_DISPOSITIONS, top)) return null;
+    return SILLYTAVERN_DISPOSITIONS[top] === 'converted' ? 1 : null;
   }
-  return true;
+  return 1;
 }
 
 /**
  * Splits a manifest into what must be carried and what only needs naming.
  *
- * Entries are taken in the order given until `budgetBytes` is reached; anything
- * past it is declared instead. **Truncation is not silent** — a declared file is
- * still listed and still reported, so the review says what happened to it rather
- * than the file vanishing between the picker and the report.
+ * **The budget is spent by priority, and both lists come back in manifest
+ * order.** ~~Entries are taken in the order given until `budgetBytes` is
+ * reached~~ *Changed 2026-09-22 ([P4 §7.18]).* Taking them in the browser's
+ * order meant a large folder spent its budget on whatever the picker listed
+ * first — for a Marinara root, every chat's shards before the one file of
+ * characters — and a file the reader needed arrived declared. The order the
+ * browser lists files in is a fact about the browser; which files matter is a
+ * fact about the reader.
+ *
+ * **Truncation is not silent** — a declared file is still listed and still
+ * reported, so the review says what happened to it rather than the file
+ * vanishing between the picker and the report.
  */
 export function planUpload(
   kind: ImportSourceKind,
   manifest: readonly ManifestEntry[],
   budgetBytes: number,
 ): UploadPlan {
-  const wanted: string[] = [];
-  const declared: string[] = [];
-  let wantedBytes = 0;
+  const ranked = manifest
+    .map((entry, index) => ({ entry, index, priority: priorityOf(kind, entry.path) }))
+    .filter(
+      (one): one is { entry: ManifestEntry; index: number; priority: number } =>
+        one.priority !== null,
+    )
+    .sort((left, right) => left.priority - right.priority || left.index - right.index);
 
-  for (const entry of manifest) {
-    if (!isWanted(kind, entry.path) || wantedBytes + entry.bytes > budgetBytes) {
-      declared.push(entry.path);
-      continue;
-    }
-    wanted.push(entry.path);
+  const carried = new Set<number>();
+  let wantedBytes = 0;
+  for (const { entry, index } of ranked) {
+    if (wantedBytes + entry.bytes > budgetBytes) continue;
+    carried.add(index);
     wantedBytes += entry.bytes;
   }
 
+  const wanted: string[] = [];
+  const declared: string[] = [];
+  manifest.forEach((entry, index) => {
+    (carried.has(index) ? wanted : declared).push(entry.path);
+  });
   return { wanted, declared, wantedBytes };
 }

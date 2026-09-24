@@ -43,6 +43,17 @@ import { isLitter } from '../litter.js';
  * read-only importer is not — the observation the structural gate is built on.
  */
 
+/**
+ * The newest storage format this build has been **checked against**.
+ *
+ * Not "the newest it can read": a claim about what somebody compared against
+ * upstream, which is the only thing a number can honestly mean here, since two
+ * of the three bumps above changed nothing a reader sees. Moving it is the same
+ * procedure as the table snapshot beside it — re-take the port from the new
+ * commit, run the suite, change this line in the same commit ([P4 §7.18]).
+ */
+export const MARINARA_KNOWN_FORMAT = 7;
+
 /** Where the tables live, relative to the data root. */
 export const TABLES = 'storage/tables/';
 
@@ -237,6 +248,42 @@ export type ReadTable = keyof typeof READ_TABLES;
 /** Whether a table name is one the reader converts, without the prototype hole. */
 export function isReadTable(table: string): table is ReadTable {
   return Object.hasOwn(READ_TABLES, table);
+}
+
+/** The asset trees whose files travel with a converted object. */
+export const CARRIED_ASSET_TREES = [
+  'avatars/',
+  'sprites/',
+  'lorebooks/images/',
+  'prompts/images/',
+] as const;
+
+/**
+ * How much a browser upload should want a file from a Marinara root, lower
+ * first, or `null` for a file it only needs to name ([P4 §7.18]).
+ *
+ * **The order is what the reader cannot do without, spent first.** The
+ * manifest, then the files that hold the tables it converts, then the pictures
+ * those objects carry, and last the pre-migration backups — which are read only
+ * when a table has nothing else and can be as large as the whole old table.
+ * Everything else under `storage/` is chats, memories and the social feed,
+ * which the reader reports without opening; naming them is enough.
+ *
+ * This is not merely thrift. The reader falls back to a shard's `.bak` when the
+ * primary cannot be read, and a declared file reads as nothing — so a budget
+ * that happened to carry a backup and not its primary would import the backup,
+ * one save stale, and say only that it had.
+ */
+export function uploadPriority(path: string): number | null {
+  if (path === 'storage/manifest.json' || path === 'storage/manifest.json.bak') return 0;
+  if (path.startsWith(TABLES)) {
+    const found = classifyTablePath(path);
+    if (found.table === null || !isReadTable(found.table)) return null;
+    if (found.role === 'data' || found.role === 'backup') return 1;
+    if (path.endsWith('.pre-shard')) return 3;
+    return null;
+  }
+  return CARRIED_ASSET_TREES.some((tree) => path.startsWith(tree)) ? 2 : null;
 }
 
 /** What a path under `storage/tables/` is. */
