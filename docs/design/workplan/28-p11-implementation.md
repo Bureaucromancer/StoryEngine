@@ -2422,6 +2422,38 @@ the packer*: directory order, mtime and ownership, and gzip's own timestamp —
 the last being the one that survives every check of the contents. The image's
 half needs a daemon and two runs and stays row 9.
 
+***There was a fourth, and CI named it on the day this stage landed.***
+*Corrected 2026-09-23.* The packer kept the executable bit from `stat()` and
+normalised the rest, and on Windows `stat()` reports `0666` for every file — NTFS
+has no executable bit, and git records `100755` in its index without writing
+anything to the disk that says so. So a tarball packed on Windows shipped an
+`install.sh` that [deploy](../../deploy.md)'s `sudo ./install.sh` cannot run.
+**Releases were never affected** — `release.yml` packs on `ubuntu-latest` — but
+`pack-tarball.test.ts` failed on the `windows-latest` leg of **every CI run from
+the one that carried this stage onward**: seven runs on `main` between
+2026-09-17 and 2026-09-23, none green. *Nobody read it because `main` was
+already red*: the last green CI run is 2026-09-14, and the Linux leg has its own
+failures in `restart.test.ts`, whose *where nothing would bring the process
+back* cases expect `{ supervised: false, how: 'none' }` and get `'systemd'` on
+the runner — not fixed here, and recorded so it is not the next thing nobody
+reads. **So the question the fix was asked — has this test ever
+passed on Windows CI, and why — has the answer *never*, and the why is that
+there was nothing for it to pass on.**
+
+**The fix makes the mode a function of the member's name**, `EXECUTABLE` in the
+packer: `install.sh` is `0755` and everything else `0644`, and `stat()`'s mode
+is never read. That is the reproducibility claim in a stronger form than this
+section made it — *any machine*, not *one machine twice* — and a list of one is
+honest rather than lossy because the unit runs `node dist/main.js` and nothing
+in the deployed tree is executed directly. **Git stays the authority**: a test
+compares the list against `git ls-files -s -- deploy/tarball`, which records the
+bit on every platform, and the packer refuses outright if a listed name is
+absent, so a renamed script cannot ship `0644` quietly. *The old test passed on
+Linux for the broken implementation*, because its fixture `chmod`ed the script
+to the answer; the new one writes the fixture's modes as the opposite of the
+answer in both directions, and each of its three assertions was checked by
+reverting the change it guards.
+
 ***And P11.0's recommendation is collected.*** That audit asked for *"one line in
 `tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
 bundle, so the next phase that doubles it is found by failing rather than by
