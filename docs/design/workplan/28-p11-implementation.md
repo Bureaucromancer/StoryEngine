@@ -9,9 +9,11 @@ before the phase started, which is the one thing the old status line asked for
 and got.
 
 ***The record is [§3.2](#32-what-was-answered--recorded-2026-09-17) and the list
-is [sitting R](05-manual-testing.md)***, five rows of which two are desk work and
-one — R4, the 1.0 corpus read capability by capability — **is the beta claim
-rather than a check on it**. *The thirteen gate rows above §3.2 are not edited*,
+is [sitting R](05-manual-testing.md)***, ~~five~~ **six** rows of which two are
+desk work and one — R4, the 1.0 corpus read capability by capability — **is the
+beta claim rather than a check on it**. *The sixth, R6, arrived 2026-09-22 with
+[P11.2](#and-2026-09-22-a-hook-gets-somewhere-to-be-written-and-a-way-out)'s
+hook addendum, which argues its three clauses.* *The thirteen gate rows above §3.2 are not edited*,
 which is [manual testing §0](05-manual-testing.md)'s first honesty condition and
 the whole reason there are two tables.
 
@@ -2895,6 +2897,20 @@ index would pass every other check."* The live half — restore into a running
 install and watch a search answer — is [testing](03-testing.md)'s, and stays
 this phase's one case of the check living outside the document that owes it.
 
+***Two claims above were not true when they were written, and the record is
+kept as it was.*** [P12 §0.5](29-p12-implementation.md) found them by reading
+`layout.ts` beside `backup.mjs`, five days later. **The index was in every
+archive this script wrote**: the exclusion tested file names at the data root,
+and [03 §5.1](../03-data-model.md) puts the index at `index/index.sqlite`, one
+level down — and the test *"checks the archive's contents … for its absence"*
+over a fixture that wrote `index.sqlite` at the root, so it agreed with the
+mistake rather than with the layout. **And *"a header struct and padding"* cut
+every member name past a hundred bytes**, which loses all but one of a
+lorebook's version payloads to the same truncated name. Both were repaired at
+[P12.0](29-p12-implementation.md) (`aaf7345`), fixture included, before P12
+built anything on top; the script this stage shipped is now one of P12's two
+tar writers, held to the server's by `tools/tar-seam.test.ts`.
+
 ### P11.12 — The automatic extractor
 
 ***Added 2026-09-17 by [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)***, which
@@ -3130,10 +3146,17 @@ feature complete costs more than the same answer found now, and costs it in the
 currency [releases §0](04-repo-and-releases.md) says beta spends — other people's
 trust, once.
 
-***Five criticals, and two of them are desk work.*** That is unusual and it is a
+***~~Five~~ Six criticals, and two of them are desk work.*** That is unusual and it is a
 property of a phase whose gate is mostly *did the thing get built*: row 1 and row
 13 are answered by reading rather than by playing, and they are on the list
 because **they are what closes the phase** rather than because they are hard.
+
+***The sixth arrived 2026-09-22 and is not in the table below***, which is the
+derivation as it was run on 2026-09-17 and stays that way. It is
+[sitting R](05-manual-testing.md)'s **R6** — a hook written on a carrier, and one
+saved back out of a session — and its three clauses are argued at
+[P11.2](#and-2026-09-22-a-hook-gets-somewhere-to-be-written-and-a-way-out)'s
+hook addendum, where the stage that owes it is.
 
 | Row | Why it is critical | Blocked on |
 |---|---|---|
@@ -3185,7 +3208,7 @@ and the whole reason there are two.*
 | **8** Playwright journeys on CI | `e2e/journeys.spec.ts`, `ci.yml`'s `journeys` job | ✅ — **built after this table first said ❌**, which is the one row here whose entry changed by the work being done rather than by the wording being fixed. One test, the seven journeys in [testing §3.5](03-testing.md)'s order, against a built server serving a built client and an OpenAI-compatible double over HTTP. **Three of the seven were read wrong until walked** — §3.5 records which and why |
 | **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
 | **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
-| **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it |
+| **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it. ***True since `aaf7345`, and not when this row was written*** — [P12 §0.5](29-p12-implementation.md): the exclusion never fired and the fixture agreed with it; see [P11.11](#p1111--backup-and-restore)'s note |
 | **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded |
 | **13** The extractor is owned, or 1.0 ships manual capture deliberately | [P11.12](#p1112--the-automatic-extractor) | ✅ — **taken.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took it rather than carrying it a third time, and `repo-shape.test.ts` holds the clause that makes [P8](25-p8-implementation.md)'s C2 answerable |
 

@@ -1473,10 +1473,11 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 **The branch is `p10` for both phases**, which is why one merge carries two — it
 was opened for P10 and P11 together, and P11's own status line above says so
 rather than implying a `p11` that never existed. [P11 §3.2](28-p11-implementation.md) is the record and
-[sitting R](05-manual-testing.md) is the list. **Five criticals, two of them desk
+[sitting R](05-manual-testing.md) is the list. **~~Five~~ Six criticals, two of them desk
 work**, and the phase does not close until they have results — which is
 [manual testing §0](05-manual-testing.md)'s rule and, here, the rule that decides
-when *beta* may be said.
+when *beta* may be said. *The sixth, R6, arrived 2026-09-22 with the hook
+addendum to [P11.2](28-p11-implementation.md).*
 
 ***What it does not have is named rather than absorbed***, which is the part of
 this row worth reading twice. ~~Four~~ ~~**Three**~~ ~~**Two**~~ ~~**One**~~
