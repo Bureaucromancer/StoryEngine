@@ -45,6 +45,8 @@ import {
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
+import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
+import type { HookSource } from '../sessions/types.js';
 import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
@@ -74,6 +76,12 @@ import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
 import { PathEscapeError } from '../storage/paths.js';
+// The one route in this file that writes a *library* object rather than a
+// session answers the library's refusals in the library's own statuses, from
+// the module where that vocabulary is decided. A second spelling of the mapping
+// is how a caller comes to learn *403 means the system library* from one route
+// and something else from another.
+import { respondToLibraryError } from './library.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
@@ -393,6 +401,72 @@ const HookParams = Type.Object({
   sessionId: Type.String(),
   hookId: Type.String({ maxLength: 200 }),
 });
+
+/**
+ * Where a pooled hook is being saved to — [03 §4.1], [15 §5.1].
+ *
+ * ***Closed, which is the opposite of `HookBody` beside it, and the difference
+ * is what the body carries.*** That one is open because it holds *a hook*, and a
+ * hook the schema would refuse is an authoring mistake to show rather than a
+ * request to reject. This one holds **no content at all** — it names an object
+ * the server already has and a kind it must be. There is nothing here that could
+ * be a mistake worth preserving, and an unrecognised `kind` is a client bug that
+ * should fail where it is made rather than resolve to nothing three calls later.
+ *
+ * *`kind` is the pool's own vocabulary* — `treatment`, `setup`, `lore` — because
+ * the targets are lined up against the pool's sources by eye on the panel, and a
+ * second name for the lorebook arm would be a third spelling of one thing.
+ *
+ * ***`from` is which pooled row, and it exists because an id does not name
+ * one.*** `poolFor` refuses to de-duplicate by id on purpose — *"the same hook
+ * reaching a session through two sources is a real authoring situation"* — so a
+ * pool legitimately holds two entries under one id with **different content**,
+ * drawn as two rows each with its own control. Without this the handler takes
+ * the first match, which is the row above the one that was pressed, and the
+ * second attempt is then refused `already-there` forever: the hook the person
+ * meant can never reach that object at all. The client sends the row's own
+ * `source`, so the handler can resolve the entry rather than guess at it.
+ *
+ * *Optional, and the absence means the first match*, which is what a caller that
+ * has only an id can honestly ask for. It carries no hook content either — a
+ * `kind` and an id the server already holds — so it widens nothing the paragraph
+ * above closes.
+ */
+const PromoteBody = Type.Object(
+  {
+    target: Type.Object(
+      {
+        kind: Type.Union([Type.Literal('treatment'), Type.Literal('setup'), Type.Literal('lore')]),
+        id: Type.String({ minLength: 1, maxLength: 200 }),
+      },
+      { additionalProperties: false },
+    ),
+    from: Type.Optional(
+      /**
+       * `HookSource`'s own four arms, spelled out rather than loosened into one
+       * object with an optional id: a `session` row has no id and the other
+       * three always have one, and a body that allowed either everywhere would
+       * accept `{ kind: 'lore' }` — which names every lorebook in the pool and
+       * so resolves to none of them.
+       */
+      Type.Union([
+        Type.Object({ kind: Type.Literal('session') }, { additionalProperties: false }),
+        Type.Object(
+          {
+            kind: Type.Union([
+              Type.Literal('treatment'),
+              Type.Literal('setup'),
+              Type.Literal('lore'),
+            ]),
+            id: Type.String({ minLength: 1, maxLength: 200 }),
+          },
+          { additionalProperties: false },
+        ),
+      ]),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * A pack to switch to, or the session's own copy as edited — [P7B.2].
@@ -1307,6 +1381,146 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
       return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * ***Saving a hook back out of a session*** — [03 §4.1], [06 §6.1],
+   * [15 §5.1], and the valve `hook-pool.ts` never had a counterpart for.
+   *
+   * **The pair above only runs one way.** A session copies hooks in from all
+   * four of 03 §4.1's sources at creation and may gain its own while playing,
+   * and until this route there was no way back out: a hook realised mid-play —
+   * *most of why the feature earns its place*, by 06 §6.1's reckoning — died
+   * with the session it was realised in.
+   *
+   * **The work is in `sessions/promote.ts` and the reasoning with it**, which is
+   * this file's habit for anything that is not about the wire: why promotion
+   * cannot be a client-side read-modify-write (the panel is shown a redaction of
+   * the pool and [08 §6] forbids widening it), why the copy keeps the hook's id,
+   * and why the session is left exactly as it was.
+   *
+   * ***Three 404s, and they are three different claims*** — the session is gone,
+   * this pool has no such hook, or the object you picked has been deleted since
+   * the panel listed it. A person sent to the wrong one of those three looks in
+   * the wrong place, so the route answers with the one that happened rather than
+   * a shared *not found*.
+   *
+   * *Which is also why this one does not go through `mine`.* Its sibling routes
+   * do, for the hand-edit reconciliation it performs on the outermost read of a
+   * session — but that reconciliation writes a **turn**, and promotion is not a
+   * move in the story; and `mine`'s own 404 says `not-found`, which would be a
+   * fourth spelling shadowing the first of the three. The ownership it enforces
+   * is not lost: `readSession` resolves under the account's handle, so somebody
+   * else's session is the same absence it has always been ([09 §4.3]).
+   *
+   * **409 rather than a second copy, and never a fresh id.** Pressing the
+   * control twice is a thing people do — the first press leaves the panel row
+   * looking exactly as it did — so the second says *that one is already there*.
+   * [15 §5.1] is why the alternative is not *rename it*: a re-minted id is the
+   * one thing that cannot be repaired afterwards, because a corpus of sessions
+   * whose hooks have unrelated ids cannot be retro-fitted into a continuity.
+   *
+   * ***And one library refusal is answered here rather than delegated*** — a
+   * target that moved under the write is `409 target-moved` rather than the
+   * shared `412 stale`, because that arm's body carries the whole object and
+   * this is the one caller for which that object is hidden content. The catch
+   * block below argues it.
+   */
+  app.post(
+    '/sessions/:sessionId/hooks/:hookId/promote',
+    { schema: { params: HookParams, body: PromoteBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, hookId } = request.params as { sessionId: string; hookId: string };
+      const { target, from } = request.body as { target: PromoteTarget; from?: HookSource };
+
+      let outcome;
+      try {
+        outcome = await promoteSessionHook(
+          services.sessions,
+          services.library,
+          account.handle,
+          sessionId,
+          hookId,
+          target,
+          from,
+        );
+      } catch (error) {
+        /**
+         * ***`stale` is answered here rather than delegated, and it is the one
+         * refusal this route may not pass through.*** `respondToLibraryError`'s
+         * 412 arm attaches `current` — the **whole target object** — so that an
+         * editor can offer reload-and-reapply. That envelope is a treatment's or
+         * a lorebook's every hook, which means every **unfired** `premise` and
+         * every `Entrance.text` on it, delivered to the play client: exactly the
+         * content [08 §6](../../../../docs/design/08-cross-session-memory.md) and
+         * [10 §10.1](../../../../docs/design/10-ui-surfaces.md) name as hidden,
+         * at the surface they name it about, through the error path of the route
+         * whose whole reason for being server-side is that redaction. It is
+         * reachable without a race: a hand-edited `treatment.json` ([03 §1]
+         * makes that first-class) promoted against before the watcher settles.
+         *
+         * **And the envelope buys nothing here.** There is no reload-and-reapply
+         * for this act — the client never held the hook, and cannot merge one it
+         * has never been shown — so the honest answer is *try again*, with the
+         * `diverged` arm's shape and for the `diverged` arm's reason: a 409 that
+         * cannot be read as *here is the newer state, resolve against it*.
+         *
+         * Everything else — `read-only`, `invalid`, `not-found`, `refused-path`,
+         * `diverged` — keeps the shared mapping, which is right for each of them
+         * and carries no object.
+         */
+        if (error instanceof LibraryError && error.code === 'stale') {
+          return reply.code(409).send({
+            error: 'target-moved',
+            message: 'That object changed while you were saving. Try again.',
+          });
+        }
+        /**
+         * A system-library target (403 — *copy to my library* first, then
+         * promote into the copy), a file the index has lost track of (409), a
+         * path the layout refuses (422) — the library's own refusals, in the
+         * library's own statuses, through the library routes' own mapping.
+         * *`stale` is not in this list*, because the arm above took it; naming
+         * it here as a 412 is what this comment said until the envelope it
+         * carries turned out to be a spoiler leak.
+         *
+         * **`invalid` is reachable from here in a way it is not from those
+         * routes**, and that is this call site's one piece of news: the add
+         * route takes a hook the schema would refuse, on purpose, because *a
+         * hook the schema would refuse is an authoring mistake to show rather
+         * than a request to reject*. Promoting it is where that stops being
+         * free — `update` runs the real validator, and the 400 carries the
+         * issues saying which field.
+         */
+        respondToLibraryError(error, reply);
+        return;
+      }
+
+      switch (outcome.kind) {
+        case 'promoted':
+          // The object, not the session: nothing about the session changed, and
+          // returning it would invite a client to believe otherwise. What the
+          // caller needs is somewhere to navigate to and something to name in
+          // the confirmation.
+          return reply.send({ object: outcome.object });
+        case 'no-session':
+          return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
+        case 'no-such-hook':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-hook', message: 'This session has no hook with that id.' });
+        case 'no-such-object':
+          return reply.code(404).send({ error: 'no-such-object', message: 'That object is gone.' });
+        case 'already-there':
+          return reply.code(409).send({
+            error: 'already-there',
+            message: 'That object already carries this hook.',
+          });
+      }
     },
   );
 

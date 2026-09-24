@@ -215,6 +215,32 @@
     "retentionDays": 30
   },
 
+  "backup": {
+    // live — the install's own backup, on a timer. "off", "daily" or "weekly".
+    //
+    // This is the whole data directory: every account's library and sessions,
+    // the operational store, and — when "contents" is "full" — accounts.json
+    // and the session signing key. It lands in data/backups/ and is meant to be
+    // copied somewhere else; nothing here removes old ones yet.
+    "frequency": "off",
+
+    // live — take one on every server start, as well as on the frequency above.
+    //
+    // For a machine that is not on all the time, where a fixed frequency may
+    // never come round. Independent of "frequency" rather than a value in it,
+    // so an install that is usually up can have both. A start backup is skipped
+    // if the newest one is under an hour old.
+    "onStart": false,
+
+    // live — "full" or "redacted".
+    //
+    // "full" restores to a working install and therefore carries credentials.
+    // "redacted" leaves out accounts.json, the connections and the session key:
+    // safer to store elsewhere, and it restores to an install nobody can sign
+    // into.
+    "contents": "full"
+  },
+
   "history": {
     // live — versions kept per object. Pinned versions are exempt.
     "keepPerObject": 50

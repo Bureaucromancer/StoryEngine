@@ -355,13 +355,13 @@ design note without an owner is precisely the defect
 
 The split is therefore explicit, and it is the last thing this section does:
 
-- **1.0, owned by [P11A](workplan/29-p11a-the-look.md)** — faces, the editable
+- **1.0, owned by [P12A](workplan/30-p12a-the-look.md)** — faces, the editable
   channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
   section jumps, the story face, and the phone rules below. Each discharges a
-  commitment this corpus already made; P11A is where each is sized.
+  commitment this corpus already made; P12A is where each is sized.
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
   explanation. They are on the feature list ([24](24-roadmap.md))'s priorities,
-  and if P11A reaches them they ship early rather than late.
+  and if P12A reaches them they ship early rather than late.
 - **Arrival is neither, and the distinction is not a quibble.**
   [polish §5](workplan/06-polish.md) already carries the full home as
   *nominally a 1.0 feature, expected immediately before the cut-over to
@@ -1831,9 +1831,41 @@ source and its inclusion reason in plain language, so a fired hook is legible
 there the moment the selector names one — the panel here is for the hooks that
 have *not* fired, which is the half nothing else can show.
 
+**A third control, and the split above does not classify it.** *Save this to…*
+sits on a hook's row beside Commit, offers the treatment, the Setup and the
+lorebooks this session names, and copies the hook onto whichever is chosen —
+[03 §4.1](03-data-model.md)'s promotion, which is the only way a hook leaves a
+session. It is not *a move in the story* and it is not *a test of the material*;
+it is an **act on the library, performed while playing**, which is a third thing
+and is why the paragraph above could not simply be extended. It belongs here
+anyway, and for a reason that owes the taxonomy nothing: the hook somebody wants
+to keep is the one they wrote in this panel ten minutes ago, at the moment
+[06 §6.1](06-modes-and-turn-pipeline.md) says the feature earns its place, and a
+control kept in the workbench would be a control nobody reached for when they
+wanted it. Nothing is automatic, and nothing suggests it today —
+[03 §2.3](03-data-model.md)'s *offered*, which permits an agent to suggest and
+forbids only auto-promotion, so the absence of a suggestion is what was built
+rather than what the rule requires — and a second press earns a refusal
+rather than a second copy, because the id has to survive the move and re-minting
+it is the one thing that cannot be repaired afterwards
+([15 §5.1](15-world.md)).
+
 *Entrances are shown by label, never by text.* An unfired entrance is hidden
 content ([08 §6](08-cross-session-memory.md)), and a panel that spoils the
 arrival to the person about to read it defeats the feature.
+
+**That rule now has a second consumer holding it**, and the two hold it from
+opposite ends. The promote control cannot work by copying what the panel was
+shown, because the panel was deliberately not shown it: no unfired premise, no
+entrance text, and `involves`, `weight`, `delivery`, `once`, `notBefore` and
+`blockedBy` never sent at all. So promotion is a **server** act, keyed by the
+hook's id and carrying no content up the wire ([api.md](../api.md)) — the client
+names which hook and which object, and the server is the only party that ever
+holds the hook. The alternative was to widen what the panel is sent so that a
+client could assemble the copy itself, which would have spent this rule and
+[08 §6](08-cross-session-memory.md)'s to buy a button. **A redaction a feature
+can be built against is a redaction that survives; one the next feature has to
+undo was only ever a comment.**
 
 ---
 
@@ -2892,6 +2924,111 @@ account ones:
   value past its range looked exactly like a value that had been accepted. That
   is where `auth.minPasswordLength` ([09 §4.1](09-server-multiuser-deployment.md))
   is set.
+
+### 15.3a Backups, on both halves — [25 E6](25-open-questions.md), [P12.6](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22. This document contained the word* backup *zero times before
+it, which is what a feature designed as a shell command looks like from the UI's
+side.*
+
+**Two panels, and they are separate rather than one panel with a scope switch**,
+because the sentence they have to say differs in kind. A person's own archive
+carries their provider keys. The install's carries **everybody's** work, their
+password hashes and the key that validates every session — and the person
+choosing where that file goes is not the person whose password is in it.
+
+- **In the user half, beside the trash** (§15.1), and for the trash's reason: it
+  holds sessions as well as library objects, so a drawer inside the library
+  would be a library surface answering about something that is not a library
+  object — and nobody comes here to browse, they come because they want one
+  file. It lists what is stored, takes one, hands it over as a plain
+  `<a download>`, and deletes one in two steps.
+- **In the admin half**, the same for the whole install.
+
+***Taking one is not a capability and the schedule is*** ([09 §4.2.1](09-server-multiuser-deployment.md)'s
+list gains a fourth). Refusing somebody a copy of their own writing would be a
+strange thing for this software to do; what an administrator decides is whether
+the **server** writes archives for them on a timer nobody is watching, which is
+the one way a setting somebody made once fills a disk — and a full disk stops
+turns for everybody. The schedule form is therefore **absent** without the
+capability rather than disabled, which is §15's own mechanism.
+
+***The admin panel has no schedule form, and that is deliberate.*** The
+install's schedule is three keys in `config.json`, and the settings form (§15.3)
+derives its controls from the schema — so it shipped with the keys. A second
+copy here would be a second thing to keep true.
+
+**It passes §15.4's test.** There are three actions — take one, take it away,
+delete one — and the one number shown, what the stored archives weigh together,
+is the input to the third. Retention is deliberately not built, so that number
+is the only thing standing between an install with a schedule and somebody
+finding out when the disk is full.
+
+### 15.3b Import, which is not restore — [P12.10](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22.* **Two ways to get data back, named apart, in two different
+places.** *Import* merges an archive's content into a server that is **running**
+and touches nothing that is install authority — accounts, the operational store
+and the system library are never read. *Restore* ([P12.11]) puts an archive back
+**as** the install and cannot happen while it is running. They differ in what
+they touch, what they can break, and whether the server can be up. Conflating
+them is how somebody clicks *restore* meaning *import* and loses a week, so they
+are two controls with two names rather than one control with a mode.
+
+**The import flow sits at the foot of each backup panel**, after the schedule,
+because it is the rarer act: taking one is something a person does deliberately
+and often, importing one is what they do after something went wrong, and burying
+the everyday controls under a flow for a bad day is the wrong way round. It is
+**absent** when there is nothing to import from, rather than disabled — an
+account with no archives has no question to answer.
+
+***It shows the archive before it offers anything, and that is the substitute
+for a preview.*** [P4 §1.4](workplan/16-p4-implementation.md) settled the
+question for every import: a **sweep** commits and reports, because a staging
+area is a second library. So what a person reads first is the archive's own
+manifest — when it was taken, whose accounts are in it, whether it carries
+credentials, what it left out — which is what the controls actually turn on.
+§5's struck *"let the user fix it before committing"* is the same ruling seen
+from this document's side.
+
+**Work and tags always; everything else is a box that starts unticked.**
+Objects reference tags by id, so an import without the registry would leave
+every imported object pointing at names that resolve to nothing. Provider
+connections and preferences are each opt-in and each **reported whether taken or
+not**, because *my keys did not come across* should be a question with an answer
+rather than a bug report. The admin's panel adds a fourth box for the install's
+settings, and says which account in the archive — from **the archive's** list of
+handles, because an account here the archive holds nothing for is not a choice.
+
+### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
+
+*Added 2026-09-22.* **Inside its own border, at the foot of the admin panel,
+after everything that adds to the install.** The order on that page is the order
+of how much each control costs to get wrong, and this is the last one. A control
+that sat in the same row as *Download* would be a destructive act wearing the
+clothes of a routine one.
+
+***It is absent where nothing would start the server again***, with a sentence
+giving the shell command instead — [09 §6.4](09-server-multiuser-deployment.md)'s
+trap, which that section states for the plain restart and which is sharper here:
+*a bare `node server.js` will simply exit and the admin who clicked the button
+now has no server and possibly no shell.* The route refuses it too, because
+§15's own rule is that a surface is never the boundary; what the absence buys is
+that a person who has done nothing wrong does not have to read an error.
+
+***The confirmation is the words typed back***, on the account-removal dialog's
+pattern and for its stated reason: *a destructive control whose confirmation is
+a second button is a control people click twice*. This is the most destructive
+control in the build, so it takes the strongest confirmation the build has — and
+the dialog says what will be replaced and where what is here now will be kept
+before asking for it.
+
+**A restore waiting for the next start is shown, with a way out.** A restore
+that worked leaves no marker — it lived in the directory that moved aside — so
+one visible after a restart always means something went wrong, and the notice
+saying what went wrong arrives with it. *Call it off* is the control that notice
+implies: without it, a failed restore is a state a person can read about and
+cannot leave, on an install whose whole premise is that nobody has a shell.
 
 ### 15.4 What this is not
 

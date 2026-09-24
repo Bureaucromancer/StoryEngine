@@ -1,10 +1,10 @@
-# 29 — P11A implementation plan: the look, and the sentence it has to put back
+# 30 — P12A implementation plan: the look, and the sentence it has to put back
 
 **Status: skeleton, written 2026-09-22**, the day
 [10 §1.3](../10-ui-surfaces.md) was written. Nothing is built. Format follows
 [P1](07-p1-implementation.md); citations follow the corpus convention.
 
-**P11A delivers [10 §1.3](../10-ui-surfaces.md)'s direction**: the story
+**P12A delivers [10 §1.3](../10-ui-surfaces.md)'s direction**: the story
 surfaces stop being *quiet* in the sense of unfinished. Concretely — an
 appearance layer that can express elevation, motion and a reading face at all;
 characters with faces wherever the engine says who someone is; the backdrop
@@ -13,11 +13,20 @@ like a picture in the column; a play surface whose tools have stopped stacking
 above the prose; section jumps and an identity header in the editors; and the
 phone rules, which are two sentences and have never been enforced.
 
-**The phase is filed after [P11](28-p11-implementation.md) and before beta is
+**The phase is filed after [P12](29-p12-implementation.md) and before beta is
 said**, which is an unusual place to put a phase and is the whole argument of
 §0.1. Its number is also its execution position, so nothing renumbers and
 `PLAN_ORDER` in [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs)
-gained one line at the end.
+gained two lines at the end — this one, and P12's, which it did not have.
+
+***Renamed 2026-09-23, from P11A at 29.*** It was written on a branch cut before
+[P12](29-p12-implementation.md) existed, as *the phase after P11*; P12 merged to
+`main` the next day, backups, at 29 and with sitting S, so on the merge this
+document moved to 30, its sitting became **T**, and its name became the one the
+lettering rule gives a phase that runs after P12 — P6A and P6B after P6, P7B
+after P7. **Nothing about the argument moved**: P12 is merged and open on its own
+critical list, and it neither meets nor removes any commitment
+[10 §1.3](../10-ui-surfaces.md) made.
 
 ---
 
@@ -41,13 +50,13 @@ are where people spend their evenings.
 
 **What that buys and what it costs, plainly.** It buys a beta that can be shown
 to somebody. It costs the calendar between now and R4, and it means **R4 must
-not be walked until P11A lands** — the one scheduling claim this document makes
+not be walked until P12A lands** — the one scheduling claim this document makes
 about another phase's gate. **R1, R2, R3 and R5 are unaffected** and should be
 walked now; only R4 reads the corpus as a whole, and only R4 waits.
 
 **[10 §1.3](../10-ui-surfaces.md) split its own list to keep this bounded**, and
 the split is load-bearing rather than decorative: the seven items it marks *1.0,
-owned by P11A* are the stages below, the two it marks *not 1.0* are on
+owned by P12A* are the stages below, the two it marks *not 1.0* are on
 [24](../24-roadmap.md)'s feature list, and **arrival is neither** —
 [polish §5](06-polish.md) already carries the full home page as nominally 1.0
 and expected immediately before this same cut-over, so the direction says how it
@@ -107,9 +116,9 @@ friction to route around.
   config file ([25 E10](../25-open-questions.md)).
 - **Not the reading view's rebuild.** [10 §12](../10-ui-surfaces.md) shipped at
   P11 and is on the right side of this direction already. It gains the story
-  face at P11A.1 and nothing else.
+  face at P12A.1 and nothing else.
 - **Not a mobile-first pass.** [10 §1](../10-ui-surfaces.md)'s 1.0 bar —
-  responsive and genuinely usable — is unchanged. P11A.7 enforces two rules that
+  responsive and genuinely usable — is unchanged. P12A.7 enforces two rules that
   were already written, which is a different thing from designing a phone layout.
 
 ---
@@ -164,7 +173,7 @@ text-only Scene to be first-class).
 [manual testing §3](05-manual-testing.md)'s **R10** — an endpoint serving the
 `image` role — is *not to hand*, and it already blocks
 [sitting O](05-manual-testing.md) and the whole of [P9](26-p9-implementation.md)'s
-gate. A P11A critical row reading *is the prose legible over a generated
+gate. A P12A critical row reading *is the prose legible over a generated
 backdrop* would be blocked on the same errand, and
 [manual testing §0](05-manual-testing.md)'s clause (iii) is explicit that a
 blocked check is a deferral rather than a check.
@@ -200,14 +209,14 @@ one keystroke**, which is the test this decision has to pass.
 workbench is a panel someone has to open, and moving a control into it is the
 *progressive disclosure as a reflex* [10 §1.1](../10-ui-surfaces.md) rejects.
 The defence is that Play is a story surface and the rejection is written for the
-tooling ones — but that defence is an argument, not a measurement, and **S3 is
+tooling ones — but that defence is an argument, not a measurement, and **T3 is
 where a person answers it.**
 
 ### 1.4 The HUD has to be able to write, or it is a read-only strip
 
 [10 §1.3](../10-ui-surfaces.md) takes Marinara's editable HUD because it is
 [00 §3.6](../00-stance.md)'s *shown and correctable* in the right form. Today's
-`ChannelHud` shows. **Whether it can write is the first thing P11A.4 checks**,
+`ChannelHud` shows. **Whether it can write is the first thing P12A.4 checks**,
 and the answer decides the stage's size: if the channel-correction route from
 [P7](23-p7-implementation.md) is complete, the stage is presentation; if it is
 not, the stage grows a route and a record entry, because a correction is a state
@@ -242,9 +251,9 @@ evidence for buying the bytes.
 
 *Each stage is a commit or a short series, green before the next opens
 ([CLAUDE.md](../../../CLAUDE.md): a green suite closes a stage, not a phase).
-Branch `p11a`.*
+Branch `p12a`.*
 
-### P11A.0 — The tokens every other stage spends
+### P12A.0 — The tokens every other stage spends
 
 `index.css` grows what §0.2's first fact says is missing, and nothing else:
 **radii that differ** (control, panel, media — today's two both resolve to
@@ -263,14 +272,14 @@ palette, applied to the thing that did not exist when it was written.
 identical and the new steps single-sourced; `contrast.test.ts` gains any inked
 pair. **No surface changes in this stage**, which is what makes it reviewable.
 
-### P11A.1 — The story face, and the two surfaces that wear it
+### P12A.1 — The story face, and the two surfaces that wear it
 
 Apply `--font-story` where `text-story` already is — the play transcript and the
 reading view ([10 §12](../10-ui-surfaces.md)) — and check the measure still
 holds at `--container-reading` with the new face's x-height. Cheap, visible, and
-it is the stage that proves P11A.0's tokens reach a surface.
+it is the stage that proves P12A.0's tokens reach a surface.
 
-### P11A.2 — The backdrop becomes a backdrop
+### P12A.2 — The backdrop becomes a backdrop
 
 §1.2's four behaviours, plus the **choose-an-image** path that makes them
 walkable: behind the column, scrim, crossfade, off with no placeholder, and
@@ -280,10 +289,10 @@ dropped entirely under the phone breakpoint
 **The contrast claim is a test, not a hope.** The scrim's job is that
 `--color-ink` on the story column clears 4.5:1 *whatever is behind it*, which
 means the scrim's floor is computed rather than eyeballed and
-`contrast.test.ts` gets the pair. A person still looks at it — S1 — because a
+`contrast.test.ts` gets the pair. A person still looks at it — T1 — because a
 ratio that passes over an average is not a ratio that passes over a highlight.
 
-### P11A.3 — Faces
+### P12A.3 — Faces
 
 §1.1's four places: cast rows, the player's own line, the mention affordance,
 and the object header in the editors and the library. Each is a claim, so each
@@ -297,13 +306,13 @@ for a long time, so the no-image case is the common case: `auth/tile.ts` already
 generates deterministic initials for the sign-in gallery, and a second
 invention here would be the third spelling of one idea.
 
-### P11A.4 — The HUD, and whether it can write
+### P12A.4 — The HUD, and whether it can write
 
 §1.4. Audit first, then the strip: the *facts about now* widgets in one line
 above the prose, each opening in place, each writing through a real state effect
 that lands on the record.
 
-### P11A.5 — The column that grew seven disclosures
+### P12A.5 — The column that grew seven disclosures
 
 §1.3's move, and the largest stage in the phase. Play becomes the HUD strip, the
 prose, and the composer; the session-configuration panels move into the
@@ -312,15 +321,15 @@ the suite**: every control reachable before is reachable after, and
 `PlayPage.test.tsx` is where that is asserted rather than hoped — it is 1,301
 lines of exactly the right assertions, and they should be moved, not deleted.
 
-### P11A.6 — Motion, five of them
+### P12A.6 — Motion, five of them
 
 Turn arrival, the streaming state, a panel or sheet entering, the backdrop's
-crossfade (already in P11A.2, named here), and Send acknowledging the press
+crossfade (already in P12A.2, named here), and Send acknowledging the press
 ([polish §11](06-polish.md) built the first word of this). Each spelled **once**,
 in `ui/classes.ts` beside `reveal`, with the same test `theme.test.ts` already
 applies to `reveal`: spelled in one place, and honouring its media query.
 
-### P11A.7 — Editors: section jumps and an identity header
+### P12A.7 — Editors: section jumps and an identity header
 
 Anchor chips over the long form — never tabs
 ([10 §1.3](../10-ui-surfaces.md), [10 §11.2d](../10-ui-surfaces.md)) — generated
@@ -328,7 +337,7 @@ from the fieldsets that already exist rather than hand-listed, so a schema
 change cannot leave a jump pointing at nothing. And `EditorFrame` grows the
 header `ActorEditorPage` already has: the object's image, its name, its kind.
 
-### P11A.8 — The phone rules
+### P12A.8 — The phone rules
 
 Two rules, both already written and neither enforced: **sheets rather than
 shrunken panels**, and **no essential action that exists only on hover**. The
@@ -339,11 +348,11 @@ producing a small number of fixes plus the lint or test that keeps them fixed.
 
 ---
 
-## 3. Verification — the P11A exit gate
+## 3. Verification — the P12A exit gate
 
 **The two-tier split** ([manual testing §0](05-manual-testing.md)): the critical
 list below is walked by a person before the phase closes and lands as **sitting
-S**; everything else extends the standing list and drains continuously. **The
+T**; everything else extends the standing list and drains continuously. **The
 steps here are never edited to match what was walked** — results go in §3.2,
 which does not exist until there are results.
 
@@ -354,12 +363,12 @@ Applying the criterion: **(i)** it can falsify a claim *this* phase makes,
 
 | # | Do | Clears |
 |---|---|---|
-| **S0** | **The install.** One account, a session with a cast of three and a few branches, an actor with a portrait and one without, and **an image on disk to use as a backdrop**. No image endpoint needed — §1.2 is why. | — |
-| **S1** | ***The prose over the worst backdrop you can find.* Only a person can walk it.** Choose a bright, busy image. Read a long turn. Then turn the backdrop off and confirm the surface is what it was, with no empty frame. *Compounds because [10 §2.3](../10-ui-surfaces.md) is the rule every later visual feature will cite.* | P11A.2 |
-| **S2** | ***A face that is wrong, corrected from where it is shown.*** Rename or re-cast so the engine's attribution is stale, then fix it from the face. *This is [00 §3.6](../00-stance.md)'s test applied to the thing this phase added, and identity errors are the corpus's own example of what compounds.* | P11A.3, P11A.4 |
-| **S3** | ***Play a session after the panels moved.* Only a person can walk it.** Mid-scene, change the lore selection, check a hook, look at the goal, correct a channel. Count the keystrokes and say whether §1.3's defence survived contact. *The layout is what every later surface is built beside.* | P11A.5 |
-| **S4** | **A phone, one session, twenty minutes.** Send, read, use a per-turn control, open the workbench, correct a channel. **Every essential action reachable without a hover.** *Walkable today on any phone on the LAN.* | P11A.8, P11A.5 |
-| **S5** | **Desk work: reduced motion.** Set the OS preference and walk the five motions. Each must be *absent*, not *fast*. | P11A.0, P11A.6 |
+| **T0** | **The install.** One account, a session with a cast of three and a few branches, an actor with a portrait and one without, and **an image on disk to use as a backdrop**. No image endpoint needed — §1.2 is why. | — |
+| **T1** | ***The prose over the worst backdrop you can find.* Only a person can walk it.** Choose a bright, busy image. Read a long turn. Then turn the backdrop off and confirm the surface is what it was, with no empty frame. *Compounds because [10 §2.3](../10-ui-surfaces.md) is the rule every later visual feature will cite.* | P12A.2 |
+| **T2** | ***A face that is wrong, corrected from where it is shown.*** Rename or re-cast so the engine's attribution is stale, then fix it from the face. *This is [00 §3.6](../00-stance.md)'s test applied to the thing this phase added, and identity errors are the corpus's own example of what compounds.* | P12A.3, P12A.4 |
+| **T3** | ***Play a session after the panels moved.* Only a person can walk it.** Mid-scene, change the lore selection, check a hook, look at the goal, correct a channel. Count the keystrokes and say whether §1.3's defence survived contact. *The layout is what every later surface is built beside.* | P12A.5 |
+| **T4** | **A phone, one session, twenty minutes.** Send, read, use a per-turn control, open the workbench, correct a channel. **Every essential action reachable without a hover.** *Walkable today on any phone on the LAN.* | P12A.8, P12A.5 |
+| **T5** | **Desk work: reduced motion.** Set the OS preference and walk the five motions. Each must be *absent*, not *fast*. | P12A.0, P12A.6 |
 
 **Deliberately not critical**, and each is a standing-list row rather than a
 judgement withheld: whether the story face is *the right* face (taste, and
@@ -371,7 +380,7 @@ R10 with [sitting O](05-manual-testing.md) and does not hold this phase open.
 
 ### 3.2 What was answered
 
-*Empty. Results go here when sitting S is walked, and the six rows above are not
+*Empty. Results go here when sitting T is walked, and the six rows above are not
 edited to match them.*
 
 ---
@@ -387,8 +396,8 @@ edited to match them.*
   they are the first things to reach for.
 - **Home.** [polish §5](06-polish.md) owns it, on terms this phase does not
   touch: nominally 1.0, expected immediately before the beta cut-over, and
-  explicitly pushable. **If it lands in this window it lands wearing P11A.0's
-  tokens and P11A.3's faces**, which is the whole of what the direction asks of
+  explicitly pushable. **If it lands in this window it lands wearing P12A.0's
+  tokens and P12A.3's faces**, which is the whole of what the direction asks of
   it — and if it does not, nothing here is late.
 - **A dialable density** ([25 E10](../25-open-questions.md)). Still open, still
   not this.
@@ -400,9 +409,9 @@ edited to match them.*
 
 ## 5. The honest size
 
-**Nine stages, and three of them are the phase**: P11A.2, P11A.3 and P11A.5.
-P11A.0 and P11A.1 are a day and are the reason the others are not each a week.
-P11A.6, P11A.7 and P11A.8 are bounded enough to cut if the calendar says so —
+**Nine stages, and three of them are the phase**: P12A.2, P12A.3 and P12A.5.
+P12A.0 and P12A.1 are a day and are the reason the others are not each a week.
+P12A.6, P12A.7 and P12A.8 are bounded enough to cut if the calendar says so —
 **and cutting any of them means editing [10 §1.3](../10-ui-surfaces.md) to say
 so**, because an owned commitment that quietly does not ship is the exact defect
 [P11 §0.1](28-p11-implementation.md) exists to catch.

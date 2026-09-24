@@ -108,6 +108,48 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.file.unreadable': '{file} could not be read, so nothing looked inside it.',
   'import.file.badArchive': '{file} is an archive this build will not open ({refusal}).',
   'import.file.refused': '{file} could not be read ({refusal}).',
+
+  /**
+   * ***A backup of our own*** —
+   * [P12.8](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * These read differently from the rest of this table on purpose. Every other
+   * row is about a file somebody else's application wrote, where *we could not
+   * read this* is the expected outcome for some of them. These are about **our
+   * own archive**, where any of them means the file is not what it says it is —
+   * so each says what was skipped rather than offering a conversion note.
+   */
+  'import.backup.noSuchAccount': 'This backup does not hold an account called {handle}.',
+  'import.backup.unknownKind':
+    '{file} is in a folder this build does not recognise, and was skipped.',
+  'import.backup.unreadable': '{file} could not be read, and was skipped.',
+  'import.backup.wrongKind':
+    '{file} says it is something other than what its folder holds, and was skipped.',
+
+  /**
+   * ***What an import did, and what it declined to do*** —
+   * [P12.9](../../../../docs/design/workplan/29-p12-implementation.md).
+   *
+   * **Both halves are here on purpose.** *My provider keys did not come across*
+   * is a question with an answer, and a review that said nothing about the
+   * groups nobody ticked would turn it into a bug report. So each optional
+   * group reports either way.
+   */
+  'import.backup.tagsMerged': 'Brought {added} tags across and kept {kept} that were already here.',
+  'import.backup.sessions': 'Brought {imported} sessions across, and left {skipped}.',
+  'import.backup.connectionsTaken':
+    'Brought {added} connections across and kept {kept} that were already here.',
+  'import.backup.connectionsNotTaken':
+    'Connections were not brought across. Tick that box to include them.',
+  'import.backup.prefsTaken': 'Brought {added} preferences across.',
+  'import.backup.prefsNotTaken':
+    'Preferences were not brought across. Tick that box to include them.',
+  'import.backup.configTaken':
+    'Brought the settings across. {count} of them need a restart to take effect.',
+  'import.backup.configNotTaken':
+    'Settings were not brought across. Tick that box to include them.',
+  'import.backup.configMissing': 'That backup carries no settings file.',
+  'import.backup.configRefused': 'The settings in that backup were not valid here ({message}).',
   'import.file.notStored': '“{object}” could not be saved ({reason}).',
   'import.file.notYetConvertible':
     'Read and named, but this build has nowhere to put a {kind} yet.',

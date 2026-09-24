@@ -61,6 +61,7 @@ describe('first-run setup gates everything', () => {
       privateConnections: true,
       fileAccess: 'none',
       enableExtensions: false,
+      scheduledBackups: false,
     });
     // Never over the wire, not even to the admin who just set the password.
     expect(response.body.account).not.toHaveProperty('passwordHash');

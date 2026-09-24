@@ -255,6 +255,15 @@ const EXEMPT = new Map<string, string>([
  */
 const OWED = new Map<string, string>([
   /**
+   * ***The two backup-import rows stood here for one stage and are gone.***
+   *
+   * [P12.9] built the routes and [P12.10] built `settings/ImportBackup.tsx`,
+   * which names both addresses — so the scan reaches them and a line saying *a
+   * surface is owed* stopped being true. **Discharged by building the surface
+   * rather than by editing the map**, which is the only way out this map is
+   * meant to have, and the shortest a debt in it has ever stood.
+   */
+  /**
    * ***`GET /api/search` was owed here from P2 to [P11.1] and is paid.***
    *
    * Nine phases, which is the longest a debt in this map has ever stood — and
@@ -266,6 +275,13 @@ const OWED = new Map<string, string>([
    *
    * *Discharged by building the surface rather than by editing the map*, which
    * is the only way out this map is meant to have.
+   */
+  /**
+   * ***The two restore rows stood here for two stages and are gone.***
+   * [P12.13] built `settings/AdminBackups.tsx`'s restore panel, which names
+   * both addresses — the type-the-words confirmation, and the *call it off*
+   * control beside the notice that a restore is pending. Discharged by building
+   * the surface, which is the only way out this map has.
    */
   [
     'PUT /api/sessions/:p/roles',

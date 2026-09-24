@@ -430,3 +430,45 @@ extension ever written.**
 - **[OPEN]** Whether widget vocabulary gaps force the sandboxed-iframe escape
   hatch ([10 §8](10-ui-surfaces.md)) earlier than planned. Tactical combat and
   anything map-shaped are the likely triggers.
+
+---
+
+## 11. A renderer contract — committed, and timed to the second verb
+
+**Decided 2026-09-19, and it exists because a deferral needed somewhere to
+land.** [19 §5.6](19-tech-stack.md) defers several image backends — Midjourney
+by name ([25 E14](25-open-questions.md)) — on the reasoning that whoever actually
+uses one should build it. **That reasoning is only honest if they can.** Today
+they cannot: `packages/sdk` publishes channels, dials, media, modes, randomness
+and steps, and **no provider or renderer contract at all**, so "somebody else
+will do it" means *fork the server*.
+
+This project has been bitten by precisely this shape before.
+[manual testing §10.1](workplan/05-manual-testing.md) is an entire section about
+a deferral pointed at a stage that was never created, and its conclusion is the
+one that applies here: *"a deferral nobody collects is not merely lost; it stops
+being read, and what it says stops being checked."*
+
+**The commitment: a renderer contract ships through this package, and it ships
+with ComfyUI.** Not before, and the timing is the substance rather than
+scheduling. ComfyUI is the endpoint that forces `Provider` to grow a second verb
+([P9 §1.2](workplan/26-p9-implementation.md)) — which is the first moment the
+renderer's shape is *known* rather than guessed. A contract published earlier
+would be a boundary drawn around one example, which is how an extension API comes
+to need a version 2 before it has a second consumer.
+
+**What it must carry, so the deferral is genuinely collectable:** the request
+(prompt, seed, the scalar bag, reference images), the result (bytes, media type,
+the resolved model, cost or an honest null), the capability record an endpoint
+declares, and the failure taxonomy — a refusal that is terminal is a different
+thing from one worth retrying ([21 §1.4](21-internal-contracts.md)).
+
+**What it must not carry**, on the same rule [§4](#4-what-the-boundary-looks-like)
+already states for modes: the credential. An extension declares that it can
+render and is handed a request; the connection, the key and the five-layer
+override order stay in the engine. A renderer extension that could read a key
+would make every other guarantee in this document conditional on trusting it.
+
+**Until it ships, the honest statement is that image providers are core-only and
+a new one means a fork** — and [19 §5.6](19-tech-stack.md) says so rather than
+leaving readers to infer an extension point that is not there.

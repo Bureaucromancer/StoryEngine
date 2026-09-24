@@ -42,7 +42,12 @@ const ACCOUNT: Account = {
   role: 'user',
   enabled: true,
   locale: null,
-  capabilities: { privateConnections: true, fileAccess: 'none', enableExtensions: false },
+  capabilities: {
+    privateConnections: true,
+    fileAccess: 'none',
+    enableExtensions: false,
+    scheduledBackups: false,
+  },
   createdAt: 0,
 };
 

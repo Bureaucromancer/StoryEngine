@@ -65,6 +65,23 @@ vi.mock('../api.js', async (importOriginal) => ({
     deleteMyConnection: vi.fn(),
     fetchMyModels: vi.fn(),
   },
+  /**
+   * ***The backup panels*** — [P12.6]. Mocked for `listMyConnections`' reason,
+   * stated ten lines up and proved by this file failing without it: an unmocked
+   * query rejects, `Backups` renders its `role=alert`, and every
+   * `findByRole('alert')` on this page finds two.
+   */
+  backupApi: {
+    readMine: () => Promise.resolve({ backups: [], totalBytes: 0 }),
+    takeMine: vi.fn(),
+    deleteMine: vi.fn(),
+    readSettings: () =>
+      Promise.resolve({ settings: { frequency: 'off', onStart: false, contents: 'full' } }),
+    writeSettings: vi.fn(),
+    readInstall: () => Promise.resolve({ backups: [], totalBytes: 0 }),
+    takeInstall: vi.fn(),
+    deleteInstall: vi.fn(),
+  },
   adminApi: {
     listAccounts: (...a: unknown[]) => listAccounts(...a) as unknown,
     readConfig: (...a: unknown[]) => readConfig(...a) as unknown,

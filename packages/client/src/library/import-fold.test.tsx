@@ -199,7 +199,12 @@ describe('the folder half, against the permission', () => {
         role: 'admin',
         enabled: true,
         locale: null,
-        capabilities: { privateConnections: true, fileAccess, enableExtensions: false },
+        capabilities: {
+          privateConnections: true,
+          fileAccess,
+          enableExtensions: false,
+          scheduledBackups: false,
+        },
         createdAt: 0,
       },
     });

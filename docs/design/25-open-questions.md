@@ -577,7 +577,12 @@ update would mean editing a treatment could silently alter a story in progress,
 which is the failure prefill-not-binding exists to prevent.
 
 "Hook packs" as a separately shareable kind stay declined; C7c covers the case
-that motivated them. *[03 §4.1, 06 §6.1]*
+that motivated them. **And the positive answer is recorded at
+[03 §4.1](03-data-model.md) (2026-09-22)**: the three carriers, promotion out of
+a running session, and — where a hooks-only artifact is wanted — a **Treatment
+carrying only hooks**, on [10 §11.2c](10-ui-surfaces.md)'s *an entry export is a
+lorebook* argument. So the decline stands and the need it was declining has
+somewhere to go, which is the half this entry did not carry. *[03 §4.1, 06 §6.1]*
 
 **C7c. Plot hooks on lorebooks. — RESOLVED: allowed, secondary.** Hooks are
 treatment-shaped rather than lorebook-shaped, and multi-sourcing is genuinely
@@ -1198,7 +1203,88 @@ ruled with, because a corrected figure would disagree with the drops the
 verdict recorded, and the margin already lives in `reserveOutputTokens`. A
 better approximator remains open; a fudge factor at the surface is closed.
 
-### E6. Backup and restore — a command, not a feature
+### E6. Backup and restore — ~~a command, not a feature~~ a command **and** a feature
+
+***Amended 2026-09-22 at [P12](workplan/29-p12-implementation.md), which is the
+one place in this corpus where an* Opinionated *verdict has been reversed.***
+The original is kept below in full rather than rewritten, because a position
+worth overturning is worth being able to read.
+
+**What stands.** `rsync` is still a legitimate strategy and
+[docs/deploy.md](../deploy.md) still documents it. The archive still excludes
+the index, and that is still the clause that makes it a restore rather than a
+copy. And the sentence this section is best for —
+***an untested restore is not a backup*** — is the bar P12 is held to rather
+than something it got past.
+
+**What was wrong, and it was one word: *outside*.** The quiesce paragraph below
+reads *"there is no write-lock to take from outside the process, and inventing
+one would be the subsystem E6 forbids."* Every word of that is about a process
+on the outside, and it was read as a fact about backups generally. From the
+**inside**: `state/state.sqlite` is copied with `VACUUM INTO`, a
+transactionally consistent snapshot of a database being written to; library
+objects, `accounts.json`, `prefs.json` and the bindings go through
+`storage/atomic.ts`'s temp-and-rename, so a reader sees the old file or the new
+one; and a turn segment is append-only, so a prefix is whole turns plus possibly
+a partial last line that `sessions/segments.ts` already drops. **The in-process
+backup is strictly more consistent than the command**, not less.
+
+**And three things this section never considered.**
+
+*Its caller had a shell.* [docs/deploy.md](../deploy.md)'s two supported paths
+are an unraid template and a compose file, and
+[09 §5.1](09-server-multiuser-deployment.md) designs for a household where the
+operator and the user are the same person. **A backup command nobody can reach
+is not a backup story**, and the gap did not show at [P11.11](workplan/28-p11-implementation.md)
+because the person writing the script had a terminal open.
+
+*Half of it was never this section's subject.* E6 reasons about the **install**.
+*Export my account* is portability, in the family of session export
+(B12 above) and library
+download ([10 §5.0a](10-ui-surfaces.md)) — and it is how
+[the fourth commitment](README.md) (*"drag a folder out of the storage directory
+and you have exported it"*) is kept for somebody who cannot reach the storage
+directory.
+
+*And import is not restore.* Bringing an archive's **content** into a running
+install is the import engine with one more source arm —
+[P4 §1.3](workplan/16-p4-implementation.md) built `FileSource` so that a new
+transport costs a class rather than a second engine. Routing it anywhere else
+would be the duplication that seam exists to prevent.
+
+*And restore stayed a handoff rather than becoming one.* A running server cannot
+replace its own data directory in place — it holds open handles on the files the
+archive would overwrite, and the session key it would replace is the one
+validating the request asking for it. So `POST /api/admin/restore` checks every
+precondition **while the process is still answering** (a refusal after it has
+exited is one nobody can read), writes a marker, and drains; the next boot
+unpacks to a sibling, renames the live directory aside and renames the new one
+in. ***The directory that moved aside is kept and never deleted***, which is
+`removed/`'s promise and the one property that covers *the restore worked and
+was the wrong archive* — it is the closest thing this section's own sentence,
+*an untested restore is not a backup*, has to an insurance policy.
+
+*What this section refused and would still refuse* is a restore that quietly
+reorganises itself around being a subsystem: there is no restore queue, no
+snapshot chain, no second format, and the marker is a JSON file that the swap
+does not have to delete, because it lives in the directory being replaced.
+
+**What P12 does not build**, so that *do not build a subsystem* still binds
+something: no retention policy, no job queue, no second archive format, and no
+account created from an archive. The scheduler is one `setInterval` on
+`startTrashSweep`'s shape, and **its state is the archives themselves** — there
+is no last-run row, which is what makes *the machine was off for three days*
+work and what keeps deleting a file by hand a non-event.
+
+*Two defects in what P11.11 shipped were found while reading it and are fixed at
+`aaf7345`*: the index exclusion was a filename test at the data root and the
+index is a directory down, so **it never once fired**; and `tarHeader` cut any
+name past a hundred bytes, which collapsed a lorebook's version payloads onto
+one truncated name. [P12 §0.5](workplan/29-p12-implementation.md) has both.
+
+---
+
+*The original, unedited:*
 
 **Opinionated: the design already did most of this, so do not build a
 subsystem.**
@@ -1492,3 +1578,54 @@ Reopening conditions: a surface that lists many sessions at once, where a column
 of *Untitled session* stops being honest and starts being useless; and session
 export (B12), where a file leaving the install wants a name a human chose.
 *[03 §8, 10 §11.1a, 15 §8]*
+
+### E14. Midjourney — deferred, and the reason is not technical
+
+**Position: not built, and not refused on principle either.** It is the one
+image backend people ask for by name that this project cannot simply go and
+implement, and the obstacle is worth stating precisely rather than as a shrug.
+
+**There is no API to write against.** As of 2026 Midjourney publishes no public
+API, no developer programme and no enterprise offering; access is the Discord bot
+and the web app on a subscription. Its terms are explicit rather than silent —
+*"You may not use automated tools to access, interact with, or generate
+Assets."* Every product sold as a "Midjourney API" is an unofficial wrapper
+driving consumer accounts, and the documented failure mode is permanent
+suspension with the remaining GPU credits gone.
+
+***Why that lands differently on this project than on a desktop app.***
+StoryEngine is a multi-user server somebody runs for a household
+([09 §1](09-server-multiuser-deployment.md)). The operator supplies the
+connection, and the account at risk is theirs — but the people who lose the
+feature, mid-story, are everyone in the install. A risk one person accepts on
+their own behalf is a different thing from one an operator accepts on four
+people's behalf without their knowing there was a choice. Shipping named support
+would also be this project distributing code whose only purpose is automating a
+service that forbids automation, which is a thing to decide deliberately and not
+by adding a row to a table.
+
+**There is a structural mismatch as well**, recorded so a later builder does not
+rediscover it: a Midjourney prompt returns a **grid of four**, and a chosen tile
+is then upscaled by a second call. That is two round trips producing two
+artefacts, where `renderImage` assumes one call returns one picture. The shape
+that fits is the grid splitting into **four sibling renditions** at ingest —
+which is very close to what [P9.3](workplan/26-p9-implementation.md) already
+models, since variation there is already siblings rather than a batch parameter —
+with upscale as an action on the chosen sibling. Somebody should confirm that
+against a real endpoint rather than take it from here.
+
+**Where it belongs instead.** Not in core. [22 §11](22-extensions.md) commits to
+a renderer contract published through the SDK, timed to ComfyUI — and that is
+the honest home for this: an extension somebody who actually uses Midjourney
+writes, installs on their own server, and accepts the terms of. The deferral is
+recorded here rather than left implicit **because a deferral with nowhere to land
+is how something becomes nobody's** — §10.1 of the manual-testing list is a whole
+section about exactly that failure.
+
+Reopening conditions: an official API or a documented developer programme, which
+would make this an ordinary table row overnight; or the renderer contract
+landing, after which this stops being a question for the project at all. Until
+one of those, the nearest backends with real APIs and comparable output are Nano
+Banana Pro, FLUX through OpenRouter, and Stability — all of which
+[19 §5.6](19-tech-stack.md) already reaches.
+*[19 §5.6, 22 §11, 09 §1]*
