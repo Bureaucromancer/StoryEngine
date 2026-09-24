@@ -107,6 +107,7 @@ const PLAN_ORDER = [
   ['p9-implementation', 'P9'],
   ['p10-implementation', 'P10'],
   ['p11-implementation', 'P11'],
+  ['p11a-the-look', 'P11A'],
 ];
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' });

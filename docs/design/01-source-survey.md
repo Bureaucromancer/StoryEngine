@@ -34,9 +34,23 @@ one. What was actually examined:
   in-repo copies, read via `git show f1e688c12^:…`, and the shipped package's may
   have moved on.
 
-Not examined in any depth: client component trees, extension/plugin runtimes in
-detail, TTS and video subsystems, tokenizers, Marinara's tactical combat engine,
-Aventuras' retrieval implementation. Assertions about those areas are inference
+- **Marinara's client, read for its UI, 2026-09-22** — `packages/client/src`
+  (the shell, the three chat surfaces, the resource panels, the editors, the
+  settings panel and `styles/globals.css`), plus `PRODUCT.md` and `DESIGN.md`,
+  which state Marinara's intended taste as named rules and are the only place
+  either source project writes its design position down. SillyTavern's
+  `public/index.html` was read beside it — the top settings drawers, `#sheld`,
+  the message template's swipe and button rows, and `#send_form` — for the one
+  question that read existed to answer: which of Marinara's conventions are its
+  own and which are inherited. The findings are
+  [10 §1.3](10-ui-surfaces.md), not here, because they are a direction rather
+  than a survey; what belongs here is that the read happened and how far it
+  went. Not covered by it: Marinara's game-mode surface beyond its structure,
+  and its Android build.
+
+Not examined in any depth: **client component trees other than the read above**,
+extension/plugin runtimes in detail, TTS and video subsystems, tokenizers,
+Marinara's tactical combat engine, Aventuras' retrieval implementation. Assertions about those areas are inference
 and should be read as such — a promise this document previously made in the form
 *"and marked as such"*, which it never kept: no claim anywhere below carries an
 inference marker. Stating the caveat once here is honest; the per-claim version

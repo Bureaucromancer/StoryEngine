@@ -1549,6 +1549,45 @@ nothing did.
 browser ([25 D3](../25-open-questions.md)) and Tailscale ([25 D1](../25-open-questions.md)),
 both moved to the roadmap.
 
+### P11A — The look
+
+***Written 2026-09-22 at the same sitting as [10 §1.3](../10-ui-surfaces.md), and
+it is the phase between P11 and the beta declaration.*** Skeleton:
+[P11A](29-p11a-the-look.md).
+
+**Why there is a phase after the beta-hardening phase**, since that reads as a
+contradiction and the answer is mechanical. A directive to push the client
+toward Marinara Engine's sensibilities produced
+[10 §1.3](../10-ui-surfaces.md) — a written direction with a list of what is
+taken, what is rejected and why, and, crucially, **an owner for every item that
+is 1.0's**. [releases §0](04-repo-and-releases.md) makes beta a *completeness*
+gate against the design corpus, and [P11 §3](28-p11-implementation.md)'s **R4**
+is a person reading that corpus capability by capability. So the note moved the
+gate the moment it was written, and P11A is the phase that puts it back.
+**R1, R2, R3 and R5 are unaffected and should be walked now; only R4 waits.**
+
+**Nine stages, three of which are the phase**: the backdrop behaving as
+[10 §2.3](../10-ui-surfaces.md) specifies rather than as a picture in the
+column, faces wherever the engine claims an identity
+([00 §3.6](../00-stance.md)), and the play column that has grown seven
+disclosures above the prose. Around them: the tokens the appearance layer never
+got ([polish §6](06-polish.md) stopped at colour, radius and type step, which was
+right then), a reading face, five named motions with the
+`prefers-reduced-motion` story the client does not have, section jumps in the
+editors, and two phone rules that were written and never enforced.
+
+**What it is not** is a second theme, a density setting
+([25 E10](../25-open-questions.md)), or a pass over the tooling surfaces —
+[10 §1.3](../10-ui-surfaces.md) leaves the dense half of
+[10 §1.1](../10-ui-surfaces.md)'s table exactly as it was, and the library still
+shows the model. Three items of the direction are explicitly **not 1.0** and are
+on [24](../24-roadmap.md) rather than in a stage, which is the same discipline
+[P11 §0.1](28-p11-implementation.md)'s register exists to enforce.
+
+**Its gate is [sitting S](05-manual-testing.md)** — six rows, registered before
+the phase opened, and the first list here that could be written that early
+because the claims were written before the code.
+
 ---
 
 ## 5. After 1.0: the committed series

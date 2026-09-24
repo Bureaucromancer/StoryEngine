@@ -48,6 +48,7 @@ halves and refuses a work-plan file that has no name in the registry.
 | [P9-p9-implementation.md](26-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
 | [P10-p10-implementation.md](27-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
 | [P11-p11-implementation.md](28-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
+| [P11A-p11a-the-look.md](29-p11a-the-look.md) | P11A skeleton — the look, and the last phase before beta is said: [10 §1.3](../10-ui-surfaces.md)'s direction built. Faces on the play surface, the channel HUD made editable, the backdrop's legibility mechanism, a motion vocabulary, section jumps in the editors, and the phone rules. Written 2026-09-22, after P11 merged and before its gate was walked |
 | [P6A-p6a-alpha-1.md](19-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
 | [P6B-p6b-playable.md](20-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
 | [playable log-playable-log.md](21-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](17-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
@@ -66,9 +67,14 @@ record.** 07 through 20 are the phases that have landed, in the order they
 landed, each holding its stages struck through with what actually shipped
 against what was planned; several began as skeletons and were revised as their
 phases arrived. 23 through 27 are skeletons — and so is 28, filed out of order — and will be filled in as each phase
-approaches. **20 is the phase in front of us** — P6B, PLAYABLE three phases
+approaches. ~~**20 is the phase in front of us** — P6B, PLAYABLE three phases
 overdue, which [P7 §0.1](23-p7-implementation.md) found blocking its own demo as
-much as the checkpoint's; P7 follows it.
+much as the checkpoint's; P7 follows it.~~ ***Stale, corrected 2026-09-22:
+P6B through P11 have all merged, and 29 is the phase in front of us*** —
+[P11A](29-p11a-the-look.md), written after P11 merged and before its gate was
+walked. **What is still true of every one of them is the gate**: a merge is not
+a close ([manual testing §0](05-manual-testing.md)), and several of the
+documents above are open on a critical list rather than on code.
 
 *They are in execution order, which they were not until 2026-09-09.* Filed by
 the date they were written, the lettered phases sat at the tail — P2A, P2B and
