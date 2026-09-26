@@ -164,8 +164,19 @@ describe('a turn that ran through a whole server', () => {
     await boot([{ stallMs: 20 }]);
     await takeATurn();
 
-    // The turn's own, by class. The picture's arrives separately and is waited
-    // for below rather than raced against here.
+    // The turn's own, by class — ***waited for, because the head moving is not
+    // the notification landing.*** The runner announces after `finaliseTurn`,
+    // which is what moves the head and what `takeATurn` watches, and before it
+    // calls `notify` it reads the session back for its name: one file read that
+    // a quiet machine finishes before the next request and a loaded full-suite
+    // run does not. *Measured: the test raced that read and lost once, as
+    // `undefined` at the first `expect` below.* The order is the runner's on
+    // purpose — nothing in `#announce` may fail the turn, so it cannot run
+    // before the turn is finished — which makes the wait the test's to do. The
+    // picture arrives on its own schedule and is waited for below.
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'turn.complete')), {
+      describe: () => Promise.resolve(`held ${JSON.stringify(held().map((one) => one.class))}`),
+    });
     const completion = held().find((one) => one.class === 'turn.complete');
     expect(completion).toBeDefined();
     expect(completion?.params['sessionName']).toBe('The harbour');
@@ -240,6 +251,16 @@ describe('a turn that ran through a whole server', () => {
     // And the turn itself is still a completion: [06 §10.2]'s *a failed
     // rendition is a placeholder, never a failed turn*, now visible in the one
     // surface that could have got it wrong.
+    //
+    // ***Waited for, and the picture having arrived is no evidence of it.***
+    // `#recordRenditions` dispatches the job before `#announce` begins, so the
+    // picture has the head start — and an endpoint that refuses at once makes
+    // it a short race to win. The first test's reason holds here too; this one
+    // adds that the `turn.failed` check below is vacuous until the announce has
+    // run, since before it neither class is held.
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'turn.complete')), {
+      describe: () => Promise.resolve(`held ${JSON.stringify(held().map((one) => one.class))}`),
+    });
     expect(held().find((one) => one.class === 'turn.complete')).toBeDefined();
     expect(held().some((one) => one.class === 'turn.failed')).toBe(false);
   });
