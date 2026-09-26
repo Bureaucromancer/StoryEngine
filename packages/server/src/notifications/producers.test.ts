@@ -199,17 +199,14 @@ describe('a turn that ran through a whole server', () => {
       // successfully for a picture that was never asked for.
       return all.length > 0 && all.every((one) => one.state !== 'pending');
     });
-    const tr = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
-    console.log(
-      'STEPS',
-      JSON.stringify((tr.body as { turns: { steps?: unknown }[] }).turns.map((x) => x.steps)),
-    );
-    console.log(
-      'RENDITIONS',
-      JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error])),
-    );
-    console.log('NOTIFS', JSON.stringify(held().map((n) => [n.class, n.params])));
-    await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')), {
+      // Every rendition has settled by here, so a timeout is the wiring and not
+      // the worker — and which seam dropped it is told apart by what settled
+      // and what was held instead. Said on failure only: a green run is silent.
+      describe: async () =>
+        `renditions ${JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error]))}, ` +
+        `held ${JSON.stringify(held().map((one) => one.class))}`,
+    });
 
     const picture = held().find((one) => one.class === 'artifact.ready');
     expect(picture?.params['outcome']).toBe('ready');
