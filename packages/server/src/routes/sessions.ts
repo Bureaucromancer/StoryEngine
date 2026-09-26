@@ -89,6 +89,7 @@ import { PathEscapeError } from '../storage/paths.js';
 // the module where that vocabulary is decided. A second spelling of the mapping
 // is how a caller comes to learn *403 means the system library* from one route
 // and something else from another.
+import { abortOnDisconnect } from './disconnect.js';
 import { respondToLibraryError } from './library.js';
 import type { Tape } from '../rng/rng.js';
 
@@ -2313,15 +2314,21 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { purpose } = request.body as { purpose?: 'illustration' | 'background' };
 
       /**
-       * **The client's disconnect cancels the moment call.** Fastify raises this
-       * when the socket closes, and a call nobody is waiting for is money spent
-       * on an answer that reaches nothing — the same judgement `performCall`'s
-       * idle timeout makes about an endpoint that has stopped talking.
+       * **The client's disconnect cancels the moment call**, because a call
+       * nobody is waiting for is money spent on an answer that reaches nothing
+       * — the same judgement `performCall`'s idle timeout makes about an
+       * endpoint that has stopped talking.
+       *
+       * ~~*Fastify raises this when the socket closes*~~ — ***corrected
+       * 2026-09-26, found at [P13 §0.5](../../../../docs/design/workplan/30-p13-implementation.md).***
+       * This listened to the **request's** `close`, which is emitted once the
+       * body has been read rather than when the socket closes, and emitted
+       * once. Attached here, after two awaited reads, it had always already
+       * gone by: the button worked and **the cancellation never fired**, so a
+       * person who left still paid for the call. `abortOnDisconnect` reads the
+       * response instead, and says why at length.
        */
-      const controller = new AbortController();
-      request.raw.on('close', () => {
-        controller.abort();
-      });
+      const signal = abortOnDisconnect(reply);
 
       const made = await illustrateTurn(
         {
@@ -2335,7 +2342,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           sessionId,
           turnId,
           purpose: purpose ?? 'illustration',
-          signal: controller.signal,
+          signal,
         },
       );
 
@@ -2367,11 +2374,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * endpoint fell over* are answers to *can you draft this*, and the parts that
    * succeeded are worth having beside the one that did not.
    *
-   * ***Cancelled when the browser goes away, read off the response.*** The
-   * request's own `close` is the wrong event — since Node 16 it fires once the
-   * body has been read, which under Fastify is before this handler has done
-   * anything, and a controller wired to it aborts every call it guards. The
-   * response closing before it finished is the disconnect.
+   * ***Cancelled when the browser goes away, read off the response*** —
+   * `abortOnDisconnect`, which says why the request's own `close` is the wrong
+   * event.
    */
   app.post(
     '/sessions/:sessionId/turns/:turnId/setup-draft',
@@ -2388,10 +2393,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         openingFrom?: 'scene' | 'verbatim';
       };
 
-      const controller = new AbortController();
-      reply.raw.on('close', () => {
-        if (!reply.raw.writableFinished) controller.abort();
-      });
+      const signal = abortOnDisconnect(reply);
 
       const draft = await draftSetupFromTurn(
         {
@@ -2407,7 +2409,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           parts: body.parts,
           ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
           ...(body.openingFrom === undefined ? {} : { openingFrom: body.openingFrom }),
-          signal: controller.signal,
+          signal,
         },
       );
 

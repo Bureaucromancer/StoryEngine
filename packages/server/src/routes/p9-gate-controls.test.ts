@@ -328,6 +328,95 @@ describe('Illustrate, pressed by hand', () => {
   });
 
   /**
+   * ***Over a real socket, a client that waits gets its picture*** — the other
+   * half of the repair in `routes/disconnect.ts`, found at
+   * [P13](../../../../docs/design/workplan/30-p13-implementation.md) §0.5.
+   *
+   * The route listened to the **request's** `close`, which since Node 16 is
+   * emitted once a body has been read — for a `POST`, the moment the handler
+   * starts, client or no client. Attached late, as it was, that never fired
+   * (the test below is the cost); attached any earlier, it would have aborted
+   * every press before the moment call was made. **This is the guard against
+   * the second**, and it has to run over a socket: every other test in this
+   * file drives the app through `inject`, which has no socket and so no early
+   * `close`, which is how the fault went unseen.
+   *
+   * *A listening app and a real `fetch`*, carrying the session cookie and the
+   * CSRF header the way `test-server.ts` carries them for `inject`.
+   */
+  it('makes its picture when pressed through a real socket', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+    await server.app.listen({ port: 0, host: '127.0.0.1' });
+    const address = server.app.server.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+
+    const response = await fetch(
+      `http://127.0.0.1:${String(port)}/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; '),
+          'x-csrf-token': server.cookies.get('se_csrf') ?? '',
+        },
+        body: JSON.stringify({ purpose: 'illustration' }),
+      },
+    );
+
+    expect(response.status, await response.clone().text()).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+  });
+
+  /**
+   * ***A person who leaves takes the call with them*** — the reason the route
+   * has a signal at all: *"a call nobody is waiting for is money spent on an
+   * answer that reaches nothing."*
+   *
+   * **It never did.** The listener went on the request after two awaited
+   * reads, by which time the request's one `close` had already been emitted,
+   * so it was never called — not for a client that waited, which is why the
+   * button worked, and not for one that left, which is the bug. The moment call
+   * ran to the end of its stall, and the picture was asked for and paid for.
+   *
+   * *The moment call stalls for 600 ms and the client leaves at 150*; past the
+   * stall, a cancelled call has asked for no picture and written no rendition.
+   * Run against the route as P9.4 shipped it, both were there.
+   */
+  it('cancels the moment call when the client goes away', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+    fake.setScript([{ text: MOMENT, object: JSON.parse(MOMENT) as unknown, stallMs: 600 }]);
+    await server.app.listen({ port: 0, host: '127.0.0.1' });
+    const address = server.app.server.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+
+    const leaving = new AbortController();
+    const pressed = fetch(
+      `http://127.0.0.1:${String(port)}/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; '),
+          'x-csrf-token': server.cookies.get('se_csrf') ?? '',
+        },
+        body: JSON.stringify({ purpose: 'illustration' }),
+        signal: leaving.signal,
+      },
+    ).catch(() => 'left');
+    setTimeout(() => {
+      leaving.abort();
+    }, 150);
+    expect(await pressed).toBe('left');
+
+    // Well past the stall: a call that was not cancelled has finished by now.
+    await new Promise((settle) => setTimeout(settle, 1200));
+    expect(fake.images).toHaveLength(0);
+    expect(await renditionsOf()).toHaveLength(0);
+  });
+
+  /**
    * ***The backdrop branch makes no call at all*** — [06 §10.3]'s *"a backdrop
    * is a place and a place has no moment"*. So **Set the scene** is free, and
    * the assertion is a count on the text log rather than on what came back.

@@ -1501,6 +1501,25 @@ so every record's `provenance.binding` was null while its digest named a model.
 The binding rides on the step's report now, so the record and the reuse key
 cannot name different models.
 
+***And a cancellation that never fired — corrected 2026-09-26, found at
+[P13 §0.5](30-p13-implementation.md).*** The route's comment read *"the client's
+disconnect cancels the moment call"*, and it listened to the **request's**
+`close` to do it. Since Node 16 that event is emitted once the body has been
+read — for a `POST`, as the handler starts — and emitted once, so a listener put
+on after the route's two awaited reads had always already missed it. **The
+button worked and the cancellation was dead**: a person who pressed Illustrate
+and left still had the moment call run to the end, and the picture asked for and
+paid for. Nothing in the suite could see it, because every test here drives the
+app through `inject`, which has no socket and so no early `close`.
+`routes/disconnect.ts`'s `abortOnDisconnect` reads the response instead — its
+`close` with `writableFinished` false is the disconnect — and
+`p9-gate-controls.test.ts` now presses the button over a listening socket twice:
+once leaving at 150 ms into a 600 ms stall, which **failed against the route as
+shipped** with the picture requested, and once waiting, which guards the other
+way the old listener could have gone. *No gate row is edited*: this stage's
+proof obligation was component tests and the route-callers check, and neither
+was wrong — the fault was in a claim a comment made.
+
 ### P9.5 — The workbench over renditions
 
 Deferred here by name from [P3 §5](15-p3-implementation.md). Renditions are

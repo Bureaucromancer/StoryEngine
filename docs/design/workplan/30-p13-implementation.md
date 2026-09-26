@@ -80,16 +80,24 @@ replaces the other.
 Three things turned up while building that §0 did not predict. Recorded here
 because each is a sentence somebody would otherwise have to rediscover.
 
-- ***The illustrate route cancels its own call.*** It aborts its model call on
+- ~~***The illustrate route cancels its own call.*** It aborts its model call on
   the **request's** `close`, and since Node 16 that fires once the body has been
   read — under Fastify, before the handler has done anything, which a probe on
-  this build confirmed. The deterministic suite cannot see it because
-  `FakeProvider` ignores the signal; against a real endpoint that honours it,
-  *Illustrate*'s moment call is cancelled almost as soon as it starts. **Not
-  fixed here**, because it is [P9.4](26-p9-implementation.md)'s route and not
-  this feature's: [P13.6](#p136--the-draft)'s route cancels on the **response**
-  closing unfinished instead, and says why, so the pattern to copy is beside it.
-  A task to repair illustrate is owed and named in the handover.
+  this build confirmed. … against a real endpoint that honours it,
+  *Illustrate*'s moment call is cancelled almost as soon as it starts.~~
+  ***The illustrate route's cancellation never fired — corrected the same day,
+  when the regression test written to prove the sentence above passed against
+  the unfixed route.*** The premise was right: the request's `close` is emitted
+  once the body is read, as the handler starts. The conclusion was not, because
+  the event is emitted **once** and Illustrate attached its listener after two
+  awaited reads, when it had already gone by. So the button worked, and a person
+  who left mid-press still had the call run to the end and paid for — the
+  opposite failure from the one first written here, and found by the test rather
+  than by reasoning. **Fixed** in `routes/disconnect.ts`'s `abortOnDisconnect`,
+  which reads the response's `close` and which the [P13.6](#p136--the-draft)
+  route uses too; `p9-gate-controls.test.ts` presses Illustrate over a listening
+  socket both ways, and [P9.4](26-p9-implementation.md)'s record carries the
+  correction.
 - ***An undeclared step's calls are `effects` calls.*** The condensation step
   first declared no `contributes`, so `callPurposeFor` read every call as
   effects and refused a person's advisory steer on it — every *Regenerate, but
@@ -319,6 +327,12 @@ the About surface and an unreleased one is not a heading it takes.*
 
 - A redo or rewrite naming an opening is refused — an opening was written, not
   generated.
+
+**Fixed**
+
+- **Leaving while a picture is being made now cancels it.** Illustrate was meant
+  to stop its model call when you navigated away or closed the tab, and never
+  did: the call ran to the end and the picture was asked for and paid for.
 
 ---
 
