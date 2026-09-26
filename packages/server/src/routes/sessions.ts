@@ -17,6 +17,7 @@ import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
 import { walkPath } from '../sessions/segments.js';
 import {
+  appendTurnToSession,
   childrenByParent,
   createBranchRef,
   createSession,
@@ -46,6 +47,7 @@ import {
 import { castRows } from '../sessions/cast.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
+import { chooseOpening, openingTurn } from '../sessions/opening.js';
 import type { HookSource } from '../sessions/types.js';
 import { goalRows, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
@@ -288,6 +290,20 @@ const CreateBody = Type.Object(
      * a running game ([00 §3.1]) — the same asymmetry the preset has.
      */
     setup: Type.Optional(Type.String({ maxLength: 200 })),
+    /**
+     * Which of the Setup's written openings to start with — [03 §6],
+     * [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+     *
+     * **Absent is the primary**, which is what *start a session from this
+     * Setup* means; **`null` is start cold**, 03 §6's third choice, and a choice
+     * rather than an absence; an id names one. An id with no Setup beside it, or
+     * one the Setup does not hold, is a 422 rather than a quiet substitution —
+     * a story somebody did not choose is the dangling Setup's failure one field
+     * smaller.
+     */
+    opening: Type.Optional(
+      Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
+    ),
     /**
      * The session's **own** hooks — [03 §4.1]'s fourth source, [P7.5].
      *
@@ -697,6 +713,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset?: string;
       modeConfig?: Record<string, unknown>;
       setup?: string;
+      opening?: string | null;
       hooks?: PlotHook[];
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
@@ -727,6 +744,23 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       } catch {
         return reply.code(422).send({ error: 'unknown-setup', message: 'No such setup.' });
       }
+    }
+
+    /**
+     * The opening, resolved before anything is written — [03 §6], [P13.3]. A
+     * named opening that is not there is refused here, while the refusal still
+     * costs nobody a half-made session.
+     */
+    const opening =
+      from === undefined
+        ? body.opening === undefined || body.opening === null
+          ? null
+          : ('unknown' as const)
+        : chooseOpening(from.openings, body.opening);
+    if (opening === 'unknown') {
+      return reply
+        .code(422)
+        .send({ error: 'unknown-opening', message: 'That setup has no such opening.' });
     }
 
     /**
@@ -786,16 +820,33 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * wizard's job, and until there is a control for it the first is the honest
      * default rather than a refusal to start.
      *
-     * *`partyDefault` is not read here.* The party is `se.party` since [P7.3],
+     * ~~*`partyDefault` is not read here.* The party is `se.party` since [P7.3],
      * and seeding it means writing effects, which needs a turn — so it belongs
      * with the setup turn's parts rather than with the session file. Named
-     * rather than silently dropped.
+     * rather than silently dropped.~~
+     *
+     * ***`partyDefault` is read since [P13.3]***, in two halves. Its members are
+     * **seated** here — a companion has to be in the cast to be in the party,
+     * and [06 §7.2]'s seat count below is held to them — and they are **made
+     * members** by the opening turn, which is the turn the struck paragraph was
+     * waiting for: an opening *is* a turn, so the effects ride on it
+     * (`sessions/opening.ts`).
      */
+    const persona = from?.cast.personaOptions[0]?.id ?? null;
     const cast =
       body.cast ??
       (from === undefined
         ? undefined
-        : { persona: from.cast.personaOptions[0]?.id ?? null, actors: [] });
+        : {
+            persona,
+            actors: [
+              ...new Set(
+                from.cast.partyDefault
+                  .map((member) => member.id)
+                  .filter((id) => id !== '' && id !== persona),
+              ),
+            ],
+          });
     const treatment = body.treatment ?? from?.treatment?.id;
     const lore = body.lore ?? from?.lore.map((link) => link.ref.id);
     const misfit = setupMisfit(mode.definition.setup, answers);
@@ -809,7 +860,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
     // What the mode says it can seat ([06 §7.2]) — the first real consumer of
     // `ParticipantPolicy`, which was a declaration nothing read.
-    const actors = body.cast?.actors ?? [];
+    // The cast in effect, so a Setup's seated party is counted as a parameter's
+    // actors are — [P13.3].
+    const actors = cast?.actors ?? [];
     if (actors.length > mode.definition.participants.maxActors) {
       return reply.code(422).send({
         error: 'too-many-actors',
@@ -854,7 +907,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     }
 
     try {
-      const session = await createSession(services.sessions, account.handle, {
+      let session = await createSession(services.sessions, account.handle, {
         // Trimmed here so `{"name": "   "}` cannot produce a session whose
         // list entry is an invisible link. It is not the only guard —
         // `session.json` is hand-editable by design ([03 §1]), so the client's
@@ -964,6 +1017,47 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           : await sessionsInTreatment(services, account.handle, session.id, treatment);
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
+      /**
+       * ***The Setup's opening, as the first turn*** — [03 §6], [04 §7.2],
+       * [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+       *
+       * Written here, synchronously, because nothing about it is a model call:
+       * the opening's words, and the party and spent hooks the Setup carries,
+       * as effects on the turn that [P7.4] said the party was waiting for.
+       * `openingTurn` returns nothing when there is nothing to write, which is
+       * every session not started from a Setup and every Setup with no opening
+       * and nothing to seed.
+       *
+       * ***Before the mode's parts, and the order is a decision.*** A generating
+       * mode's parts assemble with the opening in their history, so the world
+       * they make agrees with the scene an author wrote. The other order would
+       * mean waiting on an asynchronous job before the opening could be
+       * appended, and appending it as the parts' child would put a written
+       * opening after a generated one. *No shipped mode declares parts, so this
+       * is the fixture's case, and it is tested there.*
+       *
+       * *After the treatment warning's walk*, which reads the account's
+       * sessions and is indifferent to whether this one has a turn yet.
+       */
+      const first =
+        from === undefined
+          ? null
+          : openingTurn({
+              sessionId: session.id,
+              setup: from,
+              opening,
+              pool: session.hooks ?? [],
+              persona: session.cast?.persona ?? null,
+            });
+      if (first !== null) {
+        ({ session } = await appendTurnToSession(
+          services.sessions,
+          account.handle,
+          session.id,
+          first,
+        ));
+      }
+
       const parts = setupPlanFor(mode).steps.length;
       if (parts === 0) return await reply.code(201).send({ session, ...warn });
 
@@ -973,7 +1067,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // The session is new, so there is exactly one turn this key can name and
         // a retried create cannot start a second generation.
         idempotencyKey: `setup:${session.id}`,
-        headTurnId: null,
+        // The opening when there is one, so the parts are its child — above.
+        headTurnId: first?.id ?? null,
       });
       if (reserved.kind !== 'created') {
         // Nothing else can have reserved a turn on a session created one line
@@ -2766,6 +2861,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
         }
+        if (rewritten.opening !== undefined) return refuseOpening(reply);
         replay = rewritten.tape;
       }
 
@@ -2802,6 +2898,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to redo.' });
         }
+        if (previous.opening !== undefined) return refuseOpening(reply);
         attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
       }
 
@@ -3183,6 +3280,22 @@ function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefine
   return typeof config === 'object' && config !== null && !Array.isArray(config)
     ? (config as Record<string, unknown>)
     : undefined;
+}
+
+/**
+ * ***An opening is not redone*** — [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * Nothing generated it: it is an author's words copied off a Setup, so a
+ * rewrite has no tape to replay and a guided redo has no call to repeat. The
+ * play surface already offers neither for a turn with no input; this is the
+ * door for a client that sends one anyway. **422 rather than 404**, because the
+ * turn is there — what is wrong is asking to generate it.
+ */
+function refuseOpening(reply: FastifyReply): FastifyReply {
+  return reply.code(422).send({
+    error: 'opening-turn',
+    message: 'An opening was written, not generated, so there is nothing to redo.',
+  });
 }
 
 /**

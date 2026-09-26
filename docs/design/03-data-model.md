@@ -1285,6 +1285,15 @@ Two lists — `written` and `seeds` — each with a designated primary.
   Promotion targets the object the seed came from — a treatment, an actor, a setup
   — not the session, which keeps its own copy regardless.
 
+***The written half is built, for a Setup's openings, at
+[P13.3](workplan/30-p13-implementation.md)*** (2026-09-26). Creating a session from
+a Setup plays its primary written opening, or the one the request names, as the
+session's first turn: the opening's text as output, no input, no call, and the
+effects that seed what the Setup carries ([04 §7.2](04-schemas.md)). `null`
+starts cold. The seed half — expand, edit, accept, promote — stays with the
+revisit [P7B §1.11](workplan/24-p7b-presets-and-prompts.md) left it to, and a
+treatment's or an actor's openings are still read by nothing.
+
 ---
 
 ## 7. Setup and Package — two jobs, split

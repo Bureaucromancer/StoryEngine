@@ -2963,6 +2963,12 @@ for.
 dropped: the party is `se.party` since [P7.3], so seeding it means writing
 effects, which needs a turn — it belongs with the setup turn's parts.*
 
+***Answered 2026-09-26 at [P13.3](30-p13-implementation.md), by a different
+turn than the one named.*** A Setup's written opening is the session's first
+turn, written by the engine at creation, and the party rides on it as effects —
+its members seated in the cast and made `companion`. The setup turn's parts
+were never the only turn available; they were the only one that existed.
+
 **Done: the making surface, and it is not a third hand-written editor**
 (2026-09-12). The obvious next move was a `SetupEditorPage` beside the actor's
 and the lorebook's — and this cell's own words rule it out: *"every editor and
