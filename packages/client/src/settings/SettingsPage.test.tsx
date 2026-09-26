@@ -43,6 +43,8 @@ const readMyRoles = vi.fn();
 const setAccountPassword = vi.fn();
 
 const listMyConnections = vi.fn();
+const testMyConnection = vi.fn();
+const testConnection = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -64,6 +66,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     updateMyConnection: vi.fn(),
     deleteMyConnection: vi.fn(),
     fetchMyModels: vi.fn(),
+    testMyConnection: (...a: unknown[]) => testMyConnection(...a) as unknown,
   },
   /**
    * ***The backup panels*** — [P12.6]. Mocked for `listMyConnections`' reason,
@@ -103,6 +106,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     fetchModels: vi.fn(),
     writeBindings: vi.fn(),
     writeDefaultBindings: vi.fn(),
+    testConnection: (...a: unknown[]) => testConnection(...a) as unknown,
   },
 }));
 
@@ -778,6 +782,49 @@ describe('your own connections', () => {
     // The mechanism rather than the symptom: the hook never mounts, so that
     // browser issues no request there is nothing to refuse.
     expect(listMyConnections).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **Your own route, never the admin's** — [polish §13]. The scope mix-up the
+   * panel's docstring names as the failure worth designing against: a personal
+   * panel whose test went through `/api/admin` would 403 for a user and, for an
+   * admin, quietly try an install connection that happens to share the id.
+   */
+  it('tries your own connection through your own route', async () => {
+    listMyConnections.mockResolvedValue({
+      connections: [
+        {
+          id: 'mine',
+          label: 'My own key',
+          provider: 'openai-compatible',
+          scope: 'user',
+          models: ['local-hi'],
+          hasKey: true,
+          shadowed: false,
+          contentHash: 'h1',
+        },
+      ],
+    });
+    testMyConnection.mockResolvedValue({
+      kind: 'text',
+      text: 'Hello from yours.',
+      modelId: 'local-hi',
+      finishReason: 'stop',
+      usage: null,
+      cost: null,
+      elapsedMs: 200,
+    });
+
+    renderPage('user');
+    await userEvent.click(await screen.findByRole('button', { name: 'Test' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect(await screen.findByText('Hello from yours.')).toBeTruthy();
+    expect(testMyConnection).toHaveBeenCalledWith(
+      'mine',
+      expect.objectContaining({ kind: 'text', modelId: 'local-hi' }),
+    );
+    expect(testConnection).not.toHaveBeenCalled();
   });
 });
 

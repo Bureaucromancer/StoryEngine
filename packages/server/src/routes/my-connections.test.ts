@@ -3,7 +3,8 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { resolveConnections } from '../providers/connections.js';
+import { type Connection, resolveConnections } from '../providers/connections.js';
+import { FakeProvider } from '../providers/fake.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -33,6 +34,8 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  */
 
 let server: TestServer;
+/** Every connection the factory was asked to build from — which file a test reached. */
+let built: Connection[];
 
 const MINE = {
   label: 'My own key',
@@ -43,7 +46,16 @@ const MINE = {
 };
 
 beforeEach(async () => {
-  server = await makeTestServer();
+  built = [];
+  server = await makeTestServer({
+    // A double for the connection test ([polish §13]), so trying a connection
+    // here never reaches `api.mine.example` — and so the test can say which
+    // stored connection, and which key, the factory was handed.
+    providers: (connection) => {
+      built.push(connection);
+      return new FakeProvider({ script: [{ text: 'Hello from yours.' }] });
+    },
+  });
   await setUpAdmin(server, 'ned');
 });
 
@@ -226,5 +238,52 @@ describe('what the resolver then sees', () => {
 
     expect(usable).toEqual([]);
     expect(disabled.map((one) => one.label)).toEqual(['My own key']);
+  });
+});
+
+/**
+ * ***Trying one of your own*** — [polish §13], and the same claim this file
+ * makes about every other personal route: it works, and it only ever reaches
+ * the caller's own directory. The falsifying mutation is the admin route's
+ * entries on the personal path, and the second test is what goes red — along
+ * with a way to spend the household's key from a form that says *yours*.
+ */
+describe('trying one of your own', () => {
+  const ASK = { kind: 'text', modelId: 'local-hi', prompt: 'Say hello.' };
+
+  it('tries it with its own stored key', async () => {
+    const { id } = await createMine();
+
+    const response = await server.request({
+      method: 'POST',
+      url: `/api/me/connections/${id}/test`,
+      payload: ASK,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.text).toBe('Hello from yours.');
+    expect(built[0]).toMatchObject({ id, scope: 'user', apiKey: 'sk-mine-and-never-yours' });
+    expect(JSON.stringify(response.body)).not.toContain('sk-mine-and-never-yours');
+  });
+
+  it('never tries another person’s, nor the install’s', async () => {
+    const { id: neds } = await createMine();
+    const system = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections',
+      payload: { ...MINE, label: 'The house key' },
+    });
+    const installs = system.body.connection.id as string;
+    await asUser();
+
+    for (const id of [neds, installs]) {
+      const refused = await server.request({
+        method: 'POST',
+        url: `/api/me/connections/${id}/test`,
+        payload: ASK,
+      });
+      expect(refused.status, id).toBe(404);
+    }
+    expect(built).toEqual([]);
   });
 });

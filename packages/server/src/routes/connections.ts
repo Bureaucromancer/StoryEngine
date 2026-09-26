@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Type } from '@sinclair/typebox';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import { type Static, Type } from '@sinclair/typebox';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { requireAccount, type AppServices } from '../app.js';
 import {
@@ -11,8 +11,10 @@ import {
   readSystemBindings,
   systemBindingsState,
 } from '../providers/bindings.js';
+import { redactText } from '../providers/capture.js';
 import {
   ConnectionError,
+  type ConnectionEntry,
   deleteConnection,
   presentConnectionsForAdmin,
   presentForAdmin,
@@ -28,6 +30,7 @@ import {
   type RoleBindings,
   roleTable,
 } from '../providers/roles.js';
+import { type Provider, ProviderError } from '../providers/types.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { isLocalEndpoint } from '../updates.js';
 
@@ -163,6 +166,48 @@ const FetchModelsBody = Type.Object(
   {
     baseUrl: Type.Optional(Type.String({ maxLength: 2048 })),
     apiKey: Type.Optional(Type.String({ maxLength: 512 })),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * The completion ceiling a test message is asked for — [polish §13].
+ *
+ * ***High enough for a model that thinks before it answers, and that is the
+ * only reason it is not 32.*** An ordinary model says hello in a dozen tokens
+ * and stops, so the ceiling costs nothing there; a reasoning model spends its
+ * first hundred or so thinking, and at a tiny cap it returns *empty text,
+ * finished by length* — a working connection that reads as a broken one. Worst
+ * case at a frontier price is about two cents, for a button a person pressed.
+ *
+ * `max_tokens` is also what every turn already sends (the built-in presets say
+ * 800), so an endpoint that refuses the parameter refuses turns too, and the
+ * test saying so is the test being right.
+ */
+const TEST_MAX_TOKENS = 256;
+
+/** Longer than any test prompt a person types, short enough that nobody pastes a chapter. */
+const TEST_PROMPT_MAX_CHARS = 2000;
+
+/**
+ * What a test asks — [polish §13].
+ *
+ * ***Closed, and closed on purpose***: a body carrying `apiKey` or `baseUrl` is
+ * refused rather than honoured, because what this route tests is **what is
+ * saved** — the stored key, the stored address, the memoised provider a turn
+ * would get. A test of the form as typed would be a test of a configuration no
+ * turn uses yet, and it would need the key to travel, which a saved connection
+ * never makes it do.
+ *
+ * `modelId` is deliberately **not** checked against the connection's `models`.
+ * That list may be empty (it is free text, [P2B §2.6]), and *try this model
+ * before adding it* is one of the things a test is for.
+ */
+const TestBody = Type.Object(
+  {
+    kind: Type.Union([Type.Literal('text'), Type.Literal('image')]),
+    modelId: Type.String({ minLength: 1, maxLength: 200 }),
+    prompt: Type.String({ minLength: 1, maxLength: TEST_PROMPT_MAX_CHARS, pattern: '\\S' }),
   },
   { additionalProperties: false },
 );
@@ -334,6 +379,21 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
    */
   app.post('/connections/models', { schema: { body: FetchModelsBody } }, async (request, reply) =>
     fetchModels(services, request.body, reply),
+  );
+
+  /**
+   * Tries a saved connection — [polish §13], and the health check
+   * [P2B §5](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
+   * deferred until the connectivity work existed.
+   *
+   * The install's connections, resolved the way the list presents them. See
+   * {@link testConnection} for everything else.
+   */
+  app.post(
+    '/connections/:id/test',
+    { schema: { params: IdParams, body: TestBody } },
+    async (request, reply) =>
+      testConnection(services, request, reply, await readSystemConnectionEntries(services.layout)),
   );
 
   app.get('/bindings', async (_request, reply) => {
@@ -517,15 +577,6 @@ function bodyToInput(body: unknown): {
 }
 
 /**
- * The store's refusals, in the API's vocabulary.
- *
- * Its own function rather than a widened copy of `admin.ts`'s: that one indexes
- * a map by a four-member union and only typechecks because the literal's keys
- * cover it exactly. What is worth copying is the `instanceof` guard — it is what
- * sends an unexpected error to the handler that answers a status with no
- * message, rather than leaking a filesystem path.
- */
-/**
  * `GET {baseUrl}/models`, as a picker's worth of ids — [P2B §2.6], [P10.3].
  *
  * ***One implementation behind two routes***, because the admin's and the
@@ -600,18 +651,267 @@ async function fetchModels(
      * A class, never the fetch's own message — it can carry the URL, and the
      * URL can carry a token.
      */
-    const offline = !isLocalEndpoint(base) && services.updates.online === false;
-    return await reply.code(502).send(
-      offline
-        ? {
-            error: 'offline',
-            message: 'This server appears to have no internet access.',
-          }
-        : { error: 'unreachable', message: 'That endpoint could not be reached.' },
-    );
+    return await reply.code(502).send(silence(services, base));
   }
 }
 
+/**
+ * *Nothing answered*, in [P11.6]'s two words — one spelling for the two routes
+ * that meet it.
+ *
+ * `offline` only when the endpoint is remote **and** a check has actually
+ * established there is no route out; a local model server that does not answer
+ * is simply not running, and `null` is *nothing has looked*. The reasoning is
+ * {@link fetchModels}' catch block, and it lives here so the test route cannot
+ * drift from it: a stranger meets this sentence on whichever of the two buttons
+ * they press first.
+ */
+function silence(
+  services: AppServices,
+  baseUrl: string | undefined,
+): { error: 'offline' | 'unreachable'; message: string } {
+  return !isLocalEndpoint(baseUrl) && services.updates.online === false
+    ? { error: 'offline', message: 'This server appears to have no internet access.' }
+    : { error: 'unreachable', message: 'That endpoint could not be reached.' };
+}
+
+/**
+ * One call to a saved connection, on demand — [polish §13], discharging the
+ * health check [P2B §5](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
+ * deferred: *"is this key still good" is a live call with a cost, and it belongs
+ * with the connectivity work P10 does once P11's producer exists.* Both have
+ * landed, and this answers in [P11.6]'s vocabulary.
+ *
+ * ***What is tested is what is saved.*** The connection is looked up by id in
+ * `entries` — which the caller scopes, so the admin's and the personal route
+ * differ only at their call sites — and the provider comes from
+ * `services.providers`, the **same memoised factory a turn uses**. So a pass
+ * means a turn will work, a `--capture` run records the exchange as a cassette
+ * like any other, and the stored key is used without ever leaving the server.
+ * `find` takes the first claimant of an id, which is the winner: entries are
+ * label-ordered and `presentConnectionsForAdmin` marks every later one
+ * `shadowed`, the same rule `resolveRole` applies.
+ *
+ * ***It never invalidates the memo***, and that is a decision rather than an
+ * omission: a test that rebuilt the provider would test something no turn
+ * uses, and would make pressing a button a way to put a provider into a cache
+ * that other people's turns read from.
+ *
+ * **The smallest question, once.** No sampler settings — a preset's are the
+ * preset's — only {@link TEST_MAX_TOKENS}; `generate` rather than `stream`,
+ * because this proves the key, the address and the model, not the streaming
+ * path; and one attempt, because a test that retried a 429 would hide the thing
+ * it exists to report.
+ *
+ * **Pictures only where the connection says so**, checked before anything is
+ * sent: `renderImage` is *"present only when `capabilities.rendersImages`. The
+ * caller checks"*, and `renditions/worker.ts` is the other caller that does.
+ *
+ * **The timeout is the operator's** — `limits.providerTimeoutMs`, the one a turn
+ * obeys, and none at all at `0`, which is that setting's documented *off*. A
+ * local runtime's first request loads the model, so the `/models` route's ten
+ * seconds would fail the very first test on exactly the setup people test
+ * first. There is no abort on disconnect: the text arm is bounded by its
+ * ceiling, and aborting a picture does not un-spend what a hosted endpoint has
+ * already accepted.
+ *
+ * **Refusals are classes and fixed sentences, never the endpoint's words** —
+ * those can echo the key they refuse, which on this route is the likeliest
+ * failure there is. The words go to the log, redacted.
+ *
+ * ***It records nothing***, and says so rather than letting it pass unnoticed.
+ * [10 §11.4](../../../../docs/design/10-ui-surfaces.md) says a model call that
+ * is not a turn still costs money and *must be recorded*; nothing in this build
+ * records one (field assists included), and a test button is not the place to
+ * start a ledger. The log line's token counts are the only trace.
+ */
+async function testConnection(
+  services: AppServices,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  entries: readonly ConnectionEntry[],
+): Promise<FastifyReply> {
+  const { id } = request.params as { id: string };
+  const body = request.body as Static<typeof TestBody>;
+
+  const connection = entries.find((entry) => entry.connection.id === id)?.connection;
+  if (connection === undefined) {
+    return reply
+      .code(404)
+      .send({ error: 'not-found', message: `No connection with the id ${id}.` });
+  }
+
+  let provider: Provider;
+  try {
+    provider = services.providers(connection);
+  } catch {
+    // A hand-written file naming a provider this build has no adapter for — the
+    // save refuses it, a text editor does not. `respond()`'s class for it, and
+    // the name from the file rather than the thrown sentence.
+    return reply.code(400).send({
+      error: 'unbuildable',
+      message: `This build has no adapter for ${JSON.stringify(connection.provider)}.`,
+    });
+  }
+
+  const renderImage = provider.renderImage?.bind(provider);
+  if (
+    body.kind === 'image' &&
+    (renderImage === undefined || !provider.capabilities.rendersImages)
+  ) {
+    return reply.code(422).send({
+      error: 'not-an-image-endpoint',
+      message: 'This connection does not say it makes pictures.',
+    });
+  }
+
+  const timeoutMs = services.config.limits.providerTimeoutMs;
+  const signal = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
+  const started = Date.now();
+  const logged = {
+    event: 'connection.tested',
+    account: request.account?.handle ?? null,
+    connectionId: connection.id,
+    scope: connection.scope,
+    kind: body.kind,
+    asked: body.modelId,
+  };
+
+  try {
+    if (body.kind === 'image' && renderImage !== undefined) {
+      const picture = await renderImage({
+        modelId: body.modelId,
+        prompt: body.prompt,
+        // `illustrate.ts`' seed, for its reason: any value will do, and a
+        // clock is one nobody has to seed.
+        seed: Date.now() % 2_147_483_647,
+        // Empty for the reason a rendition's is: what an endpoint wants beyond
+        // a prompt is per-connection configuration nothing supplies yet.
+        workflow: {},
+        ...(signal === undefined ? {} : { signal }),
+      });
+      const elapsedMs = Date.now() - started;
+      request.log.info(
+        { ...logged, outcome: 'ok', answeredAs: picture.modelId, elapsedMs },
+        'A connection was tried',
+      );
+      return await reply.send({
+        kind: 'image',
+        mime: picture.mime,
+        base64: Buffer.from(picture.bytes).toString('base64'),
+        modelId: picture.modelId,
+        seed: picture.seed,
+        cost: picture.cost,
+        elapsedMs,
+      });
+    }
+
+    const answer = await provider.generate({
+      modelId: body.modelId,
+      messages: [{ role: 'user', content: body.prompt, fromBlocks: ['se.connection.test'] }],
+      params: { maxTokens: TEST_MAX_TOKENS },
+      ...(signal === undefined ? {} : { signal }),
+    });
+    const elapsedMs = Date.now() - started;
+    request.log.info(
+      {
+        ...logged,
+        outcome: 'ok',
+        answeredAs: answer.modelId,
+        finishReason: answer.finishReason,
+        promptTokens: answer.usage?.promptTokens,
+        completionTokens: answer.usage?.completionTokens,
+        elapsedMs,
+      },
+      'A connection was tried',
+    );
+    return await reply.send({
+      kind: 'text',
+      text: answer.text,
+      modelId: answer.modelId,
+      finishReason: answer.finishReason,
+      usage: answer.usage,
+      cost: answer.cost,
+      elapsedMs,
+    });
+  } catch (error) {
+    if (!(error instanceof ProviderError)) throw error;
+
+    const refusal = refusalFor(error, signal, services, connection.baseUrl);
+    request.log.info(
+      {
+        ...logged,
+        outcome: refusal.body.error,
+        class: error.class,
+        status: error.status,
+        elapsedMs: Date.now() - started,
+        // The provider's own words, for whoever reads the log — and redacted,
+        // because an endpoint refusing a key is the endpoint most likely to
+        // quote it back.
+        ...(error.detail === undefined
+          ? {}
+          : {
+              detail: redactText(
+                error.detail,
+                connection.apiKey === undefined ? [] : [connection.apiKey],
+              ),
+            }),
+      },
+      'A connection was tried',
+    );
+    return await reply.code(refusal.status).send(refusal.body);
+  }
+}
+
+/**
+ * A failed test, as a class a person can act on — [polish §13].
+ *
+ * **The order is the argument.** The timeout comes first because the adapter
+ * classes an aborted request as `transient` from its message alone, which would
+ * otherwise read as *unreachable* about an endpoint that was merely slow — the
+ * same ordering lesson `turns/calls.ts` records for a stall. Then the status,
+ * because a refused key and a refused request are both `terminal` and point at
+ * opposite fields of the form (finding 5, [P2C log]). Then the class.
+ */
+function refusalFor(
+  error: ProviderError,
+  signal: AbortSignal | undefined,
+  services: AppServices,
+  baseUrl: string | undefined,
+): { status: number; body: { error: string; message: string } } {
+  if (signal?.aborted === true) {
+    return {
+      status: 504,
+      body: { error: 'timeout', message: 'That endpoint did not answer in time.' },
+    };
+  }
+  if (error.status === 401 || error.status === 403) {
+    return {
+      status: 401,
+      body: { error: 'unauthorized', message: 'That endpoint refused the key.' },
+    };
+  }
+  if (error.class === 'retryable') {
+    return {
+      status: 502,
+      body: { error: 'busy', message: 'That endpoint asked to be tried later.' },
+    };
+  }
+  if (error.class === 'transient') {
+    return { status: 502, body: silence(services, baseUrl) };
+  }
+  return { status: 502, body: { error: 'refused', message: 'That endpoint refused the request.' } };
+}
+
+/**
+ * The store's refusals, in the API's vocabulary.
+ *
+ * Its own function rather than a widened copy of `admin.ts`'s: that one indexes
+ * a map by a four-member union and only typechecks because the literal's keys
+ * cover it exactly. What is worth copying is the `instanceof` guard — it is what
+ * sends an unexpected error to the handler that answers a status with no
+ * message, rather than leaking a filesystem path.
+ */
 async function respond(error: unknown, reply: FastifyReply): Promise<FastifyReply> {
   if (!(error instanceof ConnectionError)) throw error;
   const status = { 'not-found': 404, invalid: 400, unbuildable: 400 }[error.code];
@@ -799,5 +1099,30 @@ export function registerMyConnectionRoutes(app: FastifyInstance, services: AppSe
     { schema: { body: FetchModelsBody } },
     async (request, reply) =>
       fetchModels(services, request.body, reply, await permitted(request, reply)),
+  );
+
+  /**
+   * Tries one of *your* connections — the admin route's twin.
+   *
+   * ***Scoped to the caller's own directory***, which is the whole of what this
+   * adds over the admin one: an id that exists only in the system scope, or in
+   * somebody else's, is a 404 here rather than a way to spend another person's
+   * key. And the models route's argument holds unchanged — this can only reach a
+   * URL the caller already saved, and every turn of theirs would reach it too, so
+   * what it adds is the *timing*, not the reach.
+   */
+  app.post(
+    '/me/connections/:id/test',
+    { schema: { params: IdParams, body: TestBody } },
+    async (request, reply) => {
+      const mine = await permitted(request, reply);
+      if (!mine) return;
+      return testConnection(
+        services,
+        request,
+        reply,
+        await readUserConnectionEntries(services.layout, mine.handle),
+      );
+    },
   );
 }

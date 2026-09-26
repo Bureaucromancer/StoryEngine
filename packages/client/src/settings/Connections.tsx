@@ -8,11 +8,14 @@ import {
   type AdminConnection,
   type Binding,
   type ConnectionCapabilities,
+  type ConnectionTestResult,
 } from '../api.js';
+import { formatCount, formatDuration } from '../format.js';
 import { roleLabel, roleModel, roleSource } from './roleWords.js';
 import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { SecretField } from '../ui/SecretField.js';
 import {
+  useAuthState,
   useBindings,
   useConnectionBindings,
   useConnections,
@@ -20,6 +23,7 @@ import {
   useFetchModels,
   useRoles,
   useSaveConnection,
+  useTestConnection,
   useWriteBindings,
   useWriteDefaultBindings,
   type ConnectionScope,
@@ -165,6 +169,8 @@ function ConnectionsPanel({
   const connections = useConnections(scope);
   const [editing, setEditing] = useState<AdminConnection | 'new' | null>(null);
   const [confirming, setConfirming] = useState<AdminConnection | null>(null);
+  /** Which row's test is open — one at a time, like the form. */
+  const [testing, setTesting] = useState<string | null>(null);
 
   if (connections.isPending) return <Note>Loading…</Note>;
   if (connections.isError) return <p role="alert">The connections could not be read.</p>;
@@ -195,6 +201,24 @@ function ConnectionsPanel({
                   <Fine>{row.provider}</Fine>
                 </div>
                 <div className="flex gap-2">
+                  {/**
+                   * **Not on a row nothing resolves to.** The server tries the
+                   * file that *wins* an id, so a Test on the losing copy would
+                   * quietly try the other file — the one mix-up the warning
+                   * below exists to prevent.
+                   */}
+                  {row.shadowed ? null : (
+                    <Button
+                      type="button"
+                      size="compact"
+                      aria-expanded={testing === row.id}
+                      onClick={() => {
+                        setTesting((open) => (open === row.id ? null : row.id));
+                      }}
+                    >
+                      Test
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="compact"
@@ -229,6 +253,11 @@ function ConnectionsPanel({
                   Another connection file on disk already uses this id, so nothing will ever resolve
                   to this one. Remove one of them.
                 </p>
+              ) : null}
+              {testing === row.id && !row.shadowed ? (
+                // Keyed on the hash, so a save that changes the model list
+                // starts the test over rather than offering a model it lost.
+                <ConnectionTest key={row.contentHash} scope={scope} connection={row} />
               ) : null}
             </li>
           ))}
@@ -315,6 +344,10 @@ function ConnectionForm({
   const [reportsUsage, setReportsUsage] = useState<boolean | null>(
     connection?.capabilities?.reportsUsage ?? null,
   );
+  /** The third, [polish §13]: whether this address also makes pictures. */
+  const [rendersImages, setRendersImages] = useState<boolean | null>(
+    connection?.capabilities?.rendersImages ?? null,
+  );
   /** What a refusal handed back, so both ways out of a 412 are reachable. */
   const [conflict, setConflict] = useState<AdminConnection | null>(null);
   const [saved, setSaved] = useState<AdminConnection | null>(null);
@@ -366,7 +399,7 @@ function ConnectionForm({
              * did know, and a save that sent only these two would delete it —
              * which is the bug the key already taught this file once.
              */
-            ...capabilitiesFrom(connection, contextText, reportsUsage),
+            ...capabilitiesFrom(connection, contextText, reportsUsage, rendersImages),
             ...(connection === null
               ? {}
               : {
@@ -532,6 +565,23 @@ function ConnectionForm({
               setReportsUsage(next === 'default' ? null : next === 'yes');
             }}
           />
+          {/**
+           * ***The flag [21 §3] says is set per connection, finally somewhere a
+           * person can set it*** — [polish §13]. Until now `rendersImages` was a
+           * hand edit to the JSON file, which is why the `image` role could only
+           * be served by somebody who had read the design notes. *Default* means
+           * no: `openai-compatible` names a chat protocol, and whether the same
+           * URL answers `/images/generations` is a fact nothing here can guess.
+           */}
+          <SelectField
+            label="Makes pictures"
+            value={rendersImages === null ? 'default' : rendersImages ? 'yes' : 'no'}
+            options={USAGE_OPTIONS}
+            hint="Say yes only if this address also answers image requests. Nothing guesses it — once saved, Test on the list can try a picture."
+            onChange={(next) => {
+              setRendersImages(next === 'default' ? null : next === 'yes');
+            }}
+          />
         </div>
       </details>
 
@@ -588,6 +638,157 @@ function ConnectionForm({
         ) : null}
       </div>
     </form>
+  );
+}
+
+/**
+ * Trying a saved connection — [polish §13], and the health check
+ * [P2B §5](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
+ * deferred until the connectivity work existed.
+ *
+ * ***What is saved, not what is typed.*** The server looks the connection up by
+ * id and uses the stored key and address through the same provider a turn
+ * gets, so a pass here means a turn will work — and nothing in this panel ever
+ * holds a key. The sentence under the prompt says so, because the form above
+ * it can hold unsaved edits and a person would reasonably assume those are
+ * what is being tried.
+ *
+ * **A button, never automatic** ([10 §11.5]'s traps): a hosted endpoint charges
+ * for this like any other call, and a picture can cost more than a turn.
+ *
+ * **The prompt is editable and starts filled**, so the common case is one press
+ * and the useful case — *how does this model actually write* — is one edit
+ * away. A picture is offered only where the connection says it makes them,
+ * which is the same check the server makes before sending anything.
+ */
+function ConnectionTest({
+  scope,
+  connection,
+}: {
+  scope: ConnectionScope;
+  connection: AdminConnection;
+}): JSX.Element {
+  const test = useTestConnection(scope);
+  const auth = useAuthState();
+  const locale = auth.data?.account?.locale ?? undefined;
+  const makesPictures = connection.capabilities?.rendersImages === true;
+
+  const [kind, setKind] = useState<'text' | 'image'>('text');
+  const [textPrompt, setTextPrompt] = useState(offeredPrompt('text'));
+  const [imagePrompt, setImagePrompt] = useState(offeredPrompt('image'));
+  const [modelId, setModelId] = useState(connection.models[0] ?? '');
+
+  const prompt = kind === 'text' ? textPrompt : imagePrompt;
+  const ready = modelId.trim().length > 0 && prompt.trim().length > 0;
+
+  return (
+    <form
+      className="mt-4 flex flex-col gap-3 border-t border-line pt-4"
+      aria-label={testHeading(connection.label)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!ready || test.isPending) return;
+        test.mutate({ id: connection.id, kind, modelId: modelId.trim(), prompt });
+      }}
+    >
+      {makesPictures ? (
+        <SelectField
+          label="Ask for"
+          value={kind}
+          options={TEST_KINDS}
+          onChange={(next) => {
+            setKind(next === 'image' ? 'image' : 'text');
+            // An answer to the other question would sit under the wrong button.
+            test.reset();
+          }}
+        />
+      ) : null}
+      {connection.models.length > 0 ? (
+        <SelectField
+          label="Model"
+          value={modelId}
+          options={connection.models.map((model) => [model, model] as const)}
+          onChange={setModelId}
+        />
+      ) : (
+        <Field
+          label="Model"
+          value={modelId}
+          onChange={setModelId}
+          hint="This connection lists no models yet, so type one the endpoint serves."
+        />
+      )}
+      <Field
+        label={kind === 'text' ? 'Message' : 'Describe the picture'}
+        value={prompt}
+        onChange={kind === 'text' ? setTextPrompt : setImagePrompt}
+        multiline
+        rows={2}
+      />
+      <Fine>
+        This uses what is saved — the stored key and address, not anything in an unsaved form. A
+        paid endpoint charges for it like any other call.
+      </Fine>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" variant="primary" size="compact" disabled={!ready || test.isPending}>
+          {testButtonLabel(kind, test.isPending)}
+        </Button>
+        {test.isPending && kind === 'image' ? (
+          <Note role="status">Pictures can take a minute or more.</Note>
+        ) : null}
+      </div>
+      {test.isError ? (
+        <p role="alert" className="text-sm text-danger-ink">
+          {testErrorLine(test.error, kind)}
+        </p>
+      ) : null}
+      {test.isSuccess ? (
+        <TestAnswer result={test.data} asked={test.variables.modelId} locale={locale} />
+      ) : null}
+    </form>
+  );
+}
+
+/**
+ * What came back, and the three facts worth reading under it: how long it
+ * took, which model answered, and — for a message — what it used and why it
+ * stopped.
+ */
+function TestAnswer({
+  result,
+  asked,
+  locale,
+}: {
+  result: ConnectionTestResult;
+  asked: string;
+  locale: string | undefined;
+}): JSX.Element {
+  const finish = result.kind === 'text' ? finishLine(result.finishReason, result.text) : null;
+
+  return (
+    <div role="status" className="flex flex-col gap-2">
+      {result.kind === 'image' ? (
+        /**
+         * `self-start`, or the column's default stretch draws a 96-pixel
+         * picture the width of the card — and a real one, a thousand pixels
+         * square, taller than the screen. Capped in height so the sentences
+         * under it stay in view; both caps keep the aspect ratio.
+         */
+        <img
+          src={`data:${result.mime};base64,${result.base64}`}
+          alt={pictureAlt(result.modelId)}
+          className="max-h-96 max-w-full self-start rounded-md border border-line"
+        />
+      ) : result.text.trim().length === 0 ? null : (
+        <p className="whitespace-pre-wrap rounded-md border border-line p-3 text-sm text-ink">
+          {result.text}
+        </p>
+      )}
+      {finish === null ? null : <Note>{finish}</Note>}
+      <Fine>{answeredLine(result.elapsedMs, locale)}</Fine>
+      {result.modelId === asked ? null : <Fine>{answeredAsLine(asked, result.modelId)}</Fine>}
+      {result.kind === 'text' ? <Fine>{usageLine(result.usage, locale)}</Fine> : null}
+    </div>
   );
 }
 
@@ -1142,7 +1343,10 @@ function missingPairLabel(modelId: string): string {
 function roleChoiceLabel(role: string): string {
   return `Model for ${roleLabel(role)}`;
 }
-/** The three states the usage override has, one of which is *do not override*. */
+/**
+ * The three states a yes-or-no override has, one of which is *do not
+ * override* — shared by *reports token counts* and *makes pictures*.
+ */
 const USAGE_OPTIONS: [string, string][] = [
   ['default', 'Use the default for this kind'],
   ['yes', 'Yes'],
@@ -1164,6 +1368,7 @@ function capabilitiesFrom(
   connection: AdminConnection | null,
   contextText: string,
   reportsUsage: boolean | null,
+  rendersImages: boolean | null,
 ): { capabilities: ConnectionCapabilities } | Record<string, never> {
   const stored = connection?.capabilities ?? {};
   const next: ConnectionCapabilities = { ...stored };
@@ -1177,6 +1382,9 @@ function capabilitiesFrom(
 
   if (reportsUsage === null) delete next.reportsUsage;
   else next.reportsUsage = reportsUsage;
+
+  if (rendersImages === null) delete next.rendersImages;
+  else next.rendersImages = rendersImages;
 
   return { capabilities: next };
 }
@@ -1198,4 +1406,131 @@ function modelsErrorLine(error: unknown): string {
     return 'This server appears to have no internet access, so it could not reach that endpoint. A model running on this network would still work.';
   }
   return 'That endpoint did not answer with a model list. Type the model name instead.';
+}
+
+/** The two things a test can ask for, as a picker's pairs. */
+const TEST_KINDS: [string, string][] = [
+  ['text', 'A message'],
+  ['image', 'A picture'],
+];
+
+/**
+ * What the prompt box starts with — harmless, short, and answerable by any
+ * model, so a failure is about the connection rather than about the question.
+ */
+function offeredPrompt(kind: 'text' | 'image'): string {
+  return kind === 'text'
+    ? 'Say hello in one short sentence.'
+    : 'A lighthouse on a cliff at dusk, in watercolour.';
+}
+
+function testHeading(label: string): string {
+  return `Try ${label}`;
+}
+
+function testButtonLabel(kind: 'text' | 'image', pending: boolean): string {
+  if (kind === 'image') return pending ? 'Making the picture…' : 'Try a picture';
+  return pending ? 'Waiting for the endpoint…' : 'Send a test message';
+}
+
+function pictureAlt(modelId: string): string {
+  return `The test picture ${modelId} made`;
+}
+
+function answeredLine(ms: number, locale: string | undefined): string {
+  return `Answered in ${formatDuration(ms, locale)}.`;
+}
+
+/**
+ * Said only when they differ — an alias, a router picking for you, or a local
+ * server that loaded something else. It is the same fact the turn record keeps
+ * as the model that answered, and worth seeing before a turn does.
+ */
+function answeredAsLine(asked: string, answered: string): string {
+  return `You asked for ${asked}; the endpoint says ${answered} answered.`;
+}
+
+function usageLine(
+  usage: { promptTokens: number; completionTokens: number } | null,
+  locale: string | undefined,
+): string {
+  if (usage === null) return 'The endpoint did not say how many tokens that used.';
+  return `That used ${formatCount(usage.promptTokens, locale)} tokens of prompt and ${formatCount(usage.completionTokens, locale)} of reply.`;
+}
+
+/**
+ * Why the reply stopped, when that is worth a sentence — and the one case that
+ * most needs one.
+ *
+ * ***An empty reply cut off at the limit is a working connection.*** A model
+ * that thinks before it answers spends its first tokens where nobody sees them,
+ * and the test's ceiling is deliberately small; what comes back is no text and
+ * `length`, which reads exactly like a broken endpoint unless something says
+ * otherwise. The key, the address and the model all answered — which is the
+ * whole of what this button asks.
+ */
+function finishLine(reason: string, text: string): string | null {
+  const empty = text.trim().length === 0;
+  if (reason === 'length') {
+    return empty
+      ? 'It used the whole test allowance before writing anything you can see — usually a model that thinks before it answers. The key, the address and the model all worked; a turn gives it far more room.'
+      : 'It stopped at the test’s length limit, which is short on purpose. A turn gives it far more room.';
+  }
+  if (reason === 'filtered') {
+    return 'The endpoint’s content filter stopped the reply. The connection works; that prompt did not.';
+  }
+  if (empty) {
+    return 'The endpoint answered with nothing at all. The key and the address work — try another model or prompt.';
+  }
+  if (reason === 'unknown') {
+    return 'The endpoint did not say why it stopped, which some local servers never do. If the reply reads as whole, the connection works.';
+  }
+  return null;
+}
+
+/**
+ * What a failed test says — [polish §13], in the `/models` probe's vocabulary
+ * plus the codes only a real call can earn.
+ *
+ * Each code sends a person somewhere different, which is why the server keeps
+ * them apart: the key, the address, the machine's own network, the model, the
+ * clock. **A code this build does not know falls through to a sentence that
+ * blames nothing**, because guessing a field here is how a person gets sent to
+ * the wrong one.
+ */
+function testErrorLine(error: unknown, kind: 'text' | 'image'): string {
+  const code = error instanceof ApiError ? error.code : null;
+  if (code === 'unauthorized') {
+    return 'That endpoint refused the key. Edit the connection and check it — the address is fine.';
+  }
+  if (code === 'offline') {
+    return 'This server appears to have no internet access, so it could not reach that endpoint. A model running on this network would still work.';
+  }
+  if (code === 'unreachable') {
+    return 'That endpoint could not be reached. Check the address, and that the model server is running.';
+  }
+  if (code === 'timeout') {
+    return 'That endpoint did not answer before the provider timeout. A local model loading for the first time can take this long — try again, or raise the timeout in the server settings.';
+  }
+  if (code === 'busy') {
+    return 'That endpoint is busy or rate-limited, and asked to be tried later.';
+  }
+  if (code === 'refused') {
+    return kind === 'image'
+      ? 'That endpoint refused the picture request — most often a model name it does not serve, or an address that does not make pictures after all.'
+      : 'That endpoint refused the request — most often a model name it does not serve. Check the model.';
+  }
+  if (code === 'not-an-image-endpoint') {
+    return 'This connection does not say it makes pictures. If its file was edited by hand, save it once through this form so the server picks up the change.';
+  }
+  if (code === 'not-found') {
+    return 'That connection is not there any more. Reload the page.';
+  }
+  // The only way this form can send a body the route refuses is a prompt past
+  // its length cap — everything else it sends is chosen, not typed.
+  if (code === 'invalid') {
+    return 'The server would not take that test as written. Try a shorter message.';
+  }
+  if (code === 'unbuildable' && error instanceof ApiError) return error.message;
+  return 'That test did not come back with an answer this page understands.';
 }

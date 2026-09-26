@@ -3,9 +3,12 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { Writable } from 'node:stream';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Connection } from '../providers/connections.js';
+import { FakeProvider } from '../providers/fake.js';
 import { makeTestServer, routesUnder, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -20,10 +23,17 @@ import { makeTestServer, routesUnder, setUpAdmin, type TestServer } from '../tes
 let server: TestServer;
 let fetched: { url: string; init?: RequestInit }[];
 let fetchResult: Response | Error;
+let provider: FakeProvider;
+/** Every connection the factory was asked to build from, in order. */
+let built: Connection[];
 
 beforeEach(async () => {
   fetched = [];
   fetchResult = Response.json({ data: [{ id: 'gpt-hi' }, { id: 'gpt-lo' }] });
+  provider = new FakeProvider({
+    script: [{ text: 'It works.', usage: { promptTokens: 12, completionTokens: 3 } }],
+  });
+  built = [];
 
   server = await makeTestServer({
     // The one place the server talks to a host somebody typed in. A seam, so a
@@ -35,6 +45,18 @@ beforeEach(async () => {
         ? Promise.reject(fetchResult)
         : Promise.resolve(fetchResult);
     }) as unknown as typeof globalThis.fetch,
+    /**
+     * **The other place, since [polish §13]** — the connection test builds a
+     * provider, and without a double here the real factory's adapter would
+     * reach `api.internal.example` over the network, because it speaks through
+     * `globalThis.fetch` rather than the seam above. Nothing else in this file
+     * builds a provider, so the double changes no other test; `built` is what
+     * lets one assert *which file on disk* reached the factory.
+     */
+    providers: (connection) => {
+      built.push(connection);
+      return provider;
+    },
   });
   await setUpAdmin(server, 'ned');
 });
@@ -559,6 +581,309 @@ async function defaultsWrite(connectionId: string): ReturnType<TestServer['reque
  * **the person with the file open in a text editor**. A connections directory
  * is hand-editable by design ([P2B §2.3]).
  */
+/**
+ * **Trying a saved connection** — [polish §13], and the health check
+ * [P2B §5](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
+ * deferred until the connectivity work existed.
+ *
+ * What these hold the route to is the claim its docstring makes: **what is
+ * tested is what is saved**. The stored key reaches the factory and never the
+ * response, the file that wins an id is the one tried, a picture is asked for
+ * only where the connection says it makes them, and every refusal is a class a
+ * person can act on rather than the endpoint's own words.
+ */
+describe('trying a saved connection', () => {
+  const ASK = { kind: 'text', modelId: 'gpt-hi', prompt: 'Say hello in one short sentence.' };
+
+  async function tried(id: string, payload: unknown = ASK) {
+    return server.request({ method: 'POST', url: `/api/admin/connections/${id}/test`, payload });
+  }
+
+  it('answers with what the endpoint said, using the key on disk', async () => {
+    const id = await create();
+
+    const response = await tried(id);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      kind: 'text',
+      text: 'It works.',
+      modelId: 'gpt-hi',
+      finishReason: 'stop',
+      usage: { promptTokens: 12, completionTokens: 3 },
+      cost: null,
+    });
+    expect(typeof response.body.elapsedMs).toBe('number');
+    // The stored key reached the factory — the form never sent one, and this
+    // route would refuse it if it had.
+    expect(built[0]?.apiKey).toBe('sk-must-never-come-back');
+    expect(JSON.stringify(response.body)).not.toContain('sk-must-never-come-back');
+    expect(JSON.stringify(response.body)).not.toContain('api.internal.example');
+  });
+
+  it('asks the smallest question: one user message, a ceiling, and no sampler settings', async () => {
+    const id = await create();
+
+    await tried(id);
+
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.requests[0]?.params).toEqual({ maxTokens: 256 });
+    expect(provider.requests[0]?.streamed).toBe(false);
+    expect(provider.requests[0]?.messages).toEqual([
+      { role: 'user', content: ASK.prompt, fromBlocks: ['se.connection.test'] },
+    ]);
+  });
+
+  it('refuses a body carrying a key, because what is tested is what is saved', async () => {
+    const id = await create();
+
+    const response = await tried(id, { ...ASK, apiKey: 'sk-nope' });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(response.body)).not.toContain('sk-nope');
+    expect(provider.requests).toHaveLength(0);
+  });
+
+  it('says not-found for an id this scope does not have', async () => {
+    const response = await tried('not-there');
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('not-found');
+  });
+
+  it('tries the file that wins when two claim one id', async () => {
+    const id = await create({ label: 'A first by label' });
+    const root = server.services.layout.systemConnectionsRoot;
+    await writeFile(
+      join(root, 'shadow.json'),
+      JSON.stringify({
+        id,
+        label: 'Z last by label',
+        provider: 'openai-compatible',
+        models: ['gpt-hi'],
+        apiKey: 'sk-the-loser',
+      }),
+    );
+
+    await tried(id);
+
+    // The same winner a turn would resolve to — label order, first claimant.
+    expect(built[0]?.label).toBe('A first by label');
+  });
+
+  it('says a refused key was refused, and never repeats the endpoint’s words', async () => {
+    const id = await create();
+    provider.setScript([
+      {
+        error: {
+          class: 'terminal',
+          message: 'The provider call failed.',
+          detail: 'Incorrect API key provided: sk-must-never-come-back',
+          status: 401,
+        },
+      },
+    ]);
+
+    const response = await tried(id);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+    expect(JSON.stringify(response.body)).not.toContain('sk-must-never-come-back');
+    expect(JSON.stringify(response.body)).not.toContain('Incorrect API key');
+  });
+
+  it('calls a refused request refused, which is a different field to go and fix', async () => {
+    const id = await create();
+    provider.setScript([
+      { error: { class: 'terminal', message: 'The provider call failed.', status: 404 } },
+    ]);
+
+    const response = await tried(id);
+
+    expect(response.status).toBe(502);
+    expect(response.body.error).toBe('refused');
+  });
+
+  it('asks once, and says the endpoint is busy rather than retrying behind anybody’s back', async () => {
+    const id = await create();
+    provider.setScript([
+      { error: { class: 'retryable', message: 'The provider call failed.', status: 429 } },
+      { text: 'Too late.' },
+    ]);
+
+    const response = await tried(id);
+
+    expect(response.status).toBe(502);
+    expect(response.body.error).toBe('busy');
+    expect(provider.requests).toHaveLength(1);
+  });
+
+  it('names the internet only for a remote endpoint, and never for a local one', async () => {
+    server.services.updates = { ...server.services.updates, online: false };
+    provider.setScript([{ error: { class: 'transient', message: 'The provider call failed.' } }]);
+
+    const remote = await tried(await create());
+    expect(remote.status).toBe(502);
+    expect(remote.body.error).toBe('offline');
+
+    const local = await tried(
+      await create({ label: 'The box upstairs', baseUrl: 'http://10.0.0.5:11434/v1' }),
+    );
+    expect(local.status).toBe(502);
+    expect(local.body.error).toBe('unreachable');
+  });
+
+  /**
+   * **A slow endpoint is not an unreachable one**, and the order in
+   * `refusalFor` is what keeps them apart: an aborted request arrives
+   * `transient`, so without the timeout checked first this would tell a person
+   * to check an address that was answering, just slowly.
+   */
+  it('gives up at the provider timeout, and says so rather than unreachable', async () => {
+    const id = await create();
+    server.services.config = {
+      ...server.services.config,
+      limits: { ...server.services.config.limits, providerTimeoutMs: 50 },
+    };
+    provider.setScript([{ text: 'Eventually.', stallMs: 5_000 }]);
+
+    const response = await tried(id);
+
+    expect(response.status).toBe(504);
+    expect(response.body.error).toBe('timeout');
+  });
+
+  it('treats a timeout of zero as none, which is what the setting says it means', async () => {
+    const id = await create();
+    server.services.config = {
+      ...server.services.config,
+      limits: { ...server.services.config.limits, providerTimeoutMs: 0 },
+    };
+    provider.setScript([{ text: 'Slowly, but here.', stallMs: 30 }]);
+
+    const response = await tried(id);
+
+    expect(response.status).toBe(200);
+    expect(response.body.text).toBe('Slowly, but here.');
+  });
+
+  it('answers unbuildable for a hand-written provider this build has no adapter for', async () => {
+    // The real factory, because the double above builds anything. It throws
+    // before any request is made, so nothing reaches the network.
+    const real = await makeTestServer();
+    try {
+      await setUpAdmin(real, 'ned');
+      const root = real.services.layout.systemConnectionsRoot;
+      await mkdir(root, { recursive: true });
+      await writeFile(
+        join(root, 'hand.json'),
+        JSON.stringify({ id: 'hand', label: 'By hand', provider: 'anthropic', models: ['m'] }),
+      );
+
+      const response = await real.request({
+        method: 'POST',
+        url: '/api/admin/connections/hand/test',
+        payload: ASK,
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('unbuildable');
+      expect(response.body.message).toContain('anthropic');
+    } finally {
+      await real.dispose();
+    }
+  });
+
+  describe('a picture', () => {
+    const PICTURE = { kind: 'image', modelId: 'gpt-image', prompt: 'A lighthouse at dusk.' };
+
+    it('comes back as bytes a page can show, on a connection that says it makes them', async () => {
+      provider = new FakeProvider({
+        capabilities: { rendersImages: true },
+        images: [{ bytes: Uint8Array.from([1, 2, 3]), mime: 'image/png' }],
+      });
+      const id = await create({ capabilities: { rendersImages: true } });
+
+      const response = await tried(id, PICTURE);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        kind: 'image',
+        mime: 'image/png',
+        base64: 'AQID',
+        modelId: 'gpt-image',
+        cost: null,
+      });
+      expect(typeof response.body.seed).toBe('number');
+      // A rendition's own empty workflow — what an endpoint wants beyond a
+      // prompt is configuration nothing supplies yet.
+      expect(provider.images[0]?.workflow).toEqual({});
+      expect(provider.images[0]?.prompt).toBe(PICTURE.prompt);
+    });
+
+    it('is refused before anything is sent when the connection does not say it makes them', async () => {
+      const id = await create();
+
+      const response = await tried(id, PICTURE);
+
+      expect(response.status).toBe(422);
+      expect(response.body.error).toBe('not-an-image-endpoint');
+      expect(provider.images).toHaveLength(0);
+    });
+  });
+
+  it('logs the outcome without the prompt, the reply or the key', async () => {
+    const lines: string[] = [];
+    const loud = await makeTestServer({
+      config: { log: { level: 'info', format: 'json' } },
+      logStream: new Writable({
+        write(chunk: Buffer, _encoding, done) {
+          lines.push(chunk.toString());
+          done();
+        },
+      }),
+      providers: () =>
+        new FakeProvider({
+          script: [
+            {
+              error: {
+                class: 'terminal',
+                message: 'The provider call failed.',
+                detail: 'Incorrect API key provided: sk-must-never-come-back',
+                status: 401,
+              },
+            },
+          ],
+        }),
+    });
+    try {
+      await setUpAdmin(loud, 'ned');
+      const made = await loud.request({
+        method: 'POST',
+        url: '/api/admin/connections',
+        payload: CONNECTION,
+      });
+
+      await loud.request({
+        method: 'POST',
+        url: `/api/admin/connections/${String(made.body.connection.id)}/test`,
+        payload: { ...ASK, prompt: 'A prompt nobody should find in a log.' },
+      });
+
+      const emitted = lines.join('');
+      expect(emitted).toContain('"event":"connection.tested"');
+      expect(emitted).toContain('"outcome":"unauthorized"');
+      expect(emitted).not.toContain('A prompt nobody should find in a log.');
+      expect(emitted).not.toContain('sk-must-never-come-back');
+      // Redacted rather than dropped: the provider's words are what a person
+      // reading the log needs, minus the one part that must not be there.
+      expect(emitted).toContain('[REDACTED-KEY]');
+    } finally {
+      await loud.dispose();
+    }
+  });
+});
+
 describe('editing a connection somebody else has changed', () => {
   it('refuses, and hands back what is on disk so the form can offer both ways out', async () => {
     const { id, contentHash } = await created();
@@ -935,6 +1260,7 @@ describe('opacity', () => {
         'GET /api/admin/connections',
         'POST /api/admin/connections',
         'POST /api/admin/connections/models',
+        'POST /api/admin/connections/:id/test',
         'GET /api/admin/connections/:id/bindings',
         'PUT /api/admin/connections/:id',
         'DELETE /api/admin/connections/:id',
@@ -984,6 +1310,13 @@ describe('a key', () => {
         payload: { ...CONNECTION, provider: 'anthropic' },
       }),
       await defaultsWrite(id),
+      // The connection test, which is the one route here that *uses* the key
+      // on purpose — so it is the one most worth holding to never saying it.
+      await server.request({
+        method: 'POST',
+        url: `/api/admin/connections/${id}/test`,
+        payload: { kind: 'text', modelId: 'gpt-hi', prompt: 'Say hello.' },
+      }),
       // **And a delete that succeeds**, last so the id it removes is not needed
       // above. Without it DELETE appeared here only as a 404, which is a
       // refusal — the exact thing [P2B §6.1] says proves nothing about what a
@@ -994,10 +1327,10 @@ describe('a key', () => {
     for (const response of responses) {
       expect(JSON.stringify(response.body ?? null)).not.toContain('sk-must-never-come-back');
     }
-    // **And ten of them succeeded**, which is every route on the surface.
+    // **And eleven of them succeeded**, which is every route on the surface.
     // Without this the loop is a sweep of refusals, which contain no key for
     // the least interesting reason there is.
-    expect(responses.filter((response) => response.status < 400)).toHaveLength(10);
+    expect(responses.filter((response) => response.status < 400)).toHaveLength(11);
   });
 
   /**
@@ -1184,6 +1517,21 @@ describe('a key', () => {
       method: 'POST',
       url: '/api/me/connections/models',
       probe: { kind: 'needs-the-capability', payload: {} },
+    },
+    /**
+     * ***One more, [polish §13], on the P10.3 argument unchanged*** — it can
+     * only reach a connection in the caller's own directory, and only with the
+     * capability. *The payload has to be a valid one*: the body is validated
+     * before the handler runs, so a `{}` here would answer 400 and prove nothing
+     * about the capability at all.
+     */
+    {
+      method: 'POST',
+      url: '/api/me/connections/:id/test',
+      probe: {
+        kind: 'needs-the-capability',
+        payload: { kind: 'text', modelId: 'm1', prompt: 'Say hello.' },
+      },
     },
   ];
 

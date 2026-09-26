@@ -47,6 +47,8 @@ import {
   type BindingsState,
   type MyRoles,
   type ConnectionInput,
+  type ConnectionTestInput,
+  type ConnectionTestResult,
   type RoleRow,
   type ConfigView,
   type AuthState,
@@ -1340,6 +1342,23 @@ export function useFetchModels(
 ): UseMutationResult<{ models: string[] }, Error, { baseUrl?: string; apiKey?: string }> {
   return useMutation({
     mutationFn: scope === 'system' ? adminApi.fetchModels : api.fetchMyModels,
+  });
+}
+
+/**
+ * Trying a saved connection — [polish §13].
+ *
+ * A mutation for `useFetchModels`' reason: it is something a person does, and
+ * the answer is about this press rather than state the page holds. **It
+ * invalidates nothing**, because it writes nothing — the one call on this
+ * surface that spends money is also the one that changes no file.
+ */
+export function useTestConnection(
+  scope: ConnectionScope = 'system',
+): UseMutationResult<ConnectionTestResult, Error, { id: string } & ConnectionTestInput> {
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string } & ConnectionTestInput) =>
+      scope === 'system' ? adminApi.testConnection(id, input) : api.testMyConnection(id, input),
   });
 }
 

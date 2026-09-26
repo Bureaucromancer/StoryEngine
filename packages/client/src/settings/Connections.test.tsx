@@ -38,9 +38,20 @@ const writeDefaultBindings = vi.fn();
  * nothing, which is exactly what an unused surface looks like from a test file.
  */
 const writeBindings = vi.fn();
+const testConnection = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  /**
+   * **Only `authState`, for the test panel's locale** ([polish §13]): it reads
+   * the account to format a duration and a count, and an unmocked query would
+   * reach for a network jsdom does not have. Pending forever is the honest stub
+   * — the panel formats in the default locale until an account arrives, and
+   * nothing here is about which locale that is.
+   */
+  api: {
+    authState: () => new Promise(() => undefined),
+  },
   adminApi: {
     listConnections: (...a: unknown[]) => listConnections(...a) as unknown,
     readBindings: (...a: unknown[]) => readBindings(...a) as unknown,
@@ -52,6 +63,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     fetchModels: (...a: unknown[]) => fetchModels(...a) as unknown,
     writeDefaultBindings: (...a: unknown[]) => writeDefaultBindings(...a) as unknown,
     writeBindings: (...a: unknown[]) => writeBindings(...a) as unknown,
+    testConnection: (...a: unknown[]) => testConnection(...a) as unknown,
   },
 }));
 
@@ -88,6 +100,15 @@ beforeEach(() => {
   fetchModels.mockResolvedValue({ models: ['gpt-hi'] });
   writeDefaultBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
   writeBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
+  testConnection.mockResolvedValue({
+    kind: 'text',
+    text: 'Hello there.',
+    modelId: 'gpt-hi',
+    finishReason: 'stop',
+    usage: { promptTokens: 12, completionTokens: 3 },
+    cost: null,
+    elapsedMs: 840,
+  });
 });
 
 /**
@@ -605,6 +626,257 @@ describe('what an endpoint can do', () => {
  * binding writer in the client was the first-run offer and it hides itself for
  * good once anything is bound. The route and the hook both already existed.
  */
+/**
+ * ***Makes pictures*** — [polish §13]. The flag [21 §3] says is set per
+ * connection, and until this control a hand edit was the only place to set it.
+ * It rides the same merge the other two overrides do, so what matters is the
+ * same two things: it is sent when set, and setting it back to the default
+ * removes it without touching anything written by hand.
+ */
+describe('whether an endpoint makes pictures', () => {
+  it('sends it when it is set', async () => {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Name/ }), 'Images');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'gpt-image');
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Makes pictures' }), 'yes');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          capabilities: expect.objectContaining({ rendersImages: true }),
+        }),
+      );
+    });
+  });
+
+  it('forgets it when set back to the default, and keeps the rest', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { rendersImages: true, supportsTools: true } })],
+    });
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: /Edit/ }));
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    const picker = screen.getByRole('combobox', { name: 'Makes pictures' });
+    expect((picker as HTMLSelectElement).value).toBe('yes');
+    await userEvent.selectOptions(picker, 'default');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection).toHaveBeenCalled();
+    });
+    const [, saved] = updateConnection.mock.calls[0] as [string, { capabilities: unknown }];
+    expect(saved.capabilities).toEqual({ supportsTools: true });
+  });
+});
+
+/**
+ * **Trying a saved connection** — [polish §13].
+ *
+ * The claims worth a test are the ones a person would act on wrongly if they
+ * broke: it tries what is saved (the id, never a key), it offers a picture only
+ * where the connection says it can make one, an empty reply cut off at the
+ * limit reads as a working connection, and a refused key says *key*.
+ */
+describe('trying a saved connection', () => {
+  async function openTest(): Promise<void> {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Test' }));
+  }
+
+  it('tries what is saved, with the first model and the offered prompt', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith('house', {
+        kind: 'text',
+        modelId: 'gpt-hi',
+        prompt: 'Say hello in one short sentence.',
+      });
+    });
+    expect(await screen.findByText('Hello there.')).toBeTruthy();
+    expect(screen.getByText('That used 12 tokens of prompt and 3 of reply.')).toBeTruthy();
+    // Nothing a key could travel in: the id and three fields, and no more.
+    const [, sent] = testConnection.mock.calls[0] as [string, Record<string, unknown>];
+    expect(Object.keys(sent).sort()).toEqual(['kind', 'modelId', 'prompt']);
+  });
+
+  it('asks the model picked and the words typed', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    await openTest();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Model' }), 'gpt-lo');
+    const message = screen.getByRole('textbox', { name: 'Message' });
+    await userEvent.clear(message);
+    await userEvent.type(message, 'Write one line about rain.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith('house', {
+        kind: 'text',
+        modelId: 'gpt-lo',
+        prompt: 'Write one line about rain.',
+      });
+    });
+  });
+
+  it('offers a picture only on a connection that says it makes them', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    await openTest();
+    expect(screen.queryByRole('combobox', { name: 'Ask for' })).toBeNull();
+  });
+
+  it('shows the picture a picture test made', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { rendersImages: true } })],
+    });
+    testConnection.mockResolvedValue({
+      kind: 'image',
+      mime: 'image/png',
+      base64: 'AQID',
+      modelId: 'gpt-hi',
+      seed: 7,
+      cost: null,
+      elapsedMs: 14_300,
+    });
+    await openTest();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ask for' }), 'image');
+    await userEvent.click(screen.getByRole('button', { name: 'Try a picture' }));
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith(
+        'house',
+        expect.objectContaining({ kind: 'image', modelId: 'gpt-hi' }),
+      );
+    });
+    const picture: HTMLImageElement = await screen.findByRole('img');
+    expect(picture.getAttribute('src')).toBe('data:image/png;base64,AQID');
+  });
+
+  it('takes a typed model when the connection lists none', async () => {
+    listConnections.mockResolvedValue({ connections: [connection({ models: [] })] });
+    await openTest();
+
+    const button = screen.getByRole('button', { name: 'Send a test message' });
+    // Nothing to ask with yet, so nothing to press.
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.type(screen.getByRole('textbox', { name: /Model/ }), 'qwen3:8b');
+    await userEvent.click(button);
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith(
+        'house',
+        expect.objectContaining({ modelId: 'qwen3:8b' }),
+      );
+    });
+  });
+
+  it('says a refused key was refused', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockRejectedValue(
+      new ApiError(401, 'unauthorized', 'That endpoint refused the key.'),
+    );
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/refused the key/);
+  });
+
+  it('says a prompt too long to send was too long, rather than blaming the endpoint', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockRejectedValue(new ApiError(400, 'invalid', 'body/prompt must be shorter'));
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/shorter message/);
+  });
+
+  /**
+   * ***The one answer that most needs a sentence.*** A model that thinks before
+   * it answers spends the test's small allowance where nobody sees it, and what
+   * comes back — no text, stopped by length — is the exact shape of a broken
+   * endpoint unless something says otherwise.
+   */
+  it('calls an empty reply cut off at the limit a working connection', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockResolvedValue({
+      kind: 'text',
+      text: '',
+      modelId: 'gpt-hi',
+      finishReason: 'length',
+      usage: { promptTokens: 12, completionTokens: 256 },
+      cost: null,
+      elapsedMs: 4_000,
+    });
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect(await screen.findByText(/The key, the address and the model all worked/)).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('says so when a different model answered than the one asked for', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockResolvedValue({
+      kind: 'text',
+      text: 'Hi.',
+      modelId: 'gpt-hi-2026-09-01',
+      finishReason: 'stop',
+      usage: null,
+      cost: null,
+      elapsedMs: 300,
+    });
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect(
+      await screen.findByText(
+        'You asked for gpt-hi; the endpoint says gpt-hi-2026-09-01 answered.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('The endpoint did not say how many tokens that used.')).toBeTruthy();
+  });
+
+  it('cannot be pressed twice while it waits', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockReturnValue(new Promise(() => undefined));
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    const waiting = await screen.findByRole('button', { name: 'Waiting for the endpoint…' });
+    expect((waiting as HTMLButtonElement).disabled).toBe(true);
+    expect(testConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no test on a copy nothing resolves to', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection({ label: 'A first by label' }),
+        connection({ label: 'Z last by label', shadowed: true, contentHash: 'sha256:other' }),
+      ],
+    });
+    renderSurface();
+    await screen.findByText('Z last by label');
+
+    expect(screen.getAllByRole('button', { name: 'Test' })).toHaveLength(1);
+  });
+});
+
 describe('the role editor', () => {
   /**
    * **One entry per endpoint-and-model pair.** The data model separates a
