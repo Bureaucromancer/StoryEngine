@@ -249,6 +249,50 @@ export function linkKeyOf(
 }
 
 /**
+ * ***The chain's root: what had already happened before the first turn*** —
+ * [04 §7.2](../../../../docs/design/04-schemas.md),
+ * [P13.2](../../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * A session started from a Setup made from a turn of another session carries
+ * `storySoFar`, and [07 §5.1]'s formula takes it as link zero:
+ * `summary(1) = f(root, turns)`. **That is a seeded start and not a second
+ * mechanism** — the root is handed to the first link as `previous`, exactly as
+ * every later link is handed the one before it, and the collector emits it as
+ * the oldest candidate in the summary slot.
+ *
+ * `setupId` is carried for the block table's click-through and is **never part
+ * of the key**. Two Setups with the same words are the same start of a story as
+ * far as a summariser can tell, and a key that differed would re-derive a chain
+ * over identical inputs.
+ */
+export interface SummaryRoot {
+  key: string;
+  text: string;
+  setupId: string | null;
+}
+
+/**
+ * The root a session's Setup copy calls for, or `null` when there is none.
+ *
+ * **Keyed by its text alone**, under a tag no other digest here uses, so a root
+ * can never collide with a link or a unit. *Trimmed, and empty is none*: a
+ * Setup whose story so far was cleared back to whitespace is a fresh start,
+ * and a root of nothing would re-key every link for the sake of an empty
+ * paragraph.
+ */
+export function summaryRootOf(
+  setup: { id?: string; storySoFar?: string } | undefined,
+): SummaryRoot | null {
+  const text = setup?.storySoFar?.trim() ?? '';
+  if (text === '') return null;
+  return {
+    key: digest(['root', text]),
+    text,
+    setupId: typeof setup?.id === 'string' && setup.id !== '' ? setup.id : null,
+  };
+}
+
+/**
  * The links a path calls for, in order. Pure, and the stage's whole claim.
  *
  * ***Boundaries are anchored to depth from the root, never to distance from the
@@ -274,12 +318,25 @@ export function planChain(
   path: readonly SummarisableTurn[],
   summariser: string,
   policy: SummaryPolicy,
+  /**
+   * The root's key — {@link summaryRootOf} — or `null` for a session that
+   * started fresh.
+   *
+   * **It enters as the first link's `previousKey` and nowhere else**, so a
+   * rooted chain is keyed exactly as an unrooted one from its second link's
+   * point of view: each key still names its predecessor and its units. And
+   * **`null` is the value every existing chain was keyed with**, so a session
+   * without a root derives byte-identical keys to the ones already on disk —
+   * [P13.2]'s proof obligation, and the reason this is a trailing parameter
+   * with a default rather than a change to anybody's call.
+   */
+  rootKey: string | null = null,
 ): PlannedLink[] {
   const span = Math.max(1, Math.floor(policy.span));
   const coverable = Math.max(0, path.length - Math.max(0, Math.floor(policy.window)));
 
   const links: PlannedLink[] = [];
-  let previousKey: string | null = null;
+  let previousKey: string | null = rootKey;
 
   for (let from = 0; from < coverable; from += span) {
     const to = Math.min(from + span, coverable) - 1;

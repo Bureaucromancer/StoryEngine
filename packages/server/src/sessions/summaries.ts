@@ -11,6 +11,7 @@ import {
   type SummaryLink,
   type SummarisableTurn,
   type SummaryPolicy,
+  type SummaryRoot,
   type SummaryUnit,
 } from './summary-chain.js';
 
@@ -206,8 +207,16 @@ export async function ensureChain(
   path: readonly SummarisableTurn[],
   summariser: Summariser,
   policy: SummaryPolicy,
+  /**
+   * What had already happened — {@link SummaryRoot}, [P13.2]. It keys the
+   * first link and is handed to it as `previous`, which is the only difference
+   * a root makes to the chain; it is **not** in `links`, because the collector
+   * is handed it separately and every caller that assembles a prompt has it
+   * whether or not a chain was derived.
+   */
+  root: SummaryRoot | null = null,
 ): Promise<ChainResult> {
-  const planned = planChain(path, summariser.key, policy);
+  const planned = planChain(path, summariser.key, policy, root?.key ?? null);
   const links: SummaryLink[] = [];
   let derived = 0;
 
@@ -218,7 +227,7 @@ export async function ensureChain(
       continue;
     }
 
-    const previous = links.at(-1)?.text ?? null;
+    const previous = links.at(-1)?.text ?? root?.text ?? null;
     const text = await summariser.run({ previous, units: plan.units });
     const link: SummaryLink = {
       schema: SUMMARY_SCHEMA,

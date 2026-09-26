@@ -17,6 +17,7 @@ import { readRegistry } from '../tags/store.js';
 import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
 import { readConcluded, readCurrentGoal } from '../sessions/goals.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
+import { summaryRootOf, type SummaryRoot } from '../sessions/summary-chain.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -131,6 +132,19 @@ export interface AssemblyInputs {
    * called none.
    */
   dials: Partial<Record<DialAxis, { levelId: string | null; level: DifficultyLevel }>>;
+  /**
+   * What had already happened before the first turn — the summary chain's root,
+   * [04 §7.2](../../../../docs/design/04-schemas.md),
+   * [P13.2](../../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * **Here for the reason `goals` is here**: a preview and a real turn must not
+   * be able to disagree about it, and it is read off the session's copy of its
+   * Setup, which is this module's to read. *Every assembler gets it, which is
+   * the point* — it costs no call, so a preview, an impersonation and a turn
+   * inside the window show the model the story so far exactly as a turn past
+   * the window does. `null` for a session that did not start from one.
+   */
+  summaryRoot: SummaryRoot | null;
 }
 
 /**
@@ -284,5 +298,6 @@ export async function gatherAssemblyInputs(
       concluded: readConcluded(channels),
     },
     dials: resolveDials(preset, channels, session?.mode?.config),
+    summaryRoot: summaryRootOf(session?.setup),
   };
 }

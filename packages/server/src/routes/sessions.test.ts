@@ -1555,6 +1555,33 @@ describe('a session started from a Setup', () => {
     expect((await startFrom(id)).status).toBe(422);
   });
 
+  /**
+   * ***The story so far reaches the model on turn one*** — [04 §7.2],
+   * [P13.2](../../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * The root is read off the session's copy of its Setup by the gather, so it
+   * needs no summariser and no window to have been passed: a session started
+   * from a Setup made from a turn knows its own past from its first prompt.
+   * **One real turn through the real runner**, because the three places it
+   * could be dropped — the gather, the runner's collect call, and the slot —
+   * are each a line somebody could forget, as the preview once forgot the goal.
+   */
+  it('sends its story so far to the model on the first turn, as the root of the summary', async () => {
+    const id = await aSetup({ storySoFar: 'Marlow lost the ledger at the docks, and Vera saw.' });
+    const created = await startFrom(id);
+    sessionId = created.body.session.id as string;
+
+    const accepted = await submit();
+    expect(accepted.status).toBe(202);
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const sent = provider.requests.at(-1)?.messages ?? [];
+    const root = sent.find((message) => message.fromBlocks.includes('se.summary.root'));
+    expect(root?.content).toContain('Marlow lost the ledger at the docks, and Vera saw.');
+  });
+
   it('takes its treatment and its lore', async () => {
     const id = await aSetup({
       treatment: { id: 'treat-1', name: 'Rain City, noir' },

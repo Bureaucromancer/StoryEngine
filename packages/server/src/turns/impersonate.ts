@@ -201,6 +201,10 @@ export async function impersonate(
       ? {}
       : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
     dials: inputs.dials,
+    // The story so far, [P13.2] — the preview's reason: no call behind it.
+    ...(inputs.summaryRoot === null
+      ? {}
+      : { summaryRoot: { text: inputs.summaryRoot.text, setupId: inputs.summaryRoot.setupId } }),
   });
 
   try {

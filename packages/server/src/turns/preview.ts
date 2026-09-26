@@ -238,6 +238,14 @@ export async function previewAssembly(
       ? {}
       : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
     dials: inputs.dials,
+    /**
+     * The story so far, read off the Setup copy — [P13.2]. No call behind it,
+     * so this caller has it exactly as a turn does, and a preview without it
+     * would be one block shorter than the prompt it previews.
+     */
+    ...(inputs.summaryRoot === null
+      ? {}
+      : { summaryRoot: { text: inputs.summaryRoot.text, setupId: inputs.summaryRoot.setupId } }),
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });

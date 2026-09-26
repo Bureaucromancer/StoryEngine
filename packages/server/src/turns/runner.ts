@@ -910,6 +910,9 @@ export class TurnRunner {
                 layout: commit.sessions.layout,
                 handle: job.account,
                 sessionId: job.sessionId,
+                // The first link folds the story so far in as `previous` —
+                // [P13.2]. `null` keys the chain exactly as before.
+                root: inputs.summaryRoot,
                 policy: {
                   ...DEFAULT_SUMMARY_POLICY,
                   window: mode.definition.assembly.historyWindow,
@@ -1375,6 +1378,17 @@ export class TurnRunner {
                     // line between *waiting on the engine* and *not yet long
                     // enough to have one*.
                     ...(summaries.report === null ? {} : { summary: summaries.report.links }),
+                    // The chain's root, [P13.2] — read off the Setup copy by the
+                    // gather, so it is here from the first turn rather than from
+                    // the first turn past the window.
+                    ...(inputs.summaryRoot === null
+                      ? {}
+                      : {
+                          summaryRoot: {
+                            text: inputs.summaryRoot.text,
+                            setupId: inputs.summaryRoot.setupId,
+                          },
+                        }),
                     // [06 §7.3.3]'s *always injected*, resolved by the gather so
                     // a preview and a turn cannot disagree about which goal.
                     ...(inputs.goals.current === null

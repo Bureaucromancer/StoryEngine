@@ -14,6 +14,7 @@ import type {
   SummarisableTurn,
   SummaryLink,
   SummaryPolicy,
+  SummaryRoot,
   SummaryUnit,
 } from '../sessions/summary-chain.js';
 import type { Layout } from '../storage/layout.js';
@@ -121,6 +122,12 @@ export interface SummariseContext {
    * answered.
    */
   key: string;
+  /**
+   * What had already happened before the first turn — [P13.2]. It keys the
+   * first link and is handed to it as `previous`; absent is a session that
+   * started fresh, whose chain is keyed exactly as it always was.
+   */
+  root?: SummaryRoot | null;
   report: (report: SummariseReport) => void;
 }
 
@@ -198,6 +205,7 @@ export function summarise(context: SummariseContext): {
         path,
         summariser,
         context.policy,
+        context.root ?? null,
       );
       context.report({ links: chain.links, derived: chain.derived });
       return {};
