@@ -149,6 +149,23 @@ export class OpenAICompatibleProvider implements Provider {
          * verbatim on re-creation and hashed into the reuse digest.
          */
         providerOptions: { [this.kind]: { ...request.workflow } },
+        /**
+         * **Not retried here either** — `toSdkParams` gives the reason, and it
+         * holds for pixels unchanged.
+         *
+         * `generateImage` takes the same default as the chat calls, two retries
+         * with backoff, and this call was written without the line that turns
+         * it off. So a 429 was sent three times and recorded once — on an
+         * endpoint that bills per request, requests the rendition record never
+         * counted — and the last failure arrived wrapped in a `RetryError`
+         * carrying no status, no body and no `isRetryable`, which
+         * `asProviderError` could only read as `terminal`. A rate limit
+         * reported as *do not try again* is the class inverted.
+         *
+         * *What to do about a `retryable` belongs to the caller*, and the
+         * rendition worker's answer is written where it makes the call.
+         */
+        maxRetries: 0,
         ...(request.signal === undefined ? {} : { abortSignal: request.signal }),
       });
 

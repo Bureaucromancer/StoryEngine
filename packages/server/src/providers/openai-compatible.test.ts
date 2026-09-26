@@ -264,6 +264,56 @@ describe('failures', () => {
   });
 });
 
+/**
+ * **The image verb, which retried behind the engine's back** — [P9.2]'s second
+ * arm, held to the rule `toSdkParams` states for the first.
+ *
+ * `generateImage` takes the SDK's default of two retries unless it is told
+ * otherwise, and `renderImage` did not tell it. So a rate limit was asked three
+ * times and recorded once, and what came out of the end was a `RetryError` — no
+ * status, no body, no `isRetryable` — which `asProviderError` could only read as
+ * `terminal`. Both halves are asserted, because either alone passes a half-fix:
+ * the count catches the retry, and the class catches the wrapper.
+ *
+ * The falsifying mutation is deleting `maxRetries: 0` from `renderImage`: three
+ * requests, and `terminal`.
+ */
+describe('rendering an image', () => {
+  it('asks once, and a rate limit arrives retryable rather than retried', async () => {
+    const asked: string[] = [];
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { rendersImages: true } }),
+      fetch: async (input) => {
+        asked.push(
+          new URL(typeof input === 'string' || input instanceof URL ? input : input.url).pathname,
+        );
+        return new Response(JSON.stringify({ error: { message: 'Rate limit reached' } }), {
+          status: 429,
+          headers: {
+            'content-type': 'application/json',
+            /**
+             * **Zero, so the red state is a count rather than a clock.** The SDK
+             * honours `retry-after` over its own backoff, which otherwise sleeps
+             * two seconds and then four before giving up — and a test that
+             * failed by taking six seconds would be measuring the wait rather
+             * than the retries. With the fix in place nothing reads it.
+             */
+            'retry-after': '0',
+          },
+        });
+      },
+    });
+
+    const failure = await provider
+      .renderImage({ modelId: 'sdxl-local', prompt: 'A tavern at dusk.', seed: 7, workflow: {} })
+      .catch((error: unknown) => error);
+
+    expect(asked).toEqual(['/v1/images/generations']);
+    expect(failure).toBeInstanceOf(ProviderError);
+    expect((failure as ProviderError).class).toBe('retryable');
+  });
+});
+
 describe('what the connection decides', () => {
   it('takes its capabilities from the endpoint, not from the adapter', async () => {
     // Two OpenAI-compatible URLs can be a frontier model and a laptop, so the
