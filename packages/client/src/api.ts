@@ -1049,6 +1049,22 @@ export interface NewSession {
    * value at `mode.config` since P2.3.*
    */
   modeConfig?: Record<string, unknown>;
+  /**
+   * ***The Setup to start from*** — [04 §7](../../../docs/design/04-schemas.md),
+   * [P13.4](../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * **The route has taken this since [P7.4] and no client ever sent it**, so a
+   * Setup was an object you could make and never play. Everything it carries is
+   * a default a field beside it overrides — which is why a caller starting
+   * *from* a Setup sends this and little else: a form's own defaults sent
+   * alongside would quietly override the Setup the person chose.
+   */
+  setup?: string;
+  /**
+   * Which of the Setup's written openings to begin on — [03 §6], [P13.3].
+   * Absent is its primary; `null` is *start cold*; an id names one.
+   */
+  opening?: string | null;
 }
 
 /**
@@ -1167,6 +1183,9 @@ export function createSession(input: NewSession): Promise<{
     ...(input.modeConfig === undefined || Object.keys(input.modeConfig).length === 0
       ? {}
       : { modeConfig: input.modeConfig }),
+    ...(input.setup === undefined || input.setup === '' ? {} : { setup: input.setup }),
+    // `null` travels — it is *start cold*, a choice rather than an absence.
+    ...(input.opening === undefined ? {} : { opening: input.opening }),
   });
 }
 

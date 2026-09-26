@@ -181,6 +181,27 @@ describe('the session write bodies', () => {
     expect(seen.map((each) => each.body)).toEqual([{}, {}]);
   });
 
+  /**
+   * ***A Setup, and which opening*** — [P13.4]. `null` is *start cold* and
+   * has to reach the route as itself; absent is *the primary*, so the two may
+   * not collapse into one spelling on the wire.
+   */
+  it('sends the Setup it starts from, and an opening only when one was chosen', async () => {
+    const seen = capture();
+
+    await createSession({ setup: 'setup-1' });
+    await createSession({ setup: 'setup-1', opening: 'o-docks' });
+    await createSession({ setup: 'setup-1', opening: null });
+    await createSession({ setup: '' });
+
+    expect(seen.map((each) => each.body)).toEqual([
+      { setup: 'setup-1' },
+      { setup: 'setup-1', opening: 'o-docks' },
+      { setup: 'setup-1', opening: null },
+      {},
+    ]);
+  });
+
   it('renames a session through the patch that archives, with the id escaped', async () => {
     const seen = capture();
 

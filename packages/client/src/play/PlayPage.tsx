@@ -1161,9 +1161,10 @@ function TurnView({
   onIllustrate: (turnId: string) => void;
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
-  // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
-  // attempt again.
-  const rerunnable = turn.input !== undefined;
+  // hand edit ([03 §8.1]), or since [P13.3] a Setup's opening, which an author
+  // wrote and nothing generated — so there is nothing to attempt again. The
+  // route refuses a redo naming an opening too; this is the surface agreeing.
+  const rerunnable = turn.input !== undefined && turn.opening === undefined;
   const rolled = turn.tape.length > 0;
 
   // The instruction for a guided redo, and whether its field is open. Local to

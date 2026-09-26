@@ -153,6 +153,26 @@ beforeEach(() => {
         objects: [libraryObject('actor-vera', 'Vera Kohl', 'storyengine.actor.1')],
       });
     }
+    if (kind === 'setups') {
+      return Promise.resolve({
+        objects: [
+          {
+            ...libraryObject('setup-ledger', 'The Ledger, Lost', 'storyengine.setup.1'),
+            object: {
+              openings: {
+                written: [
+                  { id: 'o-docks', label: 'The docks', text: 'Rain on the docks.' },
+                  { id: 'o-office', label: 'The office', text: 'The office.' },
+                ],
+                seeds: [],
+                primaryWrittenId: 'o-office',
+                primarySeedId: null,
+              },
+            },
+          },
+        ],
+      });
+    }
     return Promise.resolve({
       objects: [libraryObject('preset-noir', 'Rain noir', 'storyengine.preset.1')],
     });
@@ -638,6 +658,76 @@ describe('a mode that asks for something', () => {
     // — and the answer is that there is nothing to ask.
     expect(screen.queryByRole('textbox', { name: 'What is this story about?' })).toBeNull();
   });
+});
+
+/**
+ * ***Starting from a Setup*** — [04 §7], [P13.4](../../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * The route has accepted a Setup since [P7.4] and the browser never sent one.
+ * What is held to account here is **what reaches the API**: the Setup, the
+ * opening, the name — and none of the form's own defaults, because the route
+ * layers a parameter over the Setup's value and a default sent alongside would
+ * quietly replace what the person chose.
+ */
+describe('starting from a setup', () => {
+  async function chooseSetup() {
+    renderPage();
+    await screen.findByText('Sessions');
+    await userEvent.click(screen.getByText(/Nothing chosen yet/));
+    await userEvent.selectOptions(
+      await screen.findByLabelText('Start from a setup'),
+      await screen.findByRole('option', { name: 'The Ledger, Lost' }),
+    );
+  }
+
+  it('sends the Setup and nothing the form defaulted, and hides what it replaces', async () => {
+    await chooseSetup();
+
+    // The Setup says what these would, so they are not on offer beside it.
+    expect(screen.queryByLabelText('Mode')).toBeNull();
+    expect(screen.queryByLabelText('Treatment')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save as a setup' })).toBeNull();
+    expect(screen.getByText(/From the setup “The Ledger, Lost”/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith({ setup: 'setup-ledger' });
+    });
+  });
+
+  it('offers its openings, the primary first, and a cold start as a choice', async () => {
+    await chooseSetup();
+    const openings = screen.getByLabelText<HTMLSelectElement>('Opening');
+
+    expect([...openings.options].map((one) => one.textContent)).toEqual([
+      'Its own — The office',
+      'The docks',
+      'The office',
+      'None — start cold',
+    ]);
+
+    await userEvent.selectOptions(openings, 'The docks');
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await waitFor(() => {
+      expect(createSession).toHaveBeenLastCalledWith({ setup: 'setup-ledger', opening: 'o-docks' });
+    });
+
+    await chooseSetupAgain();
+    await userEvent.selectOptions(screen.getByLabelText('Opening'), 'None — start cold');
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await waitFor(() => {
+      // `null`, not absent: absent is the primary.
+      expect(createSession).toHaveBeenLastCalledWith({ setup: 'setup-ledger', opening: null });
+    });
+  });
+
+  /** After a start the form resets, so the Setup has to be chosen again. */
+  async function chooseSetupAgain() {
+    await userEvent.selectOptions(
+      await screen.findByLabelText('Start from a setup'),
+      await screen.findByRole('option', { name: 'The Ledger, Lost' }),
+    );
+  }
 });
 
 /**

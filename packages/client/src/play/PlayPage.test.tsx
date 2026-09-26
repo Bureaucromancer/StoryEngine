@@ -978,6 +978,32 @@ describe('the two gestures', () => {
       expect(screen.getAllByRole('button', { name: 'Redo with guidance' })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
     });
+
+    /**
+     * ***A Setup's opening is read, continued from, and never redone*** —
+     * [P13.3](../../../../docs/design/workplan/30-p13-implementation.md). An
+     * author wrote it and nothing generated it, so there is nothing to attempt
+     * again; the route refuses a redo naming one, and this is the surface
+     * agreeing rather than offering a button that fails.
+     */
+    it('shows an opening as narration, with continue and without redo', async () => {
+      const opening: TurnRecord = {
+        ...TURN,
+        id: 'turn-open',
+        output: { text: 'Rain on the docks.' },
+        opening: { id: 'o-docks' },
+      };
+      delete opening.input;
+      readTranscript.mockResolvedValue({
+        turns: [opening, { ...ROLLED, parentTurnId: 'turn-open' }],
+      });
+      renderPage();
+      await screen.findByText('Rain on the docks.');
+
+      expect(screen.getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Redo with guidance' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Continue from here' })).toHaveLength(2);
+    });
   });
 });
 

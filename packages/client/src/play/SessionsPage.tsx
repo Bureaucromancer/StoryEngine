@@ -104,6 +104,33 @@ export function modeLabel(mode: Pick<PublicMode, 'id' | 'displayName'>): string 
   return MODE_PLURALS[mode.id] ?? (mode.displayName === '' ? mode.id : mode.displayName);
 }
 
+/**
+ * ***Start cold***, as the opening select spells it — [03 §6]'s third choice.
+ *
+ * A sentinel rather than `null` because a `<select>` holds strings; a NUL
+ * cannot be an opening id somebody typed, so it cannot collide with one.
+ */
+const COLD = '\u0000cold';
+
+/** A Setup's written openings, read defensively — the object is the library's JSON. */
+function writtenOpenings(setup: Record<string, unknown> | undefined): {
+  written: { id: string; label: string }[];
+  primary: string | null;
+} {
+  const openings = setup?.['openings'] as
+    { written?: unknown; primaryWrittenId?: unknown } | undefined;
+  const written = Array.isArray(openings?.written)
+    ? (openings.written as { id?: unknown; label?: unknown }[])
+        .filter((one) => typeof one.id === 'string' && one.id !== '')
+        .map((one) => ({
+          id: one.id as string,
+          label: typeof one.label === 'string' && one.label !== '' ? one.label : 'Untitled opening',
+        }))
+    : [];
+  const primary = typeof openings?.primaryWrittenId === 'string' ? openings.primaryWrittenId : null;
+  return { written, primary };
+}
+
 /** `{}` is *no wizard ran*, and a key that says so would be a claim. */
 function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<string, unknown> } {
   return Object.keys(answers).length === 0 ? {} : { modeConfig: answers };
@@ -146,6 +173,14 @@ export function SessionsPage(): React.JSX.Element {
   const [lore, setLore] = useState<string[]>([]);
   const [mode, setMode] = useState('');
   /**
+   * ***The Setup to start from, and which of its openings*** — [P13.4].
+   *
+   * `''` is *no Setup*, the form as it was. `opening` is `''` for the Setup's
+   * primary, {@link COLD} for none, or an opening's id.
+   */
+  const [fromSetup, setFromSetup] = useState('');
+  const [opening, setOpening] = useState('');
+  /**
    * **Keyed by field id and not cleared when the mode changes.** Switching modes
    * to look at a wizard and switching back should not lose what was typed, and
    * the answers a mode did not ask for are refused at the route rather than
@@ -165,6 +200,9 @@ export function SessionsPage(): React.JSX.Element {
   const treatments = useLibrary('treatments');
   const presets = useLibrary('presets');
   const actors = useLibrary('actors');
+  const setups = useLibrary('setups');
+  const startingFrom = (setups.data?.objects ?? []).find((one) => one.id === fromSetup);
+  const openings = writtenOpenings(startingFrom?.object);
 
   /**
    * The mode being configured, and the declaration its wizard renders from.
@@ -238,20 +276,32 @@ export function SessionsPage(): React.JSX.Element {
 
   const create = useMutation({
     mutationFn: () =>
-      createSession({
-        ...(name.trim() === '' ? {} : { name }),
-        ...(treatment === '' ? {} : { treatment }),
-        ...(preset === '' ? {} : { preset }),
-        ...(persona === '' ? {} : { persona }),
-        ...(lore.length === 0 ? {} : { lore }),
-        // The effective id, not the state: a form that rendered the default's
-        // wizard and then sent no `mode` would be right only by coincidence.
-        ...(chosen === null ? {} : { mode: chosen.id }),
-        // Spread like every other field here rather than always passed: *not
-        // asked* and *asked and answered with nothing* are different, and only
-        // one of them belongs on the wire.
-        ...spreadSetup(answersFor(chosen, setup)),
-      }),
+      /**
+       * ***From a Setup, the Setup and nothing the form defaulted*** —
+       * [P13.4]. The route layers a parameter over the Setup's value, so
+       * sending this form's own defaults beside it would quietly replace what
+       * the person chose with what the form happened to hold.
+       */
+      startingFrom !== undefined
+        ? createSession({
+            ...(name.trim() === '' ? {} : { name }),
+            setup: startingFrom.id,
+            ...(opening === '' ? {} : { opening: opening === COLD ? null : opening }),
+          })
+        : createSession({
+            ...(name.trim() === '' ? {} : { name }),
+            ...(treatment === '' ? {} : { treatment }),
+            ...(preset === '' ? {} : { preset }),
+            ...(persona === '' ? {} : { persona }),
+            ...(lore.length === 0 ? {} : { lore }),
+            // The effective id, not the state: a form that rendered the default's
+            // wizard and then sent no `mode` would be right only by coincidence.
+            ...(chosen === null ? {} : { mode: chosen.id }),
+            // Spread like every other field here rather than always passed: *not
+            // asked* and *asked and answered with nothing* are different, and only
+            // one of them belongs on the wire.
+            ...spreadSetup(answersFor(chosen, setup)),
+          }),
     onSuccess: (created) => {
       setName('');
       setTreatment('');
@@ -259,6 +309,8 @@ export function SessionsPage(): React.JSX.Element {
       setPersona('');
       setLore([]);
       setSetup({});
+      setFromSetup('');
+      setOpening('');
       /**
        * ***Replaying a treatment you have played*** — [08 §6], [P8.5].
        *
@@ -381,138 +433,191 @@ export function SessionsPage(): React.JSX.Element {
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
           <summary className={`${disclosure.quiet} text-sm`}>
-            {setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
+            {startingFrom !== undefined
+              ? `From the setup “${startingFrom.name}”`
+              : setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
           </summary>
 
           <div className="mt-3 flex flex-col gap-3">
+            {/*
+              ***A Setup is how to start playing*** — [04 §7], [P13.4]. The
+              route has accepted one since [P7.4], and until this select the
+              browser had no way to send it. Choosing one replaces the controls
+              below rather than prefilling them: the Setup says everything they
+              would, and a prefilled form would be a second copy of it that
+              could drift from the object the person picked.
+            */}
             <SelectField
-              label="Mode"
-              // The effective id rather than the state, so the control shows the
-              // mode the Start button would actually create — which is the
-              // install's default until somebody picks otherwise.
-              value={chosen?.id ?? ''}
-              options={(modes.data?.modes ?? []).map(
-                (one) => [one.id, one.displayName] as [string, string],
-              )}
-              onChange={setMode}
-              hint="What kind of story this is. It decides what is asked below, and cannot be changed afterwards."
+              label="Start from a setup"
+              value={fromSetup}
+              options={[
+                ['', 'None — choose everything below'],
+                ...(setups.data?.objects ?? []).map(
+                  (one) => [one.id, one.name] as [string, string],
+                ),
+              ]}
+              onChange={(next) => {
+                setFromSetup(next);
+                setOpening('');
+              }}
+              hint="A saved way to begin — including one made from a point in another session."
             />
 
-            {/*
+            {startingFrom !== undefined ? (
+              <>
+                {openings.written.length === 0 ? null : (
+                  <SelectField
+                    label="Opening"
+                    value={opening}
+                    options={[
+                      [
+                        '',
+                        `Its own — ${openings.written.find((one) => one.id === openings.primary)?.label ?? openings.written[0]?.label ?? ''}`,
+                      ],
+                      ...openings.written.map((one) => [one.id, one.label] as [string, string]),
+                      [COLD, 'None — start cold'],
+                    ]}
+                    onChange={setOpening}
+                    hint="The first thing the story says. Written, not generated, so it is the same every time."
+                  />
+                )}
+                <Fine>
+                  The mode, treatment, preset, persona, lorebooks, party, goals and hooks all come
+                  from the setup. Open it in the library to change them.
+                </Fine>
+              </>
+            ) : (
+              <>
+                <SelectField
+                  label="Mode"
+                  // The effective id rather than the state, so the control shows the
+                  // mode the Start button would actually create — which is the
+                  // install's default until somebody picks otherwise.
+                  value={chosen?.id ?? ''}
+                  options={(modes.data?.modes ?? []).map(
+                    (one) => [one.id, one.displayName] as [string, string],
+                  )}
+                  onChange={setMode}
+                  hint="What kind of story this is. It decides what is asked below, and cannot be changed afterwards."
+                />
+
+                {/*
               **The wizard, rendered from the mode's declaration and nothing
               else** — [06 §7.3], [P7.4]. `SetupFields` has never heard of any
               mode; it knows a widget vocabulary and a loop, which is what makes
               the stage's exit line — *a wizard for a mode the engine has no
               knowledge of* — true of this page rather than only of the route.
             */}
-            <SetupFields
-              setup={chosen?.setup ?? { kind: 'none' }}
-              answers={setup}
-              onChange={setSetup}
-            />
-
-            <SelectField
-              label="Treatment"
-              value={treatment}
-              options={[
-                ['', 'None'],
-                ...(treatments.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
-              onChange={setTreatment}
-              hint="A treatment brings its own lorebooks and its own framing."
-            />
-
-            {/*
-             * ***The blank option acquired a visible twin at [P7B.0]***, and
-             * keeping both is the decision.
-             *
-             * This list is the library's, so it now carries the shipped packs
-             * as ordinary rows — the mode's own default appears here by its
-             * name for the first time. That does **not** make the blank option
-             * redundant, and the difference is worth the longer label: naming
-             * *Scene* pins this session to that pack, while leaving it blank
-             * says *whatever this mode ships*, which is a different answer the
-             * next time the mode's default changes. Dropping it would take a
-             * choice away and quietly convert every future session into a
-             * pinned one.
-             *
-             * ***And its hint's second half stopped being true at [P7B.2]***
-             * (corrected 2026-09-14). It read ~~*Copied into the session at
-             * creation, and not changeable afterwards*~~; the session panel
-             * switches the pack of a session already running, through
-             * `PUT /api/sessions/:id/preset`. The first half did not move and
-             * is the half worth keeping — it is [03 §8]'s copy, and the reason
-             * editing a pack in the library cannot reach a game in progress.
-             * *[P7B §1.7] named this comment and asked the stage that falsified
-             * it to correct it; P7B.2 missed it and P7B.5's sweep caught it,
-             * which is the order that rule is written to survive.*
-             */}
-            <SelectField
-              label="Preset"
-              value={preset}
-              options={[
-                ['', "The mode's own, whichever it ships"],
-                ...(presets.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
-              onChange={setPreset}
-              hint="Copied into the session at creation. You can switch it later from the session's own panel, and the copy is what keeps a library edit from reaching a game in progress."
-            />
-
-            <SelectField
-              label="Persona"
-              value={persona}
-              options={[
-                ['', 'Nobody in particular'],
-                ...(actors.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
-              onChange={setPersona}
-              hint="Who you are playing. The narrator is told, and addresses you by name."
-            />
-
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-ink-muted">Lorebooks</legend>
-              {(books.data?.objects ?? []).map((book) => (
-                <CheckboxField
-                  key={book.id}
-                  label={book.name}
-                  checked={lore.includes(book.id)}
-                  onChange={(checked) => {
-                    setLore(checked ? [...lore, book.id] : lore.filter((id) => id !== book.id));
-                  }}
+                <SetupFields
+                  setup={chosen?.setup ?? { kind: 'none' }}
+                  answers={setup}
+                  onChange={setSetup}
                 />
-              ))}
-            </fieldset>
 
-            <Fine>These can be changed from the session itself, except the preset.</Fine>
+                <SelectField
+                  label="Treatment"
+                  value={treatment}
+                  options={[
+                    ['', 'None'],
+                    ...(treatments.data?.objects ?? []).map(
+                      (one) => [one.id, one.name] as [string, string],
+                    ),
+                  ]}
+                  onChange={setTreatment}
+                  hint="A treatment brings its own lorebooks and its own framing."
+                />
 
-            {/*
+                {/*
+                 * ***The blank option acquired a visible twin at [P7B.0]***, and
+                 * keeping both is the decision.
+                 *
+                 * This list is the library's, so it now carries the shipped packs
+                 * as ordinary rows — the mode's own default appears here by its
+                 * name for the first time. That does **not** make the blank option
+                 * redundant, and the difference is worth the longer label: naming
+                 * *Scene* pins this session to that pack, while leaving it blank
+                 * says *whatever this mode ships*, which is a different answer the
+                 * next time the mode's default changes. Dropping it would take a
+                 * choice away and quietly convert every future session into a
+                 * pinned one.
+                 *
+                 * ***And its hint's second half stopped being true at [P7B.2]***
+                 * (corrected 2026-09-14). It read ~~*Copied into the session at
+                 * creation, and not changeable afterwards*~~; the session panel
+                 * switches the pack of a session already running, through
+                 * `PUT /api/sessions/:id/preset`. The first half did not move and
+                 * is the half worth keeping — it is [03 §8]'s copy, and the reason
+                 * editing a pack in the library cannot reach a game in progress.
+                 * *[P7B §1.7] named this comment and asked the stage that falsified
+                 * it to correct it; P7B.2 missed it and P7B.5's sweep caught it,
+                 * which is the order that rule is written to survive.*
+                 */}
+                <SelectField
+                  label="Preset"
+                  value={preset}
+                  options={[
+                    ['', "The mode's own, whichever it ships"],
+                    ...(presets.data?.objects ?? []).map(
+                      (one) => [one.id, one.name] as [string, string],
+                    ),
+                  ]}
+                  onChange={setPreset}
+                  hint="Copied into the session at creation. You can switch it later from the session's own panel, and the copy is what keeps a library edit from reaching a game in progress."
+                />
+
+                <SelectField
+                  label="Persona"
+                  value={persona}
+                  options={[
+                    ['', 'Nobody in particular'],
+                    ...(actors.data?.objects ?? []).map(
+                      (one) => [one.id, one.name] as [string, string],
+                    ),
+                  ]}
+                  onChange={setPersona}
+                  hint="Who you are playing. The narrator is told, and addresses you by name."
+                />
+
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="text-sm font-medium text-ink-muted">Lorebooks</legend>
+                  {(books.data?.objects ?? []).map((book) => (
+                    <CheckboxField
+                      key={book.id}
+                      label={book.name}
+                      checked={lore.includes(book.id)}
+                      onChange={(checked) => {
+                        setLore(checked ? [...lore, book.id] : lore.filter((id) => id !== book.id));
+                      }}
+                    />
+                  ))}
+                </fieldset>
+
+                <Fine>These can be changed from the session itself, except the preset.</Fine>
+
+                {/*
               **Save the configuration, not the session** — [04 §7], [P7.4].
               A Setup is how to start playing, and everything above is that; so
               the making surface for the `setups/` kind is this form with a
               second verb rather than a third hand-written editor.
             */}
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                disabled={name.trim() === '' || saveSetup.isPending}
-                onClick={() => {
-                  saveSetup.mutate({ kind: 'setups', object: setupFromForm(form) });
-                }}
-              >
-                Save as a setup
-              </Button>
-              <Fine>
-                {name.trim() === ''
-                  ? 'Name it first — a setup is a library object, and library objects have names.'
-                  : 'Keeps this configuration to start from again.'}
-              </Fine>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    disabled={name.trim() === '' || saveSetup.isPending}
+                    onClick={() => {
+                      saveSetup.mutate({ kind: 'setups', object: setupFromForm(form) });
+                    }}
+                  >
+                    Save as a setup
+                  </Button>
+                  <Fine>
+                    {name.trim() === ''
+                      ? 'Name it first — a setup is a library object, and library objects have names.'
+                      : 'Keeps this configuration to start from again.'}
+                  </Fine>
+                </div>
+              </>
+            )}
           </div>
         </details>
 
