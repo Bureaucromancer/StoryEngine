@@ -60,9 +60,10 @@ import { resolveConnections } from './providers/connections.js';
 import {
   dispatchRenditions,
   drainRenditions,
+  recoverRenditions,
+  retryRendition,
   type RenditionWorkerContext,
 } from './renditions/worker.js';
-import { reconcileRenditionJobs } from './renditions/jobs.js';
 import type { Rendition } from '@storyengine/shared';
 import { selectBackdrop } from './renditions/backdrop.js';
 import { installBuiltIns } from './mode-loader.js';
@@ -183,6 +184,23 @@ export interface AppServices {
    * picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra steps.
    */
   drainRenditions: () => Promise<void>;
+  /**
+   * Runs a picture's recipe again — the retry route's path, [06 §10.2].
+   *
+   * ***Beside `renditions` rather than through it***, because a retry has an
+   * order the turn's dispatch does not: the job is claimed **before** the record
+   * is rewritten, so a retry that lands while the last try is still finishing
+   * is answered by that try instead of stranding a `pending` record with nobody
+   * behind it. `retryRendition` has the whole argument.
+   */
+  retryRendition: (account: string, sessionId: string, record: Rendition) => Promise<Rendition>;
+  /**
+   * What a restart owes the pictures the last process was making: abandon
+   * their jobs, and mark their records `interrupted` so each is a placeholder
+   * with a button rather than one without. `buildApp` is the only caller, once,
+   * before the listener accepts anything.
+   */
+  recoverRenditions: () => Promise<{ interrupted: number; marked: number }>;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -776,6 +794,9 @@ async function assembleWithState(
     runner,
     renditions: dispatch,
     drainRenditions: () => drainRenditions(renditions),
+    retryRendition: (account, sessionId, record) =>
+      retryRendition(renditions, account, sessionId, record),
+    recoverRenditions: () => recoverRenditions(renditions),
     commit,
     providers,
     streams: new Set<() => void>(),
@@ -1043,19 +1064,6 @@ export async function buildApp(
   services.reconciliation = await reconcile(services.commit);
 
   /**
-   * ***And the pictures that were being made when the process died*** — [P9.2].
-   *
-   * **Abandoned rather than resumed**, which is `state/commit.ts`'s own rule —
-   * *"recovery resumes finalisation, never generation"* — and a provider call
-   * that died with the process cannot be picked up mid-flight.
-   *
-   * *What makes that acceptable here and not there is the placeholder.* An
-   * interrupted turn has to become a failed turn because there is nothing else
-   * honest to be; an interrupted rendition becomes a record with `asset: null`,
-   * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
-   * to every other way this goes wrong.
-   */
-  /**
    * ***The daily update check*** — [09 §6.5], [P10.3].
    *
    * **Here rather than in `buildServices`**, for `reconcile`'s reason one line
@@ -1091,10 +1099,31 @@ export async function buildApp(
     },
   });
 
-  const stranded = reconcileRenditionJobs(services.state.db);
-  if (stranded.interrupted.length > 0) {
+  /**
+   * ***And the pictures that were being made when the process died*** — [P9.2].
+   *
+   * **Abandoned rather than resumed**, which is `state/commit.ts`'s own rule —
+   * *"recovery resumes finalisation, never generation"* — and a provider call
+   * that died with the process cannot be picked up mid-flight.
+   *
+   * *What makes that acceptable here and not there is the placeholder.* An
+   * interrupted turn has to become a failed turn because there is nothing else
+   * honest to be; an interrupted rendition becomes a record with `asset: null`,
+   * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
+   * to every other way this goes wrong.
+   *
+   * ***Which was true of the job and not of the record until 2026-09-26.*** This
+   * note said *a record with a retry in front of it* while the call beneath it
+   * abandoned job rows and logged a count, and the record stayed `pending` —
+   * rendered with no button. `recoverRenditions` now does both halves. *(This
+   * note had also drifted two blocks above its call, as the update check and the
+   * backup timer were inserted between them; it is back beside what it
+   * describes.)*
+   */
+  const recovered = await services.recoverRenditions();
+  if (recovered.interrupted > 0) {
     app.log.info(
-      { event: 'renditions.reconciled', count: stranded.interrupted.length },
+      { event: 'renditions.reconciled', ...recovered },
       'Marked in-flight renditions as interrupted',
     );
   }

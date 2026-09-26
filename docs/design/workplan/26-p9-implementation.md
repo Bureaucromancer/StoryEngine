@@ -1327,6 +1327,60 @@ about pictures, and shutdown has a thing to await rather than a component to own
 `renditions/shutdown.test.ts` asserts it, and its falsifying mutation is removing
 that one line.
 
+***And the retry was never a second job — found 2026-09-26, by reading.*** The
+index this stage wrote to stop a double dispatch was `unique (rendition_id)` with
+no condition, and the comment above it said *"one live job per rendition"*. The
+two agree for a rendition that is run once, which is every rendition the gate
+walks by hand. The retry button is the second run. `enqueueRendition` handed a
+retry the first try's **finished** row, and `runRendition` set it back to
+`running` with the old `finished_at` still on it. `pendingRenditionJobs` and boot
+recovery both ask `finished_at is null`, so a running retry was invisible to
+both, and a process that died holding one left it `running` for good. The attempt
+number never passed 1, although the migration's own column comment says *"a retry
+is a **new job** with a higher number rather than a reset, so the store can say
+how many times a picture has been paid for"*. **Every gate row that retries stayed
+green**, because each one waits for the picture, and the picture did arrive.
+
+**The code was brought to the notes rather than the other way round.** The other
+repair — keep one row, and have the retry clear it — would have reversed a decision
+the schema already wrote down. It also overwrites the first try's failure class,
+and it makes *not a reset* something every future writer has to remember.
+`STEPS[6]` replaces the index with the partial one the comment described
+(`job_one_active_per_session`'s shape). It adds `unique (rendition_id, attempt)`
+and heals the rows the defect had already written. `enqueueRendition` now assigns
+the attempt number itself, inside its transaction, and says whether it created the
+job. Nothing ever passed the caller-supplied *"previous plus one"*, and that shape
+could not have kept its own promise. Two things the index alone would not have
+fixed:
+
+- **The dispatcher ran whatever came back**, including a job already running, so a
+  double-pressed retry was two image calls on one job.
+- **Skipping a live job opens a window of its own.** A record is written by
+  `writeAtomic`, which awaits a `stat` after its rename, and the job is marked
+  finished only after that. So a record can say `failed` while its job is still
+  live. The retry therefore claims the job **before** rewriting the record:
+  `retryRendition` in `renditions/worker.ts`.
+
+***And the half this stage's own notes described, which nothing did.*** Boot
+recovery abandoned live job rows and logged a count, and the record stayed
+`pending`. `Rendition.tsx` renders `pending` as *"Making a picture of this…"* with
+**no retry button**, so every picture a restart interrupted became a placeholder
+nobody could press. Three comments said otherwise, and the client has had a
+sentence for `interrupted` since P9.4 that nothing could reach.
+`recoverRenditions` now marks each interrupted job's still-`pending` record
+`failed` / `interrupted` with its recipe intact. It tells the person through
+`artifact.ready` with `outcome: 'failed'`, as any failed picture does.
+`renditions/retry.test.ts` stages the crash: a rendition has no `halt()`, and
+`dispose` drains. It asserts the record, the job and the notification after a
+second boot, and that the placeholder's button then runs attempt 3.
+
+**One gap this does not close, recorded rather than fixed.** The runner and the
+illustrate route write a `pending` record *before* its job row exists, so a
+process that dies between the two leaves a record no job names, and recovery,
+which reads job rows, cannot find it. The window is one file write, and it
+predates all of the above. The fix is either a job row first or a scan of pending
+records at boot, and either is a decision rather than a repair.
+
 ### P9.3 — Accumulation, selection, and the permanent recipe
 
 Many renditions per turn with the user choosing which is shown — structurally

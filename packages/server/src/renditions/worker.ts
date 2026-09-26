@@ -13,7 +13,13 @@ import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { ProviderError } from '../providers/types.js';
 import { readRendition, sessionAssetsRoot, writeRendition } from './store.js';
-import { enqueueRendition, setRenditionJobStatus, type RenditionJob } from './jobs.js';
+import {
+  enqueueRendition,
+  reconcileRenditionJobs,
+  setRenditionJobStatus,
+  type RenditionJob,
+} from './jobs.js';
+import { recreateRendition } from './manual.js';
 import type { DatabaseSync } from 'node:sqlite';
 
 /**
@@ -120,7 +126,11 @@ export interface RenditionWorkerContext {
  * that stopped watching.
  */
 export interface DispatchResult {
-  /** Jobs enqueued. **A place already rendered dispatches zero.** */
+  /**
+   * Jobs enqueued. **A place already rendered dispatches zero**, and so does a
+   * record whose job was already live — that one was dispatched by somebody
+   * else, and counting it here would count one picture twice.
+   */
   dispatched: number;
   /** Backdrops resolved to a sibling already paid for — [P9 §1.7]'s money row. */
   reused: number;
@@ -144,41 +154,173 @@ export function dispatchRenditions(
   let dispatched = 0;
   for (const record of records) {
     if (record.state !== 'pending') continue;
-    const job = enqueueRendition(context.db, {
+    const { job, created } = enqueueRendition(context.db, {
       sessionId,
       account,
       renditionId: record.id,
       turnId,
       purpose: record.purpose,
     });
-    dispatched += 1;
     /**
-     * **Detached, and the promise is deliberately not returned.** `TurnRunner`
-     * makes the same choice for the same reason — *"fire-and-forget by design:
-     * the HTTP response is a job id, and the stream is how a client watches"* —
-     * and here it is load-bearing rather than convenient, because the thing not
-     * being waited for is the thing §10.2 says must never be waited for.
-     *
-     * ***Detached is not untracked***, which is the distinction that was missing
-     * until 2026-09-17. Nobody waits for this to answer a request; `inFlight`
-     * is what lets **shutdown** wait for it, and the two are different waits.
-     * See that field for what the absence cost.
+     * ***Only a job this call made is run.*** A live job handed back belongs to
+     * whoever enqueued it, and is already running in this process — boot
+     * abandons every live job before the listener accepts anything, so there is
+     * no other way for one to exist. Until 2026-09-26 this ran whatever came
+     * back, which made the constraint stop a second **row** and not a second
+     * **run**: a double dispatch was two image calls on one job.
      */
-    const work = runRendition(context, job).catch(() => undefined);
-    const live = context.inFlight;
-    if (live === undefined) {
-      void work;
-    } else {
-      // Removed by the same promise that added it, so the set holds only what is
-      // genuinely still running — a set that only grew would make `drain` a wait
-      // on every picture the process ever made.
-      const tracked = work.finally(() => {
-        live.delete(tracked);
-      });
-      live.add(tracked);
-    }
+    if (!created) continue;
+    dispatched += 1;
+    launch(context, job);
   }
   return { dispatched, reused: 0 };
+}
+
+/**
+ * Starts one job's picture, detached and tracked.
+ *
+ * **Detached, and the promise is deliberately not returned.** `TurnRunner` makes
+ * the same choice for the same reason — *"fire-and-forget by design: the HTTP
+ * response is a job id, and the stream is how a client watches"* — and here it is
+ * load-bearing rather than convenient, because the thing not being waited for is
+ * the thing §10.2 says must never be waited for.
+ *
+ * ***Detached is not untracked***, which is the distinction that was missing
+ * until 2026-09-17. Nobody waits for this to answer a request; `inFlight` is what
+ * lets **shutdown** wait for it, and the two are different waits. See that field
+ * for what the absence cost.
+ *
+ * *One function for both starters*, the turn's dispatch and the retry, so the
+ * tracking cannot be present on one path and forgotten on the other — which is
+ * exactly how it was missing the first time.
+ */
+function launch(context: RenditionWorkerContext, job: RenditionJob): void {
+  const work = runRendition(context, job).catch(() => undefined);
+  const live = context.inFlight;
+  if (live === undefined) {
+    void work;
+    return;
+  }
+  // Removed by the same promise that added it, so the set holds only what is
+  // genuinely still running — a set that only grew would make `drain` a wait on
+  // every picture the process ever made.
+  const tracked = work.finally(() => {
+    live.delete(tracked);
+  });
+  live.add(tracked);
+}
+
+/**
+ * **Try again** — the retry button [06 §10.2] promises, and the re-creation
+ * [25 E3] describes.
+ *
+ * ***The job is claimed before the record is touched***, and the order is the
+ * whole of this function. The record is written by `writeAtomic`, which awaits
+ * a `stat` after its rename, and the worker marks its job finished only after
+ * that write returns — so there is a real window in which the file already says
+ * `failed` and the job that wrote it is still live. A retry that rewrote the
+ * record to `pending` first and then found that live job would have nothing to
+ * run and nobody left to finish it: a `pending` record with no job behind it,
+ * which renders with no button and which boot recovery, reading job rows, would
+ * never find.
+ *
+ * Claimed first, the same request is harmless. **A live job answers**, the
+ * record is returned as it stands, and nothing is written — the try in flight
+ * finishes the record itself. *Nothing live*, and this call owns the next try:
+ * the record goes back to `pending` and the job starts. A crash between the two
+ * leaves the record `failed` with its button, and a crash after them is a live
+ * job with a `pending` record, which {@link recoverRenditions} marks.
+ *
+ * *The recipe is replayed, never re-asked*: {@link recreateRendition} is gate
+ * step 15's structural half, and this adds only the order it is called in.
+ */
+export async function retryRendition(
+  context: RenditionWorkerContext,
+  account: string,
+  sessionId: string,
+  held: Rendition,
+): Promise<Rendition> {
+  const { job, created } = enqueueRendition(context.db, {
+    sessionId,
+    account,
+    renditionId: held.id,
+    turnId: held.turnId,
+    purpose: held.purpose,
+  });
+  if (!created) {
+    return (await readRendition(context.layout, account, sessionId, held.id)) ?? held;
+  }
+
+  const again = await recreateRendition(context.layout, account, sessionId, held).catch(
+    (error: unknown) => {
+      // The record could not be written, so it still says what it said, and
+      // its button still works. The claim must not outlive the attempt: a live
+      // job nobody runs would answer every later retry with *already in hand*.
+      setRenditionJobStatus(context.db, job.id, 'abandoned', 'retryable');
+      throw error;
+    },
+  );
+  launch(context, job);
+  return again;
+}
+
+/**
+ * What a restart owes the pictures the last process was making — [P9.2].
+ *
+ * ***Two halves, and until 2026-09-26 only the first existed.***
+ * {@link reconcileRenditionJobs} abandons every job still live, which is
+ * `state/commit.ts`'s rule: *"recovery resumes finalisation, never generation"*,
+ * and a provider call that died with the process cannot be picked up. That
+ * settles the **store**. It did not settle the **record**, which is what a
+ * person is looking at — and a record left `pending` renders *"Making a picture
+ * of this…"* **with no retry button**, so every picture a restart interrupted
+ * became a placeholder nobody could press. Three comments said boot marked them
+ * `interrupted`; the client has had a sentence for that class since P9.4; and
+ * nothing wrote it.
+ *
+ * **So each interrupted job's record is marked the way {@link fail} marks one**:
+ * `failed`, a class in `error`, `asset: null`, the recipe untouched — [06 §10.2]'s
+ * *placeholder with a retry button*, which is what makes abandoning generation
+ * acceptable here when it would not be for a turn. And the person is told, the
+ * way `fail` tells them: a failure they did not watch happen is the one
+ * `artifact.ready` is most for.
+ *
+ * *Only a record still `pending` is touched.* One that already says `ready` or
+ * `failed` was written by the worker before it died between that write and the
+ * job's status — the record is right, and rewriting it would lose a picture.
+ *
+ * ***One bad record costs one picture, never the boot.*** Each is tried on its
+ * own and a failure is passed over, which is `store.ts`'s *every read failure
+ * is a miss* applied to the one caller that runs before anybody can see an
+ * error.
+ */
+export async function recoverRenditions(
+  context: RenditionWorkerContext,
+): Promise<{ interrupted: number; marked: number }> {
+  const { interrupted } = reconcileRenditionJobs(context.db);
+  let marked = 0;
+  for (const job of interrupted) {
+    try {
+      const record = await readRendition(
+        context.layout,
+        job.account,
+        job.sessionId,
+        job.renditionId,
+      );
+      if (record?.state !== 'pending') continue;
+      const failed: Rendition = { ...record, state: 'failed', asset: null, error: 'interrupted' };
+      await writeRendition(context.layout, job.account, job.sessionId, failed);
+      marked += 1;
+      context.changed?.(job.sessionId, failed);
+      context.settled?.(job.account, job.sessionId, failed);
+    } catch {
+      // Passed over, per the note above. The job is abandoned either way; a
+      // record that could not be read or written stays as it was — one picture
+      // this cannot mend, rather than a server that will not start. The log line
+      // shows it as `marked` falling short of `interrupted`.
+    }
+  }
+  return { interrupted: interrupted.length, marked };
 }
 
 /**
@@ -339,9 +481,11 @@ async function fail(
   try {
     await writeRendition(context.layout, job.account, job.sessionId, failed);
   } catch {
-    // A write that cannot land leaves the record pending on disk, which the next
-    // boot reconciles to `interrupted`. Losing the *job's* status too would lose
-    // the only remaining trace, so the status update below runs regardless.
+    // A write that cannot land leaves the record as it was on disk — `pending`,
+    // for a job that got this far. Losing the *job's* status too would lose the
+    // only remaining trace, so the status update below runs regardless. (It is
+    // not left for boot to find: this marks the job finished, and
+    // `recoverRenditions` reads live jobs only.)
   }
   setRenditionJobStatus(context.db, job.id, 'done', reason);
   context.changed?.(job.sessionId, failed);
