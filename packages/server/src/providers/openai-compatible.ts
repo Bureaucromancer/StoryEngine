@@ -62,10 +62,25 @@ export class OpenAICompatibleProvider implements Provider {
 
   readonly #model: (modelId: string) => Parameters<typeof generateText>[0]['model'];
   readonly #imageModel: (modelId: string) => Parameters<typeof generateImage>[0]['model'];
+  /**
+   * The key the SDK reads this connection's provider options from.
+   *
+   * ***The camelCase form, by the SDK's own rule*** — a `-` or `_` followed by a
+   * letter becomes that letter capitalised. The image model reads its options
+   * under the provider's name, and it still accepts the name as written, but
+   * warns on every call that the spelling is deprecated. That object is now what
+   * carries the seed, so an SDK that stopped reading the old spelling would drop
+   * the seed again without a word — which is the defect this adapter has already
+   * had once.
+   */
+  readonly #optionsKey: string;
 
   constructor(options: OpenAICompatibleOptions) {
     const { connection } = options;
     this.capabilities = capabilitiesFor(connection.provider, connection.capabilities ?? {});
+    this.#optionsKey = connection.provider.replace(/[_-]([a-z])/g, (_, letter: string) =>
+      letter.toUpperCase(),
+    );
 
     const client = createOpenAICompatible({
       name: connection.provider,
@@ -121,13 +136,30 @@ export class OpenAICompatibleProvider implements Provider {
    * a person to say `rendersImages` on the connection, which is where
    * `capabilities.ts` puts every other fact about an endpoint.
    *
-   * ***The seed is passed through and echoed back.*** It arrives from the
-   * caller because [06 §10.7] makes it the load-bearing field of a recipe, and
-   * an adapter that invented its own would be answering the one question the
-   * record has to be able to state. An endpoint that ignores it produces a
-   * different picture on re-creation and the record still says what was asked
-   * for — which is the honest failure, and the one a workbench row makes
-   * visible.
+   * ***The seed is sent when the connection says the endpoint takes one, and the
+   * result says which.*** It arrives from the caller because [06 §10.7] makes it
+   * the load-bearing field of a recipe, and an adapter that invented its own
+   * would be answering the one question the record has to be able to state.
+   *
+   * *This paragraph used to say "passed through and echoed back", and the first
+   * half was never true.* `generateImage`'s own `seed` parameter reaches
+   * `@ai-sdk/openai-compatible`'s image model, which marks it `unsupported` and
+   * builds the request body without it — measured rather than assumed: the body
+   * carried no seed at all, while the record, the workbench and [P9]'s gate rows
+   * 5 and 6 went on stating one. What does reach the body is the provider-options
+   * object, spread in whole, so that is how the seed travels now. The top-level
+   * parameter is not passed at all: it does nothing but warn, and an SDK that
+   * began honouring it would send the seed around the capability below.
+   *
+   * **Gated on `supportsImageSeed`, which is off unless a connection says so** —
+   * that field says why the optimistic default costs the picture. Off means no
+   * seed on the wire at all, *including one a workflow happens to carry*: the
+   * workflow is minus the seed by contract, `recipeDigest` strips the key for
+   * the same reason, and a recipe has exactly one seed. So `seedSent` is true
+   * as a statement either way. An endpoint that is sent a seed and ignores it
+   * still produces a different picture on re-creation, which is the honest
+   * failure [06 §10.7] names: the record says what was sent, and nothing in the
+   * response can say more.
    *
    * *`n: 1` and nothing else.* [06 §10.4]'s variations are a *product* feature
    * built from siblings ([P9.3]), not from a batch parameter: two renditions
@@ -136,19 +168,30 @@ export class OpenAICompatibleProvider implements Provider {
    * pictures nobody can name.
    */
   async renderImage(request: ImageRequest): Promise<ImageResult> {
+    const seedSent = this.capabilities.supportsImageSeed;
+    // The workflow minus the seed — the contract, enforced here as well as in
+    // the digest, so the only seed on the wire is the recipe's.
+    const workflow = Object.fromEntries(
+      Object.entries(request.workflow).filter(([key]) => key !== 'seed'),
+    );
     try {
       const result = await generateImage({
         model: this.#imageModel(request.modelId),
         prompt: request.prompt,
         n: 1,
-        seed: request.seed,
         /**
-         * Whatever this endpoint was configured with, under the provider's own
-         * key — steps, sampler, guidance scale. Scalars only, which is
-         * {@link ImageRequest}'s rule and the recipe's: these are re-sent
-         * verbatim on re-creation and hashed into the reuse digest.
+         * Whatever this endpoint was configured with — steps, sampler, guidance
+         * scale — and the seed when the connection says it takes one. Scalars
+         * only, which is {@link ImageRequest}'s rule and the recipe's: these are
+         * re-sent verbatim on re-creation and hashed into the reuse digest.
+         *
+         * **Beyond the model, the prompt and `n`, this object is the whole of what
+         * reaches the body**, which is why the seed rides in it rather than in
+         * `generateImage`'s own parameter — see the docstring above.
          */
-        providerOptions: { [this.kind]: { ...request.workflow } },
+        providerOptions: {
+          [this.#optionsKey]: { ...workflow, ...(seedSent ? { seed: request.seed } : {}) },
+        },
         /**
          * **Not retried here either** — `toSdkParams` gives the reason, and it
          * holds for pixels unchanged.
@@ -182,6 +225,7 @@ export class OpenAICompatibleProvider implements Provider {
         mime: image.mediaType,
         modelId: request.modelId,
         seed: request.seed,
+        seedSent,
         // Image pricing is per-request and per-size rather than per-token, and
         // no OpenAI-compatible image response carries it. `null` is the same
         // refusal `#usage` makes for tokens: the record says nothing rather than

@@ -252,7 +252,9 @@ export async function runRendition(
      *
      * So this function makes no random draw at all — which is what lets a
      * re-creation be a **replay**: the same record, the same seed, the same
-     * prompt, and therefore the same picture from an endpoint that honours one.
+     * prompt, and therefore the same picture from an endpoint that is **sent**
+     * one and honours it. The first half is the connection's to declare
+     * (`supportsImageSeed`), and the record says which it was (`seedSent`).
      * A worker that drew its own would make *"the recipe is preserved"* mean
      * *approximately re-creatable*, which [06 §10.7] says is a different promise.
      *
@@ -314,9 +316,13 @@ export async function runRendition(
       provenance: {
         ...record.provenance,
         at: new Date().toISOString(),
-        // Echoed from the result rather than from the request, so the record
-        // says what ran rather than what was asked for.
+        // Echoed from the result rather than from the request, and beside it
+        // **whether it left the process** — which is as much as can be said
+        // about what ran. A seed the endpoint was never sent is a number that
+        // will not reproduce the picture, and a workbench showing it bare would
+        // answer *why did this one come out different* wrong.
         seed: result.seed,
+        seedSent: result.seedSent,
         answeredAs: result.modelId === record.provenance.binding?.modelId ? null : result.modelId,
       },
       error: null,

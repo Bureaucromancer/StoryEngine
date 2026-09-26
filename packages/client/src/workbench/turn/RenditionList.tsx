@@ -106,6 +106,7 @@ function RenditionRow({
   locale: string | undefined;
 }): JSX.Element {
   const { prompt, provenance } = rendition;
+  const seedNoteText = seedNote(rendition);
 
   return (
     <div className="flex flex-col gap-2 rounded-control border border-line p-3">
@@ -119,9 +120,24 @@ function RenditionRow({
          * **Null is *not recorded*, never zero** — `CostSummary`'s doctrine,
          * and zero is a perfectly ordinary seed, so rendering an absent one as
          * `0` would be a false claim rather than a blank.
+         *
+         * ***And a seed the endpoint was never sent says so beside the
+         * number.*** Until 2026-09-26 no seed reached the wire at all while
+         * this row went on showing one, which answered the gate's question
+         * wrong in exactly the way the row exists to prevent. The number stays
+         * — it is the recipe's, and what a re-creation replays once the
+         * connection declares a seed — but it no longer stands alone as an
+         * explanation it cannot give.
          */}
         <MetadataRow label="Seed">
-          {provenance.seed === null ? 'Not recorded' : formatCount(provenance.seed, locale)}
+          {provenance.seed === null ? (
+            'Not recorded'
+          ) : (
+            <>
+              <span>{formatCount(provenance.seed, locale)}</span>
+              {seedNoteText === null ? null : <Fine>{seedNoteText}</Fine>}
+            </>
+          )}
         </MetadataRow>
         {/**
          * ***The model the recipe was keyed on, and the one that answered.***
@@ -195,6 +211,31 @@ function RenditionRow({
     </div>
   );
 }
+
+/**
+ * What the Seed row says beside the number, or nothing.
+ *
+ * ***Three answers, and only one of them is silence.*** `seedSent` is `true`
+ * when the seed was sent, which needs no note — *sent* is the claim the number
+ * already makes, and whether the endpoint honoured it no response says. `false`
+ * is the default install: the endpoint drew its own seed, and the reader needs
+ * to know this number will not bring the picture back. **Absent** on a picture
+ * that was made is a record from before the field existed, and the honest
+ * rendering of *nobody wrote this down* is saying so rather than implying
+ * either answer. Pending and failed records have nothing to report yet.
+ */
+function seedNote(rendition: Rendition): string | null {
+  const sent = rendition.provenance.seedSent;
+  if (sent === false) return SEED_WORDS['not-sent'];
+  if (sent === undefined && rendition.state === 'ready') return SEED_WORDS['not-recorded'];
+  return null;
+}
+
+const SEED_WORDS = labels('workbench.rendition.seed', {
+  'not-sent':
+    'Not sent: this connection does not say its endpoint takes a seed, so re-creating the picture will not reproduce it.',
+  'not-recorded': 'Not recorded whether this reached the endpoint.',
+});
 
 const PURPOSE_WORDS: Record<string, string> = labels('workbench.rendition.purpose', {
   illustration: 'An illustration',

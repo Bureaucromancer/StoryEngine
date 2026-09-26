@@ -65,7 +65,10 @@ function makeFake(images: FakeProvider['images'] extends never ? never : object[
   return new FakeProvider({
     script: [{ text: MOMENT, object: JSON.parse(MOMENT) as unknown }],
     images,
-    capabilities: { rendersImages: true, supportsStructuredOutput: true },
+    // `supportsImageSeed` declared, so the end-to-end row below describes an
+    // endpoint that takes a seed. The withheld case — every install's default —
+    // is the controls suite's double, which declares nothing.
+    capabilities: { rendersImages: true, supportsStructuredOutput: true, supportsImageSeed: true },
   });
 }
 
@@ -285,11 +288,16 @@ describe('a turn completes on text while its picture is still being made', () =>
     const [ready] = await renditionsOf();
     expect(ready?.asset?.mime).toBe('image/png');
     expect(ready?.asset?.digest).toMatch(/^sha256:/);
-    // The seed the step drew on the turn, echoed by the endpoint and recorded —
-    // [06 §10.7]'s load-bearing field, end to end. A *number* rather than a
-    // fixed value, because the draw is the engine's RNG and the point is that it
-    // survives to the record rather than what it happened to be.
+    // The seed the step drew on the turn, sent and recorded — [06 §10.7]'s
+    // load-bearing field, end to end. A *number* rather than a fixed value,
+    // because the draw is the engine's RNG and the point is that it survives to
+    // the record rather than what it happened to be.
     expect(ready?.provenance.seed).toBeTypeOf('number');
+    // And the record says it left the process. This comment used to say *echoed
+    // by the endpoint*, which was true of the double and never of the real
+    // adapter: the seed did not reach the wire until 2026-09-26, and a row that
+    // asserted only the number stayed green over that.
+    expect(ready?.provenance.seedSent).toBe(true);
     expect(ready?.provenance.at).not.toBeNull();
   });
 

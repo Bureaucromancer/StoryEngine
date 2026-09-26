@@ -1706,6 +1706,21 @@ looks like* — that a picture arrives in a browser, and that it lands beside th
 sentence it is of. A phase whose gate proved every mechanism and looked at no
 picture is exactly what §3.1 warned this would be, and it is what it is.
 
+***Rows 5 and 6 were green over a seed that never left the process — found
+2026-09-26.*** Both were discharged against the `FakeProvider`, which echoes the
+seed it is handed. The real adapter passed it to a parameter
+`@ai-sdk/openai-compatible` marks unsupported and drops, so no endpoint was ever
+sent one while the record and the workbench went on stating it — [manual gate
+§4.1](11-p2-manual-gate.md)'s *"a stub agrees with whatever wrote it"*, in the
+field [06 §10.7](../06-modes-and-turn-pipeline.md) calls load-bearing, and the
+same promise §1.2 found the Pollinations path breaking on purpose. **The steps and
+the results above stand as recorded.** What changed is the adapter, which now
+sends the seed where a connection declares `supportsImageSeed`
+([21 §3](../21-internal-contracts.md)), and the record, which says whether it
+did (`seedSent`). *Sitting O's endpoint needs that capability declared for row 6
+to hold at the wire*; without it, the workbench now says — correctly — that the
+seed was not sent.
+
 ---
 
 ## 4. Out of scope, deliberately

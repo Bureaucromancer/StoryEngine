@@ -373,6 +373,55 @@ describe('the pictures a turn was the subject of', () => {
     const pictures = screen.getByRole('region', { name: 'Pictures' });
     expect(within(pictures).getByText('481,516')).toBeTruthy();
     expect(within(pictures).getByText('2,342')).toBeTruthy();
+    // Both were sent, so neither needs saying: *sent* is the claim the number
+    // already makes.
+    expect(within(pictures).queryByText(/Not sent|Not recorded whether/)).toBeNull();
+  });
+
+  /**
+   * ***A seed the endpoint never received says so*** — which is every install's
+   * default, since a connection has to declare `supportsImageSeed` before one
+   * is sent. The number stays, because it is the recipe's and what a
+   * re-creation replays; what goes is its standing as an explanation.
+   */
+  it('says when a seed was never sent, and keeps the number', () => {
+    const [sent, withheld] = renditionPair();
+    if (sent === undefined || withheld === undefined) throw new Error('fixture');
+    render(
+      <TurnSubject
+        turn={richTurn()}
+        locale="en"
+        renditions={[
+          sent,
+          { ...withheld, provenance: { ...withheld.provenance, seedSent: false } },
+        ]}
+      />,
+    );
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText('2,342')).toBeTruthy();
+    // Once, for the withheld one — not for its sent sibling.
+    expect(within(pictures).getAllByText(/^Not sent:/)).toHaveLength(1);
+  });
+
+  /**
+   * **A record from before the field existed is *not recorded*, never either
+   * answer.** Every picture made before 2026-09-26 was in fact made without its
+   * seed, but the record cannot say that about itself, and a panel that
+   * guessed on its behalf would be making the claim this field exists to stop.
+   */
+  it('calls a made picture with no answer on record not recorded', () => {
+    const [sent] = renditionPair();
+    if (sent === undefined) throw new Error('fixture');
+    const older = { ...sent.provenance };
+    delete older.seedSent;
+    render(
+      <TurnSubject turn={richTurn()} locale="en" renditions={[{ ...sent, provenance: older }]} />,
+    );
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText('481,516')).toBeTruthy();
+    expect(within(pictures).getByText(/^Not recorded whether/)).toBeTruthy();
   });
 
   /**

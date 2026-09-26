@@ -540,12 +540,15 @@ interface ProviderCapabilities {
   reportsUsage: boolean
   /** Whether this endpoint makes pictures. §7, [P9.2]. */
   rendersImages: boolean
+  /** Whether it takes a sampling seed for one. Off unless a connection says so. */
+  supportsImageSeed: boolean
   /** How many named subjects one picture can hold. [06 §10.3] */
   maxNamedSubjects?: number
 }
 ```
 
-***The last two are the record answering a second endpoint*** — added
+***`rendersImages` and `maxNamedSubjects` are the record answering a second
+endpoint*** — added
 2026-09-16 at [P9.2](workplan/26-p9-implementation.md), and they are also the
 evidence [P9 §1.2](workplan/26-p9-implementation.md) weighed when it decided that
 image providers go behind the **same** `Provider` interface as a second verb
@@ -566,6 +569,18 @@ prompt caps are. [06 §10.3](06-modes-and-turn-pipeline.md) puts it here in as
 many words — *"a number that varies per endpoint is the definition of a
 capability"* — and notes that Aventuras caps at one while Marinara derives a
 limit that runs from one to sixteen depending on the backend.
+
+**`supportsImageSeed` is false in the baseline and false for every known
+provider**, added 2026-09-26. [06 §10.7](06-modes-and-turn-pipeline.md) makes the
+seed the load-bearing field of a recipe, and until that date it never reached the
+wire: the AI SDK's OpenAI-compatible image model marks a top-level `seed`
+unsupported and builds the request without it, while every record went on
+stating one. It now travels in the provider options — **but only where a
+connection says so**, because `seed` is not part of the OpenAI images request and
+an endpoint that holds to that schema refuses a field it does not know with a
+400. The pessimistic default costs a less reproducible picture; the optimistic
+one costs the picture. Whichever happened, the record says so —
+`RenditionProvenance.seedSent`, below.
 
 Defaults ship per known provider and are overridable **per connection**, because
 a limit is a property of that endpoint and connections are private production
@@ -999,10 +1014,22 @@ interface RenditionProvenance {
   answeredAs: string | null
   /** The sampling seed. A **number**, which is what makes it unmixable with the other reading. */
   seed: number | null
+  /** Whether that seed left the process — never whether it was honoured. Absent: not recorded. */
+  seedSent?: boolean
   /** Scalars only: these are re-sent verbatim and hashed, and a nested object needs canonicalising. */
   workflow: Readonly<Record<string, string | number | boolean>>
 }
 ```
+
+***`seedSent` is a second fact about the seed, not a second seed.*** `seed` is
+the recipe's and is known before the call; `seedSent` is what the call did with
+it, written by the worker when a picture lands and cleared when one is
+re-created, since the next run may go out on a connection whose
+`supportsImageSeed` (§3) has changed. It means *sent*, never *honoured* — no
+images response says which. It is optional because a record written before
+2026-09-26 simply lacks the key, and absent reads as *not recorded* rather than
+as either answer — even though every such picture was in fact made without its
+seed. A record cannot vouch for what it did not write down.
 
 ***`asset` is not an `AssetRef`.*** Three things are wrong with that type here,
 and the first is the one that would have been lived with: `MediaRole` has eight
