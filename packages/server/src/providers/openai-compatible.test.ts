@@ -232,6 +232,8 @@ describe('failures', () => {
     // provider string — and the provider's is kept where the log can use it.
     expect((failure as ProviderError).message).toBe('The provider call failed.');
     expect((failure as ProviderError).detail).toBeDefined();
+    // And the status it came back with, which the class alone cannot say.
+    expect((failure as ProviderError).status).toBe(429);
   });
 
   it('treats a request that never got an answer as transient', async () => {
@@ -247,6 +249,8 @@ describe('failures', () => {
       .catch((error: unknown) => error);
 
     expect((failure as ProviderError).class).toBe('transient');
+    // Nothing answered, so there is no status — not a status of zero.
+    expect((failure as ProviderError).status).toBeUndefined();
   });
 
   it('treats a refusal the endpoint answered with as terminal', async () => {
@@ -261,6 +265,94 @@ describe('failures', () => {
       .catch((error: unknown) => error);
 
     expect((failure as ProviderError).class).toBe('terminal');
+    expect((failure as ProviderError).status).toBe(400);
+  });
+
+  /**
+   * **A refused key and a refused request are both terminal, and only the
+   * status tells them apart** — finding 5 in [P2C log], which the connection
+   * test ([polish §13]) answers the way `/models` already does. Without the
+   * status on the error, that route would have to guess from the provider's
+   * words, which are exactly what it may not repeat.
+   */
+  it('carries the status a refused key came back with', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ apiKey: 'sk-wrong' }),
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { message: 'Incorrect API key provided' } }), {
+          status: 401,
+        }),
+    });
+
+    const failure = await provider
+      .generate({ modelId: 'llama-local', messages, params: {} })
+      .catch((error: unknown) => error);
+
+    expect((failure as ProviderError).class).toBe('terminal');
+    expect((failure as ProviderError).status).toBe(401);
+  });
+});
+
+/**
+ * Pixels over a stub transport — the image arm's first test against the real
+ * adapter rather than `FakeProvider`.
+ *
+ * ***What this pins is the wire, not the picture***: that `renderImage` posts to
+ * `/images/generations` on the connection's own address with its own key, that
+ * a `b64_json` answer becomes bytes, and that a refusal arrives classified with
+ * its status like a chat refusal does — which is what the connection test reads
+ * to say *the key was refused* about a picture.
+ */
+describe('a picture through the adapter', () => {
+  const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  it('posts to the image endpoint and hands back the bytes it answered with', async () => {
+    const seen: { url: string; auth: string | null }[] = [];
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ apiKey: 'sk-local', capabilities: { rendersImages: true } }),
+      fetch: async (input, init) => {
+        seen.push({
+          url: input instanceof Request ? input.url : String(input),
+          auth: new Headers(init?.headers).get('authorization'),
+        });
+        return new Response(
+          JSON.stringify({ created: 0, data: [{ b64_json: Buffer.from(PNG).toString('base64') }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      },
+    });
+
+    const result = await provider.renderImage({
+      modelId: 'sd-local',
+      prompt: 'A lighthouse at dusk',
+      seed: 7,
+      workflow: {},
+    });
+
+    expect(seen).toEqual([
+      { url: 'http://localhost:11434/v1/images/generations', auth: 'Bearer sk-local' },
+    ]);
+    expect(Array.from(result.bytes)).toEqual(Array.from(PNG));
+    expect(result.seed).toBe(7);
+    expect(result.cost).toBeNull();
+  });
+
+  it('arrives classified, with the status, when the key is refused', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ apiKey: 'sk-wrong', capabilities: { rendersImages: true } }),
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { message: 'Incorrect API key provided' } }), {
+          status: 401,
+        }),
+    });
+
+    const failure = await provider
+      .renderImage({ modelId: 'sd-local', prompt: 'A lighthouse at dusk', seed: 7, workflow: {} })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ProviderError);
+    expect((failure as ProviderError).class).toBe('terminal');
+    expect((failure as ProviderError).status).toBe(401);
   });
 });
 

@@ -562,7 +562,7 @@ function asProviderError(error: unknown): ProviderError {
   const detail =
     typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
 
-  return new ProviderError(errorClass, 'The provider call failed.', detail);
+  return new ProviderError(errorClass, 'The provider call failed.', detail, status);
 }
 
 /**

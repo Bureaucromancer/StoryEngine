@@ -97,6 +97,20 @@ describe('the failures that are hard to arrange for real', () => {
     await expect(provider.generate(ask())).rejects.toMatchObject({ class: 'retryable' });
   });
 
+  it('carries a scripted status on every arm, as a real adapter does', async () => {
+    const refused = { class: 'terminal', message: 'Refused.', status: 401 } as const;
+    const provider = new FakeProvider({
+      script: [{ error: refused }],
+      images: [{ error: refused }],
+    });
+
+    await expect(provider.generate(ask())).rejects.toMatchObject({ status: 401 });
+    await expect(drain(provider.stream(ask()))).rejects.toMatchObject({ status: 401 });
+    await expect(
+      provider.renderImage({ modelId: 'fake-image', prompt: 'A lamp.', seed: 1, workflow: {} }),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
   it('disconnects mid-stream, after the caller already has text', async () => {
     // The one that matters most for P2.5: a partial answer plus a failure, not
     // a failure instead of an answer. Everything downstream has to cope with
