@@ -1,10 +1,12 @@
 # 30 — P13 implementation plan
 
-**Status: in progress on `claude/nice-davinci-xjdpf6`, opened 2026-09-26.** One
-feature, filed as a phase for [P12 §1.5](29-p12-implementation.md)'s reason: a
-roadmap entry ([24](../24-roadmap.md)) holds no release commitment, and this is
-being built now. ***The exit gate ([§3](#3--the-exit-gate)) has not been
-walked.***
+**Status: stages P13.0–P13.9 built on `claude/nice-davinci-xjdpf6`, 2026-09-26,
+and not merged. ***The exit gate ([§3](#3--the-exit-gate)) has not been
+walked***, so by [manual testing §0](05-manual-testing.md) this phase is **not
+closed** — its critical list is [sitting T](05-manual-testing.md).** One feature,
+filed as a phase for [P12 §1.5](29-p12-implementation.md)'s reason: a roadmap
+entry ([24](../24-roadmap.md)) holds no release commitment, and this was built
+now.
 
 **P13 is *make a setup from here*.** From any turn of a session a person can
 run a wizard that condenses the story up to that turn and converts the point
@@ -71,6 +73,32 @@ verdict call, silently. It is stamped `'generated'`. The Setup itself may be
 condensed away and what travels is a Setup, which starts clean, reads in a
 library editor, and carries no turn record. Both are worth having; neither
 replaces the other.
+
+
+### 0.5 Found on the way, and where each went
+
+Three things turned up while building that §0 did not predict. Recorded here
+because each is a sentence somebody would otherwise have to rediscover.
+
+- ***The illustrate route cancels its own call.*** It aborts its model call on
+  the **request's** `close`, and since Node 16 that fires once the body has been
+  read — under Fastify, before the handler has done anything, which a probe on
+  this build confirmed. The deterministic suite cannot see it because
+  `FakeProvider` ignores the signal; against a real endpoint that honours it,
+  *Illustrate*'s moment call is cancelled almost as soon as it starts. **Not
+  fixed here**, because it is [P9.4](26-p9-implementation.md)'s route and not
+  this feature's: [P13.6](#p136--the-draft)'s route cancels on the **response**
+  closing unfinished instead, and says why, so the pattern to copy is beside it.
+  A task to repair illustrate is owed and named in the handover.
+- ***An undeclared step's calls are `effects` calls.*** The condensation step
+  first declared no `contributes`, so `callPurposeFor` read every call as
+  effects and refused a person's advisory steer on it — every *Regenerate, but
+  shorter* a 500. It declares `messages` now, which is the truth: it makes words
+  for a person and writes nothing.
+- ***A string-valued table is a catalogue question even when it is data.***
+  `i18n/catalogue.test.ts` holds every such table in client code to the
+  catalogue or an exemption; the wizard's map from a part to a Setup path was
+  inlined rather than exempted, because it was two lines.
 
 ---
 
@@ -170,6 +198,7 @@ are the prior art, and all three are on `main`.
 ### P13.0 — This document
 
 The readiness audit (§0) and the decisions (§1), written before code.
+**Done — `a46a1cc`.**
 
 ### P13.1 — The schema
 
@@ -180,6 +209,7 @@ on emitting a Setup from a turn.
 *Proof obligation:* a Setup without either field is byte-identical on a round
 trip, and one with them validates.
 
+**Done — `f8affa5`.**
 ### P13.2 — The summary root
 
 `planChain` and `ensureChain` take an optional root; the runner and every other
@@ -187,6 +217,7 @@ assembler emit it as the oldest summary link.
 *Proof obligation:* **with no root, every existing chain's keys are unchanged**;
 a different root keys a disjoint chain; the fork properties hold with a root.
 
+**Done — `393f04b`.**
 ### P13.3 — The opening turn
 
 `POST /api/sessions` consumes a Setup's written opening, `partyDefault` and
@@ -195,12 +226,14 @@ a different root keys a disjoint chain; the fork properties hold with a root.
 *Proof obligation:* turn 1 is the opening, the party channel and the spent hooks
 are written by it, and a redo naming it is refused.
 
+**Done — `d364808`.**
 ### P13.4 — Starting from a Setup in the browser
 
 The session form offers the account's Setups and their written openings; a
 Setup's own page offers *Start a session*; the play surface does not offer redo
 on an opening turn.
 
+**Done — `b2fc84c`.**
 ### P13.5 — The carry-over
 
 A pure builder from the state at a turn to a Setup, and the redacted preview of
@@ -208,6 +241,7 @@ it.
 *Proof obligation:* **a serialised preview contains no unfired premise, no
 entrance text and no hidden goal's statement**, for any pool and goal chain.
 
+**Done — `ffb126a`.**
 ### P13.6 — The draft
 
 `POST /api/sessions/:sessionId/turns/:turnId/setup-draft`: the story so far, an
@@ -216,6 +250,7 @@ its own step definition so one failing discards nothing.
 *Proof obligation:* the prompts carry the transcript and never hidden content;
 a warm summary chain costs no summariser call.
 
+**Done — `bb29aa5`.**
 ### P13.7 — The commit
 
 `POST /api/sessions/:sessionId/turns/:turnId/setup` writes the companion
@@ -225,16 +260,33 @@ the Setup, and the new session's first prompt carries the story so far, turn 1
 is the opening with the party seeded, the spent hook is fired, the goal current
 at the turn is `goals[0]`, and an unfired hook is still in the pool.
 
+**Done — `f7c789f`.**
 ### P13.8 — The wizard
 
 *Make a setup from here* beside *Continue from here*, opening a dialog with the
 carry-over, the story so far, the opening, the facts, and a name.
 
+**Done — `e033435`.**
 ### P13.9 — Close-out
 
 The gate lands in [manual testing](05-manual-testing.md) as a sitting, the
 design corrections are checked against what shipped, and the changelog prose is
 parked in §2.1 for [P12 §2.1](29-p12-implementation.md)'s reason.
+**Done — this commit**, which is the one that says where the phase stands.
+
+### What is deliberately not in this phase
+
+- **An end-to-end journey.** `e2e/journeys.spec.ts` admits a journey by its
+  being *catastrophic to break*, and the seven it holds are the list; this is a
+  feature beside them. The browser walk that did happen, before
+  [P13.8](#p138--the-wizard) committed, is recorded in its commit.
+- **A live test of the condensation.** The prompts are new, and whether a real
+  model condenses well is critical row 1 — a judgement a live test could not
+  make, since those assert structure and never prose.
+- **Seed openings.** A Setup made here carries one written opening; expanding a
+  seed is still [P7B §1.11](24-p7b-presets-and-prompts.md)'s revisit.
+- **Consuming a treatment's or an actor's openings.** Only a Setup's are read at
+  creation, which is the half this feature needed.
 
 ---
 
@@ -243,6 +295,30 @@ parked in §2.1 for [P12 §2.1](29-p12-implementation.md)'s reason.
 *Written at P13.9, here rather than in `CHANGELOG.md`, for
 [P12 §2.1](29-p12-implementation.md)'s reason: that file's headings are parsed by
 the About surface and an unreleased one is not a heading it takes.*
+
+**Added**
+
+- **Make a setup from here.** Every turn of a session offers it beside
+  *Continue from here*. A dialog drafts the story so far, an opening, a name and
+  a blurb, and the facts the story has established; you edit what you like,
+  switch off what should not carry — the party, the goal, the plot hooks — and
+  save it as a Setup in your library. A session started from it begins where
+  this one was, without the turns behind it, and it travels in a package like
+  any other Setup. **Nothing it would spoil is shown**: hooks that have not
+  happened and goals hidden from you are carried, and counted, and not described.
+- **Start a session from a Setup.** From the session form, which now offers your
+  Setups and their openings, and from a Setup's own library page. Until now the
+  browser had no way to start from one.
+- **A Setup's opening is the session's first turn**, and its party is seated in
+  it. `opening: null` starts cold.
+- **A Setup can carry the story so far**, and a session started from it shows
+  the model that text from its first turn, as the oldest part of its rolling
+  summary.
+
+**Changed**
+
+- A redo or rewrite naming an opening is refused — an opening was written, not
+  generated.
 
 ---
 
