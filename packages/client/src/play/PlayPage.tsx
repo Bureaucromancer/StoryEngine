@@ -55,6 +55,7 @@ import { LorePanel } from './LorePanel.js';
 import { SessionPanel } from './SessionPanel.js';
 import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
+import { SetupFromTurn } from './SetupFromTurn.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
 import { Fine, SectionTitle } from '../ui/Text.js';
@@ -1285,6 +1286,12 @@ function TurnView({
         >
           Continue from here
         </Button>
+        {/* ***Make a setup from here*** — [P13.8]. Beside *Continue from here*
+            because it is the other answer to the same wish: continuing keeps
+            the history behind this turn, and this condenses it into somewhere
+            new sessions start from. Any turn, including an opening — a point
+            worth starting from again is not only ever one somebody typed. */}
+        <SetupFromTurn sessionId={sessionId} turnId={turn.id} busy={busy} />
         {/* ***Illustrate*** — [06 §10.6], [P9.4]. *"A manual **Illustrate**
             action on any message in the history, which is the same step invoked
             by hand — additive, never replacing."* Beside the other per-message

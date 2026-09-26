@@ -1003,6 +1003,9 @@ describe('the two gestures', () => {
       expect(screen.getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'Redo with guidance' })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'Continue from here' })).toHaveLength(2);
+      // [P13.8]: a point worth starting from again is not only one somebody
+      // typed, so the opening offers it too.
+      expect(screen.getAllByRole('button', { name: 'Make a setup from here' })).toHaveLength(2);
     });
   });
 });
