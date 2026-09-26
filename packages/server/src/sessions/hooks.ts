@@ -485,7 +485,12 @@ export function readPacing(
  */
 const FALLBACK_PACING: HookPacing = 'normal';
 
-function asPacing(value: unknown): HookPacing | null {
+/**
+ * A pacing level this build knows, or `null` — exported at [P13.5] so the
+ * carry that reads a live dial into a Setup reads it the way this dial does,
+ * rather than with a second list of levels beside `PACING_LEVELS`.
+ */
+export function asPacing(value: unknown): HookPacing | null {
   return typeof value === 'string' && (PACING_LEVELS as readonly string[]).includes(value)
     ? (value as HookPacing)
     : null;
