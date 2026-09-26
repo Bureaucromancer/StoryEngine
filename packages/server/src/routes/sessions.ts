@@ -2489,6 +2489,28 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const body = request.body as { actorId?: string };
+
+      /**
+       * ***No timeout here, on purpose.*** `limits.providerTimeoutMs` is
+       * enforced inside `performCall`, per attempt, by `withIdleTimeout`, which
+       * bounds **silence rather than duration** and reads `<= 0` as *switched
+       * off*. Both are [21 §4]'s row and [P2C §1.3]'s semantics, and a draft
+       * goes through that helper like every other call.
+       *
+       * *This route used to add its own copy* as
+       * `AbortSignal.timeout(providerTimeoutMs)`, which broke both halves of
+       * that row. It was a wall-clock ceiling on top of the idle one, and when
+       * it fired it reported a hang as a cancellation rather than a stall. At
+       * zero it was `AbortSignal.timeout(0)`, which aborts on the next tick, so
+       * every draft failed for exactly the operators who had switched the bound
+       * off because their endpoint is slow.
+       *
+       * So the signal never aborts. Nothing on this route cancels a draft; in
+       * particular, a client that goes away does not, and that would be a
+       * change of its own rather than a line in this one.
+       */
+      const unbounded = new AbortController().signal;
+
       const drafted = await impersonate(
         {
           sessions: services.sessions,
@@ -2501,9 +2523,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           sessionId: session.id,
           parentTurnId: session.headTurnId ?? null,
           ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
-          // A draft nobody is waiting for is a draft nobody wants: the request
-          // going away is the whole of when to stop.
-          signal: AbortSignal.timeout(services.config.limits.providerTimeoutMs),
+          signal: unbounded,
         },
       );
 
