@@ -8,10 +8,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor } from '@storyengine/shared';
 
+import { DEFAULT_CONFIG } from '../config.js';
 import { FakeProvider } from '../providers/fake.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  makeTestServer,
+  setUpAdmin,
+  type TestServer,
+  type TestServerOptions,
+} from '../test-server.js';
 
 /**
  * ***A draft of your own next message*** —
@@ -57,14 +63,24 @@ async function bindProse(): Promise<void> {
   );
 }
 
-beforeEach(async () => {
-  server = await makeTestServer({
-    providers: () => new FakeProvider({ script: [{ text: 'I would not go in there.' }] }),
-  });
+/**
+ * A server with an admin and Vera in the library. Every test gets one from
+ * `beforeEach`; the timeout tests below throw that one away and stand up their
+ * own, because what they are about is the config and the endpoint's pace, and
+ * both are fixed when the server is made.
+ */
+async function standUp(options: TestServerOptions): Promise<void> {
+  server = await makeTestServer(options);
   await setUpAdmin(server, 'ned');
   const actor = newActor('Vera');
   await server.request({ method: 'POST', url: '/api/library/actors', payload: actor });
   vera = actor.id;
+}
+
+beforeEach(async () => {
+  await standUp({
+    providers: () => new FakeProvider({ script: [{ text: 'I would not go in there.' }] }),
+  });
 });
 
 afterEach(async () => {
@@ -163,5 +179,80 @@ describe('drafting your own next message', () => {
 
     expect(drafted.status).toBe(422);
     expect(drafted.body.error).toBe('role-unbound');
+  });
+});
+
+/**
+ * ***`limits.providerTimeoutMs` is `performCall`'s, and this route has no copy
+ * of it*** — [21 §4](../../../../docs/design/21-internal-contracts.md),
+ * [P2C §1.3](../../../../docs/design/workplan/12-p2c-first-real-run.md).
+ *
+ * §4's row is two sentences this route used to break: the key bounds **silence
+ * rather than duration**, and **`0` disables it**. `withIdleTimeout` in
+ * `turns/calls.ts` keeps both, and a draft goes through it like every other
+ * call. The route also used to wrap the request in
+ * `AbortSignal.timeout(providerTimeoutMs)`, which was a wall-clock ceiling on
+ * top of the idle one and, at zero, a signal that aborts on the next tick, so
+ * every draft failed for exactly the operators who had switched the bound off
+ * because their endpoint is slow.
+ *
+ * So there are two claims, one for each way to get this wrong again: zero
+ * really means no bound, and removing the route's copy did not remove the
+ * bound.
+ */
+describe('the provider timeout, as a draft sees it', () => {
+  /**
+   * ***The falsifying mutation is putting `AbortSignal.timeout(...)` back on
+   * the route.*** At zero that signal has already fired by the time
+   * `performCall` first checks it, and the draft comes back as a 500 rather
+   * than words. The stall is there so the endpoint is a slow one rather than
+   * an instant one, which is the case the setting exists for.
+   */
+  it('drafts when the timeout is switched off', async () => {
+    await server.dispose();
+    await standUp({
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 0 } },
+      providers: () =>
+        new FakeProvider({ script: [{ text: 'I would not go in there.', stallMs: 20 }] }),
+    });
+    await bindProse();
+    const sessionId = await aSession(vera);
+
+    const drafted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/impersonate`,
+      payload: {},
+    });
+
+    expect(drafted.status).toBe(200);
+    expect(drafted.body.text).toBe('I would not go in there.');
+  });
+
+  /**
+   * **A stalled endpoint still ends the draft**, now that only the idle timer
+   * bounds it. The stall is far longer than the suite's per-test timeout, so a
+   * draft with no bound at all fails by timing out rather than by passing.
+   *
+   * *The status pins that the bound exists, not what the answer should say.*
+   * The route has no classed answer for a stalled draft, so the `Stalled`
+   * failure reaches `setErrorHandler` as an unhandled error. Giving it a class
+   * is a separate change, and it will need to update this line when it lands.
+   */
+  it('still gives up on an endpoint that says nothing', async () => {
+    await server.dispose();
+    await standUp({
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+      providers: () => new FakeProvider({ script: [{ stallMs: 60_000 }] }),
+    });
+    await bindProse();
+    const sessionId = await aSession(vera);
+
+    const drafted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/impersonate`,
+      payload: {},
+    });
+
+    expect(drafted.status).toBe(500);
   });
 });
