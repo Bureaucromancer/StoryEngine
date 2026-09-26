@@ -341,6 +341,13 @@ welcome and no longer blocked on an undecided question, only on a sequenced one.
 The [04 §7](04-schemas.md) split makes it clean: a prologue is a *session*
 travelling in a package, not a variant of Setup. *[03 §7]*
 
+*Its nearest neighbour was built on 2026-09-26 and is not it.*
+[P13](workplan/30-p13-implementation.md)'s *make a setup from here* makes the
+opposite trade — the history is condensed into a Setup's story so far and what
+travels starts clean, with no turn record at all ([04 §7.2](04-schemas.md)). It
+answers *I want to start from this point again*; a prologue answers *I want you
+to have played what I played*. B10 stays open, and unchanged.
+
 **B13. Where per-user UI preferences live. — RESOLVED on the third answer, at
 [P2A §2.2](workplan/09-p2a-configuration-surface.md).** A separate per-user
 `prefs.json`, which is what

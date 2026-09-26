@@ -1405,6 +1405,38 @@ story so far.
 The step every part dispatches as is `se.condense`, `prose`-role, so a session's
 `stepRoles` can send it to a different model from the narration.
 
+### `POST /api/sessions/:sessionId/turns/:turnId/setup`
+
+`{ texts: { name, blurb, storySoFar, opening: { label, text } }, include: { party, goals, hooks }, facts: { text, keys }[], generated? }`
+→ `201 { setup: { id, name }, lorebook: { id, name } | null }`. **The commit of
+*make a setup from here*** — P13.7, [04 §7.2](design/04-schemas.md). `404
+no-such-turn` for a turn not in the session; library refusals as every library
+write's.
+
+**The carry is recomputed from the turn, never read from the request.** The body
+holds what a person decided — the texts, the facts they kept, and which of the
+three carried groups to keep — and no field that could carry a hook, a goal or a
+party member, so a client can leave one out and never add one. The Setup is
+built from the state at the turn as the draft's `carry` described it: the mode,
+treatment, preset and lorebooks by id and name, the persona as its one option,
+the party as `cast.partyDefault`, the goal the story was on first with the
+achieved ones dropped, the unfired hooks the session's Setup or the session
+authored, and every fired hook's id in `spentHooks`. `provenance.source` is
+`session`.
+
+**Facts become a companion lorebook, written first** — named *"<name> —
+established facts"*, `provenance.source: generated` (never `session`, which the
+retriever reads as a memory book and marks advisory), one entry per fact with its
+keys, and linked from the Setup's `lore` as `required`. A fact with no keys is
+dropped, as the memory extractor drops one. If the Setup's write then fails, the
+book is removed. `lorebook` is `null` when no fact was kept.
+
+`generated` names which fields a model wrote first — `name`, `blurb`,
+`storySoFar`, `openings.written.0.text` — each `{ original, model }`, recorded in
+the Setup's `generated` map with `unreviewed: false`: the wizard is the review.
+**The answer carries ids and names only**, because the Setup holds hidden goals
+and hooks and the person saving it is still playing the session they came from.
+
 ### `PUT /api/sessions/:sessionId/lore`
 
 `{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`

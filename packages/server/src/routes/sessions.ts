@@ -61,7 +61,12 @@ import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { recreateRendition } from '../renditions/manual.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
-import { draftSetupFromTurn, SETUP_PARTS } from '../turns/condense.js';
+import {
+  commitSetupFromTurn,
+  draftSetupFromTurn,
+  GENERATED_PATHS,
+  SETUP_PARTS,
+} from '../turns/condense.js';
 import { assetPath } from '../renditions/worker.js';
 import { readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
@@ -145,6 +150,63 @@ const SetupDraftBody = Type.Object(
       ),
     ),
     openingFrom: Type.Optional(Type.Union([Type.Literal('scene'), Type.Literal('verbatim')])),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * ***What a person kept*** — [P13.7](../../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * **Texts, facts and three switches, and nothing the server holds.** The carry
+ * is recomputed from the turn, so there is no field here that could carry a
+ * hook, a goal or a party member — which is the point: a client can only choose
+ * among what the record says, never add to it. Bounded so a Setup stays a thing
+ * a library can hold.
+ */
+const Generated = Type.Object(
+  {
+    original: Type.String({ maxLength: 40000 }),
+    model: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+const SetupCommitBody = Type.Object(
+  {
+    texts: Type.Object(
+      {
+        name: Type.String({ minLength: 1, maxLength: 200 }),
+        blurb: Type.String({ maxLength: 2000 }),
+        storySoFar: Type.String({ maxLength: 40000 }),
+        opening: Type.Object(
+          {
+            label: Type.String({ maxLength: 200 }),
+            text: Type.String({ maxLength: 40000 }),
+          },
+          { additionalProperties: false },
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    include: Type.Object(
+      { party: Type.Boolean(), goals: Type.Boolean(), hooks: Type.Boolean() },
+      { additionalProperties: false },
+    ),
+    facts: Type.Array(
+      Type.Object(
+        {
+          text: Type.String({ minLength: 1, maxLength: 4000 }),
+          keys: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 20 }),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 200 },
+    ),
+    generated: Type.Optional(
+      Type.Partial(
+        Type.Object(Object.fromEntries(GENERATED_PATHS.map((path) => [path, Generated]))),
+        { additionalProperties: false },
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -2353,6 +2415,69 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.code(404).send({ error: 'no-such-turn', message: 'No such turn.' });
       }
       return reply.send({ draft });
+    },
+  );
+
+  /**
+   * ***Make a setup from here: the commit*** — [04 §7.2], [16 §3],
+   * [P13.7](../../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * **Writes the companion lorebook when facts were kept, then the Setup**, and
+   * answers with the two ids and names and nothing else — the Setup holds the
+   * hooks and goals it carried, hidden ones included, and the person who just
+   * made it is still playing the session those came from. Opening it in the
+   * library is an authoring act, and a deliberate one; the answer to *Save* is
+   * not.
+   *
+   * *`201`, because two things now exist that did not.* Library refusals travel
+   * through `respondToLibraryError` as every other library write's do.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/setup',
+    { schema: { params: TurnRenditionParams, body: SetupCommitBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const body = request.body as {
+        texts: {
+          name: string;
+          blurb: string;
+          storySoFar: string;
+          opening: { label: string; text: string };
+        };
+        include: { party: boolean; goals: boolean; hooks: boolean };
+        facts: { text: string; keys: string[] }[];
+        generated?: Partial<
+          Record<(typeof GENERATED_PATHS)[number], { original: string; model: string | null }>
+        >;
+      };
+
+      try {
+        const saved = await commitSetupFromTurn(
+          { sessions: services.sessions, accounts: services.accounts, library: services.library },
+          {
+            account: account.handle,
+            sessionId,
+            turnId,
+            texts: body.texts,
+            include: body.include,
+            facts: body.facts,
+            ...(body.generated === undefined ? {} : { generated: body.generated }),
+          },
+        );
+        if (saved.kind === 'no-turn') {
+          return await reply.code(404).send({ error: 'no-such-turn', message: 'No such turn.' });
+        }
+        return await reply.code(201).send({ setup: saved.setup, lorebook: saved.lorebook });
+      } catch (error) {
+        // A path refusal and every library refusal, each with its own status;
+        // anything else is rethrown to the ordinary 500.
+        respondToLibraryError(error, reply);
+        return;
+      }
     },
   );
 

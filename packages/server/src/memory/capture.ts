@@ -326,7 +326,11 @@ async function recordEscape(
  * reads as a bug rather than as a summary — and the whole text is in `content`
  * either way.
  */
-function titleFor(text: string): string {
+/**
+ * An entry's name from its words: one line, cut at a word. Exported at [P13.7]
+ * for the facts a Setup made from a turn keeps, which are named the same way.
+ */
+export function titleFor(text: string): string {
   const oneLine = text.replace(/\s+/g, ' ').trim();
   if (oneLine.length <= 60) return oneLine;
   const cut = oneLine.slice(0, 60);

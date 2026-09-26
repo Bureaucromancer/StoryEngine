@@ -1896,6 +1896,44 @@ export function draftSetupFromTurn(
   );
 }
 
+/**
+ * ***Saves a Setup made from this turn*** — [P13.7](../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * What a person kept: the texts, the facts, and which carried groups to keep.
+ * **Nothing about the carry itself travels** — the server recomputes it from the
+ * turn — so a client cannot add a hook or a goal, only leave one out.
+ * `generated` names which fields a model wrote first, keyed by the Setup's own
+ * dotted paths, so the library can say so.
+ */
+export interface SetupFromTurn {
+  texts: {
+    name: string;
+    blurb: string;
+    storySoFar: string;
+    opening: { label: string; text: string };
+  };
+  include: { party: boolean; goals: boolean; hooks: boolean };
+  facts: { text: string; keys: string[] }[];
+  generated?: Partial<
+    Record<
+      'name' | 'blurb' | 'storySoFar' | 'openings.written.0.text',
+      { original: string; model: string | null }
+    >
+  >;
+}
+
+export function saveSetupFromTurn(
+  sessionId: string,
+  turnId: string,
+  body: SetupFromTurn,
+): Promise<{ setup: { id: string; name: string }; lorebook: { id: string; name: string } | null }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/setup`,
+    body,
+  );
+}
+
 /** Chooses which of a turn's renditions is shown — [06 §10.7]. */
 export function selectRendition(
   sessionId: string,

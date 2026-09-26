@@ -5,10 +5,23 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { newSetup, uuidv7, type Goal, type PlotHook, type Turn } from '@storyengine/shared';
+import {
+  newActor,
+  newSetup,
+  newTreatment,
+  uuidv7,
+  type Goal,
+  type PlotHook,
+  type Setup,
+  type Turn,
+} from '@storyengine/shared';
 
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
+import { SE_PARTY } from '../sessions/cast.js';
+import { SE_GOAL, SE_GOAL_CURRENT } from '../sessions/goals.js';
+import { SE_HOOK } from '../sessions/hooks.js';
 import { appendTurnToSession } from '../sessions/store.js';
+import { acceptEffect } from '../turns/effects.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -277,5 +290,245 @@ describe('drafting a setup from a turn', () => {
       storySoFar: { ok: false, reason: 'role-unbound' },
       title: { ok: false, reason: 'role-unbound' },
     });
+  });
+});
+
+/**
+ * ***The round trip*** — [P13.7](../../../../docs/design/workplan/30-p13-implementation.md)'s
+ * proof obligation, and the phase's.
+ *
+ * Play a session to a turn at which a companion has joined, one goal has been
+ * achieved and the story is on the next, a treatment's hook has fired and the
+ * Setup's own hook has not. Make a Setup from that turn, start a new session
+ * from it, and play one turn: **everything the Setup promised has to arrive** —
+ * the opening as turn one, the companion in the party, the treatment's hook
+ * spent rather than fresh, the goal the story was on as the one play begins on,
+ * the unfired hook still waiting, the story so far in the first prompt, and a
+ * kept fact activating on its key.
+ */
+describe('making a setup from a turn, and starting from it', () => {
+  async function aTreatment(): Promise<string> {
+    const made = {
+      ...newTreatment('Rain City, noir'),
+      hooks: [hookNamed('hook-treatment-fired'), hookNamed('hook-treatment-fresh')],
+    };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: made,
+    });
+    return response.body.object.id as string;
+  }
+
+  async function anActor(name: string): Promise<string> {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: newActor(name),
+    });
+    return response.body.object.id as string;
+  }
+
+  function hookNamed(id: string): PlotHook {
+    return { ...SECRET_HOOK, id, title: id, premise: `SECRETPREMISE of ${id}` };
+  }
+
+  const goal = (id: string, over: Partial<Goal> = {}): Goal => ({
+    ...HIDDEN_GOAL,
+    id,
+    statement: `reach ${id}`,
+    visibility: 'player',
+    ...over,
+  });
+
+  function commit(sessionId: string, turnId: string, over: Record<string, unknown> = {}) {
+    return server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/setup`,
+      payload: {
+        texts: {
+          name: 'The Ledger, Lost',
+          blurb: 'Pick it up at the docks.',
+          storySoFar: 'Marlow lost the ledger at the docks, and Vera saw it happen.',
+          opening: { label: 'The docks', text: 'Rain on the docks. Vera waits under the crane.' },
+        },
+        include: { party: true, goals: true, hooks: true },
+        facts: [{ text: 'Vera owes Marlow a favour from the harbour job.', keys: ['favour'] }],
+        generated: {
+          storySoFar: { original: 'Marlow lost the ledger.', model: 'fake-hi' },
+        },
+        ...over,
+      },
+    });
+  }
+
+  it('carries what the turn had, and a session started from it begins there', async () => {
+    await standUp([{ text: 'The rain does not let up.' }]);
+    const treatment = await aTreatment();
+    const vera = await anActor('Vera');
+    const marlow = await anActor('Marlow');
+
+    const setup = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: {
+        ...newSetup('The Fixer’s Debt'),
+        treatment: { id: treatment, name: 'Rain City, noir' },
+        cast: {
+          personaOptions: [{ id: marlow, name: 'Marlow' }],
+          partyDefault: [],
+          narrator: null,
+        },
+        hooks: [hookNamed('hook-setup-fresh')],
+        goals: [goal('goal-one', { next: 'goal-two' }), goal('goal-two')],
+      },
+    });
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setup.body.object.id as string },
+    });
+    const first = created.body.session.id as string;
+
+    // One turn of play that did four things, written as the engine writes them.
+    const turnId = uuidv7();
+    const writes: [string, string | null, string][] = [
+      [SE_PARTY, vera, 'companion'],
+      [SE_HOOK, 'hook-treatment-fired', 'fired'],
+      [SE_GOAL, 'goal-one', 'achieved'],
+      [SE_GOAL_CURRENT, null, 'goal-two'],
+    ];
+    const effects = writes.map(([channelId, scopeKey, after]) =>
+      acceptEffect(
+        turnId,
+        {
+          channelId,
+          scopeKey,
+          op: { type: 'set', path: '/' },
+          after,
+          proposedBy: { kind: 'engine' },
+        },
+        {},
+      ),
+    );
+    await appendTurnToSession(server.services.sessions, 'ned', first, {
+      id: turnId,
+      sessionId: first,
+      parentTurnId: null,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+      input: { actorId: null, kind: 'do', text: 'I hand Vera the ledger.', raw: '' },
+      output: { text: 'She takes it, and the goal is met.' },
+      effects,
+      tape: [],
+    });
+
+    const saved = await commit(first, turnId);
+    expect(saved.status).toBe(201);
+    expect(JSON.stringify(saved.body)).not.toMatch(/SECRET/);
+    const setupId = saved.body.setup.id as string;
+    expect(saved.body.lorebook.name).toBe('The Ledger, Lost — established facts');
+
+    // What was written, read back through the library.
+    const written = (await server.request({ method: 'GET', url: `/api/library/setups/${setupId}` }))
+      .body.object as Setup;
+    expect(written.provenance.source).toBe('session');
+    expect(written.generated?.['storySoFar']).toMatchObject({
+      original: 'Marlow lost the ledger.',
+      model: 'fake-hi',
+      unreviewed: false,
+    });
+    const book = (
+      await server.request({
+        method: 'GET',
+        url: `/api/library/lorebooks/${saved.body.lorebook.id as string}`,
+      })
+    ).body.object;
+    // `generated`, never `session` — which the retriever would read as a memory book.
+    expect(book.provenance.source).toBe('generated');
+
+    // ***And a session started from it begins where the first one was.***
+    const next = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setupId },
+    });
+    const second = next.body.session;
+    expect(second.cast).toEqual({ persona: marlow, actors: [vera] });
+    expect((second.goals as Goal[]).map((one) => one.id)).toEqual(['goal-two']);
+
+    const turns = (
+      await server.request({ method: 'GET', url: `/api/sessions/${second.id as string}/turns` })
+    ).body.turns as Turn[];
+    expect(turns).toHaveLength(1);
+    expect(turns[0]?.output?.text).toBe('Rain on the docks. Vera waits under the crane.');
+
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${second.id as string}`,
+    });
+    const rows = read.body.hooks.rows as { hookId: string; state: string | null }[];
+    const state = (id: string) => rows.find((row) => row.hookId === id)?.state;
+    expect(state('hook-treatment-fired')).toBe('fired');
+    expect(state('hook-treatment-fresh')).toBeNull();
+    expect(state('hook-setup-fresh')).toBeNull();
+
+    // One real turn: the story so far, and the kept fact on its key.
+    const before = provider.requests.length;
+    const submitted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${second.id as string}/turns`,
+      payload: {
+        idempotencyKey: 'first',
+        headTurnId: turns[0]?.id ?? null,
+        input: { text: 'I remind Vera of the favour she owes me.' },
+      },
+    });
+    expect(submitted.status).toBe(202);
+    const stream = await server.stream({ url: `/api/sessions/${second.id as string}/stream` });
+    await stream.until(
+      (frame) =>
+        frame.event === 'progress' && (frame.data as { key: string }).key === 'turn.finished',
+      4000,
+    );
+    await stream.abort();
+
+    // Every call the turn made, since the narration is not necessarily the last.
+    const sent = everythingSent(before);
+    expect(sent).toContain('Marlow lost the ledger at the docks, and Vera saw it happen.');
+    expect(sent).toContain('Vera owes Marlow a favour from the harbour job.');
+    expect(sent).toContain('Rain on the docks. Vera waits under the crane.');
+  });
+
+  it('writes no book when no fact was kept, and refuses a turn that is not there', async () => {
+    await standUp([]);
+    const { id, turnIds } = await aSession(2);
+
+    const saved = await commit(id, turnIds[1] ?? '', { facts: [] });
+    expect(saved.status).toBe(201);
+    expect(saved.body.lorebook).toBeNull();
+
+    const missing = await commit(id, 'no-such-turn');
+    expect(missing.status).toBe(404);
+  });
+
+  it('leaves out what a person switched off, whatever the turn had', async () => {
+    await standUp([]);
+    const { id, turnIds } = await aSession(2);
+
+    const saved = await commit(id, turnIds[1] ?? '', {
+      include: { party: false, goals: false, hooks: false },
+      facts: [],
+    });
+    const written = (
+      await server.request({
+        method: 'GET',
+        url: `/api/library/setups/${saved.body.setup.id as string}`,
+      })
+    ).body.object as Setup;
+
+    expect(written.goals).toEqual([]);
+    expect(written.hooks).toEqual([]);
+    expect(written.cast.partyDefault).toEqual([]);
   });
 });

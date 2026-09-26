@@ -3,11 +3,30 @@
 
 import type { Candidate, StepDefinition } from '@storyengine/sdk';
 
+import {
+  LOREBOOK_SCHEMA,
+  newLoreEntry,
+  newLorebook,
+  SETUP_SCHEMA,
+  type Lorebook,
+  type Setup,
+} from '@storyengine/shared';
+
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
+import { create, remove, type LibraryContext } from '../library.js';
+import { titleFor } from '../memory/capture.js';
 import { alreadyKnown, EXTRACT_PROMPT, EXTRACT_SCHEMA, readExtraction } from '../memory/extract.js';
 import type { ProviderFactory } from '../providers/factory.js';
-import { carryAt, previewOf, type Carry, type CarryPreview } from '../sessions/setup-from-turn.js';
+import {
+  buildSetup,
+  carryAt,
+  previewOf,
+  type Carry,
+  type CarryChoices,
+  type CarryPreview,
+  type SetupTexts,
+} from '../sessions/setup-from-turn.js';
 import type { SessionContext } from '../sessions/store.js';
 import { ensureChain, type Summariser } from '../sessions/summaries.js';
 import {
@@ -454,5 +473,138 @@ function block(id: string, role: 'system' | 'user', text: string): Candidate {
     role,
     text,
     required: true,
+  };
+}
+
+/**
+ * The fields the wizard may say a model wrote, keyed as `generated` keys them —
+ * by dotted path. *A closed list*: a client naming any other path is naming a
+ * field the wizard does not produce, and it is dropped rather than recorded.
+ */
+export const GENERATED_PATHS = ['name', 'blurb', 'storySoFar', 'openings.written.0.text'] as const;
+export type GeneratedPath = (typeof GENERATED_PATHS)[number];
+
+export interface CommitRequest {
+  account: string;
+  sessionId: string;
+  turnId: string;
+  texts: SetupTexts;
+  include: CarryChoices;
+  /** The facts a person kept, as they left them. Empty is no companion book. */
+  facts: readonly DraftFact[];
+  /** Which fields a model wrote first, and what it wrote — for `generated`. */
+  generated?: Partial<Record<GeneratedPath, { original: string; model: string | null }>>;
+  at?: string;
+}
+
+export type CommitOutcome =
+  | {
+      kind: 'saved';
+      setup: { id: string; name: string };
+      lorebook: { id: string; name: string } | null;
+    }
+  | { kind: 'no-turn' };
+
+/**
+ * ***The commit: the companion book, then the Setup*** — [P13.7].
+ *
+ * **The carry is recomputed here, from the turn**, never read off the request:
+ * the preview a browser was shown is a redaction, and a Setup assembled from
+ * what the browser sent back could only ever carry what it was shown — or,
+ * worse, whatever a client chose to send. What the person decides is the texts,
+ * the facts and three switches; what the record says is the record's.
+ *
+ * ***The book first, and taken back if the Setup does not land.*** The Setup
+ * links the book, so the book has to exist to be linked; and a failed save
+ * must leave nothing behind, which is [03 §2.3]'s *a session tried once and
+ * abandoned must leave nothing behind* read one object further out.
+ *
+ * *`generated` is written reviewed* — `unreviewed: false` — because the wizard
+ * is the review: every field it records was on a person's screen, editable,
+ * when they pressed Save. `assistant/Proposal.tsx` writes the same after its
+ * own review, and for the same reason.
+ */
+export async function commitSetupFromTurn(
+  context: Pick<CondenseContext, 'sessions' | 'accounts'> & { library: LibraryContext },
+  request: CommitRequest,
+): Promise<CommitOutcome> {
+  const state = await stateAt(context, request);
+  if (state === null) return { kind: 'no-turn' };
+
+  const at = request.at ?? new Date().toISOString();
+  const name = request.texts.name.trim();
+  const facts = request.facts
+    .map((fact) => ({
+      text: fact.text.trim(),
+      keys: fact.keys.map((key) => key.trim()).filter((key) => key !== ''),
+    }))
+    // A fact with no keys can never reach a prompt — the extractor's own rule.
+    .filter((fact) => fact.text !== '' && fact.keys.length > 0);
+
+  let book: { id: string; name: string; contentHash: string } | null = null;
+  if (facts.length > 0) {
+    const made = newLorebook(`${name} — established facts`);
+    const lorebook: Lorebook = {
+      ...made,
+      description:
+        'What play had established by the point this setup was made from. Written by a ' +
+        'model, kept by a person, and meant to be corrected.',
+      /**
+       * ***`generated`, and never `session`*** — [P13 §0.3]. A lorebook marked
+       * `session` is a memory book to the retriever, and every block from one
+       * is advisory — barred from every effect and verdict call. These are the
+       * world's facts, not a character's memories.
+       */
+      provenance: { ...made.provenance, source: 'generated', createdAt: at, updatedAt: at },
+      entries: facts.map((fact) => ({
+        ...newLoreEntry(titleFor(fact.text)),
+        keys: fact.keys,
+        content: fact.text,
+      })),
+    };
+    const stored = await create(context.library, request.account, lorebook, LOREBOOK_SCHEMA);
+    book = { id: lorebook.id, name: lorebook.name, contentHash: stored.contentHash };
+  }
+
+  const generated: NonNullable<Setup['generated']> = {};
+  for (const path of GENERATED_PATHS) {
+    const one = request.generated?.[path];
+    if (one === undefined) continue;
+    generated[path] = {
+      original: one.original,
+      at,
+      model: one.model,
+      seed: null,
+      unreviewed: false,
+    };
+  }
+
+  const setup = buildSetup(state.carry, request.include, request.texts, {
+    generated: Object.keys(generated).length === 0 ? null : generated,
+    companion: book === null ? null : { id: book.id, name: book.name },
+    at,
+  });
+
+  try {
+    await create(context.library, request.account, setup, SETUP_SCHEMA);
+  } catch (error) {
+    if (book !== null) {
+      await remove(
+        context.library,
+        request.account,
+        book.id,
+        book.contentHash,
+        LOREBOOK_SCHEMA,
+      ).catch(() => {
+        /* The Setup's failure is the one worth reporting; a stray book is visible. */
+      });
+    }
+    throw error;
+  }
+
+  return {
+    kind: 'saved',
+    setup: { id: setup.id, name: setup.name },
+    lorebook: book === null ? null : { id: book.id, name: book.name },
   };
 }
