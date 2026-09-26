@@ -164,8 +164,13 @@ describe('a turn that ran through a whole server', () => {
     await boot([{ stallMs: 20 }]);
     await takeATurn();
 
-    // The turn's own, by class. The picture's arrives separately and is waited
-    // for below rather than raced against here.
+    // The turn's own, by class — and **waited for rather than read**, because
+    // it is not in place when the head moves. `#announce` runs after
+    // `finaliseTurn`, which is what advances the head `takeATurn` watches, and
+    // it reads the session's name from disk before it notifies; under a full
+    // suite's load that read had not returned when the head was seen, and this
+    // found nothing. The picture's arrives separately and is waited for below.
+    await eventually(() => Promise.resolve(held().some((one) => one.class === 'turn.complete')));
     const completion = held().find((one) => one.class === 'turn.complete');
     expect(completion).toBeDefined();
     expect(completion?.params['sessionName']).toBe('The harbour');
