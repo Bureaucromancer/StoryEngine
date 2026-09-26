@@ -164,6 +164,26 @@ goes through `presentConnection`* — is not the rule. §2.2 is what it becomes.
   named here so that P2B's role table does not quietly present three layers as
   though they were the whole order.
 
+> ***CORRECTION, 2026-09-26: the second bullet's "at least the safe direction"
+> was true of `resolveRole` and false of the provider memo.*** Within the
+> author's own account, their file wins with their own key, as written. But
+> §1.3's memo was keyed on `connection.id` and shared by every account, so
+> whichever of the two claimants was built first was served to **both**. With
+> the personal file first, every other account whose role resolved to the system
+> connection sent its prompts to the planter's endpoint. With the system
+> connection first, the planter's file was silently ignored. The system ids that
+> make this plantable are on the wire to every account through `/api/me/roles`,
+> and a backup import that carries connections copies ids verbatim, so the file
+> did not even need a text editor.
+>
+> **Fixed by keying the memo on the connection's content** (`providers/factory.ts`,
+> `memoKey`), so two connections share a provider only when they would have
+> built indistinguishable ones. That also delivers hand edits to the next turn,
+> which under the id key only §2.4's form writes ever did. The collision itself
+> stays **reported, not refused**, per §2.3: `resolveConnections` returns it as
+> `shadowing`, and the runner logs a count as `connections.shadowing`. §1.3 and
+> §2.4 are left describing the id key, because that is what this phase built.
+
 ---
 
 ## 2. Decisions this plan had to make

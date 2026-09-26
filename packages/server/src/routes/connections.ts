@@ -640,7 +640,12 @@ async function respond(error: unknown, reply: FastifyReply): Promise<FastifyRepl
  * `presentConnectionsForAdmin` computes `shadowed` from the array it is given.
  * *The array here is the personal scope alone*, so a personal file shadowing a
  * **system** one reads as `shadowed: false` — correct, because it is the one
- * that wins.
+ * that wins. It wins for **this account only**, which was not true until the
+ * provider memo stopped keying on the id (`factory.ts`, `memoKey`): before
+ * that, whichever of the two was built first was served to every account.
+ * A create here mints a uuidv7 and cannot collide; one a person wrote by hand
+ * can, and `resolveConnections` reports it as `shadowing`, which the runner
+ * logs.
  */
 export function registerMyConnectionRoutes(app: FastifyInstance, services: AppServices): void {
   /**
@@ -689,8 +694,11 @@ export function registerMyConnectionRoutes(app: FastifyInstance, services: AppSe
 
     try {
       const written = await writeConnection(services.layout, mine.root, bodyToInput(request.body));
-      // The same invalidation the admin path does, for the same reason: the
-      // factory caches by connection id and a personal id is a connection id.
+      // The same invalidation the admin path does. The memo keys on a
+      // connection's content, so a changed file reaches a fresh provider
+      // without this; what it does is release the one the write replaced.
+      // It releases every scope's claimant of the id, so a personal save that
+      // collides with a system id costs that provider one rebuild.
       services.providers.invalidate?.(written.connection.id);
       return await reply
         .code(201)

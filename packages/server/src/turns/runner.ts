@@ -679,6 +679,26 @@ export class TurnRunner {
       );
     }
 
+    /**
+     * **A personal file claiming a system connection's id** — reported rather
+     * than refused (`ConnectionResolution.shadowing` says why at length).
+     *
+     * Harmless to everybody else since the provider memo stopped keying on the
+     * id, and that is exactly why it is worth a line: the only trace of
+     * somebody having *tried* the cross-account version is a file nobody chose,
+     * and this is where an operator would look for it. A `warn` where its
+     * sibling is an `info`, because a revoked capability is an admin's decision
+     * and this is nobody's. A count rather than names, for [09 §4.5]'s reason
+     * above, and silent when there is nothing to say for the reason its test
+     * gives — a line every turn would train an operator to stop reading it.
+     */
+    if (inputs.shadowing.length > 0) {
+      log?.warn(
+        { event: 'connections.shadowing', shadowing: inputs.shadowing.length },
+        'Personal connections reuse a system connection id: they win for this account',
+      );
+    }
+
     if (inputs.declaredMode !== mode.definition.id) {
       log?.warn(
         { event: 'mode.substituted', declared: inputs.declaredMode, using: mode.definition.id },

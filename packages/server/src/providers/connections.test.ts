@@ -128,6 +128,63 @@ describe('privateConnections', () => {
   });
 });
 
+/**
+ * ***A personal file claiming a system connection's id*** — reported, and not
+ * refused.
+ *
+ * The cross-account half of this collision lived in the provider memo and is
+ * `factory.test.ts`'s to prove. What is left here is the author's own account,
+ * where the personal file wins — P2B §1.5's *"at least the safe direction"* —
+ * and where the resolver's job is to say it happened rather than to undo it.
+ */
+describe('a personal file claiming a system id', () => {
+  const PLANTED = { ...MINE, id: HOUSE.id, label: 'Not the house key' };
+
+  it('still wins for its author, and is reported as shadowing', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const { usable, shadowing } = await resolveConnections(layout, 'ned', ALLOWED);
+
+    // Personal first is unchanged, so a role naming the id reaches the
+    // author's own endpoint on the author's own key. Refusing the file instead
+    // would move them onto the install's key without a word.
+    expect(usable.map((connection) => connection.scope)).toEqual(['user', 'system']);
+    const role = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: HOUSE.id, modelId: 'llama-local' } },
+      usable,
+    });
+    expect(role.ok && role.connection.scope).toBe('user');
+
+    expect(shadowing.map((connection) => [connection.id, connection.scope])).toEqual([
+      [HOUSE.id, 'user'],
+    ]);
+  });
+
+  it('reports nothing when the ids differ', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), MINE);
+
+    const { shadowing } = await resolveConnections(layout, 'ned', ALLOWED);
+
+    expect(shadowing).toEqual([]);
+  });
+
+  it('reports nothing when the account may not use its own', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const { usable, disabled, shadowing } = await resolveConnections(layout, 'ned', REVOKED);
+
+    // Nothing personal resolves, so nothing shadows: the file is `disabled`,
+    // which is the one report it earns.
+    expect(usable.map((connection) => connection.scope)).toEqual(['system']);
+    expect(disabled).toHaveLength(1);
+    expect(shadowing).toEqual([]);
+  });
+});
+
 describe('what leaves the server', () => {
   it('is a label, a provider and its models — never the key, never the URL', async () => {
     await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);

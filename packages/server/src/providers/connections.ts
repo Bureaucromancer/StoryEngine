@@ -93,6 +93,27 @@ export interface ConnectionResolution {
    * wondering why a model call started failing ([09 §4.5]).
    */
   disabled: Connection[];
+  /**
+   * Personal connections whose id a **system** connection also claims — so,
+   * resolution being personal first, the ones that shadow it for this account.
+   *
+   * ***Reported, not refused***, which is [P2B §2.3]'s posture on a duplicate id
+   * found on disk and [P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)'s
+   * before it. Refusing would be the wrong fix twice over. Since the provider
+   * memo stopped keying on the id (`factory.ts`, `memoKey`), a collision like
+   * this reaches nobody but its author: their bindings that name the id reach
+   * their own endpoint on their own key, which is P2B §1.5's *"at least the
+   * safe direction"* finally true. And dropping the file would move the author
+   * onto the install's key without a word, which is the silent half of the
+   * very bug that fix closed.
+   *
+   * What it still is, is *"not a thing anyone chose"* (§1.5) — a
+   * `writeConnection` create mints a uuidv7, so an id matching a system one
+   * got there by a hand edit or an archive — and so it is returned the way
+   * `disabled` is, for the caller to say so. Empty when `privateConnections` is
+   * off: nothing personal resolves then, so nothing shadows.
+   */
+  shadowing: Connection[];
 }
 
 /**
@@ -118,11 +139,16 @@ export async function resolveConnections(
   const system = await readConnectionsIn(layout, layout.systemConnectionsRoot, 'system');
 
   if (!capabilities.privateConnections) {
-    return { usable: system, disabled: personal };
+    return { usable: system, disabled: personal, shadowing: [] };
   }
+  const systemIds = new Set(system.map((connection) => connection.id));
   // Personal first: a personal binding wins over a system default, visibly and
   // switchably.
-  return { usable: [...personal, ...system], disabled: [] };
+  return {
+    usable: [...personal, ...system],
+    disabled: [],
+    shadowing: personal.filter((connection) => systemIds.has(connection.id)),
+  };
 }
 
 /**

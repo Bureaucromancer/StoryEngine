@@ -56,6 +56,11 @@ export interface AssemblyInputs {
   usable: Connection[];
   /** Personal connections this account may not use. The caller logs the count. */
   disabled: Connection[];
+  /**
+   * Personal connections whose id a system connection also claims, so they
+   * shadow it for this account. The caller logs the count, as for `disabled`.
+   */
+  shadowing: Connection[];
   bindings: RoleBindings;
   defaults: RoleBindings;
   mode: Mode;
@@ -210,7 +215,7 @@ export async function gatherAssemblyInputs(
    */
   const account = await context.accounts.find(request.account);
   const capabilities = account?.capabilities ?? { privateConnections: false };
-  const { usable, disabled } = await resolveConnections(
+  const { usable, disabled, shadowing } = await resolveConnections(
     context.sessions.layout,
     request.account,
     capabilities,
@@ -270,6 +275,7 @@ export async function gatherAssemblyInputs(
     channels,
     usable,
     disabled,
+    shadowing,
     bindings,
     defaults,
     mode,

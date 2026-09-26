@@ -160,10 +160,15 @@ describe('connections', () => {
 /**
  * **The writer owns the invalidation** — [P2B §2.4], and the gate's step 3.
  *
- * The memo keys on `connection.id` and had no invalidation, because until this
+ * The memo keyed on `connection.id` and had no invalidation, because until this
  * phase nothing could change a connection while the server ran. The analogue of
  * what P2A found in `applyLiveConfig`: a cache whose staleness was unreachable
  * while the surface that writes it did not exist.
+ *
+ * *It keys on the connection's content now* (`factory.ts`, `memoKey`), so an
+ * edit reaches a fresh provider on its own, and this call is what releases the
+ * provider the edit replaced. The assertion is unchanged, because the writer
+ * still owes the memo that call.
  */
 describe('the provider memo', () => {
   it('is dropped for the connection a write touched', async () => {
