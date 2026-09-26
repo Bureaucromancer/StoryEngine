@@ -833,6 +833,13 @@ through the store reader:
   - **The whole vault exports as a zip of a SQLite snapshot**
     (`services/backupService.ts:45`), zipped in native Rust. This is the heavy
     path: a zip reader plus a SQLite reader, and `node:sqlite` is already here.
+    *Surveyed 2026-09-26, and planned as [P13](30-p13-aventuras-import.md)'s
+    Part 1.* It is heavier than this bullet said in one direction and lighter in
+    another: the database runs in WAL mode and is often hundreds of megabytes of
+    base64 images, so the reader snapshots it with `VACUUM INTO` rather than
+    reading it; and the vault's rows are the objects the three converters below
+    already take, once they pass through Aventuras' row mappers — so most of the
+    work is transport. [01 §2](../01-source-survey.md) has the layout.
   - **There is a fourth, and P4.3 missed it** — *added 2026-09-01, at
     [18](../18-session-import.md)'s survey.* A single story exports as **`.avt`,
     one versioned JSON file** (`services/export.ts:28`, shape at
@@ -858,7 +865,9 @@ through the store reader:
   `VaultCharacter` → actor (its own shape, *not*
   V2 — the skeleton's "the other two orbit ST" holds for Marinara only);
   `Entry`'s static half → lorebook entries, its typed per-entry state being
-  channel-shaped P7 material; `PackTemplate` is **already Liquid** — no macro
+  channel-shaped P7 material *(true of a* story's *lorebook and of the file
+  export; a* vault *book stores the flatter `VaultLorebookEntry[]`, and the file
+  export converts it first — corrected 2026-09-26, [P13 §0.4](30-p13-aventuras-import.md))*; `PackTemplate` is **already Liquid** — no macro
   mapping needed, but its variables resolve against Aventuras' flat context
   namespace and need a mapping table onto ours (§1.6); `CustomVariable[]` is
   the shape `PresetVariable` was adopted from, so those carry 1:1 (and stay

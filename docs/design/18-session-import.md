@@ -21,6 +21,7 @@ arrival:
 | SillyTavern | `8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8` (v1.18.0) | 2026-07-07 |
 | Marinara Engine | `34442e26da577ff0d95ee890a87024e35831bfa9` (v2.4.3) | 2026-08-18 |
 | Aventuras | `8ae0d79a0df0745be3594fa5affcc98dd02c5a75` (v0.7.8) | 2026-08-16 |
+| Aventuras, again | `c43da108f6b3679950e76afe020f6b26abf0c9ce` (v0.7.11) | 2026-09-25 — §2.3's corrections and §2.3.1 only |
 
 The first and third match the commits [P4](workplan/16-p4-implementation.md)
 already cites; the second matches [01 §1](01-source-survey.md)'s on-disk survey.
@@ -208,6 +209,10 @@ chapters?, currentBgImage? }`, at `EXPORT_FORMAT_VERSION = '1.8.0'`, with the
 version history written into the file: nine versions, and every one after the
 first is a field added rather than a field changed. Images are base64 inside the
 JSON, injected natively from SQLite so the bytes never pass through the JS heap.
+*At `c43da108` the version is **1.10.0**: `packBinding` (the pack's identity and
+variable shape, never its templates) arrived at 1.9.0 and `timeAnchors` at
+1.10.0, both additions — so the paragraph's claim held through two more
+revisions.*
 
 **This is the shape [25 E4](25-open-questions.md) argues for, built by somebody
 else and working.** One documented target the app owns and versions, additive
@@ -232,8 +237,11 @@ of the three.
 
 **The history model is the closest of the three to ours.** `StoryEntry` is
 `{ id, storyId, type, content, parentId, position, createdAt, metadata, branchId,
-… }` with `type: 'user_action' | 'narration' | 'system' | 'retry'` — a real
-`parentId`, so the history is already a tree — and `Branch` is
+… }` with `type: 'user_action' | 'narration' | 'system' | ~~'retry'~~` —
+~~a real `parentId`, so the history is already a tree~~ *a `parentId` that is
+never written: every site that creates an entry sets it `null`
+(`stores/story.svelte.ts:864`, `:947`, `:5408` at `c43da108`), so the tree is
+rebuilt from the branches rather than read — §2.3.1* — and `Branch` is
 `{ id, storyId, name, parentBranchId, forkEntryId, checkpointId, createdAt,
 snapshotComplete }`, which is [07 §3](07-branching.md)'s `BranchRef` with a fork
 point attached. `EntryMetadata` carries `tokenCount`, `model`, `profileId`,
@@ -247,6 +255,55 @@ fabricated.
 the entry list, not a rename, and `type: 'retry'` is a third case that pairs with
 neither. Nothing is lost either direction; the point is that the arithmetic is not
 one-to-one and a plan that assumes it is will be wrong about its own size.
+
+*Corrected 2026-09-26, against `c43da108`.* **`'retry'` no longer exists**:
+Aventuras removed it at that commit (#535) as a type *"never written"*, so it was
+never a third case in anybody's data, and the pairing has two inputs rather than
+three. The `parentId` claim above was read from the type, not from the writers,
+which is the ordinary way a survey of a type definition goes wrong — the field is
+real and the tree it promises is not.
+
+#### 2.3.1 The database, and what a story is in it
+
+*Added 2026-09-26, for [P13](workplan/30-p13-aventuras-import.md), whose Part 2
+would build on it and is not scheduled.* §2.3 costed `.avt`; the database
+[01 §2](01-source-survey.md) now surveys holds the same rows, every story at once,
+and one fact §2.3 did not have.
+
+**The tree is the branches.** Main is the entries with `branch_id` null, in
+`position` order. A branch is its parent's lineage up to and including
+`fork_entry_id`, then its own rows — it owns only what it wrote, and continues
+its parent's positions from the fork, so sibling branches reuse numbers after
+it (Aventuras' `getStoryEntriesForBranch`, `database.ts:618`). A conversion
+builds main as a chain of turns and hangs each branch's first turn off **the
+turn that contains the fork entry** in its parent's lineage.
+
+**Pairing, and the one case that is not clean.**
+
+| Entries, in lineage order | Turn |
+|---|---|
+| `user_action`, then `narration` | one turn: `input` from the action (`original_input` as `raw` when a translation replaced it), `output` from the narration, its `reasoning` beside it |
+| a leading `narration` — the opening | a turn with no `input` |
+| a `user_action` nobody answered | `status: 'failed'`, `input` only |
+| a second `narration` in a row | a turn of its own, with no `input` |
+| `system` | open — a turn, or recorded |
+
+**A fork can fall between an action and its answer.** When `fork_entry_id` is a
+`user_action` whose narration is on the parent's side, the pair the fork splits
+is one turn on the parent and cannot be a parent to the branch. The branch's
+first turn then hangs off *that pair's parent* and re-pairs the forked action
+with the branch's own first narration — a sibling of the parent's turn, which is
+exactly what [07 §3](07-branching.md) says a regenerated answer is.
+
+**World state is copy-on-write, and resolves per branch.** A branch's cast is
+its lineage's `characters` with each row's `overrides_id` shadowing the row it
+names and `deleted` rows removed; `snapshot_complete` marks a branch that owns a
+complete copy and needs no lineage. One session has one cast, so a conversion
+resolves the head branch's and records where other branches differ.
+
+**What still has nowhere to go** is unchanged from §4: nothing here is lossy
+against the turn record, and everything that is not a turn — chapters,
+checkpoints, the time tracker, images — is §4's list and the phase's decision.
 
 ---
 
@@ -408,6 +465,17 @@ to schedule an importer at all — *"if nobody ever writes one that is a fine
 outcome."* Numbering this would contradict both, and the survey does not need a
 number to be useful. What it needed was to exist before P11 rather than after, and
 that is now true.
+
+***And P11 is past, and a number was given anyway*** — *2026-09-26.* The
+ordering above is satisfied: [P11.10](workplan/28-p11-implementation.md) shipped
+`storyengine.session-export/1` and its reader, so an importer aimed at the format
+is no longer a reader without a writer. [P13](workplan/30-p13-aventuras-import.md)
+gives Aventuras' stories stage headings — P13.10 to P13.15 — **and does not
+schedule them.** The number is for the headings, which
+`tools/citation-targets.test.ts` can only check under a phase name, and for
+P13's Part 1, which is card and lorebook import and was never this document's
+subject. The paragraph above stands for the stories: a number is not a
+commitment, and [25 E4](25-open-questions.md) records the shape they would take.
 
 **The one recorded way to reopen it earlier** is
 [P7 §1.10](workplan/23-p7-implementation.md)'s: *"a **format** argument rather

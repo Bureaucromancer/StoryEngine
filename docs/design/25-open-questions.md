@@ -1171,6 +1171,20 @@ reader for a format with no writer, which
 export format has to do if it is to be the target E4 describes, rather than a
 serialisation of our own records that happens to be written down.
 
+*The shape a source converter takes, now that the format exists — 2026-09-26,
+for [P13](workplan/30-p13-aventuras-import.md).* [P11.10](workplan/28-p11-implementation.md)
+wrote the format and its one reader, `importSession`, and the condition above is
+met. **What E4 protects is not "no per-source code"; it is "one reader".** A
+converter for one source that *emits* `storyengine.session-export/1` and hands it
+to `importSession` keeps that: the format stays the only target, the reader stays
+the only thing that writes a session from outside, and if the source moves and
+nobody follows, the converter is deleted and nothing else changes. A per-source
+*importer* — one that writes sessions itself — fails that test, and is still what
+this entry declines. [P12.8](workplan/29-p12-implementation.md)'s
+`backup/import.ts` is already the first producer. Aventuras' stories are headed
+as P13's Part 2 on this reading and **not scheduled**, so *"still not a
+commitment"* above is unchanged.
+
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
 formats that barely move. Session history is neither.

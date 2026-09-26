@@ -2822,6 +2822,13 @@ sessions sharing one is an immediate confusion. And a turn that already carries
 matters — a session that had travelled twice and claimed it came from the middle
 would be a provenance record that gets less true the more it is used.
 
+*A suspected defect in it, found 2026-09-26 and not yet reproduced —
+[P13 §0.4](30-p13-aventuras-import.md).* The kept turn ids keep their old
+`sessionId` too, and the turn index is written by that field: an import onto the
+install that exported it would point the original session's index rows at the
+copy. The test here imports onto the same install and never re-reads the
+original. [P13.0](30-p13-aventuras-import.md) writes the failing test first.
+
 ### P11.11 — Backup and restore
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:
