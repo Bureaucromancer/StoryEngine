@@ -784,16 +784,24 @@ composer's side: guidance outliving the turn it was typed for. The guided redo
 what was asked. *[06 §5.1, 10 §10, 07 §7]*
 
 **C15. Seven of the eight model roles cannot be reached. — OPEN, found by
-building something that asked for one** (2026-09-13,
-[P7.5](workplan/23-p7-implementation.md)). `MODEL_ROLES` has eight arms —
+building something that asked for one, and SHARPENED by E15** (2026-09-13,
+[P7.5](workplan/23-p7-implementation.md); sharpened 2026-09-26). `MODEL_ROLES`
+has eight arms —
 `prose`, `fast`, `reasoning`, `vision`, `image`, `video`, `speech`, `embedding` —
 and [19 §5.1](19-tech-stack.md) orders five resolution layers over them. **Every
 one of those layers is a binding for the role asked for**: `resolveRole` has no
 cross-role fallback, so a role nothing bound resolves `unbound` and the step
-fails. And nothing in the build binds anything but `prose`: no install default,
-no wizard, no route that suggests one. So a step declaring any other role fails
-on a stock install, every turn, and the hook selector was the first thing to
-declare one and discover it.
+fails. ~~And nothing in the build binds anything but `prose`: no install
+default, no wizard, no route that suggests one.~~ **Corrected 2026-09-26: there
+is a route that suggests one.** The first-run offer
+(`POST /api/admin/bindings/defaults`, [P2B](workplan/10-p2b-provider-configuration.md)
+stage P2B.4) spreads a good model and a cheap one across the five roles
+[19 §5.1](19-tech-stack.md)'s hi/lo table names, so an install whose admin
+accepted it has `fast`, `reasoning`, `vision` and `embedding` bound as well —
+and `vision` bound to the cheap *text* model. The premise holds for an install
+that declined the offer or wrote its bindings by hand. So a step declaring any
+other role fails on such an install, every turn, and the hook selector was the
+first thing to declare one and discover it.
 
 *The workaround is real and is what the selector does*: ask for `prose` and let
 an operator point the step at something smaller through `stepRoles`, which is
@@ -811,6 +819,24 @@ declares its own fallback chain (`fast → prose`, `reasoning → prose`,
 say *there is no sensible substitute for `vision`*. **Decide with the first step
 that genuinely cannot use `prose`**, which is an image or vision step rather than
 a cheaper text one. *[19 §5.1, 06 §6]*
+
+**SHARPENED 2026-09-26 by E15, which is that step.** Describing a picture the
+player attached cannot use a text model at all, and its needs add a fourth
+candidate. *(d)* **A capability-gated chain**: `vision` resolves to the first
+layer whose model — after the actor hint — is one its connection lists as
+seeing images; failing that, the same over `prose`; failing that, to nothing,
+which is a legal outcome for that step rather than a failure, because the
+player's caption carries the picture. *(d)* is *(c)* with the chain keyed on
+what the model can do instead of on which role was bound, and it is the only
+option that survives the correction above: every install that took the
+first-run offer already has `vision → lo` written into its bindings, and under
+*(a)*, *(b)* or a plain *(c)* that row would send pictures to a text model.
+Under *(d)* it is inert rather than wrong. **A discrepancy to settle, not a
+side to take here:** [19 §5.1](19-tech-stack.md) and `ROLE_TIER_DEFAULTS` put
+`vision` on *lo* alongside `fast` and `embedding`, while its own reason for
+leaving `image`, `video` and `speech` unset — *no sensible text-model fallback* —
+is true of `vision` too. It is harmless only because nothing calls `vision`, and
+nothing should until this is decided.
 
 **C16. A mode cannot declare a channel the engine computes for it. — OPEN,
 found by writing the second mode** (2026-09-13,
@@ -1629,3 +1655,240 @@ one of those, the nearest backends with real APIs and comparable output are Nano
 Banana Pro, FLUX through OpenRouter, and Stability — all of which
 [19 §5.6](19-tech-stack.md) already reaches.
 *[19 §5.6, 22 §11, 09 §1]*
+
+### E15. Images on the player's input — on the roadmap, and never a lock-in
+
+**Position: a High-tier roadmap feature ([24 §3.1](24-roadmap.md)), specified
+here because its one hard requirement is easy to get wrong and expensive to
+put right afterwards.** A player may attach one or more pictures to a move, and
+a model that can see them gets the pixels. **Having done that once must never
+confine a session to models that can.** Continuing, redoing, branching,
+summarising, exporting and importing all keep working on a text-only model
+afterwards — and on an install that has never had a model that sees at all.
+
+*Surveyed 2026-09-26, against the build as P12 left it.* No design note
+addressed image input before this entry. The `vision` role
+([19 §5.1](19-tech-stack.md)) is the only hook, and nothing calls it.
+
+**The engine already refuses to lock, and the design is about keeping that
+true.** Every model call re-resolves its role — `resolveRole`, through
+`planCall` — and records what it got as `ModelCall.resolved`
+([21 §1.4](21-internal-contracts.md)), precisely because the binding can change
+between turns. And history is re-collected from the `Turn` records on every
+call; nothing ever replays an earlier call's `messages`. So a session is not
+"on" a model at all, and there are only two ways images could change that.
+Both are leaks. One is image content getting into the strings the text pipeline
+runs on, where a text-only model cannot take it back out. The other is an image
+with no text form at all, which every text consumer would silently lose: the
+summariser, memory extraction, the lore scan, the index, the reading view, and
+the history collector, which already drops a half whose text is empty.
+
+**The invariant: an attachment annotates the player's move; it never replaces
+text, and it always has a text rendering.** Whether pixels are sent is decided
+**per call**, in `planCall` — the one place that holds the resolved model and
+its capabilities before anything is assembled, and where structured output
+already degrades the same way. No session, turn, binding or preset ever records
+that it is "multimodal", so there is nothing to be locked into.
+
+Attachments are **story input**. They land in history, and their text is what
+summaries, memory and exports carry — which is exactly
+[06 §5.1](06-modes-and-turn-pipeline.md)'s list of what happens to input. So an
+out-of-story picture — *"she looks like this"*, *"match this style"* — is a
+different feature: an image in the guidance slot, one-shot and advisory, which
+never re-enters history and is lock-in-safe by construction. It is R4 below,
+not this.
+
+**The text rendering has two sources and a floor.**
+
+- **The caption** is what the player wrote about the picture. It is on the turn,
+  immutable, and theirs; correcting it is a sibling, which is the tree's routine
+  for an edit.
+- **The description** is written by a model through the `vision` role, and it
+  lives **beside the turn**, keyed by the picture's digest and so shared across
+  siblings. That is [21 §7.2](21-internal-contracts.md)'s fork taken the same
+  way for the same reason: turn segments are never rewritten, so anything
+  produced after a turn commits cannot be added to its record. On the turn, a
+  description could never be written later, and two populations would stay
+  undescribed for good — everything attached before descriptions exist, and
+  everything attached on an install that only later gains a model that sees,
+  which is the more common direction. The server writes it, from the describe
+  call, with the model and usage that produced it. A client never asserts
+  provenance, on the reasoning that makes `rewriteOf` an id rather than a
+  claim. And a description the player edits before sending becomes their
+  caption, which is impersonate's rule: anything else takes authorship away.
+- **The floor** is an honest placeholder — *a picture the player showed, which
+  nothing has described*. It is a block with its own source, never message
+  content, and it is never hashed into a summary key or handed to the
+  summariser, memory, the lore scan or the index.
+
+**Describing is worth doing early, and it is never automatic.** Every text
+consumer needs the text whatever the narrator can do, and the model that sees
+may not be bound next month. But describing uploads the picture, possibly to a
+hosted endpoint, so it is an explicit action that names where the picture is
+going rather than a side effect of attaching one. And nothing may *require* it:
+[10 §11.1](10-ui-surfaces.md)'s *"Nothing may require a model call to proceed,
+ever"* holds here unchanged.
+
+***The quality argument points the same way.*** Few models tuned for roleplay
+see images at all, and whether pictures improve narration is something only
+real sessions will say. *Describe once with a model that sees, narrate with the
+one you like* is therefore probably the path most people take, and pixels to
+the narrator is the upgrade rather than the requirement. It is the path to tune
+first.
+
+**The send rule.** Pixels go for an attachment in a call only when all of these
+hold; otherwise its text goes instead, and the block records why.
+
+1. It is inside the **image window** — the current turn, until R3 widens it.
+2. The model the call resolved to — after the session and step overrides *and*
+   the actor hint — is one its connection lists as seeing images.
+3. It sits in a user-role message, since a system message cannot carry one.
+4. Its bytes are present. After an import, the ordinary state is that they are
+   not.
+5. Its kind is `image`. An unknown kind is text only, never pixels.
+
+The reason travels on the assembled block as a disclosure — sent, or withheld
+because the model is text-only, the attachment is outside the window, the bytes
+are missing, the message is not the player's, or the budget dropped it —
+rather than as a not-filled slot, because the attachment *did* emit something:
+its text. That keeps [00 §3.6](00-stance.md)'s question answerable. The
+workbench shows what was sent, and Play marks each attachment *sent as a
+picture* or *sent as its description*.
+
+**The summariser and memory extraction never see pixels, and not by rule.**
+Both bring their own text candidates, so the collector and the window never run
+for them. They read the caption and description. A summary unit's key gains
+those only for a turn that has attachments, so every existing chain keeps its
+key, and a re-description re-keys only the units it touches — regeneration, not
+data ([07 §5.1](07-branching.md)). The lore scan reads the caption as it reads
+input; scanning a model's description is opt-in, for 06 §5.1's reason.
+
+**Capability is per model, and has to be from the first tier.** Every
+capability so far is a property of the endpoint, which is why
+[21 §3](21-internal-contracts.md) makes them overridable per connection. Seeing
+images is a property of the *model*: one Ollama URL serves a vision model and a
+text one, and so does OpenRouter. A connection-wide flag is a lock-in bug with
+extra steps. Mark the connection for the describer, then rebind `prose` to a
+text model on the same connection — or let an actor hint pick one — and a redo
+of the image turn sends pixels to a model that refuses them, every time. So a
+connection lists **which of its models see images**, beside `models` and a
+subset of it, empty by default. Not inside `capabilities`: the connection
+editor keeps stored capability overrides across model edits, which would leave
+the list naming models that are gone, and
+[P2B §6.2](workplan/10-p2b-provider-configuration.md) already warns that the
+first capability to grow an object reopens the aliasing question. It is the
+first capability to depart from 21 §3's per-endpoint premise, and it should say so
+when it lands.
+
+**This is C15's trigger.** C15 says to decide role fallback *"with the first
+step that genuinely cannot use `prose`"*, and describing a picture is that step.
+It wants a fourth option, recorded there as *(d)*: `vision` resolves to the
+first layer whose model, after the hint, sees images; failing that, the same
+over `prose`; failing that, to nothing — which is a legal outcome here rather
+than a failure, because the caption or the placeholder carries the picture. C15
+also records that many installs already bind `vision` to a text model, which
+*(d)* makes inert rather than wrong.
+
+**Where the bytes live.** A new session directory, content-addressed and **not
+evictable**. Never `assets/`, which [03 §5.5](03-data-model.md) makes the one
+disposable directory on the strength of every file in it having a recipe (E3);
+an upload has none. Uploading is the library's two-step shape
+([10 §11.2b](10-ui-surfaces.md)) — bytes first, then ids in the ordinary JSON
+turn. A sweep of unreferenced uploads runs on age, never on commit, and counts
+every turn in every segment as a reference: walking the head path, the obvious
+reachability function, would delete a swipe's pictures. The browser re-encodes
+before upload and **fails closed** — it refuses rather than sends the original
+— because a phone photo carries where it was taken, and the server keeps its
+position of having no raster encoder. Re-encoding is also where a picture is
+scaled down to something worth paying a provider for.
+
+**The record.** All of it is optional, so all of it is addition under the
+freeze ([P11.10](workplan/28-p11-implementation.md): *a promise not to
+tighten*).
+
+- `Turn.input` gains `attachments?`: an id, an open `kind`, the digest, type,
+  size and dimensions the server read from its own store, and the caption. The
+  byte facts are optional, so an importer without the bytes can still say a
+  picture was there. It deliberately does not reuse the portable media types,
+  whose roles are a closed and published union, for the reason
+  `RenditionAsset` does not.
+- `input.text` stays the player's words and nothing else — no `[image]`
+  marker — so spans, summary keys and *annotate, never rewrite*
+  ([10 §13.1](10-ui-surfaces.md)) are untouched.
+- `RenderedMessage.content` stays the whole text rendering, which is the
+  contract [21 §2](21-internal-contracts.md) froze. An ordered `parts?` rides
+  beside it and names pictures **by digest**, so the call record stays small;
+  the bytes are loaded for the wire and never persisted. The adapter builds
+  array content only for a message carrying an admitted picture, because some
+  text-only endpoints reject arrays outright, and it inlines `data:` URLs,
+  because a local endpoint cannot reach this server.
+- The attachment is emitted as its own block from inside the existing `input`
+  and `history` expansions, as a new `part`, rather than as a new top-level
+  source — which [21 §1.1](21-internal-contracts.md)'s derivation would turn
+  into a slot any preset could position.
+- The SDK's `Candidate` gains an optional picture too. That is a change to a
+  published contract, and should be named as one when it happens.
+- The session export gains the descriptions kept beside the turns, optionally
+  and with no schema bump. A bump would make an older install refuse the file,
+  and refusing is worse than what an older install does with it.
+
+**What an older install does with it — honestly.** A pre-feature install
+imports the file and keeps the field, because readers carry what they do not
+recognise ([04 §2](04-schemas.md)). But it does not *read* it: its collector
+drops an image-only move from history, and its summaries skip one. That is lost
+meaning rather than lock-in — nothing asks for a model that sees — and an export
+containing attachments should say so. Third-party steps that read raw history
+see attachments only if they know the field; an SDK helper returning a move's
+words plus its text rendering is the cheap answer.
+
+**Feature tiers**, in build order, each useful without the next.
+
+- **R1 — attach, with a caption.** Storage, upload, serving, the sweep and the
+  fail-closed re-encode. Per-model image support and the send rule, current
+  turn only. `parts`, the byte loader, and a wire test asserting that the
+  picture actually leaves as a `data:` URL — this SDK has dropped a field in
+  silence before ([polish §8](workplan/06-polish.md)). The block disclosure;
+  thumbnails in Play, and pictures in the reading view with a placeholder
+  where the bytes are missing. Redo carrying attachments, because they are
+  input and not one-shot instruction — the line C14 draws for guidance. Export
+  and backup import carrying them.
+- **R2 — describe.** The `vision` call, once C15 is decided as *(d)*: an
+  explicit action, the description beside the turn, describing retroactively,
+  and its cost recorded — [24 §3.3](24-roadmap.md) already obliges 1.0 to record
+  assist-call cost, and this call joins that obligation.
+- **R3 — a wider window, and a budget.** Pictures from earlier turns, each its
+  own droppable block carrying a declared per-image token figure. The
+  budgeter's estimate is characters over four (E5) and a picture has none, so
+  where no figure is declared the fallback is a configured default marked
+  *image cost unknown* — never zero, and never a number this project made up,
+  which is why [21 §3](21-internal-contracts.md) leaves a limit it has not
+  verified *undeclared rather than defaulted*. Asking an endpoint which of its
+  models see images belongs here too, where endpoints will say; this entry has
+  not checked which do.
+- **R4 — the rest.** Paste and drop; guidance-slot pictures; export with the
+  pixels; and SillyTavern's chat-attached images on import, which waits on a
+  chat importer (E4) and on confirming the field, which this survey did not do.
+
+**What this obliges 1.0 to do: one thing worth acting on now, and three
+restraints.** The one thing is **a test that a turn carrying an unknown field
+inside `input` survives import and re-export unchanged.** [04 §2](04-schemas.md)
+already requires a newer file to survive a round trip through an older reader,
+and nothing asserts it for a nested field — the export tests check the fields
+the record knows. The restraints: `RenderedMessage.content` stays the whole text
+rendering, with anything else beside it; `input.text` stays the player's words;
+and `assets/` stays the renditions' disposable directory, so that anything a
+person made, which cannot be regenerated, gets a directory of its own. And one
+condition on whoever reaches for `vision` first: nothing calls it until its
+resolution asks whether the model can see.
+
+**Not this.** Lore and actor reference images sent to the narrator — that is
+the selector problem [24 §3.1](24-roadmap.md)'s lore-conditioned renditions row
+defers, and [10 §11.2b](10-ui-surfaces.md)'s *"they are not sent"* stays true of
+library pictures. Pictures out of the text model, which renditions already
+cover. Video, audio and documents: `kind` is held open for them, and nothing
+more.
+
+What moves it: C15 decided as *(d)*, which this entry is the occasion for; or
+somebody who plays with a model that sees wanting R1 enough to build it, which
+needs nothing else first.
+*[24 §3.1, 06 §5.1, 21 §2, 21 §3, 21 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 19 §5.1, C14, C15, E3]*
