@@ -682,3 +682,92 @@ component over a static list of control labels rather than over an index.
 **No schema change, no new contract, nothing hidden** — which is exactly this
 file's house rule, and is why the other two thirds of R3 are at
 [25 E10](../25-open-questions.md) instead.
+
+---
+
+## 13. A connection can be tried without taking a turn
+
+*Built 2026-09-26, routed here from
+[P2B §5](10-p2b-provider-configuration.md), which put it out of scope in so
+many words: "a connection health check beyond the model fetch — *is this key
+still good* is a live call with a cost, and it belongs with the connectivity
+work P10 does once P11's producer exists." Both have landed, and
+[P11.6](28-p11-implementation.md) gave `/models` the `offline` code this
+answers in.*
+
+**The condition it fixes.** The connections surface had one way to touch an
+endpoint — *ask it what it offers*, a `GET /models` — and that one sends only
+what is typed in the form, so it cannot use a stored key, and it never calls
+`/chat/completions` or `/images/generations`, which are the two calls a turn
+makes. So the first real evidence that a connection works was a failed turn.
+For pictures it was worse: `rendersImages` could only be set by editing the
+file, and [manual testing R10](05-manual-testing.md) — *an endpoint that serves
+the `image` role* — had no cheap way to be confirmed before P9's gate.
+
+**What shipped.**
+
+- A **Test** button on every connection row, admin and personal, opening a
+  panel with a model picker, an editable prompt that starts filled, and the
+  answer: the reply or the picture, how long it took, which model answered when
+  that is not the one asked for, and what it used.
+- A ***Makes pictures*** control in *What this endpoint can do*, merged over
+  what is stored the way *reports token counts* is. **Try a picture** is offered
+  only where it says yes, and the server refuses a picture anywhere else before
+  sending anything.
+- `POST /api/admin/connections/:id/test` and its personal twin
+  ([`api.md`](../../api.md)), and a `status` on `ProviderError` so a refused key
+  and a refused request — both `terminal` — can be told apart, which is finding
+  5 in the [P2C log](14-p2c-log.md) arriving at its second route.
+
+**Why it is polish and not a phase stage.** It changes what a person sees and
+does, it is bounded, and it needs no schema change — `rendersImages` has been a
+stored capability since [21 §3](../21-internal-contracts.md) — and no design
+contract: two routes in the model fetch's family, and an optional field on an
+internal class nothing in 21 specifies. [Item 8](#8-five-sampler-settings-the-adapter-drops)
+is the precedent for server work in this file. P10 and P11 are both merged, so
+a stage heading there would have claimed more than this is.
+
+**What it deliberately is not:**
+
+- **Not automatic.** It costs money, and a picture can cost more than a turn, so
+  it is a button a person presses and nothing else —
+  [10 §11.5](../10-ui-surfaces.md)'s first trap.
+- **Not a test of a turn.** It sends one user message, a completion ceiling of
+  256 and no sampler settings, through the non-streaming call. It proves the
+  key, the address and the model; it says nothing about a preset or about
+  streaming.
+- **Not a test of the form.** It tries what is *saved* — the stored key through
+  the same memoised provider a turn gets — and refuses a body carrying a key.
+  Unsaved edits are saved first. That keeps the key on the server and means a
+  pass is a promise about turns.
+- **Not recorded.** [10 §11.4](../10-ui-surfaces.md) says a model call that is
+  not a turn must still be recorded; nothing in this build records one, field
+  assists included, and a test button is not where a ledger should start. The
+  log line's token counts are the only trace, and that gap is §11.4's, not this
+  item's.
+
+**The model that thinks first.** The ceiling is 256 rather than something
+smaller because a reasoning model spends its first tokens where nobody sees
+them, and at a tiny cap it returns *no text, finished by length* — the exact
+shape of a broken endpoint. That answer is a `200`, and the panel says so in a
+sentence: the key, the address and the model all worked, and a turn gives it
+far more room.
+
+**A code/doc disagreement this found and does not fix.**
+`ProviderCapabilities.rendersImages`' docstring in `providers/types.ts`, and
+[21 §3](../21-internal-contracts.md) beside it, say the binding surface reads the
+flag. Nothing in the client does: the role table offers every connection for
+the `image` role. Filtering it is a role-table change with its own argument
+about what an unset `image` role should look like, and is left for that.
+
+**What the changelog will say**, parked here because
+`changelog.test.ts` refuses an `## Unreleased` section:
+
+- **A connection can be tried.** *Test* on any connection sends one short
+  message — or, where the connection makes pictures, one picture — using what
+  is saved, and says what came back or, in plain words, which field to go and
+  fix. *Makes pictures* is a setting on the connection at last.
+
+**What needs a person:** [sitting T](05-manual-testing.md) — a real hosted
+endpoint and a real local one, a wrong key, a model the endpoint does not
+serve, and R10 if one is to hand.

@@ -2255,7 +2255,7 @@ change do nothing.
   "apiKey": "sk-…",
   "baseUrl": "https://api.openai.com/v1",
   "models": ["gpt-hi", "gpt-lo"],
-  "capabilities": { "maxContextTokens": 32768, "reportsUsage": true }
+  "capabilities": { "maxContextTokens": 32768, "reportsUsage": true, "rendersImages": false }
 }
 ```
 
@@ -2271,12 +2271,17 @@ honours it — otherwise editing a label would silently delete the credential.
 stored, and it is merged rather than replaced, so an override written by hand for
 a capability the form has no control for survives a save. It was undocumented
 here until P2C, which meant the only way to find it was to read the route — and
-the settings form now offers the two an operator has a reason to set.
+the settings form now offers the three an operator has a reason to set.
 
-Those two are `maxContextTokens` and `reportsUsage`, and they are the two only
-the operator can know: **this build assumes a conservative context window**, and
-an endpoint that does not count tokens will make every figure in a turn record
-null. The rest of the capability shape travels untouched.
+Those are `maxContextTokens`, `reportsUsage` and — since
+[polish §13](design/workplan/06-polish.md) — `rendersImages`, and they are the
+ones only the operator can know: **this build assumes a conservative context
+window**, an endpoint that does not count tokens will make every figure in a
+turn record null, and whether the address behind `openai-compatible` also
+answers `/images/generations` is a fact about that endpoint rather than the
+protocol ([21 §3](design/21-internal-contracts.md)). Until the form offered
+`rendersImages` it could only be set by editing the file. The rest of the
+capability shape travels untouched.
 
 **A provider this build cannot construct is refused at save**, `400 unbuildable`,
 naming it. `KNOWN_PROVIDERS` carries capability defaults for five names and one
@@ -2325,6 +2330,13 @@ one case where that is exactly wrong is the endpoint answering perfectly well
 that the key is bad. Either way the body carries a class and never the
 endpoint's own words — those can echo the key being refused.
 
+**Nothing answering splits in two since [P11.6](design/workplan/28-p11-implementation.md)**:
+`502 offline` when the endpoint is remote *and* the update check has
+established this machine has no route out, `502 unreachable` otherwise — a
+local model server that does not answer is simply not running, and *nothing has
+looked yet* claims nothing about the network. The connection test below uses the
+same pair, from the same function.
+
 **An assist, not the path.** Typing a model id from memory is where *paste in one
 API key and take a turn* falls down, so this fills a picker from the endpoint's
 own `GET {baseUrl}/models`. A failed fetch is a notice rather than a blocked
@@ -2346,6 +2358,112 @@ safe*, and it is the true one.
 
 A `POST` that writes nothing, because it carries a key — and a key does not
 belong in a URL.
+
+### `POST /api/admin/connections/:id/test` · `POST /api/me/connections/:id/test`
+
+```json
+{ "kind": "text", "modelId": "gpt-hi", "prompt": "Say hello in one short sentence." }
+```
+
+One call to a **saved** connection, on demand —
+[polish §13](design/workplan/06-polish.md), and the health check
+[P2B §5](design/workplan/10-p2b-provider-configuration.md) deferred until the
+connectivity work existed. `kind` is `text` or `image`; `modelId` is not checked
+against the connection's `models`, because that list may be empty and *try this
+model before adding it* is one of the things a test is for; `prompt` is at most
+2,000 characters.
+
+```json
+{
+  "kind": "text",
+  "text": "Hello there.",
+  "modelId": "gpt-hi",
+  "finishReason": "stop",
+  "usage": { "promptTokens": 12, "completionTokens": 3 },
+  "cost": null,
+  "elapsedMs": 840
+}
+```
+
+```json
+{
+  "kind": "image",
+  "mime": "image/png",
+  "base64": "iVBORw0…",
+  "modelId": "gpt-image-1",
+  "seed": 1737849,
+  "cost": null,
+  "elapsedMs": 14300
+}
+```
+
+`modelId` is what the endpoint says answered, which may not be what was asked
+for. A picture comes back as base64 so a page can show it without anything
+being written; nothing here stores it.
+
+**What is tested is what is saved.** The connection is looked up by id and the
+provider comes from the same memoised factory a turn uses, so the stored key and
+address are used without the key ever reaching the client — and the body is
+**closed**: one carrying `apiKey` or `baseUrl` is `400 invalid`, not honoured. A
+pass means a turn will work. Under `--capture` the exchange is a cassette like
+any other, because it goes through the same transport.
+
+**The smallest question, once.** A message is asked with a completion ceiling of
+256 and no sampler settings at all — a preset's are the preset's — through the
+non-streaming call, so it proves the key, the address and the model, not the
+streaming path or a preset. The ceiling is not smaller because a model that
+thinks before it answers spends its first tokens where nobody sees them: at 32
+it returns empty text finished by `length`, a working connection that reads as a
+broken one. **An empty `length` reply is a `200`**, and the client says why.
+There is one attempt: a test that retried a 429 would hide the thing it exists
+to report.
+
+**A picture only where the connection says so** — `rendersImages` on its
+capabilities — checked before anything is sent. The request is a rendition's:
+a clock seed and an empty `workflow`.
+
+**The timeout is `limits.providerTimeoutMs`**, the one a turn obeys, and `0`
+means none. A local runtime's first request loads the model, which is why this
+is not the model list's ten seconds. A reverse proxy's own read timeout (nginx
+defaults to sixty seconds) can cut a slow picture off first; that surfaces as
+whatever the proxy answers, which the client reads as *did not come back with an
+answer this page understands*.
+
+| Status | `error` | When |
+|---|---|---|
+| `400` | `unbuildable` | a hand-written file names a provider this build has no adapter for |
+| `401` | `unauthorized` | the endpoint refused the key (`401` or `403` from it) |
+| `403` | `forbidden` | personal route, and the account lacks `privateConnections` |
+| `404` | `not-found` | no connection with that id **in this scope** |
+| `422` | `not-an-image-endpoint` | a picture, on a connection that does not say it makes them |
+| `502` | `busy` | the endpoint rate-limited or failed on its side (a `retryable` class) |
+| `502` | `offline` | nothing answered, the endpoint is remote, and this machine has no route out |
+| `502` | `unreachable` | nothing answered, otherwise |
+| `502` | `refused` | the endpoint answered and refused the request — most often a model it does not serve |
+| `504` | `timeout` | `providerTimeoutMs` passed without an answer |
+
+**The timeout is decided first**, because an aborted request looks `transient`
+from its message alone and would otherwise read as *unreachable* about an
+endpoint that was merely slow. Then the endpoint's status, because a refused key
+and a refused request are both `terminal` and point at opposite fields of the
+form. Every refusal is a class and a fixed sentence and **never the endpoint's
+own words**; those go to the log, as a `connection.tested` event, with the key
+redacted out of them. The log line never carries the prompt, the reply or the
+address.
+
+**It costs money, so it is a button and never automatic**
+([10 §11.5](design/10-ui-surfaces.md)). **And it records nothing**:
+[10 §11.4](design/10-ui-surfaces.md) says a model call that is not a turn must
+still be recorded, nothing in this build records one — field assists included —
+and a test is not the place to start a ledger. The log line's token counts are
+the only trace.
+
+**The personal twin** is the same route with one substitution: it resolves ids
+among the caller's own connections only, so an id that exists in the system
+scope or in somebody else's directory is `404`, and without `privateConnections`
+it is `403 forbidden` before anything is read. It can only reach a URL the
+caller already saved, so what it adds is the timing, not the reach. Both resolve
+a duplicated id to the file that wins, which is the one a turn would use.
 
 ### `GET /api/admin/bindings` · `PUT /api/admin/bindings`
 

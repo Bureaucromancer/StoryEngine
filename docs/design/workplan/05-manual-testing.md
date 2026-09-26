@@ -287,7 +287,10 @@ is below; this is the afternoon.*
    **Walk K first regardless:** K1 and K2 build the install F wants, so F is
    cheaper after K and duplicated work before it — and K1 discharges F0 outright.
 8. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
-   machine (R5) is; **H1 and H2** when there is an ubuntu box (R6).
+   machine (R5) is; **H1 and H2** when there is an ubuntu box (R6). **T** —
+   added 2026-09-26 — rides along with whichever of those first puts a real
+   endpoint in front of somebody: it is twenty minutes against R2 and R3, and
+   T5 is the cheapest way to find out whether an R10 candidate is one.
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
 sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
@@ -992,7 +995,7 @@ endpoint.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **O0** | **The install, and R10.** A connection whose endpoint answers image generation, saved with `rendersImages` set on it — [P2B](10-p2b-provider-configuration.md)'s per-connection capability override is where a person says so, because whether the URL behind `openai-compatible` also serves images is a fact about that endpoint. Bind the `image` role to it and the `fast` role to a chat model. Then open the Session panel's **Pictures** section and set *Illustrate the story* to **Every turn**. | R10 | |
+| **O0** | **The install, and R10.** A connection whose endpoint answers image generation, saved with `rendersImages` set on it — ~~[P2B](10-p2b-provider-configuration.md)'s per-connection capability override is where a person says so~~ ***the form's* Makes pictures *says so since [polish §13](06-polish.md)*** (2026-09-26; before it, only a hand edit to the file could), because whether the URL behind `openai-compatible` also serves images is a fact about that endpoint. ***Then press* Test → Try a picture *on its row before binding anything*** — a picture there confirms R10 for the price of one image, where O1 would spend a turn finding out. Bind the `image` role to it and the `fast` role to a chat model. Then open the Session panel's **Pictures** section and set *Illustrate the story* to **Every turn**. | R10 | |
 | **O1** | ***An image arrives and renders in place, and a reattached client finds it.* Only a person can walk it.** Take a turn; watch the **text** land and the turn finish, then watch the picture follow it seconds later. *The turn must be usable the whole time* — type the next one while the first picture is still being made. Then take another turn and **close the tab while it is generating**; reopen the session and check the finished picture is there. | P9 1, 2; **C1** | |
 | **O2** | ***The picture lands *in* the prose, at the sentence the moment call quoted.*** Read the paragraph. The image should sit **after the sentence it is of**, not underneath the message — and the workbench's **Pictures** section names the anchor it was given, so the two can be compared. Then **edit that message** so the quoted words are gone, and check the picture moves to the end and stays `ready`: *a miss is ordinary and must never be an error.* | P9 13, 14; **C2** | |
 | **O3** | **The remainder, cheap once O0 is up.** Press **Illustrate** on an old turn and check a **second** picture appears with the first still choosable; press **Set the scene** and check the backdrop stages behind the reading column without competing with the prose; turn *Illustrate the story* to **Never** and check Play looks like a text-only session. *All three are asserted by tests; what a person is here for is whether it looks like anything.* | P9 4, 12; §1.5's remainder | |
@@ -1152,6 +1155,28 @@ machine, or a process restarting.**
 genuinely large library is quick enough to be pleasant, and whether the
 `content-length` on a download survives a reverse proxy. Both extend the
 standing list below rather than gating the phase.
+
+### T — A connection, tried — *twenty minutes, and it wants R2 and R3*
+
+**[Polish §13](06-polish.md)'s *what needs a person***: the Test button on a
+connection row, against endpoints that are real. Every test of it runs against
+`FakeProvider` or a stub transport, which proves the route's vocabulary and not
+that a real endpoint's refusals land in it — and *which sentence a real 401
+produces* is the whole of what this button is for.
+
+***Why it is a sitting and not a critical row*** — Q's reason exactly. No phase
+gate owns it, and nothing here can lose data or take a one-way door: a test
+writes nothing, and the worst outcome is a sentence that sends somebody to the
+wrong field. It extends the standing list.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **T1** | **A hosted endpoint (R2).** Settings → the connection → **Test** → *Send a test message* with the offered prompt. A reply, a time, and a token sentence. **Open DevTools' network panel and read the request and the response: no key in either.** | [polish §13](06-polish.md) | |
+| **T2** | **Save a wrong key** on a copy of it and press Test. *That endpoint refused the key* — not *could not be reached*, which is finding 5 in the [P2C log](14-p2c-log.md) at its second route. | [P2C log](14-p2c-log.md) | |
+| **T3** | **A model it does not serve.** Add a nonsense id to the connection's *Models*, save, pick it in the test, and press Test. *Refused the request … check the model.* Write down what the endpoint actually answered with (the server log's `connection.tested` line has its words, key redacted) — if it is a 401 or a 5xx rather than a 400/404, this row's sentence is wrong for that endpoint. | [polish §13](06-polish.md) | |
+| **T4** | **A local runtime (R3).** With it stopped: *could not be reached*, and **never** *no internet access*. Start it with a model that is not yet loaded and press Test: it should wait rather than fail, and answer. If a reasoning model is to hand, try it: an empty reply should read *used the whole test allowance … all worked*, not as a failure. | [09 §6.5](../09-server-multiuser-deployment.md) | |
+| **T5** | **R10, if a candidate is to hand.** Save it with *Makes pictures* → **Yes**, then **Test → Try a picture** with the offered prompt. A picture on the page. Then set *Makes pictures* back to the default and confirm *Try a picture* is gone. | R10 | |
+| **T6** | **As a non-admin with `privateConnections`**, Test one of your own connections. It works, and the admin's connections are not offered at all. | [10 §15.1](../10-ui-surfaces.md) | |
 
 ## 5. Already discharged, and by what
 

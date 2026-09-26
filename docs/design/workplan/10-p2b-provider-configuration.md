@@ -677,9 +677,13 @@ Per-user connections and the personal-versus-system view in the user half
 explains why the fallback makes it less urgent rather than merely deferred);
 session and step overrides, which are plumbed into `resolveRole` and belong to
 P7 with the mode contract that would use them (§1.5); adapters for the four
-other names in `KNOWN_PROVIDERS` (§2.5); a connection health check beyond the
+other names in `KNOWN_PROVIDERS` (§2.5); ~~a connection health check beyond the
 model fetch — *"is this key still good"* is a live call with a cost, and it
-belongs with the connectivity work P10 does once P11's producer exists.
+belongs with the connectivity work P10 does once P11's producer exists.~~
+***Built 2026-09-26 as [polish §13](06-polish.md), once both preconditions had
+landed*** — a button on a saved connection, never automatic, answering in
+[P11.6](28-p11-implementation.md)'s vocabulary. *Struck rather than deleted,
+because the clause is why it waited.*
 
 Cost attribution per connection and the per-connection queue with a concurrency
 cap that [09 §4.5](../09-server-multiuser-deployment.md) raises as multi-user's
