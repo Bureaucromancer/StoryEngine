@@ -1079,6 +1079,10 @@ interface Setup {
   /** §7.1. Ordered: goals[0] is where play begins. Empty = no win condition,
    *  which is the deliberate opt-out rather than the default. */
   goals: Goal[]
+  /** §7.2. What had already happened — the new session's summary root. */
+  storySoFar?: string
+  /** §7.2. Hook ids already fired before play begins, from any source. */
+  spentHooks?: string[]
 
   tags: string[]
   media: EmbeddedMedia[]
@@ -1219,6 +1223,54 @@ not reach pacing at all.
 > substance — the dial did not inherit the problem — but for a new reason, and
 > the reason is worth the paragraph: the question was about where a value lives,
 > and P7 changed who may own a place for it to live.*
+
+### 7.2 A Setup made from a turn
+
+***Added 2026-09-26 at [P13](workplan/30-p13-implementation.md)***, which is
+where the *"running session can emit a Setup"* promised above was first built.
+
+**Made from a turn, not from a session**, because a session is a tree and a
+Setup is a starting point: the person picks the node they want to start from
+again, and everything below is read *at that node* — the state on that path,
+not the head's. The wizard condenses the story up to it, and what it writes is
+an ordinary Setup, editable in the library and shareable in a package like any
+hand-written one.
+
+**Two fields exist for it, and both are optional**, so neither is a `/2`
+change (§2):
+
+- **`storySoFar`** is the condensed history. A session started from the Setup
+  gets it as the **root of its rolling summary chain** — emitted by the preset's
+  `summary` slot as the oldest link, and folded in as `previous` by the first
+  link the summariser derives. That is [07 §5.1](07-branching.md)'s
+  `summary(n) = f(summary(n-1), turns)` with a seeded start rather than a second
+  mechanism, and it costs one condition: a preset with no enabled `summary` slot
+  never shows the model the root, which the wizard says out loud.
+- **`spentHooks`** lists the ids of hooks that had already fired. The pool is
+  rebuilt from the treatment and the lorebooks at session start, so a
+  treatment's hook that fired before the chosen turn would otherwise be in the
+  new pool fresh; the opening turn marks each one fired through the ordinary
+  effect path. Ids are portable because every copy of a hook keeps its source's
+  id ([15 §5.1](15-world.md)).
+
+**What else carries rides on fields this section already had.** The party at
+the turn is `cast.partyDefault`; the goal current at the turn is `goals[0]` and
+the achieved ones are dropped; the unfired hooks this Setup or the session
+authored are `hooks`, ids kept; and established facts, when kept, are a
+companion lorebook in `lore`. An opening the wizard writes is a written opening,
+and a session started from a Setup plays its primary one as an engine-written
+first turn ([03 §6](03-data-model.md)).
+
+**Channel state is not copied, and that is the rule.** Channel state is §1's
+*free to move* tier and this object is its *stable* one, so a Setup carrying raw
+channel values would freeze every engine channel's shape into a portable format
+by accident. Only what has a host-owned meaning on a Setup crosses. Presence,
+status and a dial's live value do not, and [P13 §1.2](workplan/30-p13-implementation.md)
+names each.
+
+**Distinct from a prologue package** ([25 B10](25-open-questions.md)), which is
+a partly-played *session* in a package. The trade is the opposite one: the
+history is condensed away and what travels is something that starts clean.
 
 ---
 

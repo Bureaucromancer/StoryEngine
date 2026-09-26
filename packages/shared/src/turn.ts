@@ -288,6 +288,23 @@ export type BlockSource =
    * navigation affordance no surface asks for yet.
    */
   | { kind: 'summary'; linkKey: string; range: [number, number] }
+  /**
+   * The root of the summary chain: what had already happened before this
+   * session's first turn — [04 §7.2](../../../docs/design/04-schemas.md),
+   * [P13.2](../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * **Its own arm rather than a `summary` with a sentinel range**, because it is
+   * not a link anybody's summariser wrote. It is authored prose — made by the
+   * *make a setup from here* wizard or typed into a Setup by hand — copied into
+   * the session with the Setup it came from, and a reader of the block table
+   * asking *where did this paragraph come from* needs the answer *the Setup*,
+   * not a range of turns that does not exist.
+   *
+   * `setupId` is the id of the Setup the session was started from, for the
+   * click-through `presetId` gives a preset block. The session holds a copy
+   * ([00 §3.1]), so the link can dangle and that is the ordinary reading.
+   */
+  | { kind: 'story-so-far'; setupId: string | null }
   // The two a slot can never name, because no preset positions them.
   /**
    * A block the preset authored, rather than a slot it positioned.
@@ -1041,6 +1058,24 @@ export interface Turn {
    * distinction every optional field on this record draws.
    */
   renditions?: RenditionReport;
+  /**
+   * ***This turn is an opening, written by the engine rather than generated*** —
+   * [03 §6](../../../docs/design/03-data-model.md),
+   * [P13.3](../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * **`id` is the `Opening` it came from**, on the Setup the session was
+   * started from. The turn carries the opening's text as `output`, has no
+   * `input`, made no call, and holds the effects that seed what the Setup
+   * carries — the party and the spent hooks — because [P7.4] said seeding the
+   * party *"needs a turn"* and this is the turn.
+   *
+   * **Absent on every other turn**, which is what makes it the marker the play
+   * surface reads to withhold redo: nothing generated an opening, so there is
+   * nothing to generate again. *Additive, which matters because the record has
+   * been exported since [P11.10] — an older reader carries it through
+   * untouched.*
+   */
+  opening?: { id: string };
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;

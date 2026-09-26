@@ -211,6 +211,37 @@ describe('writing samples are additive, so older files still validate', () => {
   });
 });
 
+describe('a setup made from a turn is additive too', () => {
+  /**
+   * [04 §7.2]'s two fields, `storySoFar` and `spentHooks`, and the same claim
+   * the writing samples make above: *new optional fields are free*, which is
+   * why `storyengine.setup/1` did not move to `/2` for them. Every Setup on
+   * disk today predates both — P7.4's *Save as a setup* has been writing them
+   * since 2026-09-12 — and none of them may start failing validation.
+   */
+  it('validates a Setup with neither field, which is every Setup written before P13', () => {
+    // Mutation: drop `Type.Optional` from either declaration and this fails.
+    expect(Object.hasOwn(library.setup, 'storySoFar')).toBe(false);
+    expect(Object.hasOwn(library.setup, 'spentHooks')).toBe(false);
+    expect(validate(library.setup)).toEqual({ valid: true });
+  });
+
+  it('accepts both populated, and refuses a spent hook that is not an id string', () => {
+    const made = {
+      ...library.setup,
+      storySoFar: 'Marlow took the ledger out of the Foundry and lost it again at the docks.',
+      spentHooks: ['hook-the-ledger-surfaces'],
+    };
+    expect(validate(made)).toEqual({ valid: true });
+
+    // The other half: the shape is an id list, not a list of hooks. A Setup
+    // that carried whole spent hooks would be carrying premises somebody wrote
+    // for a treatment into a file that travels without it.
+    const wrong = { ...made, spentHooks: [{ id: 'hook-the-ledger-surfaces' }] };
+    expect(validate(wrong).valid).toBe(false);
+  });
+});
+
 describe('timestamps', () => {
   it('accepts RFC 3339 and rejects prose', () => {
     expect(isTimestamp('2026-08-13T12:00:00.000Z')).toBe(true);

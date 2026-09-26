@@ -150,6 +150,42 @@ export const Setup = Type.Object(
     hookPacing: Type.Optional(HookPacing),
     stagingNotes: Type.Optional(Type.String()),
 
+    /**
+     * ***What had already happened*** — [04 §7.2](../../../../docs/design/04-schemas.md),
+     * added at [P13.1](../../../../docs/design/workplan/30-p13-implementation.md).
+     *
+     * **Set when a Setup is made from a turn of a running session**, and
+     * hand-writable like any other prose here. A session started from it gets
+     * this as the **root of its rolling summary**: the `summary` slot emits it as
+     * the oldest link from the first turn, and the first link the summariser
+     * derives folds it in as `previous` — [07 §5.1]'s chain with a seeded start
+     * rather than a second mechanism beside it.
+     *
+     * *Optional for `stagingNotes`' reason*: a required field added to a
+     * published `/1` is a `/2` change. Absent is a fresh start, and so is empty
+     * — nobody means *the story so far is nothing* by writing nothing.
+     */
+    storySoFar: Type.Optional(Type.String()),
+    /**
+     * ***Hooks that have already fired before play begins*** — [04 §7.2],
+     * [P13.1].
+     *
+     * **Ids, and the ids of every source's hooks**, not only this Setup's own.
+     * The hook pool is rebuilt from the treatment and the lorebooks when a
+     * session starts, so a treatment's hook that fired before the point this
+     * Setup was made from would otherwise be in the new pool fresh and fire a
+     * second time. A session started from this marks each one `fired` on its
+     * opening turn — through the ordinary effect path, so a rewind past the
+     * opening un-spends them like anything else.
+     *
+     * *Portable because hook ids are*: [15 §5.1](../../../../docs/design/15-world.md)
+     * obliges every copy of a hook to keep its source's id, so an id written
+     * here names the same hook in a package's treatment on another install. An
+     * id that names nothing in the pool is ignored rather than refused — a
+     * Setup whose treatment was swapped should still start.
+     */
+    spentHooks: Type.Optional(Type.Array(Type.String())),
+
     tags: Type.Array(Type.String()),
     /** See {@link TagIdList} — the registry side of `tags`. */
     tagIds: Type.Optional(TagIdList),
