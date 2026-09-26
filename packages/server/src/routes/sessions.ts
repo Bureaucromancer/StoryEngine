@@ -71,6 +71,7 @@ import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { exportSession } from '../sessions/export.js';
 import { importSession } from '../sessions/import.js';
+import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
@@ -82,6 +83,7 @@ import { PathEscapeError } from '../storage/paths.js';
 // is how a caller comes to learn *403 means the system library* from one route
 // and something else from another.
 import { respondToLibraryError } from './library.js';
+import { disconnectSignal } from './disconnect.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
@@ -2130,31 +2132,48 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { purpose } = request.body as { purpose?: 'illustration' | 'background' };
 
       /**
-       * **The client's disconnect cancels the moment call.** Fastify raises this
-       * when the socket closes, and a call nobody is waiting for is money spent
-       * on an answer that reaches nothing — the same judgement `performCall`'s
-       * idle timeout makes about an endpoint that has stopped talking.
+       * **The client's disconnect cancels the moment call**, because a call
+       * nobody is waiting for is money spent on an answer that reaches nothing.
+       * It is the same judgement `performCall`'s idle timeout makes about an
+       * endpoint that has stopped talking.
+       *
+       * *Read off the reply, through `disconnectSignal`.* This used to be
+       * `request.raw.on('close')`, which on a POST has already fired by the time
+       * a handler has awaited anything, so it never cancelled anything; that
+       * file has the measurements.
        */
-      const controller = new AbortController();
-      request.raw.on('close', () => {
-        controller.abort();
-      });
+      const signal = disconnectSignal(reply);
 
-      const made = await illustrateTurn(
-        {
-          sessions: services.sessions,
-          accounts: services.accounts,
-          providers: services.providers,
-          config: services.config,
-        },
-        {
-          handle: account.handle,
-          sessionId,
-          turnId,
-          purpose: purpose ?? 'illustration',
-          signal: controller.signal,
-        },
-      );
+      let made: Awaited<ReturnType<typeof illustrateTurn>>;
+      try {
+        made = await illustrateTurn(
+          {
+            sessions: services.sessions,
+            accounts: services.accounts,
+            providers: services.providers,
+            config: services.config,
+          },
+          {
+            handle: account.handle,
+            sessionId,
+            turnId,
+            purpose: purpose ?? 'illustration',
+            signal,
+          },
+        );
+      } catch (error) {
+        /**
+         * ***The cancellation this route caused ends here, silently.*** Nobody
+         * is there to read an answer, and rethrowing would reach
+         * `setErrorHandler` as an *Unhandled error*: a false alarm for every tab
+         * that closed, in the log a person reads when something is really
+         * wrong. Returning nothing to a destroyed socket is what Fastify itself
+         * does with one. Anything else, including a failure that merely
+         * coincides with the client leaving, still throws.
+         */
+        if (error instanceof Cancelled && signal.aborted) return;
+        throw error;
+      }
 
       if ('held' in made) {
         if (made.held === 'no-turn') {
@@ -2491,41 +2510,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const body = request.body as { actorId?: string };
 
       /**
-       * ***No timeout here, on purpose.*** `limits.providerTimeoutMs` is
+       * ***A draft nobody is waiting for is a draft nobody wants***, so the
+       * client leaving is what cancels one. The signal comes from
+       * `disconnectSignal`, for the reason the illustrate route gives.
+       *
+       * ***And no timeout here, on purpose.*** `limits.providerTimeoutMs` is
        * enforced inside `performCall`, per attempt, by `withIdleTimeout`, which
        * bounds **silence rather than duration** and reads `<= 0` as *switched
        * off*. Both are [21 §4]'s row and [P2C §1.3]'s semantics, and a draft
-       * goes through that helper like every other call.
-       *
-       * *This route used to add its own copy* as
-       * `AbortSignal.timeout(providerTimeoutMs)`, which broke both halves of
-       * that row. It was a wall-clock ceiling on top of the idle one, and when
-       * it fired it reported a hang as a cancellation rather than a stall. At
-       * zero it was `AbortSignal.timeout(0)`, which aborts on the next tick, so
-       * every draft failed for exactly the operators who had switched the bound
-       * off because their endpoint is slow.
-       *
-       * So the signal never aborts. Nothing on this route cancels a draft; in
-       * particular, a client that goes away does not, and that would be a
-       * change of its own rather than a line in this one.
+       * goes through that helper like every other call. This route used to add
+       * its own copy as `AbortSignal.timeout(providerTimeoutMs)`, which broke
+       * both halves of that row. It was a wall-clock ceiling on top of the idle
+       * one, and when it fired it reported a hang as a cancellation rather than
+       * a stall. At zero it was `AbortSignal.timeout(0)`, which aborts on the
+       * next tick, so every draft failed for exactly the operators who had
+       * switched the bound off because their endpoint is slow.
        */
-      const unbounded = new AbortController().signal;
+      const signal = disconnectSignal(reply);
 
-      const drafted = await impersonate(
-        {
-          sessions: services.sessions,
-          accounts: services.accounts,
-          providers: services.providers,
-          config: services.config,
-        },
-        {
-          account: account.handle,
-          sessionId: session.id,
-          parentTurnId: session.headTurnId ?? null,
-          ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
-          signal: unbounded,
-        },
-      );
+      let drafted: Awaited<ReturnType<typeof impersonate>>;
+      try {
+        drafted = await impersonate(
+          {
+            sessions: services.sessions,
+            accounts: services.accounts,
+            providers: services.providers,
+            config: services.config,
+          },
+          {
+            account: account.handle,
+            sessionId: session.id,
+            parentTurnId: session.headTurnId ?? null,
+            ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
+            signal,
+          },
+        );
+      } catch (error) {
+        // Swallowed only when this route caused it, as in the illustrate route.
+        if (error instanceof Cancelled && signal.aborted) return;
+        throw error;
+      }
 
       if (!drafted.ok) {
         /**

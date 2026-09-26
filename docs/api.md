@@ -773,6 +773,11 @@ install ([19 §5.1](design/19-tech-stack.md)), and `{ held: "no-moment" }` when
 the turn has no prose or the moment call declined. Both are answers to *can you
 make a picture*, not failed requests. A turn that does not exist is a `404`.
 
+**A client that disconnects before the answer is written cancels the moment
+call**, and nothing is recorded, because the `pending` record is written only
+once the moment has been chosen. A picture nobody is waiting for is a model call
+nobody reads.
+
 **It assembles from the turn's recorded state**, not from the head —
 [06 §10.6]'s standing `[OPEN]`, decided at [P9.4] and disclosed through the
 rendition's own prompt listing rather than through a setting.
