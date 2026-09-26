@@ -60,6 +60,7 @@ import { resolveConnections } from './providers/connections.js';
 import {
   dispatchRenditions,
   drainRenditions,
+  retryRendition,
   type RenditionWorkerContext,
 } from './renditions/worker.js';
 import { reconcileRenditionJobs } from './renditions/jobs.js';
@@ -183,6 +184,16 @@ export interface AppServices {
    * picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra steps.
    */
   drainRenditions: () => Promise<void>;
+  /**
+   * Runs a picture's recipe again — the retry route's path, [06 §10.2].
+   *
+   * ***Beside `renditions` rather than through it***, because a retry has an
+   * order the turn's dispatch does not: the job is claimed **before** the record
+   * is rewritten, so a retry that lands while the last try is still finishing
+   * is answered by that try instead of stranding a `pending` record with nobody
+   * behind it. `retryRendition` has the whole argument.
+   */
+  retryRendition: (account: string, sessionId: string, record: Rendition) => Promise<Rendition>;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -776,6 +787,8 @@ async function assembleWithState(
     runner,
     renditions: dispatch,
     drainRenditions: () => drainRenditions(renditions),
+    retryRendition: (account, sessionId, record) =>
+      retryRendition(renditions, account, sessionId, record),
     commit,
     providers,
     streams: new Set<() => void>(),

@@ -57,7 +57,6 @@ import { rememberThis } from '../memory/capture.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
-import { recreateRendition } from '../renditions/manual.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
 import { assetPath } from '../renditions/worker.js';
 import { readFileBytes } from '../storage/files.js';
@@ -2181,6 +2180,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * It is also the retry button [06 §10.2] promises: *"a failed rendition is a
    * placeholder with a retry button, never a failed turn."* Same route, because
    * they are the same act — a record with no pixels, run again.
+   *
+   * ***Each press is a new job with the next attempt number, and the job is
+   * claimed before the record is rewritten*** — `retryRendition` in
+   * `renditions/worker.ts`. A press that arrives while a try is still in flight
+   * is answered by that try, and gets the record back as it stands.
    */
   app.post(
     '/sessions/:sessionId/renditions/:renditionId/retry',
@@ -2204,13 +2208,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.code(404).send({ error: 'no-rendition', message: 'No such rendition.' });
       }
 
-      const again = await recreateRendition(
-        services.sessions.layout,
-        account.handle,
-        sessionId,
-        held,
-      );
-      services.renditions(account.handle, sessionId, [again], again.turnId);
+      const again = await services.retryRendition(account.handle, sessionId, held);
       // `202`, like the illustrate route one up and for the same reason: what
       // comes back is the record set to `pending`, and the pixels arrive on the
       // stream. A `200` would read as *here is your picture*.

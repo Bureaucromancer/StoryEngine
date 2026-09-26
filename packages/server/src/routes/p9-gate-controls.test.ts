@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Rendition } from '@storyengine/shared';
 
 import { FakeProvider } from '../providers/fake.js';
+import { pendingRenditionJobs } from '../renditions/jobs.js';
 import { readRenditions, writeRendition } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -390,6 +391,17 @@ describe('the recipe outlives the pixels', () => {
     });
     expect(asked.status).toBe(202);
     await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+    /**
+     * **And its job finished**, not only its file. The worker writes the record
+     * and then marks the job, and the write awaits a `stat` after its rename —
+     * so a retry pressed on the file alone can land while the first try is still
+     * live, and a retry is claimed against live jobs: it would be answered by
+     * the try that is finishing, and this test's retry would make no picture.
+     * `renditions/retry.test.ts` states the window; this closes it here.
+     */
+    await eventually(() =>
+      Promise.resolve(pendingRenditionJobs(server.services.state.db, sessionId).length === 0),
+    );
 
     const [made] = await renditionsOf();
     expect(made).toBeDefined();
