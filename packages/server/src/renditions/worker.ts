@@ -13,7 +13,12 @@ import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { ProviderError } from '../providers/types.js';
 import { readRendition, sessionAssetsRoot, writeRendition } from './store.js';
-import { enqueueRendition, setRenditionJobStatus, type RenditionJob } from './jobs.js';
+import {
+  enqueueRendition,
+  reconcileRenditionJobs,
+  setRenditionJobStatus,
+  type RenditionJob,
+} from './jobs.js';
 import { recreateRendition } from './manual.js';
 import type { DatabaseSync } from 'node:sqlite';
 
@@ -224,7 +229,7 @@ function launch(context: RenditionWorkerContext, job: RenditionJob): void {
  * finishes the record itself. *Nothing live*, and this call owns the next try:
  * the record goes back to `pending` and the job starts. A crash between the two
  * leaves the record `failed` with its button, and a crash after them is a live
- * job with a `pending` record, which boot recovery can see.
+ * job with a `pending` record, which {@link recoverRenditions} marks.
  *
  * *The recipe is replayed, never re-asked*: {@link recreateRendition} is gate
  * step 15's structural half, and this adds only the order it is called in.
@@ -257,6 +262,65 @@ export async function retryRendition(
   );
   launch(context, job);
   return again;
+}
+
+/**
+ * What a restart owes the pictures the last process was making — [P9.2].
+ *
+ * ***Two halves, and until 2026-09-26 only the first existed.***
+ * {@link reconcileRenditionJobs} abandons every job still live, which is
+ * `state/commit.ts`'s rule: *"recovery resumes finalisation, never generation"*,
+ * and a provider call that died with the process cannot be picked up. That
+ * settles the **store**. It did not settle the **record**, which is what a
+ * person is looking at — and a record left `pending` renders *"Making a picture
+ * of this…"* **with no retry button**, so every picture a restart interrupted
+ * became a placeholder nobody could press. Three comments said boot marked them
+ * `interrupted`; the client has had a sentence for that class since P9.4; and
+ * nothing wrote it.
+ *
+ * **So each interrupted job's record is marked the way {@link fail} marks one**:
+ * `failed`, a class in `error`, `asset: null`, the recipe untouched — [06 §10.2]'s
+ * *placeholder with a retry button*, which is what makes abandoning generation
+ * acceptable here when it would not be for a turn. And the person is told, the
+ * way `fail` tells them: a failure they did not watch happen is the one
+ * `artifact.ready` is most for.
+ *
+ * *Only a record still `pending` is touched.* One that already says `ready` or
+ * `failed` was written by the worker before it died between that write and the
+ * job's status — the record is right, and rewriting it would lose a picture.
+ *
+ * ***One bad record costs one picture, never the boot.*** Each is tried on its
+ * own and a failure is passed over, which is `store.ts`'s *every read failure
+ * is a miss* applied to the one caller that runs before anybody can see an
+ * error.
+ */
+export async function recoverRenditions(
+  context: RenditionWorkerContext,
+): Promise<{ interrupted: number; marked: number }> {
+  const { interrupted } = reconcileRenditionJobs(context.db);
+  let marked = 0;
+  for (const job of interrupted) {
+    try {
+      const record = await readRendition(
+        context.layout,
+        job.account,
+        job.sessionId,
+        job.renditionId,
+      );
+      if (record?.state !== 'pending') continue;
+      const failed: Rendition = { ...record, state: 'failed', asset: null, error: 'interrupted' };
+      await writeRendition(context.layout, job.account, job.sessionId, failed);
+      marked += 1;
+      context.changed?.(job.sessionId, failed);
+      context.settled?.(job.account, job.sessionId, failed);
+    } catch {
+      // Passed over, per the note above. The job is abandoned either way; a
+      // record that could not be read or written stays as it was — one picture
+      // this cannot mend, rather than a server that will not start. The log line
+      // shows it as `marked` falling short of `interrupted`.
+    }
+  }
+  return { interrupted: interrupted.length, marked };
 }
 
 /**
@@ -417,9 +481,11 @@ async function fail(
   try {
     await writeRendition(context.layout, job.account, job.sessionId, failed);
   } catch {
-    // A write that cannot land leaves the record pending on disk, which the next
-    // boot reconciles to `interrupted`. Losing the *job's* status too would lose
-    // the only remaining trace, so the status update below runs regardless.
+    // A write that cannot land leaves the record as it was on disk — `pending`,
+    // for a job that got this far. Losing the *job's* status too would lose the
+    // only remaining trace, so the status update below runs regardless. (It is
+    // not left for boot to find: this marks the job finished, and
+    // `recoverRenditions` reads live jobs only.)
   }
   setRenditionJobStatus(context.db, job.id, 'done', reason);
   context.changed?.(job.sessionId, failed);

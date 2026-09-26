@@ -96,7 +96,9 @@ export type RenditionState = 'pending' | 'ready' | 'failed';
  * something the client can render and the provider's own words go to the log.
  *
  * `interrupted` is the one this subsystem adds and it is not a provider
- * outcome: it is what a job found `running` at boot becomes. `state/commit.ts`
+ * outcome: it is what a job found live at boot becomes — its record as well as
+ * its row, which `recoverRenditions` in the server has done since 2026-09-26
+ * and nothing did before. `state/commit.ts`
  * says why that is the honest answer rather than a gap — *"recovery resumes
  * finalisation, never generation"* — and a provider call is not resumable while
  * a placeholder with a retry is pressable.

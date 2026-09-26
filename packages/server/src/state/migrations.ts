@@ -467,8 +467,8 @@ create index notification_unread on notification(account, read_at);
    *    with a null finish time and nothing else writes the column except on a
    *    terminal status — so the update is exact. Clearing it makes those rows
    *    live again, and since migrations run at open, before `buildApp`'s
-   *    recovery, the first boot of this build abandons them as `interrupted`:
-   *    the recovery they were owed on the day. What
+   *    recovery, the first boot of this build abandons them as `interrupted`
+   *    and marks their records: the recovery they were owed on the day. What
    *    the update loses is the *previous* try's finish time, which the row had
    *    already stopped being about; the healed row keeps `attempt = 1`, because
    *    the true count was never recorded and inventing one would be worse.

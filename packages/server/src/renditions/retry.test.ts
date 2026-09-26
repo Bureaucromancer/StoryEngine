@@ -9,10 +9,19 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Rendition } from '@storyengine/shared';
 
 import { FakeProvider, type ScriptedImage } from '../providers/fake.js';
+import { listNotifications } from '../state/notifications.js';
+import { openState } from '../state/open.js';
 import { Layout } from '../storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { jobForRendition, pendingRenditionJobs } from './jobs.js';
-import { readRenditions } from './store.js';
+import {
+  enqueueRendition,
+  jobForRendition,
+  pendingRenditionJobs,
+  readRenditionJob,
+  setRenditionJobStatus,
+} from './jobs.js';
+import { recreateRendition } from './manual.js';
+import { readRendition, readRenditions } from './store.js';
 
 /**
  * ***The retry button, end to end*** — [06 §10.2](../../../../docs/design/06-modes-and-turn-pipeline.md)'s
@@ -252,5 +261,108 @@ describe('retrying a failed picture', () => {
     await server.dispose();
     // The refused first try, and exactly one retry.
     expect(fake.images).toHaveLength(2);
+  });
+});
+
+describe('a retry the process died holding', () => {
+  /**
+   * ***The restart case, which is where a job nobody can see costs something.***
+   *
+   * **The kill is staged rather than performed**, and the staging is exact. A
+   * rendition has no `halt()` — `dispose` drains every picture, correctly, since
+   * 2026-09-17 — so a real mid-render kill is not something this harness can
+   * do. What it can do is leave the store exactly as a kill would: the record
+   * rewritten to `pending` by the retry route's own writer, and the retry's job
+   * taken and set `running` by the worker's own calls. On the build this was
+   * written against, those same calls produce the defect's actual signature —
+   * the first try's row, `running`, with `finished_at` still set — which is what
+   * makes this a reproduction rather than a description.
+   *
+   * ***And what recovery owes the person, not only the store.*** Abandoning the
+   * job is half of it. The record is what a person is looking at, and a record
+   * left `pending` renders *"Making a picture of this…"* **with no retry
+   * button** — so until boot marks it, a restart during a picture leaves a
+   * placeholder that can never be pressed. The client has had a sentence for
+   * `interrupted` since P9.4, and nothing had ever written one.
+   */
+  it('is abandoned at the next boot, and the picture can be retried again', async () => {
+    await boot([REFUSED]);
+    const failed = await aFailedPicture();
+    const told = (): number =>
+      listNotifications(server.services.state.db, 'ned')
+        .filter((one) => one.class === 'artifact.ready' && one.params['outcome'] === 'failed')
+        .reduce((sum, one) => sum + one.folded, 0);
+    const toldBefore = told();
+    await server.dispose();
+
+    // The crash, staged with the writers the retry path uses.
+    const layout = new Layout(dataDir);
+    await recreateRendition(layout, 'ned', sessionId, failed);
+    const state = await openState({ path: layout.stateFile });
+    let retried: string;
+    try {
+      enqueueRendition(state.db, {
+        sessionId,
+        account: 'ned',
+        renditionId: failed.id,
+        turnId: failed.turnId,
+        purpose: failed.purpose,
+      });
+      const job = jobForRendition(state.db, failed.id);
+      if (job === null) throw new Error('the retry took no job');
+      setRenditionJobStatus(state.db, job.id, 'running');
+      retried = job.id;
+    } finally {
+      // Closed before the next server opens the same file — a second handle on
+      // a WAL database is fine on Linux and an `EBUSY` on Windows.
+      state.close();
+    }
+
+    fake = new FakeProvider({ images: [{}], capabilities: { rendersImages: true } });
+    server = await makeTestServer({ dataDir, providers: () => fake });
+
+    // **The record**, which is what the person sees: failed, with the class a
+    // client renders as *the server restarted*, and the recipe intact so the
+    // button in front of it has something to run.
+    const marked = await readRendition(
+      server.services.sessions.layout,
+      'ned',
+      sessionId,
+      failed.id,
+    );
+    expect(marked?.state).toBe('failed');
+    expect(marked?.error).toBe('interrupted');
+    expect(marked?.asset).toBeNull();
+    expect(marked?.prompt).toEqual(failed.prompt);
+    expect(marked?.provenance.seed).toBe(failed.provenance.seed);
+
+    // **The job**, which is what recovery reads.
+    const job = readRenditionJob(server.services.state.db, retried);
+    expect(job?.status).toBe('abandoned');
+    expect(job?.error).toBe('interrupted');
+    expect(job?.finishedAt).not.toBeNull();
+
+    // **And the person is told**, the way `fail()` tells them: a failure they
+    // did not watch happen is the one a notification is most for.
+    expect(told()).toBe(toldBefore + 1);
+
+    // The placeholder's button works: signed in again, because a restarted
+    // server is a new process and the browser a separate thing.
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'ned', password: PASSWORD },
+    });
+    const again = await retry(failed.id);
+    expect(again.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready', {
+      describe: async () =>
+        JSON.stringify((await renditionsOf()).map((one) => [one.state, one.error])),
+    });
+    await eventually(() =>
+      Promise.resolve(jobForRendition(server.services.state.db, failed.id)?.status === 'done'),
+    );
+    // Third: the refusal, the one the crash took, and this one.
+    expect(jobForRendition(server.services.state.db, failed.id)?.attempt).toBe(3);
   });
 });

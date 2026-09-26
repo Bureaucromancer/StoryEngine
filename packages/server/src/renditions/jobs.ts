@@ -286,8 +286,11 @@ export function pendingRenditionJobs(db: DatabaseSync, sessionId: string): Rendi
  * answer to every other way this goes wrong, and the reason §1.4's *the hook
  * ships, the policy does not* is enough.
  *
- * Returns the rendition ids, so the caller can mark the records as well as the
- * jobs: a job row nobody can see is not what a person is looking at.
+ * Returns the jobs, so the caller can mark the records as well as the jobs: a
+ * job row nobody can see is not what a person is looking at. `recoverRenditions`
+ * in `worker.ts` is that caller — until 2026-09-26 nothing was, and a picture
+ * the process died making stayed `pending` on disk, which the client renders
+ * with no retry button at all.
  */
 export function reconcileRenditionJobs(
   db: DatabaseSync,
