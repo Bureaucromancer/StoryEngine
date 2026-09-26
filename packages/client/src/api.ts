@@ -1834,6 +1834,68 @@ export function illustrateTurn(
   );
 }
 
+/**
+ * ***Make a setup from here*** — [04 §7.2](../../../docs/design/04-schemas.md),
+ * [P13.6](../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * The parts the wizard drafts, each its own call with its own outcome. A part
+ * that failed carries a **class**, never prose — [01 §2]'s rule, so the wizard
+ * says what to do about it in its own words.
+ */
+export type SetupPart = 'storySoFar' | 'opening' | 'title' | 'facts';
+export type SetupPartRefusal = 'role-unbound' | 'role-dangling' | 'call-failed' | 'no-answer';
+export type SetupPartOutcome<T> =
+  { ok: true; value: T; model: string | null } | { ok: false; reason: SetupPartRefusal };
+
+/**
+ * ***What the Setup would carry, redacted.*** Names and counts: an unfired
+ * hook's premise and a hidden goal's statement never leave the server, so the
+ * wizard can say *three hooks carry forward* and nothing about them.
+ */
+export interface SetupCarryPreview {
+  mode: string;
+  treatment: string | null;
+  preset: string | null;
+  persona: string | null;
+  party: string[];
+  goals: {
+    carried: 'carried' | 'none' | 'open' | 'concluded';
+    current: { statement: string } | { hidden: true } | null;
+    count: number;
+    hidden: number;
+  };
+  hooks: { carried: number; spent: number };
+  lore: string[];
+}
+
+export interface SetupDraft {
+  carry: SetupCarryPreview;
+  warnings: 'no-summary-slot'[];
+  parts: {
+    storySoFar?: SetupPartOutcome<string>;
+    opening?: SetupPartOutcome<string>;
+    title?: SetupPartOutcome<{ name: string; blurb: string }>;
+    facts?: SetupPartOutcome<{ text: string; keys: string[] }[]>;
+  };
+}
+
+/** Drafts the named parts of a Setup made from this turn. Writes nothing. */
+export function draftSetupFromTurn(
+  sessionId: string,
+  turnId: string,
+  body: {
+    parts: SetupPart[];
+    guidance?: Partial<Record<SetupPart, string>>;
+    openingFrom?: 'scene' | 'verbatim';
+  },
+): Promise<{ draft: SetupDraft }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/setup-draft`,
+    body,
+  );
+}
+
 /** Chooses which of a turn's renditions is shown — [06 §10.7]. */
 export function selectRendition(
   sessionId: string,

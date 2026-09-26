@@ -61,6 +61,7 @@ import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { recreateRendition } from '../renditions/manual.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
+import { draftSetupFromTurn, SETUP_PARTS } from '../turns/condense.js';
 import { assetPath } from '../renditions/worker.js';
 import { readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
@@ -122,6 +123,31 @@ const SelectRenditionBody = Type.Object({ renditionId: Type.String({ minLength: 
 const IllustrateBody = Type.Object({
   purpose: Type.Optional(Type.Union([Type.Literal('illustration'), Type.Literal('background')])),
 });
+
+/**
+ * ***Which parts of a Setup to draft, and how*** — [P13.6](../../../../docs/design/workplan/30-p13-implementation.md).
+ *
+ * `parts` names what to (re)generate, so *Regenerate* on one section is this
+ * request with one part named. `guidance` is a person's steer for a part and is
+ * bounded like the redo's. `openingFrom: 'verbatim'` is the narrator's last
+ * words at the turn, which costs no call.
+ */
+const SetupPart = Type.Union(SETUP_PARTS.map((part) => Type.Literal(part)));
+const SetupDraftBody = Type.Object(
+  {
+    parts: Type.Array(SetupPart, { minItems: 1, maxItems: SETUP_PARTS.length, uniqueItems: true }),
+    guidance: Type.Optional(
+      Type.Partial(
+        Type.Object(
+          Object.fromEntries(SETUP_PARTS.map((part) => [part, Type.String({ maxLength: 2000 })])),
+        ),
+        { additionalProperties: false },
+      ),
+    ),
+    openingFrom: Type.Optional(Type.Union([Type.Literal('scene'), Type.Literal('verbatim')])),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * A channel write addresses the **map key**, not the channel id — [P7.1].
@@ -2260,6 +2286,73 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       services.renditions(account.handle, sessionId, [made.rendition], turnId);
       return reply.code(202).send({ rendition: made.rendition });
+    },
+  );
+
+  /**
+   * ***Make a setup from here: the draft*** — [04 §7.2], [16 §3],
+   * [P13.6](../../../../docs/design/workplan/30-p13-implementation.md).
+   *
+   * **Writes nothing.** What comes back is for a person to read, edit and keep
+   * or discard — the story so far, an opening, a name and blurb, candidate
+   * facts, each its own call and each with its own outcome — beside a
+   * **redacted** preview of what the Setup would carry. The commit beside this
+   * route recomputes that carry itself, so nothing hidden ever has to make a
+   * round trip through the browser.
+   *
+   * *A part that failed is a 200 with its reason*, not an error, for
+   * illustrate's reason: *nothing is bound to the prose role* and *the
+   * endpoint fell over* are answers to *can you draft this*, and the parts that
+   * succeeded are worth having beside the one that did not.
+   *
+   * ***Cancelled when the browser goes away, read off the response.*** The
+   * request's own `close` is the wrong event — since Node 16 it fires once the
+   * body has been read, which under Fastify is before this handler has done
+   * anything, and a controller wired to it aborts every call it guards. The
+   * response closing before it finished is the disconnect.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/setup-draft',
+    { schema: { params: TurnRenditionParams, body: SetupDraftBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const body = request.body as {
+        parts: (typeof SETUP_PARTS)[number][];
+        guidance?: Partial<Record<(typeof SETUP_PARTS)[number], string>>;
+        openingFrom?: 'scene' | 'verbatim';
+      };
+
+      const controller = new AbortController();
+      reply.raw.on('close', () => {
+        if (!reply.raw.writableFinished) controller.abort();
+      });
+
+      const draft = await draftSetupFromTurn(
+        {
+          sessions: services.sessions,
+          accounts: services.accounts,
+          providers: services.providers,
+          config: services.config,
+        },
+        {
+          account: account.handle,
+          sessionId,
+          turnId,
+          parts: body.parts,
+          ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+          ...(body.openingFrom === undefined ? {} : { openingFrom: body.openingFrom }),
+          signal: controller.signal,
+        },
+      );
+
+      if ('held' in draft) {
+        return reply.code(404).send({ error: 'no-such-turn', message: 'No such turn.' });
+      }
+      return reply.send({ draft });
     },
   );
 

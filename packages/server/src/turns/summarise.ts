@@ -187,13 +187,7 @@ export function summarise(context: SummariseContext): {
       const summariser: Summariser = {
         key: context.key,
         run: async ({ previous, units }) => {
-          const result = await host.call({
-            candidates: [
-              block('se.summary.task', 'system', SUMMARISE_PROMPT),
-              ...(previous === null ? [] : [block('se.summary.previous', 'user', previous)]),
-              block('se.summary.turns', 'user', renderUnits(units)),
-            ],
-          });
+          const result = await host.call({ candidates: summaryCandidates(previous, units) });
           return result.text.trim();
         },
       };
@@ -214,6 +208,28 @@ export function summarise(context: SummariseContext): {
 }
 
 /**
+ * ***What one link's call is handed*** — the task, the link before it, and the
+ * turns it covers.
+ *
+ * **Exported at [P13.6](../../../../docs/design/workplan/30-p13-implementation.md)
+ * so a second caller derives links byte for byte as this step does.** *Make a
+ * setup from here* extends a session's chain up to the turn it was asked about,
+ * under this step's key; a link it writes is read back by this step on the next
+ * turn by its content address, so a link it wrote with different candidates
+ * would be a file whose key promises words it does not hold.
+ */
+export function summaryCandidates(
+  previous: string | null,
+  units: readonly SummaryUnit[],
+): Candidate[] {
+  return [
+    block('se.summary.task', 'system', SUMMARISE_PROMPT),
+    ...(previous === null ? [] : [block('se.summary.previous', 'user', previous)]),
+    block('se.summary.turns', 'user', renderUnits(units)),
+  ];
+}
+
+/**
  * The turns a link covers, as one block.
  *
  * **Reads `said` and `replied` rather than the unit's key input**, which is the
@@ -224,7 +240,7 @@ export function summarise(context: SummariseContext): {
  * The player's line is quoted and the reply is not, so a model can tell an
  * instruction from narration without being told which is which.
  */
-function renderUnits(units: readonly SummaryUnit[]): string {
+export function renderUnits(units: readonly Pick<SummaryUnit, 'said' | 'replied'>[]): string {
   return units
     .map((unit) =>
       [unit.said === '' ? '' : `> ${unit.said}`, unit.replied]

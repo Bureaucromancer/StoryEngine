@@ -1086,7 +1086,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, hooks? }`
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, opening?, hooks? }`
 → `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -1149,6 +1149,22 @@ cannot reach a running game — the same asymmetry the preset has. `422
 unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
 is a session missing a book and is accepted, but a dangling Setup is a session
 that would be created as something other than what was asked for.
+
+**A Setup's opening is the session's first turn**, since P13.3
+([03 §6](design/03-data-model.md)). `opening` chooses which: absent is the
+Setup's primary written opening, a string names one of its written openings, and
+`null` starts cold. The turn carries the opening's text as `output`, no `input`,
+`opening: { id }`, and the effects that seed what the Setup carries — its
+`cast.partyDefault` made `companion` on `se.party` (and seated in `cast.actors`),
+and each of its `spentHooks` that the pool holds marked `fired` on `se.hook`. A
+Setup with no opening and nothing to seed writes no turn. `422 unknown-opening`
+for an id the Setup does not hold, or for any `opening` sent without a `setup`.
+A generating mode's setup turn is the opening's child. The session in the `201`
+is the one **after** the append, so its `headTurnId` already names the opening.
+
+A redo or rewrite naming an opening (`redoOf` / `rewriteOf` on the turn route)
+is `422 opening-turn`: nothing generated it, so there is nothing to generate
+again.
 
 **`hooks` are the session's own plot hooks**, added at P7.4's successor stage —
 [03 §4.1](design/03-data-model.md)'s fourth source, which that section calls the
@@ -1353,6 +1369,41 @@ it about, arriving through the error path of the route whose whole reason for
 being server-side is that redaction. Nothing is lost by withholding it: the
 client has never held the hook, so there is no *reapply my edits* it could offer,
 and *try again* is the whole of the recovery.
+
+### `POST /api/sessions/:sessionId/turns/:turnId/setup-draft`
+
+`{ parts: ('storySoFar' | 'opening' | 'title' | 'facts')[], guidance?, openingFrom? }`
+→ `200 { draft: { carry, warnings, parts } }`. **The draft of *make a setup from
+here*, and it writes nothing** — P13.6,
+[04 §7.2](design/04-schemas.md). `404 no-such-turn` for a turn not in the
+session.
+
+**Each part is its own call with its own outcome** — `{ ok: true, value, model }`
+or `{ ok: false, reason }`, where `reason` is `role-unbound`, `role-dangling`,
+`call-failed` or `no-answer` — so a failed part is a `200` beside the parts that
+succeeded rather than an error that loses them. `title`'s value is
+`{ name, blurb }`; `facts`' is `{ text, keys }[]`, drafted with the memory
+extractor's own prompt and minus anything a linked book already says. The parts
+run one after another in that fixed order. `guidance` is a person's steer,
+keyed by part and at most 2000 characters each, and reaches only the part it
+names. `openingFrom: 'verbatim'` answers `opening` with the narrator's last words
+at the turn and makes no call.
+
+**What the model is shown is what the player saw**: the transcript up to the
+turn, and the session's own summary chain built from it — extended under the
+session's own summariser key, so links already on disk are read rather than
+re-derived and a link this writes is one the runner would have written. No
+hidden channel, unfired hook or hidden goal reaches these prompts.
+
+**`carry` is redacted**: the configuration and the party by name, the goal play
+would begin on as `{ statement }` only when a player may read it (else
+`{ hidden: true }`), and hooks as counts — `{ carried, spent }`. `warnings`
+holds `no-summary-slot` when the session's preset positions no summary, so a
+session started from the Setup with the same pack would never show the model the
+story so far.
+
+The step every part dispatches as is `se.condense`, `prose`-role, so a session's
+`stepRoles` can send it to a different model from the narration.
 
 ### `PUT /api/sessions/:sessionId/lore`
 
