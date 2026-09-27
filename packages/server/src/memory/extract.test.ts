@@ -174,3 +174,82 @@ describe('what the extractor reads', () => {
     expect(turns).not.toContain(`Day ${String(first - 1)} on the road.`);
   });
 });
+
+/**
+ * ***The player's move is quoted to its last line*** — [25 E15], and the rule
+ * `quoted` exists for. The extractor quotes the move and leaves the reply bare
+ * so a model can tell what somebody did from what the narrator said; with one
+ * `> ` in front of the whole move, each picture's stand-in — on a line of its
+ * own — read as narration, and a memory of a picture the player showed could
+ * come back as something the narrator described.
+ *
+ * Asked with no memories to write, as above, so nothing but the call is seen.
+ */
+describe('a move with pictures, as the extractor reads it', () => {
+  /**
+   * One turn that is words and a captioned picture, one that is two pictures
+   * and no words — the whole exchange, so the whole block can be asserted.
+   *
+   * Falsified by: quoting the move as one string (`> ${moveText(...)}`), which
+   * leaves every stand-in after the first line bare; or reading `input.text`
+   * rather than `moveText`, which drops the pictures and leaves turn 1 with a
+   * reply and no move.
+   */
+  it('quotes every line of the move and leaves the reply bare', async () => {
+    const asked: StepCallRequest[] = [];
+    const host: StepHost = {
+      call: (request) => {
+        asked.push(request);
+        return Promise.resolve({ callId: 'c1', text: '', usage: null, object: { memories: [] } });
+      },
+      random: {} as StepHost['random'],
+      signal: new AbortController().signal,
+    };
+    const transcript: TranscriptTurn[] = [
+      {
+        turnId: 't-0',
+        input: {
+          actorId: null,
+          kind: 'do',
+          text: 'I wonder.',
+          attachments: [{ kind: 'image', caption: 'a lantern' }],
+        },
+        output: { text: 'Nothing moves.' },
+      },
+      {
+        turnId: 't-1',
+        input: {
+          actorId: null,
+          kind: 'do',
+          text: '',
+          attachments: [{ kind: 'image', caption: 'the harbour' }, { kind: 'image' }],
+        },
+        output: { text: 'The tide turns.' },
+      },
+    ];
+
+    await extractMemories({
+      library: {} as LibraryContext,
+      handle: 'ned',
+      sessionId: 's-1',
+      session: { name: 'Rain City', cast: { persona: null, actors: ['a-vera'] } },
+      nameOf: () => 'Vera',
+      report: () => undefined,
+    }).run(
+      { turnId: 't-now', sessionId: 's-1', parentTurnId: 't-1', channels: {}, transcript },
+      host,
+    );
+
+    expect(asked[0]?.candidates?.find((one) => one.id === 'se.memory.turns')?.text).toBe(
+      [
+        '> I wonder.',
+        '> [Picture: a lantern]',
+        'Nothing moves.',
+        '',
+        '> [Picture: the harbour]',
+        '> [Picture, not described]',
+        'The tide turns.',
+      ].join('\n'),
+    );
+  });
+});

@@ -298,3 +298,94 @@ describe('whether a turn has a chain', () => {
     expect(summaryPlanFor(inputsWith({ story: 25, bound: false }))).toBeNull();
   });
 });
+
+/**
+ * ***The player's move is quoted to its last line*** — [25 E15], and the
+ * quotation rule `quoted` exists for.
+ *
+ * The summariser hands a model each turn as the player's move quoted and the
+ * reply bare, so the model can tell what somebody did from what the narrator
+ * said without being told which is which. The move used to get one `> ` in
+ * front of the whole string, and `moveText` puts each picture's stand-in on a
+ * line of its own — so a picture read as the first line of the narrator's
+ * reply, and a summary of a turn that was a picture could say the narrator
+ * described a lantern.
+ *
+ * Driven through the step with a host that records what it was asked, because
+ * `renderUnits` is private and what matters is the text the model is handed.
+ */
+describe('a move with pictures, as the summariser is handed it', () => {
+  function asking(): StepHost & { asked: StepCallRequest[] } {
+    const asked: StepCallRequest[] = [];
+    return {
+      asked,
+      call: (request) => {
+        asked.push(request);
+        return Promise.resolve({
+          callId: `call-${String(asked.length)}`,
+          text: `Stretch ${String(asked.length)} of the road.`,
+          usage: null,
+        });
+      },
+      random: {} as StepHost['random'],
+      signal: new AbortController().signal,
+    };
+  }
+
+  /**
+   * Turn 0 is words and a captioned picture; turn 1 is two pictures and no
+   * words. Both sit in the first link (turns 0–19 above a window of twenty),
+   * and the rest of the forty-five turns are the ordinary road.
+   *
+   * Falsified by: quoting the move as one string (`> ${said}`), which leaves
+   * every stand-in after the first line bare; or by `renderUnits` reading the
+   * input's text rather than `said`, which drops the pictures altogether.
+   */
+  it('quotes every line of the move and leaves the reply bare', async () => {
+    const transcript: TranscriptTurn[] = [
+      {
+        turnId: 't-0',
+        input: {
+          actorId: null,
+          kind: 'do',
+          text: 'I wonder.',
+          attachments: [{ kind: 'image', caption: 'a lantern' }],
+        },
+        output: { text: 'Nothing moves.' },
+      },
+      {
+        turnId: 't-1',
+        input: {
+          actorId: null,
+          kind: 'do',
+          text: '',
+          attachments: [{ kind: 'image', caption: 'the harbour' }, { kind: 'image' }],
+        },
+        output: { text: 'The tide turns.' },
+      },
+      ...TRANSCRIPT.slice(2),
+    ];
+    const host = asking();
+
+    await summarise({
+      layout,
+      handle: 'ned',
+      sessionId: 's-1',
+      policy: DEFAULT_SUMMARY_POLICY,
+      key: 'summariser-1',
+      report: () => undefined,
+    }).run(
+      { turnId: 't-now', sessionId: 's-1', parentTurnId: 't-44', channels: {}, transcript },
+      host,
+    );
+
+    const turns = host.asked[0]?.candidates?.find((one) => one.id === 'se.summary.turns')?.text;
+    expect(turns?.startsWith('> I wonder.\n> [Picture: a lantern]\nNothing moves.\n\n')).toBe(true);
+    expect(turns).toContain(
+      '\n\n> [Picture: the harbour]\n> [Picture, not described]\nThe tide turns.\n\n',
+    );
+    // The claim in one line: no stand-in ever opens a line unquoted, which is
+    // where a model would read it as narration.
+    expect(turns).not.toMatch(/^\[Picture/m);
+  });
+});
