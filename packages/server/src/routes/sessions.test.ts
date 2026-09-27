@@ -111,6 +111,20 @@ function submit(body: Record<string, unknown> = {}): Promise<{ status: number; b
 const finished = (frame: SseFrame): boolean =>
   frame.event === 'progress' && (frame.data as { key: string }).key === 'turn.finished';
 
+/**
+ * ***How long a whole turn may take to say it has finished*** (2026-09-27).
+ *
+ * The scripted turn takes about fifty milliseconds on a developer's machine.
+ * CI run 66's Windows leg, with the rest of the suite running beside it, saw
+ * every frame of one up to its last `step.finished` and then no
+ * `turn.finished` within the four seconds this file allowed. Between those two
+ * frames is the commit, which is fsync'd writes, and that runner's disk under
+ * that load is slower than a budget written here. The P2 gate allows eight
+ * seconds for the same frame, so this file does too. A turn that never
+ * finishes still fails, eight seconds later instead of four.
+ */
+const TURN_FINISHES_MS = 8_000;
+
 describe('the session surface', () => {
   it('creates, lists, reads and archives', async () => {
     const listed = await server.request({ method: 'GET', url: '/api/sessions' });
@@ -279,7 +293,7 @@ describe('submitting a turn', () => {
   it('refuses a stale head, with the head it should have used', async () => {
     const accepted = await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const stale = await submit({ idempotencyKey: 'key-2' });
@@ -313,7 +327,7 @@ describe('the stream', () => {
     const snapshot = await stream.until((frame) => frame.event === 'snapshot');
     expect((snapshot.data as { sessionId: string }).sessionId).toBe(sessionId);
 
-    const end = await stream.until(finished, 4000);
+    const end = await stream.until(finished, TURN_FINISHES_MS);
     expect((end.data as { params: { state: string } }).params.state).toBe('complete');
     await stream.abort();
   });
@@ -328,8 +342,8 @@ describe('the stream', () => {
     const a = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
     const b = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
 
-    await a.until(finished, 4000);
-    await b.until(finished, 4000);
+    await a.until(finished, TURN_FINISHES_MS);
+    await b.until(finished, TURN_FINISHES_MS);
 
     const keys = (handle: typeof a): string[] =>
       handle
@@ -361,7 +375,7 @@ describe('the stream', () => {
     const second = await server.stream({
       url: `/api/sessions/${sessionId}/stream?after=${String(cursor)}`,
     });
-    await second.until(finished, 4000);
+    await second.until(finished, TURN_FINISHES_MS);
 
     const seqs = (handle: typeof first): number[] =>
       handle
@@ -395,7 +409,7 @@ describe('the stream', () => {
     // resolved from that alone would show a client nothing.
     await submit();
     const live = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await live.until(finished, 4000);
+    await live.until(finished, TURN_FINISHES_MS);
     await live.abort();
 
     const late = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
@@ -447,7 +461,7 @@ describe('the stream', () => {
     await standUp([{ text: 'abcdef', chunks: 3, chunkDelayMs: 5 }]);
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
 
     const deltas = stream.frames().filter((frame) => frame.event === 'delta');
     expect(deltas.length).toBeGreaterThan(0);
@@ -470,7 +484,7 @@ describe('cancelling', () => {
     });
     expect(cancelled.status).toBe(202);
 
-    const end = await stream.until(finished, 4000);
+    const end = await stream.until(finished, TURN_FINISHES_MS);
     expect((end.data as { params: { state: string } }).params.state).toBe('failed');
     await stream.abort();
 
@@ -508,7 +522,7 @@ describe('the transcript', () => {
   it('is the path from the head, and the turn carries its record', async () => {
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -527,7 +541,7 @@ describe('a hand-edited session file reaches the log', () => {
     // effect log, which is the failure [03 §8.1] exists to prevent.
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     // Open session.json in a text editor, so to speak, and set the clock.
@@ -562,7 +576,7 @@ describe('a hand-edited session file reaches the log', () => {
     // the session.
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -601,7 +615,7 @@ describe('a channel whose schema changed under a live session', () => {
   async function afterASchemaChange(): Promise<() => void> {
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const original = channelDefinition('se.clock');
@@ -789,7 +803,7 @@ describe('a hand edit that does not fit its channel', () => {
   it('is refused at the divergence step, so nothing is ever degraded', async () => {
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
@@ -868,7 +882,7 @@ describe('a session with a cast assembles the whole preset', () => {
       payload: { idempotencyKey: 'k', headTurnId: null, input: { text: 'She waited.' } },
     });
     const stream = await server.stream({ url: `/api/sessions/${withCast}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${withCast}/turns` });
@@ -912,7 +926,7 @@ describe('a session with a cast assembles the whole preset', () => {
       payload: { idempotencyKey: 'k-by-id', headTurnId: null, input: { text: 'She waited.' } },
     });
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -1037,7 +1051,7 @@ describe('a session with a cast assembles the whole preset', () => {
 
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    const end = await stream.until(finished, 4000);
+    const end = await stream.until(finished, TURN_FINISHES_MS);
     expect((end.data as { params: { state: string } }).params.state).toBe('complete');
     await stream.abort();
   });
@@ -1047,7 +1061,7 @@ describe('the transcript is bounded and in order', () => {
   async function twoTurns(): Promise<void> {
     await submit({ input: { text: 'The first thing.' } });
     let stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
@@ -1057,7 +1071,7 @@ describe('the transcript is bounded and in order', () => {
       input: { text: 'The second.' },
     });
     stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
   }
 
@@ -1128,7 +1142,7 @@ describe('the snapshot frame carries what a client needs to render', () => {
     // never checked at all.
     await submit();
     let stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
