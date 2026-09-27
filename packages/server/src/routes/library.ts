@@ -19,6 +19,7 @@ import { usedBy } from '../index-db/links.js';
 import { exportPackage } from '../packaging/export.js';
 import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
+import { disconnectSignal } from './disconnect.js';
 import { storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
 import { readOnePart } from './import.js';
@@ -534,12 +535,19 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     if (!account) return;
 
     const body = request.body as Static<typeof AssistBody>;
+    /**
+     * ***Ended by the person leaving*** (2026-09-27): an editor closed on a
+     * pending assist left the call running, because nothing handed it a
+     * signal. `disconnectSignal`, for the reason the illustrate route gives.
+     */
+    const signal = disconnectSignal(reply);
     const result = await assistField(
       {
         layout: services.library.layout,
         accounts: services.accounts,
         providers: services.providers,
         config: services.config,
+        online: () => services.updates.online,
       },
       {
         account: account.handle,
@@ -549,16 +557,43 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         draft: body.draft,
         ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
         ...(body.current === undefined ? {} : { current: body.current }),
+        signal,
       },
     );
+
+    if (!result.ok && result.reason === 'cancelled') {
+      // Nobody is left to answer when the person left; anything else that
+      // stopped it is the server stopping, and whoever is waiting is told.
+      if (signal.aborted) return;
+      return reply.code(503).send({ error: 'cancelled' });
+    }
+
+    if (!result.ok && result.reason === 'provider-failed') {
+      /**
+       * ***The class and the remedy, and never the prompt*** — a failed
+       * draft's shape (2026-09-27). The endpoint's own words go to the log
+       * line an operator filters on; the person gets what they could do.
+       */
+      request.log.error(
+        {
+          event: 'assist.failed',
+          class: result.class,
+          ...(result.detail === undefined ? {} : { detail: result.detail }),
+        },
+        'A field assist could not be written',
+      );
+      return reply
+        .code(502)
+        .send({ error: 'provider-failed', class: result.class, remedy: result.remedy });
+    }
 
     if (!result.ok) {
       /**
        * **A class, never a sentence** — [21 §1.4]. `not-bound` is a
        * configuration fault with a remedy the client already knows how to
-       * word ([P11.6]'s `REMEDY_SENTENCES`), and `no-answer` is an endpoint
-       * that replied with nothing, which is not the same thing and must not
-       * be reported as one.
+       * word ([P11.6]'s `REMEDY_SENTENCES`), `window-too-small` is another
+       * (2026-09-27), and `no-answer` is an endpoint that replied with
+       * nothing, which is not the same thing and must not be reported as one.
        */
       return reply.code(422).send({ error: result.reason });
     }
