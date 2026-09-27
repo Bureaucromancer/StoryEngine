@@ -41,8 +41,11 @@ const showBrowserNotification = vi.fn();
 let push: {
   snapshot: (list: NotificationList) => void;
   notification: (one: NotificationView) => void;
+  fatal: (error: string) => void;
 } | null = null;
 const closed = vi.fn();
+/** How many streams have been opened — one per account signed in, not per render. */
+let opened = 0;
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -74,8 +77,14 @@ vi.mock('./stream.js', async (importOriginal) => ({
   openNotificationStream: (handlers: {
     onSnapshot: (list: NotificationList) => void;
     onNotification: (one: NotificationView) => void;
+    onFatal: (error: string) => void;
   }) => {
-    push = { snapshot: handlers.onSnapshot, notification: handlers.onNotification };
+    opened += 1;
+    push = {
+      snapshot: handlers.onSnapshot,
+      notification: handlers.onNotification,
+      fatal: handlers.onFatal,
+    };
     return { close: closed };
   },
 }));
@@ -98,8 +107,8 @@ function one(over: Partial<NotificationView> = {}): NotificationView {
   };
 }
 
-function Probe(): JSX.Element {
-  const state = useNotifications(true);
+function Probe(props: { account?: string }): JSX.Element {
+  const state = useNotifications(props.account ?? 'ned');
   return (
     <div>
       <p data-testid="unread">{String(state.list.unread)}</p>
@@ -122,6 +131,7 @@ function Probe(): JSX.Element {
 beforeEach(() => {
   vi.clearAllMocks();
   push = null;
+  opened = 0;
   readNotifications.mockResolvedValue({ notifications: [], unread: 0 });
   // No stored preferences: every class is `sound` and nothing starts muted.
   readPrefs.mockResolvedValue({ prefs: {} });
@@ -262,5 +272,50 @@ describe('marking read', () => {
     act(() => {
       settle({ read: 1, unread: 0 });
     });
+  });
+});
+
+/**
+ * ***The stream is the signed-in account's*** (2026-09-27). It is opened with
+ * the cookie of the moment, so a switch made in another tab left this tab
+ * delivering the account that had gone. And a stream refused as signed out is
+ * the one fatal close that is about the sign-in, which the page has to hear.
+ */
+describe('the account the stream belongs to', () => {
+  it('closes the stream and opens the next account’s when the account changes', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <Probe account="ned" />
+      </QueryClientProvider>,
+    );
+    expect(opened).toBe(1);
+
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <Probe account="sam" />
+      </QueryClientProvider>,
+    );
+
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(opened).toBe(2);
+  });
+
+  it('raises the sign-in-ended flag when the stream is refused as signed out', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>,
+    );
+
+    act(() => {
+      push?.fatal('not-found');
+    });
+    expect(client.getQueryData(['session-ended'])).toBeUndefined();
+    act(() => {
+      push?.fatal('unauthenticated');
+    });
+    expect(client.getQueryData(['session-ended'])).toBe(true);
   });
 });

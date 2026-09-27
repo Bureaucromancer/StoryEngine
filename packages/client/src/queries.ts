@@ -2,6 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  MutationCache,
+  QueryCache,
   QueryClient,
   skipToken,
   useMutation,
@@ -13,6 +15,7 @@ import {
 
 import type { TagEntry } from '@storyengine/shared';
 
+import { endsTheSession, markSessionEnded } from './auth/session-ended.js';
 import type { LiveTurn } from './play/reducer.js';
 import {
   addSessionGoal,
@@ -84,8 +87,37 @@ import {
 
 const LIBRARY_POLL_MS = 2000;
 
-export const queryClient = new QueryClient({
+export const queryClient: QueryClient = new QueryClient({
+  /**
+   * ***A 401 anywhere says the sign-in has ended*** (2026-09-27) — see
+   * `auth/session-ended.ts`, which has the argument and the one code it means.
+   * On the caches rather than in each hook, because the claim is about every
+   * request this client makes and a hook that forgot would be the one page that
+   * went on failing in silence.
+   */
+  queryCache: new QueryCache({
+    onError: (failure) => {
+      if (endsTheSession(failure)) markSessionEnded(queryClient);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (failure) => {
+      if (endsTheSession(failure)) markSessionEnded(queryClient);
+    },
+  }),
   defaultOptions: {
+    /**
+     * ***`always` for writes too*** (2026-09-27), for the reason the queries'
+     * comment below gives. A mutation's default is `online` as well, and it
+     * does not refuse a write when the browser says it is offline: it *pauses*
+     * it, silently, until the browser says otherwise. So a laptop with its
+     * Wi-Fi off, talking to the box in the next room over a cable, pressed
+     * Save and saw it spin forever — the write never sent, never failed, and
+     * waiting for an event about the internet that has nothing to do with it.
+     */
+    mutations: {
+      networkMode: 'always',
+    },
     queries: {
       retry: 1,
       /**

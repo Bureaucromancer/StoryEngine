@@ -2,9 +2,11 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { markSessionEnded } from './auth/session-ended.js';
 
 /**
  * The restart banner — [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md),
@@ -101,7 +103,10 @@ const ALPHA = { version: '1.0.0-alpha.2', commit: '7573e8a0' };
  * older tests mock is *the state before the server has said what it is*, and
  * the footer's answer to that is nothing.
  */
-function renderShell(role: 'admin' | 'user', build?: { version: string; commit: string } | null) {
+function renderShell(
+  role: 'admin' | 'user',
+  build?: { version: string; commit: string } | null,
+): QueryClient {
   authState.mockResolvedValue({
     setupRequired: false,
     account: account(role),
@@ -113,7 +118,35 @@ function renderShell(role: 'admin' | 'user', build?: { version: string; commit: 
       <Shell />
     </QueryClientProvider>,
   );
+  return client;
 }
+
+/**
+ * ***A sign-in that ended under an open page*** (2026-09-27) — see
+ * `auth/session-ended.ts`. The flag is raised by any request refused as signed
+ * out; what is asserted here is what the page does with it: it says so, keeps
+ * the page, and sends nobody anywhere until they ask.
+ */
+describe('a sign-in that ended', () => {
+  it('says so over the page, and asks who is signed in only when told to', async () => {
+    const client = renderShell('user');
+    await screen.findByText('Ned');
+    expect(screen.queryByText(/Your sign-in has ended/)).toBeNull();
+
+    act(() => {
+      markSessionEnded(client);
+    });
+    expect(await screen.findByText(/Your sign-in has ended/)).toBeTruthy();
+    // Nothing was torn down by the refusal itself: the page is still the page.
+    expect(screen.getByText('Ned')).toBeTruthy();
+
+    const asked = authState.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in again' }));
+    await waitFor(() => {
+      expect(authState.mock.calls.length).toBeGreaterThan(asked);
+    });
+  });
+});
 
 describe('the restart banner', () => {
   it('names the specific keys, because "restart required" invites hoping', async () => {
