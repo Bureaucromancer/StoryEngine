@@ -108,6 +108,18 @@ function submit(body: Record<string, unknown> = {}): Promise<{ status: number; b
   });
 }
 
+/**
+ * `session.json` as the store wrote it. ***The pool and the Setup copy are read
+ * here, not off a reply*** (2026-09-27): a reply no longer carries either, for
+ * `presentSession`'s reasons, and what these tests claim is what the session
+ * holds.
+ */
+async function sessionFileOf(id: string): Promise<any> {
+  return JSON.parse(
+    await readFile(join(server.dataDir, 'users', 'ned', 'sessions', id, 'session.json'), 'utf8'),
+  );
+}
+
 const finished = (frame: SseFrame): boolean =>
   frame.event === 'progress' && (frame.data as { key: string }).key === 'turn.finished';
 
@@ -1529,7 +1541,10 @@ describe('a session started from a Setup', () => {
 
     expect(created.status).toBe(201);
     // The object itself, not a link — [00 §3.1], the asymmetry the preset has.
-    expect(created.body.session.setup).toMatchObject({ id, schema: 'storyengine.setup/1' });
+    const held = await sessionFileOf(created.body.session.id as string);
+    expect(held.setup).toMatchObject({ id, schema: 'storyengine.setup/1' });
+    // And a reply names it without carrying it, goals and hooks and all.
+    expect(created.body.session.setup).toEqual({ id, name: held.setup.name });
   });
 
   it('takes its name when the session was not given one', async () => {
@@ -1680,7 +1695,7 @@ describe('a session’s hook pool', () => {
       payload: { name: 'Rain', treatment: id },
     });
 
-    expect(created.body.session.hooks).toEqual([
+    expect((await sessionFileOf(created.body.session.id as string)).hooks).toEqual([
       { hook: expect.objectContaining({ id: 'hook-war' }), source: { kind: 'treatment', id } },
     ]);
   });
@@ -1692,7 +1707,7 @@ describe('a session’s hook pool', () => {
       payload: { name: 'Rain', hooks: [hook('hook-mine')] },
     });
 
-    expect(created.body.session.hooks).toEqual([
+    expect((await sessionFileOf(created.body.session.id as string)).hooks).toEqual([
       { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
     ]);
   });
@@ -1712,7 +1727,7 @@ describe('a session’s hook pool', () => {
       payload: { setup: setupId },
     });
 
-    expect(created.body.session.hooks).toEqual([
+    expect((await sessionFileOf(created.body.session.id as string)).hooks).toEqual([
       {
         hook: expect.objectContaining({ id: 'hook-debt' }),
         source: { kind: 'setup', id: setupId },
@@ -1753,8 +1768,7 @@ describe('a session’s hook pool', () => {
       headers: { 'if-match': read.body.contentHash as string },
     });
 
-    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
-    expect(after.body.session.hooks[0].hook.id).toBe('hook-war');
+    expect((await sessionFileOf(sessionId)).hooks[0].hook.id).toBe('hook-war');
   });
 
   /**
@@ -1782,7 +1796,8 @@ describe('a session’s hook pool', () => {
         payload: { hook: hook('hook-mine') },
       });
 
-      expect(added.body.session.hooks).toEqual([
+      expect(added.status).toBe(200);
+      expect((await sessionFileOf(sessionId)).hooks).toEqual([
         { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
       ]);
       // And it is in the panel the same turn, with its source named — the one
@@ -1825,7 +1840,8 @@ describe('a session’s hook pool', () => {
         },
       });
 
-      const minted = added.body.session.hooks[0].hook.id as string;
+      expect(added.status).toBe(200);
+      const minted = (await sessionFileOf(sessionId)).hooks[0].hook.id as string;
       expect(minted).toMatch(/^[0-9a-f-]{36}$/);
       // Usable, which is the whole point of minting it: a hook with no id cannot
       // be committed, because Commit writes `se.hook#<id>`.
@@ -2089,7 +2105,7 @@ describe('a session’s hook pool', () => {
       // `updatedAt` or reordered the pool would satisfy a comparison of the one
       // field somebody thought to assert on.
       expect(JSON.stringify(after.body.session)).toBe(record);
-      expect(after.body.session.hooks[0].source).toEqual({ kind: 'session' });
+      expect((await sessionFileOf(session)).hooks[0].source).toEqual({ kind: 'session' });
     });
 
     it('is a 404 naming the object when the target is gone', async () => {
@@ -2384,7 +2400,7 @@ describe('a session’s hook pool', () => {
     expect(JSON.stringify(added.body.issues)).toMatch(/involves/);
     const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
     expect(read.status).toBe(200);
-    expect(read.body.session.hooks).toBeUndefined();
+    expect((await sessionFileOf(sessionId)).hooks).toBeUndefined();
   });
 
   /**
@@ -2413,7 +2429,8 @@ describe('a session’s hook pool', () => {
     });
 
     expect(created.status).toBe(201);
-    expect(created.body.session.hooks[0].hook.id).toMatch(/^[0-9a-f-]{36}$/);
+    const held = await sessionFileOf(created.body.session.id as string);
+    expect(held.hooks[0].hook.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   /**
@@ -2465,7 +2482,9 @@ describe('a session’s hook pool', () => {
     });
     expect(removed.status).toBe(200);
     expect(
-      (removed.body.session.hooks as { hook: { id: string } }[]).map((entry) => entry.hook.id),
+      ((await sessionFileOf(sessionId)).hooks as { hook: { id: string } }[]).map(
+        (entry) => entry.hook.id,
+      ),
     ).toEqual(['hook-fine']);
   });
 
@@ -2489,7 +2508,7 @@ describe('a session’s hook pool', () => {
     });
 
     expect(removed.status).toBe(200);
-    expect(removed.body.session.hooks).toEqual([{ source: { kind: 'session' } }]);
+    expect((await sessionFileOf(sessionId)).hooks).toEqual([{ source: { kind: 'session' } }]);
   });
 });
 
@@ -2816,5 +2835,125 @@ describe('a session’s pack, sent whole', () => {
 
     expect(saved.status).toBe(200);
     expect(saved.body.session.preset.name).toBe('Mine now');
+  });
+});
+
+/**
+ * ***What a reply carries, which is not the file*** (2026-09-27).
+ *
+ * Every route that answered with a session sent `session.json` whole: the hook
+ * pool with every unfired premise in it, the Setup copy with its goals and
+ * hooks, and each goal's `detail`. The panel's rows redact a premise until the
+ * hook fires, and that redaction did nothing while the reply beside it carried
+ * the pool. So a spoiler is planted in each, and every route that answers with
+ * a session is asked for it.
+ */
+describe('what a session reply carries', () => {
+  const SPOILER = 'The Flower Kingdom will declare war.';
+  const SECOND = 'The old bridge gives way in the storm.';
+  const DETAIL = 'The ledger is under the third floorboard.';
+
+  function spoiler(id: string, premise: string): PlotHook {
+    return {
+      id,
+      title: id,
+      premise,
+      magnitude: 'sweeping',
+      involves: [],
+      weight: 1,
+      delivery: 'guidance',
+      once: true,
+    };
+  }
+
+  it('never carries an unfired premise, the Setup copy or a goal’s detail', async () => {
+    const setup = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: {
+        ...newSetup('The Fixer’s Debt'),
+        hooks: [spoiler('hook-war', SPOILER)],
+        goals: [
+          {
+            id: 'g-ledger',
+            statement: 'Find the ledger.',
+            detail: DETAIL,
+            visibility: 'player',
+            completion: { kind: 'narrative' },
+            thenDefault: 'continue-open',
+            next: null,
+          },
+        ],
+      },
+    });
+    const setupId = setup.body.object.id as string;
+
+    const replies: { status: number; body: unknown }[] = [];
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setupId },
+    });
+    replies.push(created);
+    const id = created.body.session.id as string;
+    // The spoilers are in the file, which is where they belong.
+    const held = JSON.stringify(await sessionFileOf(id));
+    expect(held).toContain(SPOILER);
+    expect(held).toContain(DETAIL);
+
+    replies.push(await server.request({ method: 'GET', url: `/api/sessions/${id}` }));
+    replies.push(await server.request({ method: 'GET', url: '/api/sessions' }));
+    replies.push(
+      await server.request({
+        method: 'POST',
+        url: `/api/sessions/${id}/hooks`,
+        payload: { hook: spoiler('hook-bridge', SECOND) },
+      }),
+    );
+    replies.push(
+      await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${id}/lore`,
+        payload: { treatment: null, lore: [] },
+      }),
+    );
+    replies.push(
+      await server.request({ method: 'PATCH', url: `/api/sessions/${id}`, payload: { name: 'X' } }),
+    );
+    replies.push(
+      await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${id}/channels/se.goal.current`,
+        payload: { value: 'g-ledger' },
+      }),
+    );
+    replies.push(
+      await server.request({
+        method: 'POST',
+        url: `/api/sessions/${id}/goals`,
+        payload: {
+          goal: {
+            statement: 'Pay the fixer.',
+            detail: DETAIL,
+            visibility: 'player',
+            completion: { kind: 'manual' },
+            thenDefault: 'end',
+            next: null,
+          },
+        },
+      }),
+    );
+
+    for (const answer of replies) {
+      expect(answer.status).toBeLessThan(300);
+      const said = JSON.stringify(answer.body);
+      expect(said).not.toContain(SPOILER);
+      expect(said).not.toContain(SECOND);
+      expect(said).not.toContain(DETAIL);
+    }
+    // What the client reads is still there: the Setup by id, the goals by id.
+    const read = replies[1]?.body as { session: { setup: unknown; goals: { id: string }[] } };
+    expect(read.session.setup).toEqual({ id: setupId, name: 'The Fixer’s Debt' });
+    expect(read.session.goals.map((goal) => goal.id)).toEqual(['g-ledger']);
   });
 });

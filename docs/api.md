@@ -1525,6 +1525,13 @@ inputs, suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
 
+***`session` is not the file*** (2026-09-27), here or on any route that answers
+with one. It leaves out the hook pool, carries the Setup as `{ id, name }`, and
+carries each goal without its `detail`. Every reply used to send `session.json`
+whole, so the pool's unfired premises, the Setup copy's goals and hooks, and
+the detail this page says *does not travel* all travelled beside the panels that
+redact them. The export route is the file on purpose.
+
 `hooks` is the hook panel's surface ([10 §10.1]): `{ pacing, rows }`, where
 `pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
 a Setup's, a Treatment's — and each row carries a hook's `title`, `source`,

@@ -51,6 +51,7 @@ import type { HookSource } from '../sessions/types.js';
 import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
 import { hookRows, malformedRows, readPacing } from '../sessions/hooks.js';
 import { readPool } from '../sessions/pool-shape.js';
+import { presentSession } from '../sessions/present.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { ownerKey } from '../index-db/ingest.js';
 import { listSessionRows } from '../index-db/sessions.js';
@@ -725,7 +726,7 @@ function refReply(reply: FastifyReply, outcome: BranchRefOutcome): FastifyReply 
     case 'no-ref':
       return reply.code(404).send({ error: 'no-such-ref', message: 'No such branch ref.' });
     case 'written':
-      return reply.send({ session: outcome.session });
+      return reply.send({ session: presentSession(outcome.session) });
   }
 }
 
@@ -1024,7 +1025,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
       const parts = setupPlanFor(mode).steps.length;
-      if (parts === 0) return await reply.code(201).send({ session, ...warn });
+      if (parts === 0) {
+        return await reply.code(201).send({ session: presentSession(session), ...warn });
+      }
 
       const reserved = await submitTurn(services.jobs, {
         account: account.handle,
@@ -1038,10 +1041,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // Nothing else can have reserved a turn on a session created one line
         // ago. Answering with the session rather than an error is the honest
         // outcome if it somehow does: the session exists and is playable.
-        return await reply.code(201).send({ session, ...warn });
+        return await reply.code(201).send({ session: presentSession(session), ...warn });
       }
       services.runner.start(reserved.job, { setup: true });
-      return await reply.code(201).send({ session, activeJob: reserved.job, ...warn });
+      return await reply
+        .code(201)
+        .send({ session: presentSession(session), activeJob: reserved.job, ...warn });
     } catch (error) {
       if (error instanceof PathEscapeError) {
         return reply.code(422).send({ error: 'refused-path', message: error.message });
@@ -1058,7 +1063,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const sessions = await listSessionFiles(services.sessions, account.handle, {
       includeArchived: archived === 'true',
     });
-    return reply.send({ sessions });
+    return reply.send({ sessions: sessions.map(presentSession) });
   });
 
   app.get('/sessions/:sessionId', { schema: { params: SessionParams } }, async (request, reply) => {
@@ -1250,7 +1255,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     }
 
     return reply.send({
-      session,
+      session: presentSession(session),
       activeJob: job,
       health: degradedChannels(session.channels),
       // **Narrowed to this session's mode** — [06 §4.1], [P7.9]. The registry is
@@ -1348,7 +1353,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // so improving a character card reaches an ongoing game — the asymmetry
       // with the copied preset is the design ([03 §8]).
       const updated = await setCast(services.sessions, account.handle, sessionId, body);
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1412,7 +1417,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1447,7 +1452,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1631,7 +1636,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1718,7 +1723,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         next as NonNullable<Parameters<typeof setPreset>[3]>,
       );
       if (updated === null) return reply.code(404).send({ error: 'not-found' });
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1733,7 +1738,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const body = request.body as { treatment: string | null; lore: string[] };
       const { sessionId } = request.params as { sessionId: string };
       const updated = await setLore(services.sessions, account.handle, sessionId, body);
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1777,7 +1782,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1845,7 +1850,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (outcome.kind === 'busy') return busy(services, reply, sessionId);
 
       return reply.send({
-        session: outcome.session,
+        session: presentSession(outcome.session),
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
         hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
@@ -1883,7 +1888,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (body.archived !== undefined) {
         session = await setArchived(services.sessions, account.handle, sessionId, body.archived);
       }
-      return reply.send({ session });
+      return reply.send({ session: presentSession(session) });
     },
   );
 
@@ -2728,7 +2733,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // With what the line being left still has out in the world — [07 §7]'s
           // honesty banner. Zero until something writes an escaped effect, and
           // the field is here so the first producer has somewhere to surface.
-          return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
+          return reply.send({
+            session: presentSession(outcome.session),
+            abandoned: outcome.abandoned,
+          });
         case 'busy':
           return busy(services, reply, sessionId);
       }
@@ -2808,7 +2816,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         case 'busy':
           return busy(services, reply, sessionId);
         case 'undone':
-          return reply.send({ session: outcome.session, turn: outcome.turn });
+          return reply.send({ session: presentSession(outcome.session), turn: outcome.turn });
       }
     },
   );

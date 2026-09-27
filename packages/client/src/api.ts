@@ -984,10 +984,13 @@ export interface SessionSummary {
    * fact about the route.
    *
    * *Only the field a client has a use for*, on the terms this interface sets
-   * for `treatment`, `lore` and `goals`. The Setup's cast, openings, goals and
+   * for `treatment`, `lore` and `goals`. ~~The Setup's cast, openings, goals and
    * hooks are all on the wire too and all of them are a copy of an object the
-   * library can be asked for; what cannot be got any other way is **which
-   * object it was a copy of**.
+   * library can be asked for;~~ what cannot be got any other way is **which
+   * object it was a copy of**. *Corrected 2026-09-27: the copy is no longer on
+   * the wire.* A reply carries the Setup as its id and name, since its goals and
+   * hooks are the spoilers the play surface exists not to show
+   * (`presentSession` on the server).
    */
   setup?: { id: string };
 }
