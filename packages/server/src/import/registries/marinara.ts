@@ -146,7 +146,9 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   character_images: 'recorded',
   persona_images: 'recorded',
   lorebook_persona_links: 'recorded',
-  prompt_groups: 'recorded',
+  // Read with its presets since 2026-09-27: a disabled group switches its
+  // sections off, which is the part of a group a block can carry.
+  prompt_groups: 'converted',
   /** Would become tags on whatever it organises; `Lorebook.category` was removed deliberately ([24 §2d]). */
   library_folders: 'recorded',
 

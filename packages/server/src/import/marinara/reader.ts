@@ -156,6 +156,9 @@ export class MarinaraReader implements SourceReader {
 
     const sections = await this.#rows('prompt_sections');
     const choices = await this.#rows('choice_blocks');
+    // A disabled group switches its sections off, so the groups travel with
+    // them (2026-09-27); they were never opened.
+    const groups = await this.#rows('prompt_groups');
 
     for (const preset of presets) {
       const id = str(preset['id']);
@@ -166,6 +169,7 @@ export class MarinaraReader implements SourceReader {
           preset,
           sections: sections.filter((row) => str(row['presetId']) === id),
           choiceBlocks: choices.filter((row) => str(row['presetId']) === id),
+          groups: groups.filter((row) => str(row['presetId']) === id),
         },
       });
     }
@@ -187,9 +191,16 @@ export class MarinaraReader implements SourceReader {
       const id = str(row['id']);
       const source = `${TABLES}${table}.json#${id}`;
 
+      /**
+       * ***A persona is its own row*** (2026-09-27). A character keeps its
+       * card as JSON in a `data` column; a persona has no such column — its
+       * name, description and the rest are columns of the row itself — so
+       * reading `data` for both handed the converter nothing for every persona,
+       * and none ever imported. The row is the persona.
+       */
       let card: unknown;
       try {
-        const raw = row['data'];
+        const raw = table === 'personas' && row['data'] === undefined ? row : row['data'];
         card = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch {
         yield observed(source, 'unrecognised', [

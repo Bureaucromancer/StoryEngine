@@ -744,9 +744,33 @@ class Writer {
     }
   }
 
+  /**
+   * ***A persona's own columns, as a card*** (2026-09-27). The row carries its
+   * name, description and personality as a card does, plus an appearance and
+   * a backstory a card has no field for; those join the description, each its
+   * own paragraph, so everything the persona says still reaches its slot.
+   */
   async #marinaraPersona(candidate: ImportCandidate): Promise<ImportItemReport> {
-    const item = await this.#card(candidate);
-    return item;
+    const row = candidate.payload;
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      return this.#card(candidate);
+    }
+    const field = (key: string): string => {
+      const value = (row as Record<string, unknown>)[key];
+      return typeof value === 'string' ? value.trim() : '';
+    };
+    // A card-shaped payload (an older export, or a hand-made file) goes as it is.
+    if ('data' in row || 'spec' in row) return this.#card(candidate);
+    return this.#card({
+      ...candidate,
+      payload: {
+        name: field('name'),
+        description: [field('description'), field('appearance'), field('backstory')]
+          .filter((part) => part.length > 0)
+          .join('\n\n'),
+        personality: field('personality'),
+      },
+    });
   }
 
   async #marinaraLorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -786,8 +810,14 @@ class Writer {
       preset: unknown;
       sections: unknown[];
       choiceBlocks: unknown[];
+      groups?: unknown[];
     };
-    const converted = convertMarinaraPreset(payload.preset, payload.sections, payload.choiceBlocks);
+    const converted = convertMarinaraPreset(
+      payload.preset,
+      payload.sections,
+      payload.choiceBlocks,
+      payload.groups ?? [],
+    );
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { preset, notes } = converted.value;

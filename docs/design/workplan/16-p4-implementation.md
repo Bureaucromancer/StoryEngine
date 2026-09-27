@@ -754,6 +754,26 @@ through the store reader:
   `variableGroups`/`variableValues` and `ChoiceBlock` are the shape
   `PresetVariable` was adopted from, so they carry across and **stay inert**,
   which the review says rather than implies.
+
+  ***Corrected 2026-09-27, against the same pinned commit.*** `types/prompt.ts`
+  is the **API's** shape; what a store holds, and what the preset export
+  carries, is `server/src/db/schema/prompts.ts`'s — `sectionOrder`,
+  `markerConfig`, a choice's `options` and `parameters` are text columns of
+  JSON, and booleans are `"true"`/`"false"`. The converter and its fixture were
+  both written to the API shape, so every real preset lost its order and its
+  markers (no history slot reached a prompt) and every choice its options; a
+  real lorebook's entries had no keys, because those are JSON text too. Three
+  more of the lines above did not hold: the per-section `wrapInXml` and
+  `xmlTagName` are columns Marinara's schema calls legacy and its assembler
+  ignores — it wraps **every** section in the preset's `wrapFormat`, by the
+  section's name — so wrapping now follows the format; `parameters` was kept
+  whole in `compat`, not split, and is now split as written here; and a
+  disabled `PromptGroup` switches its sections off, which converts, while a
+  group's own wrapper, spanning blocks, is named in the review and not
+  carried. The single-file exports nest their object (`data.preset`,
+  `data.lorebook`), a profile export keeps its tables under
+  `data.fileStorage`, and a persona is a row of its own rather than a card in a
+  `data` column; each was read the other way and imported nothing.
 - **Scenarios do not exist** in what ships. The `feat/scenarios` branch is
   gone from the remote and no scenario type or table is in the tree, so the
   skeleton's "Marinara scenarios → Setup" line dies here. ~~There is nothing to

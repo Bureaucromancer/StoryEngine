@@ -180,6 +180,10 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'The preset named some prompts twice ({identifiers}); the first of each was kept.',
   'import.preset.triggerHasNoCall':
     'The “{identifier}” block only runs for {triggers} in SillyTavern, which has no equivalent here, so it never applies.',
+  'import.preset.sectionOrderUnreadable':
+    'The preset’s section order could not be read, so its sections are in the order they were stored.',
+  'import.preset.groupWrappersDropped':
+    'Marinara also wraps each group of sections in the group’s name ({groups}); the sections keep their own wrappers, and the group’s is not carried.',
   'import.preset.fromBeforePromptManager':
     'An older SillyTavern preset, from before its prompt manager, converted the way SillyTavern upgrades one.',
   'import.preset.unknownMarker': 'The “{identifier}” block is not one this understands.',

@@ -235,7 +235,9 @@ describe('the Marinara preset is our block model with different field names', ()
 
   it('turns XML wrapping into our one wrapper string', () => {
     // The same collapse [04 §8.4.3] describes for SillyTavern's nine fixed
-    // fields, arrived at independently by a second source.
+    // fields, arrived at independently by a second source. *(The tag is the
+    // section's name, by the preset's format, since 2026-09-27 — not the legacy
+    // `xmlTagName`, which here happens to agree.)*
     const main = preset().preset.blocks.find((b) => b.id === 'mari.main');
 
     expect(main?.kind === 'text' ? main.template : '').toBe(
@@ -302,6 +304,160 @@ describe('the Marinara preset is our block model with different field names', ()
   });
 });
 
+/**
+ * ***A preset as Marinara stores it*** (2026-09-27).
+ *
+ * Its schema keeps `sectionOrder`, `markerConfig`, a choice's `options` and
+ * `parameters` as JSON **text**, booleans as `"true"`, and its preset export
+ * carries the rows as stored — while the fixtures here were written in the
+ * API's shape, which is the only one the converter could read. On a real
+ * store the order fell back to table order, every marker was unknown, the
+ * history slot was gone, and every choice had no options.
+ */
+describe('a Marinara preset as its store holds it', () => {
+  const STORED = {
+    ...PRESET,
+    sectionOrder: JSON.stringify(['section_history', 'section_main']),
+    parameters: JSON.stringify({ temperature: 0.7, maxTokens: 900, reasoningEffort: 'low' }),
+  };
+  const STORED_SECTIONS = [
+    SECTIONS[0],
+    { ...SECTIONS[1], markerConfig: JSON.stringify({ type: 'chat_history' }) },
+  ];
+
+  function stored(
+    over: Record<string, unknown> = {},
+    sections: unknown[] = STORED_SECTIONS,
+    choices: unknown[] = [],
+    groups: unknown[] = [],
+  ) {
+    const result = convertPreset({ ...STORED, ...over }, sections, choices, groups);
+    if (!result.ok) throw new Error(`refused: ${result.refusal}`);
+    return result.value;
+  }
+
+  it('keeps the declared order, and its history slot, from text columns', () => {
+    const { preset: converted, notes } = stored();
+
+    expect(converted.blocks.map((b) => b.id)).toEqual([
+      'mari.conversationPrompt',
+      'mari.chat_history',
+      'mari.main',
+    ]);
+    expect(notes.map((n) => n.key)).not.toContain('import.preset.unknownMarker');
+  });
+
+  it('says so when the order will not parse, and keeps the stored order', () => {
+    const { preset: converted, notes } = stored({ sectionOrder: '[section_main' });
+
+    expect(converted.blocks.map((b) => b.id).slice(1)).toEqual(['mari.main', 'mari.chat_history']);
+    expect(notes.find((n) => n.key === 'import.preset.sectionOrderUnreadable')?.level).toBe('warn');
+  });
+
+  it('reads a choice’s options from text', () => {
+    const { preset: converted } = stored({}, STORED_SECTIONS, [
+      {
+        id: 'choice_pov',
+        presetId: 'preset_1',
+        variableName: 'POV',
+        question: 'Which point of view?',
+        options: JSON.stringify([{ id: 'a', label: 'Third', value: 'third person' }]),
+      },
+    ]);
+
+    const pov = converted.variables[0];
+    expect(pov?.type === 'enum' ? pov.options : []).toEqual([
+      { value: 'third person', label: 'Third' },
+    ]);
+  });
+
+  it('carries the generation settings with an equivalent, and keeps the rest', () => {
+    const { preset: converted } = stored();
+
+    expect(converted.params).toMatchObject({ temperature: 0.7, maxTokens: 900 });
+    expect(converted.compat?.['parameters']).toEqual({ reasoningEffort: 'low' });
+  });
+
+  it('wraps every section in the preset’s format, by its name, and never the history', () => {
+    const text = (format: string) => {
+      const main = stored({ wrapFormat: format }, [
+        { ...SECTIONS[0], name: 'World Rules (core)', wrapInXml: 'false', xmlTagName: '' },
+        STORED_SECTIONS[1],
+      ]).preset.blocks.find((b) => b.id === 'mari.main');
+      return main?.kind === 'text' ? main.template : null;
+    };
+
+    // The legacy flag says no, and Marinara wraps it anyway: it reads the format.
+    expect(text('xml')).toBe(
+      '<world_rules_core>\nWrite the scene as {{ char }}.\n</world_rules_core>',
+    );
+    expect(text('markdown')).toBe('## World Rules core\nWrite the scene as {{ char }}.');
+    expect(text('none')).toBe('Write the scene as {{ char }}.');
+
+    const history = stored().preset.blocks.find((b) => b.id === 'mari.chat_history');
+    expect(history?.kind === 'slot' ? history.wrapper : 'none').toBeUndefined();
+  });
+
+  it('switches off a section whose group is off, and says a group’s wrapper stays behind', () => {
+    const { preset: converted, notes } = stored(
+      {},
+      [{ ...SECTIONS[0], groupId: 'group_style' }, STORED_SECTIONS[1]],
+      [],
+      [{ id: 'group_style', presetId: 'preset_1', name: 'Style', enabled: 'false' }],
+    );
+
+    expect(converted.blocks.find((b) => b.id === 'mari.main')?.enabled).toBe(false);
+    expect(notes.find((n) => n.key === 'import.preset.groupWrappersDropped')?.params).toEqual({
+      groups: 'Style',
+    });
+  });
+
+  it('keeps one block per id, the first', () => {
+    const { preset: converted, notes } = stored(
+      { sectionOrder: JSON.stringify(['section_main', 'section_again']) },
+      [SECTIONS[0], { ...SECTIONS[0], id: 'section_again', content: 'The second.' }],
+    );
+
+    expect(converted.blocks.filter((b) => b.id === 'mari.main')).toHaveLength(1);
+    expect(notes.find((n) => n.key === 'import.preset.duplicatesDropped')?.params).toEqual({
+      identifiers: 'main',
+    });
+  });
+});
+
+/**
+ * ***A lorebook as Marinara stores it*** (2026-09-27): keys as JSON text,
+ * switches as `"true"` and `"false"`. Only arrays and real booleans were
+ * read, so on a real store no entry had a key — none could ever fire — and
+ * every switch took its default.
+ */
+describe('a Marinara lorebook as its store holds it', () => {
+  it('reads keys from text and switches from strings', () => {
+    const { lorebook } = book({
+      keys: JSON.stringify(['docks', 'harbour']),
+      secondaryKeys: JSON.stringify(['rain']),
+      enabled: 'false',
+      constant: 'true',
+      matchWholeWords: 'true',
+      characterFilterIds: JSON.stringify(['char_vera']),
+    });
+    const entry = lorebook.entries[0];
+
+    expect(entry?.keys).toEqual(['docks', 'harbour']);
+    expect(entry?.secondaryKeys).toEqual(['rain']);
+    expect(entry?.enabled).toBe(false);
+    expect(entry?.constant).toBe(true);
+    expect(entry?.matchWholeWords).toBe(true);
+    expect(entry?.actorFilter).toEqual({ mode: 'include', values: ['char_vera'] });
+  });
+
+  it('reads the book’s own switch from a string', () => {
+    const result = convertLorebook({ ...BOOK, enabled: 'false' }, [ENTRY]);
+    if (!result.ok) throw new Error('refused');
+    expect(result.value.lorebook.enabled).toBe(false);
+  });
+});
+
 describe('sweeping a Marinara data root', () => {
   let server: TestServer;
 
@@ -336,6 +492,77 @@ describe('sweeping a Marinara data root', () => {
 
     const presets = await server.request({ method: 'GET', url: '/api/library/presets' });
     expect(presets.body.objects.map((row: { name: string }) => row.name)).toContain('Harbour');
+  });
+
+  /**
+   * ***The fixture is the stored shape now*** (2026-09-27), so this is the
+   * claim a real store needed: the preset keeps the order it declared in a
+   * text column and its history slot, and the lorebook's entry keeps the keys
+   * it stored as text.
+   */
+  it('keeps the preset’s order and history slot, and the book’s keys, from a real store', async () => {
+    const outcome = await run();
+    expect(outcome.ok).toBe(true);
+
+    const presets = await ownObjects(server, 'presets');
+    const harbour = presets.objects.find((row) => row['name'] === 'Harbour');
+    const stored = await server.request({
+      method: 'GET',
+      url: `/api/library/presets/${String(harbour?.id)}`,
+    });
+    const blocks = (stored.body.object as { blocks: { id: string }[] }).blocks;
+    expect(blocks.map((block) => block.id)).toEqual([
+      'mari.conversationPrompt',
+      'mari.main',
+      'mari.chat_history',
+    ]);
+
+    const books = await ownObjects(server, 'lorebooks');
+    const rain = books.objects.find((row) => row['name'] === 'Rain City');
+    const book = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${String(rain?.id)}`,
+    });
+    const entries = (book.body.object as { entries: { keys: string[] }[] }).entries;
+    expect(entries[0]?.keys).toEqual(['docks', 'harbour']);
+  });
+
+  /**
+   * ***A persona is its own row*** (2026-09-27). Characters keep a card in a
+   * `data` column and personas do not have one, so every persona read nothing
+   * and none imported.
+   */
+  it('imports a persona from its own columns', async () => {
+    const outcome = await run({
+      'storage/tables/personas.json': JSON.stringify([
+        {
+          id: 'persona_inspector',
+          name: 'The Inspector',
+          description: 'Signs the forms.',
+          personality: 'tired',
+          appearance: 'A wet coat.',
+          backstory: 'Twenty years on the docks.',
+          isActive: 'false',
+        },
+      ]),
+    });
+    expect(outcome.ok).toBe(true);
+
+    const actors = await ownObjects(server, 'actors');
+    const inspector = actors.objects.find((row) => row['name'] === 'The Inspector');
+    expect(inspector).toBeDefined();
+    const stored = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${String(inspector?.id)}`,
+    });
+    const summary = (
+      stored.body.object as { profile: { sections: { id: string; body: string }[] } }
+    ).profile.sections.find((section) => section.id === 'se.summary');
+    // Description, appearance and backstory, each its own paragraph; the card
+    // converter then does with the personality what it does with any card's.
+    expect(
+      summary?.body.startsWith('Signs the forms.\n\nA wet coat.\n\nTwenty years on the docks.'),
+    ).toBe(true);
   });
 
   it('reads the sharded table without being told the manifest lied', () => {
@@ -418,7 +645,9 @@ describe('sweeping a Marinara data root', () => {
 
     const disposition = (source: string) =>
       outcome.report.items.find((item) => item.source === source)?.disposition;
-    expect(disposition('storage/tables/prompt_groups.json')).toBe('recorded');
+    // ~~`prompt_groups` is recorded~~ — read with its presets since 2026-09-27,
+    // so it is converted, and stands in the review as the presets it shaped.
+    expect(disposition('storage/tables/prompt_groups.json')).toBeUndefined();
     expect(disposition('sprites/char_vera/happy.png')).toBe('recorded');
   });
 
@@ -538,6 +767,117 @@ describe('the single-file export formats', () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.report.counts.converted).toBeGreaterThanOrEqual(2);
+  });
+
+  /**
+   * ***The shapes Marinara actually exports*** (2026-09-27). A preset is
+   * `{ preset, sections, groups, choiceBlocks }` with its rows as stored, a
+   * lorebook `{ lorebook, entries, folders }`, and a profile keeps its tables
+   * under `fileStorage` — its own importers read exactly those. The tests above
+   * are hand-made flat shapes, still read; these are the real ones, which were
+   * refused or imported nothing.
+   */
+  it('reads a preset envelope as Marinara exports one', async () => {
+    const outcome = await importEnvelope({
+      type: 'marinara_preset',
+      version: 1,
+      data: {
+        preset: { ...PRESET, sectionOrder: JSON.stringify(['section_main', 'section_history']) },
+        sections: [
+          SECTIONS[0],
+          { ...SECTIONS[1], markerConfig: JSON.stringify({ type: 'chat_history' }) },
+        ],
+        groups: [],
+        choiceBlocks: [],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+
+    const presets = await ownObjects(server, 'presets');
+    const imported = presets.objects.find((row) => row['name'] === PRESET.name);
+    const stored = await server.request({
+      method: 'GET',
+      url: `/api/library/presets/${String(imported?.id)}`,
+    });
+    const ids = (stored.body.object as { blocks: { id: string }[] }).blocks.map((b) => b.id);
+    expect(ids).toContain('mari.chat_history');
+  });
+
+  it('reads a lorebook envelope as Marinara exports one', async () => {
+    const outcome = await importEnvelope({
+      type: 'marinara_lorebook',
+      version: 1,
+      data: {
+        lorebook: { id: 'b1', name: 'Ferry lore', enabled: true },
+        entries: [
+          { id: 'e1', lorebookId: 'b1', name: 'The rail', content: 'Pay.', keys: ['rail'] },
+        ],
+        folders: [],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+
+    const books = await ownObjects(server, 'lorebooks');
+    expect(books.objects.map((row) => row['name'])).toContain('Ferry lore');
+  });
+
+  it('reads a profile export from the store snapshot under fileStorage', async () => {
+    const outcome = await importEnvelope({
+      type: 'marinara_profile',
+      version: 1,
+      data: {
+        characters: [],
+        fileStorage: {
+          version: 1,
+          tables: {
+            characters: [{ id: 'c1', data: JSON.stringify({ name: 'Vera Solano' }) }],
+            lorebooks: [{ id: 'b1', name: 'Rain City', enabled: 'true' }],
+            lorebook_entries: [],
+          },
+          files: [],
+        },
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.report.counts.converted).toBeGreaterThanOrEqual(2);
+  });
+
+  it('reads a profile export without a snapshot from the lists beside it', async () => {
+    const outcome = await importEnvelope({
+      type: 'marinara_profile',
+      version: 1,
+      data: {
+        characters: [{ id: 'c1', data: JSON.stringify({ name: 'Maris Okonkwo' }) }],
+        personas: [],
+        lorebooks: [
+          {
+            id: 'b1',
+            name: 'Ferry lore',
+            enabled: true,
+            folders: [],
+            entries: [{ id: 'e1', lorebookId: 'b1', name: 'Rail', content: 'Pay.' }],
+          },
+        ],
+        presets: [],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+
+    const books = await ownObjects(server, 'lorebooks');
+    expect(books.objects.map((row) => row['name'])).toContain('Ferry lore');
+  });
+
+  it('finds nothing to read in a profile archive’s manifest, whose rows are in the zip', () => {
+    expect(
+      profileAsFileSource({
+        fileStorage: {
+          version: 2,
+          tables: { characters: { path: 'x', count: 1, size: 2 } },
+          files: [],
+        },
+      }),
+    ).toBeNull();
   });
 
   it('records the session-shaped envelope kinds rather than converting them', () => {
