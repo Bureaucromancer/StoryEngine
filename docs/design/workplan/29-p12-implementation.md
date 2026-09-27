@@ -373,12 +373,38 @@ existence is a condition is worth building against a route that already refuses.
 
 ### P12.12 — The swap, on the next boot
 
-Before `buildServices`, which opens handles and stamps the directory. Unpack to
-a sibling, rename the live directory aside, rename the new one in.
+Before `buildServices`, which opens handles and stamps the directory. ~~Unpack
+to a sibling, rename the live directory aside, rename the new one in.~~
 ***The marker needs no deletion***, and that is the property worth having: it
 lives in the directory that just moved aside, so a successful restore cannot
 leave one behind and an unsuccessful one keeps exactly the state that describes
 itself. A second attempt refuses rather than looping.
+
+*Corrected 2026-09-27, by the audit that fixed it.* **The sibling swap could not
+run where this ships.** Staging beside the data directory and renaming it aside
+both write in the data directory's parent: in Docker and on unraid that is a
+mount point in a root-owned directory, and under the systemd unit
+(`ProtectSystem=strict`) everything but the data directory is read-only. So the
+restore failed with `EACCES`, `EROFS` or `EBUSY` everywhere except a bare
+checkout, and no test could see it, because a test's temporary directory has a
+writable parent. And when the second rename did fail, the catch booted an
+**empty install** with a setup token and logged *unchanged*, with the real data
+in a sibling nothing named. Three further things were wrong around it: a swap
+moved `backups/` and everyone's own archives aside with the install, which
+emptied every backup list; the archive's read error was an uncaught exception,
+a crash on every start; and a second restore request deleted the first one's
+marker.
+
+What replaced it (`backup/swap.ts`): unpack into `<data>/.restore/<id>/staging`,
+write a journal at `<data>/.restore/swap.json` before the first move, then move
+the install's own entries into `.restore/<id>/replaced` and the archive's into
+their places, one at a time. A move that fails is moved back; a boot that died
+part way finishes from the journal; a failure to move back refuses the boot
+(`stranded`) and names both halves. `backups/` never moves, and each person's
+own archives are carried across. An entry that is not StoryEngine's and not in
+the archive (`lost+found` on a volume of its own) stays where it is. The
+`*Ends at*` below keeps its words; the undo it names is now
+`.restore/<id>/replaced`.
 
 ***It returns rather than logs, and that is not a small point.*** The swap runs
 before `buildServices`, which is before `buildApp`, which is where the logger

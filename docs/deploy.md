@@ -411,12 +411,23 @@ removes old ones yet: delete them from the same panel.
 **They are ordinary `.tar.gz` files**, so `pnpm backup restore` reads one:
 
 ```sh
-# An install archive, into a stopped server's data directory.
-pnpm backup restore data/backups/install-full-2026-09-22-*.tar.gz /path/to/data
+# An install archive, into a stopped server's data directory. Name one archive:
+# a pattern that matches two is refused.
+pnpm backup restore data/backups/install-full-2026-09-22-0199….tar.gz /path/to/data
 
 # An account archive is a subset of an install one, so it unpacks in place.
 tar -xzf data/users/ned/backups/account-ned-full-*.tar.gz -C /path/to/data
 ```
+
+**The command deletes nothing.** It reads every header and the manifest before
+it writes a byte, and refuses an account archive (restoring one as the install
+would leave that one person's tree and nothing else). Into a directory with no
+install in it, it writes the archive straight in. Over an install, it stages the
+archive in `.restore/<id>/staging` and leaves the install alone: the server's
+next start swaps it in exactly as a restore from the admin panel would, keeping
+what it replaces in `.restore/<id>/replaced`. *Until 2026-09-27 it began by
+emptying the data directory*, stored backups included, before it had read a
+single header.
 
 **A `full` archive contains credentials** — the account's provider keys, and for
 an install archive `accounts.json` and the session signing key. That is what
@@ -457,24 +468,39 @@ What happens is a handoff across a restart. The server checks everything while
 it is still answering — the archive reads end to end, it is an install archive,
 a `redacted` one has been confirmed, and there is disk for it — writes
 `state/restore.pending`, drains the turns in flight, and exits. On the next
-start, **before anything opens the data directory**, it unpacks the archive to a
-sibling directory, renames the live one to `data.replaced-<uuid>`, and renames
-the new one into place.
+start, **before anything opens the data directory**, it unpacks the archive into
+`.restore/<id>/staging` inside the data directory, and then swaps it in one
+entry at a time: `users/`, `state/`, `config.json` and the rest move into
+`.restore/<id>/replaced`, and the archive's move into their places.
+
+*Until 2026-09-27 it staged beside the data directory and renamed the whole
+directory aside*, which needs to write in the data directory's parent. Docker,
+unraid and the systemd unit all make that parent unwritable, so a restore
+failed everywhere but a bare checkout. Everything now happens inside the data
+directory.
 
 ```sh
-# After a restore, beside the data directory:
-ls -d /path/to/data.replaced-*
+# After a restore, inside the data directory:
+ls -d /path/to/data/.restore/*/replaced
 ```
 
 ***That directory is the undo and StoryEngine will not delete it.*** Remove it
 yourself when you are sure — the same promise `data/removed/` makes about an
 account that was removed. A notice on that boot names it, which is the one place
 in this build that deliberately puts a filesystem path in front of a person.
+**Your stored backups are not in it**: `backups/` never moves, and each
+person's own archives are carried across to their restored account (an account
+the archive does not bring back keeps its archives in the undo, and the log
+says whose).
 
 **A restore that fails changes nothing.** Everything is unpacked before anything
-is renamed, so a bad archive leaves the install exactly where it was; the marker
-is kept so the next start refuses it rather than trying again, and **Call it
-off** in the same panel clears it. A bad archive must not become a restart loop.
+moves, and the swap writes a journal first, so a move that fails part way is
+moved back, and a start that was interrupted part way finishes the swap. The
+marker is kept so the next start refuses the restore rather than trying again,
+and **Call it off** in the same panel clears it. A bad archive must not become a
+restart loop. *If a move fails and so does moving it back*, the server will not
+start on a directory that is half of each: it says where both halves are, and
+tries again on each start.
 
 **And the archive carries no index**, so the restored install rebuilds it on
 that same boot. Run a search afterwards: a search answering is the only

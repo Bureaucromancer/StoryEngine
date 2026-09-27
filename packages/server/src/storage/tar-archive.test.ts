@@ -166,4 +166,19 @@ describe('a gzipped tar', () => {
     const whole = await members(archive);
     expect(whole.get('ok.txt')).toBe('fine');
   });
+
+  /**
+   * ***An archive that is not there is an error the caller can catch.*** The
+   * file stream's failure used to go nowhere, because `pipe` forwards data and
+   * not errors: an `error` event nobody listened to is an uncaught exception,
+   * and at boot, with a restore pending on an archive somebody deleted, that
+   * was a crash on every start.
+   *
+   * Catches: dropping the listener that hands the failure on. The read then
+   * waits on a gunzip that never ends, and the process reports the unhandled
+   * `ENOENT`.
+   */
+  it('rejects, rather than crashing the process, when the archive cannot be read', async () => {
+    await expect(members(join(root, 'not-there.tar.gz'))).rejects.toThrow(/ENOENT/);
+  });
 });

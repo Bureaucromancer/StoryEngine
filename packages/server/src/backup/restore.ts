@@ -6,11 +6,20 @@ import { join } from 'node:path';
 import { uuidv7, type BackupManifest } from '@storyengine/shared';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { freeBytes, moveTree, readFileBytes, removeTree } from '../storage/files.js';
+import { freeBytes, readFileBytes, removeTree, unlinkFile } from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
 import { readTarGz, unpackTarGz } from '../storage/tar-archive.js';
 
 import { readArchiveManifest } from './archive.js';
+import {
+  completeSwap,
+  KEPT_LIVE,
+  readJournal,
+  SWAP_JOURNAL_SCHEMA,
+  swapPaths,
+  type SwapJournal,
+  type SwapOptions,
+} from './swap.js';
 
 /**
  * ***Putting an archive back as the install*** —
@@ -202,6 +211,13 @@ async function scanArchive(
       if (name.split('/').some((part) => part === '..') || name.includes('\0')) {
         return { ok: false, refusal: 'unsafe-path' };
       }
+      /**
+       * ***Nor anything the swap keeps live***: the install's archives,
+       * anybody's own, and the swap's own directory. No archive this build
+       * writes carries them, and one that did would land on the archives the
+       * restore exists to leave alone.
+       */
+      if (keptLive(name)) return { ok: false, refusal: 'unsafe-path' };
       members += 1;
     }
   } catch {
@@ -215,6 +231,12 @@ async function scanArchive(
    */
   if (members - 1 !== manifest.files) return { ok: false, refusal: 'unreadable' };
   return { ok: true };
+}
+
+/** Whether a member name lands on something a swap never replaces. */
+function keptLive(name: string): boolean {
+  const [top] = name.split('/');
+  return KEPT_LIVE.has(top ?? '') || /^users\/[^/]+\/backups(\/|$)/.test(name);
 }
 
 /**
@@ -233,10 +255,16 @@ export type RestoreOutcome =
       kind: 'restored';
       /** The archive, data-root-relative — the name the marker carried. */
       archive: string;
-      /** Where the directory that was replaced now sits. **Not deleted.** */
+      /** Where the install that was replaced now sits. **Not deleted.** */
       moved: string;
       files: number;
       requestedBy: string;
+      /**
+       * Handles whose own archives stayed in `moved`, because the restored
+       * install has no such account, or its directory came with archives of
+       * its own.
+       */
+      backupsLeftBehind: string[];
     }
   | {
       kind: 'failed';
@@ -244,6 +272,20 @@ export type RestoreOutcome =
       why: string;
       /** False once a second attempt has been refused rather than made. */
       willRetry: boolean;
+    }
+  | {
+      /**
+       * ***A swap that could neither finish nor be put back***, and the one
+       * outcome after which the boot must not go on: the directory is part one
+       * install and part another. The journal stays, so the next start tries
+       * to finish it again. Both halves are named, so a person with a shell
+       * can put them right.
+       */
+      kind: 'stranded';
+      archive: string;
+      why: string;
+      staging: string;
+      replaced: string;
     };
 
 /**
@@ -259,31 +301,52 @@ export type RestoreOutcome =
  *
  * **The sequence, and why each step is where it is:**
  *
- * 1. **Read the marker.** Absent is a normal boot and costs one read.
- * 2. **Unpack to a sibling**, `<dataRoot>.restoring-<uuidv7>`. Everything is
- *    written before anything is renamed, so a failure here has ruined a
- *    directory nothing was using.
- * 3. **Rename the live directory aside**, then rename the new one in. Two
- *    renames on one filesystem; the window between them is the only unsafe
- *    moment in the whole feature and it is microseconds wide.
- * 4. ***Nothing deletes the marker.*** It lives inside the directory that just
- *    moved aside, and no archive carries one — so a successful restore cannot
- *    leave one behind, and an unsuccessful one keeps exactly the state that
- *    describes itself. This is the property that makes the whole handoff
- *    idempotent without a transaction.
- * 5. ***The replaced directory is kept.*** `removed/`'s precedent — *StoryEngine
- *    will not delete this; remove it yourself when you are sure* — and it is the
- *    undo. It is the single most important safety property here, because it is
- *    the only one that covers *the restore worked and was the wrong archive*.
+ * 1. **A journal first.** `.restore/swap.json` is a swap the last process
+ *    staged or started and did not finish, or one `pnpm backup restore`
+ *    staged. It is finished before anything else, because until it is the
+ *    directory may be neither install.
+ * 2. **Read the marker.** Absent is a normal boot and costs one read.
+ * 3. **Unpack inside the data directory**, into `.restore/<id>/staging`.
+ *    Everything is written before anything moves, so a failure here has
+ *    ruined a directory nothing was using. ~~A sibling of the data
+ *    directory~~ (corrected 2026-09-27): that needs a writable parent, and no
+ *    shipped deployment has one. See `swap.ts`.
+ * 4. **Journal, then swap**, one root entry at a time: see `completeSwap`.
+ * 5. ***Nothing deletes the marker.*** It lives in `state/`, which moves aside
+ *    with the install it belonged to, and no archive carries one — so a
+ *    successful restore cannot leave one behind, and an unsuccessful one keeps
+ *    exactly the state that describes itself. This is the property that makes
+ *    the whole handoff idempotent without a transaction.
+ * 6. ***The replaced install is kept***, in `.restore/<id>/replaced`.
+ *    `removed/`'s precedent — *StoryEngine will not delete this; remove it
+ *    yourself when you are sure* — and it is the undo. It is the single most
+ *    important safety property here, because it is the only one that covers
+ *    *the restore worked and was the wrong archive*. ***The archives are not in
+ *    it***: `backups/` never moves, and each person's own are carried across.
  *
- * ***A failed unpack is retried exactly once, and then refused.*** A bad archive
- * must not become a restart loop: a supervisor restarts a process that exits,
- * so an attempt that keeps failing and keeps the marker would take the install
- * down rather than one boot. The first failure rewrites the marker with
+ * ***A failed restore is retried exactly once, and then refused.*** A bad
+ * archive must not become a restart loop: a supervisor restarts a process that
+ * exits, so an attempt that keeps failing and keeps the marker would take the
+ * install down rather than one boot. The first failure rewrites the marker with
  * `attempts: 1` and boots normally; the second refuses and boots normally, and
  * `DELETE /api/admin/restore` is how a person clears it without a shell.
  */
-export async function performPendingRestore(layout: Layout): Promise<RestoreOutcome> {
+export async function performPendingRestore(
+  layout: Layout,
+  options: SwapOptions = {},
+): Promise<RestoreOutcome> {
+  const journal = await readJournal(layout);
+  if (journal === 'unreadable') {
+    return {
+      kind: 'stranded',
+      archive: '',
+      why: `A restore was part way through and its journal, ${layout.restoreJournalFile}, cannot be read.`,
+      staging: layout.restoreRoot,
+      replaced: layout.restoreRoot,
+    };
+  }
+  if (journal !== null) return await swapIn(layout, journal, options);
+
   const plan = await readMarker(layout);
   if (plan === null) return { kind: 'none' };
 
@@ -296,16 +359,24 @@ export async function performPendingRestore(layout: Layout): Promise<RestoreOutc
     };
   }
 
-  const archive = join(layout.dataRoot, ...plan.archive.split('/'));
-  const staging = `${layout.dataRoot}.restoring-${uuidv7()}`;
-  const moved = `${layout.dataRoot}.replaced-${uuidv7()}`;
-
+  const id = uuidv7();
+  const { staging } = swapPaths(layout, id);
+  let staged: SwapJournal;
+  /**
+   * ***The catch covers the unpack and the journal, and never the swap.*** Its
+   * clean-up deletes `.restore/<id>/`, which is harmless while that holds only
+   * an unpacked archive and would be the one unrecoverable act in this file
+   * once it held the replaced install. `completeSwap` answers every failure of
+   * its own with an outcome rather than an exception, so nothing after the
+   * journal needs catching here.
+   */
   try {
+    const archive = join(layout.dataRoot, ...plan.archive.split('/'));
     const written = await unpackTarGz(archive, staging);
     /**
      * ***The count again, and here it is the last line of defence.*** The route
      * checked it before the drain, but the archive has been sitting on a disk
-     * since — and this is the moment after which the old directory is gone from
+     * since — and this is the moment after which the old install stops being
      * where anything looks for it.
      *
      * **Minus the manifest**, which `manifest.files` excludes by definition and
@@ -321,21 +392,22 @@ export async function performPendingRestore(layout: Layout): Promise<RestoreOutc
         `Expected ${String(plan.manifest.files)} files and unpacked ${String(files)}`,
       );
     }
-
-    await moveTree(layout.dataRoot, moved);
-    await moveTree(staging, layout.dataRoot);
+    staged = {
+      schema: SWAP_JOURNAL_SCHEMA,
+      id,
+      archive: plan.archive,
+      requestedBy: plan.requestedBy,
+      files,
+      phase: 'staged',
+    };
+    await writeJsonAtomic(layout.restoreJournalFile, staged);
   } catch (error) {
-    await removeTree(staging).catch(() => undefined);
-    /**
-     * ***The marker is rewritten rather than deleted***, because the failure has
-     * to survive into the next boot to be refused there — and because deleting
-     * it would turn *this did not work* into *nobody ever asked*, which is the
-     * state a person would find if they looked.
-     */
-    await writeJsonAtomic(layout.restorePendingFile, {
-      ...plan,
-      attempts: plan.attempts + 1,
-    }).catch(() => undefined);
+    // The journal too, if its write landed and then threw: there was none
+    // when this began, so any there now is this one, naming a staging tree
+    // that is about to be gone.
+    await unlinkFile(layout.restoreJournalFile).catch(() => undefined);
+    await removeTree(layout.restoreWork(id)).catch(() => undefined);
+    await markAttempted(layout);
     return {
       kind: 'failed',
       archive: plan.archive,
@@ -343,14 +415,55 @@ export async function performPendingRestore(layout: Layout): Promise<RestoreOutc
       willRetry: false,
     };
   }
+  return await swapIn(layout, staged, options);
+}
 
-  return {
-    kind: 'restored',
-    archive: plan.archive,
-    moved,
-    files: plan.manifest.files,
-    requestedBy: plan.requestedBy,
-  };
+/** The swap, and what it means for the boot. */
+async function swapIn(
+  layout: Layout,
+  journal: SwapJournal,
+  options: SwapOptions,
+): Promise<RestoreOutcome> {
+  const outcome = await completeSwap(layout, journal, options);
+  switch (outcome.kind) {
+    case 'swapped':
+      return {
+        kind: 'restored',
+        archive: journal.archive,
+        moved: outcome.replaced,
+        files: journal.files,
+        requestedBy: journal.requestedBy,
+        backupsLeftBehind: outcome.backupsLeftBehind,
+      };
+    case 'rolled-back':
+      // Back where the marker is (when there was one): the install that asked.
+      await markAttempted(layout);
+      return { kind: 'failed', archive: journal.archive, why: outcome.why, willRetry: false };
+    case 'stranded':
+      return {
+        kind: 'stranded',
+        archive: journal.archive,
+        why: outcome.why,
+        staging: outcome.staging,
+        replaced: outcome.replaced,
+      };
+  }
+}
+
+/**
+ * ***The marker is rewritten rather than deleted***, because the failure has to
+ * survive into the next boot to be refused there — and because deleting it
+ * would turn *this did not work* into *nobody ever asked*, which is the state a
+ * person would find if they looked. No marker (a swap `pnpm backup restore`
+ * staged) is nothing to rewrite.
+ */
+async function markAttempted(layout: Layout): Promise<void> {
+  const plan = await readMarker(layout).catch(() => null);
+  if (plan === null) return;
+  await writeJsonAtomic(layout.restorePendingFile, {
+    ...plan,
+    attempts: plan.attempts + 1,
+  }).catch(() => undefined);
 }
 
 /**

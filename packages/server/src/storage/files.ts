@@ -5,11 +5,13 @@ import { constants, createReadStream } from 'node:fs';
 import {
   access,
   appendFile,
+  lstat,
   mkdir,
   readdir,
   readFile,
   rename,
   rm,
+  rmdir,
   stat,
   statfs,
   writeFile,
@@ -249,6 +251,42 @@ export async function unlinkFile(path: string): Promise<void> {
 export async function moveTree(from: string, to: string): Promise<void> {
   await mkdir(dirname(to), { recursive: true });
   await rename(from, to);
+}
+
+/**
+ * A rename and nothing else: no directory made, nothing retried — for a caller
+ * that has decided both, which is the restore swap (`backup/swap.ts`).
+ */
+export async function renamePath(from: string, to: string): Promise<void> {
+  await rename(from, to);
+}
+
+/**
+ * Whether anything is at `path`, **a dangling link included**.
+ *
+ * `fileExists` follows a link and says *no* when its target has gone. A swap
+ * that moves directory entries needs the other answer, because a rename moves
+ * the link itself.
+ */
+export async function pathPresent(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (isMissing(error)) return false;
+    throw error;
+  }
+}
+
+/**
+ * Removes a directory **only if it is empty**, and throws otherwise.
+ *
+ * `removeTree`'s opposite in the one way that matters: for a directory that
+ * *should* be empty, and whose contents, if it is not, may be the only copy of
+ * something.
+ */
+export async function removeEmptyDirectory(path: string): Promise<void> {
+  await rmdir(path);
 }
 
 /** A file found by {@link listTreeFiles}: its portable path, and its size now. */

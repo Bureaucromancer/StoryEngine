@@ -57,7 +57,8 @@ async function main(): Promise<void> {
       new Layout(dataDirArgument ?? environmentDataDir(fromEnvironment) ?? './data').configFile,
   );
 
-  const { config, fileFound, unknownKeys, document, environment } = await loadConfig(
+  // `let`, because a restore below replaces the file this read.
+  let { config, fileFound, unknownKeys, document, environment } = await loadConfig(
     configPath,
     fromEnvironment,
   );
@@ -126,6 +127,38 @@ async function main(): Promise<void> {
    */
   const restored = await performPendingRestore(layout);
 
+  /**
+   * ***A swap that could neither finish nor be put back stops here***, before
+   * anything opens the directory: it is part one install and part another,
+   * and serving it would offer whichever half has no `accounts.json` as a
+   * fresh install with a setup token. The journal stays, so the next start
+   * tries to finish it again, which is right for a lock that clears and
+   * repeats this sentence for one that does not.
+   */
+  if (restored.kind === 'stranded') {
+    throw new UsageError(
+      `A restore could not finish and could not be undone. ${restored.why}\n` +
+        `The unpacked archive is in ${restored.staging}, and the install it was replacing is in ${restored.replaced}.\n` +
+        `The server will not start on a directory that is half of each. Move the entries back by hand, then delete ${layout.restoreJournalFile}.`,
+    );
+  }
+
+  /**
+   * ***The config came out of the archive too***, and it was read above from
+   * the directory that has just been replaced. So it is read again, or the
+   * process runs a restored install on the replaced install's settings until
+   * the next restart. `dataDir` is the exception: the archive may name another
+   * directory, and this process restored into this one.
+   */
+  if (restored.kind === 'restored') {
+    const before = config.dataDir;
+    ({ config, fileFound, unknownKeys, document, environment } = await loadConfig(
+      configPath,
+      fromEnvironment,
+    ));
+    config.dataDir = before;
+  }
+
   // The path travels with the config, so the settings route writes back to the
   // file this process actually read ([P2A §2.5]).
   const services = await buildServices({
@@ -169,6 +202,7 @@ async function main(): Promise<void> {
         moved: restored.moved,
         files: restored.files,
         requestedBy: restored.requestedBy,
+        backupsLeftBehind: restored.backupsLeftBehind,
       },
       'Restored this data directory from a backup; the previous one was moved aside and kept',
     );

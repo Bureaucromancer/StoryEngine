@@ -198,6 +198,17 @@ export async function* readTarGz(path: string): AsyncGenerator<ReadMember> {
 
   const file = createReadStream(path);
   const source = file.pipe(createGunzip());
+  /**
+   * ***`pipe` forwards data and never errors***, so the file's own failure has
+   * to be handed on by name. Without this a missing or unreadable archive was
+   * an `error` event nobody listened to, which Node turns into an uncaught
+   * exception: a crash, and at boot, where a pending restore reads its
+   * archive, a crash on every start. Handed on, it rejects the read below and
+   * reaches the caller's `catch` like any other unreadable archive.
+   */
+  file.on('error', (error) => {
+    source.destroy(error);
+  });
   const chunks = source[Symbol.asyncIterator]();
 
   /** Fills `held` to at least `want` bytes, or gives up at the end of the stream. */
@@ -288,11 +299,14 @@ export class UnpackError extends Error {}
  * or stamps it. So this throws rather than logging, and the caller turns it
  * into the one thing a boot can say.
  *
- * ***It writes into a sibling directory rather than over the live one***, which
- * is the caller's decision but the reason belongs here: every member is written
- * before anything is renamed, so an unpack that fails half way has ruined a
- * directory nothing is using. The live data is untouched until two renames,
- * microseconds apart, at the end.
+ * ***It writes into a directory nothing is using rather than over the live
+ * one***, which is the caller's decision but the reason belongs here: every
+ * member is written before anything is renamed, so an unpack that fails half
+ * way has ruined a directory nothing reads. ~~A sibling of the data directory,
+ * untouched until two renames at the end~~ (corrected 2026-09-27): a staging
+ * directory under the data directory's own `.restore/`, because no shipped
+ * deployment can write beside it, and the swap afterwards is `backup/swap.ts`'s,
+ * one entry at a time behind a journal.
  *
  * **Not atomic per file, deliberately.** `writeAtomic`'s temp-and-rename is for
  * a file a reader might be holding; nothing can be reading this tree, because

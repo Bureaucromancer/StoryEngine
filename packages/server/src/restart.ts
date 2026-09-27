@@ -95,10 +95,19 @@ export type RestartRefusal =
  */
 export function beginRestart(
   services: AppServices,
+  /**
+   * `'restore'` from the one caller holding `services.restoring`. Everyone
+   * else is refused while a restore is being prepared, because the drain they
+   * start would exit under a marker that is about to be written, or about to
+   * be taken back.
+   */
+  heldBy?: 'restore',
 ): { ok: true } | { ok: false; why: RestartRefusal } {
   if (!services.supervision.supervised) return { ok: false, why: 'unsupervised' };
   if (services.exit === null) return { ok: false, why: 'unavailable' };
-  if (services.draining) return { ok: false, why: 'already-restarting' };
+  if (services.draining || (services.restoring && heldBy !== 'restore')) {
+    return { ok: false, why: 'already-restarting' };
+  }
 
   const exit = services.exit;
   services.draining = true;

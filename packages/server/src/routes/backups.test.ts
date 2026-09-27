@@ -3,7 +3,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fileExists } from '../storage/files.js';
+import type { RestorePlan } from '../backup/restore.js';
+import { fileExists, readFileBytes } from '../storage/files.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -640,6 +641,9 @@ describe('restoring the install', () => {
 
   it('refuses an account archive by id, without reading it as an install', async () => {
     server.services.supervision = { supervised: true, how: 'declared' };
+    // A server that could restart, so the refusal below is about the archive:
+    // one that could not is refused before anything is looked up.
+    server.services.exit = vi.fn();
     const mine = await take();
 
     const response = await server.request({
@@ -700,6 +704,76 @@ describe('restoring the install', () => {
      */
     const again = await server.request({ method: 'DELETE', url: '/api/admin/restore' });
     expect(again.status).toBe(204);
+  });
+
+  /**
+   * ***One restore at a time, and the first one's marker survives the
+   * second.*** A second request used to get past every check, overwrite the
+   * first one's marker, find the drain already begun, and delete the marker on
+   * its way out, so the server restarted without restoring anything.
+   *
+   * Catches: a draining check that runs only after the marker is written.
+   */
+  it('refuses a second restore while the first drains, and keeps the first one’s marker', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    server.services.exit = vi.fn();
+    const id = await take('/api/admin/backups');
+
+    const first = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id },
+    });
+    expect(first.status).toBe(202);
+    const accepted = (first.body as { plan: RestorePlan }).plan;
+
+    const second = await server.request({
+      method: 'POST',
+      url: '/api/admin/restore',
+      payload: { id },
+    });
+
+    expect(second.status).toBe(409);
+    expect((second.body as { error: string }).error).toBe('already-restarting');
+    expect(await pending()).toBe(true);
+    const onDisk = JSON.parse(
+      new TextDecoder().decode((await readFileBytes(server.services.layout.restorePendingFile))!),
+    ) as RestorePlan;
+    expect(onDisk.at).toBe(accepted.at);
+  });
+
+  /**
+   * ***And two at once.*** Neither has begun the drain while both are reading
+   * the archive, so `draining` cannot tell them apart; the reservation taken
+   * before the first `await` does.
+   *
+   * Catches: taking the reservation late, or not at all.
+   */
+  it('lets exactly one of two simultaneous restores through', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    server.services.exit = vi.fn();
+    const id = await take('/api/admin/backups');
+
+    const answers = await Promise.all([
+      server.request({ method: 'POST', url: '/api/admin/restore', payload: { id } }),
+      server.request({ method: 'POST', url: '/api/admin/restore', payload: { id } }),
+    ]);
+
+    expect(answers.map((answer) => answer.status).sort()).toEqual([202, 409]);
+    expect(await pending()).toBe(true);
+  });
+
+  /** A plain restart waits too: its drain would exit under a marker being written. */
+  it('refuses a restart while a restore is being prepared', async () => {
+    server.services.supervision = { supervised: true, how: 'declared' };
+    server.services.exit = vi.fn();
+    server.services.restoring = true;
+
+    const response = await server.request({ method: 'POST', url: '/api/admin/restart' });
+
+    expect(response.status).toBe(409);
+    expect((response.body as { error: string }).error).toBe('already-restarting');
+    expect(server.services.draining).toBe(false);
   });
 
   it('takes the marker back when the drain will not start', async () => {

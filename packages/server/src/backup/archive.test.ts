@@ -170,6 +170,31 @@ describe('an install backup', () => {
   });
 
   /**
+   * ***The install a restore replaced is not part of this one.*** Since the
+   * swap moved inside the data directory (2026-09-27), the undo sits at
+   * `.restore/<id>/replaced`, and an archive that took it would carry a whole
+   * second install, and the next would carry both.
+   *
+   * Catches: dropping `.restore` from `alwaysSkipped`.
+   */
+  it('leaves a restore’s kept install behind', async () => {
+    await put('.restore/0199-old/replaced/users/ned/library/actors/vera/card.png', 'the old vera');
+    await put('.restore/swap.json', '{"schema":"storyengine.restore-swap/1"}');
+
+    const record = await takeBackup(context, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+    const found = await findBackup(context, INSTALL, record.id);
+    const members = await membersOf(found!.path);
+
+    expect([...members.keys()].filter((name) => name.startsWith('.restore'))).toEqual([]);
+    // And the rest is still there, so the filter above is not passing over nothing.
+    expect(members.has('users/ned/library/actors/vera/card.png')).toBe(true);
+  });
+
+  /**
    * ***A snapshot, not a copy*** — [21 §5.1] makes `state.sqlite` authoritative
    * and not rebuildable, so it is the one file here whose torn copy loses
    * something. `VACUUM INTO` is what the script cannot do and is the concrete

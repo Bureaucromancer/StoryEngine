@@ -335,6 +335,17 @@ export interface AppServices {
    */
   draining: boolean;
   /**
+   * Set while a restore request is between its checks and its drain.
+   *
+   * ***The reservation, taken before the first `await`.*** A restore request
+   * reads a whole archive before it writes its marker, and two of them used to
+   * interleave: the second overwrote the first's marker, found the drain
+   * already begun, and deleted the marker on its way out, so the server
+   * restarted without restoring. `draining` could not guard that, because it
+   * is set only at the end.
+   */
+  restoring: boolean;
+  /**
    * What the last update check found — [09 §6.5], [P10.3].
    *
    * ***Assigned into rather than recomputed per request***, which is the whole
@@ -843,6 +854,7 @@ async function assembleWithState(
     // Wired by `main.ts`, which is the only caller that owns the process.
     exit: null,
     draining: false,
+    restoring: false,
     updates: UNCHECKED,
     // Replaced by `startUpdateCheck`, which `buildApp` runs once a logger
     // exists. A build that never starts one disposes cleanly.

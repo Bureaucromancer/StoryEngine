@@ -4,7 +4,8 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { CLOSE_BACKSTOP_MS } from './app.js';
 import { Accounts } from './auth/accounts.js';
+import { findBackup, takeBackup } from './backup/archive.js';
+import { prepareRestore } from './backup/restore.js';
 import { Layout } from './storage/layout.js';
 import { tempRoot } from './test-server.js';
 
@@ -371,6 +374,54 @@ describe('the config-file line', () => {
     expect(line['open']).toBe(`http://localhost:${String(port)}`);
   });
 
+  /**
+   * ***A restore brings its own config, and the process has to run on it.***
+   * `main.ts` read `config.json` before the swap, from the install the swap
+   * then replaced, and carried on with it: the restored install ran on the old
+   * one's settings until somebody restarted it again. Here the two configs
+   * disagree about the port, which is the setting a line can show.
+   *
+   * Catches: dropping the re-read after a restore. The server then listens
+   * where the replaced install's config said.
+   */
+  it('boots a restored install on the config the archive brought', async () => {
+    const before = await freePort();
+    const after = await freePort();
+
+    // The archive: an install whose config listens on `after`.
+    const source = await tempRoot('se-cli-source-');
+    try {
+      const from = new Layout(source);
+      await mkdir(from.stateRoot, { recursive: true });
+      await writeFile(join(source, 'config.json'), JSON.stringify({ server: { port: after } }));
+      const store = new DatabaseSync(from.stateFile);
+      const context = { layout: from, state: store, build: null };
+      const record = await takeBackup(context, {
+        owner: { kind: 'install' },
+        contents: 'full',
+        reason: 'manual',
+      });
+      const found = await findBackup(context, { kind: 'install' }, record.id);
+      store.close();
+
+      // Stored in this install, which listens on `before`, and asked for.
+      const here = new Layout(dataDir);
+      await writeFile(join(dataDir, 'config.json'), JSON.stringify({ server: { port: before } }));
+      await mkdir(here.backupsRoot, { recursive: true });
+      const archive = join(here.backupsRoot, found!.name);
+      await copyFile(found!.path, archive);
+      expect((await prepareRestore(here, { path: archive, requestedBy: 'ned' })).ok).toBe(true);
+    } finally {
+      await rm(source, { recursive: true, force: true });
+    }
+
+    const line = await startupLine(['--data', dataDir], 'StoryEngine listening', {
+      SE_HOST: 'localhost',
+    });
+
+    expect(line['api']).toBe(`http://localhost:${String(after)}`);
+  });
+
   it('sends a development run to the client’s own port, which is a different process', async () => {
     const port = await freePort();
 
@@ -405,6 +456,28 @@ describe('an unusable data directory', () => {
     expect(result.stderr).toContain('cannot be created or written');
     expect(result.stderr).toContain('ENOTDIR');
     expect(result.stderr).not.toContain('at async');
+    expect(result.stdout).not.toContain('listening');
+    expect(result.timedOut).toBe(false);
+  });
+});
+
+/**
+ * ***A restore that could neither finish nor be undone stops the boot*** —
+ * [P12.12] as corrected 2026-09-27. The directory is part one install and part
+ * another, and a server that went on would offer whichever half lacks
+ * `accounts.json` as a fresh install with a setup token. A journal nobody can
+ * read is the simplest way to be there.
+ */
+describe('a restore it cannot finish', () => {
+  it('refuses to start, and says where both halves are', async () => {
+    await mkdir(join(dataDir, '.restore'), { recursive: true });
+    await writeFile(join(dataDir, '.restore', 'swap.json'), '{ half a journal');
+
+    const result = await run(['--data', dataDir]);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('A restore could not finish and could not be undone');
+    expect(result.stderr).toContain('swap.json');
     expect(result.stdout).not.toContain('listening');
     expect(result.timedOut).toBe(false);
   });

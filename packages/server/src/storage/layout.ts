@@ -255,6 +255,44 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'restore.pending');
   }
 
+  /**
+   * `.restore/` — where a restore unpacks, and where the install it replaced
+   * is kept — [P12.12](../../../../docs/design/workplan/29-p12-implementation.md),
+   * as corrected 2026-09-27.
+   *
+   * ***Inside the data directory, because the data directory is the one place a
+   * shipped install can write.*** The swap used to stage beside it, in
+   * `<dataRoot>.restoring-*`, and rename the whole root aside. But `/data` in a
+   * container is a mount point in a root-owned parent, and the systemd unit
+   * makes everything but the data directory read-only, so that failed with
+   * `EACCES`, `EROFS` or `EBUSY` everywhere except a bare-metal checkout. Here
+   * the swap moves the root's entries one at a time, on one filesystem the
+   * process owns.
+   *
+   * ***Never in an archive*** (`alwaysSkipped`), or the next backup would carry
+   * the whole of the install a restore replaced.
+   */
+  get restoreRoot(): string {
+    return resolveWithin(this.dataRoot, '.restore');
+  }
+
+  /**
+   * `.restore/swap.json` — a swap that has been staged and not yet finished.
+   *
+   * ***At the root of `.restore/` rather than in `state/`***, because `state/`
+   * is one of the entries the swap moves: a journal inside it would move
+   * aside with the install it describes, and a boot interrupted half way would
+   * find no journal and a half-swapped directory.
+   */
+  get restoreJournalFile(): string {
+    return resolveWithin(this.restoreRoot, 'swap.json');
+  }
+
+  /** `.restore/<id>/` — one restore's staging tree and the install it replaced. */
+  restoreWork(id: string): string {
+    return resolveWithin(this.restoreRoot, id);
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }

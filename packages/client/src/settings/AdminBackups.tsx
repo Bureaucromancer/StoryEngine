@@ -289,8 +289,9 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
         now is set aside rather than blended with what arrives.
       </Fine>
       <Fine>
-        The server stops, and restores as it starts again. What is here now is kept beside the new
-        directory and never deleted, which is how a restore is undone.
+        The server stops, and restores as it starts again. What is here now is kept in the data
+        directory’s <code>.restore</code> folder and never deleted, which is how a restore is
+        undone. The stored backups stay where they are.
       </Fine>
 
       {/**

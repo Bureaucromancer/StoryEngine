@@ -2,9 +2,9 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { DatabaseSync } from 'node:sqlite';
-import { mkdtemp, rm, truncate } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rename, rm, truncate } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { BACKUP_MANIFEST_MEMBER, BACKUP_MANIFEST_SCHEMA } from '@storyengine/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -14,6 +14,7 @@ import { Layout } from '../storage/layout.js';
 import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import { findBackup, takeBackup, type BackupContext } from './archive.js';
 import { performPendingRestore, prepareRestore, type RestorePlan } from './restore.js';
+import { SWAP_JOURNAL_SCHEMA, type Rename } from './swap.js';
 
 /**
  * The preconditions of a restore —
@@ -60,7 +61,13 @@ async function archive(
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'se-restore-'));
+  /**
+   * ***One level down, in a directory of its own***, so the swap tests can
+   * make the data directory's parent read-only, which is what a container's
+   * `/data` and the unit's `ProtectSystem=strict` both give the process.
+   */
+  root = join(await mkdtemp(join(tmpdir(), 'se-restore-')), 'data');
+  await mkdir(root);
   layout = new Layout(root);
   await ensureDirectory(layout.stateRoot);
   state = new DatabaseSync(layout.stateFile);
@@ -78,7 +85,8 @@ afterEach(async () => {
   // The swap tests close it first, as production has it closed; closing twice
   // throws in `node:sqlite`.
   if (state.isOpen) state.close();
-  await rm(root, { recursive: true, force: true });
+  await chmod(dirname(root), 0o755).catch(() => undefined);
+  await rm(dirname(root), { recursive: true, force: true });
 });
 
 const INSTALL = { kind: 'install' } as const;
@@ -254,11 +262,11 @@ describe('performing a pending restore', () => {
     expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
   });
 
-  it('replaces the directory and keeps what was there', async () => {
+  it('replaces the install and keeps what was there, inside the data directory', async () => {
     const path = await archiveOfSomethingElse();
     await prepareRestore(layout, { path, requestedBy: 'ned' });
     // Written after the archive was taken, so its absence afterwards is proof
-    // the directory was replaced rather than written into.
+    // the install was replaced rather than written into.
     await put('users/ned/library/actors/later/card.png', 'added after the backup');
     closeLikeBoot();
 
@@ -278,14 +286,19 @@ describe('performing a pending restore', () => {
     /**
      * ***The undo, and `removed/`'s precedent.*** *StoryEngine will not delete
      * this; remove it yourself when you are sure.* It is the only property that
-     * covers **the restore worked and was the wrong archive**.
+     * covers **the restore worked and was the wrong archive**. And it is inside
+     * the data directory now, under `.restore/`, because beside it is a place
+     * no shipped install can write.
      */
+    expect(outcome.moved.startsWith(layout.restoreRoot)).toBe(true);
     expect(
       await fileExists(
         join(outcome.moved, 'users', 'ned', 'library', 'actors', 'later', 'card.png'),
       ),
     ).toBe(true);
-    await rm(outcome.moved, { recursive: true, force: true });
+    // And the swap left nothing of its own behind but the undo.
+    expect(await fileExists(layout.restoreJournalFile)).toBe(false);
+    expect(await readdir(dirname(outcome.moved))).toEqual(['replaced']);
   });
 
   it('leaves no marker behind, because the archive carried none', async () => {
@@ -305,7 +318,6 @@ describe('performing a pending restore', () => {
      * if `state/restore.pending` ever left the always-skipped list.
      */
     expect(await marker()).toBeNull();
-    if (outcome.kind === 'restored') await rm(outcome.moved, { recursive: true, force: true });
   });
 
   it('leaves the install untouched when the archive will not unpack, and refuses the second time', async () => {
@@ -370,13 +382,348 @@ describe('performing a pending restore', () => {
     const outcome = await performPendingRestore(layout);
     expect(outcome.kind).toBe('failed');
 
-    const { readdir } = await import('node:fs/promises');
-    const siblings = await readdir(join(root, '..'));
-    // **Proof the listing is the right one**, so the filter below cannot pass
-    // over nothing. `root.split('/')` did exactly that on Windows, where no
-    // name could start with a whole absolute path.
+    // Nothing staged is left inside the data directory,
+    expect(await readdir(layout.restoreRoot)).toEqual([]);
+    // and nothing was ever written beside it. **Proof the listing is the right
+    // one**, so the filter cannot pass over nothing: `root.split('/')` did
+    // exactly that on Windows, where no name could start with a whole path.
+    const siblings = await readdir(dirname(root));
     expect(siblings).toContain(basename(root));
-    const mine = siblings.filter((name) => name.startsWith(`${basename(root)}.`));
-    expect(mine).toEqual([]);
+    expect(siblings.filter((name) => name.startsWith(`${basename(root)}.`))).toEqual([]);
+  });
+
+  /**
+   * ***Where every shipped install is.*** In a container `/data` is a mount
+   * point in a parent owned by root, and the unit makes everything but the
+   * data directory read-only. The old swap staged beside the data directory
+   * and renamed it whole, which failed with `EACCES` in exactly those places:
+   * a restore that worked only from a checkout. Everything happens inside the
+   * data directory now.
+   *
+   * *Not on Windows, whose read-only bit does not guard a directory, and not
+   * as root, which no permission stops.* The Linux leg of CI runs it.
+   *
+   * Catches: staging or setting aside anywhere outside the data directory.
+   */
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'swaps inside the data directory, so a parent it cannot write is no obstacle',
+    async () => {
+      const path = await archiveOfSomethingElse();
+      await prepareRestore(layout, { path, requestedBy: 'ned' });
+      closeLikeBoot();
+      await chmod(dirname(root), 0o555);
+
+      const outcome = await performPendingRestore(layout);
+
+      expect(outcome.kind).toBe('restored');
+      expect(
+        await fileExists(join(root, 'users', 'ada', 'library', 'actors', 'other', 'card.png')),
+      ).toBe(true);
+    },
+  );
+
+  /**
+   * ***The archives stay where the lists look for them.*** The old swap moved
+   * the whole directory aside, `backups/` and everybody's own archives with
+   * it, so every backup list came back empty after a restore, and
+   * `deploy.md`'s *delete the replaced directory when you are sure* deleted
+   * them all.
+   *
+   * Catches: moving `backups/` with the install, and not carrying a person's
+   * own archives across.
+   */
+  it('keeps every archive live, the install’s and each person’s', async () => {
+    const path = await archiveOfSomethingElse();
+    // Neither is in the archive: archives are never inside one.
+    await put('users/ned/backups/account-ned-full-2026-09-01-x.tar.gz', 'ned’s own');
+    // Somebody the archive does not bring back.
+    await put('users/zed/backups/account-zed-full-2026-09-01-x.tar.gz', 'zed’s own');
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    closeLikeBoot();
+
+    const outcome = await performPendingRestore(layout);
+
+    expect(outcome.kind).toBe('restored');
+    if (outcome.kind !== 'restored') return;
+    // The install's, including the one just restored, never moved.
+    expect(await fileExists(path)).toBe(true);
+    // A person's, carried into the restored install's directory for them.
+    expect(
+      await fileExists(
+        join(root, 'users', 'ned', 'backups', 'account-ned-full-2026-09-01-x.tar.gz'),
+      ),
+    ).toBe(true);
+    // And one with nobody to come back to stays with the undo, and is said.
+    expect(outcome.backupsLeftBehind).toEqual(['zed']);
+    expect(
+      await fileExists(
+        join(outcome.moved, 'users', 'zed', 'backups', 'account-zed-full-2026-09-01-x.tar.gz'),
+      ),
+    ).toBe(true);
+  });
+
+  /**
+   * ***What is not StoryEngine's stays where it is.*** A data directory that
+   * is the root of its own filesystem has a `lost+found` that root owns and
+   * the server's user cannot rename. Moving it would fail every restore on
+   * such a volume.
+   */
+  it('leaves an entry that is not its own, and not in the archive, where it is', async () => {
+    const path = await archiveOfSomethingElse();
+    await put('lost+found/0001', 'recovered by fsck');
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    closeLikeBoot();
+
+    const outcome = await performPendingRestore(layout);
+
+    expect(outcome.kind).toBe('restored');
+    expect(await fileExists(join(root, 'lost+found', '0001'))).toBe(true);
+  });
+
+  /**
+   * ***A marker whose archive has gone is a failed restore, not a crash.*** The
+   * archive's read error used to reach nothing, which Node makes an uncaught
+   * exception: at boot, a crash on every start, under a supervisor that
+   * restarts it.
+   */
+  it('fails, rather than crashing, when the archive has gone', async () => {
+    const path = await archiveOfSomethingElse();
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    await rm(path);
+    closeLikeBoot();
+
+    const outcome = await performPendingRestore(layout);
+
+    expect(outcome.kind).toBe('failed');
+    expect((await marker())?.attempts).toBe(1);
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+  });
+});
+
+/**
+ * ***A swap that goes wrong*** — the roll-back, the one outcome that stops a
+ * boot, and the journal that lets the next start finish what the last began.
+ *
+ * The renames that fail here are injected, because the disks that make them
+ * fail (a mount point, a Windows virus scanner holding a file just unpacked,
+ * a process killed mid-swap) are not ones a test can arrange. Each test
+ * names which rename it breaks.
+ */
+describe('a swap that goes wrong', () => {
+  async function staged(): Promise<void> {
+    await put('users/ada/library/actors/other/card.png', 'somebody else entirely');
+    const path = await archive(INSTALL);
+    await prepareRestore(layout, { path, requestedBy: 'ned' });
+    // Only in the install as it is now, so the restored one cannot have it.
+    await put('users/ned/library/actors/later/card.png', 'added after the backup');
+    state.close();
+  }
+
+  /** Which side of the swap a rename moves from. */
+  const outOf = (from: string, part: 'staging' | 'replaced'): boolean =>
+    from.split(/[\\/]/).includes(part);
+
+  /** A rename that throws `EBUSY` when `when` says so, and renames otherwise. */
+  function breaking(when: (from: string) => boolean): Rename {
+    return async (from, to) => {
+      if (when(from)) {
+        throw Object.assign(new Error(`EBUSY: resource busy or locked, rename '${from}'`), {
+          code: 'EBUSY',
+        });
+      }
+      await rename(from, to);
+    };
+  }
+
+  /**
+   * The install as it was: `later` was written after the archive was taken,
+   * and a root `backup.json` is the note a restored install keeps. (`ada` is in
+   * both, because the fixture puts her there before archiving.)
+   */
+  async function theOldInstall(): Promise<void> {
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+    expect(
+      await fileExists(join(root, 'users', 'ned', 'library', 'actors', 'later', 'card.png')),
+    ).toBe(true);
+    expect(await fileExists(join(root, 'backup.json'))).toBe(false);
+  }
+
+  async function theRestoredInstall(): Promise<void> {
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+    expect(
+      await fileExists(join(root, 'users', 'ned', 'library', 'actors', 'later', 'card.png')),
+    ).toBe(false);
+    expect(await fileExists(join(root, 'backup.json'))).toBe(true);
+  }
+
+  /**
+   * ***Half way through, and put back.*** The entries come in in name order,
+   * and bringing `users/` in fails after `state/` has already arrived. That is
+   * the case that needs both halves of the roll-back: `state/` has to go back
+   * out before the old one can return, because a directory cannot be renamed
+   * onto a directory with something in it. (A file can, silently, which is why
+   * failing after only `accounts.json` had arrived proved nothing about the
+   * first half.) The old swap's second rename failing booted an **empty
+   * install**, with a setup token, and logged *unchanged*.
+   *
+   * Catches: a failure that is not rolled back, and a roll-back that misses
+   * the entries that had already arrived (it then cannot put `state/` back,
+   * and strands the boot).
+   */
+  it('puts the install back when a move fails half way', async () => {
+    await staged();
+    const rename = breaking((from) => outOf(from, 'staging') && basename(from) === 'users');
+
+    const outcome = await performPendingRestore(layout, { rename });
+
+    expect(outcome.kind).toBe('failed');
+    if (outcome.kind === 'failed') expect(outcome.why).toContain('EBUSY');
+    await theOldInstall();
+    // Refused next time, like any failed restore.
+    expect((await marker())?.attempts).toBe(1);
+    // And nothing of the attempt is left: no journal, no staging, no empty undo.
+    expect(await fileExists(layout.restoreJournalFile)).toBe(false);
+    expect(await readdir(layout.restoreRoot)).toEqual([]);
+  });
+
+  /**
+   * ***Neither forward nor back: the boot stops, and the next one finishes.***
+   * Every move out of staging fails, so the swap cannot go forward, and every
+   * move out of `replaced/` fails, so it cannot go back either. The directory
+   * is then neither install, so the outcome is `stranded`, which `main.ts`
+   * refuses to boot past, naming both halves. The journal stays, and the next
+   * start, with the disk behaving, **finishes the swap** from it.
+   *
+   * Catches: a roll-back failure reported as anything that boots; a journal
+   * removed or never written; a resume that is not idempotent.
+   */
+  it('stops the boot when it can go neither forward nor back, and finishes next time', async () => {
+    await staged();
+
+    const stuck = await performPendingRestore(layout, {
+      rename: breaking((from) => outOf(from, 'staging') || outOf(from, 'replaced')),
+    });
+
+    expect(stuck.kind).toBe('stranded');
+    if (stuck.kind !== 'stranded') return;
+    expect(stuck.why).toContain('Putting the install back failed too');
+    expect(await fileExists(join(stuck.replaced, 'accounts.json'))).toBe(true);
+    expect(await fileExists(layout.restoreJournalFile)).toBe(true);
+
+    const next = await performPendingRestore(layout);
+
+    expect(next.kind).toBe('restored');
+    await theRestoredInstall();
+    expect(await fileExists(layout.restoreJournalFile)).toBe(false);
+  });
+
+  /**
+   * ***`pnpm backup restore` stages; the boot swaps.*** The command line
+   * unpacks into `.restore/<id>/staging` and writes a `staged` journal, and
+   * does no swap of its own, so it cannot rename directories under a running
+   * server and there is one swap to trust rather than two.
+   */
+  it('finishes a swap the command line staged', async () => {
+    state.close();
+    const id = '0199aaaa-0000-7000-8000-000000000001';
+    await put(`.restore/${id}/staging/accounts.json`, '{"accounts":[{"handle":"ada"}]}');
+    await put(`.restore/${id}/staging/users/ada/library/actors/other/card.png`, 'ada');
+    await writeFileBytes(
+      layout.restoreJournalFile,
+      bytes(
+        JSON.stringify({
+          schema: SWAP_JOURNAL_SCHEMA,
+          id,
+          archive: 'from the command line',
+          requestedBy: '',
+          files: 2,
+          phase: 'staged',
+        }),
+      ),
+    );
+
+    const outcome = await performPendingRestore(layout);
+
+    expect(outcome.kind).toBe('restored');
+    expect(
+      await fileExists(join(root, 'users', 'ada', 'library', 'actors', 'other', 'card.png')),
+    ).toBe(true);
+    // StoryEngine's own entries went aside even where the archive had none.
+    expect(await fileExists(join(root, 'config.json'))).toBe(false);
+    expect(await fileExists(join(root, 'state', 'session.key'))).toBe(false);
+  });
+
+  /**
+   * ***A resume whose staging tree has lost an entry puts the install back***
+   * rather than finishing a restore with a hole in it. The journal lists
+   * `users` as coming in, and nothing is there to bring.
+   *
+   * Catches: a resume that skips an incoming entry it cannot find.
+   */
+  it('puts the install back when a staged entry has gone missing', async () => {
+    state.close();
+    const id = '0199aaaa-0000-7000-8000-000000000003';
+    await put(`.restore/${id}/staging/accounts.json`, '{"accounts":[{"handle":"ada"}]}');
+    await writeFileBytes(
+      layout.restoreJournalFile,
+      bytes(
+        JSON.stringify({
+          schema: SWAP_JOURNAL_SCHEMA,
+          id,
+          archive: 'half gone',
+          requestedBy: '',
+          files: 2,
+          phase: 'swapping',
+          aside: ['accounts.json', 'config.json', 'state', 'users'],
+          incoming: ['accounts.json', 'users'],
+        }),
+      ),
+    );
+
+    const outcome = await performPendingRestore(layout);
+
+    expect(outcome.kind).toBe('failed');
+    expect(
+      await fileExists(join(root, 'users', 'ned', 'library', 'actors', 'vera', 'card.png')),
+    ).toBe(true);
+    expect(await fileExists(join(root, 'state', 'session.key'))).toBe(true);
+    expect(await fileExists(layout.restoreJournalFile)).toBe(false);
+  });
+
+  /**
+   * ***A journal it cannot read is not *no journal*.*** It exists because a
+   * swap may be half done, and booting past it would serve a directory that is
+   * part of each install.
+   */
+  it('will not boot past a journal it cannot read', async () => {
+    state.close();
+    await put('.restore/swap.json', '{ not json');
+
+    expect((await performPendingRestore(layout)).kind).toBe('stranded');
+  });
+
+  /**
+   * ***A journal whose staging tree has gone swaps nothing in***, rather than
+   * moving the whole install aside to make room for nothing.
+   */
+  it('moves nothing when nothing was staged', async () => {
+    state.close();
+    await writeFileBytes(
+      layout.restoreJournalFile,
+      bytes(
+        JSON.stringify({
+          schema: SWAP_JOURNAL_SCHEMA,
+          id: '0199aaaa-0000-7000-8000-000000000002',
+          archive: 'gone',
+          requestedBy: '',
+          files: 0,
+          phase: 'staged',
+        }),
+      ),
+    );
+
+    expect((await performPendingRestore(layout)).kind).toBe('failed');
+    expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
+    expect(await fileExists(layout.restoreJournalFile)).toBe(false);
   });
 });

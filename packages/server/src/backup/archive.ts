@@ -196,6 +196,13 @@ function alwaysSkipped(context: BackupContext, name: string): boolean {
    * none.
    */
   if (name === 'state/restore.pending') return true;
+  /**
+   * ***`.restore/`, which holds the install a restore replaced*** — its undo,
+   * kept inside the data directory since 2026-09-27 (`backup/swap.ts`). An
+   * archive that carried it would carry a whole second install, and the one
+   * after that would carry both.
+   */
+  if (name === '.restore') return true;
   return context.layout.isBackupPath(join(context.layout.dataRoot, name));
 }
 

@@ -2788,23 +2788,37 @@ operator has a shell, and `docs/deploy.md`'s household one has a web page and
 nothing else.
 
 **What happens on the next boot**, for an accepted restore: before anything
-opens a handle on the data directory, the archive is unpacked to a **sibling**
-directory, the live directory is renamed to `<dataRoot>.replaced-<uuidv7>`, and
-the new one is renamed into place. Two renames on one filesystem; the window
-between them is the only unsafe moment and it is microseconds wide.
+opens a handle on the data directory, the archive is unpacked to
+`<dataRoot>/.restore/<id>/staging`, a journal is written to
+`<dataRoot>/.restore/swap.json`, and the swap moves the install's entries into
+`.restore/<id>/replaced` and the archive's into their places, one at a time.
+`backups/` never moves, and each person's own archives are carried across.
+~~The archive is unpacked to a **sibling** directory and the live directory
+renamed aside~~ (corrected 2026-09-27): that needs to write in the data
+directory's parent, which no shipped deployment allows. See
+`packages/server/src/backup/swap.ts`.
 
-***The replaced directory is kept and never deleted***, on `removed/`'s
+***The replaced install is kept and never deleted***, on `removed/`'s
 precedent — *StoryEngine will not delete this; remove it yourself when you are
 sure*. That is the undo, and the only property that covers *the restore worked
 and was the wrong archive*. A `system.notice` names it on that boot, which is
 the one place in this build where a filesystem path is deliberately put in
 front of a person.
 
-**A failed unpack leaves the install untouched** — everything is written before
-anything is renamed — rewrites the marker with `attempts: 1`, and boots
-normally. **A second attempt is refused rather than made**: a supervisor
-restarts a process that exits, so an unpack that kept failing would take the
-install down rather than one boot.
+**A failed restore leaves the install as it was.** Everything is written before
+anything moves; a move that fails part way is moved back; a boot that died part
+way finishes the swap from the journal. The marker is rewritten with
+`attempts: 1`, and the server boots normally. **A second attempt is refused
+rather than made**: a supervisor restarts a process that exits, so an unpack
+that kept failing would take the install down rather than one boot. *If a move
+fails and moving it back fails too*, the server refuses to start, naming both
+halves, and tries to finish again on each start.
+
+**One restore at a time.** A request while another is being prepared, or while
+the server is draining for one, is refused with `409 already-restarting` before
+anything is written, and so is `POST /api/admin/restart` while a restore is
+being prepared. A second request used to overwrite the first one's marker and
+then delete it.
 
 ***And the archive carries no index***, so the restored install rebuilds it on
 that same boot — which is [P11.11](design/workplan/28-p11-implementation.md)'s

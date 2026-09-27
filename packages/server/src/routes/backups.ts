@@ -583,45 +583,68 @@ export function registerAdminBackupRoutes(app: FastifyInstance, services: AppSer
       });
     }
 
-    const found = await findBackup(backupContextOf(services), { kind: 'install' }, body.id);
-    if (found === null) {
-      return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
+    /**
+     * ***Everything that would make the drain refuse is checked before the
+     * marker exists***, and the reservation is taken before the first `await`
+     * (see `AppServices.restoring`). A second request used to get as far as
+     * overwriting the first one's marker, find the drain begun, and delete the
+     * marker on its way out, so the server restarted without restoring.
+     */
+    if (services.exit === null) {
+      return reply.code(409).send({ error: 'unavailable', message: restartMessage('unavailable') });
     }
-
-    const prepared = await prepareRestore(services.layout, {
-      path: found.path,
-      requestedBy: request.account?.handle ?? '',
-      ...(body.acceptRedacted === undefined ? {} : { acceptRedacted: body.acceptRedacted }),
-    });
-    if (!prepared.ok) {
+    if (services.draining || services.restoring) {
       return reply
-        .code(prepared.refusal === 'no-space' ? 507 : 409)
-        .send({ error: prepared.refusal, message: restoreMessage(prepared.refusal) });
+        .code(409)
+        .send({ error: 'already-restarting', message: restartMessage('already-restarting') });
     }
+    services.restoring = true;
+    try {
+      const found = await findBackup(backupContextOf(services), { kind: 'install' }, body.id);
+      if (found === null) {
+        return await reply
+          .code(404)
+          .send({ error: 'not-found', message: 'There is no such backup.' });
+      }
 
-    const begun = beginRestart(services);
-    if (!begun.ok) {
-      /**
-       * ***The marker is removed again, and this is the only place it is ever
-       * deleted.*** The drain did not start, so the process is staying up — and
-       * a marker left behind by a refused restart would fire on the next
-       * ordinary restart instead, which is a restore nobody asked for at a
-       * moment nobody chose.
-       */
-      await unlinkFile(services.layout.restorePendingFile).catch(() => undefined);
-      return reply.code(409).send({ error: begun.why, message: restartMessage(begun.why) });
+      const prepared = await prepareRestore(services.layout, {
+        path: found.path,
+        requestedBy: request.account?.handle ?? '',
+        ...(body.acceptRedacted === undefined ? {} : { acceptRedacted: body.acceptRedacted }),
+      });
+      if (!prepared.ok) {
+        return await reply
+          .code(prepared.refusal === 'no-space' ? 507 : 409)
+          .send({ error: prepared.refusal, message: restoreMessage(prepared.refusal) });
+      }
+
+      const begun = beginRestart(services, 'restore');
+      if (!begun.ok) {
+        /**
+         * ***The marker is removed again, and this is the only place it is
+         * ever deleted.*** The drain did not start, so the process is staying
+         * up — and a marker left behind by a refused restart would fire on the
+         * next ordinary restart instead, which is a restore nobody asked for at
+         * a moment nobody chose. The reservation makes it this request's own.
+         */
+        await unlinkFile(services.layout.restorePendingFile).catch(() => undefined);
+        return await reply.code(409).send({ error: begun.why, message: restartMessage(begun.why) });
+      }
+
+      request.log.warn(
+        {
+          event: 'restore.requested',
+          account: request.account?.handle,
+          archive: prepared.plan.archive,
+          files: prepared.plan.manifest.files,
+        },
+        'Restore requested from the admin surface; draining and restoring on the next start',
+      );
+      return await reply.code(202).send({ draining: true, plan: prepared.plan });
+    } finally {
+      // Accepted or not, `draining` now says whatever needs saying.
+      services.restoring = false;
     }
-
-    request.log.warn(
-      {
-        event: 'restore.requested',
-        account: request.account?.handle,
-        archive: prepared.plan.archive,
-        files: prepared.plan.manifest.files,
-      },
-      'Restore requested from the admin surface; draining and restoring on the next start',
-    );
-    return reply.code(202).send({ draining: true, plan: prepared.plan });
   });
 
   /**
