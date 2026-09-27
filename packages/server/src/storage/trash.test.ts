@@ -9,8 +9,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
 
+import type { Logger } from '../state/commit.js';
+import { eventually } from '../test-server.js';
 import { Layout } from './layout.js';
-import { deletedAtFrom, listTrash, restoreFromTrash, sweepTrash } from './trash.js';
+import {
+  deletedAtFrom,
+  listTrash,
+  restoreFromTrash,
+  startTrashSweep,
+  sweepTrash,
+} from './trash.js';
 
 /**
  * ***Gone after the window, and a clock the test controls*** —
@@ -113,6 +121,73 @@ describe('the retention sweep', () => {
   it('answers an empty trash without inventing a directory', async () => {
     expect(await listTrash(layout, 'ned', 30)).toEqual([]);
     expect(await sweepTrash(layout, 'ned', 30, Date.now())).toEqual([]);
+  });
+});
+
+/**
+ * ***The sweep's own timer*** (2026-09-27). Its docstring said *once at
+ * startup and then daily*, and there was only the daily interval, so a server
+ * that never stayed up a day never swept.
+ */
+describe('the sweep on its timer', () => {
+  function listening(): { log: Logger; events: string[] } {
+    const events: string[] = [];
+    const note = (fields: Record<string, unknown>) => {
+      events.push(String(fields['event']));
+    };
+    const log: Logger = {
+      child: () => log,
+      info: note,
+      warn: note,
+      error: note,
+    };
+    return { log, events };
+  }
+
+  it('makes its first pass shortly after a start, not a day later', async () => {
+    const stale = await deleted('actors', 'keeper', Date.now() - 31 * DAY);
+    const { log, events } = listening();
+
+    const sweep = startTrashSweep(
+      layout,
+      () => Promise.resolve(['ned']),
+      () => 30,
+      {
+        startDelayMs: 10,
+        clock: { jumped: () => false },
+      },
+    );
+    sweep.setLogger(log);
+    try {
+      await eventually(async () => (await listTrash(layout, 'ned', 30)).length === 0);
+      expect(events).toEqual(['trash.swept']);
+    } finally {
+      sweep.stop();
+    }
+    expect(stale).toContain('keeper');
+  });
+
+  it('skips a pass when the wall clock has jumped, and says so', async () => {
+    await deleted('actors', 'keeper', Date.now() - 31 * DAY);
+    const { log, events } = listening();
+
+    const sweep = startTrashSweep(
+      layout,
+      () => Promise.resolve(['ned']),
+      () => 30,
+      {
+        startDelayMs: 10,
+        clock: { jumped: () => true },
+      },
+    );
+    sweep.setLogger(log);
+    try {
+      await eventually(() => Promise.resolve(events.length > 0));
+      expect(events).toEqual(['trash.clockJumped']);
+      expect(await listTrash(layout, 'ned', 30)).toHaveLength(1);
+    } finally {
+      sweep.stop();
+    }
   });
 });
 

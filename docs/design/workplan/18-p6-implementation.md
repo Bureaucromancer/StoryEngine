@@ -1763,6 +1763,12 @@ actually landed and the gate could name real state instead of hypothetical.*
    all survive; only derived things were lost.
    **Covered at P6.3**, WAL files included — deleting the main file alone
    leaves a log SQLite recovers from, and the step would assert nothing.
+   *Added 2026-09-27:* for a head parked on a leaf, which is where the test
+   parked it. The start-up walk over unlinked turns advanced any head with one
+   child, so a head moved back along a line (*Continue from here*, or an undo)
+   went back to the tip at every restart. The walk now counts only turns
+   appended after the session's last write, unless the operational store is
+   new, and `p6-gate.test.ts` holds a head parked mid-line across a restart.
 
 9. ~~**`sessions.snapshotEveryNTurns` reads `applied`**~~ **Done at P6.0d**: the
    row says `applied`, `reconstructAlong` reads it per reconstruction through a

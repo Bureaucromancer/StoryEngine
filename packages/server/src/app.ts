@@ -53,7 +53,7 @@ import { registerTagRoutes } from './routes/tags.js';
 import { registerMyConnectionRoutes } from './routes/connections.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
-import { listSessions, type SessionContext } from './sessions/store.js';
+import { listSessions, type SessionContext, sessionFilePath } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
 import { capabilitiesFor } from './providers/capabilities.js';
@@ -83,7 +83,8 @@ import { route as routeNotification, type Occurrence } from './notifications/rou
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
-import { freeBytes, readFileBytes } from './storage/files.js';
+import { type OperationalPrune, startOperationalPrune } from './state/prune.js';
+import { fileExists, freeBytes, readFileBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
 import { UNSUPERVISED, type Supervision } from './supervision.js';
 import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
@@ -257,6 +258,8 @@ export interface AppServices {
   maturation: Maturation;
   /** The retention sweep — [03 §10.2], [P11.7]. */
   trash: TrashSweep;
+  /** The operational store's collection of finished turns — [P2 §2.10], `state/prune.ts`. */
+  prune: OperationalPrune;
   sessionKey: string;
   /**
    * The first-run setup token, or null when nothing needs one — F10,
@@ -599,6 +602,31 @@ async function assembleWithState(
   const config = structuredClone(options.config);
 
   /**
+   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/09-p2a-configuration-surface.md).
+   *
+   * The runner needs it to read the account's `privateConnections` capability.
+   *
+   * The plan argues this as *two instances would be two caches and a revocation
+   * that takes effect eventually*, and that overstates what is true here, which
+   * is worth saying rather than repeating: `Accounts` revalidates against the
+   * file's `(mtime, size)` on **every** read, so a second instance would notice
+   * a revocation on its next turn too. A mutation that constructs one survives
+   * the suite, and it should.
+   *
+   * What sharing actually buys is not depending on that. A permission check
+   * whose freshness rests on filesystem timestamp granularity is one same-size
+   * write inside one clock tick away from being wrong, and it would be wrong
+   * silently and only sometimes. One instance has one answer by construction —
+   * and costs one stat per turn instead of two.
+   *
+   * ***Above the retention sweep, whose closure reads it*** (2026-09-27).
+   * Declared below it, a first pass that ran before this line was reached
+   * would have met the binding in its temporal dead zone, and the sweep now
+   * has a pass shortly after the start.
+   */
+  const accounts = new Accounts(layout);
+
+  /**
    * ***The retention sweep*** — [03 §10.2], [P11.7].
    *
    * Beside `startMaturation` because they are the same kind of thing: periodic
@@ -612,6 +640,21 @@ async function assembleWithState(
     async () => (await accounts.list()).map((one) => one.handle),
     () => config.trash.retentionDays,
   );
+
+  /**
+   * ***And the operational store's*** (2026-09-27): a finished turn's draft
+   * and events, collected once the segment holds the turn, which P2 §2.10
+   * allowed and nothing did. A session's latest job is kept while the session
+   * is there to attach to, and asked about by its file, the one thing that
+   * says a session exists.
+   */
+  const prune = startOperationalPrune(state.db, async (account, sessionId) => {
+    try {
+      return await fileExists(sessionFilePath(layout, account, sessionId));
+    } catch {
+      return false;
+    }
+  });
 
   const sessions: SessionContext = {
     layout,
@@ -644,25 +687,6 @@ async function assembleWithState(
   const providers =
     options.providers ??
     createProviderFactory(capture === undefined ? {} : { wrapFetch: capture.wrapFetch });
-  /**
-   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/09-p2a-configuration-surface.md).
-   *
-   * The runner needs it to read the account's `privateConnections` capability.
-   *
-   * The plan argues this as *two instances would be two caches and a revocation
-   * that takes effect eventually*, and that overstates what is true here, which
-   * is worth saying rather than repeating: `Accounts` revalidates against the
-   * file's `(mtime, size)` on **every** read, so a second instance would notice
-   * a revocation on its next turn too. A mutation that constructs one survives
-   * the suite, and it should.
-   *
-   * What sharing actually buys is not depending on that. A permission check
-   * whose freshness rests on filesystem timestamp granularity is one same-size
-   * write inside one clock tick away from being wrong, and it would be wrong
-   * silently and only sometimes. One instance has one answer by construction —
-   * and costs one stat per turn instead of two.
-   */
-  const accounts = new Accounts(layout);
 
   /**
    * **The server's own copy**, so a settings save cannot reach back into the
@@ -882,6 +906,7 @@ async function assembleWithState(
     watcher,
     maturation,
     trash,
+    prune,
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
     backupSettings: new BackupSettingsStore(layout),
@@ -1050,6 +1075,7 @@ export async function disposeServices(services: AppServices): Promise<void> {
   services.streams.clear();
   services.maturation.stop();
   services.trash.stop();
+  services.prune.stop();
   await services.watcher?.stop();
   services.index.close();
   services.state.close();
@@ -1218,6 +1244,9 @@ export async function buildApp(
   // recorded in the index and said nowhere (F34).
   services.watcher?.setLogger(app.log);
   logIndexAtStart(app.log, services.indexAtStart);
+  // The two daily passes, which said nothing about what they took or skipped.
+  services.trash.setLogger(app.log);
+  services.prune.setLogger(app.log);
   services.capture?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {
@@ -1337,7 +1366,12 @@ export async function buildApp(
        */
       let advanced: number;
       try {
-        advanced = await reconcileSession(services.sessions, handle, sessionId);
+        // Only over turns appended since the session's last write, unless the
+        // operational store is new: a head somebody parked stays where they
+        // put it (2026-09-27, `reconcileSession`).
+        advanced = await reconcileSession(services.sessions, handle, sessionId, {
+          sinceLastWrite: services.state.migration.from !== 0,
+        });
       } catch (error) {
         app.log.warn(
           {

@@ -207,9 +207,13 @@ export function attachToSession(
  * Which jobs this attachment covers.
  *
  * A cursor names where the client left off; without one, whatever is happening
- * now, or the last thing that did. Between turns everything resolves empty and
+ * now, or the last thing that did. ~~Between turns everything resolves empty and
  * the stream opens with a null job and waits — the ordinary state of a session
- * somebody is reading.
+ * somebody is reading.~~ *Corrected 2026-09-27:* between turns this resolves to
+ * the session's **latest** job, finished, and the snapshot carries its draft and
+ * the backlog its events; only a session that has never had a turn opens with a
+ * null job. The operational store's prune (`state/prune.ts`) keeps each
+ * session's latest job for exactly that reason, while the session is there.
  *
  * **The cursor's job is ownership-checked**, because `readJob` applies no owner
  * filter and a job id in a URL is user input. A cursor naming another session's

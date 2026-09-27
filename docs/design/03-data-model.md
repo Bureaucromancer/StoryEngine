@@ -1745,6 +1745,12 @@ Four properties worth fixing now:
 - **Purge is available and honest.** *Delete permanently* exists, says so, and
   skips the trash. The point of the window is to make the ordinary path
   recoverable, not to make deletion impossible for someone who means it.
+  *Two corrections, 2026-09-27.* The window never expired anything on a server
+  restarted more often than daily, because the sweep's only timer was a daily
+  interval; it now has a pass a minute after the start, and skips a pass when
+  the wall clock has jumped. And a session's prompts and prose outlived its
+  purge in the operational store, which kept every turn's draft and events;
+  those are collected now, a day after the turn (21 §5.1).
 - **Trash is excluded from export and from backup by default**
   ([25 E6](25-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it. ***This sentence had no

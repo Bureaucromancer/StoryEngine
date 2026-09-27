@@ -597,6 +597,14 @@ closes the snapshot/subscribe race. Event rows are ephemeral and may be pruned
 after the terminal record exists, because the turn record is their durable
 meaning ([09 §3.2](../09-server-multiuser-deployment.md)).
 
+*Added 2026-09-27.* Nothing collected the draft or pruned an event until now,
+so every turn stayed in `state.sqlite` twice over, at forty to a hundred and
+thirty kilobytes a turn, and outlived the purge of its session in every
+archive taken after. `state/prune.ts` now runs shortly after a start and then
+daily. A finished job's draft and events go a day after it finished, except a
+session's latest job while the session is there, which an attach between turns
+is sent. Idempotency keys of finished jobs go after a week. Job rows stay.
+
 ### 2.11 What stays broken on purpose
 
 Argued once so the deferrals are decisions rather than omissions. **Trash**

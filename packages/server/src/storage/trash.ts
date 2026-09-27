@@ -6,6 +6,8 @@ import { join } from 'node:path';
 
 import { LIBRARY_DIRECTORIES, uuidv7, type PortableSchemaId } from '@storyengine/shared';
 
+import type { Logger } from '../state/commit.js';
+import { watchWallClock, type WallClockWatch } from '../wall-clock.js';
 import type { Layout } from './layout.js';
 import { moveTree } from './files.js';
 
@@ -282,6 +284,19 @@ async function exists(path: string): Promise<boolean> {
  * down has no timer coming for it. The second reason does not apply — the trash
  * has no watcher to fall back on, which is exactly why nothing has ever swept.
  *
+ * ***~~Once at startup~~ — there was no pass at startup until 2026-09-27.***
+ * The only timer was the daily interval, so a server that never stayed up for
+ * a day never swept: a laptop shut down at night, a NAS whose nightly backup
+ * stops its containers, a host updated daily. The trash kept everything, and
+ * the trash page went on listing entries as past their window. The first pass
+ * now comes a minute after the start ({@link TRASH_SWEEP_START_DELAY_MS}).
+ *
+ * ***And a pass is skipped when the wall clock has jumped*** (2026-09-27). The
+ * window is measured against `Date.now()`, so a clock that leapt forward past
+ * it would empty the trash of everything still somebody's to restore;
+ * `wall-clock.ts` says how a jump is told from time passing, and why only one
+ * pass is skipped.
+ *
  * **Daily rather than hourly**, because the window is measured in days: a sweep
  * sixteen times finer than the thing it is measuring buys nothing and costs a
  * `readdir` per account per hour on an install that may have a hundred.
@@ -298,18 +313,31 @@ async function exists(path: string): Promise<boolean> {
 export interface TrashSweep {
   /** Runs one pass now over every account, and answers what it took. */
   runOnce(): Promise<string[]>;
+  /** Where the timed passes say what they did, once a logger exists. */
+  setLogger(log: Logger): void;
   stop(): void;
 }
 
 export const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How long after a start the first pass waits. Off the boot path, for
+ * `START_BACKUP_DELAY_MS`'s reasons: a start already reads every session and
+ * checks the index, and a server in a restart loop must not become a loop of
+ * deletions. A minute rather than the backup's thirty seconds, so the two do
+ * not land together.
+ */
+export const TRASH_SWEEP_START_DELAY_MS = 60_000;
+
 export function startTrashSweep(
   layout: Layout,
   handles: () => Promise<string[]>,
   retentionDays: () => number,
-  intervalMs: number = TRASH_SWEEP_INTERVAL_MS,
+  options: { intervalMs?: number; startDelayMs?: number; clock?: WallClockWatch } = {},
 ): TrashSweep {
   let stopped = false;
+  let log: Logger | null = null;
+  const clock = options.clock ?? watchWallClock();
 
   const runOnce = async (): Promise<string[]> => {
     const days = retentionDays();
@@ -322,15 +350,42 @@ export function startTrashSweep(
     return taken;
   };
 
-  const timer = setInterval(() => {
-    void runOnce().catch(() => undefined);
-  }, intervalMs);
+  /** A timed pass: the clock is asked first, and what happened is said. */
+  const pass = async (): Promise<void> => {
+    if (clock.jumped()) {
+      log?.warn(
+        { event: 'trash.clockJumped' },
+        'The clock moved unlike time passing, so this trash sweep was skipped',
+      );
+      return;
+    }
+    const taken = await runOnce();
+    if (taken.length > 0) {
+      log?.info({ event: 'trash.swept', count: taken.length }, 'Removed expired trash');
+    }
+  };
+  const run = (): void => {
+    void pass().catch((error: unknown) => {
+      log?.error(
+        { event: 'trash.sweepFailed', message: error instanceof Error ? error.message : '' },
+        'A trash sweep failed',
+      );
+    });
+  };
+
+  const first = setTimeout(run, options.startDelayMs ?? TRASH_SWEEP_START_DELAY_MS);
+  first.unref();
+  const timer = setInterval(run, options.intervalMs ?? TRASH_SWEEP_INTERVAL_MS);
   timer.unref();
 
   return {
     runOnce,
+    setLogger: (next) => {
+      log = next;
+    },
     stop: () => {
       stopped = true;
+      clearTimeout(first);
       clearInterval(timer);
     },
   };

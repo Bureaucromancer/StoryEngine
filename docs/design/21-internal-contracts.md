@@ -934,6 +934,12 @@ been put there or implied into it:
 rebuildable — which is exactly why keeping it out of the index matters. Both are
 SQLite; the distinction is what happens when you delete them.
 
+*Small because it is pruned, which it was not until 2026-09-27.* The draft and
+event rows the table above calls prunable are collected a day after their job
+finished, and idempotency keys a week after, by `state/prune.ts`; a session's
+latest job is kept while the session is there. [P2 §2.10](workplan/08-p2-implementation.md)
+has the rule.
+
 **Auth may not need it at all.** Signed stateless cookies with a short lifetime
 and a server-side revocation list ([19 §9](19-tech-stack.md)) reduce this to a
 small denylist rather than a session table, which is the cheaper answer for a
