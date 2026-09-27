@@ -185,6 +185,50 @@ export function stableId(namespace: string, ...parts: readonly string[]): string
 }
 
 /**
+ * ***A second entry with the same derived id gets an id of its own***
+ * (2026-09-27).
+ *
+ * [04 §5.2] makes an entry id unique within its book, and every converter
+ * derives one from what the entry says. So a book that says the same thing
+ * twice collided: an Aventuras location and faction both called *Ravenholm*
+ * (its ids come from the name alone), an NPC called *setting* beside the
+ * scenario's own setting entry, or two blank *Untitled entry* rows in a
+ * half-written SillyTavern world (`stableId('entry', name, content)`). The
+ * editor, the timing channels and every link key on the id, so selecting the
+ * second opened the first, and the two shared their cooldowns.
+ *
+ * A repeat gets an ordinal, and an id that was unique stays exactly what it
+ * was, so nothing already imported moves. The ordinal skips every id the book
+ * already holds, because `stableId` joins its parts with a space: the second
+ * *Ravenholm*'s `('Ravenholm', '2')` hashes the same text as an entry named
+ * *Ravenholm 2*. Still a function of the input alone, so the same file
+ * converts to the same bytes ([P4 §1.3]).
+ */
+export function distinctIds(
+  entries: readonly { id: string; name: string }[],
+  namespace: string,
+  book: string,
+): void {
+  const taken = new Set(entries.map((entry) => entry.id));
+  const kept = new Set<string>();
+  for (const entry of entries) {
+    if (!kept.has(entry.id)) {
+      kept.add(entry.id);
+      continue;
+    }
+    let ordinal = 2;
+    let id = stableId(namespace, book, entry.name, String(ordinal));
+    while (taken.has(id)) {
+      ordinal += 1;
+      id = stableId(namespace, book, entry.name, String(ordinal));
+    }
+    taken.add(id);
+    kept.add(id);
+    entry.id = id;
+  }
+}
+
+/**
  * ***The same question, asked of an object that has an id*** —
  * [P12.8](../../../../docs/design/workplan/29-p12-implementation.md).
  *

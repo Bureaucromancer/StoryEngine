@@ -4158,6 +4158,12 @@ generate.
 CHARX already collected every non-`card.json` entry; what was missing was the
 conversion, not the bytes.
 
+*Corrected 2026-09-27.* ~~Marinara's reader already carried `sprites/`~~: it
+carried the avatar alone, and reported `sprites/` as converted with nothing
+carrying them, so no Marinara actor ever arrived with an expression. They are
+reported as recorded now, until a reader turns them into expressions. CHARX's
+half was true, and its expressions now keep their ids across re-imports.
+
 *Label, not `tags`, and `common.ts` is explicit about why*: **role** is a closed
 union the engine reads and acts on, **tags** are open and *"nothing in the engine
 branches on them"*. Selection matches on `label`; `tags` stay untouched. The

@@ -1444,6 +1444,14 @@ editor's shape guard is stricter than the book page's for the same reason: a
 reader needs entries to be objects, a writer needs every entry's `id` to be a
 string, or an id-keyed merge silently folds two entries into one.
 
+*Narrowed 2026-09-27.* Every importer now gives a repeated id an ordinal
+(`distinctIds` in `import/identity.ts`), and leaves an id that was unique
+exactly where it was, so ~~two entries agreeing on both collide~~ is no longer
+true of anything imported from now on. Aventuras' converter was worse, deriving
+from the name alone, so a location and a faction of one name collided. A book
+imported before this, or written by hand, can still hold a repeat, which is why
+the first-match rule above stays.
+
 **Then somebody opened it**, on the same 247-entry book P5.0 was walked on, and
 **four defects came out that no test had a reason to catch** — which is the
 third phase running to make that argument.

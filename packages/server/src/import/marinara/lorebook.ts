@@ -9,7 +9,7 @@ import {
   type Lorebook,
 } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
@@ -110,6 +110,8 @@ export function convertLorebook(
   }));
 
   lorebook.entries = entries.filter(isRecord).map((row) => convertEntry(row, notes));
+  // As SillyTavern's: one name and one content twice would be one id twice.
+  distinctIds(lorebook.entries, 'entry', lorebook.name);
 
   return parsed({ lorebook, notes });
 }

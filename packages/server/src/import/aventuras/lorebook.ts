@@ -9,7 +9,7 @@ import {
   type Lorebook,
 } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 import { isAventurasLorebook, isRecord, note, strings, text } from './shapes.js';
@@ -72,12 +72,22 @@ export function convertAventurasLorebook(
   const notes: ImportNote[] = [];
   const lorebook = newLorebook(fallbackName);
 
+  // A row that is not a record is one this reader cannot read, and it costs
+  // that row alone: named by its place, the way Marinara's reader names an
+  // unreadable row by its id, rather than a throw that stops the sweep.
+  const rows: Record<string, unknown>[] = [];
+  for (const [index, row] of input.entries()) {
+    if (isRecord(row)) rows.push(row);
+    else notes.push(note('import.row.unreadable', { table: fallbackName, row: index + 1 }, 'warn'));
+  }
+
   let carriedState = 0;
-  lorebook.entries = input.map((row) => {
+  lorebook.entries = rows.map((row) => {
     const entry = convertEntry(row, fallbackName);
     if (SESSION_STATE.some((key) => row[key] !== undefined && row[key] !== null)) carriedState += 1;
     return entry;
   });
+  distinctIds(lorebook.entries, 'aventuras-entry', fallbackName);
 
   notes.push(note('import.aventuras.lorebookEntries', { count: lorebook.entries.length }));
   if (carriedState > 0) {

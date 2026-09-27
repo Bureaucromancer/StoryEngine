@@ -534,8 +534,9 @@ class Writer {
      *
      * **`assets[0]` was the portrait and the rest were dropped**, which is why
      * no actor in any install could carry a sprite: a CHARX collects every
-     * non-`card.json` entry ([import/charx/reader.ts]), Marinara's reader
-     * carries `sprites/` by name, and both arrived here and went in the bin.
+     * non-`card.json` entry ([import/charx/reader.ts]), and it arrived here and
+     * went in the bin. (Marinara's `sprites/` do not reach here at all: its
+     * reader carries only the avatar, and reports the sprites as waiting.)
      * [06 §7.2] has asked for sprites since the first draft and P9 declines
      * them in as many words — *"a sprite is not a rendition at 1.0… the backdrop
      * is here because it has no source anywhere else; sprites have one"*. This

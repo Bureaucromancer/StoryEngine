@@ -14,7 +14,7 @@ import {
   type Treatment,
 } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 import { isRecord, isVaultScenario, note, strings, text } from './shapes.js';
@@ -250,6 +250,8 @@ function asLorebook(
     }),
   ];
 
+  // An NPC called *setting*, or two of one name, would share an id otherwise.
+  distinctIds(lorebook.entries, 'aventuras-entry', name);
   notes.push(note('import.aventuras.scenarioAsLorebook', { entries: lorebook.entries.length }));
   if (openings.length > 0) {
     // A Lorebook has no `openings`, so this is a real loss and gets the level

@@ -9,6 +9,8 @@ import { makeTestServer, setUpAdmin, type TestServer, ownObjects } from '../../t
 import { marinaraFixture } from '../fixtures/test-marinara.js';
 import { MemoryFileSource } from '../memory-source.js';
 import { malformedInputs } from '../parse.js';
+import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
+import type { FileSource } from '../source.js';
 import { sweep } from '../sweep.js';
 import { profileAsFileSource, readEnvelope, singleObjectAsFileSource } from './envelope.js';
 import { convertLorebook } from './lorebook.js';
@@ -96,6 +98,16 @@ describe('what the lorebook carries across', () => {
 
     expect(result.valid, result.valid ? '' : JSON.stringify(result.issues)).toBe(true);
     expect(lorebook.entries[0]?.actorFilter).toEqual({ mode: 'include', values: ['char_vera'] });
+  });
+
+  it('gives two entries of one name and content ids of their own', () => {
+    // The id is derived from those two, as SillyTavern's is, and [04 §5.2]
+    // makes it unique within the book (2026-09-27).
+    const result = convertLorebook(BOOK, [ENTRY, { ...ENTRY, id: 'entry_docks_again' }]);
+    const ids = result.ok ? result.value.lorebook.entries.map((entry) => entry.id) : [];
+
+    expect(new Set(ids).size).toBe(2);
+    expect(ids[0]).toBe(book().lorebook.entries[0]?.id);
   });
 
   it('maps a category to tags, because Lorebook.category was removed deliberately', () => {
@@ -329,6 +341,45 @@ describe('sweeping a Marinara data root', () => {
       (row) => row.name === 'Vera Solano',
     );
     expect(veras).toHaveLength(1);
+  });
+
+  it('reads every table the registry calls converted, and names the rest', async () => {
+    /**
+     * ***`converted` is a claim about the reader*** (2026-09-27). The review
+     * leaves a converted table out, because the objects it produced stand for
+     * it, so a table marked converted that nothing read vanished from the
+     * review. Five did: the two image tables were loaded and thrown away, and
+     * prompt groups, persona links and library folders were never opened. The
+     * picture directories said `converted` and went nowhere either. This holds
+     * the registry to what a sweep actually opens.
+     */
+    const inner = new MemoryFileSource({
+      ...marinaraFixture(),
+      'sprites/char_vera/happy.png': 'sprite',
+    });
+    const opened = new Set<string>();
+    const files: FileSource = {
+      list: () => inner.list(),
+      exists: (path) => inner.exists(path),
+      read: (path) => {
+        const table = /^storage\/tables\/([^/]+?)(?:\.json$|\/)/.exec(path)?.[1];
+        if (table !== undefined) opened.add(table);
+        return inner.read(path);
+      },
+    };
+    const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const converted = Object.entries(MARINARA_DISPOSITIONS)
+      .filter(([, disposition]) => disposition === 'converted')
+      .map(([table]) => table);
+    expect(converted.filter((table) => !opened.has(table))).toEqual([]);
+
+    const disposition = (source: string) =>
+      outcome.report.items.find((item) => item.source === source)?.disposition;
+    expect(disposition('storage/tables/prompt_groups.json')).toBe('recorded');
+    expect(disposition('sprites/char_vera/happy.png')).toBe('recorded');
   });
 
   it('refuses a live install before writing anything', async () => {

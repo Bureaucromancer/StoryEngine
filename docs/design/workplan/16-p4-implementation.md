@@ -988,6 +988,17 @@ are converted with those objects; the rest — `game-assets`, `fonts`,
 `notification-sounds`, `long-term-memory`, `knowledge-sources` and the video
 directories — are skipped and counted.
 
+*Corrected 2026-09-27.* Five of the **Convert** row were never read: the reader
+loaded ~~`character_images`~~ and ~~`persona_images`~~ and threw them away, and
+never opened ~~`lorebook_persona_links`~~, ~~`prompt_groups`~~ or
+~~`library_folders`~~. A converted table is left out of the review because the
+objects it produced stand for it, so an import said nothing at all about any of
+the five. They are **Record, not converted** now, which names them. Of the asset
+directories only `avatars` travelled, as the portrait: `sprites`,
+`lorebooks/images` and `prompts/images` ~~feed the objects that reference them~~
+and went nowhere, reported `converted`. They are recorded too. A sweep test now
+holds every table the registry calls converted to one a sweep opens.
+
 ### 1.9 A session can play an imported preset
 
 **Decided: session creation grows one optional parameter — a preset id, copied

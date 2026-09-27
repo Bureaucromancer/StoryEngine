@@ -179,7 +179,6 @@ export class MarinaraReader implements SourceReader {
    */
   async *#actors(table: string, format: string): AsyncIterable<SourceItem> {
     const rows = await this.#rows(table);
-    const images = await this.#rows(table === 'characters' ? 'character_images' : 'persona_images');
 
     for (const row of rows) {
       const id = str(row['id']);
@@ -197,14 +196,12 @@ export class MarinaraReader implements SourceReader {
       }
 
       const avatar = str(row['avatarPath']) || `avatars/${id}.png`;
-      const held = images.filter((image) => str(image['characterId']) === id).length;
 
       yield candidate({
         source,
         format,
         payload: card,
         assets: (await this.#files.exists(avatar)) ? [avatar] : [],
-        ...(held > 0 ? {} : {}),
       });
     }
   }
@@ -219,12 +216,18 @@ function tableNameOf(path: string): string {
 /**
  * The seventeen asset directories beside `storage/`.
  *
- * The four that feed a converted object travel with it; the rest — game assets,
- * fonts, notification sounds, the video directories — are counted and skipped.
+ * `avatars/` travels with the actor it is the portrait of. ~~The four that feed
+ * a converted object travel with it~~ (corrected 2026-09-27): `sprites/`,
+ * `lorebooks/images/` and `prompts/images/` were reported `converted` and never
+ * attached to anything, so a review promised pictures that did not arrive. They
+ * are `recorded`, waiting on the image tables (see the registry). The rest —
+ * game assets, fonts, notification sounds, the video directories — are counted
+ * and skipped.
  */
 function assetDisposition(path: string): ImportDisposition {
-  const carried = ['avatars/', 'sprites/', 'lorebooks/images/', 'prompts/images/'];
-  return carried.some((prefix) => path.startsWith(prefix)) ? 'converted' : 'skipped';
+  if (path.startsWith('avatars/')) return 'converted';
+  const waiting = ['sprites/', 'lorebooks/images/', 'prompts/images/'];
+  return waiting.some((prefix) => path.startsWith(prefix)) ? 'recorded' : 'skipped';
 }
 
 function parseRows(bytes: Uint8Array): Record<string, unknown>[] {
