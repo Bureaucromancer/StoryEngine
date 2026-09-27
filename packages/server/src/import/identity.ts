@@ -95,6 +95,41 @@ export function priorImportId(
 }
 
 /**
+ * ***A treatment made from a scenario is identified by its whole text***
+ * (2026-09-27).
+ *
+ * A treatment the sweep synthesises from a card's scenario has no file of its
+ * own, so its `originalFilename` is the scenario's identity — and that was the
+ * first 120 characters of it. Two scenarios sharing an opening (a series of
+ * cards with one preamble) were one identity: the second, found as a prior
+ * import of the first, *replaced* it by default, in the same sweep or the next
+ * upload, and one of the two premises was gone. [P4 §1.10] promises one
+ * treatment per distinct scenario text, and a prefix is not a text.
+ *
+ * The stamp is a digest of the whole scenario now. A treatment written before
+ * this carries the old stamp, and is still this scenario's when — and only
+ * when — its framing is this whole text: then the old stamp is kept, so the
+ * next import finds it rather than making a second. A treatment whose first
+ * 120 characters merely match is someone else's, and is left alone.
+ */
+export function scenarioStamp(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  framing: string,
+): string {
+  const digest = `scenario:${contentHashOf(new TextEncoder().encode(framing))}`;
+  const owner = userOwner(handle);
+  const scope = owner.kind === 'system' ? 'system' : `user:${owner.handle}`;
+  if (findPriorImport(context.db, scope, schemaId, digest) !== null) return digest;
+
+  const legacy = `scenario:${framing.slice(0, 120)}`;
+  const earlier = findPriorImport(context.db, scope, schemaId, legacy);
+  const same = (earlier?.body as { framing?: unknown } | undefined)?.framing === framing;
+  return earlier !== null && same ? legacy : digest;
+}
+
+/**
  * Whether this object has been imported from this file before, and if so
  * whether anything about it changed.
  *

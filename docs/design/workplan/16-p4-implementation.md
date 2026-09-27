@@ -1081,7 +1081,12 @@ shorthand for the reserved `se.summary` *section*, not a field:
   card's actor in its cast and the extracted lorebook linked; framing carries
   the text, and the review names the created treatment per card. "Offered as
   a new Treatment draft" ([03 §2.7]) becomes "created and reported" under the
-  posture this plan decided.
+  posture this plan decided. *(2026-09-27: "distinct" did not hold past the
+  sweep's own map. The treatment's import identity was the scenario's first
+  120 characters, so two scenarios sharing an opening were one import and the
+  second replaced the first, in the same sweep or the next upload. It is a
+  digest of the whole text now, and a treatment stamped the old way is found
+  again only when its framing is the whole text.)*
 - `first_mes` / `alternate_greetings` → `openings.written`, first as primary.
 - `mes_example` → **one `writingSamples` entry**, enabled, titled from the card
   name ([14](../14-writing-samples.md)). ~~the `examples` section, disposition

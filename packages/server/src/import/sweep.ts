@@ -31,6 +31,7 @@ import {
   identify,
   identifyNative,
   priorImportId,
+  scenarioStamp,
   stableId,
   stampImported,
   type ConflictPolicy,
@@ -1024,7 +1025,10 @@ class Writer {
       // scenario text several cards shared — so its `originalFilename` is that
       // text's identity rather than a path. Which makes re-import work for it
       // too: the same scenario on a second sweep finds the treatment it made.
-      stampImported(treatment, `scenario:${treatment.framing.slice(0, 120)}`);
+      // ~~The first 120 characters~~ — the whole text, as a digest
+      // (2026-09-27; see `scenarioStamp`).
+      const { library, handle } = this.#request;
+      stampImported(treatment, scenarioStamp(library, handle, TREATMENT_SCHEMA, treatment.framing));
       const outcome = await this.store(treatment, TREATMENT_SCHEMA, notes);
       reports.push({
         source: treatment.name,

@@ -3,15 +3,15 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLoreEntry, newLorebook } from '@storyengine/shared';
+import { newLoreEntry, newLorebook, newTreatment } from '@storyengine/shared';
 
-import { read } from '../library.js';
+import { create, read } from '../library.js';
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 import { sillyTavernFixture } from './fixtures/test-sillytavern.js';
 import { MemoryFileSource } from './memory-source.js';
 import { sweep } from './sweep.js';
-import type { ConflictPolicy } from './identity.js';
+import { stampImported, type ConflictPolicy } from './identity.js';
 
 /**
  * **Gate step 6: re-import the same directory, and nothing doubles silently**
@@ -232,5 +232,87 @@ describe('a file this build wrote', () => {
     };
     expect(stored.entries.map((entry) => entry.enabled)).toEqual([false]);
     expect(second.counts.unchanged).toBe(1);
+  });
+});
+
+/**
+ * ***A scenario is its whole text*** (2026-09-27). A treatment made from a
+ * card's scenario was identified by the first 120 characters of it, so two
+ * scenarios sharing an opening were one import: the second replaced the
+ * first, and one premise was gone. [P4 §1.10] promises one treatment per
+ * distinct scenario text.
+ */
+describe('a treatment made from a scenario', () => {
+  // Longer than the old stamp, so everything after it is what tells them apart.
+  const PREAMBLE =
+    'The rain has not stopped in eleven days, the harbour is three weeks behind on its inspections, and every clerk in the customs house is tired. ';
+
+  const cardWith = (name: string, scenario: string) =>
+    withChunks(makePng(), [
+      base64TextChunk('chara', {
+        spec: 'chara_card_v2',
+        spec_version: '2.0',
+        data: { name, description: `${name} works the docks.`, scenario },
+      }),
+    ]);
+
+  async function framings(): Promise<string[]> {
+    const listed = await server.request({ method: 'GET', url: '/api/library/treatments' });
+    const rows = (listed.body.objects as { id: string; source?: string }[]).filter(
+      (row) => row.source !== 'system',
+    );
+    return rows
+      .map(
+        (row) => (read(server.services.library, 'ned', row.id).body as { framing: string }).framing,
+      )
+      .sort();
+  }
+
+  /** A treatment written before the digest, stamped the way that build stamped it. */
+  async function importedBefore(framing: string): Promise<void> {
+    const treatment = newTreatment('Scenario: from before');
+    treatment.framing = framing;
+    stampImported(treatment, `scenario:${framing.slice(0, 120)}`);
+    await create(server.services.library, 'ned', treatment);
+  }
+
+  it('is two treatments for two scenarios that share their opening', async () => {
+    expect(PREAMBLE.length).toBeGreaterThan(120);
+    await run({
+      'Vera.png': cardWith('Vera', `${PREAMBLE}Vera runs the docks.`),
+      'Maris.png': cardWith('Maris', `${PREAMBLE}Maris runs the ferry.`),
+    });
+
+    expect(await framings()).toEqual([
+      `${PREAMBLE}Maris runs the ferry.`,
+      `${PREAMBLE}Vera runs the docks.`,
+    ]);
+  });
+
+  it('keeps each when they arrive one upload at a time', async () => {
+    await run({ 'Vera.png': cardWith('Vera', `${PREAMBLE}Vera runs the docks.`) });
+    await run({ 'Maris.png': cardWith('Maris', `${PREAMBLE}Maris runs the ferry.`) });
+
+    expect(await framings()).toHaveLength(2);
+  });
+
+  it('finds one made before the digest when it is this whole scenario', async () => {
+    const scenario = `${PREAMBLE}Vera runs the docks.`;
+    await importedBefore(scenario);
+
+    await run({ 'Vera.png': cardWith('Vera', scenario) });
+
+    expect(await framings()).toEqual([scenario]);
+  });
+
+  it('leaves one made before the digest alone when only its opening matches', async () => {
+    await importedBefore(`${PREAMBLE}Something else entirely.`);
+
+    await run({ 'Vera.png': cardWith('Vera', `${PREAMBLE}Vera runs the docks.`) });
+
+    expect(await framings()).toEqual([
+      `${PREAMBLE}Something else entirely.`,
+      `${PREAMBLE}Vera runs the docks.`,
+    ]);
   });
 });
