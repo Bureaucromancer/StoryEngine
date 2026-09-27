@@ -46,6 +46,7 @@ import {
   type Binding,
   type BindingsState,
   type MyRoles,
+  type TaskRoles,
   type ConnectionInput,
   type RoleRow,
   type ConfigView,
@@ -1215,6 +1216,21 @@ export function useMyRoles(): UseQueryResult<MyRoles> {
  * `GET /api/me/roles` exists to avoid. So the answer is awaited and the table
  * re-read.
  */
+/**
+ * Choosing which role field assist asks for — awaited and re-read, for
+ * `useWriteMyBindings`'s reason: the row it points at is a resolution the
+ * server computes.
+ */
+export function useWriteMyTaskRoles(): UseMutationResult<{ tasks: TaskRoles }, Error, TaskRoles> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (tasks: TaskRoles) => api.writeMyTaskRoles(tasks),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+    },
+  });
+}
+
 export function useWriteMyBindings(): UseMutationResult<
   BindingsState,
   Error,

@@ -3,12 +3,18 @@
 
 import { useState, type JSX } from 'react';
 
-import { ApiError, type Binding, type MyRoles as MyRolesData, type RoleRow } from '../api.js';
-import { useMyRoles, useWriteMyBindings } from '../queries.js';
+import {
+  ApiError,
+  type Binding,
+  type MyRoles as MyRolesData,
+  type RoleRow,
+  type TaskRoles,
+} from '../api.js';
+import { useMyRoles, useWriteMyBindings, useWriteMyTaskRoles } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { SelectField } from '../ui/Field.js';
 import { roleLabel, roleModel, roleSource } from './roleWords.js';
-import { Note } from '../ui/Text.js';
+import { Note, SubsectionTitle } from '../ui/Text.js';
 
 /**
  * Which model does which job, for you — [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
@@ -44,6 +50,7 @@ import { Note } from '../ui/Text.js';
 export function MyRoles(): JSX.Element {
   const roles = useMyRoles();
   const write = useWriteMyBindings();
+  const writeTasks = useWriteMyTaskRoles();
   /**
    * The 412's payload, held until it is dismissed.
    *
@@ -173,6 +180,70 @@ export function MyRoles(): JSX.Element {
           </tbody>
         </table>
       </div>
+
+      <AssistRole
+        data={data}
+        failed={writeTasks.isError}
+        onChoose={(assist) => {
+          writeTasks.mutate({ assist });
+        }}
+      />
+    </section>
+  );
+}
+
+/** The roles field assist may ask for, in the order the choice is offered. */
+const ASSIST_ROLES: readonly TaskRoles['assist'][] = ['prose', 'fast', 'reasoning'];
+
+/**
+ * ***Which of your models writes a field when you ask for help*** — a stopgap
+ * for [25 C15](../../../../docs/design/25-open-questions.md), and it says so in
+ * its own words rather than in a design note's.
+ *
+ * [10 §11.4](../../../../docs/design/10-ui-surfaces.md) wants assists on the
+ * quick model; asking for it unconditionally fails every install that never
+ * bound one, so the server asks for *Writing the story* unless this says
+ * otherwise. **It chooses a row of the table above, not a model**, so the
+ * answer to *which model is that* stays in one place — and this control shows
+ * it, read off that row, rather than working it out.
+ */
+function AssistRole(props: {
+  data: MyRolesData;
+  failed: boolean;
+  onChoose: (role: TaskRoles['assist']) => void;
+}): JSX.Element {
+  const chosen = props.data.tasks?.assist ?? 'prose';
+  const row = props.data.roles.find((one) => one.role === chosen);
+
+  return (
+    <section className="flex flex-col gap-2" aria-labelledby="assist-role">
+      <SubsectionTitle as="h3" id="assist-role">
+        Writing help in the library
+      </SubsectionTitle>
+      <Note>
+        When you ask for help writing a field — a character’s appearance, a lorebook entry — it uses
+        the model of one of the jobs above.
+      </Note>
+      <SelectField
+        label="Writing help uses the model for"
+        value={chosen}
+        options={ASSIST_ROLES.map((role) => [role, roleLabel(role)] as const)}
+        onChange={(value) => {
+          if ((ASSIST_ROLES as readonly string[]).includes(value)) {
+            props.onChoose(value as TaskRoles['assist']);
+          }
+        }}
+      />
+      <Note>
+        {row === undefined
+          ? 'Nothing is set for that job.'
+          : `Right now that is ${roleModel(row)}.`}
+      </Note>
+      {props.failed ? (
+        <Alert tone="error" role="alert">
+          That could not be saved.
+        </Alert>
+      ) : null}
     </section>
   );
 }

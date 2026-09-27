@@ -2149,7 +2149,13 @@ before they are discovered:
 - **They need a connection**, and it should not silently be the chat one. This
   is what `ModelHint.role` ([03 §2.6](03-data-model.md)) is for — assist work
   wants the `fast` role, image work wants an image connection, and a household
-  server needs those resolvable per user.
+  server needs those resolvable per user. *As built (2026-09-27):* field assist
+  asks for `prose` by default, because `fast` fails on any install that never
+  bound it ([25 C15](25-open-questions.md)), and each person may point it at
+  their `fast` or `reasoning` model instead from the role-binding settings — a
+  choice of **role**, so which model that means stays in the table beside it.
+  The per-account choice is a stopgap and retires when C15 decides fallback for
+  every role.
 - **They cost money, and must be *recorded* even though nothing displays it at
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first

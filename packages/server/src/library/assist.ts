@@ -7,6 +7,7 @@ import type { Layout } from '../storage/layout.js';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import { resolveConnections } from '../providers/connections.js';
 import { resolveRole } from '../providers/roles.js';
+import { readTaskRoles } from '../providers/task-roles.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { recordUsage, USAGE_SCHEMA } from '../usage/log.js';
 
@@ -56,6 +57,13 @@ import { recordUsage, USAGE_SCHEMA } from '../usage/log.js';
  * it.* So asking for the role this *should* use would still mean an assist
  * button that fails on every install that declined it. The finding is bigger
  * than this file and is recorded at P7.5.
+ *
+ * ***`prose` by default, and the account's choice since 2026-09-27.*** Until C15
+ * is decided the person chooses which of their roles this asks for
+ * (`providers/task-roles.ts`, set on the same settings pane as the bindings), so
+ * somebody who has bound `fast` to a cheap model can point assist at it without
+ * waiting on a decision about every role at once. The default is the role that
+ * resolves on every install.
  *
  * ***What it spent is recorded, and nothing else is.*** The route writes no
  * object, no provenance and no history ([10 §11.4]: *"They produce no turn
@@ -154,8 +162,9 @@ export async function assistField(
   const { usable } = await resolveConnections(context.layout, request.account, {
     privateConnections: held?.capabilities.privateConnections ?? false,
   });
+  const { assist: role } = await readTaskRoles(context.layout, request.account);
   const resolution = resolveRole({
-    role: 'prose',
+    role,
     bindings: await readBindings(context.layout, request.account),
     defaults: await readSystemBindings(context.layout),
     usable,
@@ -182,7 +191,7 @@ export async function assistField(
     schema: USAGE_SCHEMA,
     at: new Date().toISOString(),
     purpose: `assist:${request.path}`,
-    role: 'prose',
+    role,
     // The model that *answered*, as `ModelCall.resolved` keeps it.
     resolved: { connectionId: resolution.connection.id, modelId: result.modelId },
     usage: result.usage,

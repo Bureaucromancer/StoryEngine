@@ -838,6 +838,14 @@ leaving `image`, `video` and `speech` unset — *no sensible text-model fallback
 is true of `vision` too. It is harmless only because nothing calls `vision`, and
 nothing should until this is decided.
 
+**A stopgap for one caller, 2026-09-27.** Field assist asks for `prose` for this
+entry's reason, where [10 §11.4](10-ui-surfaces.md) wants `fast`. Rather than wait,
+each account may now choose which of `prose`, `fast` and `reasoning` the assist
+asks for (`users/<handle>/task-roles.json`, set beside the bindings table),
+defaulting to `prose`. It decides nothing here — it moves the choice to the
+person who knows whether their `fast` model is bound — and it is the file to
+retire when this is decided.
+
 **C16. A mode cannot declare a channel the engine computes for it. — OPEN,
 found by writing the second mode** (2026-09-13,
 [P7.9](workplan/23-p7-implementation.md)). [06 §4] lets a mode declare a channel

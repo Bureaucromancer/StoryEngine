@@ -1993,7 +1993,7 @@ size cap. Those exist because an unvalidated store is otherwise an unbounded
 write surface for any signed-in account. A bad key is `400 invalid`; too large is
 `413 too-large`.
 
-### `GET /api/me/roles` · `PUT /api/me/bindings`
+### `GET /api/me/roles` · `PUT /api/me/bindings` · `PUT /api/me/task-roles`
 
 ```json
 {
@@ -2004,7 +2004,8 @@ write surface for any signed-in account. A bad key is `400 invalid`; too large i
     { "id": "0199…", "label": "The house key", "provider": "openai-compatible",
       "scope": "system", "models": ["gpt-hi", "gpt-lo"] }
   ],
-  "disabled": []
+  "disabled": [],
+  "tasks": { "assist": "prose" }
 }
 ```
 
@@ -2037,6 +2038,16 @@ naming a connection you may not use can never be access — it falls through to 
 layer below. A role this build does not know is dropped rather than refused, so
 a newer client is not an error; **anything else inside a binding is `400`**, which
 is what lets this route live outside `/api/admin`.
+
+**`tasks` says which of those rows the calls outside a session use** — today
+only field assist, which asks for `prose` unless you chose otherwise.
+`PUT /api/me/task-roles` takes `{ "assist": "prose" | "fast" | "reasoning" }` and
+answers `{ tasks }`; any other role is `400`, and there is no hash, because the
+file is one value and the request carries all of it. It is a stopgap for
+[25 C15](design/25-open-questions.md): [10 §11.4](design/10-ui-surfaces.md) says
+assists want `fast`, and until role fallback is decided for everyone, the person
+who knows whether their `fast` model is bound chooses. A server older than this
+omits `tasks`, which means `prose`.
 
 ---
 

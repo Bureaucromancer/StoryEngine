@@ -220,6 +220,71 @@ describe('writing one field', () => {
   });
 
   /**
+   * ***The role is the account's to choose, until [25 C15] chooses for
+   * everyone*** — `providers/task-roles.ts`. [10 §11.4] says assist wants
+   * `fast`; asking for it unconditionally would fail every install that never
+   * bound it, so the default stays `prose` and the person who has bound a quick
+   * model can point assist at it.
+   */
+  it('asks for the role the account chose for writing help', async () => {
+    await bindProse();
+    const root = new Layout(server.dataDir).userConnectionsRoot('ned');
+    await writeFile(
+      join(root, 'fake.json'),
+      JSON.stringify({
+        id: CONNECTION_ID,
+        label: 'The double',
+        provider: 'openai-compatible',
+        models: ['fake-hi', 'fake-lo'],
+        capabilities: { maxContextTokens: 32_000 },
+      }),
+    );
+    await writeFile(
+      join(server.dataDir, 'users', 'ned', 'bindings.json'),
+      JSON.stringify({
+        prose: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+        fast: { connectionId: CONNECTION_ID, modelId: 'fake-lo' },
+      }),
+    );
+
+    const before = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(before.body.tasks).toEqual({ assist: 'prose' });
+
+    const chosen = await server.request({
+      method: 'PUT',
+      url: '/api/me/task-roles',
+      payload: { assist: 'fast' },
+    });
+    expect(chosen.status).toBe(200);
+    expect(chosen.body.tasks).toEqual({ assist: 'fast' });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+    expect(response.status).toBe(200);
+    expect(response.body.model).toBe('fake-lo');
+    expect(provider.requests.at(-1)?.modelId).toBe('fake-lo');
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '');
+    expect(JSON.parse(lines.at(-1) ?? '{}')).toMatchObject({ role: 'fast' });
+  });
+
+  it('refuses a role that is not one assist can use', async () => {
+    const refused = await server.request({
+      method: 'PUT',
+      url: '/api/me/task-roles',
+      payload: { assist: 'image' },
+    });
+    expect(refused.status).toBe(400);
+    const roles = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(roles.body.tasks).toEqual({ assist: 'prose' });
+  });
+
+  /**
    * ***Nothing is written.*** The library is untouched by an assist, which is
    * §11.1's *"nothing may require a model call to proceed"* read from the
    * server's side: the answer goes to a form and the form decides.

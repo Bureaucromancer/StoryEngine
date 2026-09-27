@@ -603,6 +603,13 @@ export const api = {
   ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
 
   /**
+   * Which of your roles field assist asks for — a stopgap until [25 C15]
+   * decides role fallback for everyone. One value, written whole.
+   */
+  writeMyTaskRoles: (tasks: TaskRoles): Promise<{ tasks: TaskRoles }> =>
+    request('PUT', '/api/me/task-roles', tasks),
+
+  /**
    * ***Bytes beside an object*** — [10 §11.2b], [P11].
    *
    * **Multipart rather than a JSON body with base64 in it**, which is the same
@@ -2143,10 +2150,20 @@ export interface UsableConnection {
   models: string[];
 }
 
+/**
+ * Which role the calls outside a session ask for — today only field assist,
+ * `prose` unless its owner chose otherwise. Server: `providers/task-roles.ts`.
+ */
+export interface TaskRoles {
+  assist: 'prose' | 'fast' | 'reasoning';
+}
+
 /** Everything the role-binding editor needs, from the one request that answers it. */
 export interface MyRoles extends BindingsState {
   roles: RoleRow[];
   connections: UsableConnection[];
+  /** Absent from a server older than the choice, which means `prose`. */
+  tasks?: TaskRoles;
   /**
    * Personal connections on disk that were ignored for want of
    * `privateConnections` — [09 §4.5] wants the user *told* rather than left
