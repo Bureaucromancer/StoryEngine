@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { ImportNote } from '@storyengine/shared';
+
 import { ownEntry } from './parse.js';
 
 /**
@@ -246,3 +248,32 @@ export function convertMacros(
 
 /** The legacy names SillyTavern resolves in angle brackets. */
 const ANGLES = /<(user|bot|char|charifnotgroup|group)>/gi;
+
+/**
+ * ***What the review says about a template's macros, for every converter***
+ * (2026-09-27).
+ *
+ * This file's header promises that each macro is mapped, refused **with a
+ * review note**, or unrecognised — and only the SillyTavern chat converter
+ * kept the middle promise. Its sysprompt converter and Marinara's reported the
+ * unrecognised ones only, and Marinara's conversation prompt reported nothing:
+ * a `{{date}}` or `{{random::…}}` was taken out of the prompt and the review
+ * never said so. One function now, so there is one answer: one note per
+ * distinct macro that needs a person, never one per occurrence — a warning for
+ * one left as written, and a note saying why for one taken out.
+ */
+export function macroNotes(seen: ReadonlyMap<string, MacroOutcome>, block: string): ImportNote[] {
+  const notes: ImportNote[] = [];
+  for (const [macro, outcome] of seen) {
+    if (outcome.kind === 'unknown') {
+      notes.push({ key: 'import.macro.unrecognised', params: { macro, block }, level: 'warn' });
+    } else if (outcome.kind === 'refused') {
+      notes.push({
+        key: 'import.macro.refused',
+        params: { macro, block, because: outcome.because },
+        level: 'info',
+      });
+    }
+  }
+  return notes;
+}

@@ -168,7 +168,10 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '“{entry}” used {original} matching, narrowed to what this supports.',
   'import.lore.characterLinksDangle':
     'Was linked to {count} characters that were not imported with it.',
-  'import.macro.refused': 'The macro {macro} in “{block}” was left as written — {because}.',
+  // ~~was left as written — {because}~~ (2026-09-27): a refused macro is taken
+  // *out*, which is the whole difference from an unrecognised one, and
+  // `{because}` printed a code. `sentence` turns the code into words.
+  'import.macro.refused': 'The macro {macro} in “{block}” was taken out: {because}.',
   'import.macro.unlisted':
     '{count} more uses of macros were converted the same way and are not listed one by one.',
   'import.preset.paramsCarried': '{count} sampler settings carried over.',
@@ -304,6 +307,22 @@ export function sentence(note: Pick<ImportNote, 'key' | 'params'>): string {
   if (template === undefined) return note.key;
   return template.replace(/\{(\w+)\}/g, (whole, key: string) => {
     const value = note.params[key];
-    return value === undefined ? whole : String(value);
+    if (value === undefined) return whole;
+    // A macro's reason arrives as the converter's code, which is not a sentence.
+    if (key === 'because' && typeof value === 'string') return MACRO_REASONS[value] ?? value;
+    return String(value);
   });
 }
+
+/**
+ * ***Why a macro was taken out, in words*** (2026-09-27). The server sends
+ * `macros.ts`'s `MacroRefusal` code; `note-labels.test.ts` holds this table to
+ * every code that file can send.
+ */
+export const MACRO_REASONS: Readonly<Record<string, string>> = labels('import.macro-reason', {
+  'body-comes-from-a-slot': 'that text comes from one of the pack’s own blocks here',
+  'randomness-must-be-drawn-and-recorded':
+    'a random pick has to come from the engine, or a turn could not be replayed',
+  'time-is-not-reproducible': 'the time would change every time a turn was replayed',
+  'no-equivalent': 'nothing here does what it did',
+});

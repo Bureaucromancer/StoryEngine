@@ -9,7 +9,7 @@ import {
   type SlotSource,
 } from '@storyengine/shared';
 
-import { convertMacros, macroNoteBudget, type MacroNoteBudget } from '../macros.js';
+import { convertMacros, macroNoteBudget, macroNotes, type MacroNoteBudget } from '../macros.js';
 import { ownEntry, parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
@@ -230,11 +230,7 @@ function blockFor(
   }
 
   const { template, seen } = convertMacros(str(row['content']), budget);
-  for (const [macro, outcome] of seen) {
-    if (outcome.kind === 'unknown') {
-      notes.push(note('import.macro.unrecognised', { macro, block: label }, 'warn'));
-    }
-  }
+  notes.push(...macroNotes(seen, label));
   const wrapper = wrapperFor(str(row['name']), wrapFormat);
   return {
     ...common,
@@ -307,7 +303,8 @@ function applyConversationPrompt(
   const prompt = str(presetRow['conversationPrompt']);
   if (prompt.length === 0) return;
 
-  const { template } = convertMacros(prompt, budget);
+  const { template, seen } = convertMacros(prompt, budget);
+  notes.push(...macroNotes(seen, 'Conversation prompt'));
   preset.blocks.unshift({
     id: 'mari.conversationPrompt',
     label: 'Conversation prompt',

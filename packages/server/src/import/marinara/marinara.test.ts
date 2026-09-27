@@ -431,6 +431,31 @@ describe('a Marinara preset as its store holds it', () => {
  * read, so on a real store no entry had a key — none could ever fire — and
  * every switch took its default.
  */
+/**
+ * ***A macro taken out is said, here too*** (2026-09-27). The sections
+ * reported unrecognised macros only, and the conversation prompt reported
+ * nothing at all.
+ */
+describe('what the review says about a Marinara preset’s macros', () => {
+  it('names a macro a section lost, and one the conversation prompt kept', () => {
+    const result = convertPreset({ ...PRESET, conversationPrompt: 'You are {{charName}}.' }, [
+      { ...SECTIONS[0], content: 'Roll {{random::a::b}} today.' },
+    ]);
+    if (!result.ok) throw new Error('refused');
+    const { notes } = result.value;
+
+    expect(notes.find((n) => n.key === 'import.macro.refused')?.params).toEqual({
+      macro: 'random',
+      block: 'Role',
+      because: 'randomness-must-be-drawn-and-recorded',
+    });
+    expect(notes.find((n) => n.key === 'import.macro.unrecognised')?.params).toEqual({
+      macro: 'charname',
+      block: 'Conversation prompt',
+    });
+  });
+});
+
 describe('a Marinara lorebook as its store holds it', () => {
   it('reads keys from text and switches from strings', () => {
     const { lorebook } = book({

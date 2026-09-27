@@ -9,12 +9,7 @@ import {
   type SlotSource,
 } from '@storyengine/shared';
 
-import {
-  convertMacros,
-  macroNoteBudget,
-  type MacroNoteBudget,
-  type MacroOutcome,
-} from '../macros.js';
+import { convertMacros, macroNoteBudget, macroNotes, type MacroNoteBudget } from '../macros.js';
 import { ownEntry, parsed, refused, type ParseOutcome } from '../parse.js';
 import { stripSensitiveFields } from './sensitive-fields.js';
 
@@ -543,7 +538,7 @@ function blockFor(
   }
 
   const { template, seen } = convertMacros(prompt.content ?? '', budget, { angles: true });
-  reportMacros(entry.identifier, seen, notes);
+  notes.push(...macroNotes(seen, entry.identifier));
   return { ...common, kind: 'text', template };
 }
 
@@ -655,7 +650,7 @@ function wrapperFor(
     if (own === undefined) continue;
     const marked = format.replace(own, PLACED);
     const { template, seen } = convertMacros(marked, budget, { angles: true });
-    reportMacros(field, seen, notes);
+    notes.push(...macroNotes(seen, field));
     return template.replaceAll(PLACED, '{{content}}');
   }
   return null;
@@ -683,7 +678,7 @@ function callKindBlocks(
     if (typeof content !== 'string' || content.length === 0) continue;
 
     const { template, seen } = convertMacros(content, budget, { angles: true });
-    reportMacros(field, seen, notes);
+    notes.push(...macroNotes(seen, field));
     blocks.push({
       id: `st.${field}`,
       label: field,
@@ -778,19 +773,4 @@ function compatOf(body: Readonly<Record<string, unknown>>): Record<string, unkno
     compat[key] = value;
   }
   return compat;
-}
-
-/** One note per distinct macro that needs a person, never one per occurrence. */
-function reportMacros(
-  where: string,
-  seen: ReadonlyMap<string, MacroOutcome>,
-  notes: ImportNote[],
-): void {
-  for (const [macro, outcome] of seen) {
-    if (outcome.kind === 'unknown') {
-      notes.push(note('import.macro.unrecognised', { macro, block: where }, 'warn'));
-    } else if (outcome.kind === 'refused') {
-      notes.push(note('import.macro.refused', { macro, block: where, because: outcome.because }));
-    }
-  }
 }

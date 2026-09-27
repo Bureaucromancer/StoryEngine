@@ -103,6 +103,28 @@ describe('a sysprompt preset', () => {
     );
   });
 
+  /**
+   * ***A macro taken out is said*** (2026-09-27): this converter reported the
+   * unrecognised ones only, so a `{{date}}` left the prompt without a word.
+   */
+  it('says which macros it took out, and why', () => {
+    const result = convertSyspromptPreset(
+      { ...SYSPROMPT, content: 'Today is {{date}}. Mood: {{mood}}.' },
+      'Dated',
+    );
+    if (!result.ok) throw new Error('refused');
+    const { preset: converted, notes } = result.value;
+
+    const content = converted.blocks[0];
+    expect(content?.kind === 'text' ? content.template : '').toBe('Today is . Mood: {{mood}}.');
+    expect(notes.find((n) => n.key === 'import.macro.refused')?.params).toEqual({
+      macro: 'date',
+      block: 'st.sysprompt.content',
+      because: 'time-is-not-reproducible',
+    });
+    expect(notes.find((n) => n.key === 'import.macro.unrecognised')?.params['macro']).toBe('mood');
+  });
+
   for (const { label, input } of malformedInputs(SYSPROMPT, ['content'])) {
     it(`answers with a status for ${label}`, () => {
       expect(() => convertSyspromptPreset(input, 'x')).not.toThrow();
