@@ -130,6 +130,34 @@ export function formatCount(count: number, locale?: string): string {
 }
 
 /**
+ * An amount of money, as a provider reported it.
+ *
+ * ***Fractions of a cent are the ordinary case***, which is why the precision
+ * runs to six places: one model call is routinely `$0.0021`, and rounding it to
+ * the currency's two digits would print `$0.00` — *free*, which is exactly the
+ * claim `TurnCost` exists not to make.
+ *
+ * *A currency that is not an ISO code is shown as its own word.* A provider may
+ * price in its own unit (OpenRouter's credits are one), and `Intl` refuses a
+ * code it does not know; the number still reads, followed by what it is in.
+ */
+export function formatMoney(amount: number, currency: string, locale?: string): string {
+  if (/^[A-Z]{3}$/.test(currency)) {
+    try {
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      }).format(amount);
+    } catch {
+      // An unrecognised three-letter code falls through to the plain form.
+    }
+  }
+  return `${numberFormatterFor(locale, { maximumFractionDigits: 6 }).format(amount)} ${currency}`;
+}
+
+/**
  * A wall time in milliseconds, at the precision the magnitude deserves:
  * milliseconds below a second, seconds to one decimal below a minute,
  * minutes to one decimal above — a 59-second model call reads as `59 s`,

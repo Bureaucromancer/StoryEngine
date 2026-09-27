@@ -2091,7 +2091,27 @@ function costOf(calls: readonly ModelCall[]): TurnCost {
       : null,
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
     model: calls.at(-1)?.resolved.modelId ?? null,
+    money: moneyOf(calls),
   };
+}
+
+/**
+ * The turn's money, by the token totals' rule — every call priced, or no total.
+ *
+ * ***One currency or none.*** Two calls priced in different units — dollars on
+ * one connection and a provider's credits on another — have no sum this build
+ * can honestly write, and converting between them would be an estimate with an
+ * exchange rate in it. Each call keeps its own figure either way.
+ */
+function moneyOf(calls: readonly ModelCall[]): { amount: number; currency: string } | null {
+  const currency = calls[0]?.cost?.currency;
+  if (currency === undefined) return null;
+  let amount = 0;
+  for (const call of calls) {
+    if (call.cost?.currency !== currency) return null;
+    amount += call.cost.amount;
+  }
+  return { amount, currency };
 }
 
 /**

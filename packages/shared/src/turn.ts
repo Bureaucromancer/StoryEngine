@@ -836,6 +836,24 @@ export interface TurnCost {
   wallMs: number;
   /** The model that answered last, or null when nothing was called. */
   model: string | null;
+  /**
+   * ***What the turn cost in money, when every call's provider said*** — added
+   * 2026-09-27, because until then this record had tokens and no money at all,
+   * and [09 §4.5]'s *"turns already record cost"* was true only of tokens.
+   *
+   * **The sum of `ModelCall.cost`, under the same all-or-nothing rule as the
+   * token totals**: a figure only when every call reported one and all of them
+   * in one currency, and null otherwise — *not priced*, which is a different
+   * claim from *free*. Null is the ordinary value today: no adapter in this
+   * build prices a call, and [25 E16](../../../docs/design/25-open-questions.md)
+   * is where the approach to changing that is recorded. The field lands first
+   * so a turn priced later needs no migration to say so.
+   *
+   * **Optional**, so every turn written before it reads as absent rather than
+   * as a claim; after the [P11.10] freeze an optional field is the only kind
+   * this record can grow.
+   */
+  money?: { amount: number; currency: string } | null;
 }
 
 /**

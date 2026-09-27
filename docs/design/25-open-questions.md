@@ -1892,3 +1892,74 @@ What moves it: C15 decided as *(d)*, which this entry is the occasion for; or
 somebody who plays with a model that sees wanting R1 enough to build it, which
 needs nothing else first.
 *[24 §3.1, 06 §5.1, 21 §2, 21 §3, 21 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 19 §5.1, C14, C15, E3]*
+
+### E16. Money — the provider's figure, a declared price, and never a shipped table
+
+**Position: the record has somewhere to put money, and nothing fills it yet;
+the approach below is the recommendation for what should.** Three places carry
+a money figure — `ModelCall.cost`, the usage log's `cost` for calls that make no
+turn ([21 §1.4](21-internal-contracts.md)), and since 2026-09-27 the turn's own
+total, `TurnCost.money` — and all three are null on every real endpoint, because
+the adapter prices nothing. [09 §4.5](09-server-multiuser-deployment.md) said
+turns *"already record cost"*, which was true of tokens only; it now says so.
+The field landed first on purpose: a turn priced later needs no migration to
+say what it cost, and an unpriced one says *not priced*, never zero.
+
+**The rule a filler has to keep is [21 §1.4]'s**: *provider-reported, not
+estimated*. So the recommendation is ordered by how honestly each source can
+claim that.
+
+**1. The provider's own figure, where it gives one — OpenRouter first.**
+OpenRouter returns what a call cost on every completion as `usage.cost`, the
+total charged to the account, with `usage.cost_details.upstream_inference_cost`
+beside it; it arrives in the last streamed chunk as well as in a whole response,
+and the old `usage: { include: true }` opt-in is deprecated and does nothing
+(checked against OpenRouter's usage-accounting page, 2026-09-27). That is a
+provider-reported amount in the plainest sense, from the aggregator a roleplay
+install most often points at, and it needs no table of anybody's prices. Its
+unit is OpenRouter's **credits**: record `currency: "credits"` — which the
+workbench already shows as a word rather than refusing — until somebody confirms
+against an account that a credit is a dollar and it can be written `"USD"`.
+
+The work is small and has one unknown. The adapter is built on the AI SDK's
+OpenAI-compatible provider, which surfaces token counts; whether it passes
+through `usage.cost` is **not verified**, and the same SDK has dropped a field
+in silence before ([polish §8](workplan/06-polish.md)). So the first step is a
+live test in the `live` project's pattern — one OpenRouter call, asserting that
+a number arrives — and if the SDK does not carry it, the adapter reads it where
+it already owns the response: the fetch it wraps for capture. A per-connection
+capability, `reportsCost`, false in the conservative baseline exactly as
+`reportsUsage` began, keeps a connection that claims the format and does not
+honour it from being believed.
+
+**2. A price the person declares, where the provider says nothing.** Direct
+OpenAI and Anthropic endpoints, and every local one, report tokens and no money.
+For those a connection may carry, **per model**, a price its owner enters —
+input and output per million tokens, and a currency — and the call's cost is the
+provider's token counts times that price. That is not an estimate of usage; it
+is a person's own number applied to a measured one, and the record should be
+able to tell the two apart: an optional `source: "provider" | "declared"` on the
+cost, so a spend view built later can say which of its figures a provider
+vouched for. Per model because a price is, like image input
+([E15](25-open-questions.md)), a property of the model rather than of the
+endpoint; on the connection because that is where somebody who knows says so
+([21 §3](21-internal-contracts.md)). A local model's owner who wants *free* to
+read as a claim rather than an absence declares zero.
+
+**3. Never a shipped price table.** A bundled table of per-model prices is the
+*"confident-looking table of half-remembered limits"* `capabilities.ts` refuses
+for context sizes, with a worse failure attached: prices change without notice,
+cached and batch tiers differ by account, and a wrong price does not truncate a
+prompt somewhere out of sight — it is printed beside every turn as fact. Not as a
+default and not as a fallback.
+
+**Downstream, and not part of the first step:** cached-token pricing, which
+OpenRouter's figure already includes and a declared price would have to model;
+image calls, whose `ImageResult.cost` exists and is dropped because a rendition
+has no field for it; and the aggregate view itself
+([24 §3.3](24-roadmap.md)), which reads whatever this fills.
+
+What moves it: somebody on OpenRouter wanting the number, which needs only the
+live test and the adapter change in step 1. Step 2 waits for somebody who wants
+a figure beside a direct or local endpoint.
+*[21 §1.4, 21 §3, 09 §4.5, 24 §3.3, E15]*

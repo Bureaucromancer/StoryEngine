@@ -1505,7 +1505,7 @@ interface Turn {
    *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1]
    *  ~~`mentions: MentionSpan[]`~~ — renamed 2026-09-11, see below. */
   spans: TextSpan[]
-  cost: { promptTokens, completionTokens, wallMs, model }
+  cost: { promptTokens, completionTokens, wallMs, model, money? }  // money: 2026-09-27, [25 E16]
 }
 
 interface TextSpan {
