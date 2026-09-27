@@ -170,8 +170,16 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.macro.unlisted':
     '{count} more uses of macros were converted the same way and are not listed one by one.',
   'import.preset.paramsCarried': '{count} sampler settings carried over.',
-  'import.preset.groupOrderUsed': 'Prompt order taken from the preset’s own group.',
-  'import.preset.groupOrderDropped': 'The preset’s group ordering could not be used.',
+  'import.preset.legacyOrderUsed':
+    'This preset only had the prompt order older SillyTavern versions used, so that one was converted.',
+  'import.preset.unusedPromptsKept':
+    'Kept {count} prompts the preset held but did not use ({names}), switched off.',
+  'import.preset.duplicatesDropped':
+    'The preset named some prompts twice ({identifiers}); the first of each was kept.',
+  'import.preset.triggerHasNoCall':
+    'The “{identifier}” block only runs for {triggers} in SillyTavern, which has no equivalent here, so it never applies.',
+  'import.preset.fromBeforePromptManager':
+    'An older SillyTavern preset, from before its prompt manager, converted the way SillyTavern upgrades one.',
   'import.preset.unknownMarker': 'The “{identifier}” block is not one this understands.',
   'import.preset.promptFieldsIgnored':
     'The “{identifier}” block had {fields} of a kind this cannot read, and they were left out.',

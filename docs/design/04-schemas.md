@@ -1488,7 +1488,7 @@ prompt manager is a block assembler. Most of the conversion is renaming.
 | `injection_position: RELATIVE` | `placement: { at: "sequence" }` |
 | `injection_position: ABSOLUTE` + `injection_depth` | `placement: { at: "in-history", fromEnd }` — §8.3 |
 | `injection_order` | `placement.tiebreak` |
-| `injection_trigger[]` | `appliesTo` |
+| `injection_trigger[]` | `appliesTo` — ~~verbatim~~ *translated where there is a call (2026-09-27): `normal` → `narrate`, `continue` and `impersonate` as they are; `swipe`, `regenerate` and `quiet` ride through and never apply, which the review says* |
 | `temperature`, `top_p`, `top_k`, `top_a`, `min_p`, `frequency_penalty`, `presence_penalty`, `repetition_penalty`, `seed`, `n`, `openai_max_tokens` | `params` |
 | `openai_max_context` | `budget`, as a ceiling with a note that it was absolute |
 | `openai_model` / `claude_model` / … | `modelHint.preferredModelIds` — a wish, never a binding ([§3](#3-shared-substructures)) |
@@ -1545,10 +1545,16 @@ named consequence, never as a silent drop.
   Cards cannot override prompts at all ([00 §2.4](00-stance.md)), so it is moot
   and drops.
 - **Per-character `prompt_order` entries.** ST keys orderings by
-  `character_id`, with `100000` and `100001` as dummy ids for the global and
-  group defaults. Only the global order converts; a preset carrying genuinely
-  per-character orders gets **one preset plus a warning naming the characters**,
-  rather than a silent choice among them.
+  `character_id`, with ~~`100000` and `100001` as dummy ids for the global and
+  group defaults. Only the global order converts~~ ***`100001` as the order it
+  sends and `100000` as the one before 1.10.0*** *(corrected 2026-09-27: the
+  chat-completion prompt manager is configured with `dummyId: 100001`, so that
+  is the order a generation reads and the toggles write; `100000` is the class
+  default it overrides. `100001` converts, `100000` only for a file that has
+  nothing else, and SillyTavern's own `Default.json` — which carries both, and
+  no persona slot in `100000` — converts as SillyTavern sends it)*; a preset
+  carrying genuinely per-character orders gets **one preset plus a warning
+  naming the characters**, rather than a silent choice among them.
 - **Instruct and context templates** are not converted at all
   ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
   completion, which is unsupported ([19 §5.5](19-tech-stack.md)).

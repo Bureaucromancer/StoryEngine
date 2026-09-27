@@ -69,6 +69,9 @@ const CARDISH = [
 const CARD_SPEC = /^chara_card_v\d/;
 const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as const;
 
+/** The three prompt fields a chat preset kept before SillyTavern's prompt manager. */
+const LEGACY_CHAT_FIELDS = ['main_prompt', 'nsfw_prompt', 'jailbreak_prompt'] as const;
+
 /**
  * The three SillyTavern template kinds this build recognises and will never
  * convert.
@@ -385,6 +388,18 @@ function probe(body: Record<string, unknown>, confidence: ProbeConfidence): stri
 
   if (typeof body['content'] === 'string' || typeof body['post_history'] === 'string') {
     return 'sillytavern.preset.sysprompt';
+  }
+  /**
+   * ***A chat preset from before the prompt manager*** (2026-09-27), above the
+   * sampler arm because it has sampler fields too. It keeps its prompts in
+   * `main_prompt`, `nsfw_prompt` and `jailbreak_prompt` rather than `prompts`,
+   * so the arm above never saw it, and this one below took it for a sampler
+   * panel: no blocks, and a note about sampler settings. The chat converter
+   * migrates it the way SillyTavern does. Below the gate, with the other
+   * guesses, because it keys on field names.
+   */
+  if (LEGACY_CHAT_FIELDS.some((field) => typeof body[field] === 'string')) {
+    return 'sillytavern.preset.chat';
   }
   if (SAMPLERISH.some((field) => typeof body[field] === 'number')) {
     return 'sillytavern.preset.text';

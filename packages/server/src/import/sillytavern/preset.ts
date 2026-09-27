@@ -130,9 +130,75 @@ const MODEL_FIELDS = [
  */
 const MEANINGLESS_PROMPT_FIELDS = new Set(['system_prompt', 'forbid_overrides', 'marker']);
 
-/** ST's global and group-default pseudo character ids (§8.4.2). */
-const GLOBAL_ORDER_ID = 100000;
-const GROUP_ORDER_ID = 100001;
+/**
+ * ~~ST's global and group-default pseudo character ids (§8.4.2).~~ ***Which
+ * order SillyTavern sends, and which it only keeps*** (2026-09-27).
+ *
+ * The comment above had them the wrong way round, and so did §8.4.2 and
+ * [P4 §1.1]: `100001` is not a group default. SillyTavern's chat-completion
+ * prompt manager is built with `promptOrder: { strategy: 'global', dummyId:
+ * 100001 }` (`openai.js`), and since 1.10.0 that is the order a generation
+ * reads, the order the toggles write and the order a new prompt is inserted
+ * into. `100000` is the class default that setting overrides — the order the
+ * prompt manager used before 1.10.0, still carried in files that went through
+ * it, and read by nothing. SillyTavern's own `Default.json` carries both, and
+ * its `100000` has no persona slot: converting that one lost the persona, every
+ * custom prompt and every toggle a person had set.
+ */
+const LIVE_ORDER_ID = 100001;
+const LEGACY_ORDER_ID = 100000;
+
+/**
+ * ***SillyTavern's generation types, as calls here*** (2026-09-27).
+ *
+ * `injection_trigger` names SillyTavern's *generation types* — the Triggers
+ * list in its prompt editor is exactly `normal`, `continue`, `impersonate`,
+ * `swipe`, `regenerate` and `quiet` — and they were carried through verbatim
+ * on [P4 §1.1]'s premise that an unmapped one would merely skip in a mode that
+ * never makes such a call. The premise missed that `normal` **is** the ordinary
+ * turn: a block triggered on it skipped on every turn of every mode. The three
+ * with a call of their own here are translated. `swipe` and `regenerate` are
+ * a redo, which is a narration here with the previous attempt beside it — so
+ * mapping them would apply a block meant only for rerolls to every first
+ * attempt too — and `quiet` is a background call with no equivalent; those
+ * ride through verbatim, and a block left with nothing else is said to never
+ * apply.
+ */
+const TRIGGERS: Readonly<Record<string, string>> = {
+  normal: 'narrate',
+  continue: 'continue',
+  impersonate: 'impersonate',
+};
+
+/**
+ * ***A preset from before the prompt manager*** (2026-09-27): SillyTavern's
+ * three prompt fields before 1.9, which its own migration folds into the
+ * prompts of its default set when such a preset is loaded.
+ */
+const LEGACY_PROMPT_FIELDS: Readonly<Record<string, string>> = {
+  main_prompt: 'main',
+  nsfw_prompt: 'nsfw',
+  jailbreak_prompt: 'jailbreak',
+};
+
+/**
+ * SillyTavern's own default order (`promptManagerDefaultPromptOrder`), which is
+ * what it builds for a preset that carries none. `enhanceDefinitions` is left
+ * out: it ships switched off, and its words are SillyTavern's, not the file's.
+ */
+const DEFAULT_ORDER: readonly string[] = [
+  'main',
+  'worldInfoBefore',
+  'personaDescription',
+  'charDescription',
+  'charPersonality',
+  'scenario',
+  'nsfw',
+  'worldInfoAfter',
+  'dialogueExamples',
+  'chatHistory',
+  'jailbreak',
+];
 
 /**
  * The flat priority every converted block gets.
@@ -173,10 +239,12 @@ export function convertChatCompletionPreset(
   name: string,
 ): ParseOutcome<ConvertedPreset> {
   if (!isRecord(input)) return refused('wrong-shape');
-  if (!Array.isArray(input['prompts'])) return refused('missing-field', 'prompts');
 
   const notes: ImportNote[] = [];
-  const { kept, removed } = stripSensitiveFields(input);
+  const body = fromBeforePromptManager(input, notes);
+  if (!Array.isArray(body['prompts'])) return refused('missing-field', 'prompts');
+
+  const { kept, removed } = stripSensitiveFields(body);
 
   if (removed.length > 0) {
     // Loudest note the converter emits, and the only one that is about somebody
@@ -185,15 +253,32 @@ export function convertChatCompletionPreset(
   }
 
   const preset = newPreset(name);
+  /**
+   * ***The first definition of an identifier, as SillyTavern finds it***
+   * (2026-09-27). `getPromptById` is a `find`, so a file defining one twice is
+   * read by its first; a map filled in order kept the last. A prompt with no
+   * identifier cannot be in any order — SillyTavern gives it a fresh one on
+   * load — so it gets a name from its place in the file, and is kept below as
+   * a prompt the preset holds and does not use.
+   */
   const prompts = new Map<string, StPrompt>();
-  for (const entry of input['prompts']) {
-    if (isRecord(entry) && typeof entry['identifier'] === 'string') {
-      prompts.set(entry['identifier'], readPrompt(entry, entry['identifier'], notes));
+  const duplicates = new Set<string>();
+  let unnamed = 0;
+  for (const entry of body['prompts'] as unknown[]) {
+    if (!isRecord(entry)) continue;
+    const identifier =
+      typeof entry['identifier'] === 'string'
+        ? entry['identifier']
+        : `unnamed.${String(unnamed++)}`;
+    if (prompts.has(identifier)) {
+      duplicates.add(identifier);
+      continue;
     }
+    prompts.set(identifier, readPrompt(entry, identifier, notes));
   }
 
-  const { order, orderNote } = resolveOrder(kept['prompt_order'], prompts);
-  if (orderNote) notes.push(orderNote);
+  const { order, orderNotes } = resolveOrder(kept['prompt_order'], prompts);
+  notes.push(...orderNotes);
 
   // One budget for every block's macros: a limit per block is beaten by having
   // many blocks (`macros.ts`).
@@ -202,7 +287,49 @@ export function convertChatCompletionPreset(
     .map((entry) => blockFor(entry, prompts, kept, notes, budget))
     .filter((block): block is PresetBlock => block !== null);
 
+  /**
+   * ***The prompts a preset holds and does not use*** (2026-09-27). Only the
+   * chosen order became blocks, so a prompt somebody wrote and took out of the
+   * order — which SillyTavern keeps, offers to add back, and never sends — was
+   * lost here, and `prompts` was consumed so nothing kept it. Each one with
+   * words in it comes along **switched off**, after the rest: the same state
+   * it was in, and a toggle away from being used. A marker left out of the
+   * order is only a position, with nothing written in it, and stays out.
+   */
+  const used = new Set(order.map((entry) => entry.identifier));
+  const detached = [...prompts.values()].filter(
+    (prompt) =>
+      !used.has(prompt.identifier) &&
+      prompt.marker !== true &&
+      ownEntry(MARKERS, prompt.identifier) === undefined &&
+      (prompt.content ?? '').trim().length > 0,
+  );
+  for (const prompt of detached) {
+    const block = blockFor(
+      { identifier: prompt.identifier, enabled: false },
+      prompts,
+      kept,
+      notes,
+      budget,
+    );
+    if (block !== null) preset.blocks.push(block);
+  }
+  if (detached.length > 0) {
+    notes.push(
+      note('import.preset.unusedPromptsKept', {
+        count: detached.length,
+        names: detached.map((prompt) => prompt.name ?? prompt.identifier).join(', '),
+      }),
+    );
+  }
+
   preset.blocks.push(...callKindBlocks(kept, notes, budget));
+  preset.blocks = firstOfEach(preset.blocks, duplicates);
+  if (duplicates.size > 0) {
+    notes.push(
+      note('import.preset.duplicatesDropped', { identifiers: [...duplicates].join(', ') }, 'warn'),
+    );
+  }
   if (budget.unlisted > 0) {
     notes.push(note('import.macro.unlisted', { count: budget.unlisted }, 'warn'));
   }
@@ -283,19 +410,28 @@ interface OrderEntry {
 /**
  * Which ordering to convert.
  *
- * ST keys orderings by `character_id`, with `100000` and `100001` as dummy ids
- * for the global and group defaults. Only the global order converts; a preset
+ * ST keys orderings by `character_id`, with ~~`100000` and `100001` as dummy
+ * ids for the global and group defaults~~ **`100001` as the order it sends and
+ * `100000` as the one it used before 1.10.0** (see `LIVE_ORDER_ID`). A preset
  * carrying genuinely per-character orders gets **one preset plus a warning
  * naming the characters** (§8.4.2), rather than a silent choice among them.
  *
- * *The half §8.4.2 left unstated, decided at [P4 §1.1]:* when there is no global
- * order the group default converts in its place with a note, and when both exist
- * the group default drops with a note.
+ * ~~*The half §8.4.2 left unstated, decided at [P4 §1.1]:* when there is no
+ * global order the group default converts in its place with a note, and when
+ * both exist the group default drops with a note.~~ ***Corrected 2026-09-27***:
+ * the live order converts; a file that only went through an older SillyTavern
+ * has only the legacy one, which converts in its place with a note, because
+ * that was the order its author arranged. When both exist the legacy one is
+ * what SillyTavern ignores too, so it goes without a word.
+ *
+ * `enabled` is read the way SillyTavern reads it, as a truthy test
+ * (`entry.enabled && …`): an entry that does not say it is on is off. `!==
+ * false` turned every entry that said nothing into an enabled block.
  */
 function resolveOrder(
   raw: unknown,
   prompts: ReadonlyMap<string, StPrompt>,
-): { order: OrderEntry[]; orderNote: ImportNote | null } {
+): { order: OrderEntry[]; orderNotes: ImportNote[] } {
   const orders = new Map<number, OrderEntry[]>();
   if (Array.isArray(raw)) {
     for (const entry of raw) {
@@ -309,41 +445,50 @@ function resolveOrder(
           .filter((row): row is Record<string, unknown> => typeof row['identifier'] === 'string')
           .map((row) => ({
             identifier: row['identifier'] as string,
-            enabled: row['enabled'] !== false,
+            enabled: Boolean(row['enabled']),
           })),
       );
     }
   }
 
   const perCharacter = [...orders.keys()].filter(
-    (id) => id !== GLOBAL_ORDER_ID && id !== GROUP_ORDER_ID,
+    (id) => id !== LIVE_ORDER_ID && id !== LEGACY_ORDER_ID,
   );
 
-  const global = orders.get(GLOBAL_ORDER_ID);
-  const group = orders.get(GROUP_ORDER_ID);
+  const live = orders.get(LIVE_ORDER_ID);
+  const legacy = orders.get(LEGACY_ORDER_ID);
+  const orderNotes: ImportNote[] = [];
 
-  let order = global ?? group ?? null;
-  let orderNote: ImportNote | null = null;
-
-  if (global === undefined && group !== undefined) {
-    orderNote = note('import.preset.groupOrderUsed');
-  } else if (global !== undefined && group !== undefined) {
-    orderNote = note('import.preset.groupOrderDropped');
+  if (live === undefined && legacy !== undefined) {
+    orderNotes.push(note('import.preset.legacyOrderUsed'));
   }
-
   if (perCharacter.length > 0) {
-    orderNote = note(
-      'import.preset.perCharacterOrdersDropped',
-      { characters: perCharacter.join(', '), count: perCharacter.length },
-      'warn',
+    orderNotes.push(
+      note(
+        'import.preset.perCharacterOrdersDropped',
+        { characters: perCharacter.join(', '), count: perCharacter.length },
+        'warn',
+      ),
     );
   }
 
-  // No order at all: take the prompts in the order the file lists them, which is
-  // what ST's own UI falls back to.
-  order ??= [...prompts.keys()].map((identifier) => ({ identifier, enabled: true }));
+  /**
+   * ~~No order at all: take the prompts in the order the file lists them, which
+   * is what ST's own UI falls back to.~~ **It is not** (2026-09-27): a preset
+   * with no order is given SillyTavern's own default one, and that is what it
+   * converts to here — the default prompts this file defines, and the
+   * default markers, which are positions and need no definition. Anything else
+   * the file holds is kept switched off, as a prompt SillyTavern would have
+   * held and not sent.
+   */
+  const order =
+    live ??
+    legacy ??
+    DEFAULT_ORDER.filter(
+      (identifier) => prompts.has(identifier) || ownEntry(MARKERS, identifier) !== undefined,
+    ).map((identifier) => ({ identifier, enabled: true }));
 
-  return { order, orderNote };
+  return { order, orderNotes };
 }
 
 function blockFor(
@@ -353,7 +498,16 @@ function blockFor(
   notes: ImportNote[],
   budget: MacroNoteBudget,
 ): PresetBlock | null {
-  const prompt = prompts.get(entry.identifier);
+  /**
+   * A default marker the file does not define is still a position: SillyTavern
+   * puts its own definition back on load (`checkForMissingPrompts`) and sends
+   * it. Any other identifier with no definition is pruned, there and here.
+   */
+  const prompt =
+    prompts.get(entry.identifier) ??
+    (ownEntry(MARKERS, entry.identifier) === undefined
+      ? undefined
+      : { identifier: entry.identifier, marker: true });
   if (prompt === undefined) return null;
 
   const common = {
@@ -363,10 +517,11 @@ function blockFor(
     enabled: entry.enabled,
     placement: placementOf(prompt),
     priority: DEFAULT_PRIORITY,
-    // `CallKind` is an open string by rule ([04 §8.2]), so an unmapped trigger
-    // rides through and renders as a `not-applicable` skip in a mode that never
-    // makes such a call — visible in `notFilled` rather than lost.
-    appliesTo: prompt.injection_trigger ?? [],
+    // `CallKind` is an open string by rule ([04 §8.2]), so a trigger with no
+    // call here rides through and renders as a `not-applicable` skip — visible
+    // in `notFilled` rather than lost. The ones that do have one are translated
+    // (`TRIGGERS`), and `normal` above all, which is every ordinary turn.
+    appliesTo: appliesToOf(entry.identifier, prompt.injection_trigger ?? [], notes),
     // Nothing in ST's preset format is guidance-shaped, and an advisory block
     // reaching an effects-purpose call aborts the turn ([P4 §1.1]). The
     // converter never sets the flag.
@@ -390,6 +545,85 @@ function blockFor(
   const { template, seen } = convertMacros(prompt.content ?? '', budget);
   reportMacros(entry.identifier, seen, notes);
   return { ...common, kind: 'text', template };
+}
+
+/**
+ * A prompt's triggers as calls here: the three SillyTavern generation types
+ * with an equivalent translated, the rest carried as written. A block whose
+ * triggers are all of the rest can never apply, and the review says so.
+ */
+function appliesToOf(
+  identifier: string,
+  triggers: readonly string[],
+  notes: ImportNote[],
+): string[] {
+  const kinds = [
+    ...new Set(triggers.map((trigger) => ownEntry(TRIGGERS, trigger.toLowerCase()) ?? trigger)),
+  ];
+  const called = new Set(Object.values(TRIGGERS));
+  if (kinds.length > 0 && !kinds.some((kind) => called.has(kind))) {
+    notes.push(
+      note('import.preset.triggerHasNoCall', { identifier, triggers: triggers.join(', ') }),
+    );
+  }
+  return kinds;
+}
+
+/**
+ * ***One block per id, the first*** (2026-09-27). The assembler keys a
+ * candidate by id, so two blocks sharing one — an identifier listed twice in
+ * an order, or a prompt whose identifier is one of the nine fixed fields' —
+ * meant one silently replaced the other in every prompt, and the editor moved
+ * and patched both as one. The first is SillyTavern's reading (it finds by
+ * identifier); the others go, and are named.
+ */
+function firstOfEach(blocks: readonly PresetBlock[], dropped: Set<string>): PresetBlock[] {
+  const seen = new Set<string>();
+  return blocks.filter((block) => {
+    if (!seen.has(block.id)) {
+      seen.add(block.id);
+      return true;
+    }
+    dropped.add(block.id.replace(/^st\./, ''));
+    return false;
+  });
+}
+
+/**
+ * ***A preset from before the prompt manager, read as SillyTavern reads it***
+ * (2026-09-27).
+ *
+ * Before 1.9 a chat-completion preset kept its prompts in three fields —
+ * `main_prompt`, `nsfw_prompt` and `jailbreak_prompt` — and had no `prompts`
+ * at all. SillyTavern still loads one: its migration puts the three into the
+ * prompts of its default set and lets the default order place them. Here it
+ * was refused for having no `prompts` in a folder, and uploaded on its own it
+ * was taken for a sampler panel and came out with no blocks and a sentence
+ * about sampler settings. The same migration now runs first: the three become
+ * prompts, and with no order of its own the preset takes the default one.
+ */
+function fromBeforePromptManager(
+  input: Readonly<Record<string, unknown>>,
+  notes: ImportNote[],
+): Record<string, unknown> {
+  if (Array.isArray(input['prompts'])) return { ...input };
+  const legacy = Object.entries(LEGACY_PROMPT_FIELDS).filter(
+    ([field]) => typeof input[field] === 'string',
+  );
+  if (legacy.length === 0) return { ...input };
+
+  // The three fields are consumed, so they do not also land in `compat`.
+  const out = Object.fromEntries(
+    Object.entries(input).filter(([field]) => !Object.hasOwn(LEGACY_PROMPT_FIELDS, field)),
+  );
+  out['prompts'] = legacy.map(([field, identifier]) => ({
+    identifier,
+    name: identifier,
+    role: 'system',
+    content: input[field],
+  }));
+  notes.push(note('import.preset.fromBeforePromptManager'));
+  return out;
 }
 
 /** ST's format strings are `{{...}}`-shaped; ours is one fixed `{{content}}`. */

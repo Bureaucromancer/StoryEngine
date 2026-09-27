@@ -305,7 +305,12 @@ Corrections and closures the revisit makes to the conversion contract itself:
   warning naming the characters ([04 §8.4.2]). *The half §8.4.2 left
   unstated:* when no global order exists, the group default (`100001`)
   converts in its place with a review note; when both exist the group default
-  drops-with-review.
+  drops-with-review. **Corrected 2026-09-27: the two ids were the wrong way
+  round.** `100001` is the order SillyTavern has sent since 1.10.0 (its
+  chat-completion prompt manager's `dummyId`), not a group default, and
+  `100000` is the one before it. The live order converts, the legacy one only
+  in its absence (with the note), and SillyTavern's own `Default.json` had
+  been losing its persona slot, its custom prompts and its toggles to this.
 - **`sysprompt` presets**: `content` → a `TextBlock` at the top, `post_history`
   → a `TextBlock` **in sequence after the history slot** — not
   `in-history fromEnd: 0`, which would put it inside the run and move under
@@ -313,7 +318,11 @@ Corrections and closures the revisit makes to the conversion contract itself:
 - **`injection_trigger[]` → `appliesTo`** carries values verbatim — `CallKind`
   is an open string by rule ([04 §8.2]), so unmapped trigger names ride
   through and render as `not-applicable` skips in modes that never make such
-  calls, visible in `notFilled` rather than lost.
+  calls, visible in `notFilled` rather than lost. **Corrected 2026-09-27**: the
+  premise missed that SillyTavern's `normal` *is* the ordinary turn, so a
+  block triggered on it skipped on every turn of every mode. `normal`,
+  `continue` and `impersonate` are translated; the rest still ride through,
+  and a block with nothing else is said to never apply.
 - **The macro table is P4.1 work.** [04 §8.4.2] promises "a closed mapping
   table" and does not contain one; authoring it — and the render context it
   maps onto — is a named deliverable, not an assumed input (§1.6).
