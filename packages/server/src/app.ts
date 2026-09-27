@@ -36,7 +36,8 @@ import { backupContextOf, sweepAbandonedBackups } from './backup/archive.js';
 import { startBackupSchedule, type BackupSchedule } from './backup/schedule.js';
 import { BackupSettingsStore } from './backup/settings.js';
 import { startTrashSweep, type TrashSweep } from './storage/trash.js';
-import { rebuild } from './index-db/rebuild.js';
+import { rebuild, type RebuildResult } from './index-db/rebuild.js';
+import { reconcileIndex, type ReconcileResult } from './index-db/reconcile.js';
 import { materialiseModePresets } from './system-library.js';
 import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
@@ -238,6 +239,12 @@ export interface AppServices {
    * much weaker claim than the one this stage makes.
    */
   reconciliation: Reconciliation;
+  /**
+   * ***What this start did to the index*** (2026-09-27): rebuilt it, or
+   * checked it against the disk ([03 §5.1]). Kept for `buildApp` to log,
+   * since the logger does not exist yet when it happens.
+   */
+  indexAtStart: ({ kind: 'rebuilt' } & RebuildResult) | ({ kind: 'reconciled' } & ReconcileResult);
   accounts: Accounts;
   watcher: LibraryWatcher | null;
   /** The cassette recorder, present only when `--capture` asked for one. */
@@ -543,9 +550,22 @@ async function assembleWithState(
   // A fresh or version-bumped index is empty and says so, which is what makes
   // deleting `index.sqlite` a non-event rather than a silently empty library
   // ([21 §5](../../../docs/design/21-internal-contracts.md)).
-  if (index.migration.rebuildRequired || options.config.index.rebuildOnStart) {
-    await rebuild(index.db, layout);
-  }
+  //
+  // ***And every other start checks it*** (2026-09-27): [03 §5.1]'s
+  // consistency check, by recorded size and time, which nothing ran. A start
+  // that did not rebuild looked at nothing, so an edit, an addition or a delete
+  // made while the server was stopped went unseen until the file changed again,
+  // and a session never caught up at all. Before the mode presets and the
+  // watcher, for the reasons the rebuild is.
+  const indexAtStart: AppServices['indexAtStart'] =
+    index.migration.rebuildRequired || options.config.index.rebuildOnStart
+      ? { kind: 'rebuilt', ...(await rebuild(index.db, layout)) }
+      : {
+          kind: 'reconciled',
+          ...(await reconcileIndex(index.db, layout, {
+            keepHistoryPerObject: library.keepHistoryPerObject,
+          })),
+        };
 
   /**
    * **The system library gets its contents** — [P7B.0].
@@ -857,6 +877,7 @@ async function assembleWithState(
     streams: new Set<() => void>(),
     // Filled in by `buildApp`, which is the first point a logger exists.
     reconciliation: { finalised: [], abandoned: [], failed: [] },
+    indexAtStart,
     accounts,
     watcher,
     maturation,
@@ -903,20 +924,6 @@ async function assembleWithState(
 }
 
 /**
- * Releases everything `buildServices` acquired, in the order that works.
- *
- * **The order is not stylistic, and it bites hardest on Windows.** The watcher
- * holds handles on the library tree, and both databases hold their own file plus
- * a `-wal` and a `-shm`; a test that removes its temporary directory before
- * those are closed fails with `EBUSY` on a file it never named. Close the app
- * first so no request is mid-flight, then the watcher, then the stores.
- *
- * One function rather than the same four lines in `main`, the test harness and
- * every suite that builds services directly — that duplication had already
- * silently dropped the maturation timer and the operational store from two of
- * the three, and each omission surfaced as a locked file rather than as a leak.
- */
-/**
  * Runs the update check on a timer, and answers with the stopper.
  *
  * ***Both timers are `unref`ed***, which is the rule every other timer in this
@@ -958,6 +965,71 @@ function startUpdateCheck(services: AppServices, log: Logger): void {
 /** See {@link startUpdateCheck} — long enough that a restart loop is not traffic. */
 const FIRST_CHECK_DELAY_MS = 60_000;
 
+/**
+ * ***What this start did to the index, said*** (2026-09-27).
+ *
+ * A rebuild of a large library is the one slow thing a start does, and it left
+ * no line saying so. The check says what it caught up with, and nothing when
+ * there was nothing. A file it found broken is said the way the watcher says
+ * one (F34), under the same event, because somebody who broke a file with the
+ * server stopped reads the same log as somebody who broke it with it running.
+ */
+function logIndexAtStart(log: Logger, start: AppServices['indexAtStart']): void {
+  if (start.kind === 'rebuilt') {
+    log.info(
+      {
+        event: 'index.rebuilt',
+        scanned: start.scanned,
+        indexed: start.indexed,
+        skipped: start.skipped,
+        sessions: start.sessions,
+        turns: start.turns,
+        sessionsSkipped: start.sessionsSkipped,
+      },
+      'Rebuilt the index from the data directory',
+    );
+    return;
+  }
+
+  for (const path of start.broken) {
+    log.warn({ event: 'library.invalid', path }, 'A library file could not be read');
+  }
+  const changed =
+    start.reread +
+    start.forgotten +
+    start.sessions +
+    start.sessionsForgotten +
+    start.sessionsSkipped;
+  if (changed > 0) {
+    log.info(
+      {
+        event: 'index.reconciled',
+        scanned: start.scanned,
+        reread: start.reread,
+        forgotten: start.forgotten,
+        sessions: start.sessions,
+        sessionsForgotten: start.sessionsForgotten,
+        sessionsSkipped: start.sessionsSkipped,
+      },
+      'Caught the index up with changes made while the server was stopped',
+    );
+  }
+}
+
+/**
+ * Releases everything `buildServices` acquired, in the order that works.
+ *
+ * **The order is not stylistic, and it bites hardest on Windows.** The watcher
+ * holds handles on the library tree, and both databases hold their own file plus
+ * a `-wal` and a `-shm`; a test that removes its temporary directory before
+ * those are closed fails with `EBUSY` on a file it never named. Close the app
+ * first so no request is mid-flight, then the watcher, then the stores.
+ *
+ * One function rather than the same four lines in `main`, the test harness and
+ * every suite that builds services directly — that duplication had already
+ * silently dropped the maturation timer and the operational store from two of
+ * the three, and each omission surfaced as a locked file rather than as a leak.
+ */
 export async function disposeServices(services: AppServices): Promise<void> {
   // **Runs first, and waits.** A detached turn touching a closed
   // `DatabaseSync` is the failure that surfaces on Windows as `EBUSY` on a
@@ -1145,6 +1217,7 @@ export async function buildApp(
   // The watcher too: a hand-edited file that fails to parse is otherwise
   // recorded in the index and said nowhere (F34).
   services.watcher?.setLogger(app.log);
+  logIndexAtStart(app.log, services.indexAtStart);
   services.capture?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {

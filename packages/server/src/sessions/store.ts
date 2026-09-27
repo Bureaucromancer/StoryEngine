@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { type Goal, type PlotHook, type Preset, type Setup, uuidv7 } from '@storyengine/shared';
@@ -13,7 +14,13 @@ import {
 } from '../index-db/sessions.js';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '../storage/files.js';
+import {
+  ensureDirectory,
+  listDirectoryNames,
+  moveTree,
+  readFileBytes,
+  statFile,
+} from '../storage/files.js';
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { PathEscapeError, resolveWithin } from '../storage/paths.js';
@@ -30,6 +37,7 @@ import {
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
+  listSegments,
   readAllTurns,
   readTurnAt,
   type SegmentLimits,
@@ -176,6 +184,59 @@ export async function reindexSession(
   // or restored turn may have been written under another.
   for (const { turn, location } of turns) indexTurn(context.index, sessionId, turn, location);
   return { turns: turns.length };
+}
+
+/**
+ * ***What a session's files look like, without reading them*** (2026-09-27) —
+ * the value [03 §5.1]'s start-up check compares against the one it recorded.
+ *
+ * The files a session's rows are derived from, and only those: `session.json`
+ * and every segment, each by name, size and modification time. Snapshots,
+ * summaries, renditions and pictures are not indexed, so a change to them is
+ * not a reason to derive the rows again. A digest, because a long campaign has
+ * dozens of segments and the record is one short string per session.
+ *
+ * `null` when the folder holds no `session.json`, or has a name the layout
+ * refuses — a folder that is no session, which is what `readSession` answers
+ * for both. A folder that cannot be read at all throws, as a read of it would.
+ *
+ * *What mtime and size cannot see*, which is the check the design chose and the
+ * one `make` and `rsync` make: a file rewritten to the same length within the
+ * same tick of the filesystem's clock, or one whose time was set back by hand.
+ * Taken at the start, before anything is read, so a write that lands during a
+ * derivation leaves a stamp older than the rows and is derived again, rather
+ * than one newer than them and never looked at.
+ */
+export async function sessionStamp(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+): Promise<string | null> {
+  let file: string;
+  let turns: string;
+  try {
+    file = sessionFilePath(context.layout, handle, sessionId);
+    turns = turnsRoot(context.layout, handle, sessionId);
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
+
+  const session = await statFile(file);
+  if (session === null) return null;
+
+  const parts = [`session.json ${String(session.mtimeMs)} ${String(session.size)}`];
+  for (const segment of await listSegments(turns)) {
+    const facts = await statFile(resolveWithin(turns, `${segment}.jsonl`));
+    // Gone between the listing and the stat: the stamp says so, and differs
+    // from one where it was there.
+    parts.push(
+      facts === null
+        ? `${segment} gone`
+        : `${segment} ${String(facts.mtimeMs)} ${String(facts.size)}`,
+    );
+  }
+  return `sha256:${createHash('sha256').update(parts.join('\n')).digest('hex')}`;
 }
 
 export function sessionRoot(layout: Layout, handle: string, sessionId: string): string {

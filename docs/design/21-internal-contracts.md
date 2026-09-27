@@ -907,6 +907,14 @@ what must be true of it.
   version is written when a rebuild **finishes**, not when the empty tables are
   made, so a first start killed partway through its scan rebuilds again rather
   than serving the fraction it reached for good.
+- **A start that does not rebuild checks.** *Added 2026-09-27.*
+  [03 §5.1](03-data-model.md)'s start-up consistency check, which no start
+  ran until then: an object is read again when its size or time differs from
+  its row's, or when it has an error on record, and a row whose file is gone is
+  forgotten; a session is derived again when a stamp over `session.json` and its
+  segments differs from the one the last look recorded. Its answer is held to a
+  rebuild's, as the watcher's is, over randomised changes made with nothing
+  watching (`index-db/reconcile.test.ts`).
 
 ### 5.1 Operational state is not derived, and must not live in the index
 

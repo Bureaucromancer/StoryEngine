@@ -909,6 +909,35 @@ diverge under crash. Mitigations: atomic replace (write temp + rename), a
 startup consistency check (mtime/size against recorded values) with automatic
 re-index of anything that does not match, and the write path in §5.1.1.
 
+***The startup consistency check was built on 2026-09-27.*** The other two
+mitigations were built at P1 and this one never was, though §5.1.1 below leans on
+it. A start that did not rebuild looked at nothing, and the watcher starts with
+`ignoreInitial`, so an edit, an addition or a delete made while the server was
+stopped went unseen until the file changed again. Sessions, which the watcher
+never looks at, never caught up at all: a turn that reached its segment and not
+the index before a crash stayed unsearchable, as did a session folder copied in.
+What the check does now (`index-db/reconcile.ts`):
+
+- **An object** is read again when its size or modification time differs from
+  what its row recorded, or when it has an error on record (an error row
+  records neither, and a `chmod` can fix a file without changing either). It is
+  read through the watcher's own path, so an edit made while the server was
+  stopped gets the history version one made while it ran gets (§11.2). A row
+  whose file has gone is forgotten.
+- **A session** had no recorded values to compare. The index now keeps a stamp
+  over `session.json` and its segments, written by a rebuild and by the check
+  and deliberately not by the running server's own writes. A session whose
+  stamp differs, which includes every session played since the last start, is
+  derived again whole.
+- It runs where a rebuild would, before the mode presets are written and before
+  the watcher starts. Its answer is held to a rebuild's over randomised changes
+  made with nothing watching.
+
+*What it cannot see* is the limit of the check this section chose: a file
+rewritten to the same length within one tick of the filesystem's clock, or given
+its old time back by hand. `index.rebuildOnStart` is there for anyone who doubts
+it.
+
 #### 5.1.1 Two writers, one index
 
 **The server updates the index synchronously for its own writes. The watcher

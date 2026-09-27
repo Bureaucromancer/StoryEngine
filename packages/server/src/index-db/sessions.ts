@@ -174,7 +174,57 @@ export function removeSessionRows(db: DatabaseSync, sessionId: string): void {
     // And what it pointed at — [P11.7]. A deleted session is not a user of
     // anything, and the count a delete confirmation shows is about now.
     clearLinks(db, 'session', sessionId);
+    // And the start-up check's record of its files (2026-09-27), because a
+    // stamp promises that the rows were derived from those files. A session
+    // deleted to the trash and put back by hand keeps every file's size and
+    // time, so it would match the stamp at the next start and stay unindexed
+    // for good.
+    db.prepare('delete from session_stamp where session_id = ?').run(sessionId);
   });
+}
+
+/**
+ * ***What the last look at each session saw*** (2026-09-27) — the start-up
+ * check's record ([03 §5.1]), keyed by session id. See the table's own comment
+ * in `migrations.ts` for why the running server does not keep it current.
+ */
+export function readSessionStamps(db: DatabaseSync): Map<string, { owner: string; stamp: string }> {
+  const rows = db.prepare('select session_id, owner, stamp from session_stamp').all() as {
+    session_id: string;
+    owner: string;
+    stamp: string;
+  }[];
+  return new Map(rows.map((row) => [row.session_id, { owner: row.owner, stamp: row.stamp }]));
+}
+
+export function writeSessionStamp(
+  db: DatabaseSync,
+  sessionId: string,
+  owner: string,
+  stamp: string,
+): void {
+  db.prepare(
+    `insert into session_stamp (session_id, owner, stamp) values (?, ?, ?)
+       on conflict(session_id) do update set owner = excluded.owner, stamp = excluded.stamp`,
+  ).run(sessionId, owner, stamp);
+}
+
+/**
+ * Every session id the index holds anything about — a row, a turn, a link or a
+ * stamp — so the start-up check can forget the ones whose folder has gone. All
+ * four, because a session is gone from all four or the index still describes
+ * it somewhere.
+ */
+export function indexedSessionIds(db: DatabaseSync): Set<string> {
+  const rows = db
+    .prepare(
+      `select session_id as id from session
+       union select session_id from turn
+       union select from_id from object_link where from_kind = 'session'
+       union select session_id from session_stamp`,
+    )
+    .all() as { id: string }[];
+  return new Set(rows.map((row) => row.id));
 }
 
 export function listSessionRows(

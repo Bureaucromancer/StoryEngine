@@ -66,8 +66,17 @@ import type { DatabaseSync } from 'node:sqlite';
  * — as **zero** for an actor a hook names, indefinitely, until somebody happened
  * to save the object for an unrelated reason. The index is derived and
  * disposable by design, so one rescan is the whole cost.
+ *
+ * **10 adds `session_stamp`** (2026-09-27), which the start-up consistency
+ * check reads ([03 §5.1]). A new table, and 6's argument applies to it: an
+ * index left at 9 would have no such table, and the check's first query would
+ * fail every start. It also means 9's paragraph above is now half true — a file
+ * that changed while the server was stopped *is* re-read at the next start —
+ * and still true of what it was about: a change in what is derived from files
+ * that have not changed needs a bump, because nothing re-reads an unchanged
+ * file.
  */
-export const INDEX_SCHEMA_VERSION = 9;
+export const INDEX_SCHEMA_VERSION = 10;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -212,6 +221,31 @@ create table session (
 
 create index session_by_owner on session(owner, updated_at);
 
+-- ── What the last look at a session saw ──────────────────────────────────────
+--
+-- [03 §5.1]'s start-up consistency check compares *mtime/size against recorded
+-- values*, and an object row has always carried both. A session had nothing to
+-- compare: its rows are derived from \`session.json\` and every segment, and none
+-- of them recorded what those files looked like. This is that record — one
+-- digest over the files' sizes and times, and the account whose folder held
+-- them — written by the rebuild and by the check, and **deliberately not by the
+-- writes the server makes while it runs**. So it says *what the files were when
+-- the rows were last derived whole*, and any change since, the server's own
+-- included, is a session the next start derives again. A crash between a write
+-- and its index update is one such change, and the case the check exists for.
+-- The cost is a derivation in proportion to what was played since the last
+-- start; keeping the stamp current instead would have put a stat beside every
+-- index write the store makes, to save work only at start-up.
+--
+-- Bookkeeping about the files rather than a fact derived from them, so the
+-- rebuild-equals-incremental gate does not compare it: a running server's
+-- writes leave it behind by design.
+create table session_stamp (
+  session_id  text primary key,
+  owner       text not null,
+  stamp       text not null
+) strict;
+
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
 -- [19 §7.1](../../../../docs/design/19-tech-stack.md) makes three requirements that are
@@ -326,6 +360,7 @@ function dropAll(db: DatabaseSync): void {
     'drop table if exists turn_fts',
     'drop table if exists turn',
     'drop table if exists session',
+    'drop table if exists session_stamp',
     'drop table if exists file_error',
     'drop table if exists object_link',
   ]) {

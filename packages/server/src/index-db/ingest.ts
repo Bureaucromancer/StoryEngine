@@ -662,6 +662,36 @@ export function removeFile(
 }
 
 /**
+ * ***A path that went while nothing was watching*** (2026-09-27) — the start-up
+ * check's delete ([03 §5.1]).
+ *
+ * {@link removeFile} tombstones, because an unlink the watcher sees may be the
+ * first half of a rename whose add is moments away. A file the start-up check
+ * finds gone has no second half coming: the process that could have seen the
+ * pair was not running, and any rename's other half is on disk now and has
+ * already been read, taking this row with it as a vanished duplicate. So the
+ * rows go outright, and the id's winner and links are settled at once, which is
+ * what the tombstone and its maturing would have done between them. A
+ * tombstone left from before the stop goes the same way.
+ *
+ * Returns whether there was anything to forget. The error row goes too, since
+ * a file that is not there is not a file that cannot be read.
+ */
+export function forgetFile(db: DatabaseSync, layout: Layout, path: string): boolean {
+  return inTransaction(db, () => {
+    const hadError = clearFileError(db, path);
+    const row = db.prepare('select id, schema_id from object where path = ?').get(path) as
+      { id: string; schema_id: string } | undefined;
+    if (row === undefined) return hadError;
+
+    dropObjectRows(db, path);
+    resolveDuplicates(db, layout, row.id);
+    relinkId(db, layout, row.schema_id, row.id);
+    return true;
+  });
+}
+
+/**
  * Turns a tombstone into the move it was waiting to be.
  *
  * Returns true when this add completed a rename, which the caller reports so a

@@ -10,17 +10,10 @@ import { type FSWatcher, watch } from 'chokidar';
 
 import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
 import { appendLine, statFile, unlinkFile } from '../storage/files.js';
-import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
 import { isContained, PathEscapeError } from '../storage/paths.js';
-import {
-  clearFileError,
-  ingestFile,
-  matureTombstones,
-  recordUnusableName,
-  removeFile,
-} from './ingest.js';
-import { findByPath } from './query.js';
+import { takeInForeignEdit } from './foreign-edit.js';
+import { clearFileError, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
 
 /**
  * The watcher — **foreign writes only**.
@@ -181,6 +174,12 @@ export class LibraryWatcher {
       // A rebuild is the startup path ([03 §5.1]); the watcher is for what
       // happens after. Reporting every existing file as an add would duplicate
       // that scan and slow start-up on a large library.
+      //
+      // ***And on every other start, the check*** (2026-09-27). A start that
+      // did not rebuild looked at nothing, so an edit made while the server
+      // was stopped was never seen until the file changed again.
+      // `reconcileIndex` is that look, by the recorded size and time, and it
+      // runs before this starts.
       awaitWriteFinish: {
         stabilityThreshold: this.#stabilityThresholdMs,
         pollInterval: 20,
@@ -400,11 +399,16 @@ export class LibraryWatcher {
       return;
     }
 
-    // The state a foreign edit is replacing, read *before* the index moves on.
-    const previous = findByPath(this.#db, path);
-
     matureTombstones(this.#db, this.#layout);
-    const outcome = await ingestFile(this.#db, this.#layout, path);
+    // The ingest and the history a hand edit earns, shared with the start-up
+    // check so an edit made while the server was stopped is kept the same way
+    // (2026-09-27).
+    const outcome = await takeInForeignEdit({
+      db: this.#db,
+      layout: this.#layout,
+      parsed,
+      keepPerObject: this.#options.keepHistoryPerObject ?? 50,
+    });
 
     // A link out of the data directory, refused and recorded by the ingest.
     // What the queue's catch says for a refusal it meets anywhere else, and
@@ -416,26 +420,6 @@ export class LibraryWatcher {
       );
       this.#emit({ type: 'refused', path });
       return;
-    }
-
-    // **Hand-edits get history for free** ([03 §11.2]) — the strongest argument
-    // for building the mechanism now, while the watcher exists and no editor
-    // does. Snapshot when the content genuinely changed, and also when the new
-    // content failed to parse at all: someone breaking a file in a text editor
-    // is exactly the person the last good state is being kept for. A move is
-    // neither — same content, new path — and records nothing.
-    const changed =
-      outcome.kind === 'indexed'
-        ? outcome.row.contentHash !== previous?.contentHash
-        : outcome.reason === 'invalid';
-    if (previous && changed) {
-      await snapshotReplaced({
-        objectRoot: this.#layout.objectRoot(parsed.owner, parsed.schemaId, parsed.slug),
-        payload: previous.body,
-        source: { kind: 'external' },
-        reason: '',
-        keepPerObject: this.#options.keepHistoryPerObject ?? 50,
-      });
     }
 
     /**

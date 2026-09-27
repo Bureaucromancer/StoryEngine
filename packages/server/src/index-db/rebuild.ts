@@ -5,12 +5,18 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared';
 
-import { listSessions, reindexSession, type SessionContext } from '../sessions/store.js';
+import {
+  listSessions,
+  reindexSession,
+  type SessionContext,
+  sessionStamp,
+} from '../sessions/store.js';
 import { listDirectoryNames } from '../storage/files.js';
 import { type Layout, type LibraryOwner, SYSTEM_OWNER, userOwner } from '../storage/layout.js';
 import { PathEscapeError } from '../storage/paths.js';
-import { ingestFile, recordUnusableName } from './ingest.js';
+import { ingestFile, ownerKey, recordUnusableName } from './ingest.js';
 import { markRebuildPending, markRebuilt } from './migrations.js';
+import { removeSessionRows, writeSessionStamp } from './sessions.js';
 
 /**
  * Full scan from disk — the startup option
@@ -76,6 +82,8 @@ export async function rebuild(
    * table.
    */
   db.exec('delete from object_link');
+  // And what the last look saw, since this is a new look.
+  db.exec('delete from session_stamp');
 
   const result: RebuildResult = {
     scanned: 0,
@@ -86,7 +94,7 @@ export async function rebuild(
     sessionsSkipped: 0,
   };
 
-  for (const owner of await owners(layout)) {
+  for (const owner of await libraryOwners(layout)) {
     for (const schemaId of Object.keys(LIBRARY_DIRECTORIES) as PortableSchemaId[]) {
       const kindRoot = layout.kindRoot(owner, schemaId);
       for (const slug of await listDirectoryNames(kindRoot)) {
@@ -151,31 +159,68 @@ async function rebuildSessions(
   layout: Layout,
   handle: string,
 ): Promise<{ sessions: number; turns: number; skipped: number }> {
-  const context: SessionContext = { layout, index: db };
   let sessions = 0;
   let turns = 0;
   let skipped = 0;
 
-  for (const sessionId of await listSessions(context, handle)) {
-    /**
-     * ***One folder that cannot be read is one session skipped*** (2026-09-27),
-     * which is the posture the objects above take and `listSessionFiles`
-     * takes for the session list. A `session.json` linked out of the data
-     * directory, one a root-owned copy left unreadable, or a folder whose name
-     * the layout refuses used to throw out of the whole scan — and a start
-     * that needed a rebuild then did not start.
-     */
-    try {
-      const found = await reindexSession(context, handle, sessionId);
-      if (found === null) continue;
+  for (const sessionId of await listSessions({ layout, index: db }, handle)) {
+    const derived = await deriveSession(db, layout, handle, sessionId);
+    if (derived.kind === 'indexed') {
       sessions += 1;
-      turns += found.turns;
-    } catch {
+      turns += derived.turns;
+    } else if (derived.kind === 'unreadable') {
       skipped += 1;
     }
   }
 
   return { sessions, turns, skipped };
+}
+
+export type DerivedSession =
+  { kind: 'indexed'; turns: number } | { kind: 'not-a-session' } | { kind: 'unreadable' };
+
+/**
+ * ***One session's rows, and the record of what they were derived from***
+ * (2026-09-27) — the rebuild's step, and the start-up check's.
+ *
+ * The stamp is taken before anything is read (`sessionStamp` says why), and
+ * written once the rows are, so the next start's check can tell this session
+ * has not changed since.
+ *
+ * ***One folder that cannot be read is one session skipped***, which is the
+ * posture the objects take and `listSessionFiles` takes for the session list.
+ * A `session.json` linked out of the data directory, one a root-owned copy left
+ * unreadable, or a folder whose name the layout refuses used to throw out of
+ * the whole scan, and a start that needed a rebuild then did not start. **Its
+ * rows go**, which a rebuild never had anyway and the check has to do: a
+ * session nothing can open is not one search should find, and with no stamp
+ * left, the next start tries it again. A folder that is no session at all
+ * keeps a stamp and no rows, so it is not read again until it changes.
+ */
+export async function deriveSession(
+  db: DatabaseSync,
+  layout: Layout,
+  handle: string,
+  sessionId: string,
+): Promise<DerivedSession> {
+  const context: SessionContext = { layout, index: db };
+  const owner = ownerKey(userOwner(handle));
+  try {
+    const stamp = await sessionStamp(context, handle, sessionId);
+    if (stamp === null) {
+      removeSessionRows(db, sessionId);
+      return { kind: 'not-a-session' };
+    }
+
+    const found = await reindexSession(context, handle, sessionId);
+    // In this order, because clearing a session's rows clears its stamp.
+    if (found === null) removeSessionRows(db, sessionId);
+    writeSessionStamp(db, sessionId, owner, stamp);
+    return found === null ? { kind: 'not-a-session' } : { kind: 'indexed', turns: found.turns };
+  } catch {
+    removeSessionRows(db, sessionId);
+    return { kind: 'unreadable' };
+  }
 }
 
 /**
@@ -186,6 +231,6 @@ async function rebuildSessions(
  * removed still holds somebody's files, and an index that silently omitted them
  * would make the library look emptier than the disk is.
  */
-async function owners(layout: Layout): Promise<LibraryOwner[]> {
+export async function libraryOwners(layout: Layout): Promise<LibraryOwner[]> {
   return [SYSTEM_OWNER, ...(await layout.userHandlesOnDisk()).map((handle) => userOwner(handle))];
 }
