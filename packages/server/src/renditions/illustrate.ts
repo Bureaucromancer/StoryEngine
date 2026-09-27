@@ -13,6 +13,7 @@ import { performCall, resolveStepRole, RoleUnresolved } from '../turns/calls.js'
 import { gatherAssemblyInputs } from '../turns/gather.js';
 import { momentCall, readMoment, RENDER_STEP } from '../turns/render.js';
 import { castEntries } from '../turns/runner.js';
+import { fromModelCall, recordUsage } from '../usage/log.js';
 import { toneOf } from './assemble.js';
 import { requestRendition } from './manual.js';
 
@@ -54,7 +55,10 @@ import { requestRendition } from './manual.js';
  * absent is the *token accounting* — a hand-pressed illustration spends a `fast`
  * call that no turn's figures include. Making it a turn would put the call on a
  * tape and put a node with no prose in somebody's transcript, which is a worse
- * trade for a story than a missing line in a cost total.
+ * trade for a story than a missing line in a cost total. *Since 2026-09-27 the
+ * line is not missing, only elsewhere*: the call's figures go to the account's
+ * usage log (`usage/log.ts`), which is [10 §11.4]'s home for every call that
+ * makes no turn.
  *
  * ***Aggregate spend tracking is where this is properly answered, and it is
  * post-1.0*** — [24 §3], which [10 §3] states and `CostSummary`'s docstring
@@ -148,7 +152,15 @@ export async function illustrateTurn(
     const prose = turn.output?.text ?? '';
     if (prose.trim() === '') return { held: 'no-moment' };
 
-    const answer = await askForMoment(context, inputs, roles, prose, capabilities, request.signal);
+    const answer = await askForMoment(
+      context,
+      inputs,
+      roles,
+      prose,
+      capabilities,
+      request.signal,
+      request,
+    );
     if (answer === null) return { held: 'no-binding' };
     if (answer.subject === '') return { held: 'no-moment' };
     moment = answer.subject;
@@ -200,6 +212,8 @@ async function askForMoment(
   prose: string,
   capabilities: ReturnType<typeof capabilitiesFor>,
   signal: AbortSignal,
+  /** Whose usage log the call's figures go to, and which session it was for. */
+  owner: { handle: string; sessionId: string },
 ): Promise<{ subject: string; anchor: string | null } | null> {
   try {
     const outcome = await performCall(
@@ -226,6 +240,11 @@ async function askForMoment(
       },
       momentCall(prose, capabilities),
       [],
+    );
+    await recordUsage(
+      context.sessions.layout,
+      owner.handle,
+      fromModelCall(outcome.call, 'illustrate', { sessionId: owner.sessionId }),
     );
     return readMoment(outcome.object);
   } catch (error) {

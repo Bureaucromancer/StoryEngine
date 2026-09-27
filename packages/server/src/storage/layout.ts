@@ -425,6 +425,21 @@ export class Layout {
   }
 
   /**
+   * `users/<handle>/usage.jsonl` — what the model calls that write no turn
+   * spent ([10 §11.4](../../../../docs/design/10-ui-surfaces.md), `usage/log.ts`).
+   *
+   * ***A file in the account's directory rather than a table in
+   * `state.sqlite`***, because the second is install-level and an account
+   * archive holds none of it: somebody who took their own backup elsewhere
+   * would leave their spend behind. Append-only JSON lines, like a turn segment,
+   * and for the segment's reason — a record of what happened is never
+   * rewritten, and a torn append costs the newest line rather than the file.
+   */
+  usageLogFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'usage.jsonl');
+  }
+
+  /**
    * `users/<handle>/avatar.<ext>` — the account's face
    * ([12 §5.1](../../../../docs/design/12-account-gallery.md), [P10.4]).
    *

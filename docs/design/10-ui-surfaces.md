@@ -2155,8 +2155,17 @@ before they are discovered:
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
   to [24 §3](24-roadmap.md).
-- **They produce no turn record.** §8.2's provenance is the record, which is
-  another reason it is not optional.
+- **They produce no turn record.** ~~§8.2's provenance is the record, which is
+  another reason it is not optional.~~ **Corrected 2026-09-27.** There is no
+  §8.2 in this document, and the provenance that sentence most plausibly meant —
+  §11.2's `GeneratedFieldProvenance` — cannot be the record: it has no field for
+  usage, it is written by the client, and only when the person saves, so an
+  assist somebody rejected (which cost exactly as much) would leave nothing. The
+  record is the account's usage log, `users/<handle>/usage.jsonl`
+  ([21 §1.4](21-internal-contracts.md)): one line per call, the provider's own
+  figures or null. It covers every call that makes no turn — field assists,
+  impersonation, and the moment call behind **Illustrate** — and it is what the
+  aggregate view in [24 §3](24-roadmap.md) will read.
 
 ### 11.5 Traps
 

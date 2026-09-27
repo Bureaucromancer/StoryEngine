@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -59,7 +59,12 @@ async function bindProse(): Promise<void> {
 
 beforeEach(async () => {
   server = await makeTestServer({
-    providers: () => new FakeProvider({ script: [{ text: 'I would not go in there.' }] }),
+    providers: () =>
+      new FakeProvider({
+        script: [
+          { text: 'I would not go in there.', usage: { promptTokens: 21, completionTokens: 8 } },
+        ],
+      }),
   });
   await setUpAdmin(server, 'ned');
   const actor = newActor('Vera');
@@ -106,6 +111,40 @@ describe('drafting your own next message', () => {
     const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
     expect(after.body.activeJob).toBeNull();
     expect(after.body.session.headTurnId).toBe(head);
+
+    const turns = await readAllTurns(
+      join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'),
+    );
+    expect(turns).toHaveLength(0);
+  });
+
+  /**
+   * ***Committing nothing is not the same as recording nothing*** —
+   * [10 §11.4]. The draft writes no turn, so the turn's tape cannot carry what
+   * the call spent; the account's usage log does, with the session it was for.
+   */
+  it('records what the draft cost without writing a turn', async () => {
+    await bindProse();
+    const sessionId = await aSession(vera);
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/impersonate`,
+      payload: {},
+    });
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      purpose: 'impersonate',
+      role: 'prose',
+      resolved: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+      usage: { promptTokens: 21, completionTokens: 8 },
+      sessionId,
+    });
 
     const turns = await readAllTurns(
       join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'),

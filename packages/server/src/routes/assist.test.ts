@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -168,6 +168,55 @@ describe('writing one field', () => {
     });
     expect(response.status).toBe(422);
     expect(response.body.error).toBe('no-answer');
+  });
+
+  /**
+   * ***What it spent is recorded, whether or not anyone keeps the answer*** —
+   * [10 §11.4]'s *"They cost money, and must be recorded even though nothing
+   * displays it at 1.0."* The figures are the provider's, copied; the model is
+   * the one that answered.
+   */
+  it('records what the call spent in the account’s usage log', async () => {
+    await bindProse();
+    provider.setScript([
+      { text: 'A wet quay.', usage: { promptTokens: 12, completionTokens: 34 } },
+    ]);
+    await server.request({ method: 'POST', url: '/api/library/assist', payload: BODY });
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      schema: 'storyengine.usage/1',
+      purpose: 'assist:profile.appearance',
+      role: 'prose',
+      resolved: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+      usage: { promptTokens: 12, completionTokens: 34 },
+      cost: null,
+      subject: 'actor',
+    });
+  });
+
+  /**
+   * ***A provider that reports nothing is recorded as having reported
+   * nothing*** — the capability gate's answer copied, never a zero standing in
+   * for an unknown. And an empty answer still cost what it cost.
+   */
+  it('records a null usage when the provider sends none, even for an empty answer', async () => {
+    await bindProse();
+    provider.setScript([{ text: '   ', reportsNoUsage: true }]);
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+    expect(response.body.error).toBe('no-answer');
+
+    const text = await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8');
+    const [line] = text.split('\n').filter((one) => one !== '');
+    expect(JSON.parse(line ?? '{}')).toMatchObject({ usage: null });
   });
 
   /**

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -325,6 +325,31 @@ describe('Illustrate, pressed by hand', () => {
     expect(made?.scope?.anchor).toBe('The road went on');
     expect(made?.state).toBe('ready');
     expect(made?.asset).not.toBeNull();
+  });
+
+  /**
+   * ***The moment call's figures go to the usage log*** — [10 §11.4]. It is on
+   * no turn's tape because there is no turn, which is `illustrate.ts`'s *one
+   * honest cost*; the account's log is where a call that makes no turn is
+   * recorded.
+   */
+  it('records the moment call in the account’s usage log', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+
+    const lines = (await readFile(join(dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ purpose: 'illustrate', sessionId });
   });
 
   /**

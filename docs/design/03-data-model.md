@@ -846,6 +846,7 @@ disposable index**.
         packages/   <slug>/...             (see §7)
       trash/                  # deleted objects awaiting the retention window §10.2
       backup.json             # this account's backup schedule. [P12.4]
+      usage.jsonl             # what model calls that make no turn spent. Append-only. [10 §11.4]
       backups/                # their own archives. Never inside another archive.
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/

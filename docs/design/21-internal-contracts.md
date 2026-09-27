@@ -389,6 +389,34 @@ wanted.** Steps name roles, so nothing in the pipeline knows the model — which
 means without this the record cannot answer *what actually ran*, and that is the
 first question anyone asks about a turn that came out wrong.
 
+**A call that makes no turn keeps the same three measured fields, elsewhere**
+(2026-09-27). A field assist, an impersonation and the moment call behind
+**Illustrate** each reach a model without a turn to carry a `ModelCall`, and
+until this date each dropped the provider's figures —
+[10 §11.4](10-ui-surfaces.md)'s *"must be recorded even though nothing displays
+it"* unkept. They now append one line each to `users/<handle>/usage.jsonl`:
+
+```ts
+interface UsageRecord {
+  schema: "storyengine.usage/1"
+  at: string                                       // when the call returned
+  purpose: string                                  // "impersonate", "assist:<field path>", "illustrate" — open
+  role: ModelRole
+  resolved: { connectionId: string; modelId: string }  // the model that answered, as above
+  usage: { promptTokens: number; completionTokens: number } | null
+  cost: { amount: number; currency: string } | null
+  wallMs: number
+  sessionId?: string                               // when the call was made from one
+  subject?: string                                 // the library kind an assist wrote for
+}
+```
+
+`usage` and `cost` follow this section's rule exactly: copied from the provider,
+never estimated, and null when it said nothing. A file in the account's
+directory rather than the index or `state.sqlite`, by §5.1's test — it is not
+derived, and an account archive carries files but holds none of the install's
+state.
+
 ### 1.5 `BudgetVerdict`
 
 ```ts

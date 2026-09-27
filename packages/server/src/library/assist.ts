@@ -8,6 +8,7 @@ import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import { resolveConnections } from '../providers/connections.js';
 import { resolveRole } from '../providers/roles.js';
 import type { ProviderFactory } from '../providers/factory.js';
+import { recordUsage, USAGE_SCHEMA } from '../usage/log.js';
 
 /**
  * ***The field assist contract's server half*** —
@@ -48,10 +49,19 @@ import type { ProviderFactory } from '../providers/factory.js';
  *
  * ***`prose` rather than `fast`, and [P7.5] is why.*** `resolveRole` has no
  * cross-role fallback: a role nobody bound resolves `unbound` and the call
- * fails. Nothing in this build binds anything but `prose` — no install default,
- * no wizard, no route that would suggest it — so asking for the role this
- * *should* use would mean an assist button that fails on every stock install.
- * The finding is bigger than this file and is recorded at P7.5.
+ * fails. ~~Nothing in this build binds anything but `prose` — no install default,
+ * no wizard, no route that would suggest it —~~ *Corrected 2026-09-27, with
+ * [25 C15](../../../../docs/design/25-open-questions.md): the first-run offer
+ * does bind `fast` and the others, but only on an install whose admin accepted
+ * it.* So asking for the role this *should* use would still mean an assist
+ * button that fails on every install that declined it. The finding is bigger
+ * than this file and is recorded at P7.5.
+ *
+ * ***What it spent is recorded, and nothing else is.*** The route writes no
+ * object, no provenance and no history ([10 §11.4]: *"They produce no turn
+ * record"*), but the call cost money whether or not the person keeps the
+ * answer, so its figures go to the account's usage log (`usage/log.ts`) — an
+ * assist somebody rejected is the one the provenance would never have seen.
  */
 
 export interface AssistContext {
@@ -154,6 +164,7 @@ export async function assistField(
 
   const provider = context.providers(resolution.connection);
   const text = instruction(request);
+  const startedAt = Date.now();
   const result = await provider.generate({
     modelId: resolution.modelId,
     // `fromBlocks` is not optional and this is the honest value for it: the
@@ -161,6 +172,23 @@ export async function assistField(
     messages: [{ role: 'user', content: text, fromBlocks: ['se.assist.field'] }],
     params: { temperature: 0.9, maxTokens: 600 },
     ...(request.signal === undefined ? {} : { signal: request.signal }),
+  });
+  /**
+   * **Before the empty-answer check, not after it.** A reply with nothing in it
+   * still cost what the provider says it cost, and `no-answer` is the case a
+   * person is most likely to press the button again over.
+   */
+  await recordUsage(context.layout, request.account, {
+    schema: USAGE_SCHEMA,
+    at: new Date().toISOString(),
+    purpose: `assist:${request.path}`,
+    role: 'prose',
+    // The model that *answered*, as `ModelCall.resolved` keeps it.
+    resolved: { connectionId: resolution.connection.id, modelId: result.modelId },
+    usage: result.usage,
+    cost: result.cost,
+    wallMs: Date.now() - startedAt,
+    subject: request.subject,
   });
 
   const answer = result.text.trim();
