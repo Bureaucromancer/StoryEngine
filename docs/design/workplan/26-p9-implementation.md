@@ -1408,6 +1408,16 @@ warning stands: **a stage that discovers the policy by failing a proposal will
 want to widen the channel, and widening it is the one repair that undoes the
 argument.**
 
+*Corrected 2026-09-27: the shape was copied with a race in it.* `recordEscape`
+and `selectBackdrop` read the head and built their turn outside the session's
+lock, then appended under it, so a turn committing in between left the selection
+on a dead line. And a backdrop finishing while the *next* turn was being written
+selected itself as that turn's sibling, which its commit abandoned: the picture
+never showed on the line being played. The shape is now one helper,
+`appendEngineTurn`, that reads, builds and appends under the lock. A backdrop
+that lands during a turn is held and shown once that turn commits, unless the
+turn asked for, or reused, a backdrop of its own.
+
 ***And the empty diff has a new way to be false.*** `ChannelDefinition` gained
 `escapes?: boolean` at [P8.2](25-p8-implementation.md), and an effect whose
 channel declares it is written with `scope: 'escaped'` — a scope `applyEffects`,

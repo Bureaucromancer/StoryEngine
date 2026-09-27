@@ -1419,6 +1419,12 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
+**`409 busy`, carrying the active `job`, while a turn is in flight**
+(2026-09-27), the answer head moves and undo already gave. A turn's commit sets
+the head to its own turn, so a write landing while it ran became a sibling of
+that turn, on a line nobody would see again: the setting silently reverted when
+the turn landed. Write it again once the turn has finished.
+
 **It is how the three offers at a goal completion are taken** —
 [06 §7.3.4](design/06-modes-and-turn-pipeline.md), and why none of them needed a
 route: *continue open* writes `se.goal.current` to `null` (the achievement is
@@ -1565,7 +1571,10 @@ renames a branch ref through `PATCH …/refs/:refId`.
 
 `DELETE` answers `204` and **moves the folder to the user's trash** rather than
 erasing it ([03 §10.3](design/03-data-model.md)); a session's turns are its history, and
-deletion is a move.
+deletion is a move. **`409 busy` while a turn is in flight** (2026-09-27): its
+commit would write `sessions/<id>/` back beside the trashed one. A picture still
+being made when the session goes writes nothing, and a restore that finds a
+folder without a `session.json` in its place moves that aside into the trash.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 

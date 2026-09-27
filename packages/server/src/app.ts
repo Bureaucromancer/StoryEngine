@@ -66,7 +66,7 @@ import {
   type RenditionWorkerContext,
 } from './renditions/worker.js';
 import type { Rendition } from '@storyengine/shared';
-import { selectBackdrop } from './renditions/backdrop.js';
+import { DeferredBackdrops, offerBackdrop, showHeldBackdrop } from './renditions/backdrop.js';
 import { installBuiltIns } from './mode-loader.js';
 import { assertModesRunnable } from './mode-registry.js';
 import {
@@ -76,7 +76,7 @@ import {
   type Logger,
   type Reconciliation,
 } from './state/commit.js';
-import type { JobContext } from './state/jobs.js';
+import { activeJob, type JobContext } from './state/jobs.js';
 import { NotificationBus } from './notifications/bus.js';
 import { route as routeNotification, type Occurrence } from './notifications/router.js';
 import { TurnStream } from './stream/bus.js';
@@ -600,7 +600,13 @@ async function assembleWithState(
     // `SessionContext.snapshotEvery` and `LIVE_APPLIERS`. `config` is the
     // server's own clone, which is what `applyLiveConfig` assigns into.
     snapshotEvery: () => config.sessions.snapshotEveryNTurns,
+    // The store's answer rather than the runner's live map, for `activeJob`'s
+    // own reason: a job a crash left unfinished is still the one that will
+    // commit, when boot reconciles it.
+    busy: (sessionId) => activeJob(state.db, sessionId) !== null,
   };
+  /** Backdrops that finished during a turn, for the runner to show after it. */
+  const deferredBackdrops = new DeferredBackdrops();
   const bus = new TurnStream();
   const jobs: JobContext = { db: state.db, sessions, events: bus };
   const commit: CommitContext = { ...jobs };
@@ -776,7 +782,7 @@ async function assembleWithState(
       });
     },
     select: async (account, sessionId, renditionId) => {
-      await selectBackdrop(sessions, account, sessionId, renditionId, { kind: 'engine' });
+      await offerBackdrop(sessions, deferredBackdrops, account, sessionId, renditionId);
     },
   };
 
@@ -821,6 +827,9 @@ async function assembleWithState(
      * about not corrupting.
      */
     library,
+    committed: async (job, turn) => {
+      await showHeldBackdrop(sessions, deferredBackdrops, job.sessionId, turn);
+    },
   });
 
   built = {

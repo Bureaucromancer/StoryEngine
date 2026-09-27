@@ -196,3 +196,48 @@ describe('disposing the server', () => {
     expect(pendingRenditionJobs(server.services.state.db, sessionId)).toEqual([]);
   });
 });
+
+/**
+ * ***A picture that finishes after its session was deleted writes nothing***
+ * (2026-09-27). Every write here makes its parent directories, so the late
+ * picture put `sessions/<id>/` back beside the trashed one: a folder with an
+ * image in it and no session, and the trash's restore refused for as long as
+ * it stood. The worker now writes into a session under its lock and only while
+ * it is there.
+ */
+describe('a session deleted while its picture is being made', () => {
+  it('stays deleted when the picture finishes, and comes back from the trash', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'k-0', headTurnId: head, input: { text: 'Look around.' } },
+    });
+    // The record is written after the turn commits, so the turn is done here
+    // and the picture is not.
+    await eventually(async () => (await statesOnDisk()).length === 1);
+
+    const deleted = await server.request({ method: 'DELETE', url: `/api/sessions/${sessionId}` });
+    expect(deleted.status).toBe(204);
+    await eventually(
+      () => Promise.resolve(pendingRenditionJobs(server.services.state.db, sessionId).length === 0),
+      { timeoutMs: STALL_MS * 5 },
+    );
+
+    const live = new Layout(dataDir).sessionRoot('ned', sessionId);
+    const { fileExists } = await import('../storage/files.js');
+    expect(await fileExists(live), 'the late picture put the folder back').toBe(false);
+
+    const trash = await server.request({ method: 'GET', url: '/api/me/trash' });
+    const entry = (trash.body as { entries: { id: string; kind: string }[] }).entries.find(
+      (one) => one.kind === 'sessions',
+    );
+    const restored = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: entry?.id },
+    });
+    expect(restored.status).toBe(200);
+  });
+});

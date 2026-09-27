@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto';
 
 import type { Rendition, RenditionError } from '@storyengine/shared';
 
-import { ensureDirectory, writeFileBytes } from '../storage/files.js';
+import { sessionFilePath, withSessionLock } from '../sessions/store.js';
+import { ensureDirectory, fileExists, writeFileBytes } from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
 import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import type { Connection } from '../providers/connections.js';
@@ -496,8 +497,6 @@ export async function runRendition(
       await fail(context, job, record, 'terminal');
       return;
     }
-    await ensureDirectory(sessionAssetsRoot(context.layout, job.account, job.sessionId));
-    await writeFileBytes(path, result.bytes);
 
     const ready: Rendition = {
       ...record,
@@ -518,7 +517,15 @@ export async function runRendition(
       },
       error: null,
     };
-    await writeRendition(context.layout, job.account, job.sessionId, ready);
+    const landed = await intoSession(context, job, async () => {
+      await ensureDirectory(sessionAssetsRoot(context.layout, job.account, job.sessionId));
+      await writeFileBytes(path, result.bytes);
+      await writeRendition(context.layout, job.account, job.sessionId, ready);
+    });
+    if (!landed) {
+      setRenditionJobStatus(context.db, job.id, 'abandoned', 'terminal');
+      return;
+    }
     setRenditionJobStatus(context.db, job.id, 'done');
 
     /**
@@ -567,8 +574,11 @@ async function fail(
   reason: RenditionError,
 ): Promise<void> {
   const failed: Rendition = { ...record, state: 'failed', asset: null, error: reason };
+  let landed = true;
   try {
-    await writeRendition(context.layout, job.account, job.sessionId, failed);
+    landed = await intoSession(context, job, () =>
+      writeRendition(context.layout, job.account, job.sessionId, failed),
+    );
   } catch {
     // A write that cannot land leaves the record as it was on disk — `pending`,
     // for a job that got this far. Losing the *job's* status too would lose the
@@ -576,9 +586,38 @@ async function fail(
     // not left for boot to find: this marks the job finished, and
     // `recoverRenditions` reads live jobs only.)
   }
+  if (!landed) {
+    setRenditionJobStatus(context.db, job.id, 'abandoned', 'terminal');
+    return;
+  }
   setRenditionJobStatus(context.db, job.id, 'done', reason);
   context.changed?.(job.sessionId, failed);
   context.settled?.(job.account, job.sessionId, failed);
+}
+
+/**
+ * ***Writes into a session only while it is there*** (2026-09-27), under its
+ * lock.
+ *
+ * A picture can take minutes, and the session it belongs to can be deleted in
+ * the meantime. Every write here makes its parent directories, so the late
+ * picture used to put `sessions/<id>/` back beside the trashed one, and the
+ * trash's restore then found the place taken. Under the lock a delete happens
+ * wholly before this (the session is gone, nothing is written, and the job is
+ * abandoned) or wholly after it (the picture goes to the trash with the rest).
+ */
+async function intoSession(
+  context: RenditionWorkerContext,
+  job: RenditionJob,
+  write: () => Promise<void>,
+): Promise<boolean> {
+  return withSessionLock(job.sessionId, async () => {
+    if (!(await fileExists(sessionFilePath(context.layout, job.account, job.sessionId)))) {
+      return false;
+    }
+    await write();
+    return true;
+  });
 }
 
 /**

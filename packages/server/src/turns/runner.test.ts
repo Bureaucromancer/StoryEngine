@@ -128,6 +128,7 @@ function makeRunner(
      * and is a state `remedyFor` handles rather than guesses at.
      */
     connectivity?: () => boolean | null;
+    committed?: (job: Job, turn: Turn) => Promise<void>;
   } = {},
 ): void {
   provider = new FakeProvider(options.script === undefined ? {} : { script: options.script });
@@ -149,6 +150,7 @@ function makeRunner(
       announced.push(occurrence);
     },
     ...(options.connectivity === undefined ? {} : { connectivity: options.connectivity }),
+    ...(options.committed === undefined ? {} : { committed: options.committed }),
   });
   // The runner's own logger seam, so a test reads what an operator would.
   logLines = [];
@@ -251,6 +253,35 @@ async function runTurn(text = 'She opened the door.'): Promise<{ job: Job; turn:
   if (!turn) throw new Error('no turn was appended');
   return { job, turn };
 }
+
+/**
+ * ***What waited for a turn is told once it has landed*** (2026-09-27) —
+ * `RunnerOptions.committed`, which is how a backdrop that finished during the
+ * turn gets shown on top of it. After the commit, so the head is the turn and
+ * the session is free: anything applied then is a child of the turn rather
+ * than a sibling its commit would abandon.
+ */
+describe('a committed turn', () => {
+  it('is announced to what waited for it, with the head on it and the job finished', async () => {
+    const seen: unknown[] = [];
+    makeRunner({
+      committed: async (job, turn) => {
+        const session = await readSession(sessions, ACCOUNT, sessionId);
+        seen.push({
+          job: job.id,
+          turn: turn.id,
+          head: session?.headTurnId ?? null,
+          finished: readJob(state.db, job.id)?.finishedAt !== null,
+        });
+      },
+    });
+
+    const { job, turn } = await runTurn();
+    await runner.settle();
+
+    expect(seen).toEqual([{ job: job.id, turn: turn.id, head: turn.id, finished: true }]);
+  });
+});
 
 /**
  * Runs the *next* turn, and can be called repeatedly.

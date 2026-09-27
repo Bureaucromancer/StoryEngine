@@ -104,6 +104,22 @@ export interface SessionContext {
    * written for. Absent in a store-only test, where the default stands.
    */
   snapshotEvery?: () => number;
+  /**
+   * ***Whether a turn is in flight on this session*** (2026-09-27), asked
+   * under the session's lock by every write that moves the head without a
+   * model call.
+   *
+   * A turn's job was reserved against the head as it was, and its commit sets
+   * the head to the new turn whatever happened meanwhile. A dial change, a
+   * *Remember this* or an arriving backdrop written while it ran became a
+   * sibling of that turn, on a line nobody would ever see again: the setting
+   * silently reverted when the turn landed. Head moves and undo already
+   * refused, at the route and outside the lock; the rest did not ask at all.
+   *
+   * **Optional, and absent means never busy**, which is every store-only
+   * test. `app.ts` answers it from the operational store's `activeJob`.
+   */
+  busy?: (sessionId: string) => boolean;
 }
 
 function scopeOf(context: SessionContext, handle: string): string {
@@ -462,14 +478,22 @@ export async function setName(
  * objects that the library owns, and removing them because their origin was
  * deleted would be a far worse surprise than leaving them (§10.3).
  */
+export type DeleteSessionOutcome = { kind: 'deleted' } | { kind: 'no-session' } | { kind: 'busy' };
+
 export async function deleteSession(
   context: SessionContext,
   handle: string,
   sessionId: string,
-): Promise<boolean> {
+): Promise<DeleteSessionOutcome> {
   return withSessionLock(sessionId, async () => {
+    /**
+     * ***Not while a turn is in flight*** (2026-09-27). Its commit appends to
+     * `turns/` and would create `sessions/<id>/` again beside the trashed one,
+     * and a restore then found its place taken, for good.
+     */
+    if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
-    if (session === null) return false;
+    if (session === null) return { kind: 'no-session' };
 
     const root = sessionRoot(context.layout, handle, sessionId);
     await context.layout.assertReal(root);
@@ -480,7 +504,7 @@ export async function deleteSession(
     // trashed object ([03 §10.2]) — it does not appear in a list and does not
     // match a search. Restoring re-indexes it.
     removeSessionRows(context.index, sessionId);
-    return true;
+    return { kind: 'deleted' };
   });
 }
 
@@ -734,7 +758,8 @@ export type MoveHeadOutcome =
       abandoned: { turns: number; escapedEffects: number };
     }
   | { kind: 'no-session' }
-  | { kind: 'no-turn' };
+  | { kind: 'no-turn' }
+  | { kind: 'busy' };
 
 /**
  * Points the head at any node, and re-derives the channel state there — [P6.1].
@@ -761,6 +786,9 @@ export async function moveHead(
   options: { resume?: boolean } = {},
 ): Promise<MoveHeadOutcome> {
   return withSessionLock(sessionId, async () => {
+    // Asked here as well as at the route, because here is where it holds: the
+    // route's answer could change before this lock was taken.
+    if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
     if (session === null) return { kind: 'no-session' };
 
@@ -909,7 +937,9 @@ export type UndoOutcome =
    * `branchFrom` is the node to branch from instead — the refusal's whole
    * point is that it can offer one.
    */
-  | { kind: 'not-at-tip'; keys: string[]; branchFrom: string | null };
+  | { kind: 'not-at-tip'; keys: string[]; branchFrom: string | null }
+  /** A turn is in flight, and an undo now would invert against a moving tip. */
+  | { kind: 'busy' };
 
 /**
  * Undoes a turn's effects by applying their `before` — [§1.4],
@@ -948,6 +978,7 @@ export async function undoTurn(
   turnId: string,
 ): Promise<UndoOutcome> {
   return withSessionLock(sessionId, async () => {
+    if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
     if (session === null) return { kind: 'no-session' };
 
@@ -1024,7 +1055,9 @@ export async function undoTurn(
  * fail silently would be worse than none.
  */
 export type ChannelWriteOutcome =
-  { kind: 'no-session' } | { kind: 'written'; session: SessionFile; effect: ChannelEffect };
+  | { kind: 'no-session' }
+  | { kind: 'busy' }
+  | { kind: 'written'; session: SessionFile; effect: ChannelEffect };
 
 /**
  * A person writes a value to one channel — [06 §4.2]'s recovery, [P7.1].
@@ -1054,47 +1087,108 @@ export async function writeChannel(
   key: string,
   value: unknown,
 ): Promise<ChannelWriteOutcome> {
-  return withSessionLock(sessionId, async () => {
-    const session = await readSession(context, handle, sessionId);
-    if (session === null) return { kind: 'no-session' };
+  const { channelId, scopeKey } = splitChannelKey(key);
+  const outcome = await appendEngineTurn(context, handle, sessionId, (session, running) =>
+    engineTurn(session, (id) =>
+      acceptEffect(
+        id,
+        {
+          channelId,
+          scopeKey,
+          op: { type: 'set', path: '/' },
+          after: value,
+          proposedBy: { kind: 'user' },
+        },
+        running,
+      ),
+    ),
+  );
+  if (outcome.kind !== 'written') return { kind: outcome.kind === 'busy' ? 'busy' : 'no-session' };
+  const [effect] = outcome.turn.effects;
+  if (effect === undefined) return { kind: 'no-session' };
+  return { kind: 'written', session: outcome.session, effect };
+}
 
-    const turns = await readTurns(context, handle, sessionId);
-    const running = await reconstructAlong(
-      context,
-      handle,
-      sessionId,
-      walkPath(turns, session.headTurnId),
-    );
+/** What a write that makes no model call came to. */
+export type EngineTurnOutcome =
+  | { kind: 'written'; session: SessionFile; turn: Turn }
+  | { kind: 'no-session' }
+  /** A turn is in flight, and this would be a sibling its commit abandons. */
+  | { kind: 'busy' }
+  /** The builder had nothing to write. */
+  | { kind: 'nothing' };
 
-    const id = uuidv7();
-    const { channelId, scopeKey } = splitChannelKey(key);
-    const effect = acceptEffect(
-      id,
-      {
-        channelId,
-        scopeKey,
-        op: { type: 'set', path: '/' },
-        after: value,
-        proposedBy: { kind: 'user' },
-      },
-      running,
-    );
+/**
+ * ***A turn with no model call, read and written under one lock*** —
+ * (2026-09-27).
+ *
+ * `writeChannel`, the *Remember this* capture and an arriving backdrop each
+ * wrote one of these, and two of them read the head, rebuilt its state and
+ * built the turn *outside* the session's lock, then appended under it. A turn
+ * committing between the read and the append left the new turn parented on a
+ * head that was no longer the head. Now the read, the build and the append are
+ * one critical section, and a session with a turn in flight answers `busy`
+ * instead: the job's commit would make whatever this wrote a sibling nobody
+ * sees (see `SessionContext.busy`).
+ *
+ * `build` gets the session and the channel state at its head, and returns the
+ * turn to append, or null for nothing to write.
+ */
+export async function appendEngineTurn(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  build: (session: SessionFile, running: Record<string, ChannelState>) => Turn | null,
+): Promise<EngineTurnOutcome> {
+  return withSessionLock(sessionId, () =>
+    appendEngineTurnLocked(context, handle, sessionId, build),
+  );
+}
 
-    const turn: Turn = {
-      id,
-      sessionId,
-      parentTurnId: session.headTurnId,
-      createdAt: new Date().toISOString(),
-      status: 'complete',
-      effects: [effect],
-      tape: [],
-    };
+/** The body of {@link appendEngineTurn}, for a caller already holding the lock. */
+export async function appendEngineTurnLocked(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  build: (session: SessionFile, running: Record<string, ChannelState>) => Turn | null,
+): Promise<EngineTurnOutcome> {
+  if (context.busy?.(sessionId) === true) return { kind: 'busy' };
+  const session = await readSession(context, handle, sessionId);
+  if (session === null) return { kind: 'no-session' };
 
-    await appendTurnOnly(context, handle, sessionId, turn);
-    const next = await advanceHead(context, handle, sessionId, turn);
-    if (next === null) return { kind: 'no-session' };
-    return { kind: 'written', session: next, effect };
-  });
+  const turns = await readTurns(context, handle, sessionId);
+  const running = await reconstructAlong(
+    context,
+    handle,
+    sessionId,
+    walkPath(turns, session.headTurnId),
+  );
+  const turn = build(session, running);
+  if (turn === null) return { kind: 'nothing' };
+
+  const { session: next } = await appendTurnLocked(context, handle, sessionId, turn);
+  return { kind: 'written', session: next, turn };
+}
+
+/**
+ * The shape every one of these turns has: a child of the head, complete, no
+ * tape, and the effects `effectsFor` builds against the turn's own id.
+ */
+export function engineTurn(
+  session: SessionFile,
+  effectsFor: (turnId: string) => ChannelEffect | ChannelEffect[],
+): Turn {
+  const id = uuidv7();
+  const effects = effectsFor(id);
+  return {
+    id,
+    sessionId: session.id,
+    parentTurnId: session.headTurnId,
+    createdAt: new Date().toISOString(),
+    status: 'complete',
+    effects: Array.isArray(effects) ? effects : [effects],
+    tape: [],
+  };
 }
 
 /**
@@ -1157,6 +1251,12 @@ export async function reconcileHandEdits(
   sessionId: string,
 ): Promise<ChannelEffect[]> {
   return withSessionLock(sessionId, async () => {
+    /**
+     * ***Not while a turn is in flight*** (2026-09-27). Its commit sets the
+     * head to its own turn, so a divergence turn written now would be a
+     * sibling it abandons. The next read after the commit reconciles instead.
+     */
+    if (context.busy?.(sessionId) === true) return [];
     const session = await readSession(context, handle, sessionId);
     if (session === null) return [];
 

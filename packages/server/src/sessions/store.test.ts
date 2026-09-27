@@ -420,7 +420,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
     // more to lose. [03 §10.3] settles it: a session is a folder too.
     const { sessionId, turns } = await aSessionOf(2);
 
-    expect(await deleteSession(context, 'ned', sessionId)).toBe(true);
+    expect(await deleteSession(context, 'ned', sessionId)).toEqual({ kind: 'deleted' });
 
     expect(await readSession(context, 'ned', sessionId)).toBeNull();
     expect(await listSessions(context, 'ned')).toEqual([]);
@@ -447,7 +447,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
   });
 
   it('reports a session that was not there rather than throwing', async () => {
-    expect(await deleteSession(context, 'ned', uuidv7())).toBe(false);
+    expect(await deleteSession(context, 'ned', uuidv7())).toEqual({ kind: 'no-session' });
   });
 
   it('hides an archived session from the default list, intact', async () => {

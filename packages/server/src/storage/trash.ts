@@ -4,7 +4,7 @@
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared';
+import { LIBRARY_DIRECTORIES, uuidv7, type PortableSchemaId } from '@storyengine/shared';
 
 import type { Layout } from './layout.js';
 import { moveTree } from './files.js';
@@ -209,7 +209,23 @@ export async function restoreFromTrash(
       ? layout.sessionRoot(handle, name)
       : join(layout.userRoot(handle), 'library', kind, name);
 
-  if (await exists(to)) return { ok: false, reason: 'occupied' };
+  if (await exists(to)) {
+    /**
+     * ***A session's place taken by what was written after it left*** —
+     * (2026-09-27). A live session always has its `session.json`, so a folder
+     * at the address without one is not a session anybody made: it is what a
+     * writer still running when the session was deleted put back, a turn or a
+     * picture with no session around it. It used to refuse the restore for as
+     * long as it stood, which was for good. It goes to the trash as an entry
+     * of its own, and the session comes back.
+     */
+    const stray =
+      kind === 'sessions' && !(await exists(join(to, 'session.json')))
+        ? layout.sessionTrashDestination(handle, name, uuidv7())
+        : null;
+    if (stray === null) return { ok: false, reason: 'occupied' };
+    await moveTree(to, stray);
+  }
 
   await moveTree(from, to);
   return { ok: true, path: to };

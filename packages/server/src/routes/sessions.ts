@@ -1776,6 +1776,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (outcome.kind === 'no-session') {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
+      if (outcome.kind === 'busy') return busy(services, reply, sessionId);
 
       return reply.send({
         session: outcome.session,
@@ -1882,6 +1883,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // 409 rather than 400: the request is well formed and the *turn* is
           // what cannot be remembered, which is a state rather than a mistake.
           return reply.code(409).send({ error: 'hidden-content', message: outcome.reason });
+        case 'busy':
+          return busy(services, reply, sessionId);
       }
     },
   );
@@ -2244,7 +2247,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!(await mine(services, request, reply))) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      await deleteSession(services.sessions, account.handle, sessionId);
+      const outcome = await deleteSession(services.sessions, account.handle, sessionId);
+      // A turn in flight would put `sessions/<id>/` back beside the trashed one.
+      if (outcome.kind === 'busy') return busy(services, reply, sessionId);
       // Moved to the trash rather than erased ([03 §10.3]) — 204 says the session
       // is gone from here, which is what the caller asked about.
       return reply.code(204).send();
@@ -2623,6 +2628,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // honesty banner. Zero until something writes an escaped effect, and
           // the field is here so the first producer has somewhere to surface.
           return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
+        case 'busy':
+          return busy(services, reply, sessionId);
       }
     },
   );
@@ -2697,6 +2704,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             keys: outcome.keys,
             branchFrom: outcome.branchFrom,
           });
+        case 'busy':
+          return busy(services, reply, sessionId);
         case 'undone':
           return reply.send({ session: outcome.session, turn: outcome.turn });
       }
@@ -3213,6 +3222,21 @@ async function mine(
     return null;
   }
   return session;
+}
+
+/**
+ * ***The one answer for a write refused because a turn is in flight*** —
+ * `409 busy`, with the job, which is what head moves and undo have always
+ * sent (2026-09-27). The store decides, under the session's lock; this reads
+ * the job again only to say which one it was, and it may have finished by
+ * then, which is why `job` can be null.
+ */
+function busy(services: AppServices, reply: FastifyReply, sessionId: string): FastifyReply {
+  return reply.code(409).send({
+    error: 'busy',
+    message: 'This session already has a turn in flight.',
+    job: activeJob(services.state.db, sessionId),
+  });
 }
 
 /**

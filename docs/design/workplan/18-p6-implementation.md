@@ -1404,6 +1404,16 @@ side. Nothing is published for a move, so a stream somebody has open sees no
 frame it would have to interpret; what it sees next is the turn that lands on
 the node the head moved to.
 
+*Corrected 2026-09-27.* The refusal sat at the route, outside the session's lock,
+and head moves and undo were the only writes that made it. A channel write (a
+dial, a hook committed or forced), *Remember this*, an arriving backdrop, a hand
+edit being reconciled and a delete all went ahead while a turn was in flight.
+The turn's commit then set the head to its own turn, so each of them landed on a
+sibling nobody would see again: the setting silently reverted, and a deleted
+session's folder was written back. Every one of them now asks under the lock
+(`SessionContext.busy`) and answers `409 busy`. A backdrop that lands during a
+turn is held and shown on top of it once it commits.
+
 **§1.6's column is decided, and the decision is that it cannot be populated.**
 `turn.branch_id` is dropped, not filled. Under [07 §3] a turn is not *on* a
 branch — there is no `Branch` entity owning turns, a turn is on every path that

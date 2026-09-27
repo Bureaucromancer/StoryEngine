@@ -230,6 +230,18 @@ export interface RunnerOptions {
    * the routes, so the extractor and the button write through one queue.
    */
   library?: LibraryContext;
+  /**
+   * ***Told that a turn committed*** (2026-09-27), after its pictures are
+   * recorded and before anybody is told.
+   *
+   * For what was held back while the turn was in flight: an engine write that
+   * would have been a sibling of this turn, which the commit would abandon, and
+   * which can land on top of it now. The one such write is a backdrop that
+   * finished during the turn (`DeferredBackdrops`). Optional, like `dispatch`
+   * and `notify`, and **it cannot fail the turn**: it runs after the commit, and
+   * a throw is logged.
+   */
+  committed?: (job: Job, turn: Turn) => Promise<void>;
 }
 
 interface Live {
@@ -431,6 +443,7 @@ export class TurnRunner {
     try {
       checkpoint(this.#options.commit, job.id, { turn: draft });
       await finaliseTurn(this.#options.commit, job.id, draft);
+      await this.#committed(job, draft, log);
       /**
        * **This path notifies too, and it is the one that most needs to.** A
        * turn that could not even be set up leaves a record saying so and no
@@ -1907,6 +1920,10 @@ export class TurnRunner {
       await this.#recordRenditions(job, draft, renditions.report);
     }
 
+    // What waited for this turn to land, now that it has — after the pictures
+    // are recorded, because what waited may need to know which it asked for.
+    await this.#committed(job, draft, log);
+
     /**
      * ***And the person is told, last of all*** — [09 §3.5], [P10.1].
      *
@@ -1916,6 +1933,20 @@ export class TurnRunner {
      * against `finaliseTurn`, one layer out.
      */
     await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null, remedyFound);
+  }
+
+  /** `RunnerOptions.committed`, which nothing it does may turn into a failed turn. */
+  async #committed(job: Job, turn: Turn, log: Logger | undefined): Promise<void> {
+    const committed = this.#options.committed;
+    if (committed === undefined) return;
+    try {
+      await committed(job, turn);
+    } catch (error) {
+      log?.warn(
+        { event: 'job.afterCommit', ...failureShape(error) },
+        'Something held for this turn could not be applied after it',
+      );
+    }
   }
 
   /**
