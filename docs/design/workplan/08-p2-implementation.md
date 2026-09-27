@@ -747,7 +747,16 @@ arriving a layer earlier than [21 §2](../21-internal-contracts.md) expected —
 the engine above the adapter still thinks in `RenderedMessage` including its
 system blocks, because that is what the record shows, and the translation stops
 at the adapter. No doc change: the contract is unaffected, only where it is
-honoured. **[19 §5.1](../19-tech-stack.md)'s `[OPEN]` is closed** as the
+honoured.
+
+*Corrected 2026-09-27.* ~~refuses~~ **Refuses by default**: `allowSystemInMessages`
+lifts it, and the premise cost more than a doc change. The adapter joined
+**every** system message into `instructions`, so each one a preset places after
+the history (guidance, the goal, a redo's attempt, depth-injected text, the
+schema and impersonation instructions) reached the model at the top while the
+record showed it in place, and [06 §5](../06-modes-and-turn-pipeline.md)'s
+splicing bought nothing on the wire. Only the leading run is the system prompt
+now; a later system message is sent where it sits, as user text. **[19 §5.1](../19-tech-stack.md)'s `[OPEN]` is closed** as the
 convenience reading — `hi`/`lo` are the first-run question, not tiers in the
 data model; `roles.ts` records the argument.
 

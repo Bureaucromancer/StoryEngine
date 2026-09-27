@@ -461,6 +461,13 @@ branching, and it appears in the turn record as an ordinary ordered block. The
 cost is real and worth paying — refusing it would mean importing the existing
 corpus of presets into something that runs but behaves differently.
 
+*Amended 2026-09-27.* **Paid for, and until now not delivered.** The
+OpenAI-compatible adapter joined every system message into the leading system
+prompt, so a system block spliced into the history reached the model at the top
+of it. The adapter now sends a later system block where it sits, as user text
+(SillyTavern's *semi-strict* shape), which is the position the turn record has
+always shown.
+
 Templates (Liquid, following Aventuras) render *within* a block. Aventuras'
 `PackTemplate` dual-hash trick — `contentHash` plus `baselineHash`, where the
 divergence distinguishes "app shipped a new default" from "user edited this" — is

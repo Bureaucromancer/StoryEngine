@@ -178,7 +178,7 @@ export class OpenAICompatibleProvider implements Provider {
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResult> {
-    const prompt = splitForSdk(request.messages, this.capabilities.systemMessage);
+    const prompt = splitForSdk(request.messages, this.capabilities);
     try {
       const result = await generateText({
         model: this.#model(request.modelId),
@@ -227,7 +227,7 @@ export class OpenAICompatibleProvider implements Provider {
   async *stream(
     request: GenerationRequest,
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
-    const prompt = splitForSdk(request.messages, this.capabilities.systemMessage);
+    const prompt = splitForSdk(request.messages, this.capabilities);
     // Captured rather than thrown, because the SDK calls this instead of
     // failing the iterator — see the throw below the loop.
     let failure: unknown;
@@ -236,6 +236,14 @@ export class OpenAICompatibleProvider implements Provider {
       messages: prompt.messages,
       ...(prompt.instructions === undefined ? {} : { instructions: prompt.instructions }),
       ...toSdkParams(request),
+      /**
+       * ***The shape, asked for here as `generate` asks for it*** (2026-09-27).
+       * The streaming call left it out, so nothing on the wire asked for JSON
+       * and `result.output` below came back as the reply's plain text: a
+       * streamed call with a schema failed validation every time, even when
+       * the model answered with exactly the object asked for.
+       */
+      ...outputFor(request),
       onError: ({ error }) => {
         failure = error;
       },
@@ -323,51 +331,99 @@ interface SdkMessage {
 /**
  * Splits rendered messages into what the SDK actually takes.
  *
- * **The system prompt is not a message here.** AI SDK 7 refuses a `system` role
- * inside `messages` and wants `instructions` instead — which is the seam
- * `ProviderCapabilities.systemMessage` was written for, arriving one layer
- * earlier than expected. Above this file the engine keeps thinking in
- * `RenderedMessage`, including the system blocks, because that is what the
- * record and the workbench show; the translation stops here.
+ * ~~**The system prompt is not a message here.** AI SDK 7 refuses a `system`
+ * role inside `messages` and wants `instructions` instead~~ — *corrected
+ * 2026-09-27: it refuses only by default*; `allowSystemInMessages` lifts it.
+ * The premise sent every system block to the top: `instructions` was every
+ * system message joined, including the ones a preset puts **after** the
+ * history, so the guidance box, the goal, a guided redo's attempt, depth-4
+ * preset text, the schema instruction and the impersonation instruction all
+ * reached the model above twenty turns of history instead of just before the
+ * player's line. [06 §5] calls splicing a block into the history *"a real cost,
+ * worth paying"*, and it bought nothing on the wire. The record meanwhile
+ * showed the positioned order, so it said something other than what was sent.
  *
- * `fold-into-first-user` is the other half of that capability: some endpoints
- * have nowhere to put a system prompt at all, and folding it into the first
- * user message is what they need. Both paths keep the text and its order —
- * what changes is where it is carried.
+ * ***Now only the leading run is the system prompt***: the system messages
+ * before the first message of the conversation, joined as they were. **A system
+ * message after that stays where it is, carried as user text**, which is
+ * SillyTavern's *semi-strict* shape and the one no endpoint refuses:
+ *
+ * - appended to the message before it when that is a user message,
+ * - otherwise put in front of the message after it when that is one,
+ * - otherwise sent as a user message of its own.
+ *
+ * The first two only when `mergeSameRole` allows merging; under `never` it is
+ * always a message of its own, since that endpoint takes consecutive user
+ * messages and wants them kept apart. The text and its position are what the
+ * record says; the role is the transport's, as `instructions` is.
+ *
+ * `fold-into-first-user` is the other half of the capability: some endpoints
+ * have nowhere to put a system prompt at all, and the leading run is folded
+ * into the first user message instead, as before.
  *
  * `fromBlocks` stops here too. It is provenance for the record, and no provider
  * has a use for it.
  */
 function splitForSdk(
   messages: RenderedMessage[],
-  systemMessage: ProviderCapabilities['systemMessage'],
+  capabilities: Pick<ProviderCapabilities, 'systemMessage' | 'mergeSameRole'>,
 ): { instructions: string | undefined; messages: SdkMessage[] } {
-  const system = messages.filter((message) => message.role === 'system');
-  const rest = messages
-    .filter((message) => message.role !== 'system')
-    .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }));
+  let start = 0;
+  while (messages[start]?.role === 'system') start += 1;
+  const leading = messages.slice(0, start).map((message) => message.content);
+  const instructions = leading.length === 0 ? undefined : leading.join('\n\n');
 
-  if (system.length === 0) return { instructions: undefined, messages: rest };
+  const merge = capabilities.mergeSameRole !== 'never';
+  const conversation: SdkMessage[] = [];
+  /** A system text waiting to be put in front of the user message after it. */
+  let carried: string | null = null;
 
-  // Joined in order, including a system block that appears mid-conversation:
-  // the alternative is dropping it, and a preset that puts one there means it.
-  const instructions = system.map((message) => message.content).join('\n\n');
+  for (const message of messages.slice(start)) {
+    if (message.role !== 'system') {
+      const role = message.role;
+      if (carried !== null && role === 'user') {
+        conversation.push({ role, content: `${carried}\n\n${message.content}` });
+        carried = null;
+        continue;
+      }
+      if (carried !== null) {
+        conversation.push({ role: 'user', content: carried });
+        carried = null;
+      }
+      conversation.push({ role, content: message.content });
+      continue;
+    }
 
-  if (systemMessage === 'supported') {
-    return { instructions, messages: rest };
+    if (carried !== null) {
+      conversation.push({ role: 'user', content: carried });
+      carried = null;
+    }
+    const before = conversation.at(-1);
+    if (merge && before?.role === 'user') {
+      before.content = `${before.content}\n\n${message.content}`;
+    } else if (merge) {
+      carried = message.content;
+    } else {
+      conversation.push({ role: 'user', content: message.content });
+    }
+  }
+  if (carried !== null) conversation.push({ role: 'user', content: carried });
+
+  if (instructions === undefined || capabilities.systemMessage === 'supported') {
+    return { instructions, messages: conversation };
   }
 
-  const firstUser = rest.findIndex((message) => message.role === 'user');
+  const firstUser = conversation.findIndex((message) => message.role === 'user');
   if (firstUser === -1) {
     // Nothing to fold into. A user message carrying only the system text is
     // still better than silently dropping it.
     return {
       instructions: undefined,
-      messages: [{ role: 'user', content: instructions }, ...rest],
+      messages: [{ role: 'user', content: instructions }, ...conversation],
     };
   }
 
-  const folded = [...rest];
+  const folded = [...conversation];
   folded[firstUser] = {
     role: 'user',
     content: `${instructions}\n\n${folded[firstUser]?.content ?? ''}`,
