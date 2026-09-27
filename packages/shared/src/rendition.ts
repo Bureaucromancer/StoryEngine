@@ -398,6 +398,20 @@ export interface Rendition {
    * second way to say what absence already says, and the two would drift.
    */
   anchorResolved?: false;
+  /**
+   * ***Where this record came from, when it came from somewhere else*** —
+   * `Turn.foreign`'s shape and rule, added 2026-09-27 when session import
+   * started writing renditions rather than counting them.
+   *
+   * **Optional, so after the freeze it is an addition rather than a
+   * migration** — [P11.10]'s *"a promise not to tighten"*. `source` is the
+   * session the record was exported from and `id` its id there, which import
+   * keeps unchanged because turn ids are kept and a rendition's id is its turn's
+   * plus an ordinal. A record that already carries one keeps it: the first
+   * install it came from is the one that matters, which is `foreignise`'s rule
+   * for turns.
+   */
+  foreign?: { source: string; id: string };
 }
 
 /**

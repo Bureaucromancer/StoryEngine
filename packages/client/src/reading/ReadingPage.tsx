@@ -14,6 +14,7 @@ import { useLibrary, useRenditions, useSession, type RenditionSet } from '../que
 import { Button } from '../ui/Button.js';
 import { page } from '../ui/classes.js';
 import { Note, PageTitle } from '../ui/Text.js';
+import { MovePictures } from '../play/Pictures.js';
 import { anchorOffset } from '../play/Rendition.js';
 import { attribution, passages, toMarkdown, toPlainText } from './prose.js';
 
@@ -116,7 +117,10 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
             {passage.said === null ? null : (
               <blockquote className="border-s-2 border-line ps-3 text-ink-muted">
                 <p className="text-sm uppercase tracking-wide">{attribution(passage.said)}</p>
-                <p className="whitespace-pre-wrap">{passage.said.text}</p>
+                {passage.said.text === '' ? null : (
+                  <p className="whitespace-pre-wrap">{passage.said.text}</p>
+                )}
+                <MovePictures sessionId={props.sessionId} pictures={passage.said.pictures} />
               </blockquote>
             )}
             {passage.prose === null ? null : (

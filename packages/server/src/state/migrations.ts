@@ -500,6 +500,36 @@ create unique index rendition_job_live on rendition_job(rendition_id) where fini
 -- One number per try, so a retry cannot be a reset by any writer.
 create unique index rendition_job_attempt on rendition_job(rendition_id, attempt);
 `,
+
+  /**
+   * ***A rendition's name is its session plus its id*** — found 2026-09-27,
+   * when importing renditions made it reachable twice over.
+   *
+   * `STEPS[4]` and `STEPS[6]` both key a job by `rendition_id` alone, on the
+   * reading that a rendition id names one record. It does not: ids are
+   * `<turnId>.<n>`, and session import keeps turn ids ([P11.10]), so two
+   * sessions on one install can hold **the same rendition ids**. Import has
+   * refused a session whose turns are already here since 2026-09-27, which
+   * closes the front door and leaves two others: the copies every earlier
+   * import of somebody's own backup made, which are still on disk; and a
+   * session deleted and imported back, whose job rows this store keeps after
+   * the session is gone. Keyed as they were, Try again in one found the other's
+   * live row — and the worker, which reads the record at the job's own session,
+   * rendered **the other** while this one sat pending — and a first try was
+   * numbered after another session's last, and read back as its latest job.
+   *
+   * *`STEPS[6]`'s two indexes with the session added to each.* Less strict than
+   * what they replace, so no row any earlier build wrote can violate them, and
+   * an index rather than a table is what is dropped.
+   */
+  `
+drop index rendition_job_live;
+create unique index rendition_job_live on rendition_job(session_id, rendition_id)
+  where finished_at is null;
+
+drop index rendition_job_attempt;
+create unique index rendition_job_attempt on rendition_job(session_id, rendition_id, attempt);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

@@ -708,7 +708,14 @@ Three details that decide whether it works:
   question. Turns already record cost and already belong to a user
   ([10 §3](10-ui-surfaces.md)), so what 1.0 owes is the *recording*, which it
   already does. The aggregate view is on the feature list at Eventually
-  ([24 §3.3](24-roadmap.md)) and is where it surfaces.
+  ([24 §3.3](24-roadmap.md)) and is where it surfaces. *Corrected 2026-09-27:
+  "record cost" was true of tokens and not of money.* The turn's totals had no
+  money field at all, and every call's `cost` was null because no adapter
+  prices anything. The field now exists (`TurnCost.money`, alongside
+  `ModelCall.cost` and the usage log's `cost` — [21 §1.4](21-internal-contracts.md)),
+  so a priced call needs no migration to be recorded; what fills it is
+  [25 E16](25-open-questions.md)'s recommendation, and until then every turn
+  says *not priced*, never zero.
 
   *An earlier draft pinned this to "2.0", which was always a release later than
   the thing that triggers it and stopped meaning anything when 2.0 became the

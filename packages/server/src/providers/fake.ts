@@ -128,6 +128,12 @@ export interface RecordedRequest {
   params: GenerationRequest['params'];
   schema: object | undefined;
   streamed: boolean;
+  /**
+   * The digests of the pictures that arrived with the request — [25 E15]. Empty
+   * when none did, which is what a test asserting *this model was sent words,
+   * not pixels* reads.
+   */
+  images: string[];
 }
 
 /**
@@ -310,6 +316,7 @@ export class FakeProvider implements Provider {
       params: request.params,
       schema: request.schema,
       streamed,
+      images: [...(request.images?.keys() ?? [])],
     });
 
     const index = Math.min(this.#calls, Math.max(this.#script.length - 1, 0));

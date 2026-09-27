@@ -31,9 +31,12 @@ import type {
   StepFailureReason,
   StepOutcome,
   Turn,
+  TurnAttachment,
   TurnCost,
 } from '../sessions/types.js';
 import type { CastMember } from './cast.js';
+import { digestsOf, presentAttachments, readAttachment } from '../sessions/attachments.js';
+import { scanText } from '../assembly/pictures.js';
 import type { Occurrence } from '../notifications/router.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
@@ -104,7 +107,13 @@ import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
  */
 
 export interface TurnPayload {
-  input?: { actorId: string | null; kind: string; text: string; raw: string };
+  input?: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    raw: string;
+    attachments?: TurnAttachment[];
+  };
   /**
    * This is the session's **setup** turn — [06 §7.3], [P7.4].
    *
@@ -676,6 +685,20 @@ export class TurnRunner {
     );
     const { history, mode, preset, cast } = inputs;
     let running: Record<string, ChannelState> = inputs.channels;
+    /**
+     * ***Which of this move's pictures are in the store*** — [25 E15], asked
+     * once per turn because assembly cannot ask the disk. Only the move's own:
+     * R1 sends nothing older, so the history's pictures go as their words
+     * whether or not their bytes are here.
+     */
+    const picturesPresent = await presentAttachments(
+      commit.sessions.layout,
+      job.account,
+      job.sessionId,
+      digestsOf(payload.input === undefined ? [] : [{ input: payload.input }]),
+    );
+    const loadPicture = (digest: string): ReturnType<typeof readAttachment> =>
+      readAttachment(commit.sessions.layout, job.account, job.sessionId, digest);
 
     /**
      * **Revoking disables; it never deletes** ([09 §4.5]).
@@ -742,7 +765,8 @@ export class TurnRunner {
           draw: rng.at('se.participants', 'speaker'),
           ...(payload.input === undefined
             ? {}
-            : { input: { actorId: payload.input.actorId, text: payload.input.text } }),
+            : // Captions count: naming somebody under a picture addresses them.
+              { input: { actorId: payload.input.actorId, text: scanText(payload.input) } }),
           ...(spoken === undefined ? {} : { lastProse: spoken }),
         })
       : undefined;
@@ -1380,6 +1404,8 @@ export class TurnRunner {
                   signal,
                   notFilled: fromPreset.notFilled,
                   ...(lore === null ? {} : { refused: lore.refused }),
+                  picturesPresent,
+                  loadPicture,
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
@@ -2125,7 +2151,27 @@ function costOf(calls: readonly ModelCall[]): TurnCost {
       : null,
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
     model: calls.at(-1)?.resolved.modelId ?? null,
+    money: moneyOf(calls),
   };
+}
+
+/**
+ * The turn's money, by the token totals' rule — every call priced, or no total.
+ *
+ * ***One currency or none.*** Two calls priced in different units — dollars on
+ * one connection and a provider's credits on another — have no sum this build
+ * can honestly write, and converting between them would be an estimate with an
+ * exchange rate in it. Each call keeps its own figure either way.
+ */
+function moneyOf(calls: readonly ModelCall[]): { amount: number; currency: string } | null {
+  const currency = calls[0]?.cost?.currency;
+  if (currency === undefined) return null;
+  let amount = 0;
+  for (const call of calls) {
+    if (call.cost?.currency !== currency) return null;
+    amount += call.cost.amount;
+  }
+  return { amount, currency };
 }
 
 /**

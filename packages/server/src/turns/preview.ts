@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@storyengine/shared';
+import {
+  NO_LORE_REPORT,
+  type TurnAttachment,
+  type TurnPreview,
+  type UnmeasurableReason,
+} from '@storyengine/shared';
 
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
+import { digestsOf, presentAttachments } from '../sessions/attachments.js';
 import { storyDepth, storyTurns } from '../sessions/depth.js';
 import { readHeldChain } from '../sessions/summaries.js';
 import type { SessionContext } from '../sessions/store.js';
@@ -83,7 +89,7 @@ export interface PreviewRequest {
    * ([13 §8.3]). A caller that omits it previews the mode's kindless default,
    * which is what every caller did before the selector existed.
    */
-  input?: { text: string; kind?: string };
+  input?: { text: string; kind?: string; attachments?: TurnAttachment[] };
   guidance?: string;
 }
 
@@ -113,6 +119,7 @@ export async function previewAssembly(
   const headTurnId = request.parentTurnId;
   const pendingInput =
     (request.input !== undefined && request.input.text.trim() !== '') ||
+    (request.input?.attachments?.length ?? 0) > 0 ||
     (request.guidance !== undefined && request.guidance.trim() !== '');
 
   const step = previewStepFor(inputs.mode);
@@ -255,6 +262,19 @@ export async function previewAssembly(
     ...(summary === undefined || summary.length === 0 ? {} : { summary }),
   });
 
+  /**
+   * ***Which of the draft's pictures are here*** — the send rule's *are the
+   * bytes present* ([25 E15]), asked before the plan because the plan is
+   * synchronous. With `roleLayersOf` resolving the model the turn will, the
+   * preview's *this picture will be seen* is the turn's answer rather than a
+   * guess.
+   */
+  const picturesPresent = await presentAttachments(
+    context.sessions.layout,
+    request.account,
+    request.sessionId,
+    digestsOf(request.input === undefined ? [] : [{ input: request.input }]),
+  );
   try {
     const { call } = planCall(
       {
@@ -268,6 +288,7 @@ export async function previewAssembly(
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },
         notFilled: collected.notFilled,
         refused: lore.refused,
+        picturesPresent,
       },
       {},
       collected.candidates,

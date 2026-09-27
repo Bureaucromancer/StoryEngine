@@ -195,7 +195,16 @@ export function summarise(context: SummariseContext): {
        */
       const path: SummarisableTurn[] = (input.transcript ?? []).map((turn) => ({
         id: turn.turnId,
-        ...(turn.input === undefined ? {} : { input: { text: turn.input.text } }),
+        ...(turn.input === undefined
+          ? {}
+          : {
+              input: {
+                text: turn.input.text,
+                ...(turn.input.attachments === undefined
+                  ? {}
+                  : { attachments: turn.input.attachments }),
+              },
+            }),
         ...(turn.output === undefined ? {} : { output: { text: turn.output.text } }),
       }));
 

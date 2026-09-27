@@ -185,7 +185,7 @@ export class OpenAICompatibleProvider implements Provider {
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResult> {
-    const prompt = splitForSdk(request.messages, this.capabilities);
+    const prompt = splitForSdk(request.messages, this.capabilities, request.images);
     try {
       const result = await generateText({
         model: this.#model(request.modelId),
@@ -234,7 +234,7 @@ export class OpenAICompatibleProvider implements Provider {
   async *stream(
     request: GenerationRequest,
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
-    const prompt = splitForSdk(request.messages, this.capabilities);
+    const prompt = splitForSdk(request.messages, this.capabilities, request.images);
     // Captured rather than thrown, because the SDK calls this instead of
     // failing the iterator — see the throw below the loop.
     let failure: unknown;
@@ -330,9 +330,48 @@ export class OpenAICompatibleProvider implements Provider {
   }
 }
 
-interface SdkMessage {
-  role: 'user' | 'assistant';
-  content: string;
+/**
+ * What the SDK takes as one message's content: a string, or — for a user
+ * message carrying a picture ([25 E15]) — its parts in order.
+ */
+type SdkPart =
+  { type: 'text'; text: string } | { type: 'image'; image: Uint8Array; mediaType: string };
+
+/** Only a user message can carry a picture — an assistant's is always a string. */
+type SdkMessage =
+  { role: 'user'; content: string | SdkPart[] } | { role: 'assistant'; content: string };
+
+/**
+ * A rendered message's content for the SDK.
+ *
+ * ***A string unless the message carries a picture***, and that is not a
+ * nicety: some text-only endpoints reject array content outright, so a message
+ * built as parts when it did not need to be would break a model that has never
+ * seen a picture. Only a message whose `parts` name a picture the caller loaded
+ * becomes an array.
+ *
+ * *The bytes, not a URL.* The SDK writes them as a `data:` URL on the wire, and
+ * a StoryEngine URL would be worse than useless — a local endpoint cannot reach
+ * this server, and a hosted one could not sign in to it.
+ */
+function contentFor(
+  message: RenderedMessage,
+  images: GenerationRequest['images'],
+): string | SdkPart[] {
+  const parts = message.parts;
+  if (parts === undefined || images === undefined || message.role !== 'user') {
+    return message.content;
+  }
+  const built: SdkPart[] = [];
+  for (const part of parts) {
+    if (part.kind === 'text') {
+      built.push({ type: 'text', text: part.text });
+      continue;
+    }
+    const held = images.get(part.digest);
+    if (held !== undefined) built.push({ type: 'image', image: held.bytes, mediaType: held.mime });
+  }
+  return built.some((part) => part.type === 'image') ? built : message.content;
 }
 
 /**
@@ -374,6 +413,7 @@ interface SdkMessage {
 function splitForSdk(
   messages: RenderedMessage[],
   capabilities: Pick<ProviderCapabilities, 'systemMessage' | 'mergeSameRole'>,
+  images?: GenerationRequest['images'],
 ): { instructions: string | undefined; messages: SdkMessage[] } {
   let start = 0;
   while (messages[start]?.role === 'system') start += 1;
@@ -387,9 +427,8 @@ function splitForSdk(
 
   for (const message of messages.slice(start)) {
     if (message.role !== 'system') {
-      const role = message.role;
-      if (carried !== null && role === 'user') {
-        conversation.push({ role, content: `${carried}\n\n${message.content}` });
+      if (carried !== null && message.role === 'user') {
+        conversation.push({ role: 'user', content: before(carried, contentFor(message, images)) });
         carried = null;
         continue;
       }
@@ -397,7 +436,11 @@ function splitForSdk(
         conversation.push({ role: 'user', content: carried });
         carried = null;
       }
-      conversation.push({ role, content: message.content });
+      conversation.push(
+        message.role === 'user'
+          ? { role: 'user', content: contentFor(message, images) }
+          : { role: 'assistant', content: message.content },
+      );
       continue;
     }
 
@@ -405,9 +448,9 @@ function splitForSdk(
       conversation.push({ role: 'user', content: carried });
       carried = null;
     }
-    const before = conversation.at(-1);
-    if (merge && before?.role === 'user') {
-      before.content = `${before.content}\n\n${message.content}`;
+    const previous = conversation.at(-1);
+    if (merge && previous?.role === 'user') {
+      previous.content = after(previous.content, message.content);
     } else if (merge) {
       carried = message.content;
     } else {
@@ -433,9 +476,31 @@ function splitForSdk(
   const folded = [...conversation];
   folded[firstUser] = {
     role: 'user',
-    content: `${instructions}\n\n${folded[firstUser]?.content ?? ''}`,
+    content: before(instructions, folded[firstUser]?.content ?? ''),
   };
   return { instructions: undefined, messages: folded };
+}
+
+/**
+ * System text put in front of a user message, whichever shape it has.
+ *
+ * ***A message carrying a picture is joined by a text part, never by
+ * concatenation*** — [25 E15]. Its parts are the order the picture was placed
+ * in, and a string join would have nowhere to put it; so the text becomes a
+ * part of its own at the front, and a message without a picture stays the
+ * string it always was.
+ */
+function before(text: string, content: string | SdkPart[]): string | SdkPart[] {
+  return typeof content === 'string'
+    ? `${text}\n\n${content}`
+    : [{ type: 'text', text: `${text}\n\n` }, ...content];
+}
+
+/** System text put after a user message — {@link before}'s other side. */
+function after(content: string | SdkPart[], text: string): string | SdkPart[] {
+  return typeof content === 'string'
+    ? `${content}\n\n${text}`
+    : [...content, { type: 'text', text: `\n\n${text}` }];
 }
 
 /**

@@ -57,7 +57,7 @@ afterEach(() => {
 /** Queues a try and returns it as the store now holds it. */
 function queueATry(now: number): RenditionJob {
   enqueueRendition(db, REQUEST, now);
-  const held = jobForRendition(db, RENDITION);
+  const held = jobForRendition(db, SESSION, RENDITION);
   if (held === null) throw new Error('enqueue stored nothing');
   return held;
 }
@@ -180,5 +180,39 @@ describe('one live job per rendition', () => {
         )
         .run(SESSION, RENDITION),
     ).toThrow(/UNIQUE/);
+  });
+});
+
+/**
+ * ***A rendition is its session plus its id*** — `STEPS[7]`, 2026-09-27.
+ *
+ * Rendition ids are `<turnId>.<n>`, and session import keeps turn ids, so two
+ * sessions on one install can hold records with the same ids — the copies
+ * earlier imports made, or a session imported back after it was deleted, while
+ * its job rows stayed. The falsifying mutation is keying the job by the id
+ * alone: one session's Try again would then be handed the other's live job, and
+ * the worker — which reads the record at the job's own session — would redraw
+ * the other while this one waited.
+ */
+describe('the same rendition id in two sessions', () => {
+  const COPY: EnqueueRequest = { ...REQUEST, sessionId: 'session-copy' };
+
+  it('queues a job of its own while the other session’s is still live', () => {
+    const original = enqueueRendition(db, REQUEST, 1);
+    const copy = enqueueRendition(db, COPY, 2);
+
+    expect(copy.created).toBe(true);
+    expect(copy.job.id).not.toBe(original.job.id);
+    expect(jobForRendition(db, 'session-copy', RENDITION)?.id).toBe(copy.job.id);
+    expect(jobForRendition(db, SESSION, RENDITION)?.id).toBe(original.job.id);
+  });
+
+  /** *The copy's first try is its first*, not the next after the original's. */
+  it('counts each session’s tries separately', () => {
+    const original = enqueueRendition(db, REQUEST, 1);
+    setRenditionJobStatus(db, original.job.id, 'done', null, 2);
+    enqueueRendition(db, REQUEST, 3);
+
+    expect(enqueueRendition(db, COPY, 4).job.attempt).toBe(1);
   });
 });

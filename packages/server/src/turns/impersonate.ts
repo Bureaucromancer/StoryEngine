@@ -11,6 +11,7 @@ import { retrieve } from '../retrieval/retrieve.js';
 import { Rng } from '../rng/rng.js';
 import type { SessionContext } from '../sessions/store.js';
 import { readParty } from '../sessions/cast.js';
+import { fromModelCall, recordUsage } from '../usage/log.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved, WindowTooSmall } from './calls.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { previewStepFor } from './preview.js';
@@ -40,11 +41,17 @@ import { previewStepFor } from './preview.js';
  * one §3.1 argues for rather than merely states — *takes authorship away* is the
  * sentence the whole feature is measured against. So **nothing is committed**:
  * this assembles and dispatches and hands the words back, and the second
- * bullet's two promises are kept the two ways that remain available. *Recorded*
- * is the job log, which carries the call the way it carries every other model
- * call this build makes. *Re-rollable without ceremony* is pressing the button
- * again — which is the literal reading, costs nothing, and is what a person
- * dissatisfied with a draft actually does.
+ * bullet's two promises are kept the two ways that remain available.
+ * ~~*Recorded* is the job log, which carries the call the way it carries every
+ * other model call this build makes.~~ **Corrected 2026-09-27: there was no job
+ * log** — no job, no logger in this context, and `performCall` writes nothing
+ * — so the call was recorded nowhere. *Recorded* is now the account's usage
+ * log (`usage/log.ts`, [10 §11.4](../../../../docs/design/10-ui-surfaces.md)):
+ * what the call spent, on which model, for which session. Not the prompt — that
+ * would be the workbench's block table, which is the alternative below.
+ * *Re-rollable without ceremony* is pressing the button again — which is the
+ * literal reading, costs nothing, and is what a person dissatisfied with a
+ * draft actually does.
  *
  * *The alternative, recorded so it can be re-argued rather than rediscovered*: a
  * turn committed off the path, which would put the draft in the workbench with
@@ -273,6 +280,11 @@ export async function impersonate(
        */
       {},
       [...collected.candidates, impersonationInstruction(speaker.actor.name)],
+    );
+    await recordUsage(
+      context.sessions.layout,
+      request.account,
+      fromModelCall(outcome.call, 'impersonate', { sessionId: request.sessionId }),
     );
     return { ok: true, text: outcome.text };
   } catch (error) {

@@ -209,7 +209,7 @@ export async function importSession(
   const renditions = await importRenditions(
     context,
     handle,
-    id,
+    { id, was },
     read,
     new Set(turnIdsOf(turns)),
     options,
@@ -239,11 +239,14 @@ function turnIdsOf(turns: readonly Turn[]): string[] {
  *   retry, which is `SessionExport.renditions`' own promise for an export.
  * - **A record of a turn that did not come across is left out**, because
  *   nothing could show it.
+ * - **Marked foreign once**, as a turn is: `Rendition.foreign` names the
+ *   session and the id it had where it was made, and a record that already
+ *   carries one keeps it, for `foreignise`'s reason.
  */
 async function importRenditions(
   context: ImportContext,
   handle: string,
-  sessionId: string,
+  session: { id: string; was: string },
   read: SessionExport,
   turnIds: ReadonlySet<string>,
   options: SessionImportOptions,
@@ -252,12 +255,17 @@ async function importRenditions(
   if (!Array.isArray(listed)) return 0;
 
   const { layout } = context.sessions;
+  const sessionId = session.id;
   let written = 0;
   for (const candidate of listed) {
     const record = renditionFrom(candidate);
     if (record === null || !turnIds.has(record.turnId)) continue;
 
-    let rendition: Rendition = { ...record, sessionId };
+    let rendition: Rendition = {
+      ...record,
+      sessionId,
+      foreign: record.foreign ?? { source: session.was, id: record.id },
+    };
     if (rendition.state === 'pending') {
       rendition = { ...rendition, state: 'failed', asset: null, error: 'interrupted' };
     }
@@ -295,6 +303,13 @@ async function carryPixels(
   const path = asset['path'];
   const mime = asset['mime'];
   if (typeof path !== 'string' || typeof mime !== 'string') return null;
+  /**
+   * ***The type is one the worker writes***, because the asset route serves the
+   * record's `mime` as the response's content type: without this, a record in
+   * an archive saying `text/html` over bytes that are a page would be served as
+   * one, from this server's origin.
+   */
+  if (!IMAGE_TYPES.has(mime)) return null;
 
   const root = sessionAssetsRoot(layout, handle, sessionId);
   let to: string;
@@ -325,6 +340,13 @@ async function carryPixels(
     digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
   };
 }
+
+/**
+ * The types an imported picture may keep its pixels under — PNG, JPEG and WebP,
+ * the three every other picture this server stores is held to. Anything else
+ * arrives as a picture that can be made again, which costs a regeneration.
+ */
+const IMAGE_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 /** What wrote the file, if it said — the same unknown-first reading as above. */
 function exportedBy(read: SessionExport): string | null {

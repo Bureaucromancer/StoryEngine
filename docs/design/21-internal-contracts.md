@@ -51,8 +51,11 @@ type BlockSource =
   | { kind: "actor"; actorId: ActorId; contentHash: string; sectionId?: string; field?: "traits" | "visual" }
   | { kind: "lore"; entryId: string; phase: "before" | "after" }
   /** turnId is the identity (P3.0); the window-relative range stays as display
-   *  information — where in this prompt the turn sat. */
-  | { kind: "history"; turnId: TurnId; range: [number, number] }
+   *  information — where in this prompt the turn sat. `part` is which half of
+   *  the turn, and `attachment` (2026-09-27, [25 E15]) is one picture on its
+   *  input, named by `attachmentId`. */
+  | { kind: "history"; turnId: TurnId; range: [number, number];
+      part: "input" | "output" | "attachment"; attachmentId?: string }
   /** One writing sample, from whichever kind carried it — [04 §3.1],
    *  [14](14-writing-samples.md). `owner` rather than a bare `actorId` because
    *  the slot outgrew the actor; `contentHash` for the reason the `actor` arm
@@ -72,8 +75,9 @@ type BlockSource =
    *  nothing, the claim `persona`'s nulls make. */
   | { kind: "attempt"; turnId: TurnId | null }
   /** What the player just did. Not `history`: history is turns that happened,
-   *  and this is the one that is happening. */
-  | { kind: "input" }
+   *  and this is the one that is happening. With `part: "attachment"`, one
+   *  picture on it ([25 E15]); absent is the words. */
+  | { kind: "input"; part?: "attachment"; attachmentId?: string }
   // ── The two a slot can never name, because no preset positions them ──
   | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
@@ -102,6 +106,15 @@ to say which attempt the instruction was about, and a producer field cannot
 name a turn. The same route as guidance in every other respect — the runner
 collects it, no step is handed it, and the firewall refuses it from anything
 that is not prose.
+
+**A picture is a `part`, not a source — added 2026-09-27, with R1 of
+[25 E15](25-open-questions.md).** A picture on a player's move is emitted as its
+own block from inside the `input` and `history` expansions, because a
+top-level arm would, by the derivation above, be a slot any preset could
+position — and a picture belongs where its turn is, not wherever a preset puts
+it. Its own block rather than more text in the move's block because the
+budgeter, the block table and the send rule all need to name it separately: it
+is the unit that goes as pixels or as words.
 
 The identifiers (`actorId`, `entryId`, `stepId`) are what make a block's
 provenance clickable in the workbench — *which* lore entry, not just "a lore
@@ -389,6 +402,34 @@ wanted.** Steps name roles, so nothing in the pipeline knows the model — which
 means without this the record cannot answer *what actually ran*, and that is the
 first question anyone asks about a turn that came out wrong.
 
+**A call that makes no turn keeps the same three measured fields, elsewhere**
+(2026-09-27). A field assist, an impersonation and the moment call behind
+**Illustrate** each reach a model without a turn to carry a `ModelCall`, and
+until this date each dropped the provider's figures —
+[10 §11.4](10-ui-surfaces.md)'s *"must be recorded even though nothing displays
+it"* unkept. They now append one line each to `users/<handle>/usage.jsonl`:
+
+```ts
+interface UsageRecord {
+  schema: "storyengine.usage/1"
+  at: string                                       // when the call returned
+  purpose: string                                  // "impersonate", "assist:<field path>", "illustrate" — open
+  role: ModelRole
+  resolved: { connectionId: string; modelId: string }  // the model that answered, as above
+  usage: { promptTokens: number; completionTokens: number } | null
+  cost: { amount: number; currency: string } | null
+  wallMs: number
+  sessionId?: string                               // when the call was made from one
+  subject?: string                                 // the library kind an assist wrote for
+}
+```
+
+`usage` and `cost` follow this section's rule exactly: copied from the provider,
+never estimated, and null when it said nothing. A file in the account's
+directory rather than the index or `state.sqlite`, by §5.1's test — it is not
+derived, and an account archive carries files but holds none of the install's
+state.
+
 ### 1.5 `BudgetVerdict`
 
 ```ts
@@ -507,8 +548,24 @@ interface RenderedMessage {
   content: string
   /** Which blocks produced this message, in order. Non-empty always. */
   fromBlocks: string[]
+  /** Only on a message carrying a picture whose pixels are sent — 2026-09-27,
+   *  [25 E15]. The text parts, joined, are exactly `content`. */
+  parts?: ({ kind: "text"; text: string }
+         | { kind: "image"; blockId: string; digest: string; mime: string })[]
 }
 ```
+
+***`content` stays the whole text rendering, and `parts` rides beside it*** —
+the restraint [25 E15](25-open-questions.md) asked of 1.0, kept when R1 landed
+on 2026-09-27. Every reader of this record that predates pictures reads
+`content` and still reads everything the model was told in words, the picture's
+caption included; `parts` only says *where among those words a picture went*.
+**It names the picture by digest and never carries it**: the bytes are loaded
+from the session's store for the wire and never persisted, so a call record
+with a picture in it is the size of one without. The adapter sends array
+content only for a message that carries an admitted picture, and a string
+otherwise — some text-only endpoints reject an array outright, and a
+picture-less message has no reason to risk it.
 
 **`fromBlocks` is the requirement that merging must not break.** The workbench
 maps every sent byte back to the block that produced it
@@ -579,6 +636,18 @@ limit that runs from one to sixteen depending on the backend.
 Defaults ship per known provider and are overridable **per connection**, because
 a limit is a property of that endpoint and connections are private production
 config ([00 §3.2](00-stance.md)).
+
+***Seeing pictures is not here, and it is the first capability that could not
+be*** — 2026-09-27, [25 E15](25-open-questions.md) R1. Everything in this
+record is a property of the endpoint, and whether a model can read an image is
+a property of the *model*: one Ollama URL, or one OpenRouter key, serves a
+vision model and a text one. A connection-wide flag would send pixels to the
+text model the first time a binding or an actor hint resolved to it, on every
+redo of that turn. So a connection carries **`imageModels`**, beside `models`
+and a subset of it, empty by default — and outside `capabilities`, because the
+connection editor keeps stored capability overrides across model edits, which
+would leave the list naming models that are gone. It departs from this
+section's premise, and says so here where the premise is.
 
 ---
 
@@ -1044,8 +1113,27 @@ interface Rendition {
   ordering: number
   /** The anchor did not occur in the message. Absent means it did. */
   anchorResolved?: false
+  /** Where this record came from, when an import brought it. Turn.foreign's shape. */
+  foreign?: { source: string; id: string }
 }
 ```
+
+**`foreign` is the one field added after the freeze**, and it is an addition
+rather than a migration for [P11.10](workplan/28-p11-implementation.md)'s
+reason — *a promise not to tighten*. It arrived 2026-09-27, when session import
+started writing the rendition records an export carries instead of counting
+them and dropping them. §7.1's *"the recipe travels and the pixels do not"* was
+always a rule about the file; the recipe was never meant to stop at the
+importer. An imported record keeps its id (a rendition id is its turn's, and turn
+ids are kept), takes the new session as its `sessionId`, arrives with
+`asset: null` — or, from a backup archive, with the bytes the archive holds for
+it, as a bare file name in the session's `assets/`, under an image type, and
+described by their own digest — and a `pending` one arrives `failed` with
+`error: "interrupted"`, since no job anywhere will finish it. Because the same
+id can exist in two sessions of one install — copies imports made before a
+session already here was refused, or a session deleted and imported back while
+its job rows stayed — the rendition job table is keyed by session and id
+together (`STEPS[7]`).
 
 **Three fields of [06 §10.1]'s sketch are typed differently here, and each is a
 correction rather than a preference.**

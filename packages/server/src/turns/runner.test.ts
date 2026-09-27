@@ -2263,6 +2263,90 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     expect(turn.cost?.promptTokens).toBeNull();
   });
 
+  /**
+   * ***Money follows the tokens' rule*** — the field added 2026-09-27. Null is
+   * *not priced*, which is what every real adapter produces today; a figure
+   * appears only when every call's provider gave one, in one currency.
+   */
+  it('says the turn was not priced when the provider priced nothing', async () => {
+    const { turn } = await runTurn();
+    expect(turn.cost?.money).toBeNull();
+  });
+
+  it('adds up what every call was priced at, in one currency', async () => {
+    makeRunner({
+      script: [
+        { text: 'first', cost: { amount: 0.002, currency: 'USD' } },
+        { text: 'second', cost: { amount: 0.001, currency: 'USD' } },
+      ],
+      plan: {
+        steps: [
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.cost?.money?.currency).toBe('USD');
+    expect(turn.cost?.money?.amount).toBeCloseTo(0.003, 10);
+  });
+
+  /**
+   * ***No exchange rate, and no partial sum.*** Dollars on one connection and a
+   * provider's credits on another have no total this build can write without
+   * estimating one, and a total missing a term is wrong rather than smaller —
+   * the token rule's own argument, one test up.
+   */
+  it('gives no total across two currencies', async () => {
+    makeRunner({
+      script: [
+        { text: 'first', cost: { amount: 0.002, currency: 'USD' } },
+        { text: 'second', cost: { amount: 3, currency: 'credits' } },
+      ],
+      plan: {
+        steps: [
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    expect((await runTurn()).turn.cost?.money).toBeNull();
+  });
+
+  it('gives no total when one call went unpriced', async () => {
+    makeRunner({
+      script: [{ text: 'first', cost: { amount: 0.002, currency: 'USD' } }, { text: 'second' }],
+      plan: {
+        steps: [
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    expect((await runTurn()).turn.cost?.money).toBeNull();
+  });
+
   it('keeps every draw on the tape, keyed by site', async () => {
     // **The clause that was structurally vacuous**: `tape` was asserted as an
     // array while nothing in a P2 turn draws, so an empty array satisfied it

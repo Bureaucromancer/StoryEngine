@@ -71,9 +71,10 @@ export const BACKUP_IMPORT_LIMITS: ZipLimits = {
  * `backup.json`, the install's `config.json` when settings were asked for,
  * and under `users/<handle>/`: each library object's file and its `assets/`,
  * the tags, the prefs, the connections, and each session's file, turns,
- * rendition records and pictures. **Not** another account, `state/`, an
- * object's `history/` or a session's snapshots: nothing reads them, so
- * nothing should be held or counted for them.
+ * rendition records and pictures — the renditions' `assets/` and, since
+ * 2026-09-27, the `attachments/` a player put on their moves ([25 E15]).
+ * **Not** another account, `state/`, an object's `history/` or a session's
+ * snapshots: nothing reads them, so nothing should be held or counted for them.
  */
 export function importedBy(
   handle: string,
@@ -99,7 +100,11 @@ export function importedBy(
         const [, part, ...more] = under;
         if (part === 'session.json') return more.length === 0;
         return (
-          (part === 'turns' || part === 'renditions' || part === 'assets') && more.length === 1
+          (part === 'turns' ||
+            part === 'renditions' ||
+            part === 'assets' ||
+            part === 'attachments') &&
+          more.length === 1
         );
       }
       default:

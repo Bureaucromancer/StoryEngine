@@ -13,7 +13,7 @@ import type {
 import type { CallPurpose } from '../assembly/types.js';
 import { keyBelongsTo } from '../sessions/channels.js';
 import { storyTurns } from '../sessions/depth.js';
-import type { ChannelState, StepSkipReason, Turn } from '../sessions/types.js';
+import type { ChannelState, StepSkipReason, Turn, TurnAttachment } from '../sessions/types.js';
 
 /**
  * Steps, and the boundary they run behind —
@@ -141,7 +141,13 @@ export function filterReads(
     turnId: string;
     sessionId: string;
     parentTurnId: string | null;
-    input?: { actorId: string | null; kind: string; text: string; raw: string };
+    input?: {
+      actorId: string | null;
+      kind: string;
+      text: string;
+      raw: string;
+      attachments?: TurnAttachment[];
+    };
     speakers?: readonly string[];
     setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
@@ -250,7 +256,23 @@ export function transcriptOf(path: readonly Turn[]): TranscriptTurn[] {
     turnId: turn.id,
     ...(turn.input === undefined
       ? {}
-      : { input: { actorId: turn.input.actorId, kind: turn.input.kind, text: turn.input.text } }),
+      : {
+          input: {
+            actorId: turn.input.actorId,
+            kind: turn.input.kind,
+            text: turn.input.text,
+            // Kind and caption only — a transcript is *what was said*, and the
+            // bytes and their address are not ([25 E15]).
+            ...(turn.input.attachments === undefined || turn.input.attachments.length === 0
+              ? {}
+              : {
+                  attachments: turn.input.attachments.map((attachment) => ({
+                    kind: attachment.kind,
+                    ...(attachment.caption === undefined ? {} : { caption: attachment.caption }),
+                  })),
+                }),
+          },
+        }),
     ...(turn.output === undefined ? {} : { output: { text: turn.output.text } }),
   }));
 }

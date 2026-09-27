@@ -133,6 +133,65 @@ describe('the operational store upgrades without losing anything', () => {
     db.close();
   });
 
+  /**
+   * ***The step that narrows a rendition job's uniqueness to its session***,
+   * written at the version it leaves from — the rule the import-item test above
+   * learned the hard way, because only a store at that version can hold a job
+   * row for the step to carry.
+   *
+   * Two claims: the row an older build wrote survives, and a second session may
+   * now hold a job for a record with the same id — which is what an imported
+   * copy of a session on the install that exported it is.
+   */
+  it('keeps rendition jobs and lets two sessions share a rendition id', () => {
+    const db = storeAtVersion(6);
+    const insert = db.prepare(
+      `insert into rendition_job (id, session_id, account, rendition_id, turn_id, purpose,
+                                  status, attempt, created_at, updated_at)
+       values (?, ?, 'ned', 'turn-1.0', 'turn-1', 'illustration', 'done', 1, 1, 1)`,
+    );
+    insert.run('job-1', 'session-original');
+
+    expect(migrateState(db)).toEqual({ from: 6, to: STATE_SCHEMA_VERSION });
+
+    const kept = db.prepare(`select id from rendition_job`).all() as { id: string }[];
+    expect(kept).toEqual([{ id: 'job-1' }]);
+
+    insert.run('job-2', 'session-copy');
+    expect(() => {
+      insert.run('job-3', 'session-copy');
+    }).toThrow(/UNIQUE/);
+
+    db.close();
+  });
+
+  /**
+   * ***One live job per record, and as many finished ones as there were tries***
+   * — the step that made a retry a new row. Written at the version it leaves
+   * from, with a finished job in it, because the row an older build wrote is
+   * the one a person's retry has to be allowed to follow.
+   */
+  it('lets a finished rendition job be followed by a retry, but not a live one', () => {
+    const db = storeAtVersion(7);
+    const insert = db.prepare(
+      `insert into rendition_job (id, session_id, account, rendition_id, turn_id, purpose,
+                                  status, attempt, created_at, updated_at, finished_at)
+       values (?, 'session-1', 'ned', 'turn-1.0', 'turn-1', 'illustration', ?, ?, 1, 1, ?)`,
+    );
+    insert.run('job-1', 'done', 1, 1);
+
+    expect(migrateState(db)).toEqual({ from: 7, to: STATE_SCHEMA_VERSION });
+
+    insert.run('job-2', 'queued', 2, null);
+    expect(() => {
+      insert.run('job-3', 'queued', 3, null);
+    }).toThrow(/UNIQUE/);
+    const kept = db.prepare(`select id from rendition_job order by id`).all() as { id: string }[];
+    expect(kept.map((row) => row.id)).toEqual(['job-1', 'job-2']);
+
+    db.close();
+  });
+
   it('is a no-op on a store already at the current version', () => {
     const db = storeAtVersion(STATE_SCHEMA_VERSION);
 

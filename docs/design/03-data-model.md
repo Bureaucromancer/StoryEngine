@@ -846,6 +846,8 @@ disposable index**.
         packages/   <slug>/...             (see §7)
       trash/                  # deleted objects awaiting the retention window §10.2
       backup.json             # this account's backup schedule. [P12.4]
+      usage.jsonl             # what model calls that make no turn spent. Append-only. [10 §11.4]
+      task-roles.json         # which role field assist asks for — a stopgap for [25 C15]
       backups/                # their own archives. Never inside another archive.
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
@@ -855,6 +857,7 @@ disposable index**.
         summaries/             # derived, content-addressed. [07 §5.1], P8.0
         renditions/            # one file per rendition — the recipe. §5.5, P9.0
         assets/                # the pixels, and the one disposable directory
+        attachments/           # pictures a player attached. Not disposable. §5.5, [25 E15]
   backups/              # the install's archives — [25 E6], [P12.2]
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
@@ -1194,6 +1197,7 @@ sessions/<id>/
   turns/000001.jsonl … 000014.jsonl     # append-only, never rewritten
   renditions/<rendition-id>.json        # the recipe: prompt, seed, parameters
   assets/<rendition-id>.png             # the pixels
+  attachments/<sha256-hex>.<ext>        # pictures a player attached — 2026-09-27
 ```
 
 ***Two directories rather than one, and the split is the whole of §10.7's
@@ -1240,6 +1244,29 @@ backwards:
   thousand turns. Generated media is a different order of magnitude and a
   different policy: the records are kept because they are small and
   irreplaceable, and the pixels are evictable because they are neither.
+
+***`attachments/` is the third directory, and exists because `assets/` is
+disposable*** — added 2026-09-27 with R1 of
+[25 E15](25-open-questions.md), pictures on a player's move. Everything in
+`assets/` has a recipe that makes it again; a picture somebody uploaded has
+none, so in `assets/` the first eviction policy anyone wrote would delete the
+only copy of something a person made. The two directories differ on exactly the
+axis the paragraph above draws:
+
+- **Content-addressed**, `<sha256 hex>.<ext>` with the extension read from the
+  bytes' own signature: a picture attached twice, or carried across by a redo,
+  is one file and two references.
+- **Written atomically**, the library's posture rather than the renditions',
+  because a torn upload cannot be made again.
+- **Swept, never evicted.** A file goes only when no turn in the session names
+  it — every turn in every segment, siblings and tombstones included — *and* it
+  is a day old, which is the composer's grace: an upload waits in the composer,
+  unnamed, while the session goes on committing. Walking the head path would be
+  the obvious reachability function and would delete a swipe's pictures.
+- **The turn names it; the turn is not changed by it.** The record is
+  `input.attachments` (§8), and the pixels are never copied into it.
+
+*A module function rather than a `Layout` method*, as the other two are.
 
 #### File order is creation order. Reading order is a tree walk.
 
@@ -1513,7 +1540,14 @@ interface Turn {
   sessionId: SessionId
   parentTurnId: TurnId | null    // the tree edge. Siblings are swipes/branches.
   createdAt: string
-  input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string }
+  input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string
+           /** Pictures on the move — 2026-09-27, [25 E15] R1. Each has an id,
+            *  an open `kind`, the digest, type and size the server read from its
+            *  own store (optional, so a record whose bytes never arrived can
+            *  still say a picture was there), and the player's caption. An
+            *  annotation: `text` stays the player's words, never an `[image]`
+            *  marker. */
+           attachments?: { id; kind; digest?; mime?; bytes?; caption? }[] }
 
   /** One entry per model call, each carrying its own `blocks` and `budget`
    *  (P3.0) — "one per model call" made shape rather than promise. Blocks are
@@ -1548,7 +1582,7 @@ interface Turn {
    *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1]
    *  ~~`mentions: MentionSpan[]`~~ — renamed 2026-09-11, see below. */
   spans: TextSpan[]
-  cost: { promptTokens, completionTokens, wallMs, model }
+  cost: { promptTokens, completionTokens, wallMs, model, money? }  // money: 2026-09-27, [25 E16]
 }
 
 interface TextSpan {
@@ -1626,6 +1660,13 @@ interface AssembledBlock {
    *  what makes [testing §1]'s invariant — no advisory block in an
    *  effect-producing call — expressible over a committed record. */
   advisory?: true
+  /** A picture on a player's move, and whether its pixels went — 2026-09-27,
+   *  [25 E15] R1. Decided per call: `{ attachmentId, digest, mime, sent,
+   *  withheld? }`, where `withheld` says why the block's text went instead —
+   *  `model-text-only`, `outside-window`, `missing-bytes`, `not-user-role`,
+   *  `unknown-kind`. A disclosure rather than a not-filled slot, because the
+   *  picture *did* emit something: its words, which are `text`. */
+  image?: BlockImage
 }
 ```
 

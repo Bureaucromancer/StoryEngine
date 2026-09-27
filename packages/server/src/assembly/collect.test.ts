@@ -2191,3 +2191,99 @@ describe('a wrapper names who its block is about', () => {
     ]);
   });
 });
+
+/**
+ * ***Pictures on a move*** — [25 E15], R1. Four claims the collector alone
+ * decides, each written to fail when its line is removed:
+ *
+ * - a picture on the move being made is **required**, as the move's words are —
+ *   a budget that could drop it would drop the part of the move being shown;
+ * - it is wrapped as its slot wraps everything, both ways it can go;
+ * - in history it follows its turn's words and precedes the reply, and is
+ *   **never current**, so R1 never sends an old picture as pixels;
+ * - a move that was only a picture still has its picture in history, where an
+ *   empty half would otherwise have been dropped with nothing in its place.
+ */
+describe('pictures on a move', () => {
+  const PICTURE = {
+    id: '0',
+    kind: 'image',
+    digest: `sha256:${'c'.repeat(64)}`,
+    mime: 'image/png',
+    caption: 'a lantern',
+  };
+
+  it('makes the move’s picture a required candidate, wrapped both ways', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.input',
+            role: 'user',
+            source: { of: 'input' },
+            wrapper: 'You: {{content}}',
+          }),
+        ]),
+        input: { text: 'Look.', attachments: [PICTURE] },
+      }),
+    );
+
+    const picture = candidates.find((one) => one.image !== undefined);
+    expect(picture?.id).toBe('se.input.attachment.0');
+    expect(picture?.required).toBe(true);
+    expect(picture?.text).toBe('You: [Picture — not shown: a lantern]');
+    expect(picture?.image).toMatchObject({
+      current: true,
+      digest: PICTURE.digest,
+      sentText: 'You: [Picture: a lantern]',
+    });
+    expect(picture?.source).toEqual({ kind: 'input', part: 'attachment', attachmentId: '0' });
+  });
+
+  it('places an old picture after its words and before the reply, never as current', () => {
+    const turn = {
+      id: 'turn-1',
+      input: { actorId: null, kind: 'do', text: 'Look.', raw: 'Look.', attachments: [PICTURE] },
+      output: { text: 'A lantern, lit.' },
+    } as Turn;
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', id: 'se.history', source: { of: 'history' } })]),
+        history: [turn],
+      }),
+    );
+
+    expect(candidates.map((one) => one.id)).toEqual([
+      'se.history.turn-1.input',
+      'se.history.turn-1.attachment.0',
+      'se.history.turn-1.output',
+    ]);
+    expect(candidates[1]?.image?.current).toBe(false);
+    expect(candidates[1]?.required).toBeUndefined();
+  });
+
+  it('keeps a move that was only a picture', () => {
+    const turn = {
+      id: 'turn-1',
+      input: {
+        actorId: null,
+        kind: 'do',
+        text: '',
+        raw: '',
+        attachments: [{ id: '0', kind: 'image' }],
+      },
+      output: { text: 'Hm.' },
+    } as Turn;
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', id: 'se.history', source: { of: 'history' } })]),
+        history: [turn],
+      }),
+    );
+
+    const picture = candidates.find((one) => one.image !== undefined);
+    expect(picture?.text).toBe('[Picture — not shown, and not described]');
+    expect(picture?.image?.digest).toBeNull();
+  });
+});

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -170,6 +170,120 @@ describe('writing one field', () => {
     });
     expect(response.status).toBe(422);
     expect(response.body.error).toBe('no-answer');
+  });
+
+  /**
+   * ***What it spent is recorded, whether or not anyone keeps the answer*** —
+   * [10 §11.4]'s *"They cost money, and must be recorded even though nothing
+   * displays it at 1.0."* The figures are the provider's, copied; the model is
+   * the one that answered.
+   */
+  it('records what the call spent in the account’s usage log', async () => {
+    await bindProse();
+    provider.setScript([
+      { text: 'A wet quay.', usage: { promptTokens: 12, completionTokens: 34 } },
+    ]);
+    await server.request({ method: 'POST', url: '/api/library/assist', payload: BODY });
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      schema: 'storyengine.usage/1',
+      purpose: 'assist:profile.appearance',
+      role: 'prose',
+      resolved: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+      usage: { promptTokens: 12, completionTokens: 34 },
+      cost: null,
+      subject: 'actor',
+    });
+  });
+
+  /**
+   * ***A provider that reports nothing is recorded as having reported
+   * nothing*** — the capability gate's answer copied, never a zero standing in
+   * for an unknown. And an empty answer still cost what it cost.
+   */
+  it('records a null usage when the provider sends none, even for an empty answer', async () => {
+    await bindProse();
+    provider.setScript([{ text: '   ', reportsNoUsage: true }]);
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+    expect(response.body.error).toBe('no-answer');
+
+    const text = await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8');
+    const [line] = text.split('\n').filter((one) => one !== '');
+    expect(JSON.parse(line ?? '{}')).toMatchObject({ usage: null });
+  });
+
+  /**
+   * ***The role is the account's to choose, until [25 C15] chooses for
+   * everyone*** — `providers/task-roles.ts`. [10 §11.4] says assist wants
+   * `fast`; asking for it unconditionally would fail every install that never
+   * bound it, so the default stays `prose` and the person who has bound a quick
+   * model can point assist at it.
+   */
+  it('asks for the role the account chose for writing help', async () => {
+    await bindProse();
+    const root = new Layout(server.dataDir).userConnectionsRoot('ned');
+    await writeFile(
+      join(root, 'fake.json'),
+      JSON.stringify({
+        id: CONNECTION_ID,
+        label: 'The double',
+        provider: 'openai-compatible',
+        models: ['fake-hi', 'fake-lo'],
+        capabilities: { maxContextTokens: 32_000 },
+      }),
+    );
+    await writeFile(
+      join(server.dataDir, 'users', 'ned', 'bindings.json'),
+      JSON.stringify({
+        prose: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+        fast: { connectionId: CONNECTION_ID, modelId: 'fake-lo' },
+      }),
+    );
+
+    const before = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(before.body.tasks).toEqual({ assist: 'prose' });
+
+    const chosen = await server.request({
+      method: 'PUT',
+      url: '/api/me/task-roles',
+      payload: { assist: 'fast' },
+    });
+    expect(chosen.status).toBe(200);
+    expect(chosen.body.tasks).toEqual({ assist: 'fast' });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+    expect(response.status).toBe(200);
+    expect(response.body.model).toBe('fake-lo');
+    expect(provider.requests.at(-1)?.modelId).toBe('fake-lo');
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '');
+    expect(JSON.parse(lines.at(-1) ?? '{}')).toMatchObject({ role: 'fast' });
+  });
+
+  it('refuses a role that is not one assist can use', async () => {
+    const refused = await server.request({
+      method: 'PUT',
+      url: '/api/me/task-roles',
+      payload: { assist: 'image' },
+    });
+    expect(refused.status).toBe(400);
+    const roles = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(roles.body.tasks).toEqual({ assist: 'prose' });
   });
 
   /**

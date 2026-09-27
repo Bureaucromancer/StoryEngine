@@ -17,6 +17,7 @@ import type { BlockSource } from '@storyengine/shared';
  */
 export type {
   AssembledBlock,
+  BlockImage,
   BlockSource,
   BudgetLimit,
   BudgetVerdict,
@@ -46,4 +47,4 @@ export type SlotSource = Exclude<BlockSource, { kind: 'preset' } | { kind: 'step
  * workbench reads. The declaration has to travel, because a step author writes
  * against it.
  */
-export type { Candidate } from '@storyengine/sdk';
+export type { Candidate, CandidateImage } from '@storyengine/sdk';

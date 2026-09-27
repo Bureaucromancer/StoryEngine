@@ -12,6 +12,7 @@ import {
   SETUP_SCHEMA,
   uuidv7,
   type Setup,
+  type TurnAttachment,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
@@ -74,6 +75,15 @@ import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { exportSession } from '../sessions/export.js';
 import { importSession } from '../sessions/import.js';
+import {
+  attachmentsFor,
+  digestsOf,
+  isDigest,
+  readAttachment,
+  storeAttachment,
+  sweepAttachments,
+} from '../sessions/attachments.js';
+import { readOnePart } from './import.js';
 import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
@@ -112,6 +122,22 @@ const RenditionParams = Type.Object({
   sessionId: Type.String(),
   renditionId: Type.String(),
 });
+
+/** One picture in a session's attachment store, by its content address. */
+const AttachmentParams = Type.Object({
+  sessionId: Type.String(),
+  digest: Type.String(),
+});
+
+/**
+ * ***The ceiling on one attached picture*** — below `limits.maxUploadMb`, for
+ * the avatar's reason: the client scales a picture down before it sends it
+ * ([25 E15]), so anything past this is a photograph that skipped that step,
+ * and a model would be sent more than it can use. *Not a config key*: nobody
+ * tunes it, and [work plan §2.3]'s standing line is that not everything is a
+ * setting.
+ */
+const ATTACHMENT_CAP_BYTES = 8 * 1024 * 1024;
 
 /** Choosing among a turn's siblings — [P9.3]. */
 const TurnRenditionParams = Type.Object({
@@ -598,6 +624,25 @@ const RememberBody = Type.Object(
  * absent because a redo is submitted from a turn's controls rather than
  * composed: the gestures submit, they do not preview.
  */
+/**
+ * Pictures named on a move — [25 E15], R1. **Digests and captions only**: the
+ * type and size are read from this server's store, and a digest it does not
+ * hold is refused. Four at most, which is more than a move needs and few enough
+ * that a model that sees them is not asked to read a gallery.
+ */
+const AttachmentsField = Type.Optional(
+  Type.Array(
+    Type.Object(
+      {
+        digest: Type.String({ pattern: '^sha256:[0-9a-f]{64}$' }),
+        caption: Type.Optional(Type.String({ maxLength: 2000 })),
+      },
+      { additionalProperties: false },
+    ),
+    { maxItems: 4 },
+  ),
+);
+
 const PreviewBody = Type.Object(
   {
     input: Type.Optional(
@@ -606,6 +651,7 @@ const PreviewBody = Type.Object(
           text: Type.String({ maxLength: 100_000 }),
           actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
           kind: Type.Optional(Type.String({ maxLength: 40 })),
+          attachments: AttachmentsField,
         },
         { additionalProperties: false },
       ),
@@ -665,11 +711,22 @@ const SubmitBody = Type.Object(
      * handler.
      */
     redoOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-    input: Type.Object({
-      text: Type.String({ maxLength: 100_000 }),
-      actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-      kind: Type.Optional(Type.String({ maxLength: 40 })),
-    }),
+    /**
+     * ***Closed since 2026-09-27***, in the same change that gave it a field.
+     * It was open, so a newer client naming something this server did not know
+     * got a 200 and silently lost it — a picture sent to an older server would
+     * have vanished from the turn with nothing said. A closed object answers 400
+     * instead, which is the refusal a person can act on.
+     */
+    input: Type.Object(
+      {
+        text: Type.String({ maxLength: 100_000 }),
+        actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        kind: Type.Optional(Type.String({ maxLength: 40 })),
+        attachments: AttachmentsField,
+      },
+      { additionalProperties: false },
+    ),
     guidance: Type.Optional(Type.String({ maxLength: 4000 })),
   },
   { additionalProperties: false },
@@ -2070,6 +2127,100 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * and it is the only thing that can tell an evicted rendition (`asset: null`,
    * a **404** and a placeholder) from one that was never made.
    */
+  /**
+   * ***A picture for a move, uploaded before the move is sent*** — [25 E15], R1,
+   * and [10 §11.2b]'s two-step shape: the bytes first, then the turn names them
+   * by digest in its ordinary JSON body.
+   *
+   * **Refused unless it is a PNG, JPEG or WebP by its own signature**, and
+   * never re-encoded here — the client has already done that, to strip what a
+   * phone photo records about where it was taken, and the server keeps its
+   * position of having no raster encoder. What comes back is the content
+   * address and what the store read, which is what the composer shows and the
+   * submission names.
+   *
+   * *The sweep rides on the upload*, because this is the one moment a session's
+   * store grows: pictures nothing names and nobody has touched for a day go, so
+   * a composer that attached and abandoned does not leave them for good.
+   */
+  app.post(
+    '/sessions/:sessionId/attachments',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const part = await readOnePart(request, reply, services);
+      if (part === null) return;
+      if (part.bytes.byteLength > ATTACHMENT_CAP_BYTES) {
+        return reply.code(413).send({
+          error: 'too-large',
+          message: 'That picture is larger than 8 MB.',
+        });
+      }
+
+      const stored = await storeAttachment(
+        services.sessions.layout,
+        account.handle,
+        sessionId,
+        part.bytes,
+      );
+      if (stored === null) {
+        return reply
+          .code(415)
+          .send({ error: 'not-an-image', message: 'That is not a PNG, JPEG or WebP picture.' });
+      }
+
+      try {
+        const turns = await readTurns(services.sessions, account.handle, sessionId);
+        await sweepAttachments(
+          services.sessions.layout,
+          account.handle,
+          sessionId,
+          digestsOf(turns.values()),
+        );
+      } catch {
+        // A sweep that fails leaves a file for next time; it must not cost the
+        // upload somebody is waiting on.
+      }
+
+      return reply.code(201).send({ attachment: stored });
+    },
+  );
+
+  /**
+   * The picture's bytes — the rendition asset route's shape: the type the store
+   * read, the digest as the `etag`, and a `404` the client renders as a
+   * placeholder when the bytes are not here, which after an import from an
+   * export is the ordinary case rather than an error.
+   */
+  app.get(
+    '/sessions/:sessionId/attachments/:digest',
+    { schema: { params: AttachmentParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, digest } = request.params as { sessionId: string; digest: string };
+      const held = isDigest(digest)
+        ? await readAttachment(services.sessions.layout, account.handle, sessionId, digest)
+        : null;
+      if (held === null) {
+        return reply
+          .code(404)
+          .send({ error: 'no-picture', message: 'No picture under that digest.' });
+      }
+      return await reply
+        .header('content-type', held.mime)
+        .header('etag', digest)
+        .header('cache-control', 'private, max-age=31536000, immutable')
+        .send(Buffer.from(held.bytes));
+    },
+  );
+
   app.get(
     '/sessions/:sessionId/renditions/:renditionId/asset',
     { schema: { params: RenditionParams } },
@@ -2461,7 +2612,38 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const session = await readMine(services, request, reply);
       if (!session) return;
 
-      const body = request.body as { input?: { text: string }; guidance?: string };
+      const body = request.body as {
+        input?: {
+          text: string;
+          kind?: string;
+          attachments?: { digest: string; caption?: string }[];
+        };
+        guidance?: string;
+      };
+      /**
+       * The move's pictures, read as a submission reads them — so the preview
+       * and the turn assemble the same blocks. **A picture this session never
+       * had is left out rather than refused**: a preview answers *what would be
+       * sent*, and it fires on every pause in typing, so a stale composer must
+       * not turn the meter into an error.
+       */
+      const { attachments: named, ...rest } = body.input ?? { text: '' };
+      let attachments: TurnAttachment[] | undefined;
+      if (named !== undefined && named.length > 0) {
+        const read = await attachmentsFor(
+          services.sessions.layout,
+          account.handle,
+          session.id,
+          named,
+          async () =>
+            digestsOf((await readTurns(services.sessions, account.handle, session.id)).values()),
+        );
+        if (read.ok) attachments = read.attachments;
+      }
+      const input =
+        body.input === undefined
+          ? undefined
+          : { ...rest, ...(attachments === undefined ? {} : { attachments }) };
       const preview = await previewAssembly(
         {
           sessions: services.sessions,
@@ -2473,7 +2655,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           account: account.handle,
           sessionId: session.id,
           parentTurnId: session.headTurnId ?? null,
-          ...(body.input === undefined ? {} : { input: body.input }),
+          ...(input === undefined ? {} : { input }),
           ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
         },
       );
@@ -2910,7 +3092,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         parentTurnId?: string | null;
         rewriteOf?: string;
         redoOf?: string;
-        input: { text: string; actorId?: string | null; kind?: string };
+        input: {
+          text: string;
+          actorId?: string | null;
+          kind?: string;
+          attachments?: { digest: string; caption?: string }[];
+        };
         guidance?: string;
       };
 
@@ -3009,6 +3196,32 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         }
       }
 
+      /**
+       * ***The pictures, read from this server's store rather than believed*** —
+       * [25 E15], R1. A digest the store does not hold names a picture that was
+       * never uploaded here, and recording it would be a turn pointing at
+       * nothing; refused before a job exists, while the request is still one.
+       */
+      let attachments: TurnAttachment[] | undefined;
+      if (body.input.attachments !== undefined && body.input.attachments.length > 0) {
+        const read = await attachmentsFor(
+          services.sessions.layout,
+          account.handle,
+          sessionId,
+          body.input.attachments,
+          async () =>
+            digestsOf((await readTurns(services.sessions, account.handle, sessionId)).values()),
+        );
+        if (!read.ok) {
+          return reply.code(422).send({
+            error: 'unknown-attachment',
+            message: 'A picture on this move was never uploaded to this session.',
+            digest: read.digest,
+          });
+        }
+        attachments = read.attachments;
+      }
+
       const outcome = await submitTurn(services.jobs, {
         account: account.handle,
         sessionId,
@@ -3069,13 +3282,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(outcome.job, payloadOf(body, { replay, attempt }));
+            services.runner.start(outcome.job, payloadOf(body, { replay, attempt, attachments }));
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(outcome.job, payloadOf(body, { replay, attempt }));
+          services.runner.start(outcome.job, payloadOf(body, { replay, attempt, attachments }));
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -3214,9 +3427,17 @@ function payloadOf(
   fromRecord: {
     replay?: Tape | undefined;
     attempt?: { turnId: string; text: string } | undefined;
+    /** The move's pictures, as the store described them — never the client's claim. */
+    attachments?: TurnAttachment[] | undefined;
   },
 ): {
-  input: { actorId: string | null; kind: string; text: string; raw: string };
+  input: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    raw: string;
+    attachments?: TurnAttachment[];
+  };
   guidance?: string;
   attempt?: { turnId: string; text: string };
   replay?: Tape;
@@ -3229,6 +3450,7 @@ function payloadOf(
       // What the player typed, before anything normalised it. Kept because a
       // rewrite replays the original rather than the interpretation.
       raw: body.input.text,
+      ...(fromRecord.attachments === undefined ? {} : { attachments: fromRecord.attachments }),
     },
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
     ...(fromRecord.attempt === undefined ? {} : { attempt: fromRecord.attempt }),

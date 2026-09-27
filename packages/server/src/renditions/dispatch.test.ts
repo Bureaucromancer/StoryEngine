@@ -115,7 +115,7 @@ describe('a rendition dispatched', () => {
   it('has its job row before its record is on disk', async () => {
     const rowAtWrite: boolean[] = [];
     vi.mocked(writeRendition).mockImplementation(async (layout, account, sessionId, record) => {
-      rowAtWrite.push(jobForRendition(state.db, record.id) !== null);
+      rowAtWrite.push(jobForRendition(state.db, sessionId, record.id) !== null);
       const actual = await vi.importActual<typeof import('./store.js')>('./store.js');
       await actual.writeRendition(layout, account, sessionId, record);
     });
@@ -139,7 +139,7 @@ describe('a rendition dispatched', () => {
 
     // Run, rather than abandoned under a record that says it is coming.
     expect(result.dispatched).toBe(1);
-    expect(jobForRendition(state.db, 't-1.0')?.status).toBe('done');
+    expect(jobForRendition(state.db, sessionId, 't-1.0')?.status).toBe('done');
   });
 
   it('is found by the next start if the process stops between the record and the run', async () => {
@@ -173,7 +173,7 @@ describe('a rendition dispatched', () => {
     expect(result.dispatched).toBe(0);
     expect(frames).toEqual([]);
     // Abandoned, so a later retry is not answered *already in hand*.
-    expect(jobForRendition(state.db, 't-1.0')?.status).toBe('abandoned');
+    expect(jobForRendition(state.db, sessionId, 't-1.0')?.status).toBe('abandoned');
     expect(reconcileRenditionJobs(state.db).interrupted).toEqual([]);
   });
 

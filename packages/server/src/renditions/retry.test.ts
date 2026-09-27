@@ -208,7 +208,9 @@ describe('retrying a failed picture', () => {
     expect(asked.status).toBe(202);
 
     const db = server.services.state.db;
-    await eventually(() => Promise.resolve(jobForRendition(db, failed.id)?.status === 'running'));
+    await eventually(() =>
+      Promise.resolve(jobForRendition(db, sessionId, failed.id)?.status === 'running'),
+    );
 
     const live = pendingRenditionJobs(db, sessionId);
     expect(live).toEqual([
@@ -225,7 +227,7 @@ describe('retrying a failed picture', () => {
     // says so, and nothing is left owed.
     await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
     await eventually(() => Promise.resolve(pendingRenditionJobs(db, sessionId).length === 0));
-    const done = jobForRendition(db, failed.id);
+    const done = jobForRendition(db, sessionId, failed.id);
     expect(done?.attempt).toBe(2);
     expect(done?.status).toBe('done');
     expect(done?.finishedAt).not.toBeNull();
@@ -308,7 +310,7 @@ describe('a retry the process died holding', () => {
         turnId: failed.turnId,
         purpose: failed.purpose,
       });
-      const job = jobForRendition(state.db, failed.id);
+      const job = jobForRendition(state.db, sessionId, failed.id);
       if (job === null) throw new Error('the retry took no job');
       setRenditionJobStatus(state.db, job.id, 'running');
       retried = job.id;
@@ -360,9 +362,11 @@ describe('a retry the process died holding', () => {
         JSON.stringify((await renditionsOf()).map((one) => [one.state, one.error])),
     });
     await eventually(() =>
-      Promise.resolve(jobForRendition(server.services.state.db, failed.id)?.status === 'done'),
+      Promise.resolve(
+        jobForRendition(server.services.state.db, sessionId, failed.id)?.status === 'done',
+      ),
     );
     // Third: the refusal, the one the crash took, and this one.
-    expect(jobForRendition(server.services.state.db, failed.id)?.attempt).toBe(3);
+    expect(jobForRendition(server.services.state.db, sessionId, failed.id)?.attempt).toBe(3);
   });
 });

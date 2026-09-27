@@ -57,6 +57,24 @@ export interface Connection {
   /** Which models this endpoint offers. Safe to show: it is what a binding picks. */
   models: string[];
   /**
+   * ***Which of those models can see a picture*** — [25 E15], R1. A subset of
+   * `models`, empty or absent by default.
+   *
+   * **Per model, and the first capability here that is.** Every other one is a
+   * property of the endpoint, which is why [21 §3] makes them overridable per
+   * connection; seeing images is a property of the *model* — one Ollama URL
+   * serves a vision model and a text one, and so does OpenRouter. A
+   * connection-wide flag would be a lock-in bug: mark the connection for the
+   * model that sees, rebind the narrator to one that does not on the same
+   * connection, and every redo of a turn with a picture on it would send pixels
+   * to a model that refuses them.
+   *
+   * **Beside `models` rather than inside `capabilities`**, because the form
+   * writes `models` fresh on every save and keeps `capabilities` as stored — a
+   * list inside the second would go on naming models the first no longer has.
+   */
+  imageModels?: string[];
+  /**
    * Per-connection capability overrides, because a limit is a property of *this
    * endpoint* ([19 §5.3](../../../../docs/design/19-tech-stack.md)).
    */
@@ -70,7 +88,10 @@ export interface Connection {
  * The type is a `Pick` on purpose rather than a hand-written interface — a
  * field added to `Connection` cannot appear here by being forgotten about.
  */
-export type PublicConnection = Pick<Connection, 'id' | 'label' | 'provider' | 'scope' | 'models'>;
+export type PublicConnection = Pick<
+  Connection,
+  'id' | 'label' | 'provider' | 'scope' | 'models' | 'imageModels'
+>;
 
 export function presentConnection(connection: Connection): PublicConnection {
   return {
@@ -79,7 +100,19 @@ export function presentConnection(connection: Connection): PublicConnection {
     provider: connection.provider,
     scope: connection.scope,
     models: connection.models,
+    // Safe to show for `models`' reason: it says which of them see pictures,
+    // which is what a person choosing a binding wants to know.
+    ...(connection.imageModels === undefined ? {} : { imageModels: connection.imageModels }),
   };
+}
+
+/**
+ * Whether this model on this connection may be sent a picture — the one
+ * question the send rule asks of a connection ([25 E15]). **Absent means no**,
+ * which is the conservative answer every other capability starts from.
+ */
+export function seesImages(connection: Connection, modelId: string): boolean {
+  return connection.imageModels?.includes(modelId) ?? false;
 }
 
 export interface ConnectionResolution {
@@ -258,6 +291,13 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
   const models = Array.isArray(record['models'])
     ? record['models'].filter((model): model is string => typeof model === 'string')
     : [];
+  // A subset of `models`, by construction: a name the endpoint no longer offers
+  // cannot be a model anything resolves to, so it is not a claim worth keeping.
+  const imageModels = Array.isArray(record['imageModels'])
+    ? record['imageModels'].filter(
+        (model): model is string => typeof model === 'string' && models.includes(model),
+      )
+    : undefined;
 
   return {
     id,
@@ -265,6 +305,7 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
     provider,
     scope,
     models,
+    ...(imageModels === undefined ? {} : { imageModels }),
     ...(typeof record['apiKey'] === 'string' ? { apiKey: record['apiKey'] } : {}),
     ...(typeof record['baseUrl'] === 'string' ? { baseUrl: record['baseUrl'] } : {}),
     // Taken as written rather than validated field by field. A capability
@@ -308,6 +349,8 @@ export interface AdminConnection {
   provider: string;
   scope: Connection['scope'];
   models: string[];
+  /** Which of `models` see pictures — {@link Connection.imageModels}. */
+  imageModels?: string[];
   baseUrl?: string;
   capabilities?: Partial<ProviderCapabilities>;
   /** Whether a key is stored. Never the key. */
@@ -342,6 +385,7 @@ export function presentForAdmin(connection: Connection, contentHash: string): Ad
     provider: connection.provider,
     scope: connection.scope,
     models: connection.models,
+    ...(connection.imageModels === undefined ? {} : { imageModels: connection.imageModels }),
     ...(connection.baseUrl === undefined ? {} : { baseUrl: connection.baseUrl }),
     ...(connection.capabilities === undefined ? {} : { capabilities: connection.capabilities }),
     hasKey: typeof connection.apiKey === 'string' && connection.apiKey.length > 0,
@@ -425,6 +469,8 @@ export async function writeConnection(
     apiKey?: string | undefined;
     baseUrl?: string | undefined;
     models: string[];
+    /** Absent means *keep what is stored*, as for `capabilities`. */
+    imageModels?: string[] | undefined;
     capabilities?: Partial<ProviderCapabilities> | undefined;
   },
 ): Promise<ConnectionEntry> {
@@ -484,12 +530,21 @@ export async function writeConnection(
    * visible cause.
    */
   const capabilities = input.capabilities ?? existing?.capabilities;
+  /**
+   * **Kept on the same terms, and narrowed to the models being written.** A form
+   * that predates the field sends none and must not clear it; a model removed
+   * from the list cannot stay marked as one that sees.
+   */
+  const imageModels = (input.imageModels ?? existing?.imageModels)?.filter((model) =>
+    input.models.includes(model),
+  );
 
   const file = {
     id,
     label: input.label,
     provider: input.provider,
     models: input.models,
+    ...(imageModels === undefined ? {} : { imageModels }),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(input.baseUrl === undefined || input.baseUrl.length === 0
       ? {}

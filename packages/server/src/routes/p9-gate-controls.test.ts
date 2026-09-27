@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Rendition } from '@storyengine/shared';
 
 import { FakeProvider } from '../providers/fake.js';
-import { pendingRenditionJobs } from '../renditions/jobs.js';
+import { jobForRendition, pendingRenditionJobs } from '../renditions/jobs.js';
 import { readRenditions, writeRendition } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
 import {
@@ -337,6 +337,31 @@ describe('Illustrate, pressed by hand', () => {
   });
 
   /**
+   * ***The moment call's figures go to the usage log*** — [10 §11.4]. It is on
+   * no turn's tape because there is no turn, which is `illustrate.ts`'s *one
+   * honest cost*; the account's log is where a call that makes no turn is
+   * recorded.
+   */
+  it('records the moment call in the account’s usage log', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+
+    const lines = (await readFile(join(dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ purpose: 'illustrate', sessionId });
+  });
+
+  /**
    * ***The backdrop branch makes no call at all*** — [06 §10.3]'s *"a backdrop
    * is a place and a place has no moment"*. So **Set the scene** is free, and
    * the assertion is a count on the text log rather than on what came back.
@@ -458,5 +483,12 @@ describe('the recipe outlives the pixels', () => {
     expect(remade?.prompt.text).toBe(before.text);
     expect(remade?.provenance.seed).toBe(before.seed);
     expect(remade?.asset).not.toBeNull();
+
+    /**
+     * ***And the retry is on the books as a second try.*** Until 2026-09-27 the
+     * finished job was run again under attempt 1, so the store could not say a
+     * picture had been paid for twice — which is what the column is for.
+     */
+    expect(jobForRendition(server.services.state.db, sessionId, made.id)?.attempt).toBe(2);
   });
 });

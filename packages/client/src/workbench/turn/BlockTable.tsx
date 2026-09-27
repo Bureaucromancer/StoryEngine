@@ -10,6 +10,22 @@ import { formatCount } from '../../format.js';
 import { Badge } from '../../ui/Badge.js';
 import { link, table } from '../../ui/classes.js';
 import { blockSourceAddress } from '../address.js';
+import { labels } from '../../i18n/catalogue.js';
+
+/**
+ * ***Pixels or words, and why*** — [25 E15]. A picture's block always went, as
+ * one or the other, and the workbench is where somebody asks *did the model
+ * actually see it*. The reason is the send rule's own, in words.
+ */
+const PICTURE_WORDS: Readonly<Record<string, string>> = labels('workbench.picture', {
+  sent: 'Picture sent',
+  held: 'Picture as words',
+  'model-text-only': 'this model is not marked as seeing pictures',
+  'outside-window': 'from an earlier turn — only the move being made sends pictures',
+  'missing-bytes': 'the picture is not on this server',
+  'not-user-role': 'it sits in a message that cannot carry a picture',
+  'unknown-kind': 'a kind of attachment this build does not send',
+});
 
 /**
  * The block list, in order — [10 §3]'s primary view: source, plain-language
@@ -123,6 +139,16 @@ function BlockRow({
             </Link>
           )}
           {block.advisory === true ? <Badge tone="provenance">Advisory</Badge> : null}
+          {block.image === undefined ? null : (
+            <Badge
+              tone="provenance"
+              {...(block.image.withheld === undefined
+                ? {}
+                : { title: PICTURE_WORDS[block.image.withheld] ?? block.image.withheld })}
+            >
+              {block.image.sent ? PICTURE_WORDS['sent'] : PICTURE_WORDS['held']}
+            </Badge>
+          )}
         </span>
       </td>
       <td className={table.cellCompact}>{block.reason}</td>

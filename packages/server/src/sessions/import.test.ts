@@ -333,6 +333,51 @@ describe('an imported session is a session here', () => {
     expect(records[1]).toMatchObject({ state: 'failed', error: 'interrupted', asset: null });
     // The recipe, which is the part that must never be lost.
     expect(records[0]?.prompt.text).toBe('a lantern');
+    // Marked foreign once, as its turn is.
+    expect(records[0]?.foreign).toEqual({ source: sessionId, id: `${turnId}.0` });
+  });
+});
+
+/**
+ * ***A field this build does not know survives the round trip*** — the one
+ * test [25 E15] said 1.0 owed, and [04 §2]'s rule that a newer file must
+ * survive a round trip through an older reader.
+ *
+ * Nested inside `input` on purpose: `input` is where a newer build puts things
+ * about the player's move — pictures were the first — and an importer that
+ * rebuilt it field by field would drop the next one in silence. The assertion
+ * is on the re-export, because an older install passing a session on is the
+ * case where a loss would travel.
+ */
+describe('what a newer build wrote', () => {
+  it('carries an unknown field inside a move through import and export unchanged', async () => {
+    const { sessionId } = await branched();
+    const document = await exported(server, sessionId);
+    const future = { kind: 'hologram', notes: ['from a build that does not exist yet'] };
+    /**
+     * *Every turn is given a move.* The fixture's turns are channel writes,
+     * which carry none, and a move is where the field has to be: `input` is
+     * the part of the record [25 E15] widens, and the part a newer build's
+     * next widening will land in.
+     */
+    const move = { actorId: null, kind: 'do', text: 'Knock.', raw: 'Knock.' };
+    const turns = (document['turns'] as { input?: Record<string, unknown> }[]).map((turn) => ({
+      ...turn,
+      input: { ...(turn.input ?? move), future },
+    }));
+
+    const there = await anotherInstall();
+    const landed = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: { ...document, turns },
+    });
+    expect(landed.status).toBe(201);
+
+    const again = await exported(there, landed.body.sessionId as string);
+    const carried = again['turns'] as { input?: Record<string, unknown> }[];
+    expect(carried).toHaveLength(turns.length);
+    for (const turn of carried) expect(turn.input?.['future']).toEqual(future);
   });
 });
 

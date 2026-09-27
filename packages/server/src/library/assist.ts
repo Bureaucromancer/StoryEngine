@@ -10,6 +10,7 @@ import type { Layout } from '../storage/layout.js';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import { resolveConnections } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
+import { readTaskRoles } from '../providers/task-roles.js';
 import {
   CallFailed,
   Cancelled,
@@ -17,6 +18,7 @@ import {
   RoleUnresolved,
   WindowTooSmall,
 } from '../turns/calls.js';
+import { fromModelCall, recordUsage } from '../usage/log.js';
 
 /**
  * ***The field assist contract's server half*** —
@@ -57,10 +59,26 @@ import {
  *
  * ***`prose` rather than `fast`, and [P7.5] is why.*** `resolveRole` has no
  * cross-role fallback: a role nobody bound resolves `unbound` and the call
- * fails. Nothing in this build binds anything but `prose` — no install default,
- * no wizard, no route that would suggest it — so asking for the role this
- * *should* use would mean an assist button that fails on every stock install.
- * The finding is bigger than this file and is recorded at P7.5.
+ * fails. ~~Nothing in this build binds anything but `prose` — no install default,
+ * no wizard, no route that would suggest it —~~ *Corrected 2026-09-27, with
+ * [25 C15](../../../../docs/design/25-open-questions.md): the first-run offer
+ * does bind `fast` and the others, but only on an install whose admin accepted
+ * it.* So asking for the role this *should* use would still mean an assist
+ * button that fails on every install that declined it. The finding is bigger
+ * than this file and is recorded at P7.5.
+ *
+ * ***`prose` by default, and the account's choice since 2026-09-27.*** Until C15
+ * is decided the person chooses which of their roles this asks for
+ * (`providers/task-roles.ts`, set on the same settings pane as the bindings), so
+ * somebody who has bound `fast` to a cheap model can point assist at it without
+ * waiting on a decision about every role at once. The default is the role that
+ * resolves on every install.
+ *
+ * ***What it spent is recorded, and nothing else is.*** The route writes no
+ * object, no provenance and no history ([10 §11.4]: *"They produce no turn
+ * record"*), but the call cost money whether or not the person keeps the
+ * answer, so its figures go to the account's usage log (`usage/log.ts`) — an
+ * assist somebody rejected is the one the provenance would never have seen.
  */
 
 export interface AssistContext {
@@ -215,13 +233,20 @@ export async function assistField(
     text,
     required: true,
   };
+  /**
+   * ***The role is the account's to choose*** — `task-roles.json`, a stopgap
+   * for [25 C15]. The step says `prose` because that is what it asked for
+   * before anyone could say otherwise; the call asks for whichever role the
+   * person picked in settings.
+   */
+  const { assist: role } = await readTaskRoles(context.layout, request.account);
 
   let answer: string;
   let model: string;
   try {
     const outcome = await performCall(
       {
-        definition: ASSIST_STEP,
+        definition: { ...ASSIST_STEP, role },
         bindings: await readBindings(context.layout, request.account),
         defaults: await readSystemBindings(context.layout),
         usable,
@@ -229,13 +254,24 @@ export async function assistField(
         config: context.config,
         notFilled: [],
         signal: request.signal ?? new AbortController().signal,
-        // Nothing is recorded: an assist writes no turn and no job, so there is
-        // no checkpoint for either seam to be about.
+        // Nothing is recorded as a turn or a job: an assist writes neither, so
+        // there is no checkpoint for either seam to be about. What it spent is
+        // recorded below, in the usage log.
         onCallAssembled: () => undefined,
         onProgress: () => undefined,
       },
       { params: { temperature: 0.9, maxTokens: 600 } },
       [ask],
+    );
+    /**
+     * **Before the empty-answer check, not after it.** A reply with nothing in
+     * it still cost what the provider says it cost, and `no-answer` is the case
+     * a person is most likely to press the button again over.
+     */
+    await recordUsage(
+      context.layout,
+      request.account,
+      fromModelCall(outcome.call, `assist:${request.path}`, { subject: request.subject }),
     );
     answer = outcome.text.trim();
     model = outcome.call.resolved.modelId;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { control, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -18,6 +18,7 @@ import {
   type CastRow,
   submitTurn,
   undoTurn,
+  uploadPicture,
   type ModeSurface,
   type RenditionRecord,
   type TurnRecord,
@@ -47,6 +48,14 @@ import { CastPanel } from './CastPanel.js';
 import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
+import {
+  attachProblem,
+  ComposerPictures,
+  MAX_PICTURES,
+  MovePictures,
+  type ComposerPicture,
+} from './Pictures.js';
+import { preparePicture } from './preparePicture.js';
 import { ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
@@ -141,6 +150,57 @@ export function PlayPage({
    */
   const [kind, setKind] = useState<string | undefined>(undefined);
   const [guidance, setGuidance] = useState('');
+  /**
+   * ***Pictures on the move being composed*** — [25 E15], R1. Uploaded as they
+   * are attached, so what the move names is a digest the server already holds;
+   * cleared when the move is sent, as the words are.
+   */
+  const [pictures, setPictures] = useState<ComposerPicture[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const [pictureProblem, setPictureProblem] = useState<string | null>(null);
+  const pictureRefs = useMemo(
+    () =>
+      pictures.map((picture) => ({
+        digest: picture.digest,
+        ...(picture.caption.trim() === '' ? {} : { caption: picture.caption.trim() }),
+      })),
+    [pictures],
+  );
+
+  /**
+   * Prepares and uploads each chosen picture — redrawn in the browser first, so
+   * nothing a phone recorded about where a photo was taken ever leaves it
+   * (`preparePicture`, which refuses rather than sending an original).
+   */
+  const attachPictures = async (files: readonly File[]): Promise<void> => {
+    setPictureProblem(null);
+    setAttaching(true);
+    try {
+      // Counted here rather than read from `pictures`, which is the value this
+      // render closed over and does not grow while the loop runs.
+      let room = MAX_PICTURES - pictures.length;
+      for (const file of files) {
+        if (room <= 0) break;
+        const prepared = await preparePicture(file);
+        const uploaded = await uploadPicture(sessionId, prepared);
+        // The same picture attached twice is one picture: its address is its bytes.
+        if (pictures.some((one) => one.digest === uploaded.digest)) continue;
+        room -= 1;
+        const preview = URL.createObjectURL(prepared);
+        setPictures((held) => [...held, { digest: uploaded.digest, preview, caption: '' }]);
+      }
+    } catch (error) {
+      setPictureProblem(attachProblem(error));
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  const clearPictures = (): void => {
+    for (const picture of pictures) URL.revokeObjectURL(picture.preview);
+    setPictures([]);
+    setPictureProblem(null);
+  };
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
   // cache entry and the invalidate below refreshes both ([P3.1]).
@@ -226,10 +286,12 @@ export function PlayPage({
         // default rather than the client guessing `do` for a mode without one.
         ...(kind === undefined ? {} : { kind }),
         guidance,
+        ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
       }),
     onSuccess: (accepted) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
+      clearPictures();
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([06 §5.1]).
       setGuidance('');
@@ -261,8 +323,10 @@ export function PlayPage({
    * come to disagree.
    */
   const submit = (): void => {
-    if (send.isPending || running) return;
-    if (draft.trim().length === 0) return;
+    if (send.isPending || running || attaching) return;
+    // A move may be only a picture — its words are the picture's caption, and
+    // the record keeps the move either way ([25 E15]).
+    if (draft.trim().length === 0 && pictures.length === 0) return;
     send.mutate();
   };
 
@@ -323,6 +387,22 @@ export function PlayPage({
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
         text: turn.input?.text ?? '',
+        /**
+         * **The turn's pictures come with it**, for the reason its words do:
+         * this is *that turn again*. Named by digest, as the record names them —
+         * and a picture whose bytes never reached this server (an imported
+         * turn) is still accepted, and goes as its caption.
+         */
+        attachments: (turn.input?.attachments ?? []).flatMap((picture) =>
+          picture.digest === undefined
+            ? []
+            : [
+                {
+                  digest: picture.digest,
+                  ...(picture.caption === undefined ? {} : { caption: picture.caption }),
+                },
+              ],
+        ),
         parentTurnId: turn.parentTurnId,
         ...(rewrite ? { rewriteOf: turn.id } : {}),
         ...(guidance === undefined ? {} : { guidance, redoOf: turn.id }),
@@ -490,8 +570,10 @@ export function PlayPage({
      * at-rest reading is asked for then.
      */
     if (settled.text !== draft || settled.guidance !== guidance) return;
-    refreshPreview(settled);
-  }, [settled, draft, guidance, running, refreshPreview]);
+    // The move's pictures too, so the meter and the panel measure the blocks the
+    // turn will send — a picture is not a keystroke, so it is not debounced.
+    refreshPreview(pictureRefs.length === 0 ? settled : { ...settled, attachments: pictureRefs });
+  }, [settled, draft, guidance, running, refreshPreview, pictureRefs]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three
@@ -869,6 +951,26 @@ export function PlayPage({
           that this is *"a draft, not a commitment"*, and a control sitting where
           Send sits invites the press that skips the reading.
         */}
+        <ComposerPictures
+          pictures={pictures}
+          busy={attaching}
+          problem={pictureProblem}
+          disabled={running}
+          onAttach={(files) => {
+            void attachPictures(files);
+          }}
+          onCaption={(digest, caption) => {
+            setPictures((held) =>
+              held.map((one) => (one.digest === digest ? { ...one, caption } : one)),
+            );
+          }}
+          onRemove={(digest) => {
+            setPictures((held) => {
+              for (const one of held) if (one.digest === digest) URL.revokeObjectURL(one.preview);
+              return held.filter((one) => one.digest !== digest);
+            });
+          }}
+        />
         <Impersonate
           sessionId={sessionId}
           disabled={running}
@@ -1185,8 +1287,11 @@ function TurnView({
 
   return (
     <li className="group/turn flex flex-col gap-1">
-      {turn.input === undefined ? null : (
+      {turn.input === undefined || turn.input.text === '' ? null : (
         <p className="text-story text-ink-subtle">{turn.input.text}</p>
+      )}
+      {turn.input?.attachments === undefined ? null : (
+        <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
       )}
       {/* **What the engine understood, drawn over the prose** — [10 §13.1],
           [P7.7]. An overlay and never a rewrite: with no spans this renders the

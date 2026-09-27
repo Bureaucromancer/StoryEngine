@@ -1367,6 +1367,12 @@ fixed:
   live. The retry therefore claims the job **before** rewriting the record:
   `retryRendition` in `renditions/worker.ts`.
 
+*Keyed by session as well, 2026-09-27.* Both of `STEPS[6]`'s indexes named a
+rendition by its id alone, and a rendition id is its turn's, which session
+import keeps — so two sessions on one install can hold the same ids.
+`STEPS[7]` adds `session_id` to each index and every lookup takes the pair
+([21 §7](../21-internal-contracts.md)).
+
 ***And the half this stage's own notes described, which nothing did.*** Boot
 recovery abandoned live job rows and logged a count, and the record stayed
 `pending`. `Rendition.tsx` renders `pending` as *"Making a picture of this…"* with

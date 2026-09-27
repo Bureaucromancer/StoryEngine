@@ -26,7 +26,7 @@ import { inTransaction } from '../storage/transaction.js';
  * *So what is reused is the store, the status vocabulary and the event stream;
  * what is not is the reservation.* There is no idempotency table either: a
  * turn's renditions are enqueued once, by the runner, after the commit, and the
- * partial unique index on `rendition_id` — **one live job per rendition** — is
+ * partial unique index on `(session_id, rendition_id)` — **one live job per rendition** — is
  * what stops a double dispatch: a constraint rather than a check-then-insert,
  * for the reason `job_one_active_per_session` is an index rather than a query.
  *
@@ -36,6 +36,13 @@ import { inTransaction } from '../storage/transaction.js';
  * to {@link pendingRenditionJobs} and to boot recovery, which both ask
  * `finished_at is null`. `STEPS[6]` in `state/migrations.ts` has the whole
  * account and the reason the fix is a new row per try rather than a reset.
+ *
+ * ***A rendition is named by its session and its id, together*** — `STEPS[7]`,
+ * 2026-09-27. Rendition ids are `<turnId>.<n>` and session import keeps turn
+ * ids, so two sessions on one install can hold the same ids — copies an earlier
+ * import made, or a session deleted and imported back while its job rows stayed
+ * here. Every lookup is by the pair, or Try again in one would find the other's
+ * live job and render into it.
  */
 
 export type RenditionJobStatus = 'queued' | 'running' | 'done' | 'abandoned';
@@ -139,8 +146,8 @@ export interface Enqueued {
  * the wrong owner. A caller reading the previous number and then enqueuing is a
  * read-then-insert across a module boundary, the shape this file's header
  * refuses, and it lets a caller pass `1` for a retry. Assigned here, *never a
- * reset* is true by construction — and the `(rendition_id, attempt)` constraint
- * makes it true of the store as well as of this function.
+ * reset* is true by construction — and the `(session_id, rendition_id, attempt)`
+ * constraint makes it true of the store as well as of this function.
  *
  * *No session lock.* The whole point of the second job shape is that a rendition
  * does not advance a head, so there is no head to be deciding against — and
@@ -156,14 +163,17 @@ export function enqueueRendition(
     const live = db
       .prepare(
         `select ${COLUMNS} from rendition_job
-         where rendition_id = ? and finished_at is null`,
+         where session_id = ? and rendition_id = ? and finished_at is null`,
       )
-      .get(request.renditionId) as JobRow | undefined;
+      .get(request.sessionId, request.renditionId) as JobRow | undefined;
     if (live) return { job: toJob(live), created: false };
 
     const last = db
-      .prepare(`select max(attempt) as attempt from rendition_job where rendition_id = ?`)
-      .get(request.renditionId) as { attempt: number | null } | undefined;
+      .prepare(
+        `select max(attempt) as attempt from rendition_job
+         where session_id = ? and rendition_id = ?`,
+      )
+      .get(request.sessionId, request.renditionId) as { attempt: number | null } | undefined;
 
     const job: RenditionJob = {
       id: uuidv7(),
@@ -239,15 +249,19 @@ export function readRenditionJob(db: DatabaseSync, id: string): RenditionJob | n
  * picture now. Ordered by `attempt` rather than by `created_at`, because the
  * number is the store's own count and a clock can repeat a millisecond.
  */
-export function jobForRendition(db: DatabaseSync, renditionId: string): RenditionJob | null {
+export function jobForRendition(
+  db: DatabaseSync,
+  sessionId: string,
+  renditionId: string,
+): RenditionJob | null {
   const row = db
     .prepare(
       `select ${COLUMNS} from rendition_job
-       where rendition_id = ?
+       where session_id = ? and rendition_id = ?
        order by attempt desc
        limit 1`,
     )
-    .get(renditionId) as JobRow | undefined;
+    .get(sessionId, renditionId) as JobRow | undefined;
   return row ? toJob(row) : null;
 }
 

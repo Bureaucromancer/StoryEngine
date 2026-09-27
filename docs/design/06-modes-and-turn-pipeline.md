@@ -169,7 +169,12 @@ Three details that decide whether it feels right:
   authorship away rather than assisting it.
 - **It is a `generate` step like any other**, so it is recorded in the turn
   record and rewrite/reroll apply ([19 §14.5](19-tech-stack.md)) — an
-  impersonation you dislike is re-rollable without ceremony.
+  impersonation you dislike is re-rollable without ceremony. *Built otherwise,
+  and recorded 2026-09-27:* the first detail wins where the two conflict, so an
+  impersonation commits no turn and has no turn record to be in
+  ([P11.4](workplan/28-p11-implementation.md) argues it; `turns/impersonate.ts`
+  carries the argument). What it spent goes to the account's usage log instead
+  ([10 §11.4](10-ui-surfaces.md)), and re-rolling is pressing the button again.
 - **The persona's card is the subject, not the audience.** The call is
   `voice: "embodied"` on the persona, which is exactly what the axis above
   already describes.

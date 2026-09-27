@@ -2159,14 +2159,29 @@ before they are discovered:
 - **They need a connection**, and it should not silently be the chat one. This
   is what `ModelHint.role` ([03 §2.6](03-data-model.md)) is for — assist work
   wants the `fast` role, image work wants an image connection, and a household
-  server needs those resolvable per user.
+  server needs those resolvable per user. *As built (2026-09-27):* field assist
+  asks for `prose` by default, because `fast` fails on any install that never
+  bound it ([25 C15](25-open-questions.md)), and each person may point it at
+  their `fast` or `reasoning` model instead from the role-binding settings — a
+  choice of **role**, so which model that means stays in the table beside it.
+  The per-account choice is a stopgap and retires when C15 decides fallback for
+  every role.
 - **They cost money, and must be *recorded* even though nothing displays it at
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
   to [24 §3](24-roadmap.md).
-- **They produce no turn record.** §8.2's provenance is the record, which is
-  another reason it is not optional.
+- **They produce no turn record.** ~~§8.2's provenance is the record, which is
+  another reason it is not optional.~~ **Corrected 2026-09-27.** There is no
+  §8.2 in this document, and the provenance that sentence most plausibly meant —
+  §11.2's `GeneratedFieldProvenance` — cannot be the record: it has no field for
+  usage, it is written by the client, and only when the person saves, so an
+  assist somebody rejected (which cost exactly as much) would leave nothing. The
+  record is the account's usage log, `users/<handle>/usage.jsonl`
+  ([21 §1.4](21-internal-contracts.md)): one line per call, the provider's own
+  figures or null. It covers every call that makes no turn — field assists,
+  impersonation, and the moment call behind **Illustrate** — and it is what the
+  aggregate view in [24 §3](24-roadmap.md) will read.
 
 ### 11.5 Traps
 
@@ -2841,6 +2856,17 @@ not**, because *my keys did not come across* should be a question with an answer
 rather than a bug report. The admin's panel adds a fourth box for the install's
 settings, and says which account in the archive — from **the archive's** list of
 handles, because an account here the archive holds nothing for is not a choice.
+
+**A session already here is left alone** (2026-09-27). It is skipped when it
+is here under its own id, when it is in this account's trash, or when its turns
+are already on the install ([api](../api.md) has the three cases). Nothing is
+merged into it, and nothing is lost by that: a session's turns are append-only,
+so the copy here holds every turn the archive's copy does and any played since
+— the one exception is a branch pruned here after the archive was taken, which
+restoring the archive, not importing it, brings back. The alternative, a second
+copy, was the behaviour until that day, and it was worse than untidy: the copy
+kept the turn ids, the index holds one row per turn id, and the copy took the
+original's search rows with it.
 
 ### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
 
