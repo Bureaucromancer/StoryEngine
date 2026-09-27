@@ -105,6 +105,8 @@ export class LibraryWatcher {
    * prevent. Ordering is not an optimisation here; it is the mechanism.
    */
   #queue: Promise<void> = Promise.resolve();
+  /** Set by `stop()`, after which no event is queued. */
+  #stopped = false;
 
   /** Post-construction subscribers — see {@link LibraryWatcher.observe}. */
   readonly #observers = new Set<(event: WatchEvent) => void>();
@@ -166,6 +168,8 @@ export class LibraryWatcher {
   }
 
   async start(): Promise<void> {
+    // A watcher stopped and started again is watching again.
+    this.#stopped = false;
     const watcher = watch(this.#layout.dataRoot, {
       ignoreInitial: true,
       // A rebuild is the startup path ([03 §5.1]); the watcher is for what
@@ -207,13 +211,13 @@ export class LibraryWatcher {
     });
 
     watcher.on('add', (path) => {
-      this.#enqueue(() => this.#onUpsert(path));
+      this.#enqueue(path, () => this.#onUpsert(path));
     });
     watcher.on('change', (path) => {
-      this.#enqueue(() => this.#onUpsert(path));
+      this.#enqueue(path, () => this.#onUpsert(path));
     });
     watcher.on('unlink', (path) => {
-      this.#enqueue(() => {
+      this.#enqueue(path, () => {
         this.#onUnlink(path);
       });
     });
@@ -287,14 +291,55 @@ export class LibraryWatcher {
     await this.#queue;
   }
 
+  /**
+   * ***Closes the watcher, then finishes what it had already queued***
+   * (2026-09-27). The other way round, an event arriving between the drain and
+   * the close was queued after the drain and ran once the caller had closed the
+   * index under it.
+   */
   async stop(): Promise<void> {
-    await this.#queue;
+    this.#stopped = true;
     await this.#watcher?.close();
     this.#watcher = null;
+    await this.#queue;
   }
 
-  #enqueue(work: () => void | Promise<void>): void {
-    this.#queue = this.#queue.then(work, work).then(() => undefined);
+  /**
+   * ***A total queue: one event's failure is that event's, and is said***
+   * (2026-09-27).
+   *
+   * `then(work, work)` ran the next event whether or not the last one failed,
+   * and left the failure itself as a rejected promise that nothing handled
+   * until the next event arrived. Node's default for that is to end the
+   * process. So a card saved as a link to a file outside the data directory
+   * (the real-path check refuses it, which is the check working), a file a
+   * scanner holds locked on Windows, or a full disk during the snapshot took
+   * the whole server down, and after the restart the edit was never looked at
+   * again, because the watcher does not replay what it has already seen.
+   *
+   * Now a refused path is a `warn` and a `refused` event, what the name check
+   * above already says for a name, and anything else is an `error` and an
+   * `ignored` event. Both carry the path, so anything waiting on this file
+   * hears an answer rather than a silence. The shape and not the error object,
+   * for [21 §4.1]'s reason: a log is not a place for whatever an error carries.
+   */
+  #enqueue(path: string, work: () => void | Promise<void>): void {
+    if (this.#stopped) return;
+    this.#queue = this.#queue.then(work).catch((error: unknown) => {
+      const refused = error instanceof PathEscapeError;
+      const fields = {
+        event: refused ? 'library.refused' : 'watcher.failed',
+        path: this.#layout.portablePath(path) ?? basename(path),
+        message: error instanceof Error ? error.message : String(error),
+      };
+      if (refused) this.#log?.warn(fields, 'A library file was refused');
+      else this.#log?.error(fields, 'A watched change could not be indexed');
+      try {
+        this.#emit({ type: refused ? 'refused' : 'ignored', path });
+      } catch {
+        // An observer that throws must not be what breaks the queue again.
+      }
+    });
   }
 
   async #onUpsert(path: string): Promise<void> {

@@ -910,6 +910,14 @@ Scope fence, drawn deliberately tight:
   collect.ts:340–343); it becomes all-occurrences with a test, before the wild
   corpus finds a format string that repeats it.
 
+*Added 2026-09-27.* The fence was drawn around the namespace, and the engine
+behind it had none: LiquidJS defaults its three limits to infinity, and the ST
+importer passes `{% … %}` through untouched. One `{% for i in (1..1000000000) %}`
+in a downloaded preset built a billion-element array on the event loop at the
+next turn or preview, and V8 aborted the process for every account. The engine
+now runs with a memory budget, a per-render time limit, and an empty template
+map, so `include` finds nothing on disk (`assembly/template.ts`).
+
 ### 1.7 The slot literal: `'setting'` becomes `'treatment'` before any file fossilises it
 
 The Setting→Treatment rename was made deliberately ([04 §6]; the kind is named
@@ -2452,6 +2460,18 @@ before a byte is inflated — entry count, per-entry size, total size, and path
 traversal — because a bomb caught after decompression has already been
 decompressed. `node:zlib` was already in use for PNG chunks, so no dependency
 moved.
+
+*Corrected 2026-09-27.* ~~§1.3's four bounds are all checked from the central
+directory before a byte is inflated~~ held for the per-entry and total bounds
+only as sums of **declared** sizes, while each inflate was capped at the
+per-entry maximum. Nothing stopped many central entries pointing at one local
+header, so four thousand one-byte declarations over one stream that inflated
+to the maximum passed every bound and cost about 256 GB of synchronous
+inflation from a 300 KB upload. An entry now inflates to what it declared or
+is refused, which makes the declared total the real one. And the PNG chunks
+`node:zlib` was already inflating had no ceiling at all, every `zTXt` and
+`iTXt` chunk under any keyword. They are opened only under a card's keyword
+now, within one budget per read.
 
 **And the reader paid for two things nobody asked it to.** A zip is a *root*, so
 `ZipFileSource` makes §1.3's *an archive is a root read through a different file

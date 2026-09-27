@@ -209,10 +209,23 @@ export function readZipEntry(
   }
 
   try {
-    // `maxOutputLength` is the belt to the central directory's braces: the
-    // declared size was checked before we got here, and a crafted archive can
-    // declare a small one and inflate to something else entirely.
-    const out = inflateRawSync(body, { maxOutputLength: limits.maxEntryBytes });
+    /**
+     * `maxOutputLength` is the belt to the central directory's braces: the
+     * declared size was checked before we got here, and a crafted archive can
+     * declare a small one and inflate to something else entirely.
+     *
+     * ***So the ceiling is the declared size*** (2026-09-27). It was the
+     * per-entry maximum, and the total bound is a sum of declared sizes. Many
+     * central entries may point at one local header, so 4,096 entries each
+     * declaring one byte, all over one stream that inflates to 64 MB, passed
+     * every bound and cost about 256 GB of synchronous inflation. Now an entry
+     * inflates to what it said it would or is refused, so the declared total is
+     * the real one. `Math.max(1, …)` because Node refuses a zero ceiling, and an
+     * empty deflated entry is legitimate: the length check settles it.
+     */
+    const ceiling = Math.min(limits.maxEntryBytes, Math.max(1, entry.uncompressedSize));
+    const out = inflateRawSync(body, { maxOutputLength: ceiling });
+    if (out.byteLength !== entry.uncompressedSize) return null;
     return new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
   } catch {
     return null;

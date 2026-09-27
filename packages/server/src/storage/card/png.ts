@@ -7,6 +7,7 @@ import encodeChunks from 'png-chunks-encode';
 import extractChunks from 'png-chunks-extract';
 import textChunk from 'png-chunk-text';
 
+import { DEFAULT_ZIP_LIMITS } from '../zip.js';
 import { decodeBlobIndex, encodeBlobIndex } from './blob-index.js';
 import {
   type BlobStore,
@@ -83,6 +84,24 @@ export const CARD_MEDIA_CHUNK = 'seMd';
  * ([03 §5.2](../../../../../docs/design/03-data-model.md)) inside a single file.
  */
 const LEGACY_KEYWORDS = ['ccv3', 'chara'] as const;
+
+/**
+ * ***How much one read may inflate, across every compressed chunk it opens***
+ * (2026-09-27).
+ *
+ * `inflateSync` had no ceiling, and deflate reaches about a thousand to one:
+ * a one-megabyte card could ask for a gigabyte, and a file at the upload limit
+ * for tens of gigabytes, synchronously, on the one thread every account shares.
+ * The process died of it, and a card like that dropped into a library folder
+ * killed it again on every boot, because the watcher and the rebuild read cards
+ * too. The zip reader beside this one was always bounded; this was missed.
+ *
+ * **One budget for the read, not one per chunk**, so a file of a thousand bombs
+ * costs one bomb. The zip reader's per-entry ceiling is the number, so the two
+ * readers of foreign archives agree on what a legitimate card can weigh, which
+ * is far more than any does.
+ */
+const MAX_LEGACY_TEXT_BYTES = DEFAULT_ZIP_LIMITS.maxEntryBytes;
 
 interface Chunk {
   name: string;
@@ -164,16 +183,24 @@ function readNullTerminated(
  * chunks survive a write untouched either way, because `write()` preserves
  * everything that is not ours.
  */
-function decodeCompressedTextChunk(chunk: Chunk): { keyword: string; text: string } | null {
+function decodeCompressedTextChunk(
+  chunk: Chunk,
+  budget: { left: number },
+): { keyword: string; text: string } | null {
   const keyword = readNullTerminated(chunk.data, 0);
   if (keyword === null) return null;
 
   const inflate = (body: Uint8Array): string | null => {
+    if (budget.left <= 0) return null;
     try {
-      return Buffer.from(inflateSync(body)).toString('utf8');
-    } catch {
-      // Truncated or not actually zlib. Someone else's damage, and skipping it
-      // keeps the rest of the card readable.
+      const out = inflateSync(body, { maxOutputLength: budget.left });
+      budget.left -= out.byteLength;
+      return Buffer.from(out).toString('utf8');
+    } catch (error) {
+      // Past the budget is a bomb, and it spends the rest: no later chunk in
+      // this file is opened. Anything else is truncated or not zlib at all,
+      // somebody else's damage, and skipping it keeps the rest readable.
+      if (error instanceof RangeError) budget.left = 0;
       return null;
     }
   };
@@ -203,26 +230,40 @@ function decodeCompressedTextChunk(chunk: Chunk): { keyword: string; text: strin
   return text === null ? null : { keyword: keyword.value, text };
 }
 
-/** Every text chunk a foreign tool might have written a card payload into. */
-function readAnyTextChunks(chunks: Chunk[]): { keyword: string; text: string }[] {
-  const found = readTextChunks(chunks);
+/**
+ * The first text a card carries under `keyword`: a plain `tEXt` chunk first,
+ * then a compressed one, each in file order.
+ *
+ * ***Only a chunk under the keyword is ever inflated*** (2026-09-27). Every
+ * `zTXt` and `iTXt` chunk was inflated before anything looked at its keyword,
+ * so a chunk under any name at all was a way to spend memory. The keyword sits
+ * in front of the compressed text, uncompressed, so it is read first.
+ */
+function firstLegacyText(
+  chunks: Chunk[],
+  keyword: string,
+  budget: { left: number },
+): string | null {
+  const plain = readTextChunks(chunks).find((entry) => entry.keyword === keyword);
+  if (plain !== undefined) return plain.text;
   for (const chunk of chunks) {
     if (chunk.name !== 'zTXt' && chunk.name !== 'iTXt') continue;
-    const decoded = decodeCompressedTextChunk(chunk);
-    if (decoded !== null) found.push(decoded);
+    if (readNullTerminated(chunk.data, 0)?.value !== keyword) continue;
+    const decoded = decodeCompressedTextChunk(chunk, budget);
+    if (decoded !== null) return decoded.text;
   }
-  return found;
+  return null;
 }
 
 function readLegacy(chunks: Chunk[]): LegacyCard | null {
-  const texts = readAnyTextChunks(chunks);
+  const budget = { left: MAX_LEGACY_TEXT_BYTES };
   // V3 first: a card carrying both is a V2 card that was upgraded, and the
   // newer chunk is the one its author last edited.
   for (const keyword of LEGACY_KEYWORDS) {
-    const match = texts.find((entry) => entry.keyword === keyword);
-    if (!match) continue;
+    const text = firstLegacyText(chunks, keyword, budget);
+    if (text === null) continue;
     try {
-      return { keyword, data: decodeBase64Json(match.text) };
+      return { keyword, data: decodeBase64Json(text) };
     } catch {
       // A card whose legacy chunk will not decode still reads as a picture, and
       // may still carry a valid envelope of ours. Report nothing rather than

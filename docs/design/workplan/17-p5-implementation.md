@@ -1807,6 +1807,16 @@ merely ruinous and sends them to fix the wrong thing. Caught only because the
 test asserted the whole outcome rather than *not a match*; three neighbouring
 assertions passed straight over it.
 
+*Corrected 2026-09-27.* The timeout bounded one call, and a scan made a great
+many: every key against every message, every recursive pass, every secondary
+key. A pattern that timed out on the first message was run again on the next,
+so five catastrophic keys in a book read to `scanDepth: 0` over an
+eight-hundred-message session cost minutes a turn for every account. That is
+the denial of service this stage was built to close, reached by repetition. A
+scan now keeps a ledger (`RegexLedger` in `retrieval/match.ts`): a refused
+pattern is not run again, and after four timeouts a scan runs no more
+patterns, reporting each one it skips as timed out.
+
 **Then the matcher, pure**: keys, secondary keys with selective logic,
 whole-word, case, regex, scan depth and scan sources, as functions over values.
 Everything deciding whether a matched entry actually *fires* — `enabled`, the
