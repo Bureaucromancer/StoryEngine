@@ -644,12 +644,21 @@ describe('the three failure modes are three', () => {
    * A multi-minute first token is ordinary on a local runtime, and a generation
    * that is still arriving is not a hang. So the clock is re-armed by every
    * chunk. This stream runs to four times the timeout and finishes, which is
-   * the assertion: without the re-arm it is killed a fifth of the way in.
+   * the assertion: without the re-arm it is killed a quarter of the way in.
+   *
+   * ***The window is wide against the gap, 400 milliseconds against 50, and it
+   * has to be.*** The gap a chunk is measured across is not only the fake's
+   * delay: the fake starts waiting when the runner asks for the next chunk, so
+   * the runner's own work on the last one (the stream event it writes) and the
+   * timer's granularity land in it too. This test first had 30 against 60, and
+   * on the Windows runner, loaded by a twenty-minute suite, one gap outgrew it
+   * and the turn failed (CI run 64, 2026-09-27). Production windows are
+   * minutes, so the margin is a fact about the test, not about the product.
    */
   it('does not interrupt a long answer that is still arriving', async () => {
     makeRunner({
-      script: [{ text: 'One two three four five six seven eight.', chunks: 8, chunkDelayMs: 30 }],
-      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+      script: [{ text: 'One two three four five six seven eight.', chunks: 32, chunkDelayMs: 50 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 400 } },
     });
 
     const { turn } = await runTurn();
