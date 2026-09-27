@@ -1674,6 +1674,56 @@ describe('a preset block can be scoped to a kind of call', () => {
   });
 
   /**
+   * ***[P7B §3.2] row 7, run rather than cited*** (2026-09-27). The row asks for
+   * *a treatment's framing in the next turn's `se.treatment` block* and was
+   * answered *yes* on the strength of the editor writing the field and the
+   * assembler having read it since P5 — which it had not: the collector's arm
+   * returned nothing, so the block was dropped as empty on every turn. This
+   * takes the whole path the row names, from the object in the library to the
+   * block on the turn's record.
+   */
+  it('puts a treatment’s framing into the turn’s treatment block', async () => {
+    const noir = newTreatment('Rain City Noir');
+    noir.framing = 'It always rains here, and nobody tells the whole truth.';
+    await create(library, ACCOUNT, noir);
+
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Framing',
+      preset: TEST_PRESET,
+      treatment: noir.id,
+      cast: { persona: null, actors: [] },
+    });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: 'framing-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+
+    expect(
+      blocks
+        .filter((one) => one.source.kind === 'treatment')
+        .map((one) => [one.id, one.text, one.source]),
+    ).toEqual([
+      [
+        'se.treatment',
+        'It always rains here, and nobody tells the whole truth.',
+        { kind: 'treatment', part: 'framing' },
+      ],
+    ]);
+  });
+
+  /**
    * **The book carrier, in a real turn, with nothing having matched.**
    *
    * Its own test rather than a third fixture in the one above, because it

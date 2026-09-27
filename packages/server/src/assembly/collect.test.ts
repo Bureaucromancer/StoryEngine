@@ -18,6 +18,7 @@ import {
 import { DIALS_PRESET, TEST_PRESET } from '../test-mode.js';
 import { resolveLevel } from '../sessions/dials.js';
 import { installBuiltIns } from '../mode-loader.js';
+import { modeById } from '../mode-registry.js';
 import { registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
 import type { SummaryLink } from '../sessions/summary-chain.js';
 import type { Turn } from '../sessions/types.js';
@@ -793,6 +794,84 @@ describe('in-history placement, which is the one that is not list order', () => 
     expect(both.indexOf('se.first')).toBeLessThan(both.indexOf('se.second'));
   });
 
+  /**
+   * ***Two depths, each where it was asked for*** (2026-09-27). Every test
+   * above places one block, which is the one case the bug could not show. The
+   * deeper run went in first, at an earlier index, and pushed the history
+   * after it along; the shallower run's index was counted against the history
+   * as it had been, so it landed as many messages too deep as the deeper run
+   * was long. Three and one came out as three and two — an imported preset's
+   * author's note and its jailbreak, say, each quietly one message off. The
+   * falsifying mutation is dropping the running offset.
+   */
+  function placed(...depths: { id: string; fromEnd: number }[]): string[] {
+    return collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.h', source: { of: 'history' } }),
+          ...depths.map(({ id, fromEnd }) =>
+            block({ kind: 'text', id, template: id, placement: { at: 'in-history', fromEnd } }),
+          ),
+        ]),
+        history,
+      }),
+    ).candidates.map((candidate) => candidate.id);
+  }
+
+  it('places two depths each at its own depth', () => {
+    expect(placed({ id: 'se.shallow', fromEnd: 1 }, { id: 'se.deep', fromEnd: 3 })).toEqual([
+      'se.h.t1.input',
+      'se.deep',
+      'se.h.t1.output',
+      'se.h.t2.input',
+      'se.shallow',
+      'se.h.t2.output',
+    ]);
+  });
+
+  it('keeps the deeper first when both are clamped to the start', () => {
+    // Both are past the start of a four-message history, so both mean *as
+    // early as possible* — and the one written deeper is still the earlier.
+    // Before the offset the second insertion went in ahead of the first, and
+    // the pair came out reversed.
+    expect(placed({ id: 'se.shallow', fromEnd: 5 }, { id: 'se.deep', fromEnd: 99 })).toEqual([
+      'se.deep',
+      'se.shallow',
+      'se.h.t1.input',
+      'se.h.t1.output',
+      'se.h.t2.input',
+      'se.h.t2.output',
+    ]);
+  });
+
+  it('appends the deeper first when there is no history to be inside', () => {
+    // Why the runs still go in deepest first, when an offset would let them go
+    // in any order: with nothing to splice into they are appended, and there
+    // the order of going in is the order they come out.
+    const appended = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.input', source: { of: 'input' } }),
+          block({
+            kind: 'text',
+            id: 'se.shallow',
+            template: 'b',
+            placement: { at: 'in-history', fromEnd: 1 },
+          }),
+          block({
+            kind: 'text',
+            id: 'se.deep',
+            template: 'a',
+            placement: { at: 'in-history', fromEnd: 3 },
+          }),
+        ]),
+        input: { text: 'She waited.' },
+      }),
+    ).candidates.map((candidate) => candidate.id);
+
+    expect(appended).toEqual(['se.input', 'se.deep', 'se.shallow']);
+  });
+
   it('falls to the end when there is no history to be inside', () => {
     const none = collectCandidates(
       context({
@@ -1136,6 +1215,46 @@ describe('the lore slot', () => {
       const at = candidates.findIndex((one) => one.text === 'Injected.');
       expect(at).toBeGreaterThan(0);
       expect(at).toBeLessThan(candidates.length - 1);
+    });
+
+    it('puts a depth-four entry and a depth-zero note each where it was asked', () => {
+      // The pairing the 2026-09-27 audit simulated: four is SillyTavern's
+      // default depth for a lorebook entry, and a note at the very bottom is
+      // the commonest thing beside it. Before the running offset the note went
+      // in one message early, above the newest message it was meant to follow.
+      const threeTurns = [
+        ...twoTurns(),
+        { id: 'c', input: { text: 'five' }, output: { text: 'six' } },
+      ] as unknown as Turn[];
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([
+            historySlot,
+            loreSlot(),
+            block({
+              kind: 'text',
+              id: 'se.note',
+              template: 'Note.',
+              placement: { at: 'in-history', fromEnd: 0 },
+            }),
+          ]),
+          history: threeTurns,
+          lore: [
+            { ...loreBlock({ text: 'Injected.' }), placement: { at: 'in-history', fromEnd: 4 } },
+          ],
+        }),
+      );
+
+      expect(candidates.map((one) => one.text)).toEqual([
+        'one',
+        'two',
+        'Injected.',
+        'three',
+        'four',
+        'five',
+        'six',
+        'Note.',
+      ]);
     });
 
     it('leaves the entries that are not at a depth where the slot is', () => {
@@ -1766,6 +1885,174 @@ describe('the story above the window', () => {
     const empty = collectCandidates(context({ preset: preset([slot]), summary: [] }));
     expect(empty.notFilled).toEqual([
       { blockId: 'se.summary', source: 'summary', reason: 'empty-source' },
+    ]);
+  });
+});
+
+/**
+ * ***A treatment's framing, in the prompt at last*** (2026-09-27) — [04 §3.1],
+ * [P7B §3.2] row 7.
+ *
+ * The slot has been in every shipped pack since P2 and the treatment has been
+ * in the gather since [P5.6], as a carrier for its samples; the arm between
+ * them returned nothing, so the one piece of a treatment written to be read
+ * every turn never was. P7B's gate row for exactly this was answered *yes*,
+ * citing tests that never looked. These do, and each empty case says which
+ * kind of nothing it is.
+ */
+describe('the treatment slot', () => {
+  const framingSlot = block({
+    kind: 'slot',
+    id: 'se.treatment',
+    source: { of: 'treatment', part: 'framing' },
+  });
+
+  const carrying = (framing: string): SampleCarriers => ({
+    treatment: {
+      treatment: { ...newTreatment('Noir'), framing },
+      id: 't1',
+      contentHash: 'sha256:t',
+    },
+    books: [],
+  });
+
+  it('fills the framing from the treatment in play', () => {
+    const { candidates, notFilled } = collectCandidates(
+      context({
+        preset: preset([framingSlot]),
+        carriers: carrying('Rain, always. Nobody here tells the whole truth.'),
+      }),
+    );
+
+    expect(candidates.map((candidate) => [candidate.id, candidate.text])).toEqual([
+      ['se.treatment', 'Rain, always. Nobody here tells the whole truth.'],
+    ]);
+    expect(candidates[0]?.source).toEqual({ kind: 'treatment', part: 'framing' });
+    expect(notFilled).toEqual([]);
+  });
+
+  it('says the source is empty with no treatment, or a treatment with no framing', () => {
+    for (const carriers of [{ treatment: null, books: [] }, carrying('')]) {
+      const { candidates, notFilled } = collectCandidates(
+        context({ preset: preset([framingSlot]), carriers }),
+      );
+      expect(candidates).toEqual([]);
+      expect(notFilled).toEqual([
+        { blockId: 'se.treatment', source: 'treatment', reason: 'empty-source' },
+      ]);
+    }
+  });
+
+  it('says there is no producer when the caller gathered no carriers', () => {
+    const { notFilled } = collectCandidates(context({ preset: preset([framingSlot]) }));
+    expect(notFilled).toEqual([
+      { blockId: 'se.treatment', source: 'treatment', reason: 'no-producer' },
+    ]);
+  });
+
+  it('leaves tone alone, which has no sentence designed for it', () => {
+    const { candidates, notFilled } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.tone', source: { of: 'treatment', part: 'tone' } }),
+        ]),
+        carriers: carrying('Rain, always.'),
+      }),
+    );
+    expect(candidates).toEqual([]);
+    expect(notFilled).toEqual([{ blockId: 'se.tone', source: 'treatment', reason: 'no-producer' }]);
+  });
+});
+
+/**
+ * ***A past input keeps the kind it was*** (2026-09-27) — [13 §8.3], [P7.9].
+ *
+ * Freeform's pack says what a *think* is through the input slot for a think:
+ * *the player's character thinks: …*, beside an instruction that nobody heard
+ * it. That held for one turn. The history arm read the words and not the
+ * kind, so from the next turn on the same thought sat in the transcript as a
+ * bare line the player might as well have said aloud — and the instruction
+ * that it was private had gone with the turn it was attached to.
+ */
+describe('a past input as the pack framed it', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const said = (n: number, kind: string, text: string): Turn => ({
+    id: `t${String(n)}`,
+    sessionId: 's',
+    parentTurnId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'complete',
+    input: { actorId: null, kind, text, raw: '' },
+    output: { text: `out ${String(n)}` },
+    effects: [],
+    tape: [],
+  });
+
+  const history = [
+    said(1, 'think', 'She is lying.'),
+    said(2, 'say', 'Where were you last night?'),
+    said(3, 'do', 'I open the door.'),
+  ];
+
+  function pastInputs(pack: Preset): string[] {
+    return collectCandidates(
+      context({ preset: pack, callKind: 'do', history, input: { text: 'I wait.' } }),
+    )
+      .candidates.filter((candidate) => candidate.source.kind === 'history')
+      .filter((candidate) => candidate.role === 'user')
+      .map((candidate) => candidate.text);
+  }
+
+  function shipped(modeId: string): Preset {
+    const pack = modeById(modeId)?.definition.assembly.defaultPreset;
+    if (pack === undefined) throw new Error(`${modeId} is a built-in`);
+    return pack;
+  }
+
+  it('keeps a thought a thought, and a line a line, in Freeform’s own pack', () => {
+    expect(pastInputs(shipped('storyengine.freeform'))).toEqual([
+      'The player’s character thinks: She is lying.',
+      'The player’s character says: “Where were you last night?”',
+      // A do has no wrapper in the pack, so it reads as it always did.
+      'I open the door.',
+    ]);
+  });
+
+  it('changes nothing in a pack whose input slot wraps nothing', () => {
+    // Scene's case, and the assistant's: one input slot for every kind, bare.
+    expect(pastInputs(shipped('storyengine.scene'))).toEqual([
+      'She is lying.',
+      'Where were you last night?',
+      'I open the door.',
+    ]);
+  });
+
+  it('falls back to the slot for every kind, and never to one switched off', () => {
+    const transcript = block({ kind: 'slot', id: 'se.h', source: { of: 'history' } });
+    const anyKind = block({
+      kind: 'slot',
+      id: 'se.input',
+      role: 'user',
+      source: { of: 'input' },
+      wrapper: 'The player: {{content}}',
+    });
+    const offThink = block({
+      kind: 'slot',
+      id: 'se.input.think',
+      role: 'user',
+      enabled: false,
+      appliesTo: ['think'],
+      source: { of: 'input' },
+      wrapper: 'Thought: {{content}}',
+    });
+
+    expect(pastInputs(preset([transcript, offThink, anyKind]))).toEqual([
+      'The player: She is lying.',
+      'The player: Where were you last night?',
+      'The player: I open the door.',
     ]);
   });
 });

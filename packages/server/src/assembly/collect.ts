@@ -315,10 +315,23 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
     case 'summary':
       return context.summary === undefined ? 'no-producer' : 'empty-source';
 
+    /**
+     * ***`treatment` left this list at last*** (2026-09-27). The framing had a
+     * producer from [P5.6], which gave a session its treatment, and the arm
+     * went on returning nothing, so every treatment's framing — *the short "how
+     * this world is used here" piece, injected every turn* — reached no prompt,
+     * and this said *no producer*. An empty framing slot now says **this
+     * session has no treatment, or one with no framing**, unless the caller
+     * gathered none. *Tone* still has no producer: it is a set of fields with
+     * no sentence designed for them, and inventing one here would be writing
+     * somebody's prompt for them.
+     */
     case 'treatment':
+      if (block.source.part === 'tone') return 'no-producer';
+      return context.carriers === undefined ? 'no-producer' : 'empty-source';
+
     case 'channel':
-      // The same list `fill()` returns nothing for, each for its stated
-      // reason — no producer at this phase.
+      // No producer at this phase.
       return 'no-producer';
 
     /**
@@ -419,7 +432,18 @@ function splice(
   }
 
   const out = [...sequence];
-  // Deepest first, so a shallower insertion is not shifted by an earlier one.
+  /**
+   * **Deepest first, and every insertion after the first moved along by what
+   * went in before it** (2026-09-27). ~~Deepest first, so a shallower insertion
+   * is not shifted by an earlier one~~ — it is: a deeper run goes in at an
+   * earlier index and pushes everything after it right, so the shallower
+   * run's index, counted against the history as it was, landed that many
+   * messages too deep. A block at depth 4 and one at depth 1 came out at 4 and
+   * 2, and two depths past the start of a short history came out reversed.
+   * Deepest first still, because with no history to splice into the runs are
+   * appended and the deepest has to come first there too.
+   */
+  let inserted = 0;
   for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
     const group = (byDepth.get(depth) ?? []).sort(
       // The author's explicit number, then declaration order. Dropping either
@@ -434,7 +458,8 @@ function splice(
     }
     // Clamped: a depth past the start of the run lands at its start rather than
     // outside it, which is what a preset written for a longer history means.
-    out.splice(historyStart + historyCount - Math.min(depth, historyCount), 0, ...run);
+    out.splice(historyStart + historyCount - Math.min(depth, historyCount) + inserted, 0, ...run);
+    inserted += run.length;
   }
   return out;
 }
@@ -555,7 +580,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
 
       return context.history.flatMap((turn, index) =>
         halves.flatMap(({ of, role }) => {
-          const text = of === 'input' ? turn.input?.text : turn.output?.text;
+          const text = of === 'input' ? asItWasSaid(turn, context.preset) : turn.output?.text;
           if (text === undefined || text.length === 0) return [];
           return emit(
             { ...block, priority: block.priority + index, role },
@@ -884,9 +909,25 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       );
     }
 
-    /** Nothing, for its own stated reason: a P2.6 session carries no Treatment. */
-    case 'treatment':
-      return [];
+    /**
+     * ~~Nothing, for its own stated reason: a P2.6 session carries no
+     * Treatment.~~ ***The framing, since 2026-09-27*** — [04 §3.1], [P7B §3.2]
+     * row 7. The reason expired at [P5.6], which gave a session its treatment
+     * and brought it here as a carrier for its samples; this arm went on
+     * returning nothing, and the one piece of a treatment written to be read
+     * every turn — *how this world is used here* — never reached a prompt. The
+     * gate row that checks for it was recorded as passing, which says more
+     * about the row than the arm.
+     *
+     * **Only the framing.** Tone is a set of fields with no sentence designed
+     * for them, and turning them into prose here would be writing an author's
+     * prompt for them; `emptyReason` keeps its `no-producer`.
+     */
+    case 'treatment': {
+      const held = context.carriers?.treatment;
+      if (source.part !== 'framing' || held === null || held === undefined) return [];
+      return emit(block, held.treatment.framing, { kind: 'treatment', part: 'framing' }, undefined);
+    }
 
     default:
       /**
@@ -897,6 +938,34 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        */
       return [];
   }
+}
+
+/**
+ * ***A past input as the pack framed it when it was the input*** (2026-09-27)
+ * — [13 §8.3], [P7.9].
+ *
+ * A pack says what kind of thing the player did through the input slot for
+ * that kind: Freeform wraps a *think* as *the player's character thinks: …*, so
+ * the narrator knows nobody heard it. The history arm dropped the kind, so the
+ * same thought one turn later sat in the history as bare words — a line spoken
+ * aloud, for all a model could tell. The kind is on the record, so the past
+ * turn takes the wrapper the current one had: the slot for its kind if the pack
+ * has one, else a slot for every kind. No wrapper, no change, which is Scene's
+ * case and the assistant's.
+ */
+function asItWasSaid(turn: Turn, preset: Preset): string | undefined {
+  const text = turn.input?.text;
+  if (text === undefined || text.length === 0) return text;
+  const kind = turn.input?.kind;
+  const inputs = preset.blocks.filter(
+    (candidate) =>
+      candidate.enabled && candidate.kind === 'slot' && candidate.source.of === 'input',
+  );
+  const slot =
+    inputs.find((one) => kind !== undefined && one.appliesTo.includes(kind)) ??
+    inputs.find((one) => one.appliesTo.length === 0);
+  if (slot?.kind !== 'slot' || slot.wrapper === undefined) return text;
+  return slot.wrapper.replaceAll('{{content}}', () => text);
 }
 
 /**
