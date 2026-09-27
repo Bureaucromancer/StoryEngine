@@ -1256,6 +1256,28 @@ would have decided it. An `id` is minted when the goal arrives without one, for
 the reason the hook route mints one: `se.goal` is scoped by it and `Goal.next`
 names it.
 
+***The goal is checked before it is kept*** (2026-09-27): against the shared
+`Goal` schema with `id` optional, so one missing a field is `400 invalid` naming
+it and nothing is written. The body was open, and a goal without a `completion`
+made every read of the session a `500` and every turn a failure, with no route
+to remove it. A goal already in the file that is not one (a hand edit, an import,
+an older build) is read past: it is not a row and play does not start on it, and
+the file keeps it.
+
+### `PUT /api/sessions/:sessionId/preset`
+
+`{ presetId }` or `{ preset }` → `{ session }`. Which pack this session is
+assembled from ([P7B.2](design/workplan/24-p7b-presets-and-prompts.md)). `presetId`
+names a library preset, which is copied rather than linked, or `default` for
+whatever the mode ships; `preset` is the session's own pack, sent whole after an
+edit. One or the other, never both: `422 one-of`. An unknown `presetId` is
+`422 unknown-preset`.
+
+***A `preset` is checked as a preset*** (2026-09-27), against the schema the
+library checks one against, so one it refuses is `400 invalid` and the session
+keeps the pack it had. It took any object, and a pack with no `blocks` was a
+session whose every turn failed.
+
 ### `POST /api/sessions/:sessionId/hooks` · `DELETE /api/sessions/:sessionId/hooks/:hookId`
 
 `{ hook }` → `{ session }`, and the delete answers the same. A hook added to a

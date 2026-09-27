@@ -2585,9 +2585,103 @@ describe('a session’s goals', () => {
     const response = await server.request({
       method: 'POST',
       url: `/api/sessions/${uuidv7()}/goals`,
-      payload: { goal: { statement: 'x' } },
+      payload: { goal: goal('g-x') },
     });
 
     expect(response.status).toBe(404);
+  });
+
+  /**
+   * ***A goal is checked before it is kept*** (2026-09-27). The body was open
+   * and the goal was stored behind a cast, so one without a `completion` made
+   * every later read of the session a 500 and every turn a failure, with no
+   * route to take it out again. It is a `400` naming the field now, and
+   * nothing is written.
+   */
+  it('refuses a goal missing what a goal must say, and keeps nothing', async () => {
+    const refused = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/goals`,
+      payload: { goal: { statement: 'Find the key' } },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid');
+    expect(JSON.stringify(refused.body.issues)).toMatch(/completion/);
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    expect(read.body.goals.rows).toEqual([]);
+  });
+
+  /**
+   * ***And one already in the file is read past*** (2026-09-27): a hand edit,
+   * an import or an older build can hold a goal nothing checked. Placed first,
+   * where play begins, so the runner would have read its `completion` on the
+   * first turn. The file is left as it is: it is somebody's writing.
+   */
+  it('reads past a goal in the file that is not one, and plays on', async () => {
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...stored,
+        goals: [{ id: 'broken', statement: 'Find the key' }, goal('g-fine')],
+      }),
+    );
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    expect(read.body.goals.rows.map((row: { goalId: string }) => row.goalId)).toEqual(['g-fine']);
+    expect(read.body.goals.rows[0].current).toBe(true);
+
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, TURN_FINISHES_MS);
+    await stream.abort();
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.activeJob).toBeNull();
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns.at(-1)?.status).toBe('complete');
+    expect((JSON.parse(await readFile(file, 'utf8')) as { goals: unknown[] }).goals).toHaveLength(
+      2,
+    );
+  });
+});
+
+/**
+ * ***A session's own pack is checked as a pack*** (2026-09-27). The body took
+ * any object and stored it as a `Preset` by a cast, so a pack with no `blocks`
+ * was a session whose every turn failed. The library checks a preset before it
+ * keeps one, and the session's copy is checked the same way.
+ */
+describe('a session’s pack, sent whole', () => {
+  it('refuses something that is not a pack, and keeps the one it had', async () => {
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    const refused = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/preset`,
+      payload: { preset: { name: 'Not a pack' } },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid');
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.session.preset).toEqual(before.body.session.preset);
+  });
+
+  it('takes the pack it has, edited', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const pack = read.body.session.preset as Record<string, unknown>;
+
+    const saved = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/preset`,
+      payload: { preset: { ...pack, name: 'Mine now' } },
+    });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.session.preset.name).toBe('Mine now');
   });
 });

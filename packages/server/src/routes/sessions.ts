@@ -5,10 +5,11 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import {
+  Goal,
+  Preset,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   uuidv7,
-  type Goal,
   type PlotHook,
   type Setup,
 } from '@storyengine/shared';
@@ -47,7 +48,7 @@ import { castRows } from '../sessions/cast.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
 import type { HookSource } from '../sessions/types.js';
-import { goalRows, readConcluded } from '../sessions/goals.js';
+import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
 import { hookRows, readPacing } from '../sessions/hooks.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { ownerKey } from '../index-db/ingest.js';
@@ -387,13 +388,27 @@ const HookBody = Type.Object(
  * One goal written at a completion — [06 §7.3.4]'s *"or one written now"*,
  * [P7.6].
  *
- * *Open past the envelope*, like the hook body beside it and for the stated
+ * ~~*Open past the envelope*, like the hook body beside it and for the stated
  * reason: a goal the schema would refuse is an authoring mistake to show rather
  * than a request to reject. What is closed is the envelope — one goal, under one
- * key.
+ * key.~~
+ *
+ * ***The shared `Goal`, with the id optional*** (2026-09-27). Nothing showed a
+ * goal the schema would refuse: it was stored behind an `as unknown as Goal`,
+ * and the first read that trusted the type fell over it. A goal without a
+ * `completion` made every read of the session a 500 and every turn a failure,
+ * and no route could take it out again. A mistake is shown now as a `400` that
+ * names the field, before anything is written. The id stays optional because
+ * a goal written here has no object upstream to keep one from, so the route
+ * mints it.
  */
 const GoalBody = Type.Object(
-  { goal: Type.Object({}, { additionalProperties: true }) },
+  {
+    goal: Type.Object(
+      { ...Goal.properties, id: Type.Optional(Goal.properties.id) },
+      { additionalProperties: false },
+    ),
+  },
   { additionalProperties: false },
 );
 
@@ -484,7 +499,13 @@ const PromoteBody = Type.Object(
 const PresetBody = Type.Object(
   {
     presetId: Type.Optional(Type.String({ maxLength: 200 })),
-    preset: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    /**
+     * ***A pack, checked as one*** (2026-09-27). It was any object, stored as
+     * `Preset` by a cast, so a pack with no `blocks` was a session whose every
+     * turn failed. The library checks a preset against this schema before it
+     * keeps one; the session's own copy is checked the same way.
+     */
+    preset: Type.Optional(Preset),
   },
   { additionalProperties: false },
 );
@@ -1125,7 +1146,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * `achieved` plus `next`, both of which travel.
      */
     const goals = {
-      rows: goalRows(session.goals ?? [], session.channels, path),
+      rows: goalRows(readableGoals(session.goals), session.channels, path),
       concluded: readConcluded(session.channels),
     };
 
@@ -1548,7 +1569,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { goal } = request.body as { goal: Record<string, unknown> };
+      const { goal } = request.body as { goal: Omit<Goal, 'id'> & { id?: string } };
       const { sessionId } = request.params as { sessionId: string };
 
       /**
@@ -1557,11 +1578,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * without one it could be neither completed nor pointed at — `se.goal` is
        * scoped by it and `Goal.next` names it.
        */
-      const id = typeof goal['id'] === 'string' && goal['id'] !== '' ? goal['id'] : uuidv7();
+      const id = goal.id !== undefined && goal.id !== '' ? goal.id : uuidv7();
       const updated = await addSessionGoal(services.sessions, account.handle, sessionId, {
         ...goal,
         id,
-      } as unknown as Goal);
+      });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }

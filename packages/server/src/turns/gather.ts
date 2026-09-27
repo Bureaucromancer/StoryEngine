@@ -15,7 +15,7 @@ import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/ty
 import type { DifficultyLevel, Goal, Preset } from '@storyengine/shared';
 import { readRegistry } from '../tags/store.js';
 import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
-import { readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
@@ -259,7 +259,7 @@ export async function gatherAssemblyInputs(
    */
   const lore = resolveLore(library, request.account, session);
   const pool = Array.isArray(session?.hooks) ? session.hooks : [];
-  const chain = Array.isArray(session?.goals) ? session.goals : [];
+  const chain = readableGoals(session?.goals);
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
   return {
