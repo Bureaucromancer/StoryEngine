@@ -5,7 +5,16 @@ import { describe, expect, it } from 'vitest';
 
 import { newLorebook, newLoreEntry, type Lorebook } from '@storyengine/shared';
 
-import { alreadyKnown, EXTRACT_PROMPT, readExtraction } from './extract.js';
+import type { StepCallRequest, StepHost, TranscriptTurn } from '@storyengine/sdk';
+
+import type { LibraryContext } from '../library.js';
+import {
+  alreadyKnown,
+  EXTRACT_EVERY_N_TURNS,
+  EXTRACT_PROMPT,
+  extractMemories,
+  readExtraction,
+} from './extract.js';
 
 /**
  * ***The extractor's two judgements, and neither is about prose*** —
@@ -119,5 +128,49 @@ describe('what the model is told', () => {
     expect(EXTRACT_PROMPT).toContain('Do not invent');
     expect(EXTRACT_PROMPT).toContain('privately thought');
     expect(EXTRACT_PROMPT).toContain('Do not speculate');
+  });
+});
+
+/**
+ * ***The turns since it last ran*** (2026-09-27). The step rendered the whole
+ * transcript on every eighth turn, so each extraction re-read the session from
+ * its first turn: quadratic in the session's length, every old exchange offered
+ * again, and a long session outgrowing the window with a block that cannot be
+ * trimmed. Asked with no memories to write, so nothing but the call is seen.
+ */
+describe('what the extractor reads', () => {
+  it('reads the last eight turns of the story, not the whole of it', async () => {
+    const asked: StepCallRequest[] = [];
+    const host: StepHost = {
+      call: (request) => {
+        asked.push(request);
+        return Promise.resolve({ callId: 'c1', text: '', usage: null, object: { memories: [] } });
+      },
+      random: {} as StepHost['random'],
+      signal: new AbortController().signal,
+    };
+    const step = extractMemories({
+      library: {} as LibraryContext,
+      handle: 'ned',
+      sessionId: 's-1',
+      session: { name: 'Rain City', cast: { persona: null, actors: ['a-vera'] } },
+      nameOf: () => 'Vera',
+      report: () => undefined,
+    });
+    const transcript: TranscriptTurn[] = Array.from({ length: 31 }, (_, at) => ({
+      turnId: `t-${String(at)}`,
+      output: { text: `Day ${String(at)} on the road.` },
+    }));
+
+    await step.run(
+      { turnId: 't-now', sessionId: 's-1', parentTurnId: 't-30', channels: {}, transcript },
+      host,
+    );
+
+    const turns = asked[0]?.candidates?.find((one) => one.id === 'se.memory.turns')?.text ?? '';
+    const first = 31 - EXTRACT_EVERY_N_TURNS;
+    expect(turns).toContain(`Day ${String(first)} on the road.`);
+    expect(turns).toContain('Day 30 on the road.');
+    expect(turns).not.toContain(`Day ${String(first - 1)} on the road.`);
   });
 });

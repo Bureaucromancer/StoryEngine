@@ -3013,6 +3013,16 @@ goes, and a cadence does that at every length. *Eight turns, written down as the
 judgement it is* — short enough that forty turns leave five memories rather than
 one, long enough that the extra call is a twelfth of the turns.
 
+*(2026-09-27)* **Each run reads the eight turns since the last one, and it read
+the whole session.** The step rendered the entire transcript every eighth turn,
+so the fortieth turn's extraction re-read the first thirty-nine: the cost of
+remembering grew with the square of the session, every old exchange was offered
+for extraction again (and `alreadyKnown` sees a paraphrase of a known fact as a
+new one), and a long session outgrew the window with a block that is required
+and cannot be trimmed. The cadence runs on the eighth story turn and the
+transcript stops before the turn running it, so its last eight turns are exactly
+the ones since the last run.
+
 ***`post` where the summariser is `pre`***, and the difference is the whole
 relationship between the two features: a summary goes into **this turn's**
 prompt, and a memory is a reading of what just happened that goes into a
