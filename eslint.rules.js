@@ -308,6 +308,7 @@ export function restrictedSyntax({
   classList = false,
   tokensOnly = false,
   engineOnly = false,
+  readsTheScreen = false,
 } = {}) {
   const entries = [
     // Not anchored on `className`. See the pattern's docstring: the anchor was
@@ -354,6 +355,22 @@ export function restrictedSyntax({
     // label changes what the program does.
     entries.push({
       selector: `BinaryExpression[operator=/^[=!]==?$/] > Literal[value=/${PROSE_PATTERN}/]`,
+      message: DISPLAYED_TEXT_MESSAGE,
+    });
+  }
+
+  // And the same through a string method (2026-09-27). Four settings panels
+  // chose their failure sentence with `message.includes('free space')` and its
+  // like — a server's English made into an identifier all the same, and out of
+  // the comparison selector's sight. A refusal carries its class, and
+  // `errorCode()` in the client's api.ts is how to read it.
+  //
+  // *Not in a test* (`readsTheScreen`): a test searching what was rendered for
+  // `'Prompt tokens'` is reading the screen, which is its job, and a rule that
+  // fired there would be worked around in every one of them.
+  if (userFacing && !readsTheScreen) {
+    entries.push({
+      selector: `CallExpression[callee.property.name=/^(includes|startsWith|endsWith)$/] > Literal[value=/${PROSE_PATTERN}/]`,
       message: DISPLAYED_TEXT_MESSAGE,
     });
   }

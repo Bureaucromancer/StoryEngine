@@ -245,6 +245,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * ***The class a refusal carries, or `null`*** (2026-09-27).
+ *
+ * The one spelling of the read every refusal sentence starts from. Two others
+ * were in use and both were wrong: a cast to `{ body: { error } }` — the shape
+ * a *server* test reads off an injected response, which `ApiError` has never
+ * had, so three components' sentences had never rendered — and matching the
+ * English of `message`, which four settings panels did, so rewording a server
+ * sentence would quietly change which one of theirs a person saw. The class is
+ * the contract ([21 §1.4]); the prose is the server's own fallback.
+ */
+export function errorCode(failure: unknown): string | null {
+  return failure instanceof ApiError ? failure.code : null;
+}
+
 export const CSRF_COOKIE = 'se_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 

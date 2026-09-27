@@ -2775,6 +2775,12 @@ manifest's `omitted` at `warn`**, because all-or-nothing is the right failure
 for a *restore* and the wrong one for a backup: it would leave an install with
 no archive at all, discovered on the day somebody needed one.
 
+**`507 {"error":"no-space"}` when the disk has no room for it**, whether the
+free-space check refused it before writing or the disk filled while it was
+written (`ENOSPC`). A state of the disk rather than a fault of the server, and a
+class the client has a sentence for — it used to be the error handler's bare
+`500`. The admin half (`POST /api/admin/backups`) answers the same.
+
 ### `GET /api/me/backups`
 
 **Everything this account has** → `200 {"backups": […], "totalBytes": n}`,

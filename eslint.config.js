@@ -437,6 +437,40 @@ export default tseslint.config(
       }),
     },
   },
+  /**
+   * **A test reads the screen; the program must not** (2026-09-27).
+   *
+   * The string-method half of *branching on displayed text* is for code that
+   * decides something by a sentence. A test that finds a row by its
+   * `'Prompt tokens'` is doing what a test is for, so client tests keep every
+   * other rule and lose that selector alone — restated for `ui/`, whose block
+   * above a flat config would otherwise let this one replace (F25).
+   */
+  {
+    files: ['packages/client/src/**/*.test.{ts,tsx}', 'packages/client/src/**/test-*.{ts,tsx}'],
+    ignores: ['packages/client/src/ui/**'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        tokensOnly: true,
+        readsTheScreen: true,
+      }),
+    },
+  },
+  {
+    files: [
+      'packages/client/src/ui/**/*.test.{ts,tsx}',
+      'packages/client/src/ui/**/test-*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+        readsTheScreen: true,
+      }),
+    },
+  },
   {
     files: ['packages/client/**/*.{ts,tsx}'],
     languageOptions: { globals: globals.browser },

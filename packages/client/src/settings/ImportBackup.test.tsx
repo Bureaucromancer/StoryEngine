@@ -42,6 +42,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
+const { ApiError } = await import('../api.js');
 const { ImportBackup } = await import('./ImportBackup.js');
 
 const ID = '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60';
@@ -101,6 +102,43 @@ async function choose(user: ReturnType<typeof userEvent.setup>): Promise<void> {
     expect(screen.getByLabelText('When something is already here')).toBeTruthy();
   });
 }
+
+/**
+ * ***Why it did not run, by the class*** (2026-09-27). The panel searched the
+ * route's English, and two refusals that say what is wrong fell through it:
+ * an archive that does not hold the account asked for, and one bigger than an
+ * import reads at once — which was the likelier of the two to be called
+ * unreadable, and is not. Reddened by putting the search back.
+ */
+describe('an import the server refused', () => {
+  async function runIt(): Promise<void> {
+    const user = userEvent.setup();
+    renderFlow('account');
+    await choose(user);
+    await user.click(screen.getByRole('button', { name: 'Import from this backup' }));
+    await user.click(screen.getByRole('button', { name: 'Import it' }));
+  }
+
+  it('says the archive does not hold that account', async () => {
+    importMine.mockRejectedValue(
+      new ApiError(422, 'unreadable-root', 'That archive does not hold the account you asked for.'),
+    );
+    await runIt();
+
+    expect(
+      await screen.findByText('That archive does not hold the account you asked for.'),
+    ).toBeTruthy();
+  });
+
+  it('says an archive is too big to read at once, not that it is unreadable', async () => {
+    importMine.mockRejectedValue(new ApiError(422, 'too-large', 'Too big.'));
+    await runIt();
+
+    expect(
+      await screen.findByText('That archive holds more than an import reads in one go.'),
+    ).toBeTruthy();
+  });
+});
 
 describe('importing from a backup', () => {
   it('offers nothing at all when there are no archives', () => {

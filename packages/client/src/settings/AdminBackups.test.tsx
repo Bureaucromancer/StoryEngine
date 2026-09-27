@@ -30,6 +30,7 @@ const readInstallManifest = vi.fn();
 const restoreInstall = vi.fn();
 const cancelRestore = vi.fn();
 const notices = vi.fn();
+const takeInstall = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -38,7 +39,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     readInstallManifest: (...a: unknown[]) => readInstallManifest(...a) as unknown,
     restoreInstall: (...a: unknown[]) => restoreInstall(...a) as unknown,
     cancelRestore: (...a: unknown[]) => cancelRestore(...a) as unknown,
-    takeInstall: vi.fn(),
+    takeInstall: (...a: unknown[]) => takeInstall(...a) as unknown,
     deleteInstall: vi.fn(),
     importInstall: vi.fn(),
   },
@@ -48,6 +49,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
+const { ApiError } = await import('../api.js');
 const { AdminBackups } = await import('./AdminBackups.js');
 
 const ID = '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60';
@@ -191,5 +193,46 @@ describe('restoring the install', () => {
     renderPanel();
     await screen.findByLabelText('Which archive to become');
     expect(screen.queryByRole('button', { name: 'Call it off' })).toBeNull();
+  });
+
+  /**
+   * ***By the class, whatever the server's sentence says*** (2026-09-27). The
+   * panel searched the refusal's English for `free space`, so this refusal —
+   * the same class in other words — would have read as a restore that simply
+   * *could not be started*. Reddened by putting the search back.
+   */
+  it('says why a restore was refused by its class, not by its wording', async () => {
+    restoreInstall.mockRejectedValue(new ApiError(507, 'no-space', 'Not enough room to unpack.'));
+    const user = userEvent.setup();
+    renderPanel();
+    await chooseArchive(user);
+
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    await user.type(screen.getByLabelText('Type restore to confirm'), 'restore');
+    await user.click(screen.getByRole('button', { name: 'Stop the server and restore' }));
+
+    expect(
+      await screen.findByText(
+        'There is not enough free space to unpack that archive. Delete some archives and try again.',
+      ),
+    ).toBeTruthy();
+  });
+});
+
+describe('taking an install backup', () => {
+  /**
+   * The admin half reaches the same route code as the account half, and had
+   * no sentence for a full disk at all (2026-09-27).
+   */
+  it('says when the disk had no room for it', async () => {
+    takeInstall.mockRejectedValue(new ApiError(507, 'no-space', 'No room.'));
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(await screen.findByRole('button', { name: 'Back up now' }));
+
+    expect(
+      await screen.findByText('There was not enough room on the disk for that backup.'),
+    ).toBeTruthy();
   });
 });

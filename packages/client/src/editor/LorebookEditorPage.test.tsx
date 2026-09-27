@@ -1756,6 +1756,40 @@ describe('image slots on a book and its entries', () => {
     expect(saved.primaryMediaId).toBe(saved.media[0]?.id);
   });
 
+  /**
+   * ***A refusal says which one*** (2026-09-27). The strip read the class from
+   * `failure.body.error`, which `ApiError` has never had, so a PDF picked by
+   * mistake was only a picture that *could not be added*. And the class is
+   * checked against the two the strip has words for, not looked up in its
+   * label table: `remove` is a class no server sends and a label this strip
+   * has, and would have come back as the reason.
+   */
+  it('says why the server refused a picture, and only in its own words', async () => {
+    const refuse = vi.spyOn(api, 'uploadAsset');
+    renderApp();
+    await openEditor();
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    const pick = async (): Promise<void> => {
+      await act(async () => {
+        fireEvent.change(pickerIn(gallery), {
+          target: { files: [new File(['%PDF'], 'notes.pdf', { type: 'image/png' })] },
+        });
+        await Promise.resolve();
+      });
+    };
+
+    refuse.mockRejectedValue(new ApiError(415, 'not-an-image', 'That is not an image.'));
+    await pick();
+    expect(
+      await within(gallery).findByText('That file is not a PNG, JPEG or WebP image.'),
+    ).toBeTruthy();
+
+    refuse.mockRejectedValue(new ApiError(422, 'remove', 'A class this strip has a label for.'));
+    await pick();
+    expect(await within(gallery).findByText('That picture could not be added.')).toBeTruthy();
+  });
+
   it('puts a strip on the entry rather than on the book', async () => {
     uploads();
     const client = renderApp();

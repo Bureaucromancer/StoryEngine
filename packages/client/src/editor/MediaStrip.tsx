@@ -5,7 +5,7 @@ import { useRef, useState, type JSX } from 'react';
 
 import { uuidv7, type EmbeddedMedia, type MediaRole } from '@storyengine/shared';
 
-import { api, type LibraryKind } from '../api.js';
+import { api, errorCode, type LibraryKind } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
@@ -194,8 +194,21 @@ export function MediaStrip(props: {
         patch(target, asset);
       }
     } catch (failure: unknown) {
-      const code = (failure as { body?: { error?: string } }).body?.error;
-      setProblem(WORDS[code ?? ''] ?? WORDS['failed'] ?? '');
+      /**
+       * ***Read from the class, and only the two this strip has words for***
+       * (2026-09-27). This read `failure.body.error`, which `ApiError` has
+       * never had, so every refusal said the picture *could not be added*.
+       * And it is an allow-list rather than a lookup in `WORDS`, because that
+       * table also holds this strip's own labels: a class the server sent
+       * that shared a name with one of them would have shown the label as the
+       * reason.
+       */
+      const code = errorCode(failure);
+      setProblem(
+        code === 'not-an-image' || code === 'too-large'
+          ? (WORDS[code] ?? '')
+          : (WORDS['failed'] ?? ''),
+      );
     } finally {
       setBusy(false);
       setReplacing(null);
