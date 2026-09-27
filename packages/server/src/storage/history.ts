@@ -2,13 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
-
 import { uuidv7 } from '@storyengine/shared';
 
 import { writeAtomic } from './atomic.js';
-import { fileExists, listEntryNames, readFileBytes, removeTree } from './files.js';
+import { appendLine, fileExists, listEntryNames, readFileBytes, removeTree } from './files.js';
 import { KeyedQueue } from './keyed-queue.js';
 import { resolveWithin } from './paths.js';
 
@@ -223,10 +220,10 @@ async function recordVersionUnlocked(
   // A plain append rather than an atomic rewrite: the file is append-only by
   // design, one small line per write, and rewriting the whole history to add a
   // line would turn its failure mode from "lost the newest entry" into "lost
-  // the file".
-  const index = indexFile(objectRoot);
-  await mkdir(dirname(index), { recursive: true });
-  await appendFile(index, `${JSON.stringify(record)}\n`);
+  // the file". Through `appendLine` (2026-09-27), which closes off a torn last
+  // line first; this appended straight onto one, so the version after a crash
+  // mid-append vanished from the list along with the one it cut short.
+  await appendLine(indexFile(objectRoot), `${JSON.stringify(record)}\n`);
 
   return record;
 }

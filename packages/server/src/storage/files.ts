@@ -4,9 +4,9 @@
 import { constants, createReadStream } from 'node:fs';
 import {
   access,
-  appendFile,
   lstat,
   mkdir,
+  open,
   readdir,
   readFile,
   rename,
@@ -87,10 +87,33 @@ export async function statFile(path: string): Promise<FileFacts | null> {
  * the whole segment on every turn — turning an O(1) write into O(n) and
  * throwing away the immutability the format is built on. A torn append costs
  * the last line of one segment, which is the bounded loss that trade buys.
+ *
+ * ***And only that line, because the next append closes it off*** (corrected
+ * 2026-09-27). A crash or a full disk mid-append leaves a last line with no
+ * newline. The next append used to land straight after it, so the new line
+ * and the fragment became one line that parses as neither, and the loss was
+ * the *next* record as well. For a turn that was the whole story. The retry
+ * appended the same turn onto the fragment, the head was set to it, and the
+ * path walk from a head it could not read came back empty. So a tail with no
+ * newline gets one first. The fragment is then a line of its own, which every
+ * reader already skips, and it keeps its place in the count, so a turn's
+ * offset is still its line number.
  */
 export async function appendLine(path: string, line: string): Promise<void> {
   await ensureDirectory(dirname(path));
-  await appendFile(path, line, 'utf8');
+  const handle = await open(path, 'a+');
+  try {
+    const { size } = await handle.stat();
+    let lead = '';
+    if (size > 0) {
+      const last = new Uint8Array(1);
+      await handle.read(last, 0, 1, size - 1);
+      if (last[0] !== 0x0a) lead = '\n';
+    }
+    await handle.appendFile(`${lead}${line}`, 'utf8');
+  } finally {
+    await handle.close();
+  }
 }
 
 /**

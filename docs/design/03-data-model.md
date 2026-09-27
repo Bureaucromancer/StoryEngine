@@ -1830,6 +1830,15 @@ the database version rather than merely equivalent:
 (§5.5) for the same reasons: cheap writes, clean git diffs, and a corrupted tail
 costs the newest entry rather than the history.
 
+*Corrected 2026-09-27.* ~~a corrupted tail costs the newest entry~~ A corrupted
+tail cost the newest entry **and the one after it**, here and in turn segments
+alike: the next append landed on the end of the torn line, and the two made one
+line that parsed as neither. For a segment that could be the whole story,
+because the turn that tore was the one the commit appended again, the head was
+set to it, and a path walk from a head it could not read is empty.
+`storage/files.ts`'s `appendLine` now ends a torn line before it appends, and
+the history index goes through it. The sentence above is true again.
+
 ### 11.3 Retention
 
 **Marinara has no cap**, and that is the one place its design should not be

@@ -74,6 +74,12 @@ A removed account's archives and trash were archived from `removed/`, keys and
 all, `redacted` or not, and are now left out like the live ones'. And what a
 killed backup left, a `.part` and a copy of the store, is swept at the next boot.
 
+*And the third bullet was true of the read, not of the next write* (corrected
+the same day). A restored install did drop the partial turn when it read the
+segment. The first turn played after the restore was then appended onto the end
+of that partial line, and the story lost that turn as well. Appends now end a
+torn line first ([03 §11.2](../03-data-model.md)'s correction).
+
 So the in-process backup is **strictly more consistent** than
 `pnpm backup create`, not less. E6's sentence was true of the thing E6 was
 describing and does not generalise to this.
