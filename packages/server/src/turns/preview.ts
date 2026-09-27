@@ -3,7 +3,6 @@
 
 import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@storyengine/shared';
 
-import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
@@ -15,7 +14,7 @@ import { Rng } from '../rng/rng.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
 import { planCall, RoleUnresolved } from './calls.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 
 /**
  * The stateless assemble — [P3.4], the affordance [P3 §1.6] created this stage
@@ -161,14 +160,15 @@ export async function previewAssembly(
   }
 
   /**
-   * The retriever runs for a preview too, and **its effects are discarded** —
-   * [P5.6].
+   * The retriever runs for a preview too, and **moves nothing** — [P5.6].
    *
-   * That is the whole reason `retrieve` returns proposals rather than writing
-   * them: the preview needs the same blocks the turn will send, and must not
-   * move a single cooldown to get them. A preview that advanced timing would
-   * change the turn it was previewing, and it fires every time somebody pauses
-   * typing.
+   * ~~That is the whole reason `retrieve` returns proposals rather than writing
+   * them~~ — it returns no proposals at all now (2026-09-27): the runner
+   * settles the counters after assembly, over what reached the prompt, and a
+   * preview never asks it to. The rule is the same: the preview needs the
+   * same blocks the turn will send, and must not move a single cooldown to get
+   * them. A preview that advanced timing would change the turn it was
+   * previewing, and it fires every time somebody pauses typing.
    *
    * The RNG is a fresh one for the same reason, and its tape is thrown away
    * with it. A preview showing a 50% entry that the turn then rolls differently
@@ -204,41 +204,25 @@ export async function previewAssembly(
     unplaced: lore.unplaced,
   });
 
-  const collected = collectCandidates({
-    preset: inputs.preset,
+  /**
+   * ***`collectFor`, which is the turn's collector input by construction*** —
+   * [06 §7.3.3], [06 §7.3.1], and [P7.8]'s lesson made structural
+   * (2026-09-27).
+   *
+   * **A preview that omits a block the turn will send is a preview that
+   * lies**, and the goal was the sharpest case in the build because 7.3.3 calls
+   * it *"always injected"*: it shipped at [P7.6] wired into the runner and not
+   * here, and the dials would have shipped the same way one stage later. P7.8
+   * fixed both by adding them to this call by hand, which fixed those two;
+   * the gather now fills everything it knows for every caller, so the next
+   * producer cannot reach the turn alone. What stays here is what only a
+   * preview knows: the draft and the guidance, and [13 §8.3]'s per-kind block
+   * so a preview of a `say` turn shows the block a `say` turn sends.
+   */
+  const collected = collectFor(inputs, {
     callKind: step.callKind,
-    // [13 §8.3]'s per-kind block, so a preview of a `say` turn shows the block a
-    // `say` turn sends.
     ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
-    history: inputs.windowed,
-    persona: inputs.cast.persona,
-    actors: inputs.cast.actors,
-    channels: inputs.channels,
     lore: lore.blocks,
-    // The books and the treatment, for the samples slot — [P5.9]. Separate from
-    // `lore` above because a sample rides with its carrier rather than with an
-    // activation: a book's prose is offered because the book is in play.
-    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
-    /**
-     * ***The goal and the dials, which this call was missing*** — [06 §7.3.3],
-     * [06 §7.3.1], found and fixed at [P7.8].
-     *
-     * **A preview that omits a block the turn will send is a preview that
-     * lies**, and the goal is the sharpest case in the build because 7.3.3 calls
-     * it *"always injected"*: every session with a cursor would have previewed a
-     * prompt one block shorter than the one it sends, with the budget arithmetic
-     * under it correspondingly wrong. It shipped that way at [P7.6] — the arm
-     * was added to the collector and wired into the runner, and this second
-     * caller was not — and the dials would have shipped the same way for the
-     * same reason one stage later, which is why both are here in one line.
-     *
-     * *The gather resolves both*, so there is nothing to duplicate: the two
-     * callers hand over the same values or the preview is not a preview.
-     */
-    ...(inputs.goals.current === null
-      ? {}
-      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
-    dials: inputs.dials,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });
@@ -247,9 +231,10 @@ export async function previewAssembly(
     const { call } = planCall(
       {
         definition: step,
-        bindings: inputs.bindings,
-        defaults: inputs.defaults,
-        usable: inputs.usable,
+        // The session's own overrides among them, which a preview did not pass
+        // until `roleLayersOf` (2026-09-27): a session pointed at a bigger model
+        // was metered against the account default's window.
+        ...roleLayersOf(inputs),
         providers: context.providers,
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },

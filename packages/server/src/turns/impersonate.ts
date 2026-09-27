@@ -4,17 +4,15 @@
 import type { Candidate } from '@storyengine/sdk';
 import { remedyFor, type ErrorClass, type FailureRemedy } from '@storyengine/shared';
 
-import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { ProviderFactory } from '../providers/factory.js';
-import { loreReport } from '../retrieval/blocks.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import { Rng } from '../rng/rng.js';
 import type { SessionContext } from '../sessions/store.js';
 import { readParty } from '../sessions/cast.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { previewStepFor } from './preview.js';
 
 /**
@@ -142,10 +140,33 @@ export function impersonationInstruction(name: string): Candidate {
       `Write ${name}’s next message, as ${name}, in their own voice.`,
       'One message only. No narration of anyone else, no scene description, no commentary.',
       'Do not resolve what happens next — this is what they say and do, nothing more.',
+      /**
+       * ***Said outright, for the packs that still ask the narrator not to***
+       * (2026-09-27). A session's pack is its own copy, taken when it was
+       * created, and the shipped narrator instruction applied to every call
+       * kind until the same date: in those copies it still tells this call
+       * never to write the player's own words. New packs scope it to
+       * narration; this line is what makes the old ones answer too.
+       */
+      `This is not narration: an instruction above against writing ${name}’s own words, thoughts or decisions is the narrator’s, and does not apply to this message.`,
     ].join('\n'),
     required: true,
   };
 }
+
+/**
+ * ***The call kind a draft is collected under*** — [04 §8.2]'s `impersonate`
+ * (2026-09-27).
+ *
+ * It was the prose step's own, `narrate`, so a draft was assembled from every
+ * block a narration takes and from none of the ones a pack wrote for this: the
+ * narrator instruction that forbids exactly what a draft is was in every
+ * draft's prompt, and an imported SillyTavern preset's impersonation prompt,
+ * which its converter scopes to `impersonate`, was never in any. The retriever
+ * is asked under it too, so a lore entry limited to generation triggers reads
+ * the kind of call this is.
+ */
+export const IMPERSONATE_CALL = 'impersonate';
 
 export async function impersonate(
   context: ImpersonateContext,
@@ -188,10 +209,11 @@ export async function impersonate(
   if (control !== 'player') return { ok: false, reason: 'not-a-player' };
 
   /**
-   * The retriever runs and its effects are discarded — `preview.ts`'s rule, and
-   * it matters more here than there: a draft that advanced a lorebook's
-   * cooldowns would change the turn the person then sends, which is the turn
-   * they wanted the draft *for*.
+   * The retriever runs and moves nothing — `preview.ts`'s rule, and it matters
+   * more here than there: a draft that advanced a lorebook's cooldowns would
+   * change the turn the person then sends, which is the turn they wanted the
+   * draft *for*. (Its report was computed and thrown away; nothing reads it,
+   * so it is no longer computed.)
    */
   const lore = retrieve({
     lore: inputs.lore,
@@ -200,39 +222,25 @@ export async function impersonate(
     channels: inputs.channels,
     persona: inputs.cast.persona,
     actors: inputs.cast.actors,
-    callKind: step.callKind,
+    callKind: IMPERSONATE_CALL,
     rng: new Rng(),
   });
-  loreReport({
-    books: inputs.lore.books,
-    scan: lore.scan,
-    shelf: lore.shelf,
-    unplaced: lore.unplaced,
-  });
 
-  const collected = collectCandidates({
-    preset: inputs.preset,
-    callKind: step.callKind,
-    history: inputs.windowed,
-    persona: inputs.cast.persona,
-    actors: inputs.cast.actors,
-    channels: inputs.channels,
-    lore: lore.blocks,
-    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
-    ...(inputs.goals.current === null
-      ? {}
-      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
-    dials: inputs.dials,
-  });
+  /**
+   * *No input and no input kind*: the draft **is** the input, so a pack's
+   * per-kind block (`say`, `do`) has no submission to match, which is what
+   * keeps a narration's framing for what the player did off a draft of it.
+   */
+  const collected = collectFor(inputs, { callKind: IMPERSONATE_CALL, lore: lore.blocks });
 
   try {
     const outcome = await performCall(
       {
         definition: step,
-        bindings: inputs.bindings,
-        defaults: inputs.defaults,
-        usable: inputs.usable,
-        cast: inputs.cast,
+        // The session's own overrides among them, which a draft did not pass
+        // until `roleLayersOf` (2026-09-27): a session pointed at its own
+        // endpoint drafted on the account default's, with its key.
+        ...roleLayersOf(inputs),
         providers: context.providers,
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },

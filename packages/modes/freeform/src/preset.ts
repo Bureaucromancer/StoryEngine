@@ -41,6 +41,13 @@ export const FREEFORM_PRESET: Preset = {
   blurb: '',
   modes: ['storyengine.freeform'],
   blocks: [
+    /**
+     * *The narrator's, and a narration's only* (2026-09-27): `appliesTo` was
+     * every kind of call, and an impersonation is collected as `impersonate`
+     * and asks for exactly what this forbids — the player's own words. A
+     * session keeps the pack it was created with, so older sessions still
+     * carry the wide one; the impersonation instruction answers for those.
+     */
     {
       id: 'se.instruction',
       label: 'instruction',
@@ -50,7 +57,7 @@ export const FREEFORM_PRESET: Preset = {
         at: 'sequence',
       },
       priority: 90,
-      appliesTo: [],
+      appliesTo: ['narrate'],
       advisory: false,
       omitWhenEmpty: true,
       kind: 'text',

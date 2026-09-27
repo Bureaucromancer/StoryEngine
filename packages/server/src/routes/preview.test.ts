@@ -41,7 +41,7 @@ const CONNECTION_ID = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a04';
 let server: TestServer;
 let sessionId: string;
 
-async function bindProse(): Promise<void> {
+async function bindProse(models: string[] = ['fake-hi']): Promise<void> {
   const root = new Layout(server.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
@@ -50,7 +50,7 @@ async function bindProse(): Promise<void> {
       id: CONNECTION_ID,
       label: 'The double',
       provider: 'openai-compatible',
-      models: ['fake-hi'],
+      models,
       capabilities: { maxContextTokens: 32_000 },
     }),
   );
@@ -170,6 +170,30 @@ describe('a preview with a model bound', () => {
     // ignored it would under-read whenever the box is open.
     expect(with_.budget.spent).toBeGreaterThan(without.budget.spent);
     expect(with_.pendingInput).toBe(true);
+  });
+});
+
+/**
+ * ***Measured against the model the session chose*** (2026-09-27). The
+ * preview resolved its model without the session's overrides, so a session
+ * whose narrator was pointed at a bigger model was metered against the account
+ * default's window, under the account default's name, and reported blocks
+ * dropped that the turn would send.
+ */
+describe('a preview for a session with its own model', () => {
+  it('names and measures the model the session overrides to', async () => {
+    await bindProse(['fake-hi', 'fake-lo']);
+    const roles = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/roles`,
+      payload: { roles: { prose: { connectionId: CONNECTION_ID, modelId: 'fake-lo' } } },
+    });
+    expect(roles.status).toBe(200);
+
+    const answer = (await preview({ input: { text: 'Look around.' } })).body.preview as {
+      resolved: { modelId: string };
+    };
+    expect(answer.resolved.modelId).toBe('fake-lo');
   });
 });
 

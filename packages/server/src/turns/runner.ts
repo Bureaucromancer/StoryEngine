@@ -52,7 +52,7 @@ import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, resolveStepRole, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
 import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
@@ -77,7 +77,6 @@ import { SE_GOAL } from '../sessions/goals.js';
 import { storyDepth } from '../sessions/depth.js';
 import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
-import { collectCandidates } from '../assembly/collect.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
 import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
@@ -669,7 +668,7 @@ export class TurnRunner {
       { sessions: commit.sessions, accounts: this.#options.accounts },
       { account: job.account, sessionId: job.sessionId, parentTurnId: job.parentTurnId },
     );
-    const { history, windowed, usable, bindings, defaults, mode, preset, cast } = inputs;
+    const { history, mode, preset, cast } = inputs;
     let running: Record<string, ChannelState> = inputs.channels;
 
     /**
@@ -902,16 +901,7 @@ export class TurnRunner {
 
     const summariserRole = wantsSummary
       ? resolveStepRole(
-          {
-            bindings,
-            defaults,
-            usable,
-            ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
-            ...(inputs.session?.stepRoles === undefined
-              ? {}
-              : { stepRoles: inputs.session.stepRoles }),
-            cast,
-          },
+          roleLayersOf(inputs),
           SUMMARISE_STEP,
           SUMMARISE_STEP.role ?? 'prose',
           undefined,
@@ -1142,23 +1132,7 @@ export class TurnRunner {
     const renderRoles =
       wantsIllustration || wantsBackdrop
         ? {
-            image: resolveStepRole(
-              {
-                bindings,
-                defaults,
-                usable,
-                ...(inputs.session?.roles === undefined
-                  ? {}
-                  : { sessionRoles: inputs.session.roles }),
-                ...(inputs.session?.stepRoles === undefined
-                  ? {}
-                  : { stepRoles: inputs.session.stepRoles }),
-                cast,
-              },
-              RENDER_STEP,
-              'image',
-              undefined,
-            ),
+            image: resolveStepRole(roleLayersOf(inputs), RENDER_STEP, 'image', undefined),
             /**
              * *Resolved even when only a backdrop is wanted*, because the step
              * is one step: the background branch makes no `fast` call, and a
@@ -1166,18 +1140,7 @@ export class TurnRunner {
              * would fail the moment somebody turned illustration on mid-session.
              */
             moment: resolveStepRole(
-              {
-                bindings,
-                defaults,
-                usable,
-                ...(inputs.session?.roles === undefined
-                  ? {}
-                  : { sessionRoles: inputs.session.roles }),
-                ...(inputs.session?.stepRoles === undefined
-                  ? {}
-                  : { stepRoles: inputs.session.stepRoles }),
-                cast,
-              },
+              roleLayersOf(inputs),
               RENDER_STEP,
               RENDER_STEP.role ?? 'fast',
               undefined,
@@ -1370,21 +1333,25 @@ export class TurnRunner {
                     ...(payload.input === undefined ? {} : { input: payload.input }),
                   });
 
+              /**
+               * **`collectFor`, the collector's input as the gather knows it**
+               * (2026-09-27): the pack, the window, the cast, the carriers, the
+               * goal ([06 §7.3.3]'s *always injected*) and the dials
+               * ([06 §7.3.1]) come from there for all three callers that
+               * assemble, so the preview and impersonation cannot be handed a
+               * different prompt by omission. What is this turn's alone is here.
+               */
               const fromPreset = brought
                 ? { candidates: [], notFilled: [] }
-                : collectCandidates({
-                    preset,
+                : collectFor(inputs, {
                     callKind: definition.callKind,
                     // What the player did, for a preset's per-kind block —
                     // [13 §8.3], [P7.9]. Absent on a call with no submission
                     // behind it, which is what keeps a `say` block off a judge.
                     ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
-                    history: windowed,
-                    persona: cast.persona,
-                    actors: cast.actors,
+                    // The running map, which moves as the steps apply effects.
                     channels: running,
                     lore: lore?.blocks ?? [],
-                    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
                     ...(payload.input === undefined ? {} : { input: payload.input }),
                     ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
                     // [06 §5.1]'s second producer, filled by the selector that ran
@@ -1400,48 +1367,24 @@ export class TurnRunner {
                     // line between *waiting on the engine* and *not yet long
                     // enough to have one*.
                     ...(summaries.report === null ? {} : { summary: summaries.report.links }),
-                    // [06 §7.3.3]'s *always injected*, resolved by the gather so
-                    // a preview and a turn cannot disagree about which goal.
-                    ...(inputs.goals.current === null
-                      ? {}
-                      : {
-                          goal: {
-                            id: inputs.goals.current.id,
-                            statement: inputs.goals.current.statement,
-                          },
-                        }),
-                    // [06 §7.3.1]'s two dials, resolved by the gather for the
-                    // reason the goal is: the authored rung runs through
-                    // `mode.config` and the level is looked up in the pack, and
-                    // neither is in the collector's hand.
-                    dials: inputs.dials,
                     ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
                   });
 
               const outcome = await performCall(
                 {
                   definition,
-                  bindings,
-                  defaults,
-                  usable,
                   /**
-                   * **[19 §5.1]'s third and fourth layers, passed at last** —
-                   * [P7 §1.9], [P7.3]. `resolveRole` has implemented both since
-                   * P2B and nothing outside a test had ever handed them over, so
-                   * the documented layering described a function rather than
-                   * what runs. This is the line that makes the two the same.
+                   * **[19 §5.1]'s layers, the session's own among them** —
+                   * [P7 §1.9], [P7.3]. `resolveRole` implemented the session and
+                   * step overrides from P2B and nothing outside a test handed
+                   * them over until P7.3; the preview and impersonation went on
+                   * not handing them over until `roleLayersOf` (2026-09-27),
+                   * which every caller now takes them from. The cast rides with
+                   * them, so a call naming an actor resolves with that actor's
+                   * hint — the cards, not the hints: a step passes an id and
+                   * cannot pass a preference its actor does not hold.
                    */
-                  ...(inputs.session?.roles === undefined
-                    ? {}
-                    : { sessionRoles: inputs.session.roles }),
-                  ...(inputs.session?.stepRoles === undefined
-                    ? {}
-                    : { stepRoles: inputs.session.stepRoles }),
-                  // So a call naming an actor can be resolved with that actor's
-                  // hint — [19 §5.1]'s last layer, [P7 §1.9]. The cards, not the
-                  // hints: a step passes an id and cannot pass a preference its
-                  // actor does not hold.
-                  cast,
+                  ...roleLayersOf(inputs),
                   providers: this.#options.providers,
                   config,
                   preset: { params: preset.params, budget: preset.budget },

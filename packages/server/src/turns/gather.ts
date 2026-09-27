@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { collectCandidates, type CollectContext, type Collected } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
 import type { Mode } from '@storyengine/sdk';
@@ -18,6 +19,7 @@ import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
 import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
 import { readPool } from '../sessions/pool-shape.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
+import type { PlanContext } from './calls.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -288,4 +290,67 @@ export async function gatherAssemblyInputs(
     },
     dials: resolveDials(preset, channels, session?.mode?.config),
   };
+}
+
+/**
+ * ***Which model a call resolves to, asked the same way by every caller*** —
+ * [19 §5.1]'s layers as this gather holds them (2026-09-27).
+ *
+ * The runner handed `planCall` the session's own overrides and the cast, and
+ * the preview and impersonation did not. So a session whose narrator was
+ * pointed at a hosted 128k model was metered against the account default's
+ * 8k window, under the account default's name, and its impersonations went to
+ * the account default's endpoint: a different provider, and a different key,
+ * from the one the person chose for this session. The layers come from here
+ * now, so a caller cannot hold some of them.
+ */
+export function roleLayersOf(
+  inputs: AssemblyInputs,
+): Pick<PlanContext, 'bindings' | 'defaults' | 'usable' | 'sessionRoles' | 'stepRoles' | 'cast'> {
+  return {
+    bindings: inputs.bindings,
+    defaults: inputs.defaults,
+    usable: inputs.usable,
+    ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
+    ...(inputs.session?.stepRoles === undefined ? {} : { stepRoles: inputs.session.stepRoles }),
+    // So a call naming an actor can be resolved with that actor's hint.
+    cast: inputs.cast,
+  };
+}
+
+/** What the collector takes from the gather rather than from the call. */
+type FromGather =
+  'preset' | 'history' | 'persona' | 'actors' | 'channels' | 'carriers' | 'goal' | 'dials';
+
+/**
+ * ***The collector's input, the half this gather knows filled here once***
+ * (2026-09-27).
+ *
+ * Three callers assemble — the runner, the preview and impersonation — and
+ * each wrote its own `collectCandidates` call, so a producer wired into one
+ * shipped without the others: the goal and the dials reached the preview a
+ * stage after the turn ([P7.8] says so where it fixed them), and nothing but
+ * reading all three could tell. The pack, the window, the cast, the channels,
+ * the lore's carriers, the goal and the dials come from the gather; the caller
+ * passes only what it alone knows — the call kind, the lore it retrieved, and
+ * what this turn brought. The runner passes its running channel map, which
+ * moves as its steps apply effects.
+ */
+export function collectFor(
+  inputs: AssemblyInputs,
+  call: Omit<CollectContext, FromGather> & Partial<Pick<CollectContext, 'channels'>>,
+): Collected {
+  return collectCandidates({
+    preset: inputs.preset,
+    history: inputs.windowed,
+    persona: inputs.cast.persona,
+    actors: inputs.cast.actors,
+    channels: inputs.channels,
+    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
+    ...(inputs.goals.current === null
+      ? {}
+      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
+    dials: inputs.dials,
+    ...call,
+  });
 }

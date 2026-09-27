@@ -7,7 +7,7 @@ import { Writable } from 'node:stream';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor } from '@storyengine/shared';
+import { newActor, newLorebook, newLoreEntry } from '@storyengine/shared';
 
 import { DEFAULT_CONFIG } from '../config.js';
 import { FakeProvider } from '../providers/fake.js';
@@ -45,7 +45,7 @@ const CONNECTION_ID = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a05';
 let server: TestServer;
 let vera: string;
 
-async function bindProse(): Promise<void> {
+async function bindProse(models: string[] = ['fake-hi']): Promise<void> {
   const root = new Layout(server.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
@@ -54,7 +54,7 @@ async function bindProse(): Promise<void> {
       id: CONNECTION_ID,
       label: 'The double',
       provider: 'openai-compatible',
-      models: ['fake-hi'],
+      models,
       capabilities: { maxContextTokens: 32_000 },
     }),
   );
@@ -323,5 +323,161 @@ describe('a draft the endpoint refuses', () => {
     // …and none of the story. The impersonation instruction is in every
     // draft's prompt, so it is what a serialised call would have carried.
     expect(logged).not.toContain('next message, as Vera');
+  });
+});
+
+/**
+ * ***What a draft is assembled from, and who is asked*** (2026-09-27).
+ *
+ * The draft was collected as the prose step's own call, `narrate`, so the
+ * narrator instruction that forbids writing the player's words was in every
+ * draft's prompt and a pack's own impersonation block, which SillyTavern's
+ * converter scopes to `impersonate`, was in none. And it resolved its model
+ * without the session's overrides, so a session pointed at its own endpoint
+ * drafted on the account default's, with its key.
+ */
+describe('what a draft is assembled from', () => {
+  let fake: FakeProvider;
+
+  beforeEach(async () => {
+    await server.dispose();
+    fake = new FakeProvider({ script: [{ text: 'I would not go in there.' }] });
+    await standUp({ providers: () => fake });
+  });
+
+  function asked(): string {
+    return (fake.requests[0]?.messages ?? []).map((message) => message.content).join('\n');
+  }
+
+  async function draft(sessionId: string): Promise<void> {
+    const drafted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/impersonate`,
+      payload: {},
+    });
+    expect(drafted.status).toBe(200);
+  }
+
+  it('is collected as an impersonation, without the narrator’s brief', async () => {
+    await bindProse();
+    const sessionId = await aSession(vera);
+
+    await draft(sessionId);
+
+    expect(asked()).toContain('next message, as Vera');
+    expect(asked()).not.toContain('You are the narrator of a scene');
+  });
+
+  it('carries the block a pack wrote for impersonation', async () => {
+    await bindProse();
+    const sessionId = await aSession(vera);
+    const current = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const preset = current.body.session.preset as { blocks: unknown[] };
+    const put = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/preset`,
+      payload: {
+        preset: {
+          ...preset,
+          blocks: [
+            ...preset.blocks,
+            {
+              id: 'st.impersonation_prompt',
+              label: 'impersonation',
+              role: 'system',
+              enabled: true,
+              placement: { at: 'sequence' },
+              priority: 85,
+              appliesTo: ['impersonate'],
+              advisory: false,
+              omitWhenEmpty: true,
+              kind: 'text',
+              template: 'Keep the draft to a single breath.',
+            },
+          ],
+        },
+      },
+    });
+    expect(put.status).toBe(200);
+
+    await draft(sessionId);
+
+    expect(asked()).toContain('Keep the draft to a single breath.');
+  });
+
+  /**
+   * *A session keeps the pack it was created with*, so one made before the
+   * narrator instruction was scoped still sends it to a draft. The
+   * impersonation instruction answers it in so many words.
+   */
+  it('tells an older pack’s narrator brief that it does not apply', async () => {
+    await bindProse();
+    const sessionId = await aSession(vera);
+    const current = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const preset = current.body.session.preset as { blocks: { id: string }[] };
+    const wide = preset.blocks.map((block) =>
+      block.id === 'se.instruction' ? { ...block, appliesTo: [] } : block,
+    );
+    const put = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/preset`,
+      payload: { preset: { ...preset, blocks: wide } },
+    });
+    expect(put.status).toBe(200);
+
+    await draft(sessionId);
+
+    expect(asked()).toContain('You are the narrator of a scene');
+    expect(asked()).toContain('is the narrator’s, and does not apply to this message');
+  });
+
+  /**
+   * The retriever is asked under the same kind, so an entry an author limited
+   * to one kind of call is read the way they limited it.
+   */
+  it('asks the lore as an impersonation', async () => {
+    await bindProse();
+    const book = newLorebook('Rain City');
+    book.entries = [
+      {
+        ...newLoreEntry('For drafts'),
+        constant: true,
+        content: 'Vera never raises her voice.',
+        generationTriggerFilter: { mode: 'include', values: ['impersonate'] },
+      },
+      {
+        ...newLoreEntry('For narration'),
+        constant: true,
+        content: 'The rain has not stopped in a week.',
+        generationTriggerFilter: { mode: 'include', values: ['narrate'] },
+      },
+    ];
+    await server.request({ method: 'POST', url: '/api/library/lorebooks', payload: book });
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain City', cast: { persona: vera, actors: [vera] }, lore: [book.id] },
+    });
+    expect(created.status).toBe(201);
+
+    await draft(created.body.session.id as string);
+
+    expect(asked()).toContain('Vera never raises her voice.');
+    expect(asked()).not.toContain('The rain has not stopped in a week.');
+  });
+
+  it('is drafted on the model the session chose', async () => {
+    await bindProse(['fake-hi', 'fake-lo']);
+    const sessionId = await aSession(vera);
+    const roles = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/roles`,
+      payload: { roles: { prose: { connectionId: CONNECTION_ID, modelId: 'fake-lo' } } },
+    });
+    expect(roles.status).toBe(200);
+
+    await draft(sessionId);
+
+    expect(fake.requests[0]?.modelId).toBe('fake-lo');
   });
 });
