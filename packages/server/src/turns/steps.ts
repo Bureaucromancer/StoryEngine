@@ -12,6 +12,7 @@ import type {
 
 import type { CallPurpose } from '../assembly/types.js';
 import { keyBelongsTo } from '../sessions/channels.js';
+import { storyTurns } from '../sessions/depth.js';
 import type { ChannelState, StepSkipReason, Turn, TurnAttachment } from '../sessions/types.js';
 
 /**
@@ -50,7 +51,11 @@ export type {
 
 /** What the runner knows about the turn when it evaluates a condition. */
 export interface ConditionContext {
-  /** How many turns are on the path to the head, before this one. */
+  /**
+   * How many story turns are on the path to the head, before this one — a
+   * channel write or a backdrop choice is on the path and is not one
+   * (`sessions/depth.ts`).
+   */
   turnsOnPath: number;
   /** Stage flags the mode has raised. Empty until P2.6 supplies a mode. */
   stages: ReadonlySet<string>;
@@ -238,7 +243,16 @@ export function filterReads(
  * still lets a consumer attribute what it found to a node ([P8 §1.4]).
  */
 export function transcriptOf(path: readonly Turn[]): TranscriptTurn[] {
-  return path.map((turn) => ({
+  /**
+   * ***The story's turns, not the path's*** (2026-09-27). A channel write, an
+   * undo or a backdrop choice is a turn on the path with nothing said in it,
+   * and it took a place in the summary chain's stretches and in the window
+   * beside it — each HUD edit shifted the in-progress link and re-derived it,
+   * and each one pushed a turn of the story out of the window without a word
+   * of it being in the prompt. `storyTurns` is the one reading the window and
+   * the chain share.
+   */
+  return storyTurns(path).map((turn) => ({
     turnId: turn.id,
     ...(turn.input === undefined
       ? {}

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ChannelDefinition } from '@storyengine/sdk';
-import type { Goal } from '@storyengine/shared';
+import { createValidator, Goal } from '@storyengine/shared';
 
 import { channelKey } from './channels.js';
 import type { Turn } from './types.js';
@@ -209,6 +209,23 @@ export function readCurrentGoal(
     ? (goals.find((goal) => goal.id === held.value) ?? null)
     : null;
 }
+
+/**
+ * ***The goals a session file holds that are goals*** (2026-09-27).
+ *
+ * The route checks a goal before it writes one now, but a file can hold one
+ * that was never checked: a hand edit, an import, an older build. One goal
+ * without a `completion` made every read of the session a 500, because the
+ * panel's rows read `completion.kind`, and every turn a failure, because the
+ * runner does. Read past rather than refused, so the rest of the chain still
+ * plays; the file is left as it is, since it is somebody's writing.
+ */
+export function readableGoals(value: unknown): Goal[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((candidate): candidate is Goal => isGoal(candidate));
+}
+
+const isGoal = createValidator().compile<Goal>(Goal);
 
 /** What this session has done with one goal, at a node. Absent is *not yet*. */
 export function readGoalState(

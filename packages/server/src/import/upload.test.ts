@@ -184,6 +184,20 @@ describe('the probe order, adversarially', () => {
   });
 });
 
+describe('a chat preset from before the prompt manager', () => {
+  /**
+   * *(2026-09-27)* Its prompts are in three fields of its own and it carries
+   * sampler settings, so it read as a sampler panel: no blocks, and a note
+   * about sampler settings. It is a chat preset, and the converter migrates it.
+   */
+  it('is read as a chat preset, not as a sampler panel', () => {
+    const result = read({ main_prompt: 'You are the narrator.', temperature: 0.9, top_p: 1 });
+
+    if (result.outcome !== 'candidate') throw new Error('expected a candidate');
+    expect(result.candidate.format).toBe('sillytavern.preset.chat');
+  });
+});
+
 describe('the probe is not over-eager', () => {
   it('refuses a partial reasoning triple', () => {
     const result = read({ prefix: 'a', suffix: 'b' });

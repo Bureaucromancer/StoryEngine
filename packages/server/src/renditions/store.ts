@@ -135,24 +135,6 @@ function pathFor(layout: Layout, handle: string, sessionId: string, id: string):
 }
 
 /**
- * Whether an id can name a record here at all — `pathFor`'s answer, for a
- * caller holding an id it did not mint.
- *
- * *Session import is that caller.* `writeRendition` throws on an id that is not
- * a path, which is right for the worker (an id it made that escapes is a bug to
- * hear about) and wrong for a file somebody chose, where `../x` is a record to
- * skip rather than an import to abandon halfway through.
- */
-export function namesARendition(
-  layout: Layout,
-  handle: string,
-  sessionId: string,
-  id: string,
-): boolean {
-  return pathFor(layout, handle, sessionId, id) !== null;
-}
-
-/**
  * Which ids are held, as one directory read.
  *
  * `listSummaries`' economics for `listSummaries`' reason, and here it is also
@@ -203,33 +185,27 @@ export async function readRendition(
   if (bytes === null) return null;
 
   try {
-    const held = parseRendition(JSON.parse(new TextDecoder().decode(bytes)));
-    return held !== null && held.id === id ? held : null;
+    const held = renditionFrom(JSON.parse(new TextDecoder().decode(bytes)));
+    return held?.id === id ? held : null;
   } catch {
     return null;
   }
 }
 
 /**
- * A value that is a rendition record, or null — the checks `readRendition`
- * makes, without the file.
- *
- * ***Separate because a file is not the only place a record arrives from.*** A
- * session export carries its renditions inline, and an import is handed
- * whatever the file says — so the refusal that stops a hand-edited record here
- * has to stop the same record arriving in an export, and two copies of the
- * checks would drift the first time one of them grew.
- *
- * Read as unknown rather than as a `Partial<Rendition>`, for `readSummary`'s
- * reason: the value is whatever arrived, and a declared type would make the
- * checks below look redundant to the compiler while doing the only work that
- * matters.
+ * A rendition record, or null when this is not one: `readRendition`'s checks,
+ * for a record that did not come from this install's disk. The session
+ * importer writes what passes, so a record it accepts is one this module
+ * would read back.
  */
-export function parseRendition(value: unknown): Rendition | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+export function renditionFrom(value: unknown): Rendition | null {
+  // Read as unknown rather than as a `Partial<Rendition>`, for `readSummary`'s
+  // reason: the file is whatever is on disk, and a declared type would make
+  // the checks below look redundant to the compiler while doing the only work
+  // that matters.
+  if (typeof value !== 'object' || value === null) return null;
   const held = value as Record<string, unknown>;
-  if (held['schema'] !== RENDITION_SCHEMA) return null;
-  if (typeof held['id'] !== 'string') return null;
+  if (held['schema'] !== RENDITION_SCHEMA || typeof held['id'] !== 'string') return null;
   if (typeof held['turnId'] !== 'string') return null;
   if (typeof held['digest'] !== 'string') return null;
   if (!isRecipe(held['prompt'])) return null;

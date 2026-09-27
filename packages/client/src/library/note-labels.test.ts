@@ -6,6 +6,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { MACRO_REASONS, sentence } from './note-labels.js';
+
 /**
  * Every note class the server emits has a sentence here
  * ([P4 §1.4](../../../../docs/design/workplan/16-p4-implementation.md),
@@ -190,5 +192,33 @@ describe('the review vocabulary', () => {
     const labelled = keysIn(readFileSync(LABELS, 'utf8'), LABELLED);
     const orphaned = [...labelled].filter((key) => !emitted.has(key)).sort();
     expect(orphaned, 'these labels name a note no converter emits any more').toEqual([]);
+  });
+});
+
+/**
+ * ***A macro taken out is said to be taken out, and why, in words***
+ * (2026-09-27). The sentence said *left as written* of the one kind of macro
+ * that never is, and printed the converter's code as the reason.
+ */
+describe('a refused macro, in words', () => {
+  it('says it was taken out, never that it was left, and gives a reason', () => {
+    const said = sentence({
+      key: 'import.macro.refused',
+      params: { macro: 'date', block: 'Main', because: 'time-is-not-reproducible' },
+    });
+
+    expect(said).toContain('taken out');
+    expect(said).not.toContain('left as written');
+    expect(said).not.toContain('time-is-not-reproducible');
+  });
+
+  it('has words for every reason the converter can give', () => {
+    const source = readFileSync(join(SERVER_IMPORT, 'macros.ts'), 'utf8');
+    const reasons = new Set(
+      [...source.matchAll(/because: '([a-z-]+)'/g)].map((match) => match[1] ?? ''),
+    );
+
+    expect(reasons.size).toBeGreaterThanOrEqual(4);
+    expect([...reasons].filter((reason) => MACRO_REASONS[reason] === undefined)).toEqual([]);
   });
 });

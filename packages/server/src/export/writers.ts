@@ -375,7 +375,14 @@ function entryOf(entry: LoreEntry): unknown {
     hiddenInfo: hiddenInfoOf(entry),
     aliases: entry.secondaryKeys,
     injection: {
-      mode: entry.constant ? 'always' : entry.enabled ? 'keyword' : 'never',
+      /**
+       * ***Off wins*** (2026-09-27). Aventuras has one axis where we have two,
+       * `enabled` and `constant`, and this asked `constant` first, so an entry
+       * somebody had switched off but left constant was written `always`:
+       * injected every turn there, and on again here when it came back. Off is
+       * what the person said last, and a dormant `constant` has nowhere to go.
+       */
+      mode: !entry.enabled ? 'never' : entry.constant ? 'always' : 'keyword',
       keywords: entry.keys,
       // Inverted back, the way `aventuras/lorebook.ts` inverts it on the way in:
       // theirs is *higher = inject first*, ours is *lower = earlier*.

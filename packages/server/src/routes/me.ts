@@ -19,7 +19,10 @@ import {
 import { presentConnection, resolveConnections } from '../providers/connections.js';
 import { presentRoleRow, roleTable } from '../providers/roles.js';
 import { ASSIST_ROLES, readTaskRoles, writeTaskRoles } from '../providers/task-roles.js';
-import { listTrash, restoreFromTrash } from '../storage/trash.js';
+import { ingestFile } from '../index-db/ingest.js';
+import { reindexSession, withSessionLock } from '../sessions/store.js';
+import { userOwner } from '../storage/layout.js';
+import { listTrash, restoreFromTrash, TrashAddressError } from '../storage/trash.js';
 
 /**
  * What a signed-in person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -329,12 +332,12 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     let restored;
     try {
       restored = await restoreFromTrash(services.layout, account.handle, id);
-    } catch {
-      // `splitTrashId` throws for an address that is not one, which is a
-      // malformed request rather than a server fault.
-      return reply
-        .code(400)
-        .send({ error: 'invalid', message: 'That is not an address in the trash.' });
+    } catch (error) {
+      // An address that is not one is a malformed request rather than a
+      // server fault. ***Only that*** (2026-09-27): anything else, a rename
+      // the disk refused, is the 500 it is, and is logged.
+      if (!(error instanceof TrashAddressError)) throw error;
+      return reply.code(400).send({ error: 'invalid', message: error.message });
     }
 
     if (!restored.ok) {
@@ -347,12 +350,48 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
       });
     }
     /**
-     * ***The index catches up by itself, and this says why nothing is done
-     * here.*** A restore is a move into the library tree, which the watcher
-     * sees; an install with the watcher off gets it at the next rebuild. Making
-     * this route ingest the folder would be a second producer for the one thing
-     * [P1]'s gate holds to a single answer.
+     * ***What came back is indexed here, before the answer*** (2026-09-27).
+     *
+     * *Corrected 2026-09-27.* ~~The index catches up by itself, and this says
+     * why nothing is done here. A restore is a move into the library tree,
+     * which the watcher sees; an install with the watcher off gets it at the
+     * next rebuild. Making this route ingest the folder would be a second
+     * producer for the one thing [P1]'s gate holds to a single answer.~~ A
+     * session is not in the library tree: the watcher ignores everything under
+     * `sessions/`, and a delete had removed its rows, so a restored session
+     * was listed (the list reads the disk) and never matched a search again,
+     * nor counted in any *used by*. And a library object is the server's own
+     * write, which [03 §5.1.1] indexes synchronously — a page opened straight
+     * after *Restore* could miss it. Neither is a second producer: a session
+     * goes through the rebuild's own derivation, an object through the
+     * `ingestFile` every write calls.
+     *
+     * **The files are back whatever happens here**, so a failure to index is
+     * logged and the restore still answers as the restore it was: the watcher
+     * or the next rebuild is the fallback, as before.
      */
+    try {
+      const back = restored.restored;
+      if (back.kind === 'session') {
+        await withSessionLock(back.sessionId, () =>
+          reindexSession(services.sessions, account.handle, back.sessionId),
+        );
+      } else {
+        await ingestFile(
+          services.index.db,
+          services.layout,
+          services.layout.objectFile(userOwner(account.handle), back.schemaId, back.slug),
+        );
+      }
+    } catch (error) {
+      request.log.warn(
+        {
+          event: 'trash.reindexFailed',
+          message: error instanceof Error ? error.message : String(error),
+        },
+        'Restored from the trash, and not yet indexed',
+      );
+    }
     return reply.send({ restored: true });
   });
 

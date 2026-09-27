@@ -2089,6 +2089,21 @@ narrator's. So the instruction is a **required** candidate, appended the way
 naming the character, forbidding narration of anybody else, and explaining itself
 to whoever reads the block table.
 
+*(2026-09-27)* **Built on the gather, and assembled as a narration all the
+same.** The draft was collected and retrieved under the prose step's own call
+kind, `narrate`, so the shipped narrator instruction — *never write the player's
+own dialogue, thoughts or decisions* — was in every draft's prompt beside the
+instruction asking for exactly that, and a pack's own impersonation block
+([04 §8.4.3]'s `impersonation_prompt`, scoped to `impersonate`) was in none. And
+the draft resolved its model without the session's own overrides, so a session
+pointed at its own endpoint drafted on the account default's. A draft is now
+collected and retrieved as `impersonate`; Scene's and Freeform's narrator
+instruction applies to `narrate` only in the packs they ship, and because a
+session keeps the pack it was created with, the impersonation instruction says
+outright that a narrator's brief above it does not apply. The preview and the
+draft take the model's layers and the collector's gather-side input from the
+same two functions the runner does (`roleLayersOf`, `collectFor`).
+
 **The party line is enforced at the door.** [06 §8] calls the difference between
 a companion and a second player *"the 'we are not building a D&D engine' line"*,
 and `readParty` is reused rather than re-derived — it already knows a session's
@@ -2822,6 +2837,20 @@ sessions sharing one is an immediate confusion. And a turn that already carries
 matters — a session that had travelled twice and claimed it came from the middle
 would be a provenance record that gets less true the more it is used.
 
+***Corrected 2026-09-27: keeping the turn ids has a price on the same install,
+and the importer now refuses to pay it.*** `sessions/import.ts` priced a
+collision only between two installs importing each other's copies. The common
+case is one install: an export loaded back where its session still is, and
+every backup import of an account's own sessions ([P12.9]). The index holds one
+row per turn id, so the copy took the original's rows at every append. The importer refuses a session
+whose turns the install already holds (`409 already-here`), and three defects
+found beside it are fixed with it: each turn now names the session it landed
+in, where it kept the exporter's id; the session row is indexed, where there was
+none; and the renditions' records are written (a `pending` one as `interrupted`,
+pixels only when the source carries them), where they were counted and dropped.
+The tests behind row 10 now use a second test server, where they used the same
+one.
+
 ### P11.11 — Backup and restore
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:
@@ -2983,6 +3012,16 @@ reduction: what §2.1 is asking for is that a long session deposit memories as i
 goes, and a cadence does that at every length. *Eight turns, written down as the
 judgement it is* — short enough that forty turns leave five memories rather than
 one, long enough that the extra call is a twelfth of the turns.
+
+*(2026-09-27)* **Each run reads the eight turns since the last one, and it read
+the whole session.** The step rendered the entire transcript every eighth turn,
+so the fortieth turn's extraction re-read the first thirty-nine: the cost of
+remembering grew with the square of the session, every old exchange was offered
+for extraction again (and `alreadyKnown` sees a paraphrase of a known fact as a
+new one), and a long session outgrew the window with a block that is required
+and cannot be trimmed. The cadence runs on the eighth story turn and the
+transcript stops before the turn running it, so its last eight turns are exactly
+the ones since the last run.
 
 ***`post` where the summariser is `pre`***, and the difference is the whole
 relationship between the two features: a summary goes into **this turn's**

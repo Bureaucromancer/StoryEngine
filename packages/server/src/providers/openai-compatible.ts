@@ -13,6 +13,7 @@ import {
 } from 'ai';
 
 import { capabilitiesFor } from './capabilities.js';
+import { patientFetch } from './patient-fetch.js';
 import type { Connection } from './connections.js';
 import {
   ProviderError,
@@ -103,7 +104,13 @@ export class OpenAICompatibleProvider implements Provider {
       // Absent for a local endpoint that needs none, which is the ordinary
       // case for the local-model story and not an error.
       ...(connection.apiKey === undefined ? {} : { apiKey: connection.apiKey }),
-      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      /**
+       * ***Never the SDK's default***, which is Node's global `fetch` and its
+       * five-minute limits on headers and on a quiet body (2026-09-27). Those
+       * sat underneath `providerTimeoutMs`, so a slow model could not be given
+       * longer, and `0` switched off only our bound — see `patient-fetch.ts`.
+       */
+      fetch: options.fetch ?? patientFetch,
     });
 
     this.#model = (modelId: string) => client(modelId);
@@ -178,7 +185,7 @@ export class OpenAICompatibleProvider implements Provider {
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResult> {
-    const prompt = splitForSdk(request.messages, this.capabilities.systemMessage, request.images);
+    const prompt = splitForSdk(request.messages, this.capabilities, request.images);
     try {
       const result = await generateText({
         model: this.#model(request.modelId),
@@ -227,7 +234,7 @@ export class OpenAICompatibleProvider implements Provider {
   async *stream(
     request: GenerationRequest,
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
-    const prompt = splitForSdk(request.messages, this.capabilities.systemMessage, request.images);
+    const prompt = splitForSdk(request.messages, this.capabilities, request.images);
     // Captured rather than thrown, because the SDK calls this instead of
     // failing the iterator — see the throw below the loop.
     let failure: unknown;
@@ -236,6 +243,14 @@ export class OpenAICompatibleProvider implements Provider {
       messages: prompt.messages,
       ...(prompt.instructions === undefined ? {} : { instructions: prompt.instructions }),
       ...toSdkParams(request),
+      /**
+       * ***The shape, asked for here as `generate` asks for it*** (2026-09-27).
+       * The streaming call left it out, so nothing on the wire asked for JSON
+       * and `result.output` below came back as the reply's plain text: a
+       * streamed call with a schema failed validation every time, even when
+       * the model answered with exactly the object asked for.
+       */
+      ...outputFor(request),
       onError: ({ error }) => {
         failure = error;
       },
@@ -362,69 +377,130 @@ function contentFor(
 /**
  * Splits rendered messages into what the SDK actually takes.
  *
- * **The system prompt is not a message here.** AI SDK 7 refuses a `system` role
- * inside `messages` and wants `instructions` instead — which is the seam
- * `ProviderCapabilities.systemMessage` was written for, arriving one layer
- * earlier than expected. Above this file the engine keeps thinking in
- * `RenderedMessage`, including the system blocks, because that is what the
- * record and the workbench show; the translation stops here.
+ * ~~**The system prompt is not a message here.** AI SDK 7 refuses a `system`
+ * role inside `messages` and wants `instructions` instead~~ — *corrected
+ * 2026-09-27: it refuses only by default*; `allowSystemInMessages` lifts it.
+ * The premise sent every system block to the top: `instructions` was every
+ * system message joined, including the ones a preset puts **after** the
+ * history, so the guidance box, the goal, a guided redo's attempt, depth-4
+ * preset text, the schema instruction and the impersonation instruction all
+ * reached the model above twenty turns of history instead of just before the
+ * player's line. [06 §5] calls splicing a block into the history *"a real cost,
+ * worth paying"*, and it bought nothing on the wire. The record meanwhile
+ * showed the positioned order, so it said something other than what was sent.
  *
- * `fold-into-first-user` is the other half of that capability: some endpoints
- * have nowhere to put a system prompt at all, and folding it into the first
- * user message is what they need. Both paths keep the text and its order —
- * what changes is where it is carried.
+ * ***Now only the leading run is the system prompt***: the system messages
+ * before the first message of the conversation, joined as they were. **A system
+ * message after that stays where it is, carried as user text**, which is
+ * SillyTavern's *semi-strict* shape and the one no endpoint refuses:
+ *
+ * - appended to the message before it when that is a user message,
+ * - otherwise put in front of the message after it when that is one,
+ * - otherwise sent as a user message of its own.
+ *
+ * The first two only when `mergeSameRole` allows merging; under `never` it is
+ * always a message of its own, since that endpoint takes consecutive user
+ * messages and wants them kept apart. The text and its position are what the
+ * record says; the role is the transport's, as `instructions` is.
+ *
+ * `fold-into-first-user` is the other half of the capability: some endpoints
+ * have nowhere to put a system prompt at all, and the leading run is folded
+ * into the first user message instead, as before.
  *
  * `fromBlocks` stops here too. It is provenance for the record, and no provider
  * has a use for it.
  */
 function splitForSdk(
   messages: RenderedMessage[],
-  systemMessage: ProviderCapabilities['systemMessage'],
+  capabilities: Pick<ProviderCapabilities, 'systemMessage' | 'mergeSameRole'>,
   images?: GenerationRequest['images'],
 ): { instructions: string | undefined; messages: SdkMessage[] } {
-  const system = messages.filter((message) => message.role === 'system');
-  const rest: SdkMessage[] = messages
-    .filter((message) => message.role !== 'system')
-    .map((message): SdkMessage =>
-      message.role === 'user'
-        ? { role: 'user', content: contentFor(message, images) }
-        : { role: 'assistant', content: message.content },
-    );
+  let start = 0;
+  while (messages[start]?.role === 'system') start += 1;
+  const leading = messages.slice(0, start).map((message) => message.content);
+  const instructions = leading.length === 0 ? undefined : leading.join('\n\n');
 
-  if (system.length === 0) return { instructions: undefined, messages: rest };
+  const merge = capabilities.mergeSameRole !== 'never';
+  const conversation: SdkMessage[] = [];
+  /** A system text waiting to be put in front of the user message after it. */
+  let carried: string | null = null;
 
-  // Joined in order, including a system block that appears mid-conversation:
-  // the alternative is dropping it, and a preset that puts one there means it.
-  const instructions = system.map((message) => message.content).join('\n\n');
+  for (const message of messages.slice(start)) {
+    if (message.role !== 'system') {
+      if (carried !== null && message.role === 'user') {
+        conversation.push({ role: 'user', content: before(carried, contentFor(message, images)) });
+        carried = null;
+        continue;
+      }
+      if (carried !== null) {
+        conversation.push({ role: 'user', content: carried });
+        carried = null;
+      }
+      conversation.push(
+        message.role === 'user'
+          ? { role: 'user', content: contentFor(message, images) }
+          : { role: 'assistant', content: message.content },
+      );
+      continue;
+    }
 
-  if (systemMessage === 'supported') {
-    return { instructions, messages: rest };
+    if (carried !== null) {
+      conversation.push({ role: 'user', content: carried });
+      carried = null;
+    }
+    const previous = conversation.at(-1);
+    if (merge && previous?.role === 'user') {
+      previous.content = after(previous.content, message.content);
+    } else if (merge) {
+      carried = message.content;
+    } else {
+      conversation.push({ role: 'user', content: message.content });
+    }
+  }
+  if (carried !== null) conversation.push({ role: 'user', content: carried });
+
+  if (instructions === undefined || capabilities.systemMessage === 'supported') {
+    return { instructions, messages: conversation };
   }
 
-  const firstUser = rest.findIndex((message) => message.role === 'user');
+  const firstUser = conversation.findIndex((message) => message.role === 'user');
   if (firstUser === -1) {
     // Nothing to fold into. A user message carrying only the system text is
     // still better than silently dropping it.
     return {
       instructions: undefined,
-      messages: [{ role: 'user', content: instructions }, ...rest],
+      messages: [{ role: 'user', content: instructions }, ...conversation],
     };
   }
 
-  const folded = [...rest];
-  const target = folded[firstUser]?.content ?? '';
-  // `firstUser` indexes a user message, so its content may be parts.
+  const folded = [...conversation];
   folded[firstUser] = {
     role: 'user',
-    // A message carrying a picture is folded into by **prepending a text
-    // part**, never by concatenating into one — the parts are the order the
-    // picture was placed in, and a string join would have nowhere to put it.
-    content:
-      typeof target === 'string'
-        ? `${instructions}\n\n${target}`
-        : [{ type: 'text', text: `${instructions}\n\n` }, ...target],
+    content: before(instructions, folded[firstUser]?.content ?? ''),
   };
   return { instructions: undefined, messages: folded };
+}
+
+/**
+ * System text put in front of a user message, whichever shape it has.
+ *
+ * ***A message carrying a picture is joined by a text part, never by
+ * concatenation*** — [25 E15]. Its parts are the order the picture was placed
+ * in, and a string join would have nowhere to put it; so the text becomes a
+ * part of its own at the front, and a message without a picture stays the
+ * string it always was.
+ */
+function before(text: string, content: string | SdkPart[]): string | SdkPart[] {
+  return typeof content === 'string'
+    ? `${text}\n\n${content}`
+    : [{ type: 'text', text: `${text}\n\n` }, ...content];
+}
+
+/** System text put after a user message — {@link before}'s other side. */
+function after(content: string | SdkPart[], text: string): string | SdkPart[] {
+  return typeof content === 'string'
+    ? `${content}\n\n${text}`
+    : [...content, { type: 'text', text: `\n\n${text}` }];
 }
 
 /**
@@ -519,7 +595,10 @@ function toSdkParams(request: GenerationRequest): Record<string, unknown> {
     ...(params.presencePenalty === undefined ? {} : { presencePenalty: params.presencePenalty }),
     ...(params.maxTokens === undefined ? {} : { maxOutputTokens: params.maxTokens }),
     ...(params.stop === undefined ? {} : { stopSequences: params.stop }),
-    ...(params.seed === undefined || params.seed === null ? {} : { seed: params.seed }),
+    // Only a real seed: a negative one is every sampler UI's *random*, which
+    // is what sending none means, and presets imported before the converters
+    // knew that carry `-1` (2026-09-27).
+    ...(typeof params.seed === 'number' && params.seed >= 0 ? { seed: params.seed } : {}),
     ...(request.signal === undefined ? {} : { abortSignal: request.signal }),
   };
 }
@@ -558,6 +637,17 @@ const TRANSIENT_CODES = new Set([
   'UND_ERR_CONNECT_TIMEOUT',
 ]);
 
+/**
+ * ***undici giving up on a response, which is a stall and not a connection
+ * that failed*** (2026-09-27). The request was accepted and the endpoint went
+ * quiet — the case `withIdleTimeout` calls a stall — and the message, *Headers
+ * Timeout Error*, matched the classifier's `/timeout/`, so it was retried twice
+ * as transient. Terminal, and marked as a stall so the remedy says so. The
+ * patient dispatcher means a provider call should not meet these at all; a
+ * `fetch` handed in from elsewhere still can.
+ */
+const STALL_CODES = new Set(['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+
 /** The first error code on the cause chain, which is where fetch buries it. */
 function codeOf(error: unknown): string | undefined {
   for (let at = error, depth = 0; at !== undefined && at !== null && depth < 8; depth += 1) {
@@ -578,10 +668,19 @@ function asProviderError(error: unknown): ProviderError {
     (error as { statusCode?: number; status?: number }).statusCode ??
     (error as { status?: number }).status;
 
+  const body = (error as { responseBody?: unknown }).responseBody;
+  const detail =
+    typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
+
+  const code = codeOf(error);
+  if (status === undefined && STALL_CODES.has(code ?? '')) {
+    return new ProviderError('terminal', 'The provider call failed.', detail, { stalled: true });
+  }
+
   let errorClass: ErrorClass = 'terminal';
   if (status === 429 || (status !== undefined && status >= 500)) {
     errorClass = 'retryable';
-  } else if (status === undefined && TRANSIENT_CODES.has(codeOf(error) ?? '')) {
+  } else if (status === undefined && TRANSIENT_CODES.has(code ?? '')) {
     // The connection never worked. Nothing about the request was refused.
     errorClass = 'transient';
   } else if (status === undefined && (error as { isRetryable?: unknown }).isRetryable === true) {
@@ -610,10 +709,6 @@ function asProviderError(error: unknown): ProviderError {
    * than *"Bad Request"*. Bounded, because an HTML error page is a whole
    * document and a log line is not.
    */
-  const body = (error as { responseBody?: unknown }).responseBody;
-  const detail =
-    typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
-
   return new ProviderError(errorClass, 'The provider call failed.', detail);
 }
 

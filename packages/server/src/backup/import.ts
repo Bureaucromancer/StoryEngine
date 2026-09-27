@@ -2,6 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  readTagRegistry,
+  sameTag,
   SESSION_EXPORT_SCHEMA,
   type ImportNote,
   type ImportReport,
@@ -16,10 +18,17 @@ import type { ConflictPolicy } from '../import/identity.js';
 import type { LibraryContext } from '../library.js';
 import { storeAttachment } from '../sessions/attachments.js';
 import { importSession } from '../sessions/import.js';
-import type { SessionContext } from '../sessions/store.js';
-import { ensureDirectory, fileExists, writeFileBytes } from '../storage/files.js';
+import { readSession, type SessionContext } from '../sessions/store.js';
+import {
+  ensureDirectory,
+  fileExists,
+  listDirectoryNames,
+  writeFileBytes,
+} from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
-import type { TagStore } from '../tags/store.js';
+import { resolveWithin } from '../storage/paths.js';
+import { splitTrashEntry } from '../storage/trash.js';
+import { MAX_TAG_NAME_LENGTH, MAX_TAGS, type TagStore } from '../tags/store.js';
 
 /**
  * ***Bringing an archive's content into a live account*** —
@@ -152,9 +161,24 @@ async function readJson(files: BackupFileSource, path: string): Promise<unknown>
  * their tags would leave every imported object carrying ids that resolve to
  * nothing, and the library would show a row of blanks.
  *
- * **The existing entry wins a collision** because the same id meaning two
- * different things is not a case that arises from our own archives, and where
- * it does arise the one already in use is the one somebody is looking at.
+ * **The existing entry wins a collision**, by id or by name, because the one
+ * already in use is the one somebody is looking at.
+ *
+ * ***A name clash is kept, not thrown*** (2026-09-27). This merged by id only
+ * and wrote the list whole, and the store refuses two tags of one name. Two
+ * installs that each minted an `npc` (adoption mints fresh ids, and an
+ * Aventuras import tags every NPC) met here, and the import failed *after*
+ * the library was written: no sessions, no ledger row, and the same wall on
+ * every retry. Now the tag here keeps its name, and an imported object whose
+ * id for it is the archive's still reads `npc`, because a dangling id falls
+ * back to the name stored beside it ([05 §3]'s invariant 4); adopting tags
+ * again points it at this registry's id.
+ *
+ * Read with `readTagRegistry`, which drops a row with no name or id and the
+ * archive's own duplicates, and written inside `mutate`, so a tag made in
+ * another tab meanwhile is merged with rather than overwritten. What the store
+ * would refuse — a registry at its bound, a name past its length, which only a
+ * hand edit writes — is kept out rather than thrown at.
  */
 async function mergeTags(
   context: BackupImportContext,
@@ -162,25 +186,29 @@ async function mergeTags(
   notes: ImportNote[],
 ): Promise<{ added: number; kept: number }> {
   const document = await readJson(request.files, `users/${request.fromHandle}/tags.json`);
-  const incoming = (document as { tags?: TagEntry[] } | null)?.tags;
-  if (!Array.isArray(incoming)) return { added: 0, kept: 0 };
-
-  const current = await context.tags.read(request.handle);
-  const byId = new Map(current.tags.map((tag) => [tag.id, tag]));
+  const incoming = document === null ? [] : readTagRegistry(document).tags;
+  if (incoming.length === 0) return { added: 0, kept: 0 };
 
   let added = 0;
   let kept = 0;
-  for (const tag of incoming) {
-    if (typeof tag.id !== 'string') continue;
-    if (byId.has(tag.id)) {
-      kept += 1;
-      continue;
+  await context.tags.mutate(request.handle, (current) => {
+    // Counted afresh on each call: the queue runs this once, but a count that
+    // depended on that would be wrong the day it ran twice.
+    added = 0;
+    kept = 0;
+    const out: TagEntry[] = [...current.tags];
+    for (const tag of incoming) {
+      const here = out.some((held) => held.id === tag.id || sameTag(held.name, tag.name));
+      if (here || out.length >= MAX_TAGS || tag.name.length > MAX_TAG_NAME_LENGTH) {
+        kept += 1;
+        continue;
+      }
+      out.push({ ...tag, sortOrder: out.length });
+      added += 1;
     }
-    byId.set(tag.id, tag);
-    added += 1;
-  }
+    return out;
+  });
 
-  if (added > 0) await context.tags.write(request.handle, [...byId.values()]);
   notes.push({ key: 'import.backup.tagsMerged', params: { added, kept }, level: 'info' });
   return { added, kept };
 }
@@ -195,21 +223,27 @@ async function mergeTags(
  * property that path already has comes free: a re-minted session id, the turn
  * ids kept, every turn marked foreign, and `origin` recorded.
  *
- * ***A session is never replaced — and it is never recognised either, so every
- * one arrives as a new copy.*** A session is an append-only log, so *replace*
+ * ***A session already here is skipped and never replaced***, whatever the
+ * policy the library took. A session is an append-only log, so *replace*
  * would be a delete plus an import — two decisions wearing one word — and the
- * one it would throw away is the one somebody has been playing.
+ * one it would throw away is the one somebody has been playing. *keep both*
+ * would be a second session holding the same turn ids, which the index cannot
+ * tell apart.
  *
- * ~~A session already here is skipped.~~ *Corrected 2026-09-27: nothing ever
- * checked, and nothing will.* `importSession` mints a new id every time, so
- * importing a backup into the account that took it gives that account a second
- * copy of every session in it. **That is the decision, not a gap.** Recognising
- * "the same session" means deciding what sameness is for a tree that may have
- * grown on either side since the archive was taken — the turn ids match, and a
- * branch played here afterwards does not exist there — and every answer either
- * loses a line somebody played or builds the merge [25 E4] refused. A duplicate
- * is visible, harmless and deletable; a wrong dedupe is silent. So the import
- * panel says it plainly instead ([10 §15.3b]).
+ * ***And "already here" is now asked*** (2026-09-27). Nothing checked, so
+ * every import of somebody's own backup brought a second copy of every
+ * session, and the next import a third. Here means one of three things:
+ *
+ * - **the session**, under its own id: an import of this account's backup.
+ *   Its turns would say so too, but this is one file read rather than every
+ *   segment, and it holds when the index is behind;
+ * - **its turns**, anywhere on the install: a copy an earlier import made
+ *   (`importSession` refuses it, since the copy holds the same turn ids);
+ * - **the account's trash**, under its own id: restoring it from there brings
+ *   back the newer copy, and an import as well would leave two sessions
+ *   holding one set of turns once it was restored.
+ *
+ * The pixels ride along: a backup holds `assets/`, which an export does not.
  */
 async function importSessions(
   context: BackupImportContext,
@@ -224,9 +258,16 @@ async function importSessions(
     if (id !== undefined && id !== '') ids.add(id);
   }
 
+  const trashed = await trashedSessionIds(context, request.handle);
+
   let imported = 0;
   let skipped = 0;
   for (const id of [...ids].sort()) {
+    if (trashed.has(id) || (await isSessionHere(context, request.handle, id))) {
+      skipped += 1;
+      continue;
+    }
+
     const session = await readJson(request.files, `${prefix}${id}/session.json`);
     if (session === null) {
       skipped += 1;
@@ -269,22 +310,11 @@ async function importSessions(
       renditions,
     } as unknown as SessionExport;
 
-    /**
-     * ***And the pixels, because they are in the archive.*** An export carries
-     * the records and not the pictures; a backup carries the session directory
-     * whole, `assets/` included, and until 2026-09-27 this built the envelope
-     * and left them where they lay. `importSession` checks what it is handed —
-     * a bare file name, an image type, the bytes matching the record's digest —
-     * so this only has to say where the bytes would be.
-     */
-    const result = await importSession(
-      {
-        sessions: context.sessions,
-        assets: (asset) => request.files.read(`${prefix}${id}/assets/${asset.path}`),
-      },
-      request.handle,
-      envelope,
-    );
+    const result = await importSession({ sessions: context.sessions }, request.handle, envelope, {
+      // A record's `asset.path` is relative to the session's `assets/`, and a
+      // name the source does not hold is a picture that did not come across.
+      pixels: async (path) => request.files.read(`${prefix}${id}/assets/${path}`),
+    });
     if (result.ok) {
       imported += 1;
       /**
@@ -307,6 +337,37 @@ async function importSessions(
 
   notes.push({ key: 'import.backup.sessions', params: { imported, skipped }, level: 'info' });
   return { imported, skipped };
+}
+
+/** Whether this account has a session under this id now. */
+async function isSessionHere(
+  context: BackupImportContext,
+  handle: string,
+  id: string,
+): Promise<boolean> {
+  try {
+    return (await readSession(context.sessions, handle, id)) !== null;
+  } catch {
+    // An id that is not a path here is not a session here either, and the
+    // import that follows refuses it for itself.
+    return false;
+  }
+}
+
+/** The ids of the sessions in this account's trash, read as the trash reads them. */
+async function trashedSessionIds(
+  context: BackupImportContext,
+  handle: string,
+): Promise<Set<string>> {
+  const names = await listDirectoryNames(
+    resolveWithin(context.layout.trashRoot(handle), 'sessions'),
+  );
+  const ids = new Set<string>();
+  for (const name of names) {
+    const split = splitTrashEntry(name);
+    if (split !== null) ids.add(split.name);
+  }
+  return ids;
 }
 
 /**

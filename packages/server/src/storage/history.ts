@@ -2,13 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
-
 import { uuidv7 } from '@storyengine/shared';
 
 import { writeAtomic } from './atomic.js';
-import { fileExists, listEntryNames, readFileBytes, removeTree } from './files.js';
+import { appendLine, fileExists, listEntryNames, readFileBytes, removeTree } from './files.js';
 import { KeyedQueue } from './keyed-queue.js';
 import { resolveWithin } from './paths.js';
 
@@ -223,10 +220,10 @@ async function recordVersionUnlocked(
   // A plain append rather than an atomic rewrite: the file is append-only by
   // design, one small line per write, and rewriting the whole history to add a
   // line would turn its failure mode from "lost the newest entry" into "lost
-  // the file".
-  const index = indexFile(objectRoot);
-  await mkdir(dirname(index), { recursive: true });
-  await appendFile(index, `${JSON.stringify(record)}\n`);
+  // the file". Through `appendLine` (2026-09-27), which closes off a torn last
+  // line first; this appended straight onto one, so the version after a crash
+  // mid-append vanished from the list along with the one it cut short.
+  await appendLine(indexFile(objectRoot), `${JSON.stringify(record)}\n`);
 
   return record;
 }
@@ -271,6 +268,15 @@ export async function pruneVersions(objectRoot: string, keepPerObject: number): 
 }
 
 async function pruneVersionsUnlocked(objectRoot: string, keepPerObject: number): Promise<number> {
+  /**
+   * ***Zero keeps everything*** (2026-09-27), the house rule for a limit: a
+   * trash window of `0` keeps forever and a provider timeout of `0` never times
+   * out. Read as a count, `0` pruned every unpinned version on every save,
+   * including the one the save had just recorded, and the pictures only those
+   * versions named went with them at the next asset sweep. The schema's
+   * minimum stays `0`, since a file that already says it must still start.
+   */
+  if (keepPerObject <= 0) return 0;
   const records = await listVersions(objectRoot);
   let excess = records.length - keepPerObject;
   if (excess <= 0) return 0;

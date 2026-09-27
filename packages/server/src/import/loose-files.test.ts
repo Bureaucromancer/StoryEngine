@@ -311,6 +311,29 @@ describe('a sweep does not guess the way an upload may', () => {
     expect(await count('presets')).toBe(1);
   });
 
+  /**
+   * ***One malformed prompt does not take the folder with it*** (2026-09-27).
+   * A `content` of `5` reached `String.prototype.replace` as a number and threw
+   * out of the converter and out of `sweep()`: the card beside it had been
+   * written or had not depending on the order, the whole import answered 500,
+   * and no job row said any of it.
+   */
+  it('converts a chat preset with a prompt of the wrong shape, and the card beside it', async () => {
+    const report = await run({
+      'A.json': JSON.stringify({
+        prompts: [
+          { identifier: 'main', name: 'Main', role: 'system', content: 5 },
+          { identifier: 'odd', name: 'Odd', content: { nested: true } },
+        ],
+      }),
+      'B.png': card(),
+    });
+
+    expect(report.items.map((item) => item.disposition)).toEqual(['converted', 'converted']);
+    expect(await count('presets')).toBe(1);
+    expect(await count('actors')).toBe(1);
+  });
+
   it('but the upload route still takes the guessable ones', async () => {
     // The other half of the trade, asserted so that tightening the sweep does
     // not quietly tighten the upload: a person who picks a sampler panel out of

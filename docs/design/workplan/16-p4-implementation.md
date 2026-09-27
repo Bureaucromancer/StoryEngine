@@ -305,7 +305,12 @@ Corrections and closures the revisit makes to the conversion contract itself:
   warning naming the characters ([04 §8.4.2]). *The half §8.4.2 left
   unstated:* when no global order exists, the group default (`100001`)
   converts in its place with a review note; when both exist the group default
-  drops-with-review.
+  drops-with-review. **Corrected 2026-09-27: the two ids were the wrong way
+  round.** `100001` is the order SillyTavern has sent since 1.10.0 (its
+  chat-completion prompt manager's `dummyId`), not a group default, and
+  `100000` is the one before it. The live order converts, the legacy one only
+  in its absence (with the note), and SillyTavern's own `Default.json` had
+  been losing its persona slot, its custom prompts and its toggles to this.
 - **`sysprompt` presets**: `content` → a `TextBlock` at the top, `post_history`
   → a `TextBlock` **in sequence after the history slot** — not
   `in-history fromEnd: 0`, which would put it inside the run and move under
@@ -313,7 +318,11 @@ Corrections and closures the revisit makes to the conversion contract itself:
 - **`injection_trigger[]` → `appliesTo`** carries values verbatim — `CallKind`
   is an open string by rule ([04 §8.2]), so unmapped trigger names ride
   through and render as `not-applicable` skips in modes that never make such
-  calls, visible in `notFilled` rather than lost.
+  calls, visible in `notFilled` rather than lost. **Corrected 2026-09-27**: the
+  premise missed that SillyTavern's `normal` *is* the ordinary turn, so a
+  block triggered on it skipped on every turn of every mode. `normal`,
+  `continue` and `impersonate` are translated; the rest still ride through,
+  and a block with nothing else is said to never apply.
 - **The macro table is P4.1 work.** [04 §8.4.2] promises "a closed mapping
   table" and does not contain one; authoring it — and the render context it
   maps onto — is a named deliverable, not an assumed input (§1.6).
@@ -745,6 +754,26 @@ through the store reader:
   `variableGroups`/`variableValues` and `ChoiceBlock` are the shape
   `PresetVariable` was adopted from, so they carry across and **stay inert**,
   which the review says rather than implies.
+
+  ***Corrected 2026-09-27, against the same pinned commit.*** `types/prompt.ts`
+  is the **API's** shape; what a store holds, and what the preset export
+  carries, is `server/src/db/schema/prompts.ts`'s — `sectionOrder`,
+  `markerConfig`, a choice's `options` and `parameters` are text columns of
+  JSON, and booleans are `"true"`/`"false"`. The converter and its fixture were
+  both written to the API shape, so every real preset lost its order and its
+  markers (no history slot reached a prompt) and every choice its options; a
+  real lorebook's entries had no keys, because those are JSON text too. Three
+  more of the lines above did not hold: the per-section `wrapInXml` and
+  `xmlTagName` are columns Marinara's schema calls legacy and its assembler
+  ignores — it wraps **every** section in the preset's `wrapFormat`, by the
+  section's name — so wrapping now follows the format; `parameters` was kept
+  whole in `compat`, not split, and is now split as written here; and a
+  disabled `PromptGroup` switches its sections off, which converts, while a
+  group's own wrapper, spanning blocks, is named in the review and not
+  carried. The single-file exports nest their object (`data.preset`,
+  `data.lorebook`), a profile export keeps its tables under
+  `data.fileStorage`, and a persona is a row of its own rather than a card in a
+  `data` column; each was read the other way and imported nothing.
 - **Scenarios do not exist** in what ships. The `feat/scenarios` branch is
   gone from the remote and no scenario type or table is in the tree, so the
   skeleton's "Marinara scenarios → Setup" line dies here. ~~There is nothing to
@@ -910,6 +939,23 @@ Scope fence, drawn deliberately tight:
   collect.ts:340–343); it becomes all-occurrences with a test, before the wild
   corpus finds a format string that repeats it.
 
+*Added 2026-09-27.* The fence was drawn around the namespace, and the engine
+behind it had none: LiquidJS defaults its three limits to infinity, and the ST
+importer passes `{% … %}` through untouched. One `{% for i in (1..1000000000) %}`
+in a downloaded preset built a billion-element array on the event loop at the
+next turn or preview, and V8 aborted the process for every account. The engine
+now runs with a memory budget, a per-render time limit, and an empty template
+map, so `include` finds nothing on disk (`assembly/template.ts`).
+
+*Added 2026-09-27, the same day.* The macro table's own pattern was the other
+unbounded piece of work at this boundary. It was quadratic on crafted text: a
+quarter of a megabyte of `{{a::` and spaces took 26 seconds of synchronous
+conversion, reachable by any signed-in account through an upload. The review's
+one note per distinct macro had no limit either, so a file of made-up macros
+built notes past what one string can hold. The pattern is linear now and still
+takes a macro inside an argument whole, and one converted object names at most
+a hundred macros and counts the rest in one note (`import/macros.ts`).
+
 ### 1.7 The slot literal: `'setting'` becomes `'treatment'` before any file fossilises it
 
 The Setting→Treatment rename was made deliberately ([04 §6]; the kind is named
@@ -988,6 +1034,17 @@ are converted with those objects; the rest — `game-assets`, `fonts`,
 `notification-sounds`, `long-term-memory`, `knowledge-sources` and the video
 directories — are skipped and counted.
 
+*Corrected 2026-09-27.* Five of the **Convert** row were never read: the reader
+loaded ~~`character_images`~~ and ~~`persona_images`~~ and threw them away, and
+never opened ~~`lorebook_persona_links`~~, ~~`prompt_groups`~~ or
+~~`library_folders`~~. A converted table is left out of the review because the
+objects it produced stand for it, so an import said nothing at all about any of
+the five. They are **Record, not converted** now, which names them. Of the asset
+directories only `avatars` travelled, as the portrait: `sprites`,
+`lorebooks/images` and `prompts/images` ~~feed the objects that reference them~~
+and went nowhere, reported `converted`. They are recorded too. A sweep test now
+holds every table the registry calls converted to one a sweep opens.
+
 ### 1.9 A session can play an imported preset
 
 **Decided: session creation grows one optional parameter — a preset id, copied
@@ -1024,7 +1081,12 @@ shorthand for the reserved `se.summary` *section*, not a field:
   card's actor in its cast and the extracted lorebook linked; framing carries
   the text, and the review names the created treatment per card. "Offered as
   a new Treatment draft" ([03 §2.7]) becomes "created and reported" under the
-  posture this plan decided.
+  posture this plan decided. *(2026-09-27: "distinct" did not hold past the
+  sweep's own map. The treatment's import identity was the scenario's first
+  120 characters, so two scenarios sharing an opening were one import and the
+  second replaced the first, in the same sweep or the next upload. It is a
+  digest of the whole text now, and a treatment stamped the old way is found
+  again only when its framing is the whole text.)*
 - `first_mes` / `alternate_greetings` → `openings.written`, first as primary.
 - `mes_example` → **one `writingSamples` entry**, enabled, titled from the card
   name ([14](../14-writing-samples.md)). ~~the `examples` section, disposition
@@ -2075,6 +2137,12 @@ That is [§6.2](#6-what-the-design-still-has-to-settle)'s open question about fi
 direction rather than a new defect, and the answers it already names — a
 source-app tag, a content hash — are the answers here too.
 
+*Corrected 2026-09-27.* ~~two unrelated files sharing a name replace each
+other~~ was a coincidence for two files and a certainty for every archive: each
+CHARX was identified as the `card.json` inside it, so the second one imported
+replaced the first, Bob's text on Alice's id and Alice's portrait. An archive is
+now identified by the name it was uploaded under, as a card PNG always was.
+
 ### 7.11 The wrong folder inside the right install — 2026-08-31
 
 **`classifyRoot` has never failed on a folder that is merely wrong**, and
@@ -2435,6 +2503,18 @@ before a byte is inflated — entry count, per-entry size, total size, and path
 traversal — because a bomb caught after decompression has already been
 decompressed. `node:zlib` was already in use for PNG chunks, so no dependency
 moved.
+
+*Corrected 2026-09-27.* ~~§1.3's four bounds are all checked from the central
+directory before a byte is inflated~~ held for the per-entry and total bounds
+only as sums of **declared** sizes, while each inflate was capped at the
+per-entry maximum. Nothing stopped many central entries pointing at one local
+header, so four thousand one-byte declarations over one stream that inflated
+to the maximum passed every bound and cost about 256 GB of synchronous
+inflation from a 300 KB upload. An entry now inflates to what it declared or
+is refused, which makes the declared total the real one. And the PNG chunks
+`node:zlib` was already inflating had no ceiling at all, every `zTXt` and
+`iTXt` chunk under any keyword. They are opened only under a card's keyword
+now, within one budget per read.
 
 **And the reader paid for two things nobody asked it to.** A zip is a *root*, so
 `ZipFileSource` makes §1.3's *an archive is a root read through a different file

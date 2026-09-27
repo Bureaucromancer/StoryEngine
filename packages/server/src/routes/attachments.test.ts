@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -38,12 +38,14 @@ let fake: FakeProvider;
 let sessionId: string;
 let head: string | null;
 let counter: number;
+/** Every other install a test made, so each is disposed with it. */
+const others: TestServer[] = [];
 
-beforeEach(async () => {
-  fake = new FakeProvider({ script: [{ text: 'The harbour, yes.' }] });
-  server = await makeTestServer({ providers: () => fake });
-  await setUpAdmin(server, 'ned');
-  const root = new Layout(server.dataDir).userConnectionsRoot('ned');
+/** An install with an admin, the double connection, and the narrator on the model that sees. */
+async function anInstall(): Promise<TestServer> {
+  const made = await makeTestServer({ providers: () => fake });
+  await setUpAdmin(made, 'ned');
+  const root = new Layout(made.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
     join(root, 'double.json'),
@@ -55,7 +57,13 @@ beforeEach(async () => {
       imageModels: ['fake-vision'],
     }),
   );
-  await narrateWith('fake-vision');
+  await narrateWith('fake-vision', made);
+  return made;
+}
+
+beforeEach(async () => {
+  fake = new FakeProvider({ script: [{ text: 'The harbour, yes.' }] });
+  server = await anInstall();
 
   const created = await server.request({
     method: 'POST',
@@ -69,11 +77,12 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await server.dispose();
+  for (const other of others.splice(0)) await other.dispose();
 });
 
-async function narrateWith(modelId: string): Promise<void> {
+async function narrateWith(modelId: string, on: TestServer = server): Promise<void> {
   await writeFile(
-    join(server.dataDir, 'users', 'ned', 'bindings.json'),
+    join(on.dataDir, 'users', 'ned', 'bindings.json'),
     JSON.stringify({ prose: { connectionId: CONNECTION, modelId } }),
   );
 }
@@ -273,17 +282,49 @@ describe('a picture on a move', () => {
  * them wherever they did not travel.**
  */
 describe('pictures that travel', () => {
-  async function newest(except: string): Promise<string> {
-    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
-    const ids = (listed.body.sessions as { id: string }[]).map((one) => one.id);
-    const found = ids.find((one) => one !== except);
-    if (found === undefined) throw new Error('no imported session');
-    return found;
+  /**
+   * Redoes a session's first turn with its picture, as the client does — the
+   * digest and caption re-sent — and returns the sibling once it is complete.
+   */
+  async function redo(on: TestServer, session: string, shown: Turn, digest: string): Promise<Turn> {
+    const redone = await on.request({
+      method: 'POST',
+      url: `/api/sessions/${session}/turns`,
+      payload: {
+        idempotencyKey: 'k-redo',
+        headTurnId: null,
+        parentTurnId: shown.parentTurnId,
+        input: { text: 'Look.', attachments: [{ digest, caption: 'a lantern' }] },
+      },
+    });
+    expect(redone.status, JSON.stringify(redone.body)).toBe(202);
+    const sibling = async (): Promise<Turn | undefined> => {
+      const read = await on.request({ method: 'GET', url: `/api/sessions/${session}/turns` });
+      return (read.body.turns as Turn[]).find(
+        (turn) => turn.id !== shown.id && turn.status === 'complete',
+      );
+    };
+    await eventually(async () => (await sibling()) !== undefined);
+    const again = await sibling();
+    if (again === undefined) throw new Error('the redo never completed');
+    return again;
   }
 
-  it('comes back from a backup with its bytes, and the copy still sends them', async () => {
+  /**
+   * ***A backup brings the bytes, because it holds the session directory
+   * whole***, and the session it brings back sends them again.
+   *
+   * *Gone first*: an import leaves a session already here alone, so what a
+   * backup brings back is a session deleted and emptied out of the trash —
+   * which is what a backup is for, and the case that proves the bytes came out
+   * of the archive rather than being found where they were.
+   */
+  it('comes back from a backup with its bytes, and a redo still sends them', async () => {
     const { digest } = await attach();
-    await takeATurn({ text: 'Look.', attachments: [{ digest, caption: 'a lantern' }] });
+    const shown = await takeATurn({
+      text: 'Look.',
+      attachments: [{ digest, caption: 'a lantern' }],
+    });
 
     const taken = await server.request({
       method: 'POST',
@@ -291,19 +332,32 @@ describe('pictures that travel', () => {
       payload: { contents: 'full' },
     });
     const id = (taken.body as { backup: { id: string } }).backup.id;
+
+    const deleted = await server.request({ method: 'DELETE', url: `/api/sessions/${sessionId}` });
+    expect(deleted.status).toBeLessThan(300);
+    await rm(join(new Layout(server.dataDir).trashRoot('ned'), 'sessions'), {
+      recursive: true,
+      force: true,
+    });
+
     const imported = await server.request({
       method: 'POST',
       url: '/api/me/backups/import',
       payload: { id },
     });
     expect(imported.status).toBe(200);
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    const [back] = (listed.body.sessions as { id: string }[]).map((one) => one.id);
+    if (back === undefined) throw new Error('the backup brought no session back');
 
-    const copy = await newest(sessionId);
     const served = await server.request({
       method: 'GET',
-      url: `/api/sessions/${copy}/attachments/${digest}`,
+      url: `/api/sessions/${back}/attachments/${digest}`,
     });
     expect(served.status).toBe(200);
+
+    await redo(server, back, shown, digest);
+    expect(fake.requests.at(-1)?.images).toEqual([digest]);
   });
 
   /**
@@ -312,6 +366,9 @@ describe('pictures that travel', () => {
    * accepted rather than refused as a picture this session never had, and the
    * redo sends the picture's words: the session continues as one that had a
    * picture, not as one that cannot go on.
+   *
+   * *On a second install*, which is where an export goes: the one that made it
+   * refuses a session whose turns it already holds.
    */
   it('continues from an export without the bytes, as words', async () => {
     const { digest } = await attach();
@@ -324,7 +381,9 @@ describe('pictures that travel', () => {
       method: 'GET',
       url: `/api/sessions/${sessionId}/export`,
     });
-    const landed = await server.request({
+    const there = await anInstall();
+    others.push(there);
+    const landed = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
       payload: exported.body,
@@ -332,37 +391,17 @@ describe('pictures that travel', () => {
     expect(landed.status).toBe(201);
     const copy = landed.body.sessionId as string;
 
-    const missing = await server.request({
+    const missing = await there.request({
       method: 'GET',
       url: `/api/sessions/${copy}/attachments/${digest}`,
     });
     expect(missing.status).toBe(404);
 
-    // Redo the imported turn, re-sending its picture as the client does.
-    sessionId = copy;
-    head = shown.parentTurnId;
-    const redone = await server.request({
-      method: 'POST',
-      url: `/api/sessions/${copy}/turns`,
-      payload: {
-        idempotencyKey: 'k-redo',
-        headTurnId: null,
-        parentTurnId: shown.parentTurnId,
-        input: { text: 'Look.', attachments: [{ digest, caption: 'a lantern' }] },
-      },
-    });
-    expect(redone.status, JSON.stringify(redone.body)).toBe(202);
-    await eventually(async () => {
-      const read = await server.request({ method: 'GET', url: `/api/sessions/${copy}/turns` });
-      return (read.body.turns as Turn[]).some(
-        (turn) => turn.id !== shown.id && turn.status === 'complete',
-      );
-    });
-
+    // The model sees pictures; the bytes are what is missing, and the words go.
+    const again = await redo(there, copy, shown, digest);
+    expect(fake.requests.at(-1)?.modelId).toBe('fake-vision');
     expect(fake.requests.at(-1)?.images).toEqual([]);
-    const read = await server.request({ method: 'GET', url: `/api/sessions/${copy}/turns` });
-    const again = (read.body.turns as Turn[]).find((turn) => turn.id !== shown.id);
-    expect(again?.input?.attachments?.[0]).toMatchObject({ digest, caption: 'a lantern' });
-    expect(again?.input?.attachments?.[0]?.mime).toBeUndefined();
+    expect(again.input?.attachments?.[0]).toMatchObject({ digest, caption: 'a lantern' });
+    expect(again.input?.attachments?.[0]?.mime).toBeUndefined();
   });
 });

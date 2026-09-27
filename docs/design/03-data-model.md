@@ -912,6 +912,35 @@ diverge under crash. Mitigations: atomic replace (write temp + rename), a
 startup consistency check (mtime/size against recorded values) with automatic
 re-index of anything that does not match, and the write path in §5.1.1.
 
+***The startup consistency check was built on 2026-09-27.*** The other two
+mitigations were built at P1 and this one never was, though §5.1.1 below leans on
+it. A start that did not rebuild looked at nothing, and the watcher starts with
+`ignoreInitial`, so an edit, an addition or a delete made while the server was
+stopped went unseen until the file changed again. Sessions, which the watcher
+never looks at, never caught up at all: a turn that reached its segment and not
+the index before a crash stayed unsearchable, as did a session folder copied in.
+What the check does now (`index-db/reconcile.ts`):
+
+- **An object** is read again when its size or modification time differs from
+  what its row recorded, or when it has an error on record (an error row
+  records neither, and a `chmod` can fix a file without changing either). It is
+  read through the watcher's own path, so an edit made while the server was
+  stopped gets the history version one made while it ran gets (§11.2). A row
+  whose file has gone is forgotten.
+- **A session** had no recorded values to compare. The index now keeps a stamp
+  over `session.json` and its segments, written by a rebuild and by the check
+  and deliberately not by the running server's own writes. A session whose
+  stamp differs, which includes every session played since the last start, is
+  derived again whole.
+- It runs where a rebuild would, before the mode presets are written and before
+  the watcher starts. Its answer is held to a rebuild's over randomised changes
+  made with nothing watching.
+
+*What it cannot see* is the limit of the check this section chose: a file
+rewritten to the same length within one tick of the filesystem's clock, or given
+its old time back by hand. `index.rebuildOnStart` is there for anyone who doubts
+it.
+
 #### 5.1.1 Two writers, one index
 
 **The server updates the index synchronously for its own writes. The watcher
@@ -1440,6 +1469,21 @@ The rest of this block is older than the implementation in other ways too:
 `origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
 treatment later must not affect this session.
 
+***A copy of the mode's own pack gains what the mode ships later*** (2026-09-27).
+`preset` is a resolved copy, and for a pack taken from the library it stays
+exactly that: editing the library's preset reaches no session. But nothing ever
+brought a copy of the **mode's own** pack up to date either, so a session begun
+on the first alpha went without the summary slot, the goal slot and the pacing
+levels for good — its story above the window never reached a prompt — and the
+only remedy, switching to the mode's own, discarded every edit made to the copy.
+A copy that carries the id of its mode's default is now read with each block and
+level list the mode ships and the copy lacks, placed where the mode puts it
+(`sessions/preset-of.ts`), at every read and never written back. **Presence is
+the test, never state**: a block switched off stays off, and an edited block
+keeps its edit. *A change to a block the copy already has still reaches new
+sessions only* — telling an unedited block from an edited one needs a digest per
+block recorded at the copy, which sessions do not carry yet.
+
 ### 8.1 `session.json`'s channel state is the head snapshot
 
 Worth stating plainly, because the naive reading produces a bug that only
@@ -1741,7 +1785,10 @@ The reason it is nearly free is the same reason the storage design keeps paying:
 a move, restoration is a move back, and neither needs a serialisation format, a
 tombstone convention or a schema. The index treats trashed objects as absent —
 they do not appear in the library, do not resolve as references, and do not match
-search. Restoring re-indexes them.
+search. Restoring re-indexes them. *(2026-09-27: for a session it did not, until
+now — the restore left it to the watcher, which does not look under `sessions/`,
+so a restored session was listed and never matched a search again. The restore
+indexes what it puts back, sessions through the rebuild's own derivation.)*
 
 Four properties worth fixing now:
 
@@ -1754,6 +1801,12 @@ Four properties worth fixing now:
 - **Purge is available and honest.** *Delete permanently* exists, says so, and
   skips the trash. The point of the window is to make the ordinary path
   recoverable, not to make deletion impossible for someone who means it.
+  *Two corrections, 2026-09-27.* The window never expired anything on a server
+  restarted more often than daily, because the sweep's only timer was a daily
+  interval; it now has a pass a minute after the start, and skips a pass when
+  the wall clock has jumped. And a session's prompts and prose outlived its
+  purge in the operational store, which kept every turn's draft and events;
+  those are collected now, a day after the turn (21 §5.1).
 - **Trash is excluded from export and from backup by default**
   ([25 E6](25-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it. ***This sentence had no
@@ -1871,6 +1924,15 @@ the database version rather than merely equivalent:
 (§5.5) for the same reasons: cheap writes, clean git diffs, and a corrupted tail
 costs the newest entry rather than the history.
 
+*Corrected 2026-09-27.* ~~a corrupted tail costs the newest entry~~ A corrupted
+tail cost the newest entry **and the one after it**, here and in turn segments
+alike: the next append landed on the end of the torn line, and the two made one
+line that parsed as neither. For a segment that could be the whole story,
+because the turn that tore was the one the commit appended again, the head was
+set to it, and a path walk from a head it could not read is empty.
+`storage/files.ts`'s `appendLine` now ends a torn line before it appends, and
+the history index goes through it. The sentence above is true again.
+
 ### 11.3 Retention
 
 **Marinara has no cap**, and that is the one place its design should not be
@@ -1886,6 +1948,13 @@ an unbounded list is a list nobody scrolls.
   alone for six months should not lose that evening.
 - **Pruning is not deletion of content.** Content-addressed payloads referenced
   by a surviving entry stay; only unreferenced ones are collected.
+
+*Corrected 2026-09-27.* The bytes beside a folder object, a lorebook's gallery
+and its entries' pictures, were under neither rule. A version names them and
+does not hold them, and the sweep on save ([10 §11.2b](10-ui-surfaces.md))
+deleted a file the moment the current manifest stopped naming it, so a restored
+version could name a picture that was gone. The sweep now keeps a file while
+any surviving version names it, which is the bullet above applied to the bytes.
 
 ### 11.4 Three scales of undo, and why they do not overlap
 

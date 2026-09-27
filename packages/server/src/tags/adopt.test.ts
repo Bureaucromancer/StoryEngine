@@ -104,6 +104,26 @@ describe('adoption', () => {
     expect(registry.map((tag) => tag.name)).toEqual(['Noir']);
   });
 
+  it('adopts a name the registry holds under another width or kana', async () => {
+    /**
+     * ***The lookup asks what the mint asked*** (2026-09-27). The mint skips a
+     * name `sameTag` already finds, and `sameTag` calls full-width letters and
+     * ASCII the same, and hiragana and katakana. The lookup lowercased, which
+     * does neither, so these objects were skipped as having *no registry
+     * entry* on every run, and adoption could never finish.
+     */
+    await server.request({ method: 'POST', url: '/api/tags', payload: { name: 'noir' } });
+    await server.request({ method: 'POST', url: '/api/tags', payload: { name: 'ねこ' } });
+    const id = await makeActor('Vera', ['ｎｏｉｒ', 'ネコ']);
+
+    const report = await adopt();
+
+    expect(report.body.skipped).toEqual([]);
+    expect(report.body.minted).toEqual([]);
+    const byName = new Map((await tags()).map((tag) => [tag.name, tag.id]));
+    expect((await readActor(id)).tagIds).toEqual([byName.get('noir'), byName.get('ねこ')]);
+  });
+
   it('adopts an object with no tags as having none, not as unadopted', async () => {
     const id = await makeActor('Vera', []);
 

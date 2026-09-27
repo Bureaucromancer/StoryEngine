@@ -2,9 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdir, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createGzip, createGunzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
@@ -42,6 +43,13 @@ import { BLOCK, headerName, padding, tarHeader, trailer } from './tar.mjs';
  * subsystem E6 forbids. So the script says so rather than pretending, and
  * `POST /api/admin/restart` with a drain is how an operator gets there
  * ([09 §6.4], [P10.3]).
+ *
+ * ***And now it can tell*** (2026-09-27). A running server holds
+ * `instance.lock` at the data directory's root, which is one server per
+ * directory rather than a write-lock, and this script takes the same lock for
+ * as long as it runs. So it refuses a directory a server is using, in one
+ * line, where it used to take that server's word that it had been stopped; and
+ * a server cannot start on a directory this script is halfway through.
  *
  * **A tar, written by hand, and no dependency.** The format is forty years old
  * and the subset an archive of a directory tree needs is a header struct and
@@ -90,6 +98,18 @@ const EXCLUDED = [
   /^index\.sqlite(-wal|-shm)?$/,
   /^backups$/,
   /^users\/[^/]+\/(trash|backups)$/,
+  // And a removed account's, which went to `removed/` with its directory. The
+  // server's archive leaves them out too: see `alwaysSkipped` there.
+  /^removed\/[^/]+\/(trash|backups)$/,
+  // A restore's own directory, which holds the whole install it replaced, and
+  // a restore asked for and not yet done: the server's archive leaves both out
+  // (`backup/archive.ts`), and an archive that carried the second would ask for
+  // a restore the moment it was itself restored.
+  /^\.restore$/,
+  /^state\/restore\.pending$/,
+  // The lock a running server holds, and this script while it runs. Reading it
+  // in the process that holds it would drop the lock: see `Layout.instanceLockFile`.
+  /^instance\.lock(-journal)?$/,
 ];
 
 /** Whether a path relative to the data root is one of {@link EXCLUDED}. */
@@ -98,18 +118,56 @@ function excluded(path) {
 }
 
 async function main() {
-  const [command, first, second] = process.argv.slice(2);
-  if (command === 'create' && first && second) {
-    const count = await create(resolve(first), resolve(second));
-    console.log(`${second}: ${String(count)} files; index, trash and backups excluded.`);
+  const [command, ...rest] = process.argv.slice(2);
+  if (command === 'create' && rest.length === 2) {
+    const [dataDir, archive] = rest;
+    let count;
+    try {
+      count = await create(resolve(dataDir), resolve(archive));
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    console.log(`${archive}: ${String(count)} files; index, trash and backups excluded.`);
     return;
   }
-  if (command === 'restore' && first && second) {
-    const count = await restore(resolve(first), resolve(second));
-    console.log(
-      `${second}: ${String(count)} files restored. Start the server to rebuild the index.`,
-    );
+  if (command === 'restore' && rest.length === 2) {
+    const [archive, dataDir] = rest;
+    let outcome;
+    try {
+      outcome = await restore(resolve(archive), resolve(dataDir));
+    } catch (error) {
+      // Refused before anything was written: say why, in one line.
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    if (outcome.staged === null) {
+      console.log(
+        `${dataDir}: ${String(outcome.files)} files restored. Start the server to rebuild the index.`,
+      );
+    } else {
+      console.log(
+        [
+          `${dataDir}: ${String(outcome.files)} files staged, and nothing in the install has changed yet.`,
+          'Start the server: before it opens anything it swaps these in, and keeps what they',
+          `replace in ${outcome.staged.replaced}. Delete that when you are sure.`,
+        ].join('\n'),
+      );
+    }
     return;
+  }
+  /**
+   * ***Exactly one archive, and a glob that matched two is refused by name.***
+   * `docs/deploy.md` shows `install-full-2026-09-22-*.tar.gz`, and two backups
+   * on one day expand it to two names. This used to read the second archive
+   * as the data directory, empty it with `rm -rf` (deleting that backup) and
+   * restore the first into a directory named after it.
+   */
+  if (command === 'restore' && rest.length > 2) {
+    console.error(
+      `restore takes one archive and one data directory, and was given ${String(rest.length)} paths. If a pattern matched several archives, name the one you mean.`,
+    );
+    process.exit(1);
   }
   console.error(
     [
@@ -144,7 +202,42 @@ async function filesUnder(root, at = '') {
   return found;
 }
 
+/**
+ * ***The data directory's lock, for as long as this script runs*** — the one a
+ * running server holds (`packages/server/src/instance-lock.ts`), taken the
+ * same way: an exclusive SQLite transaction never committed, which the kernel
+ * lets go when this process ends however it ends. Throws a sentence naming the
+ * directory when a server has it.
+ */
+async function holdDirectory(dataDir) {
+  await mkdir(dataDir, { recursive: true });
+  const db = new DatabaseSync(join(dataDir, 'instance.lock'));
+  try {
+    db.exec('pragma locking_mode = exclusive');
+    db.exec('begin exclusive');
+  } catch (error) {
+    db.close();
+    if (typeof error?.errcode === 'number' && (error.errcode & 0xff) === 5) {
+      throw new Error(
+        `A StoryEngine server is using ${dataDir}. Stop it first: a backup taken while it writes can catch a story half-written, and a restore needs it stopped to swap the files in.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+  return () => db.close();
+}
+
 async function create(dataDir, archive) {
+  const release = await holdDirectory(dataDir);
+  try {
+    return await createUnderLock(dataDir, archive);
+  } finally {
+    release();
+  }
+}
+
+async function createUnderLock(dataDir, archive) {
   const files = await filesUnder(dataDir);
   await mkdir(dirname(archive), { recursive: true });
 
@@ -171,20 +264,49 @@ async function create(dataDir, archive) {
   return files.length;
 }
 
-async function restore(archive, dataDir) {
-  // Read whole rather than streamed, and the archive's size is why that is
-  // fine: a data directory of stories and cards is megabytes, and a streaming
-  // tar reader is a state machine — which is a thing to get wrong in the one
-  // tool somebody reaches for when things have already gone wrong.
-  const chunks = [];
-  for await (const chunk of createReadStream(archive).pipe(createGunzip())) chunks.push(chunk);
-  const tar = Buffer.concat(chunks);
+/**
+ * ***StoryEngine's own entries at a data directory's root***, which say an
+ * install is there. `OWN_ENTRIES` in `packages/server/src/backup/swap.ts` is
+ * the list the server's swap moves aside, and `restore.test.ts` holds the two
+ * to one set.
+ */
+const OWN_ENTRIES = [
+  'accounts.json',
+  'backup.json',
+  'config.json',
+  'index',
+  'removed',
+  'state',
+  'system',
+  'users',
+];
 
-  await rm(dataDir, { recursive: true, force: true });
-  await mkdir(dataDir, { recursive: true });
+/** The swap journal's format, which the server reads: `SWAP_JOURNAL_SCHEMA`. */
+const SWAP_JOURNAL_SCHEMA = 'storyengine.restore-swap/1';
 
+/**
+ * Where a restore never writes: the stored archives, anybody's own, and a
+ * restore's own directory. No archive either writer makes carries them.
+ */
+function keptLive(name) {
+  return (
+    /^(backups|\.restore|instance\.lock)(\/|$)/.test(name) ||
+    /^users\/[^/]+\/backups(\/|$)/.test(name)
+  );
+}
+
+/**
+ * Every member, checked, and nothing written — the half of a restore that can
+ * still say no.
+ *
+ * ***All of it before the first byte lands.*** This used to empty the data
+ * directory with `rm -rf` and then check each header as it wrote, so an archive
+ * whose tenth member was hostile, or cut short, left an install that was gone
+ * and a restore that was half done.
+ */
+function membersOf(tar, dataDir) {
+  const members = [];
   let at = 0;
-  let count = 0;
   while (at + BLOCK <= tar.length) {
     const block = tar.subarray(at, at + BLOCK);
     if (block.every((byte) => byte === 0)) break;
@@ -194,38 +316,161 @@ async function restore(archive, dataDir) {
     // a reader that took only the second would write `history/v/<hex>.json` to
     // the destination root, scattering one library's version payloads into a
     // flat pile at the top of somebody's data directory.
-    const name = headerName(block);
+    const name = headerName(block).replaceAll('\\', '/');
     const size = Number.parseInt(
       block.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim(),
       8,
     );
     at += BLOCK;
-
-    /**
-     * ***Every path is checked against the destination before it is written.***
-     * An archive is somebody else's bytes, and `../../etc/passwd` in a tar
-     * header is the oldest attack there is. This one is written by the script
-     * above, and *that is exactly the assumption a restore must not make*: the
-     * thing a person restores is the file that survived, from a disk that may
-     * have had a bad week.
-     */
-    const target = resolve(dataDir, name);
-    if (target !== dataDir && !target.startsWith(dataDir + sep)) {
-      throw new Error(`The archive names a path outside the data directory: ${name}`);
+    if (!Number.isFinite(size) || size < 0 || at + size > tar.length) {
+      throw new Error(`The archive is cut short at ${name}, and nothing was restored.`);
     }
 
-    await mkdir(dirname(target), { recursive: true });
-    await pipeline(async function* () {
-      yield tar.subarray(at, at + size);
-    }, createWriteStream(target));
+    /**
+     * ***Every path is checked against the destination.*** An archive is
+     * somebody else's bytes, and `../../etc/passwd` in a tar header is the
+     * oldest attack there is. This one is written by the script above, and
+     * *that is exactly the assumption a restore must not make*: the thing a
+     * person restores is the file that survived, from a disk that may have had
+     * a bad week.
+     */
+    const target = resolve(dataDir, name);
+    if (!target.startsWith(dataDir + sep)) {
+      throw new Error(`The archive names a path outside the data directory: ${name}`);
+    }
+    if (keptLive(name)) {
+      throw new Error(
+        `The archive carries ${name}, where a restore never writes: the stored archives, or a restore's own directory.`,
+      );
+    }
+
+    if (!name.endsWith('/')) members.push({ name, bytes: tar.subarray(at, at + size) });
     at += size + ((BLOCK - (size % BLOCK)) % BLOCK);
-    count += 1;
   }
-  return count;
+  return members;
+}
+
+/**
+ * ***An account archive is refused*** — the refusal `shared/backup.ts` says
+ * this script makes and it never did. Member names are data-root-relative in
+ * both scopes, so one person's archive unpacks into the right place, and
+ * restoring it *as the install* would leave that person's tree and nothing
+ * else. The count is checked too, where the archive has a manifest to count
+ * against: an archive this script made has none.
+ */
+function checkManifest(members) {
+  const first = members[0];
+  if (first?.name !== 'backup.json') return;
+  let manifest;
+  try {
+    manifest = JSON.parse(first.bytes.toString('utf8'));
+  } catch {
+    throw new Error(
+      'The archive begins with a manifest that cannot be read, and nothing was restored.',
+    );
+  }
+  if (manifest?.scope === 'account') {
+    throw new Error(
+      "This is one account's archive, not the install's, and restoring it as the install would leave nothing else. To put one person's work back, unpack it into the data directory with tar, as docs/deploy.md shows.",
+    );
+  }
+  if (typeof manifest?.files === 'number' && manifest.files !== members.length - 1) {
+    throw new Error(
+      `The archive's manifest names ${String(manifest.files)} files and it holds ${String(members.length - 1)}: it has been cut short, and nothing was restored.`,
+    );
+  }
+}
+
+async function writeMembers(members, root) {
+  for (const { name, bytes } of members) {
+    const target = join(root, ...name.split('/'));
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, bytes);
+  }
+}
+
+async function entriesOf(path) {
+  try {
+    return await readdir(path);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/**
+ * Restores an archive into a data directory, and **deletes nothing**.
+ *
+ * - **Into a directory with no install in it**, the members are written
+ *   straight in. That is the clean restore `docs/deploy.md` recommends.
+ * - **Over an install**, they are staged in `.restore/<id>/staging` with a
+ *   journal, and the server's next start swaps them in before it opens
+ *   anything, keeping the install they replace in `.restore/<id>/replaced`.
+ *   One swap, the server's, with its roll-back and its journal, rather than a
+ *   second copy of it here. And a swap this script started could not be
+ *   trusted not to run under a server somebody forgot to stop.
+ *
+ * ***It used to `rm -rf` the data directory first***, before reading a header:
+ * every stored backup in it went too, and a bad archive left nothing at all.
+ */
+async function restore(archive, dataDir) {
+  const release = await holdDirectory(dataDir);
+  try {
+    return await restoreUnderLock(archive, dataDir);
+  } finally {
+    release();
+  }
+}
+
+async function restoreUnderLock(archive, dataDir) {
+  // Read whole rather than streamed, and the archive's size is why that is
+  // fine: a data directory of stories and cards is megabytes, and a streaming
+  // tar reader is a state machine — which is a thing to get wrong in the one
+  // tool somebody reaches for when things have already gone wrong.
+  const chunks = [];
+  for await (const chunk of createReadStream(archive).pipe(createGunzip())) chunks.push(chunk);
+  const tar = Buffer.concat(chunks);
+
+  const members = membersOf(tar, dataDir);
+  checkManifest(members);
+  const files = members.filter((member) => member.name !== 'backup.json').length;
+
+  const journal = join(dataDir, '.restore', 'swap.json');
+  if ((await entriesOf(join(dataDir, '.restore'))).includes('swap.json')) {
+    throw new Error(
+      `A restore is already staged in ${dataDir}. Start the server to finish it, or delete ${journal} to call it off.`,
+    );
+  }
+
+  const installed = (await entriesOf(dataDir)).some((name) => OWN_ENTRIES.includes(name));
+  if (!installed) {
+    await writeMembers(members, dataDir);
+    return { files, staged: null };
+  }
+
+  // A timestamp rather than a random id: this repository draws nothing it does
+  // not record (19 §14), and a name only has to be unique among restores staged
+  // here, of which the journal check above allows one at a time.
+  const id = `cli-${new Date().toISOString().replaceAll(/[:.]/g, '-')}`;
+  const work = join(dataDir, '.restore', id);
+  await writeMembers(members, join(work, 'staging'));
+  // Temp and rename, which is the server's `writeJsonAtomic` by hand: a journal
+  // is read at boot, and a torn one would stop it.
+  const record = {
+    schema: SWAP_JOURNAL_SCHEMA,
+    id,
+    archive: basename(archive),
+    requestedBy: '',
+    files,
+    phase: 'staged',
+  };
+  await writeFile(`${journal}.part`, JSON.stringify(record));
+  await rename(`${journal}.part`, journal);
+  return { files, staged: { id, replaced: join(work, 'replaced') } };
 }
 
 /** Exported for the restore test, which drives them rather than the argv above. */
-export { create, restore, filesUnder };
+export { create, restore, filesUnder, OWN_ENTRIES };
 
 if (resolve(process.argv[1] ?? '') === resolve(fileURLToPath(import.meta.url))) {
   await main();

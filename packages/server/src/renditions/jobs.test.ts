@@ -2,23 +2,46 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { DatabaseSync } from 'node:sqlite';
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { migrateState } from '../state/migrations.js';
-import { enqueueRendition, jobForRendition, setRenditionJobStatus } from './jobs.js';
+import {
+  enqueueRendition,
+  jobForRendition,
+  pendingRenditionJobs,
+  readRenditionJob,
+  reconcileRenditionJobs,
+  setRenditionJobStatus,
+  type EnqueueRequest,
+  type RenditionJob,
+} from './jobs.js';
 
 /**
- * ***A rendition job is one per record, and a record is its session plus its
- * id*** — [06 §10.2](../../../../docs/design/06-modes-and-turn-pipeline.md).
+ * ***The rendition job store's account of a retry*** — `RenditionJob.attempt`'s
+ * promise, *"a retry is a new job with a higher number, never a reset"*, held
+ * against the two readers that depend on it: `pendingRenditionJobs`, and boot
+ * recovery.
  *
- * Rendition ids are `<turnId>.<n>`, and session import keeps turn ids, so a copy
- * of a session on the install that exported it holds records whose ids are the
- * original's. The falsifying mutation is keying the job by the id alone: the
- * copy's Illustrate would then be handed the original's job, and the worker —
- * which reads the record at the job's own session — would redraw the original
- * while the copy waited forever.
+ * *In memory and through `migrateState`*, `migrations.test.ts`'s arrangement,
+ * so the constraints under test are the ones a real store is built with rather
+ * than a fixture's idea of them.
+ *
+ * **The sequence reads the store rather than `enqueueRendition`'s return
+ * value**, deliberately: *what the store holds after a retry* is the claim, and
+ * a test that trusted what the writer said it did would pass for a writer that
+ * returned the right shape and stored the wrong row.
  */
+
+const SESSION = 'session-1';
+const RENDITION = 'turn-1.0';
+
+const REQUEST: EnqueueRequest = {
+  sessionId: SESSION,
+  account: 'ned',
+  renditionId: RENDITION,
+  turnId: 'turn-1',
+  purpose: 'illustration',
+};
 
 let db: DatabaseSync;
 
@@ -31,71 +54,165 @@ afterEach(() => {
   db.close();
 });
 
-function ask(sessionId: string): ReturnType<typeof enqueueRendition> {
-  return enqueueRendition(db, {
-    sessionId,
-    account: 'ned',
-    renditionId: 'turn-1.0',
-    turnId: 'turn-1',
-    purpose: 'illustration',
-  });
+/** Queues a try and returns it as the store now holds it. */
+function queueATry(now: number): RenditionJob {
+  enqueueRendition(db, REQUEST, now);
+  const held = jobForRendition(db, SESSION, RENDITION);
+  if (held === null) throw new Error('enqueue stored nothing');
+  return held;
 }
 
-describe('queuing a picture', () => {
-  /**
-   * ***A job still working is returned, and said not to be new*** — the half
-   * that makes a repeated dispatch safe. The caller that did not make the job
-   * must not start it, or two workers race to write one record.
-   */
-  it('returns the live job for the same record, marked as not made here', () => {
-    const first = ask('session-original');
-    const again = ask('session-original');
-    expect(first.fresh).toBe(true);
-    expect(again.fresh).toBe(false);
-    expect(again.job.id).toBe(first.job.id);
+/** The first try, run to the end — the state the retry button is pressed in. */
+function aFinishedFirstTry(): RenditionJob {
+  const first = queueATry(1);
+  setRenditionJobStatus(db, first.id, 'running', null, 2);
+  setRenditionJobStatus(db, first.id, 'done', 'retryable', 3);
+  return first;
+}
+
+describe('a retry is a new job with the next number', () => {
+  it('queues a second row rather than re-running the first', () => {
+    const first = aFinishedFirstTry();
+    expect(first.attempt).toBe(1);
+
+    const retry = queueATry(10);
+    expect(retry.id).not.toBe(first.id);
+    expect(retry.attempt).toBe(2);
+    expect(retry.status).toBe('queued');
+    expect(retry.finishedAt).toBeNull();
+
+    // **Running, and still owed** — the property the old index broke. The
+    // finished row's `finished_at` rode along onto the retry, and this list,
+    // which is `finished_at is null`, came back empty.
+    setRenditionJobStatus(db, retry.id, 'running', null, 11);
+    expect(pendingRenditionJobs(db, SESSION)).toEqual([
+      expect.objectContaining({ id: retry.id, attempt: 2, status: 'running', finishedAt: null }),
+    ]);
+
+    // And the first try is history rather than a thing that was reset: its own
+    // outcome and its own finish time, which is what *how many times was this
+    // paid for, and what happened each time* is answered from.
+    expect(readRenditionJob(db, first.id)).toEqual(
+      expect.objectContaining({ status: 'done', error: 'retryable', finishedAt: 3, attempt: 1 }),
+    );
   });
 
-  it('queues a separate job for the same id in another session', () => {
-    const original = ask('session-original').job;
-    const copy = ask('session-copy').job;
+  /**
+   * ***The restart case.*** A process that died holding the retry leaves it
+   * live, and the next boot has to find it — or the job is `running` forever
+   * and the record behind it is a placeholder nobody can press.
+   */
+  it('is what boot recovery finds when the process died holding it', () => {
+    const first = aFinishedFirstTry();
+    const retry = queueATry(10);
+    setRenditionJobStatus(db, retry.id, 'running', null, 11);
 
-    expect(copy.id).not.toBe(original.id);
-    expect(copy.sessionId).toBe('session-copy');
-    expect(jobForRendition(db, 'session-copy', 'turn-1.0')?.id).toBe(copy.id);
-    expect(jobForRendition(db, 'session-original', 'turn-1.0')?.id).toBe(original.id);
+    const { interrupted } = reconcileRenditionJobs(db, 20);
+
+    expect(interrupted.map((job) => job.id)).toEqual([retry.id]);
+    expect(readRenditionJob(db, retry.id)).toEqual(
+      expect.objectContaining({ status: 'abandoned', error: 'interrupted', finishedAt: 20 }),
+    );
+    // Recovery touches what was in flight and nothing it had already finished.
+    expect(readRenditionJob(db, first.id)).toEqual(
+      expect.objectContaining({ status: 'done', error: 'retryable', finishedAt: 3 }),
+    );
+    expect(pendingRenditionJobs(db, SESSION)).toEqual([]);
+  });
+
+  it('never resets the number, whatever the last try came to', () => {
+    aFinishedFirstTry();
+    const second = queueATry(10);
+    reconcileRenditionJobs(db, 20);
+
+    // The abandoned second try still counts: it was dispatched, and a provider
+    // may well have been paid for it before the process died.
+    expect(readRenditionJob(db, second.id)?.status).toBe('abandoned');
+    expect(queueATry(30).attempt).toBe(3);
+  });
+});
+
+describe('one live job per rendition', () => {
+  /**
+   * ***Idempotent while live, and saying so.*** A second enqueue while a job
+   * is in flight is the double dispatch the constraint exists to stop, and
+   * `created` is how the caller tells *I queued this* from *somebody already
+   * had* — the dispatcher runs only the first, which is what stops a second
+   * image call on one job.
+   */
+  it('hands back the live job, and creates nothing', () => {
+    const first = enqueueRendition(db, REQUEST, 1);
+    expect(first.created).toBe(true);
+
+    const again = enqueueRendition(db, REQUEST, 2);
+    expect(again.created).toBe(false);
+    expect(again.job.id).toBe(first.job.id);
+
+    const rows = db
+      .prepare(`select count(*) as n from rendition_job where rendition_id = ?`)
+      .get(RENDITION) as { n: number };
+    expect(rows.n).toBe(1);
+  });
+
+  it('creates the next one once the live one has finished', () => {
+    const first = enqueueRendition(db, REQUEST, 1);
+    setRenditionJobStatus(db, first.job.id, 'done', null, 2);
+
+    const next = enqueueRendition(db, REQUEST, 3);
+    expect(next.created).toBe(true);
+    expect(next.job.id).not.toBe(first.job.id);
+    expect(next.job.attempt).toBe(2);
+  });
+
+  /**
+   * **Enforced by the store rather than by this module's care.** A writer that
+   * skipped the live-row check would meet the constraint here, which is the
+   * same arrangement as `job_one_active_per_session` for turns.
+   */
+  it('refuses a second live row for one rendition at the constraint', () => {
+    enqueueRendition(db, REQUEST, 1);
+    expect(() =>
+      db
+        .prepare(
+          `insert into rendition_job (id, session_id, account, rendition_id, turn_id, purpose,
+                                      status, attempt, created_at, updated_at)
+           values ('sneaky', ?, 'ned', ?, 'turn-1', 'illustration', 'queued', 2, 5, 5)`,
+        )
+        .run(SESSION, RENDITION),
+    ).toThrow(/UNIQUE/);
   });
 });
 
 /**
- * ***A retry is a new job with the next number*** — what the table's own
- * comment on `attempt` always said, and what the code did not do until
- * 2026-09-27: the finished row came back and was run again under attempt 1, so
- * every retry overwrote the only record of how often a picture had been paid
- * for.
+ * ***A rendition is its session plus its id*** — `STEPS[7]`, 2026-09-27.
+ *
+ * Rendition ids are `<turnId>.<n>`, and session import keeps turn ids, so two
+ * sessions on one install can hold records with the same ids — the copies
+ * earlier imports made, or a session imported back after it was deleted, while
+ * its job rows stayed. The falsifying mutation is keying the job by the id
+ * alone: one session's Try again would then be handed the other's live job, and
+ * the worker — which reads the record at the job's own session — would redraw
+ * the other while this one waited.
  */
-describe('trying again', () => {
-  it('makes a new job once the last one has finished, one attempt higher', () => {
-    const first = ask('session-original').job;
-    setRenditionJobStatus(db, first.id, 'done');
+describe('the same rendition id in two sessions', () => {
+  const COPY: EnqueueRequest = { ...REQUEST, sessionId: 'session-copy' };
 
-    const retry = ask('session-original');
-    expect(retry.fresh).toBe(true);
-    expect(retry.job.id).not.toBe(first.id);
-    expect(retry.job.attempt).toBe(2);
+  it('queues a job of its own while the other session’s is still live', () => {
+    const original = enqueueRendition(db, REQUEST, 1);
+    const copy = enqueueRendition(db, COPY, 2);
 
-    setRenditionJobStatus(db, retry.job.id, 'abandoned', 'interrupted');
-    expect(ask('session-original').job.attempt).toBe(3);
+    expect(copy.created).toBe(true);
+    expect(copy.job.id).not.toBe(original.job.id);
+    expect(jobForRendition(db, 'session-copy', RENDITION)?.id).toBe(copy.job.id);
+    expect(jobForRendition(db, SESSION, RENDITION)?.id).toBe(original.job.id);
   });
 
-  it('keeps the finished jobs, and names the newest as the record’s job', () => {
-    const first = ask('session-original').job;
-    setRenditionJobStatus(db, first.id, 'done');
-    const retry = ask('session-original').job;
+  /** *The copy's first try is its first*, not the next after the original's. */
+  it('counts each session’s tries separately', () => {
+    const original = enqueueRendition(db, REQUEST, 1);
+    setRenditionJobStatus(db, original.job.id, 'done', null, 2);
+    enqueueRendition(db, REQUEST, 3);
 
-    expect(jobForRendition(db, 'session-original', 'turn-1.0')?.id).toBe(retry.id);
-    const rows = db.prepare(`select attempt from rendition_job order by attempt`).all() as {
-      attempt: number;
-    }[];
-    expect(rows.map((row) => row.attempt)).toEqual([1, 2]);
+    expect(enqueueRendition(db, COPY, 4).job.attempt).toBe(1);
   });
 });

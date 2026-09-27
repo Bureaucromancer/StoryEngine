@@ -1905,6 +1905,16 @@ that decided would write the object behind the editor's draft. What that costs i
 an orphan, and what pays it back is a sweep on save: **a file no manifest row
 names is exactly a file whose digest nothing carries.**
 
+*Corrected 2026-09-27.* ~~a file no manifest row names is exactly a file whose
+digest nothing carries~~: the history carries it too. Versions keep JSON and
+never pixels ([03 §11.2](03-data-model.md)), so removing a map and saving
+deleted the map, and restoring the version before brought back a row naming
+nothing. The manifest was also the only thing asked while an upload waited for
+its save, so a picture uploaded during another save, or in a second tab, went
+before it was named. A file is now collected when no version names it either,
+it is a day old, and its name is one the store writes, and every read, store
+and sweep checks where its path really lands ([03 §5.3](03-data-model.md)).
+
 *The crop is a centred square, in the browser.* §11's *"uploaded, cropped and
 replaced"* is three of four here; a drag-to-choose rectangle is a better tool and
 a surface of its own, and what this does is stop a wide photograph being
@@ -2847,16 +2857,16 @@ rather than a bug report. The admin's panel adds a fourth box for the install's
 settings, and says which account in the archive — from **the archive's** list of
 handles, because an account here the archive holds nothing for is not a choice.
 
-**Sessions always arrive as new copies, and the panel says so** (2026-09-27).
-There is no *skip what is already here* for a session, though the code once
-claimed one: an import mints a new session every time, so importing a backup
-into the account that took it doubles every story in it. That is deliberate.
-*The same session* has no clean definition once a tree may have grown on either
-side of the archive — the turn ids match and a branch played afterwards exists
-on one side only — and each way of settling it either drops a line somebody
-played or is the merge [25 E4](25-open-questions.md) declined. A duplicate is
-visible and deletable; a wrong deduplication is silent, so the cost goes where
-a person can see it.
+**A session already here is left alone** (2026-09-27). It is skipped when it
+is here under its own id, when it is in this account's trash, or when its turns
+are already on the install ([api](../api.md) has the three cases). Nothing is
+merged into it, and nothing is lost by that: a session's turns are append-only,
+so the copy here holds every turn the archive's copy does and any played since
+— the one exception is a branch pruned here after the archive was taken, which
+restoring the archive, not importing it, brings back. The alternative, a second
+copy, was the behaviour until that day, and it was worse than untidy: the copy
+kept the turn ids, the index holds one row per turn id, and the copy took the
+original's search rows with it.
 
 ### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
 

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { uuidv7 } from '@storyengine/shared';
+import type { Turn } from '@storyengine/shared';
 
 import { acceptEffect } from '../turns/effects.js';
 import {
-  appendTurnToSession,
-  readSession,
-  readTurns,
-  reconstructAlong,
+  appendEngineTurn,
+  engineTurn,
+  type EngineTurnOutcome,
   type SessionContext,
 } from '../sessions/store.js';
-import { walkPath } from '../sessions/segments.js';
+import type { Layout } from '../storage/layout.js';
+import { readRendition } from './store.js';
 
 /**
  * Which backdrop is showing — [06 §10.1a](../../../../docs/design/06-modes-and-turn-pipeline.md),
@@ -67,47 +67,129 @@ export async function selectBackdrop(
   sessionId: string,
   renditionId: string,
   by: { kind: 'engine' } | { kind: 'user' },
-): Promise<void> {
-  const session = await readSession(sessions, handle, sessionId);
-  if (session === null) return;
-
-  const turns = await readTurns(sessions, handle, sessionId);
-  const path = walkPath(turns, session.headTurnId);
-  const running = await reconstructAlong(sessions, handle, sessionId, path);
-
-  const id = uuidv7();
-  const effect = acceptEffect(
-    id,
-    {
-      channelId: SE_BACKDROP,
-      scopeKey: null,
-      op: { type: 'set', path: '/' },
-      /**
-       * ***`MediaSelection`'s second arm, written for the first time in this
-       * build.***
-       *
-       * `packages/sdk/src/media.ts` has carried it since [P7.9] with *"nothing
-       * writes this arm until [P9]"* on it, declared then precisely so the
-       * channel's schema would not have to change under live sessions when
-       * something did ([06 §4.2]). It does not: `MEDIA_SELECTION_SCHEMA` already
-       * admits this shape, so P7's obligation is collected rather than paid
-       * again.
-       */
-      after: { from: 'rendition', renditionId },
-      proposedBy: by,
-    },
-    running,
+): Promise<EngineTurnOutcome> {
+  /**
+   * ***Read, built and appended under the session's lock*** (2026-09-27). This
+   * read the head and built its turn outside the lock and appended under it,
+   * so a turn committing in between left the selection on a dead line. And a
+   * backdrop arriving while a turn is in flight answers `busy` rather than
+   * becoming a sibling that turn's commit abandons: the caller defers it to
+   * that commit (`DeferredBackdrops`).
+   */
+  return appendEngineTurn(sessions, handle, sessionId, (session, running) =>
+    engineTurn(session, (id) =>
+      acceptEffect(
+        id,
+        {
+          channelId: SE_BACKDROP,
+          scopeKey: null,
+          op: { type: 'set', path: '/' },
+          /**
+           * ***`MediaSelection`'s second arm, written for the first time in this
+           * build.***
+           *
+           * `packages/sdk/src/media.ts` has carried it since [P7.9] with *"nothing
+           * writes this arm until [P9]"* on it, declared then precisely so the
+           * channel's schema would not have to change under live sessions when
+           * something did ([06 §4.2]). It does not: `MEDIA_SELECTION_SCHEMA` already
+           * admits this shape, so P7's obligation is collected rather than paid
+           * again.
+           */
+          after: { from: 'rendition', renditionId },
+          proposedBy: by,
+        },
+        running,
+      ),
+    ),
   );
+}
 
-  await appendTurnToSession(sessions, handle, sessionId, {
-    id,
-    sessionId,
-    parentTurnId: session.headTurnId,
-    createdAt: new Date().toISOString(),
-    status: 'complete',
-    effects: [effect],
-    tape: [],
+/**
+ * ***An engine selection held for the turn that was in flight*** (2026-09-27).
+ *
+ * A backdrop that finishes while the next turn is being written cannot be
+ * shown yet: a selection now would be a sibling of that turn, which its commit
+ * abandons, so the picture somebody paid for would never appear on the line
+ * being played. Dropping it is no better. So it waits here, one per session,
+ * and the runner applies it right after that turn commits.
+ *
+ * **Unless the turn asked for a backdrop of its own.** It moved somewhere, or
+ * went back to a place it had one for, and the newer picture is the one that
+ * belongs on it; showing the older one over it would be wrong until the newer
+ * arrived, and after it for a reused one that never arrives.
+ *
+ * *One per session, the latest winning*, because only the last selection would
+ * be showing anyway. In memory, and lost on a restart, which costs a backdrop
+ * that is on disk and can still be chosen by hand.
+ */
+export class DeferredBackdrops {
+  readonly #held = new Map<string, { account: string; renditionId: string }>();
+
+  hold(sessionId: string, account: string, renditionId: string): void {
+    this.#held.set(sessionId, { account, renditionId });
+  }
+
+  /** Takes what is held for a session, leaving nothing behind. */
+  take(sessionId: string): { account: string; renditionId: string } | undefined {
+    const held = this.#held.get(sessionId);
+    this.#held.delete(sessionId);
+    return held;
+  }
+}
+
+/**
+ * A finished backdrop, shown now or held for the turn in flight — what the
+ * worker calls when a background lands.
+ */
+export async function offerBackdrop(
+  sessions: SessionContext,
+  held: DeferredBackdrops,
+  account: string,
+  sessionId: string,
+  renditionId: string,
+): Promise<void> {
+  const outcome = await selectBackdrop(sessions, account, sessionId, renditionId, {
+    kind: 'engine',
   });
+  if (outcome.kind === 'busy') held.hold(sessionId, account, renditionId);
+}
+
+/**
+ * What the runner calls once a turn has committed: the backdrop held for it,
+ * shown on top of it, unless the turn asked for one of its own. If yet another
+ * turn is already under way, it is held for that one instead.
+ */
+export async function showHeldBackdrop(
+  sessions: SessionContext,
+  held: DeferredBackdrops,
+  sessionId: string,
+  turn: Turn,
+): Promise<void> {
+  const one = held.take(sessionId);
+  if (one === undefined) return;
+  if (await asksForItsOwnBackdrop(sessions.layout, one.account, sessionId, turn)) return;
+  await offerBackdrop(sessions, held, one.account, sessionId, one.renditionId);
+}
+
+/**
+ * Whether a committed turn asked for a backdrop of its own, which supersedes
+ * one held for it (see `DeferredBackdrops`): one it reused, or a background
+ * among the pictures it requested.
+ */
+export async function asksForItsOwnBackdrop(
+  layout: Layout,
+  account: string,
+  sessionId: string,
+  turn: Turn,
+): Promise<boolean> {
+  const report = turn.renditions;
+  if (report === undefined) return false;
+  if (report.reused !== undefined) return true;
+  for (const id of report.requested) {
+    const record = await readRendition(layout, account, sessionId, id);
+    if (record?.purpose === 'background') return true;
+  }
+  return false;
 }
 
 /**

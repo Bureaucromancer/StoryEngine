@@ -5,11 +5,12 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import {
+  Goal,
+  PlotHook,
+  Preset,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   uuidv7,
-  type Goal,
-  type PlotHook,
   type Setup,
   type TurnAttachment,
 } from '@storyengine/shared';
@@ -48,8 +49,11 @@ import { castRows } from '../sessions/cast.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
 import type { HookSource } from '../sessions/types.js';
-import { goalRows, readConcluded } from '../sessions/goals.js';
-import { hookRows, readPacing } from '../sessions/hooks.js';
+import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
+import { hookRows, malformedRows, readPacing } from '../sessions/hooks.js';
+import { readPool } from '../sessions/pool-shape.js';
+import { presentSession } from '../sessions/present.js';
+import { presetOf } from '../sessions/preset-of.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { ownerKey } from '../index-db/ingest.js';
 import { listSessionRows } from '../index-db/sessions.js';
@@ -58,7 +62,6 @@ import { rememberThis } from '../memory/capture.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
-import { recreateRendition } from '../renditions/manual.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
 import { assetPath } from '../renditions/worker.js';
 import { readFileBytes } from '../storage/files.js';
@@ -81,6 +84,7 @@ import {
   sweepAttachments,
 } from '../sessions/attachments.js';
 import { readOnePart } from './import.js';
+import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
@@ -92,6 +96,7 @@ import { PathEscapeError } from '../storage/paths.js';
 // is how a caller comes to learn *403 means the system library* from one route
 // and something else from another.
 import { respondToLibraryError } from './library.js';
+import { disconnectSignal } from './disconnect.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
@@ -235,6 +240,25 @@ const CastBody = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * ***A hook as a session takes one*** (2026-09-27): the shared `PlotHook`, with
+ * the id optional because a session's own hook has no object upstream to keep
+ * one from, so the server mints it.
+ *
+ * The creation route and the add route both took any object and stored it as a
+ * `PlotHook` by a cast, on the reasoning that a hook the schema would refuse is
+ * an authoring mistake to show rather than a request to reject. Nothing showed
+ * it. One without `involves` made every read of the session a 500 and every
+ * turn a failure, since the actor lookup iterates `involves` on every gather,
+ * and the panel whose Remove could fix it was the page that would not load. A
+ * mistake is a `400` naming the field now, before anything is kept; one that
+ * reaches the file another way is `malformed` on the panel (`pool-shape.ts`).
+ */
+const HookInput = Type.Object(
+  { ...PlotHook.properties, id: Type.Optional(PlotHook.properties.id) },
+  { additionalProperties: false },
+);
+
 const CreateBody = Type.Object(
   {
     /**
@@ -323,12 +347,15 @@ const CreateBody = Type.Object(
      * session's own — which is the one source with no object to navigate to,
      * because the session is what you are already looking at.
      *
-     * *Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
+     * ~~*Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
      * a hook the schema would refuse is an authoring mistake to show rather than
      * a request to reject, and the selector's filter is where a broken one stops
-     * being eligible.*
+     * being eligible.*~~ ***Checked as hooks*** (2026-09-27): nothing showed one
+     * and the filter never saw it, because the actor lookup before it fell over
+     * a hook with no `involves`, and so did every read of the session after.
+     * See {@link HookInput}.
      */
-    hooks: Type.Optional(Type.Array(Type.Object({}, { additionalProperties: true }))),
+    hooks: Type.Optional(Type.Array(HookInput, { maxItems: 256 })),
   },
   { additionalProperties: false },
 );
@@ -396,29 +423,41 @@ const SessionPatch = Type.Object(
 /**
  * One hook added to a running session — [03 §4.1], [P7.5].
  *
- * *Open, like the creation route's `hooks` array and for the same stated
+ * ~~*Open, like the creation route's `hooks` array and for the same stated
  * reason*: a hook the schema would refuse is an authoring mistake to **show**
  * rather than a request to reject, and the filter is where a broken one stops
- * being eligible with a class the panel can turn into a sentence. What is
- * closed is the envelope — one hook, under one key, so a client cannot post an
- * array and expect a pool.
+ * being eligible with a class the panel can turn into a sentence.~~ ***Checked
+ * as a hook*** (2026-09-27), for {@link HookInput}'s reason. The envelope is
+ * closed as it was — one hook, under one key, so a client cannot post an array
+ * and expect a pool.
  */
-const HookBody = Type.Object(
-  { hook: Type.Object({}, { additionalProperties: true }) },
-  { additionalProperties: false },
-);
+const HookBody = Type.Object({ hook: HookInput }, { additionalProperties: false });
 
 /**
  * One goal written at a completion — [06 §7.3.4]'s *"or one written now"*,
  * [P7.6].
  *
- * *Open past the envelope*, like the hook body beside it and for the stated
+ * ~~*Open past the envelope*, like the hook body beside it and for the stated
  * reason: a goal the schema would refuse is an authoring mistake to show rather
  * than a request to reject. What is closed is the envelope — one goal, under one
- * key.
+ * key.~~
+ *
+ * ***The shared `Goal`, with the id optional*** (2026-09-27). Nothing showed a
+ * goal the schema would refuse: it was stored behind an `as unknown as Goal`,
+ * and the first read that trusted the type fell over it. A goal without a
+ * `completion` made every read of the session a 500 and every turn a failure,
+ * and no route could take it out again. A mistake is shown now as a `400` that
+ * names the field, before anything is written. The id stays optional because
+ * a goal written here has no object upstream to keep one from, so the route
+ * mints it.
  */
 const GoalBody = Type.Object(
-  { goal: Type.Object({}, { additionalProperties: true }) },
+  {
+    goal: Type.Object(
+      { ...Goal.properties, id: Type.Optional(Goal.properties.id) },
+      { additionalProperties: false },
+    ),
+  },
   { additionalProperties: false },
 );
 
@@ -509,7 +548,13 @@ const PromoteBody = Type.Object(
 const PresetBody = Type.Object(
   {
     presetId: Type.Optional(Type.String({ maxLength: 200 })),
-    preset: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    /**
+     * ***A pack, checked as one*** (2026-09-27). It was any object, stored as
+     * `Preset` by a cast, so a pack with no `blocks` was a session whose every
+     * turn failed. The library checks a preset against this schema before it
+     * keeps one; the session's own copy is checked the same way.
+     */
+    preset: Type.Optional(Preset),
   },
   { additionalProperties: false },
 );
@@ -739,7 +784,7 @@ function refReply(reply: FastifyReply, outcome: BranchRefOutcome): FastifyReply 
     case 'no-ref':
       return reply.code(404).send({ error: 'no-such-ref', message: 'No such branch ref.' });
     case 'written':
-      return reply.send({ session: outcome.session });
+      return reply.send({ session: presentSession(outcome.session) });
   }
 }
 
@@ -754,7 +799,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset?: string;
       modeConfig?: Record<string, unknown>;
       setup?: string;
-      hooks?: PlotHook[];
+      /** Checked against `HookInput`, so a hook may arrive without its id. */
+      hooks?: (Omit<PlotHook, 'id'> & { id?: string })[];
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
@@ -964,7 +1010,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         hooks: poolFor({
           lore: resolveLore(services.library, account.handle, { treatment, lore }),
           ...(from === undefined ? {} : { setup: from }),
-          ...(body.hooks === undefined ? {} : { own: body.hooks }),
+          /**
+           * ***With ids minted, as the add route mints them*** (2026-09-27). A
+           * hook created with the session and no id was pooled as `se.hook#`
+           * with nothing after it: it could not be committed, blocked, recorded
+           * as fired or removed, since each of those keys on the id. Only the
+           * session's own hooks are minted for; a copied one keeps its source's
+           * id, which is [15 §5]'s obligation.
+           */
+          ...(body.hooks === undefined
+            ? {}
+            : {
+                own: body.hooks.map((hook) => ({
+                  ...hook,
+                  id: hook.id !== undefined && hook.id !== '' ? hook.id : uuidv7(),
+                })),
+              }),
         }),
       });
 
@@ -1022,7 +1083,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
       const parts = setupPlanFor(mode).steps.length;
-      if (parts === 0) return await reply.code(201).send({ session, ...warn });
+      if (parts === 0) {
+        return await reply.code(201).send({ session: presentSession(session), ...warn });
+      }
 
       const reserved = await submitTurn(services.jobs, {
         account: account.handle,
@@ -1036,10 +1099,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // Nothing else can have reserved a turn on a session created one line
         // ago. Answering with the session rather than an error is the honest
         // outcome if it somehow does: the session exists and is playable.
-        return await reply.code(201).send({ session, ...warn });
+        return await reply.code(201).send({ session: presentSession(session), ...warn });
       }
       services.runner.start(reserved.job, { setup: true });
-      return await reply.code(201).send({ session, activeJob: reserved.job, ...warn });
+      return await reply
+        .code(201)
+        .send({ session: presentSession(session), activeJob: reserved.job, ...warn });
     } catch (error) {
       if (error instanceof PathEscapeError) {
         return reply.code(422).send({ error: 'refused-path', message: error.message });
@@ -1056,7 +1121,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const sessions = await listSessionFiles(services.sessions, account.handle, {
       includeArchived: archived === 'true',
     });
-    return reply.send({ sessions });
+    return reply.send({ sessions: sessions.map(presentSession) });
   });
 
   app.get('/sessions/:sessionId', { schema: { params: SessionParams } }, async (request, reply) => {
@@ -1132,7 +1197,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * today: the reads are real, the route is on the path of every poll, and an
      * empty array costs nothing to send.
      */
-    const pool = session.hooks ?? [];
+    /**
+     * ***What the engine can read, and what it can only show*** (2026-09-27).
+     * One hook the schema refuses, with no `involves`, made this read a 500:
+     * the actor lookup below iterated it. The engine takes `usable`; the panel
+     * lists the rest as `malformed`, so the person who wrote it can find it.
+     */
+    const { usable: pool, malformed } = readPool(session.hooks);
     const library = {
       db: services.sessions.index,
       layout: services.sessions.layout,
@@ -1159,8 +1230,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         ...(isRecord(session.setup) ? { setup: session.setup } : {}),
         ...(isRecord(lore?.treatment?.treatment) ? { treatment: lore.treatment.treatment } : {}),
       }),
-      rows:
-        lore === null
+      rows: [
+        ...(lore === null
           ? []
           : hookRows(pool, {
               channels: session.channels,
@@ -1168,7 +1239,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               activeBooks: new Set(lore.books.map((book) => book.id)),
               known: resolvableActors(library, account.handle, pool).known,
               persona: session.cast?.persona ?? null,
-            }),
+            })),
+        ...malformedRows(malformed),
+      ],
     };
 
     /**
@@ -1181,7 +1254,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * `achieved` plus `next`, both of which travel.
      */
     const goals = {
-      rows: goalRows(session.goals ?? [], session.channels, path),
+      rows: goalRows(readableGoals(session.goals), session.channels, path),
       concluded: readConcluded(session.channels),
     };
 
@@ -1214,11 +1287,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     /**
      * *The same resolution `gather.ts` makes*, in the one line that is the whole
      * of it: a session's own copied preset, or the mode's default. Copied at
-     * creation, so editing a preset does not change a game in progress ([03 §8]).
+     * creation, so editing a preset does not change a game in progress ([03 §8])
+     * — ***and through `presetOf` since 2026-09-27***, so a copy of the mode's
+     * own pack has the level lists the mode shipped after it was taken, and a
+     * dial the turn resolves is a dial this panel offers.
      */
-    const preset =
-      session.preset ??
-      (modeById(modeId) ?? modeById(DEFAULT_MODE_ID))?.definition.assembly.defaultPreset;
+    const packMode = modeById(modeId) ?? modeById(DEFAULT_MODE_ID);
+    const preset = packMode === null ? session.preset : presetOf(session.preset, packMode);
     const dials: Record<
       string,
       { levelId: string | null; levels: { id: string; label: string }[] }
@@ -1240,7 +1315,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     }
 
     return reply.send({
-      session,
+      session: presentSession(session),
       activeJob: job,
       health: degradedChannels(session.channels),
       // **Narrowed to this session's mode** — [06 §4.1], [P7.9]. The registry is
@@ -1338,7 +1413,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // so improving a character card reaches an ongoing game — the asymmetry
       // with the copied preset is the design ([03 §8]).
       const updated = await setCast(services.sessions, account.handle, sessionId, body);
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1383,7 +1458,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { hook } = request.body as { hook: Record<string, unknown> };
+      const { hook } = request.body as { hook: Omit<PlotHook, 'id'> & { id?: string } };
       const { sessionId } = request.params as { sessionId: string };
 
       /**
@@ -1395,14 +1470,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * without one it cannot be committed, blocked, or recorded as fired: every
        * one of those keys on `hook.id`.
        */
-      const id = typeof hook['id'] === 'string' && hook['id'] !== '' ? hook['id'] : uuidv7();
+      const id = hook.id !== undefined && hook.id !== '' ? hook.id : uuidv7();
       const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
-        add: { ...hook, id } as unknown as PlotHook,
+        add: { ...hook, id },
       });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1437,7 +1512,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1604,7 +1679,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { goal } = request.body as { goal: Record<string, unknown> };
+      const { goal } = request.body as { goal: Omit<Goal, 'id'> & { id?: string } };
       const { sessionId } = request.params as { sessionId: string };
 
       /**
@@ -1613,15 +1688,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * without one it could be neither completed nor pointed at — `se.goal` is
        * scoped by it and `Goal.next` names it.
        */
-      const id = typeof goal['id'] === 'string' && goal['id'] !== '' ? goal['id'] : uuidv7();
+      const id = goal.id !== undefined && goal.id !== '' ? goal.id : uuidv7();
       const updated = await addSessionGoal(services.sessions, account.handle, sessionId, {
         ...goal,
         id,
-      } as unknown as Goal);
+      });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1708,7 +1783,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         next as NonNullable<Parameters<typeof setPreset>[3]>,
       );
       if (updated === null) return reply.code(404).send({ error: 'not-found' });
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1723,7 +1798,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const body = request.body as { treatment: string | null; lore: string[] };
       const { sessionId } = request.params as { sessionId: string };
       const updated = await setLore(services.sessions, account.handle, sessionId, body);
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1767,7 +1842,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1832,9 +1907,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (outcome.kind === 'no-session') {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
+      if (outcome.kind === 'busy') return busy(services, reply, sessionId);
 
       return reply.send({
-        session: outcome.session,
+        session: presentSession(outcome.session),
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
         hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
@@ -1872,7 +1948,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (body.archived !== undefined) {
         session = await setArchived(services.sessions, account.handle, sessionId, body.archived);
       }
-      return reply.send({ session });
+      return reply.send({ session: presentSession(session) });
     },
   );
 
@@ -1938,6 +2014,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // 409 rather than 400: the request is well formed and the *turn* is
           // what cannot be remembered, which is a state rather than a mistake.
           return reply.code(409).send({ error: 'hidden-content', message: outcome.reason });
+        case 'busy':
+          return busy(services, reply, sessionId);
       }
     },
   );
@@ -2281,31 +2359,48 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { purpose } = request.body as { purpose?: 'illustration' | 'background' };
 
       /**
-       * **The client's disconnect cancels the moment call.** Fastify raises this
-       * when the socket closes, and a call nobody is waiting for is money spent
-       * on an answer that reaches nothing — the same judgement `performCall`'s
-       * idle timeout makes about an endpoint that has stopped talking.
+       * **The client's disconnect cancels the moment call**, because a call
+       * nobody is waiting for is money spent on an answer that reaches nothing.
+       * It is the same judgement `performCall`'s idle timeout makes about an
+       * endpoint that has stopped talking.
+       *
+       * *Read off the reply, through `disconnectSignal`.* This used to be
+       * `request.raw.on('close')`, which on a POST has already fired by the time
+       * a handler has awaited anything, so it never cancelled anything; that
+       * file has the measurements.
        */
-      const controller = new AbortController();
-      request.raw.on('close', () => {
-        controller.abort();
-      });
+      const signal = disconnectSignal(reply);
 
-      const made = await illustrateTurn(
-        {
-          sessions: services.sessions,
-          accounts: services.accounts,
-          providers: services.providers,
-          config: services.config,
-        },
-        {
-          handle: account.handle,
-          sessionId,
-          turnId,
-          purpose: purpose ?? 'illustration',
-          signal: controller.signal,
-        },
-      );
+      let made: Awaited<ReturnType<typeof illustrateTurn>>;
+      try {
+        made = await illustrateTurn(
+          {
+            sessions: services.sessions,
+            accounts: services.accounts,
+            providers: services.providers,
+            config: services.config,
+          },
+          {
+            handle: account.handle,
+            sessionId,
+            turnId,
+            purpose: purpose ?? 'illustration',
+            signal,
+          },
+        );
+      } catch (error) {
+        /**
+         * ***The cancellation this route caused ends here, silently.*** Nobody
+         * is there to read an answer, and rethrowing would reach
+         * `setErrorHandler` as an *Unhandled error*: a false alarm for every tab
+         * that closed, in the log a person reads when something is really
+         * wrong. Returning nothing to a destroyed socket is what Fastify itself
+         * does with one. Anything else, including a failure that merely
+         * coincides with the client leaving, still throws.
+         */
+        if (error instanceof Cancelled && signal.aborted) return;
+        throw error;
+      }
 
       if ('held' in made) {
         if (made.held === 'no-turn') {
@@ -2314,7 +2409,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.send({ held: made.held });
       }
 
-      services.renditions(account.handle, sessionId, [made.rendition], turnId);
+      // Awaited as far as the record, which the dispatch writes after claiming
+      // its job (2026-09-27): a client that refetches on this answer finds it.
+      // The picture itself is still never waited for.
+      await services.renditions(account.handle, sessionId, [made.rendition], turnId);
       return reply.code(202).send({ rendition: made.rendition });
     },
   );
@@ -2332,6 +2430,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * It is also the retry button [06 §10.2] promises: *"a failed rendition is a
    * placeholder with a retry button, never a failed turn."* Same route, because
    * they are the same act — a record with no pixels, run again.
+   *
+   * ***Each press is a new job with the next attempt number, and the job is
+   * claimed before the record is rewritten*** — `retryRendition` in
+   * `renditions/worker.ts`. A press that arrives while a try is still in flight
+   * is answered by that try, and gets the record back as it stands.
    */
   app.post(
     '/sessions/:sessionId/renditions/:renditionId/retry',
@@ -2355,13 +2458,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.code(404).send({ error: 'no-rendition', message: 'No such rendition.' });
       }
 
-      const again = await recreateRendition(
-        services.sessions.layout,
-        account.handle,
-        sessionId,
-        held,
-      );
-      services.renditions(account.handle, sessionId, [again], again.turnId);
+      const again = await services.retryRendition(account.handle, sessionId, held);
       // `202`, like the illustrate route one up and for the same reason: what
       // comes back is the record set to `pending`, and the pixels arrive on the
       // stream. A `200` would read as *here is your picture*.
@@ -2378,7 +2475,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!(await mine(services, request, reply))) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      await deleteSession(services.sessions, account.handle, sessionId);
+      const outcome = await deleteSession(services.sessions, account.handle, sessionId);
+      // A turn in flight would put `sessions/<id>/` back beside the trashed one.
+      if (outcome.kind === 'busy') return busy(services, reply, sessionId);
       // Moved to the trash rather than erased ([03 §10.3]) — 204 says the session
       // is gone from here, which is what the caller asked about.
       return reply.code(204).send();
@@ -2609,8 +2708,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       request.body,
     );
     if (!result.ok) {
-      // A class, for the client to word — [21 §1.4], as everywhere else.
-      return reply.code(422).send({ error: result.reason });
+      // A class, for the client to word — [21 §1.4], as everywhere else. A
+      // session already here is a conflict with what is here rather than a
+      // fault in the file.
+      return reply
+        .code(result.reason === 'already-here' ? 409 : 422)
+        .send({ error: result.reason });
     }
     return reply.code(201).send(result);
   });
@@ -2671,31 +2774,89 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const body = request.body as { actorId?: string };
+
+      /**
+       * ***A draft nobody is waiting for is a draft nobody wants***, so the
+       * client leaving is what cancels one. The signal comes from
+       * `disconnectSignal`, for the reason the illustrate route gives.
+       *
+       * ***And no timeout here, on purpose.*** `limits.providerTimeoutMs` is
+       * enforced inside `performCall`, per attempt, by `withIdleTimeout`, which
+       * bounds **silence rather than duration** and reads `<= 0` as *switched
+       * off*. Both are [21 §4]'s row and [P2C §1.3]'s semantics, and a draft
+       * goes through that helper like every other call. This route used to add
+       * its own copy as `AbortSignal.timeout(providerTimeoutMs)`, which broke
+       * both halves of that row. It was a wall-clock ceiling on top of the idle
+       * one, and when it fired it reported a hang as a cancellation rather than
+       * a stall. At zero it was `AbortSignal.timeout(0)`, which aborts on the
+       * next tick, so every draft failed for exactly the operators who had
+       * switched the bound off because their endpoint is slow.
+       */
+      const signal = disconnectSignal(reply);
+
       const drafted = await impersonate(
         {
           sessions: services.sessions,
           accounts: services.accounts,
           providers: services.providers,
           config: services.config,
+          // Read at failure time, since a completed check replaces it wholesale.
+          online: () => services.updates.online,
         },
         {
           account: account.handle,
           sessionId: session.id,
           parentTurnId: session.headTurnId ?? null,
           ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
-          // A draft nobody is waiting for is a draft nobody wants: the request
-          // going away is the whole of when to stop.
-          signal: AbortSignal.timeout(services.config.limits.providerTimeoutMs),
+          signal,
         },
       );
 
+      if (!drafted.ok && drafted.reason === 'cancelled') {
+        // Nobody is left to answer when this route's own signal did it, as in
+        // the illustrate route. Anything else that stops a draft is the server
+        // stopping, and the person waiting is told so.
+        if (signal.aborted) return;
+        return reply.code(503).send({
+          error: 'cancelled',
+          message: 'The server stopped before the draft was written.',
+        });
+      }
+
+      if (!drafted.ok && drafted.reason === 'provider-failed') {
+        /**
+         * ***The class and the remedy, and never the prompt*** (2026-09-27).
+         * One line with the fields a reader filters on, which is the runner's
+         * `step.failed` shape, and a `502` because the server did its part and
+         * the endpoint behind it did not. The client words the remedy with the
+         * sentences a failed turn uses.
+         */
+        request.log.error(
+          {
+            event: 'impersonate.failed',
+            sessionId: session.id,
+            class: drafted.class,
+            callId: drafted.callId,
+            ...(drafted.detail === undefined ? {} : { detail: drafted.detail }),
+          },
+          'A draft could not be written',
+        );
+        return reply.code(502).send({
+          error: 'provider-failed',
+          class: drafted.class,
+          remedy: drafted.remedy,
+          message: 'The model endpoint could not write that draft.',
+        });
+      }
+
       if (!drafted.ok) {
         /**
-         * **A class, and the client has the sentences.** The four reasons point
-         * at four different places: a mode with no prose step is a mode that
-         * cannot do this at all, a non-player member is the design's own line
-         * ([06 §8]'s *"the difference between a party member and a second
-         * player"*), and the two role failures are the bindings surface.
+         * **A class, and the client has the sentences.** The reasons point at
+         * different places: a mode with no prose step is a mode that cannot do
+         * this at all, a non-player member is the design's own line ([06 §8]'s
+         * *"the difference between a party member and a second player"*), the
+         * two role failures are the bindings surface, and a window too small
+         * for the reply is the connection's or the pack's setting.
          */
         return reply.code(drafted.reason === 'not-a-player' ? 409 : 422).send({
           error: drafted.reason,
@@ -2758,7 +2919,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // With what the line being left still has out in the world — [07 §7]'s
           // honesty banner. Zero until something writes an escaped effect, and
           // the field is here so the first producer has somewhere to surface.
-          return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
+          return reply.send({
+            session: presentSession(outcome.session),
+            abandoned: outcome.abandoned,
+          });
+        case 'busy':
+          return busy(services, reply, sessionId);
       }
     },
   );
@@ -2833,8 +2999,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             keys: outcome.keys,
             branchFrom: outcome.branchFrom,
           });
+        case 'busy':
+          return busy(services, reply, sessionId);
         case 'undone':
-          return reply.send({ session: outcome.session, turn: outcome.turn });
+          return reply.send({ session: presentSession(outcome.session), turn: outcome.turn });
       }
     },
   );
@@ -3208,9 +3376,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const release = (): void => {
         writer.close();
       };
-      // Registered so `app.close()` can end it: closing resolves in zero
-      // milliseconds with a hijacked stream open, so a surviving keepalive is a
-      // hung process rather than a failed test.
+      // Registered so closing the app can end it, in `preClose`, before the
+      // listener waits for open responses: a stream never finishes on its own.
+      // See `AppServices.streams`.
       services.streams.add(release);
 
       request.raw.on('close', release);
@@ -3389,6 +3557,21 @@ async function mine(
     return null;
   }
   return session;
+}
+
+/**
+ * ***The one answer for a write refused because a turn is in flight*** —
+ * `409 busy`, with the job, which is what head moves and undo have always
+ * sent (2026-09-27). The store decides, under the session's lock; this reads
+ * the job again only to say which one it was, and it may have finished by
+ * then, which is why `job` can be null.
+ */
+function busy(services: AppServices, reply: FastifyReply, sessionId: string): FastifyReply {
+  return reply.code(409).send({
+    error: 'busy',
+    message: 'This session already has a turn in flight.',
+    job: activeJob(services.state.db, sessionId),
+  });
 }
 
 /**

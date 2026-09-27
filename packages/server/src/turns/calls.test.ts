@@ -9,7 +9,7 @@ import { capabilitiesFor } from '../providers/capabilities.js';
 import type { Connection } from '../providers/connections.js';
 import type { Provider } from '../providers/types.js';
 import type { Candidate } from '../assembly/types.js';
-import { planCall, RoleUnresolved, type PlanContext } from './calls.js';
+import { planCall, RoleUnresolved, WindowTooSmall, type PlanContext } from './calls.js';
 
 /**
  * The seam a preview stops at — [P3.4], [P3 §1.6].
@@ -128,6 +128,34 @@ describe('planning a call', () => {
     } catch (error) {
       expect((error as RoleUnresolved).reason).toBe('dangling');
     }
+  });
+
+  /**
+   * ***Refused, not emptied*** (2026-09-27). Assembly spends the window less
+   * the room kept for the reply, and at zero or below it dropped every block
+   * that was not required and sent the call anyway: the model continued a
+   * story it could not see, and nothing said why.
+   */
+  it('refuses a window no larger than the room kept for the reply', () => {
+    const cramped = (maxContextTokens: number) =>
+      context({
+        preset: {
+          params: {},
+          budget: { contextShare: 1, maxContextTokens, reserveOutputTokens: 800 },
+        },
+      });
+
+    try {
+      planCall(cramped(800), {}, CANDIDATES);
+      expect.unreachable('a window with no room beside the reply must throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(WindowTooSmall);
+      expect(error).toMatchObject({ window: 800, reserved: 800 });
+      // Both numbers, because one of them is the setting to change.
+      expect((error as Error).message).toContain('800');
+    }
+    // One token of room is room: the boundary is the reserve itself.
+    expect(() => planCall(cramped(801), {}, CANDIDATES)).not.toThrow();
   });
 
   it('honours a step’s own candidates by emptying the not-filled list', () => {

@@ -9,6 +9,7 @@ import {
   isListedInGallery,
   toGalleryEntry,
   type GalleryEntry,
+  type PublicAccount,
 } from '../auth/accounts.js';
 import { avatarToken, readAvatar } from '../auth/avatars.js';
 import { refuseShortPassword } from '../auth/password-policy.js';
@@ -210,13 +211,19 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
         ...(body.displayName === undefined ? {} : { displayName: body.displayName }),
       });
 
-      signIn(reply, account.handle, services.sessionKey, secure);
+      signIn(reply, account, services.sessionKey, secure);
       return await reply.code(201).send({ account });
     } catch (error) {
       if (error instanceof AccountError && error.code === 'exists') {
         // Setup already ran. Not "forbidden": the honest answer is that this
         // route no longer applies.
         return await reply.code(409).send({ error: 'already-setup', message: error.message });
+      }
+      // ***A handle the rules refuse is the caller's to fix*** (2026-09-27),
+      // and the sentence says how. It was a bare 500, *The request failed*,
+      // with a stack in the log, for `-ned`, `Sam` or `aux`.
+      if (error instanceof AccountError && error.code === 'invalid') {
+        return await reply.code(400).send({ error: 'invalid', message: error.message });
       }
       throw error;
     }
@@ -236,7 +243,7 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
       return await reply.code(401).send({ error: 'invalid-credentials' });
     }
 
-    signIn(reply, account.handle, services.sessionKey, secure);
+    signIn(reply, account, services.sessionKey, secure);
     return await reply.send({ account });
   });
 
@@ -329,8 +336,24 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
   });
 }
 
-function signIn(reply: FastifyReply, handle: string, key: string, secure: boolean): void {
-  const token = issueSession({ handle, expiresAt: Date.now() + SESSION_TTL_MS }, key);
+/**
+ * Typed over the two fields the cookie carries, so the account's own
+ * `createdAt` is what goes in and no caller can hand over a handle alone.
+ */
+function signIn(
+  reply: FastifyReply,
+  account: Pick<PublicAccount, 'handle' | 'createdAt'>,
+  key: string,
+  secure: boolean,
+): void {
+  const token = issueSession(
+    {
+      handle: account.handle,
+      createdAt: account.createdAt,
+      expiresAt: Date.now() + SESSION_TTL_MS,
+    },
+    key,
+  );
   reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(secure));
   reply.setCookie(CSRF_COOKIE, generateCsrfToken(), csrfCookieOptions(secure));
 }

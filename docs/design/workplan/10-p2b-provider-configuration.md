@@ -267,6 +267,15 @@ writing down rather than discovering: a turn that changed endpoints halfway
 through would be a worse outcome than one that finishes against the endpoint it
 began on.
 
+*Amended 2026-09-27.* **The writer was not the only writer.** A connection file
+is a file, and a hand edit (a rotated key, a new base URL) reached the admin
+page, which reads the file, and no turn, which asked the memo, until a restart.
+Worse, the memo was keyed by id across every account, so two files claiming one
+id in two accounts shared whichever provider was built first, key and endpoint
+included. Each slot now remembers the connection it was built from and rebuilds
+when the connection says anything else; `invalidate` stays, for the form's
+deletes.
+
 ### 2.5 The form offers what the build can construct, and the route re-checks
 
 `KNOWN_PROVIDERS` carries capability defaults for five names —

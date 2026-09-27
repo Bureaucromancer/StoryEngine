@@ -50,6 +50,30 @@ Environment=SE_CLIENT_ROOT=/opt/storyengine/client
 Restart=on-failure
 RestartSec=5
 
+# **Restart now and restore exit 75, and these two lines are what bring the
+# server back.** Both leave through a clean exit, and `on-failure` treats a
+# clean exit as a deliberate stop: with 0, as it used to be, the install
+# stayed down after its own Restart now, and a restore waited for whoever next
+# started it (docs/design/09-server-multiuser-deployment.md §6.4). 75 is
+# `RESTART_EXIT_CODE` in packages/server/src/restart.ts, which
+# tools/release.test.ts holds this file to. `RestartForceExitStatus` restarts
+# on it whatever `Restart=` says; `SuccessExitStatus` stops systemd reporting a
+# restart somebody asked for as a failure. `systemctl stop` is still a stop.
+RestartForceExitStatus=75
+SuccessExitStatus=75
+
+# **And the server is told so, beside the lines that make it true** — the same
+# place compose.yaml and the unraid template say it. systemd is also detected
+# (supervision.ts), but only from systemd 248, which is the first to name the
+# process it started; an older one would get a *no*, and the settings page
+# would explain how to restart instead of offering to.
+Environment=SE_SUPERVISED=1
+
+# Shutdown bounds itself: ten seconds for requests still open, five for a
+# picture to land, two more for one cut off to record it. Thirty is those with
+# room to spare, and the same number the image's two wrappers give Docker.
+TimeoutStopSec=30
+
 # The data directory is the whole of the install — library, sessions, accounts,
 # config (docs/design/03-data-model.md §5) — and it is the only thing this
 # service writes.

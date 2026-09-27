@@ -47,6 +47,11 @@ install.
 needed — gating the discovery endpoint behind the thing being discovered leaves
 the UI with a 503 and no way to read it.
 
+**The gate asks which route the request reached, not how its path was spelled**
+(2026-09-27). The router decodes a path before matching it, and the gate read
+the raw one, so `/%61pi/…` reached every route past it. The same is true of the
+CSRF check below.
+
 ### CSRF
 
 Double-submit: `se_csrf` is a script-readable cookie, and its value must come
@@ -58,6 +63,13 @@ authority to abuse — forging either requires already knowing the password — 
 requiring a token there would be a bootstrap paradox, since the token is issued
 *by* signing in. `SameSite=Lax` covers the login-CSRF gap that leaves.
 
+**At every address** (2026-09-27). The check was limited to paths spelled
+`/api/…`, and the router also answers `/%61pi/…`, so a page on another port of
+the same machine could restart the server or post into a signed-in person's
+library with no token. Outside `/api` only `GET` and `HEAD` are served, so the one
+visible change is that a signed-in `POST` to an address nothing serves is `403
+csrf` rather than the page.
+
 ### Sessions
 
 A signed stateless cookie, 14 days, `httpOnly` + `SameSite=Lax`. **No `secure`
@@ -68,6 +80,12 @@ be logged in.
 Logout clears the cookie. A copy already taken elsewhere stays valid until it
 expires; that is the honest cost of having no session table, argued in
 `packages/server/src/auth/session.ts`.
+
+**The cookie names one account, not a handle** (2026-09-27). It carries the
+account's `createdAt` beside the handle, and a request whose account was created
+at another time is anonymous. Before, a removed account's cookie signed into the
+next account given the same handle. A cookie from before this has no
+`createdAt` and is refused, so everyone signs in once more after upgrading.
 
 **A password change does not end them either**, and neither does an
 administrator disabling the account — for the second, the identity hook re-reads
@@ -182,8 +200,9 @@ admin answers `409 already-setup` instead — the honest reason, rather than a
 token refusal about a route that no longer applies.
 
 `handle` becomes a directory name, so it is validated hard: lowercase letters,
-digits and hyphens, 1–63 characters, not ending in a hyphen, and not a Windows
-reserved device name.
+digits and hyphens, 1–63 characters, starting with a letter or a digit, not
+ending in a hyphen, and not a Windows reserved device name. One that breaks the
+rule is `400 invalid` with the rule as the message (2026-09-27; it was a `500`).
 
 `locale` is defaulted from `Accept-Language`.
 
@@ -193,7 +212,9 @@ reserved device name.
 
 **One answer for a wrong password, an unknown handle and a disabled account.**
 The caller cannot tell which, which costs nothing here and avoids a handle
-oracle.
+oracle. ***Nor from how long it took*** (2026-09-27): an unknown or disabled
+handle pays the same key derivation a wrong password does. It answered in about a
+millisecond against fifty, which listed the handles a request each.
 
 **No length rule applies here, deliberately.** An empty password is a legitimate
 request — legal wherever `auth.minPasswordLength` is `0`, and possible on any
@@ -273,9 +294,13 @@ files that sit where an object should and cannot be read as one.
 Static, so it is not a `:kind`; `errors` is not a library directory either.
 
 `reason` is `unparsable` (the bytes are not JSON, or not a card), `wrong-kind`
-(it parses, but declares another schema or has no id), or `schema` (it is that
-kind and fails validation). `detail` is the parser's or the validator's own
-complaint, which is the part anyone can act on. `path` is **relative to the data
+(it parses, but declares another schema or has no id), `schema` (it is that
+kind and fails validation), `unusable-name` (the folder is named something this
+build will not open, such as `con`), `unreadable` (the file is there and cannot
+be read — its permissions, or a directory where the file should be), or
+`refused-path` (it is a link that leads out of the data directory). `detail` is
+the parser's or the validator's own complaint, which is the part anyone can act
+on. `path` is **relative to the data
 directory**: the client needs to know which file, not where the server keeps its
 disk.
 
@@ -773,6 +798,11 @@ install ([19 §5.1](design/19-tech-stack.md)), and `{ held: "no-moment" }` when
 the turn has no prose or the moment call declined. Both are answers to *can you
 make a picture*, not failed requests. A turn that does not exist is a `404`.
 
+**A client that disconnects before the answer is written cancels the moment
+call**, and nothing is recorded, because the `pending` record is written only
+once the moment has been chosen. A picture nobody is waiting for is a model call
+nobody reads.
+
 **It assembles from the turn's recorded state**, not from the head —
 [06 §10.6]'s standing `[OPEN]`, decided at [P9.4] and disclosed through the
 rendition's own prompt listing rather than through a setting.
@@ -1226,6 +1256,28 @@ would have decided it. An `id` is minted when the goal arrives without one, for
 the reason the hook route mints one: `se.goal` is scoped by it and `Goal.next`
 names it.
 
+***The goal is checked before it is kept*** (2026-09-27): against the shared
+`Goal` schema with `id` optional, so one missing a field is `400 invalid` naming
+it and nothing is written. The body was open, and a goal without a `completion`
+made every read of the session a `500` and every turn a failure, with no route
+to remove it. A goal already in the file that is not one (a hand edit, an import,
+an older build) is read past: it is not a row and play does not start on it, and
+the file keeps it.
+
+### `PUT /api/sessions/:sessionId/preset`
+
+`{ presetId }` or `{ preset }` → `{ session }`. Which pack this session is
+assembled from ([P7B.2](design/workplan/24-p7b-presets-and-prompts.md)). `presetId`
+names a library preset, which is copied rather than linked, or `default` for
+whatever the mode ships; `preset` is the session's own pack, sent whole after an
+edit. One or the other, never both: `422 one-of`. An unknown `presetId` is
+`422 unknown-preset`.
+
+***A `preset` is checked as a preset*** (2026-09-27), against the schema the
+library checks one against, so one it refuses is `400 invalid` and the session
+keeps the pack it had. It took any object, and a pack with no `blocks` was a
+session whose every turn failed.
+
 ### `POST /api/sessions/:sessionId/hooks` · `DELETE /api/sessions/:sessionId/hooks/:hookId`
 
 `{ hook }` → `{ session }`, and the delete answers the same. A hook added to a
@@ -1239,14 +1291,22 @@ So the pool is session-wide — a hook added at turn forty is in the pool at tur
 one — while everything about what has *happened to* a hook stays per-node in
 `se.hook`. The turn list is untouched: nothing happened in the story.
 
-The body is open beyond `{ hook }` itself, like the creation route's `hooks`
+~~The body is open beyond `{ hook }` itself, like the creation route's `hooks`
 array: a hook the schema would refuse is an authoring mistake to **show** rather
 than a request to reject, and the selector's filter is where a broken one stops
-being eligible with a class the panel turns into a sentence. **An `id` is minted
+being eligible with a class the panel turns into a sentence.~~ ***The hook is
+checked as a hook*** (2026-09-27), here and in the creation route's `hooks`: the
+shared `PlotHook` with `id` optional, so a mistake is `400 invalid` naming the
+field and nothing is kept. The open body showed nothing: one hook without
+`involves` made every read of the session a `500` and every turn a failure,
+because the actor lookup iterates `involves` on every gather. A hook that
+reaches the pool another way (a hand edit, an import) is never read by the
+engine, and the panel lists it with the refusal `malformed`. **An `id` is minted
 when the hook arrives without one** — every other hook in a pool was copied from
 an object that had one and [15 §5](design/15-world.md) requires the copy to keep
 it, but a session's own hook has no upstream, and without an id it could never be
-committed, blocked, or recorded as fired.
+committed, blocked, or recorded as fired. *Since 2026-09-27 the creation route
+mints them too; it did not, and those hooks could never be removed.*
 
 The delete takes **any** hook, whichever source put it there: the pool was copied
 at creation, so a treatment-borne entry is this session's copy and refusing to
@@ -1414,6 +1474,12 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
+**`409 busy`, carrying the active `job`, while a turn is in flight**
+(2026-09-27), the answer head moves and undo already gave. A turn's commit sets
+the head to its own turn, so a write landing while it ran became a sibling of
+that turn, on a line nobody would see again: the setting silently reverted when
+the turn landed. Write it again once the turn has finished.
+
 **It is how the three offers at a goal completion are taken** —
 [06 §7.3.4](design/06-modes-and-turn-pipeline.md), and why none of them needed a
 route: *continue open* writes `se.goal.current` to `null` (the achievement is
@@ -1458,6 +1524,13 @@ decision and a selector able to widen its own gate is not a dial.
 inputs, suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
+
+***`session` is not the file*** (2026-09-27), here or on any route that answers
+with one. It leaves out the hook pool, carries the Setup as `{ id, name }`, and
+carries each goal without its `detail`. Every reply used to send `session.json`
+whole, so the pool's unfired premises, the Setup copy's goals and hooks, and
+the detail this page says *does not travel* all travelled beside the panels that
+redact them. The export route is the file on purpose.
 
 `hooks` is the hook panel's surface ([10 §10.1]): `{ pacing, rows }`, where
 `pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
@@ -1560,7 +1633,18 @@ renames a branch ref through `PATCH …/refs/:refId`.
 
 `DELETE` answers `204` and **moves the folder to the user's trash** rather than
 erasing it ([03 §10.3](design/03-data-model.md)); a session's turns are its history, and
-deletion is a move.
+deletion is a move. **`409 busy` while a turn is in flight** (2026-09-27): its
+commit would write `sessions/<id>/` back beside the trashed one. A picture still
+being made when the session goes writes nothing, and a restore that finds a
+folder without a `session.json` in its place moves that aside into the trash.
+A restore (`POST /api/me/trash/restore`) indexes what it puts back before it
+answers, so a restored session is found by search again and a restored object
+reads at once. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
+is not an address is `400 invalid`, one no longer there is `404 not-found`, and
+one whose place is taken is `409 occupied`. ***Anything else is a `500` and is
+logged*** (2026-09-27): every failure used to be *not an address in the trash*,
+including a rename the disk refused. The second of two restores of one entry at
+once is the `404` or `409` a moment's later look would give.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
@@ -1935,6 +2019,34 @@ text **is** an input.
 Nothing here is truncated. A surface may cap what it shows; a report that
 arrived pre-trimmed could not offer *and 40 more* honestly.
 
+### `POST /api/sessions/:sessionId/impersonate`
+
+```
+{ actorId? }
+```
+
+A draft of your own character's next message — [06 §3.1](design/06-modes-and-turn-pipeline.md),
+[P11.4](design/workplan/28-p11-implementation.md). → `200 { text }`. The persona
+speaks by default; `actorId` names another member you play. **Nothing is
+committed**: no job, no turn, no head moved, which is also why it is not refused
+while a turn is in flight. The client leaving cancels the call.
+
+Refusals, each a class the client words:
+
+- `409 not-a-player` — that member is not one you author.
+- `422 no-prose-step` — the session's mode writes no prose, so there is no voice
+  to borrow.
+- `422 role-unbound` · `422 role-dangling` — no connection for the model this
+  needs, or a binding to one that is gone.
+- `502 provider-failed` — the endpoint failed after the server asked it
+  (added 2026-09-27; it was a bare `500`). The body carries `class`
+  (`transient`, `retryable` or `terminal`) and `remedy`, the same
+  `FailureRemedy` a failed turn gets, so a wrong key, a model server that is
+  down and a stall read as three different things. The log line is
+  `impersonate.failed`, with the class, the call and the endpoint's own words,
+  and never the prompt.
+- `503 cancelled` — the server stopped the call before it answered.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a
@@ -2181,7 +2293,9 @@ connection*.
 `{ handle, password, role, displayName?, locale?, capabilities? }` →
 `201 { account }`. A duplicate handle is `409 exists`. Unknown fields are refused,
 the same way `/api/me` refuses them. A password shorter than
-`auth.minPasswordLength` is `400 invalid`, naming `/password`.
+`auth.minPasswordLength` is `400 invalid`, naming `/password`. A handle the rule
+under [setup](#post-apiauthsetup) refuses is `400 invalid` with that rule as
+the message (2026-09-27; it was a `500`).
 
 The library directory is created with the account, so `ls data/users/<handle>/`
 works immediately rather than after their first write.
@@ -2235,7 +2349,7 @@ refuses it is the state of the install.
   "config": { "…the running config": true },
   "path": "/data/config.json",
   "tiers": { "server.port": "restart", "log.level": "live" },
-  "appliers": { "log.level": "applied", "limits.maxUploadMb": "unread" },
+  "appliers": { "log.level": "applied", "limits.extensionStorageQuotaMb": "unread" },
   "bounds": { "server.port": { "minimum": 1, "maximum": 65535 } },
   "pendingRestart": []
 }
@@ -2266,6 +2380,24 @@ rather than present-and-empty.
 - A value the schema refuses is `400 invalid` and **nothing is written**: the
   document is validated by the same function the server boots on, so a save
   cannot leave a file the process will not start on.
+- ***And resolved and checked as the next start would meet it*** (2026-09-27).
+  The environment's `SE_*` values sit under the file, as they do at boot, so
+  `pendingRestart` names what a restart would actually change. A deployment key
+  that differs from what this process started with is asked of the machine:
+  `server.host` must be the wildcard, loopback, or an address this machine has
+  (a name must resolve to one here); a changed `server.port` must be one a
+  listen here could take; `server.clientRoot` must hold an `index.html`, and
+  cannot be emptied while this server serves the app; `server.cookieSecure`
+  can be turned on only from a page reached over HTTPS, or through a proxy
+  named in `x-forwarded-proto` when the same save trusts proxies. Each refusal
+  is `400 invalid` with an `issues` line naming the key, and nothing is written.
+  The schema alone had passed each of these, and each was a start that failed,
+  or one nobody could reach or sign in to.
+- ***A save writes what somebody chose*** (2026-09-27). The form sends the whole
+  running config back; a key the file does not already set is written only
+  when its value differs from what the environment or the default would give
+  it. An unedited save used to copy `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT`
+  into the file, where they outranked the environment from then on.
 
 ### The stale check
 
@@ -2780,8 +2912,32 @@ groups produced:
 ```
 
 `403` for a `handle` that is not this account's — a person may only read their
-own subtree. `422` for an archive that will not read, or that does not hold the
-handle asked for.
+own subtree — and for `options.config` on an account's archive, before anything
+is read or written. `422` for an archive that will not read, that does not hold
+the handle asked for, or (`too-large`) that holds more of that account than an
+import reads in one go. ***Only the members an import reads count against those
+bounds*** (2026-09-27): the account's library objects and their `assets/`, its
+tags, prefs and connections, and each session's file, turns, rendition records
+and pictures. Another account's work, the operational store and every object's
+history used to count as well, and an ordinary account was refused as unreadable.
+
+***What "already here" means for a session*** (2026-09-27). A session is skipped,
+under every `onConflict`, when this account has it under its own id, when it is
+in this account's trash, or when its turns are already on this install, which is
+what an earlier import of the same archive leaves. Before, nothing was asked,
+and each import of a person's own backup added another copy of every session. An
+imported session's turns name the session they landed in, it is indexed and
+searchable, and its pictures arrive with their records: pixels and all, since a
+backup holds them, and a picture that was still being made as `interrupted`,
+with a retry. The pictures a player attached to moves come too, each stored
+under the digest of the bytes the archive holds
+([25 E15](design/25-open-questions.md)).
+
+**A tag whose name is already here under another id keeps the one here.** An
+object brought in with the archive's id for it still reads that name, because a
+dangling id falls back to the name beside it ([05 §3](design/05-tagging.md)),
+and adopting tags again points it at this registry's. The merge used to throw at
+that clash after the library had been written, so the sessions never came.
 
 ***The archive is named by id rather than uploaded***, which is a scoping
 decision rather than an omission: a person's backups are already on this server,
@@ -2821,6 +2977,14 @@ filesystem paths on the machine the archive came from: one would point a running
 server at a directory that may be somebody else's, the other would make it serve
 a 404 where the built client used to be. Ticking it on an *account* archive is
 `403 not-install-scope`.
+
+***And `server.host`, `server.port`, `server.cookieSecure` and
+`server.trustProxy`*** (2026-09-27): where the other machine listened and what
+stood in front of it. A laptop's loopback address imported into a container
+outranked `SE_HOST` at the next start and bound the container's own loopback.
+The keys the archive carried and this install kept are named in an
+`import.backup.configWithheld` note, which is what *by name* promised and did
+not do before.
 
 ### `POST /api/admin/restore`
 
@@ -2878,23 +3042,37 @@ operator has a shell, and `docs/deploy.md`'s household one has a web page and
 nothing else.
 
 **What happens on the next boot**, for an accepted restore: before anything
-opens a handle on the data directory, the archive is unpacked to a **sibling**
-directory, the live directory is renamed to `<dataRoot>.replaced-<uuidv7>`, and
-the new one is renamed into place. Two renames on one filesystem; the window
-between them is the only unsafe moment and it is microseconds wide.
+opens a handle on the data directory, the archive is unpacked to
+`<dataRoot>/.restore/<id>/staging`, a journal is written to
+`<dataRoot>/.restore/swap.json`, and the swap moves the install's entries into
+`.restore/<id>/replaced` and the archive's into their places, one at a time.
+`backups/` never moves, and each person's own archives are carried across.
+~~The archive is unpacked to a **sibling** directory and the live directory
+renamed aside~~ (corrected 2026-09-27): that needs to write in the data
+directory's parent, which no shipped deployment allows. See
+`packages/server/src/backup/swap.ts`.
 
-***The replaced directory is kept and never deleted***, on `removed/`'s
+***The replaced install is kept and never deleted***, on `removed/`'s
 precedent — *StoryEngine will not delete this; remove it yourself when you are
 sure*. That is the undo, and the only property that covers *the restore worked
 and was the wrong archive*. A `system.notice` names it on that boot, which is
 the one place in this build where a filesystem path is deliberately put in
 front of a person.
 
-**A failed unpack leaves the install untouched** — everything is written before
-anything is renamed — rewrites the marker with `attempts: 1`, and boots
-normally. **A second attempt is refused rather than made**: a supervisor
-restarts a process that exits, so an unpack that kept failing would take the
-install down rather than one boot.
+**A failed restore leaves the install as it was.** Everything is written before
+anything moves; a move that fails part way is moved back; a boot that died part
+way finishes the swap from the journal. The marker is rewritten with
+`attempts: 1`, and the server boots normally. **A second attempt is refused
+rather than made**: a supervisor restarts a process that exits, so an unpack
+that kept failing would take the install down rather than one boot. *If a move
+fails and moving it back fails too*, the server refuses to start, naming both
+halves, and tries to finish again on each start.
+
+**One restore at a time.** A request while another is being prepared, or while
+the server is draining for one, is refused with `409 already-restarting` before
+anything is written, and so is `POST /api/admin/restart` while a restore is
+being prepared. A second request used to overwrite the first one's marker and
+then delete it.
 
 ***And the archive carries no index***, so the restored install rebuilds it on
 that same boot — which is [P11.11](design/workplan/28-p11-implementation.md)'s

@@ -341,9 +341,21 @@ function titleFor(text: string): string {
  * `transcript` payload is *what was said*, with nothing about how it was
  * produced. This reads that payload and nothing else, so a hook's premise, a
  * hidden channel and GM-only state are unreachable here rather than filtered.
+ *
+ * ***The turns since it last ran, not the session*** (2026-09-27). The
+ * transcript is the whole path's story, and this rendered all of it every
+ * eighth turn: the fortieth turn's extraction re-read the first thirty-nine,
+ * so the cost of remembering grew with the square of the session, every old
+ * exchange was offered for extraction again (and a paraphrase of a known fact
+ * is a new fact to `alreadyKnown`), and a long session outgrew the window with
+ * a block that is required and so cannot be trimmed. The cadence runs on the
+ * eighth story turn and the transcript stops before the turn running it, so
+ * the last eight are exactly the ones since the last run — this turn's own
+ * exchange is the first of the next eight.
  */
 function renderExchange(input: StepInput): string {
   return (input.transcript ?? [])
+    .slice(-EXTRACT_EVERY_N_TURNS)
     .map((turn) =>
       // The move with its pictures' stand-ins, so a remembered moment that was a
       // picture is remembered as one ([25 E15]).

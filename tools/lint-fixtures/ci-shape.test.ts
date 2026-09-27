@@ -175,6 +175,8 @@ interface WorkflowStep {
   readonly name: string | undefined;
   /** The `run:` script, block scalars folded into one string. */
   readonly run: string | undefined;
+  /** The step's `if:` condition, when it has one. */
+  readonly if: string | undefined;
 }
 
 /**
@@ -235,7 +237,7 @@ function workflowSteps(): WorkflowStep[] {
       fields.set(key, body.join('\n').trim());
     }
 
-    return { name: fields.get('name'), run: fields.get('run') };
+    return { name: fields.get('name'), run: fields.get('run'), if: fields.get('if') };
   });
 }
 
@@ -510,6 +512,27 @@ describe('gate step 20 — the rebuild property test is a named CI step', () => 
       'the name in the checks list is the whole of what F17 asked for; without it the step is ' +
         'the anonymous suite run it already had',
     ).toMatch(/rebuild/i);
+  });
+
+  /**
+   * ***A named gate that can go red under its own name.*** `pnpm test` runs the
+   * `gate`, `fixture-pair` and `docs` projects before any of these steps, so
+   * under the implicit `success()` a failing gate failed `pnpm test` first and
+   * its own step then showed *skipped* — the checks list could say a named gate
+   * held or was skipped, and never that it broke. That was the state of every
+   * run on `main` from 2026-09-15 for eighteen runs.
+   *
+   * Catches: deleting the `if:` from any of the three, or narrowing it back to
+   * a plain `success()`.
+   */
+  it('runs each named gate even after the suite before it has failed', () => {
+    for (const script of ['test:gate', 'test:fixture-pair', 'test:docs']) {
+      const step = workflowSteps().find((one) => one.run === `pnpm ${script}`);
+      expect(step, `the step that runs pnpm ${script}`).toBeDefined();
+      expect(step?.if, `pnpm ${script} has to run after an earlier failure`).toMatch(
+        /!\s*cancelled\(\)/,
+      );
+    }
   });
 
   /**

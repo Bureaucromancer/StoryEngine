@@ -209,6 +209,101 @@ describe('the operational store upgrades without losing anything', () => {
     db.close();
   });
 
+  /**
+   * ***The step that makes a retry a new job*** — `STEPS[6]`, 2026-09-26.
+   *
+   * `STEPS[4]` made `rendition_id` unique with no condition, so a retry re-ran
+   * the first try's finished row and left it `running` with `finished_at` still
+   * set. The step replaces the index with the partial one its comment described,
+   * and **heals the rows the bug already wrote** — without that, an install
+   * that crashed mid-retry would keep a job boot recovery cannot see, on the
+   * build that was supposed to fix it.
+   *
+   * Written at the version the step leaves *from*, for the reason the
+   * import-item test above is: that is the only place the rows can exist.
+   */
+  describe('the step that makes a rendition retry a new job', () => {
+    const BEFORE = 6;
+
+    function renditionJob(
+      db: DatabaseSync,
+      row: {
+        id: string;
+        status: string;
+        attempt: number;
+        finishedAt: number | null;
+        renditionId?: string;
+      },
+    ): void {
+      db.prepare(
+        `insert into rendition_job (id, session_id, account, rendition_id, turn_id, purpose,
+                                    status, attempt, created_at, updated_at, finished_at)
+         values (?, 'session-1', 'ned', ?, 'turn-1', 'illustration', ?, ?, 1, 1, ?)`,
+      ).run(row.id, row.renditionId ?? 'turn-1.0', row.status, row.attempt, row.finishedAt);
+    }
+
+    function finishedAtOf(db: DatabaseSync, id: string): number | null {
+      const row = db.prepare(`select finished_at from rendition_job where id = ?`).get(id) as {
+        finished_at: number | null;
+      };
+      return row.finished_at;
+    }
+
+    it('heals a retry the old index left running with a finish time', () => {
+      const db = storeAtVersion(BEFORE);
+      // The defect's signature: a status that says in flight, and a column that
+      // says finished. Only re-running a finished row produces it.
+      renditionJob(db, { id: 'stuck', status: 'running', attempt: 1, finishedAt: 5 });
+
+      migrateState(db);
+
+      // Live again, so the next boot's recovery finds it and abandons it — which
+      // is what it would have done on the day, had it been able to see it.
+      expect(finishedAtOf(db, 'stuck')).toBeNull();
+      db.close();
+    });
+
+    it('leaves a finished job finished', () => {
+      const db = storeAtVersion(BEFORE);
+      renditionJob(db, { id: 'done', status: 'done', attempt: 1, finishedAt: 5 });
+      // A different picture: the old index allowed one row per rendition, ever.
+      renditionJob(db, {
+        id: 'gone',
+        status: 'abandoned',
+        attempt: 1,
+        finishedAt: 6,
+        renditionId: 'turn-2.0',
+      });
+
+      migrateState(db);
+
+      expect(finishedAtOf(db, 'done')).toBe(5);
+      expect(finishedAtOf(db, 'gone')).toBe(6);
+      db.close();
+    });
+
+    it('keeps every finished try and allows only one live one', () => {
+      const db = storeAtVersion(BEFORE);
+      renditionJob(db, { id: 'first', status: 'done', attempt: 1, finishedAt: 5 });
+      migrateState(db);
+
+      // History: a second finished try of the same picture is ordinary now.
+      renditionJob(db, { id: 'second', status: 'done', attempt: 2, finishedAt: 7 });
+      renditionJob(db, { id: 'third', status: 'running', attempt: 3, finishedAt: null });
+
+      // One in flight at a time, as the constraint rather than as a lookup.
+      expect(() => {
+        renditionJob(db, { id: 'fourth', status: 'queued', attempt: 4, finishedAt: null });
+      }).toThrow(/UNIQUE/);
+      // And a number is never issued twice, which is *never a reset* held by the
+      // store rather than by the one function that assigns it.
+      expect(() => {
+        renditionJob(db, { id: 'again', status: 'done', attempt: 2, finishedAt: 9 });
+      }).toThrow(/UNIQUE/);
+      db.close();
+    });
+  });
+
   it('cascades import events with their job, the way turn events do', () => {
     const db = storeAtVersion(STATE_SCHEMA_VERSION);
     db.prepare(

@@ -29,6 +29,24 @@ import type { AppServices } from './app.js';
 export const DRAIN_TIMEOUT_MS = 30_000;
 
 /**
+ * The status a requested restart exits with — `EX_TEMPFAIL`, *try again*.
+ *
+ * ***Not 0, because 0 means *stopped on purpose* to every supervisor that
+ * reads it.*** The shipped unit said `Restart=on-failure`, which restarts on
+ * any non-zero status and on nothing else. So *Restart now* drained, exited 0,
+ * and left the tarball install stopped until somebody with a shell started it,
+ * with a restore marker waiting for whoever that was. That is the exact
+ * trap [09 §6.4] exists to refuse. A status of its own lets a unit say
+ * *restart on this one* (`RestartForceExitStatus=`) without also restarting a
+ * server that exited because somebody stopped it. `release.test.ts` holds the
+ * unit to this number.
+ *
+ * *A signal still exits 0*: `systemctl stop` and `docker stop` are somebody
+ * asking for the process to stay down.
+ */
+export const RESTART_EXIT_CODE = 75;
+
+/**
  * What a restart would interrupt, right now — the confirmation's own sentence.
  *
  * ***"2 other users have active sessions" is [09 §6.4]'s example and the split
@@ -77,10 +95,19 @@ export type RestartRefusal =
  */
 export function beginRestart(
   services: AppServices,
+  /**
+   * `'restore'` from the one caller holding `services.restoring`. Everyone
+   * else is refused while a restore is being prepared, because the drain they
+   * start would exit under a marker that is about to be written, or about to
+   * be taken back.
+   */
+  heldBy?: 'restore',
 ): { ok: true } | { ok: false; why: RestartRefusal } {
   if (!services.supervision.supervised) return { ok: false, why: 'unsupervised' };
   if (services.exit === null) return { ok: false, why: 'unavailable' };
-  if (services.draining) return { ok: false, why: 'already-restarting' };
+  if (services.draining || (services.restoring && heldBy !== 'restore')) {
+    return { ok: false, why: 'already-restarting' };
+  }
 
   const exit = services.exit;
   services.draining = true;

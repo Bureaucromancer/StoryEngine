@@ -76,6 +76,24 @@ describe('the 412 parse', () => {
     expect((failure as ApiError).contentHash).toBeUndefined();
   });
 
+  /**
+   * ***The remedy a provider failure comes with*** (2026-09-27). A draft the
+   * endpoint refused answers with the remedy a failed turn gets, and the play
+   * surface words it; lifted here so no caller reads the body for it.
+   */
+  it('carries `remedy`, and leaves it unset when the route sent none', async () => {
+    answer(
+      502,
+      JSON.stringify({ error: 'provider-failed', message: 'no', remedy: 'endpoint-refused' }),
+    );
+    const refused = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((refused as ApiError).remedy).toBe('endpoint-refused');
+
+    answer(500, JSON.stringify({ error: 'internal', message: 'no' }));
+    const plain = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((plain as ApiError).remedy).toBeUndefined();
+  });
+
   it('survives a body that is not JSON at all', async () => {
     answer(412, 'a proxy wrote this');
 

@@ -462,6 +462,15 @@ interface BudgetVerdict {
 }
 ```
 
+*(2026-09-27)* **A verdict needs `limit.tokens > reserved`, and a call without it
+is refused rather than recorded.** Assembly spends `limit.tokens − reserved`; at
+zero or below, every block that was not required was dropped and the call went
+out anyway, so the model continued a story none of which was in front of it, and
+the verdict was the only trace. `planCall` now throws `WindowTooSmall` first: the
+step fails with `window-too-small` and its own remedy (the connection's window or
+the reply length is the setting to change), and the preview and a draft answer
+with the same class rather than a context meter over an empty prompt.
+
 ### 1.6 `VersionRecord`
 
 One line of `history/index.jsonl` inside a library object's folder
@@ -707,7 +716,7 @@ interface Config {
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([25 C8](25-open-questions.md)) |
 | `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
 | `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
-| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3) |
+| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; ~~there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3)~~ *corrected 2026-09-27:* read on every upload since [P4.1](workplan/16-p4-implementation.md), a file or a folder's total, so `applied`; the only bound on an upload, since Fastify's `bodyLimit` never sees a multipart body |
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
 | `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([25 E5](25-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
@@ -716,10 +725,27 @@ interface Config {
 | `backup.frequency` | `live` | `off` | The **install's** backup, not anybody's own — a person's schedule is theirs, gated by `scheduledBackups` ([P12.4](workplan/29-p12-implementation.md)) |
 | `backup.onStart` | `live` | `false` | Independent of the frequency rather than a value in it: a machine that is usually up but occasionally rebooted wants both, and a single list cannot say so. `unread` in [§4.3](#43-what-a-live-key-actually-does-which-is-not-always-what-its-tier-says) by construction — the boot pass is over before anybody can change it |
 | `backup.contents` | `live` | `full` | `redacted` leaves out `accounts.json`, the connections and the session key, and restores to an install nobody can sign into |
-| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)) |
+| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)). `0` keeps every version (2026-09-27; it pruned every unpinned one on each save) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([09 §6.5](09-server-multiuser-deployment.md)) |
 | `updates.channel` | `live` | `latest` | |
 | `dev.enabled` | `restart` | `false` | |
+
+***Every millisecond key stops at `2147483647`*** (2026-09-27), the longest
+delay a Node timer holds. A larger one is not refused: Node warns once and uses
+one millisecond, so `streamKeepaliveMs` meant as *effectively never* sent a
+comment frame every millisecond and `providerTimeoutMs` abandoned every call at
+once. The bound is `TIMER_MAX_MS` in the schema, and it reaches the form with
+the others.
+
+***And `providerTimeoutMs` is the only clock a provider call runs under***
+(2026-09-27). Every call went through Node's global `fetch`, whose undici
+dispatcher gives up on headers after 300 seconds and on a quiet body after 300
+more — beneath this key, so a slow local model could not be given longer, and
+`0` switched off only the engine's bound. When it fired, *Headers Timeout Error*
+read as a connection that did not work and was retried twice. Provider calls now
+go through a dispatcher with neither limit (`providers/patient-fetch.ts`), and a
+transport timeout from a `fetch` handed in elsewhere is classified as the stall
+it is: terminal, and remedied as `endpoint-stalled`.
 
 **The tier annotation is the source, not documentation of it.** The
 restart-required notice ([09 §6](09-server-multiuser-deployment.md)) is derived
@@ -773,6 +799,14 @@ deployment §6.4 is warning about. So it is set **beside the restart policy**, i
 read as the one honest detection. Default-deny: a wrong *no* costs a manual
 restart, a wrong *yes* costs the server.
 
+*Amended 2026-09-27.* It is set beside the restart policy in **three** files
+now: the tarball's unit declares it too, because detection needs systemd 248.
+`INVOCATION_ID` is inherited by everything a unit's process starts, so it counts
+only when `SYSTEMD_EXEC_PID` names this process, and **`SE_SUPERVISED=0` is an
+answer that outranks the detection**, where it used to be read as unset. The
+reasoning is [09 §6.4](09-server-multiuser-deployment.md)'s correction of the
+same date.
+
 **Precedence is defaults, then the environment, then the file** — and `--data`
 above all three. The file outranking a variable is the part worth stating: the
 file is what the settings page writes, so an operator who changed a value in the
@@ -788,6 +822,19 @@ validation is the same `validateConfigDocument` a file goes through — one answ
 to *would this start?* — but its issues are translated from JSON pointers back
 to the variable that was typed, so `SE_PORT=99999` reports `SE_PORT`, not
 `/server/port`, which is in a file the operator never edited.
+
+***Two amendments, 2026-09-27.*** **The settings write had no environment
+layer**: it resolved the next config as defaults then file, so on a container
+the config it said would run was not the one a restart ran, and its unedited
+Save copied every `SE_*` value it had been shown into the file, where the file's
+precedence then held them against the environment for good. It resolves as a
+boot does now (`resolveConfigDocument`), and writes a key the file does not set
+only when its value differs from what lies under the file. **And the schema is
+one answer to *would this start?*, not the whole of it.** A port somebody else
+holds, an address this machine lacks, a client root with no build and `Secure`
+cookies over plain HTTP all pass it; the write asks the machine too
+(`startable.ts`), for the deployment keys that differ from what this process
+started with.
 
 ### 4.1 The log record
 
@@ -856,7 +903,11 @@ pressure:
   unknown storage format is a correct refusal, not a fault.
 - **One poisoned file never aborts a sweep**, and one poisoned row never aborts
   a table. F22's original sin was one bad folder aborting a whole scan; that was
-  paid for once and is not repeated on the import side.
+  paid for once and is not repeated on the import side. *(2026-09-27: it was, by
+  a SillyTavern chat preset whose prompt had a `content` that was not a string,
+  which threw out of the converter and out of the sweep. The converters are now
+  held to it at the table the sweep and the preview reach them through, and a
+  prompt's fields are read as the types they have to be.)*
 
 ### 4.2 What a reload does, including when it cannot
 
@@ -958,6 +1009,20 @@ what must be true of it.
   and rows off the current path stay indexed but carry their branch
   ([10 §14.2](10-ui-surfaces.md)).
 - **Deleting `index.sqlite` is a non-event.** Startup notices and rebuilds.
+  *Added 2026-09-27:* and so are the two ways of losing it without deleting it.
+  A file that is not a database any more is set aside as `index.sqlite.damaged`
+  and a fresh one opened, where it used to stop the start; and the schema
+  version is written when a rebuild **finishes**, not when the empty tables are
+  made, so a first start killed partway through its scan rebuilds again rather
+  than serving the fraction it reached for good.
+- **A start that does not rebuild checks.** *Added 2026-09-27.*
+  [03 §5.1](03-data-model.md)'s start-up consistency check, which no start
+  ran until then: an object is read again when its size or time differs from
+  its row's, or when it has an error on record, and a row whose file is gone is
+  forgotten; a session is derived again when a stamp over `session.json` and its
+  segments differs from the one the last look recorded. Its answer is held to a
+  rebuild's, as the watcher's is, over randomised changes made with nothing
+  watching (`index-db/reconcile.test.ts`).
 
 ### 5.1 Operational state is not derived, and must not live in the index
 
@@ -976,6 +1041,12 @@ been put there or implied into it:
 `/data/state/state.sqlite`. It is authoritative, it is backed up, and it is *not*
 rebuildable — which is exactly why keeping it out of the index matters. Both are
 SQLite; the distinction is what happens when you delete them.
+
+*Small because it is pruned, which it was not until 2026-09-27.* The draft and
+event rows the table above calls prunable are collected a day after their job
+finished, and idempotency keys a week after, by `state/prune.ts`; a session's
+latest job is kept while the session is there. [P2 §2.10](workplan/08-p2-implementation.md)
+has the rule.
 
 **Auth may not need it at all.** Signed stateless cookies with a short lifetime
 and a server-side revocation list ([19 §9](19-tech-stack.md)) reduce this to a
@@ -1055,10 +1126,14 @@ them and dropping them. §7.1's *"the recipe travels and the pixels do not"* was
 always a rule about the file; the recipe was never meant to stop at the
 importer. An imported record keeps its id (a rendition id is its turn's, and turn
 ids are kept), takes the new session as its `sessionId`, arrives with
-`asset: null` — or, from a backup archive, with the bytes that match its digest —
-and a `pending` one arrives `failed` with `error: "interrupted"`, since no job
-anywhere will finish it. Because the same id can then exist in two sessions of
-one install, the rendition job table is keyed by session and id together.
+`asset: null` — or, from a backup archive, with the bytes the archive holds for
+it, as a bare file name in the session's `assets/`, under an image type, and
+described by their own digest — and a `pending` one arrives `failed` with
+`error: "interrupted"`, since no job anywhere will finish it. Because the same
+id can exist in two sessions of one install — copies imports made before a
+session already here was refused, or a session deleted and imported back while
+its job rows stayed — the rendition job table is keyed by session and id
+together (`STEPS[7]`).
 
 **Three fields of [06 §10.1]'s sketch are typed differently here, and each is a
 correction rather than a preference.**

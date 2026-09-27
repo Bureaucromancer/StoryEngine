@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
+import {
+  schemaIdOf,
+  type ImportDisposition,
+  type ImportItemReport,
+  type ImportNote,
+} from '@storyengine/shared';
 
 import { codecFor } from '../storage/card/index.js';
 
@@ -63,6 +68,9 @@ const CARDISH = [
 /** `chara_card_v2` / `chara_card_v3` — a card that says outright what it is. */
 const CARD_SPEC = /^chara_card_v\d/;
 const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as const;
+
+/** The three prompt fields a chat preset kept before SillyTavern's prompt manager. */
+const LEGACY_CHAT_FIELDS = ['main_prompt', 'nsfw_prompt', 'jailbreak_prompt'] as const;
 
 /**
  * The three SillyTavern template kinds this build recognises and will never
@@ -285,6 +293,20 @@ function readCard(
  *   preset shapes: any object with a temperature in it.
  */
 function probe(body: Record<string, unknown>, confidence: ProbeConfidence): string | null {
+  /**
+   * ***Our own files first, by what they say they are*** (2026-09-27).
+   *
+   * A lorebook this build wrote, downloaded or entry-exported, has `entries`,
+   * and the next line claimed it for SillyTavern. The ST converter reads ST's
+   * spellings: `disable` for off, a number for position, `keysecondary`. Every
+   * entry its author had switched off came back on, depth and outlet entries
+   * moved to before the character, and secondary keys, folders and the book's
+   * scope were dropped, with no note. Any other kind came back as *nothing here
+   * recognised this file*, which is a confident wrong answer about a file this
+   * build wrote. The whole `storyengine.` namespace is claimed, so a newer or
+   * unknown one of ours is refused as ours rather than guessed at as ST's.
+   */
+  if (schemaIdOf(body)?.startsWith('storyengine.') === true) return 'storyengine.object';
   if (Array.isArray(body['prompts'])) return 'sillytavern.preset.chat';
   if (body['entries'] !== undefined && body['entries'] !== null) return 'sillytavern.lorebook';
 
@@ -366,6 +388,18 @@ function probe(body: Record<string, unknown>, confidence: ProbeConfidence): stri
 
   if (typeof body['content'] === 'string' || typeof body['post_history'] === 'string') {
     return 'sillytavern.preset.sysprompt';
+  }
+  /**
+   * ***A chat preset from before the prompt manager*** (2026-09-27), above the
+   * sampler arm because it has sampler fields too. It keeps its prompts in
+   * `main_prompt`, `nsfw_prompt` and `jailbreak_prompt` rather than `prompts`,
+   * so the arm above never saw it, and this one below took it for a sampler
+   * panel: no blocks, and a note about sampler settings. The chat converter
+   * migrates it the way SillyTavern does. Below the gate, with the other
+   * guesses, because it keys on field names.
+   */
+  if (LEGACY_CHAT_FIELDS.some((field) => typeof body[field] === 'string')) {
+    return 'sillytavern.preset.chat';
   }
   if (SAMPLERISH.some((field) => typeof body[field] === 'number')) {
     return 'sillytavern.preset.text';

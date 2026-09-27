@@ -6,6 +6,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { DEFAULT_CONFIG } from '../config.js';
+import { assistField } from '../library/assist.js';
 import { FakeProvider } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -295,5 +297,102 @@ describe('writing one field', () => {
     await server.request({ method: 'POST', url: '/api/library/assist', payload: BODY });
     const after = await server.request({ method: 'GET', url: '/api/library' });
     expect(after.body).toEqual(before.body);
+  });
+});
+
+/**
+ * ***A call like every other call*** (2026-09-27).
+ *
+ * The assist asked the provider directly, so it was the one call in the build
+ * with no idle bound, no retry for a busy endpoint and no classification: a
+ * wrong key or a model server that was down reached the route as an exception
+ * and the person as a bare 500, and a closed editor left the call running. It
+ * goes through `performCall` now, and these are the four things that buys.
+ */
+describe('an assist the endpoint does not answer', () => {
+  it('is a class and a remedy when the endpoint refuses', async () => {
+    await bindProse();
+    provider.setScript([
+      {
+        error: {
+          class: 'terminal',
+          message: 'The provider call failed.',
+          detail: 'Incorrect API key provided',
+        },
+      },
+    ]);
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({
+      error: 'provider-failed',
+      class: 'terminal',
+      remedy: 'endpoint-refused',
+    });
+  });
+
+  it('asks a busy endpoint again, as a turn would', async () => {
+    await bindProse();
+    provider.setScript([
+      { error: { class: 'retryable', message: 'Too many requests.' } },
+      { text: 'A wet quay, second time asked.' },
+    ]);
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.text).toBe('A wet quay, second time asked.');
+    expect(provider.requests).toHaveLength(2);
+  });
+
+  it('gives up on an endpoint that goes quiet, and says it was a stall', async () => {
+    await server.dispose();
+    provider = new FakeProvider({ script: [{ stallMs: 5_000 }] });
+    server = await makeTestServer({
+      providers: () => provider,
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+    await setUpAdmin(server, 'ned');
+    await bindProse();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toMatchObject({ error: 'provider-failed', remedy: 'endpoint-stalled' });
+  });
+
+  /**
+   * *Ended by the signal it is handed*, which the route takes from the person
+   * leaving (`disconnectSignal`). A request that cannot be disconnected
+   * through `inject` is asked here with the signal already gone.
+   */
+  it('asks nothing once the person has gone', async () => {
+    await bindProse();
+
+    const result = await assistField(
+      {
+        layout: server.services.library.layout,
+        accounts: server.services.accounts,
+        providers: () => provider,
+        config: server.services.config,
+      },
+      { account: 'ned', ...BODY, signal: AbortSignal.abort() },
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'cancelled' });
+    expect(provider.requests).toHaveLength(0);
   });
 });

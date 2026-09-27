@@ -164,6 +164,10 @@
     //
     // A keepalive is a property of a connection, and an open stream keeps the
     // interval it opened with, so changing this reaches new streams only.
+    //
+    // Every millisecond setting here stops at 2147483647 (about 24.8 days),
+    // the longest delay a timer holds: a larger one is not refused by Node, it
+    // becomes one millisecond.
     "streamKeepaliveMs": 15000,
 
     // live — how long streamed text accumulates before a durable checkpoint.
@@ -175,12 +179,8 @@
   },
 
   "limits": {
-    // live — the largest request body accepted, in megabytes.
-    //
-    // Honest caveat: today it is read once when the server is constructed, so
-    // changing it does need a restart. The tier is not wrong, the
-    // implementation is behind it, and the settings UI says so per key rather
-    // than quietly telling you a change took.
+    // live — the largest upload accepted, in megabytes: one file, or a whole
+    // folder added up. Read on every upload, so a change applies to the next.
     "maxUploadMb": 64,
     // live
     "extensionStorageQuotaMb": 32,
@@ -242,7 +242,8 @@
   },
 
   "history": {
-    // live — versions kept per object. Pinned versions are exempt.
+    // live — versions kept per object. Pinned versions are exempt, and 0
+    // keeps every version.
     "keepPerObject": 50
   },
 

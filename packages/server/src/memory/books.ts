@@ -5,6 +5,7 @@ import { LOREBOOK_SCHEMA, newLorebook, type Lorebook } from '@storyengine/shared
 
 import { ownerKey } from '../index-db/ingest.js';
 import { create, list, type LibraryContext } from '../library.js';
+import { KeyedQueue } from '../storage/keyed-queue.js';
 import { userOwner } from '../storage/layout.js';
 
 /**
@@ -244,6 +245,9 @@ export function memoryBookFor(
     : { id: match.id, contentHash: match.contentHash, book: match.book };
 }
 
+/** One queue for every scope's first write; tasks on different scopes run at once. */
+const ENSURING = new KeyedQueue();
+
 /**
  * The book for a scope, creating it on the first write.
  *
@@ -254,13 +258,17 @@ export function memoryBookFor(
  * filter row and one badge* only because the books that exist are books that
  * hold something.
  *
- * *Not `writes.run`-guarded here*, because `create` already runs the whole body
- * on the kind's queue — which is what makes two concurrent first-writes take
- * turns rather than both resolving the same slug. The read-then-create below is
- * therefore racy only in the benign direction: two turns extracting at once can
- * both miss and both create, which the id-conflict check inside `create` refuses
- * for the second. A refusal there is a bug worth seeing rather than one worth
- * swallowing, so it is not caught.
+ * ***The look-up and the create take turns, per scope*** (2026-09-27). This
+ * said the race was benign — *two turns extracting at once can both miss and
+ * both create, which the id-conflict check inside `create` refuses for the
+ * second* — and the check could not refuse it: each create mints its own id,
+ * so both landed, the second under a suffixed slug. A *Remember this* pressed
+ * while the extractor wrote, or two sessions with the same cast, left two
+ * books claiming one scope: later writes went to whichever the list yielded
+ * first, and the other sat on the shelf holding its own entries. `create`'s
+ * own queue is per kind and covers the write, not the look-up before it; this
+ * one covers both, keyed by the scope, so the second caller finds the first
+ * one's book.
  */
 export async function ensureMemoryBook(
   library: LibraryContext,
@@ -268,14 +276,16 @@ export async function ensureMemoryBook(
   scope: MemoryScope,
   names: { actor: string; persona: string | null },
 ): Promise<{ id: string; contentHash: string; book: Lorebook }> {
-  const held = memoryBookFor(library, handle, scope);
-  if (held !== null) return held;
+  return ENSURING.run(`${handle}\u0000${scope.actor}\u0000${scope.persona ?? ''}`, async () => {
+    const held = memoryBookFor(library, handle, scope);
+    if (held !== null) return held;
 
-  const made = newMemoryBook(scope, names);
-  const stored = await create(library, handle, made, LOREBOOK_SCHEMA);
-  return {
-    id: made.id,
-    contentHash: stored.contentHash,
-    book: stored.object as Lorebook,
-  };
+    const made = newMemoryBook(scope, names);
+    const stored = await create(library, handle, made, LOREBOOK_SCHEMA);
+    return {
+      id: made.id,
+      contentHash: stored.contentHash,
+      book: stored.object as Lorebook,
+    };
+  });
 }

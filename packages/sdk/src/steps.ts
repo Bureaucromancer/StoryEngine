@@ -7,6 +7,7 @@ import type {
   ChannelState,
   EffectOp,
   GenerationParams,
+  ModelCall,
   ModelRole,
   StepStage,
   TokenUsage,
@@ -368,6 +369,10 @@ export interface StepInput {
    * *What it still legitimately carries is the narrator's own output*, and an
    * entrance that fired is finished prose sitting in it. That remainder is a
    * refusal with a reason rather than a filter — [P8.5]'s, not this field's.
+   *
+   * ***The story's turns, not the path's*** (2026-09-27): a turn nothing was
+   * said in — a channel write, an undo, a backdrop choice — is on the path and
+   * not in this list, which is the list the host's history window counts too.
    */
   transcript?: readonly TranscriptTurn[];
   /** Present only when `reads` includes `output`. */
@@ -447,6 +452,19 @@ export interface StepCallResult {
   text: string;
   object?: unknown;
   usage: TokenUsage | null;
+  /**
+   * ***How the call ended, as its record says*** (2026-09-27): `truncated` for
+   * a ceiling reached, `refused` for a provider's filter, `incomplete` for a
+   * stream that stopped without saying why. A call that failed outright never
+   * returns here; those reach the step as a rejection.
+   *
+   * **A step could not tell a finished reply from a cut-off one**, and a step
+   * that keeps what it is given has to. The summariser cached a summary that
+   * ran into its length limit mid-sentence, and every later link was built on
+   * it. Optional, so a host that does not say is read as having nothing to
+   * report, and every step written before this compiles unchanged.
+   */
+  outcome?: ModelCall['outcome'];
 }
 
 /**

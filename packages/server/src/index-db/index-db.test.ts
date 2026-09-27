@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, sep } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
 import { SYSTEM_OWNER } from '../storage/layout.js';
-import { ingestFile, matureTombstones, removeFile, TOMBSTONE_TTL_MS } from './ingest.js';
+import { ingestFile, matureTombstones, ownerKey, removeFile, TOMBSTONE_TTL_MS } from './ingest.js';
 import { startMaturation } from './maturation.js';
+import { INDEX_SCHEMA_VERSION, PENDING_VERSION } from './migrations.js';
 import { openIndex } from './open.js';
 import { findById, listObjects, search, snapshot } from './query.js';
 import { rebuild } from './rebuild.js';
@@ -235,6 +238,112 @@ describe('deleting index.sqlite is a non-event', () => {
     } finally {
       afterBump.close();
     }
+  });
+
+  /**
+   * ***A file that is not a database is set aside, and a fresh one opened —
+   * and the open closes what it opened*** (2026-09-27).
+   *
+   * `new DatabaseSync` succeeds on anything; the first pragma is what finds
+   * out. The handle opened on the damaged file is closed before anything else
+   * happens — `openState`'s rule, which `openIndex` had drifted from: an
+   * abandoned handle holds the file and its `-wal`/`-shm` locked on Windows, so
+   * whatever touched the directory next failed with `EBUSY` two layers from
+   * the cause. Asserted on the handle rather than on a later `rm`, because
+   * Linux lets an open file be deleted and so cannot tell the two apart any
+   * other way.
+   *
+   * *Corrected 2026-09-27.* ~~A file that is not a database fails the open.~~
+   * The index is derived, and [21 §5] makes deleting it a non-event, so the
+   * one file whose loss costs nothing no longer keeps the server from
+   * starting: it is kept aside under `.damaged` and the fresh file asks for a
+   * rebuild like any new one.
+   */
+  it('sets a damaged file aside and opens a fresh one, closing what it opened', async () => {
+    library.index.close();
+    const prose = 'This is prose, not a database, and long enough to be read.';
+    await writeFile(library.layout.indexFile, prose);
+
+    const close = vi.spyOn(DatabaseSync.prototype, 'close');
+    let reopened: Awaited<ReturnType<typeof openIndex>> | undefined;
+    try {
+      reopened = await openIndex({ path: library.layout.indexFile });
+      // The handle on the damaged file, and nothing else yet.
+      expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      close.mockRestore();
+    }
+
+    try {
+      expect(reopened.migration.rebuildRequired).toBe(true);
+      expect(snapshot(reopened.db)).toEqual([]);
+      expect(await readFile(`${library.layout.indexFile}.damaged`, 'utf8')).toBe(prose);
+    } finally {
+      reopened.close();
+    }
+  });
+
+  it('refuses a file it cannot open for a reason that is not damage', async () => {
+    // A directory where the file should be is a question about the disk, not
+    // bytes to set aside: nothing is moved, and the open says so.
+    library.index.close();
+    await rm(library.layout.indexFile, { force: true });
+    await mkdir(library.layout.indexFile);
+
+    await expect(openIndex({ path: library.layout.indexFile })).rejects.toThrow();
+    expect(existsSync(`${library.layout.indexFile}.damaged`)).toBe(false);
+  });
+});
+
+/**
+ * ***An index is current only once a rebuild has reached its end***
+ * (2026-09-27).
+ *
+ * `migrate` wrote the current version into a file it had just emptied, before
+ * the rebuild that fills it had run. So a first start that died partway through
+ * its scan came back with a version saying *current* over part of the library,
+ * nothing rebuilt it, and the missing objects stayed missing — from lists,
+ * search and retrieval — until somebody deleted the file by hand.
+ */
+describe('an index whose rebuild never finished', () => {
+  it('asks for the rebuild again at the next open', async () => {
+    library.index.close();
+    await rm(library.layout.indexFile, { force: true });
+
+    // Created and migrated, and closed before any rebuild: a start killed in
+    // its scan, as far as the file can tell.
+    const first = await openIndex({ path: library.layout.indexFile });
+    expect(first.migration.rebuildRequired).toBe(true);
+    first.close();
+
+    const again = await openIndex({ path: library.layout.indexFile });
+    try {
+      expect(again.migration.rebuildRequired).toBe(true);
+      await rebuild(again.db, library.layout);
+    } finally {
+      again.close();
+    }
+
+    const after = await openIndex({ path: library.layout.indexFile });
+    try {
+      expect(after.migration.rebuildRequired).toBe(false);
+    } finally {
+      after.close();
+    }
+  });
+
+  it("is marked unfinished from a rebuild's first moment to its last", async () => {
+    // Which is also what catches a rebuild `index.rebuildOnStart` asked for,
+    // on an index that was current when it started.
+    await library.saveObject(newLorebook('Rain City'), 'rain-city');
+    const version = () =>
+      (library.db.prepare('pragma user_version').get() as { user_version: number }).user_version;
+    expect(version()).toBe(INDEX_SCHEMA_VERSION);
+
+    const running = rebuild(library.db, library.layout);
+    expect(version()).toBe(PENDING_VERSION);
+    await running;
+    expect(version()).toBe(INDEX_SCHEMA_VERSION);
   });
 });
 
@@ -487,7 +596,9 @@ describe('search', () => {
     );
     await library.saveObject(newActor('Vera Solano'), 'vera-solano');
 
-    expect(search(library.db, 'harbour').map((row) => row.name)).toEqual(['Rain City']);
+    expect(search(library.db, [ownerKey(library.owner)], 'harbour').map((row) => row.name)).toEqual(
+      ['Rain City'],
+    );
   });
 
   it('does not return a deleted object', async () => {
@@ -497,6 +608,6 @@ describe('search', () => {
     );
     removeFile(library.db, library.layout, path);
 
-    expect(search(library.db, 'harbour')).toEqual([]);
+    expect(search(library.db, [ownerKey(library.owner)], 'harbour')).toEqual([]);
   });
 });

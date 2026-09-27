@@ -1778,5 +1778,16 @@ function impersonateLine(error: unknown): string {
   if (code === 'role-unbound' || code === 'role-dangling') {
     return 'No connection is set up for the model this needs. Bind one in Settings.';
   }
+  if (code === 'window-too-small') return remedySentence('window-too-small') ?? '';
+  /**
+   * ***The endpoint's failure, in the words a failed turn gets*** (2026-09-27).
+   * This was a bare 500 until the route learned to answer it, so every one of
+   * a wrong key, a model server that was down and a stall read *try again in a
+   * moment*, which is right for one of the three.
+   */
+  if (code === 'provider-failed' && error instanceof ApiError) {
+    return remedySentence(error.remedy ?? null) ?? 'The model endpoint could not write that draft.';
+  }
+  if (code === 'cancelled') return 'The server stopped before the draft was written. Try again.';
   return 'That draft could not be written. Try again in a moment.';
 }

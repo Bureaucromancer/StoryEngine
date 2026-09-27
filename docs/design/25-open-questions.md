@@ -1292,8 +1292,12 @@ archive would overwrite, and the session key it would replace is the one
 validating the request asking for it. So `POST /api/admin/restore` checks every
 precondition **while the process is still answering** (a refusal after it has
 exited is one nobody can read), writes a marker, and drains; the next boot
-unpacks to a sibling, renames the live directory aside and renames the new one
-in. ***The directory that moved aside is kept and never deleted***, which is
+~~unpacks to a sibling, renames the live directory aside and renames the new one
+in~~ unpacks inside the data directory and swaps the install's entries out and
+the archive's in, one at a time behind a journal (corrected 2026-09-27: the
+sibling needed a writable parent, which no shipped deployment has; see
+[P12.12](workplan/29-p12-implementation.md)). ***The install that moved aside is
+kept and never deleted***, which is
 `removed/`'s promise and the one property that covers *the restore worked and
 was the wrong archive* — it is the closest thing this section's own sentence,
 *an untested restore is not a backup*, has to an insurance policy.

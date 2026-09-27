@@ -320,10 +320,23 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
     case 'summary':
       return context.summary === undefined ? 'no-producer' : 'empty-source';
 
+    /**
+     * ***`treatment` left this list at last*** (2026-09-27). The framing had a
+     * producer from [P5.6], which gave a session its treatment, and the arm
+     * went on returning nothing, so every treatment's framing — *the short "how
+     * this world is used here" piece, injected every turn* — reached no prompt,
+     * and this said *no producer*. An empty framing slot now says **this
+     * session has no treatment, or one with no framing**, unless the caller
+     * gathered none. *Tone* still has no producer: it is a set of fields with
+     * no sentence designed for them, and inventing one here would be writing
+     * somebody's prompt for them.
+     */
     case 'treatment':
+      if (block.source.part === 'tone') return 'no-producer';
+      return context.carriers === undefined ? 'no-producer' : 'empty-source';
+
     case 'channel':
-      // The same list `fill()` returns nothing for, each for its stated
-      // reason — no producer at this phase.
+      // No producer at this phase.
       return 'no-producer';
 
     /**
@@ -424,7 +437,18 @@ function splice(
   }
 
   const out = [...sequence];
-  // Deepest first, so a shallower insertion is not shifted by an earlier one.
+  /**
+   * **Deepest first, and every insertion after the first moved along by what
+   * went in before it** (2026-09-27). ~~Deepest first, so a shallower insertion
+   * is not shifted by an earlier one~~ — it is: a deeper run goes in at an
+   * earlier index and pushes everything after it right, so the shallower
+   * run's index, counted against the history as it was, landed that many
+   * messages too deep. A block at depth 4 and one at depth 1 came out at 4 and
+   * 2, and two depths past the start of a short history came out reversed.
+   * Deepest first still, because with no history to splice into the runs are
+   * appended and the deepest has to come first there too.
+   */
+  let inserted = 0;
   for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
     const group = (byDepth.get(depth) ?? []).sort(
       // The author's explicit number, then declaration order. Dropping either
@@ -439,7 +463,8 @@ function splice(
     }
     // Clamped: a depth past the start of the run lands at its start rather than
     // outside it, which is what a preset written for a longer history means.
-    out.splice(historyStart + historyCount - Math.min(depth, historyCount), 0, ...run);
+    out.splice(historyStart + historyCount - Math.min(depth, historyCount) + inserted, 0, ...run);
+    inserted += run.length;
   }
   return out;
 }
@@ -461,6 +486,9 @@ function renderContextOf(context: CollectContext): RenderContext {
 }
 
 function fill(block: PresetBlock, context: CollectContext): Candidate[] {
+  // Who is who, for a text block's template and for any block's wrapper. The
+  // actor arm narrows `char` to the actor each of its candidates is about.
+  const names = renderContextOf(context);
   if (block.kind === 'text') {
     /**
      * **Liquid, rendered within the block — never across blocks** ([06 §5]).
@@ -480,7 +508,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      * The literal braces that result are the visible failure §8.4.2 prefers to
      * a mangled prompt that looks fine.
      */
-    const rendered = renderTemplate(block.template, renderContextOf(context));
+    const rendered = renderTemplate(block.template, names);
     return emit(
       block,
       rendered.ok ? rendered.text : rendered.source,
@@ -495,6 +523,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       // other end of it.
       { kind: 'preset', blockId: block.id, presetId: context.preset.id },
       undefined,
+      names,
     );
   }
 
@@ -510,16 +539,19 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           contentHash: context.persona?.contentHash ?? null,
         },
         undefined,
+        names,
       );
 
     case 'actor':
       // One candidate per actor, so the budgeter can drop one and keep another.
+      // Each named for the actor it is about, so a wrapper can say whose it is.
       return context.actors.flatMap(({ actor, contentHash }) =>
         emit(
           block,
           actorText(actor, source),
           actorSource(actor.id, contentHash, source),
           `${block.id}.${actor.id}`,
+          { ...names, char: actor.name },
         ),
       );
 
@@ -561,7 +593,8 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       return context.history.flatMap((turn, index) =>
         halves.flatMap(({ of, role }) => {
           const turnBlock = { ...block, priority: block.priority + index, role };
-          const text = of === 'input' ? turn.input?.text : turn.output?.text;
+          const text =
+            of === 'input' ? asItWasSaid(turn, context.preset, names) : turn.output?.text;
           const words =
             text === undefined || text.length === 0
               ? []
@@ -573,6 +606,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
                   // twenty turns, which is exactly what an id must never do.
                   { kind: 'history', turnId: turn.id, range: [index, index], part: of },
                   `${block.id}.${turn.id}.${of}`,
+                  names,
                 );
           if (of === 'output') return words;
           /**
@@ -596,6 +630,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
               },
               `${block.id}.${turn.id}.attachment.${attachment.id}`,
               false,
+              names,
             ),
           );
           return [...words, ...pictures];
@@ -617,6 +652,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         context.guidance ?? '',
         { kind: 'guidance', producer: 'user' },
         undefined,
+        names,
       );
       /**
        * **[06 §5.1]'s *one slot, several producers*, with the second one at
@@ -651,6 +687,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           context.hookGuidance,
           { kind: 'guidance', producer: 'step' },
           `${block.id}.hook`,
+          names,
         ),
       ];
     }
@@ -672,6 +709,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         context.attempt?.text ?? '',
         { kind: 'attempt', turnId: context.attempt?.turnId ?? null },
         undefined,
+        names,
       );
 
     case 'input':
@@ -682,7 +720,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * would produce the wrong one.
        */
       return [
-        ...emit(block, context.input?.text ?? '', { kind: 'input' }, undefined),
+        ...emit(block, context.input?.text ?? '', { kind: 'input' }, undefined, names),
         /**
          * ***The move's pictures, required as its words are*** — [25 E15].
          * A picture the player is showing *now* is the part of their move a
@@ -697,6 +735,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             { kind: 'input', part: 'attachment', attachmentId: attachment.id },
             `${block.id}.attachment.${attachment.id}`,
             true,
+            names,
           ),
         ),
       ];
@@ -731,6 +770,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           link.text,
           { kind: 'summary', linkKey: link.key, range: [link.from, link.to] },
           `${block.id}.${link.key}`,
+          names,
         ),
       );
     }
@@ -786,6 +826,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
                   sampleId: sample.id,
                 },
                 `${block.id}.${owner.id}.${sample.id}`,
+                names,
               ),
             ),
         ),
@@ -822,6 +863,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             one.candidate.text,
             one.candidate.source,
             one.candidate.id,
+            names,
           ).map((candidate) => ({
             ...candidate,
             // The entry's own role and reason, which `emit` has no way to know
@@ -866,6 +908,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         // so the id crosses and the discriminator is restated.
         { kind: 'channel', channelId: source.channelId },
         undefined,
+        names,
       );
 
     /**
@@ -890,7 +933,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     case 'goal': {
       const goal = context.goal;
       if (goal === undefined) return [];
-      return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined);
+      return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined, names);
     }
 
     /**
@@ -931,13 +974,36 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             fragmentIndex: fragment.index,
           },
           `${block.id}.${String(fragment.index)}`,
+          names,
         ),
       );
     }
 
-    /** Nothing, for its own stated reason: a P2.6 session carries no Treatment. */
-    case 'treatment':
-      return [];
+    /**
+     * ~~Nothing, for its own stated reason: a P2.6 session carries no
+     * Treatment.~~ ***The framing, since 2026-09-27*** — [04 §3.1], [P7B §3.2]
+     * row 7. The reason expired at [P5.6], which gave a session its treatment
+     * and brought it here as a carrier for its samples; this arm went on
+     * returning nothing, and the one piece of a treatment written to be read
+     * every turn — *how this world is used here* — never reached a prompt. The
+     * gate row that checks for it was recorded as passing, which says more
+     * about the row than the arm.
+     *
+     * **Only the framing.** Tone is a set of fields with no sentence designed
+     * for them, and turning them into prose here would be writing an author's
+     * prompt for them; `emptyReason` keeps its `no-producer`.
+     */
+    case 'treatment': {
+      const held = context.carriers?.treatment;
+      if (source.part !== 'framing' || held === null || held === undefined) return [];
+      return emit(
+        block,
+        held.treatment.framing,
+        { kind: 'treatment', part: 'framing' },
+        undefined,
+        names,
+      );
+    }
 
     default:
       /**
@@ -951,13 +1017,63 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
 }
 
 /**
- * The slot's wrapper around filled text — see `emit` for why every occurrence
- * and why a function replacement.
+ * ***A past input as the pack framed it when it was the input*** (2026-09-27)
+ * — [13 §8.3], [P7.9].
+ *
+ * A pack says what kind of thing the player did through the input slot for
+ * that kind: Freeform wraps a *think* as *the player's character thinks: …*, so
+ * the narrator knows nobody heard it. The history arm dropped the kind, so the
+ * same thought one turn later sat in the history as bare words — a line spoken
+ * aloud, for all a model could tell. The kind is on the record, so the past
+ * turn takes the wrapper the current one had: the slot for its kind if the pack
+ * has one, else a slot for every kind. No wrapper, no change, which is Scene's
+ * case and the assistant's.
  */
-function wrap(block: PresetBlock, text: string): string {
-  return block.kind === 'slot' && block.wrapper !== undefined
-    ? block.wrapper.replaceAll('{{content}}', () => text)
-    : text;
+function asItWasSaid(turn: Turn, preset: Preset, names: RenderContext): string | undefined {
+  const text = turn.input?.text;
+  if (text === undefined || text.length === 0) return text;
+  const kind = turn.input?.kind;
+  const inputs = preset.blocks.filter(
+    (candidate) =>
+      candidate.enabled && candidate.kind === 'slot' && candidate.source.of === 'input',
+  );
+  const slot =
+    inputs.find((one) => kind !== undefined && one.appliesTo.includes(kind)) ??
+    inputs.find((one) => one.appliesTo.length === 0);
+  if (slot?.kind !== 'slot' || slot.wrapper === undefined) return text;
+  return wrap(slot.wrapper, text, names);
+}
+
+/** Where the content goes while the rest of a wrapper is rendered: no template can produce it. */
+const CONTENT = '\u0000content\u0000';
+
+/**
+ * ***A wrapper, with the names in it rendered*** (2026-09-27) — [06 §5],
+ * [P4 §1.6].
+ *
+ * A wrapper was one fixed placeholder and nothing else, so a pack could frame
+ * a block but never say *whose* it was — and the shipped packs' persona and
+ * actor blocks went to the model as bodies with no names on them. With two
+ * characters in a scene, what reached the narrator was two descriptions, then
+ * two appearances, then two voices, and nothing to say which was which; the
+ * persona's name was in no prompt at all.
+ *
+ * So the wrapper is a template over the same closed namespace a text block
+ * has — `char` and `user`, **names and never bodies** — while the content is
+ * not. The placeholder is swapped for a mark no template can produce before
+ * rendering and swapped back for the text afterwards, which keeps the fence
+ * where [P4 §1.6] drew it: nothing in a card, a book or a turn is ever read
+ * as Liquid, so a `{{` in somebody's prose is prose. `char` is the actor the
+ * candidate is about where there is one (the actor arm narrows it), else the
+ * first of the cast, as in a text block.
+ *
+ * *A wrapper that will not render keeps its words as written*, which is what
+ * every wrapper did before this — the one outcome that changes nothing.
+ */
+function wrap(wrapper: string, text: string, names: RenderContext): string {
+  const marked = wrapper.replaceAll('{{content}}', CONTENT);
+  const rendered = renderTemplate(marked, names);
+  return (rendered.ok ? rendered.text : marked).replaceAll(CONTENT, () => text);
 }
 
 /**
@@ -975,15 +1091,18 @@ function emitPicture(
   source: Candidate['source'],
   id: string,
   current: boolean,
+  names: RenderContext,
 ): Candidate {
   const texts = pictureTexts(attachment);
+  const framed = (text: string): string =>
+    block.kind === 'slot' && block.wrapper !== undefined ? wrap(block.wrapper, text, names) : text;
   const required = current && block.kind === 'slot' && block.source.of === 'input';
   return {
     id,
     source,
     reason: block.label,
     role: block.role,
-    text: wrap(block, texts.held),
+    text: framed(texts.held),
     priority: block.priority,
     ...(required ? { required: true } : {}),
     image: {
@@ -991,7 +1110,7 @@ function emitPicture(
       kind: attachment.kind,
       digest: attachment.digest ?? null,
       mime: attachment.mime ?? null,
-      sentText: wrap(block, texts.sent),
+      sentText: framed(texts.sent),
       current,
     },
   };
@@ -1009,6 +1128,7 @@ function emit(
   text: string,
   source: Candidate['source'],
   id: string | undefined,
+  names: RenderContext,
 ): Candidate[] {
   if (text.length === 0 && block.omitWhenEmpty) return [];
 
@@ -1028,7 +1148,8 @@ function emit(
    * the output. A function replacement is returned verbatim, so the fix is not
    * "escape the input" — it is "stop treating the input as a pattern".
    */
-  const wrapped = wrap(block, text);
+  const wrapped =
+    block.kind === 'slot' && block.wrapper !== undefined ? wrap(block.wrapper, text, names) : text;
 
   // The union, not the special case: an author- or import-declared advisory
   // block is advisory too, or the firewall only covers the one slot somebody

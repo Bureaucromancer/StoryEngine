@@ -16,7 +16,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * script that runs under plain node by design, which is the property
  * `tools/*.mjs` exists to have.
  */
-import { create, filesUnder, restore } from './backup.mjs';
+import { create, filesUnder, OWN_ENTRIES, restore } from './backup.mjs';
+import { performPendingRestore } from '../packages/server/src/backup/restore.js';
+import { OWN_ENTRIES as SERVER_OWN_ENTRIES } from '../packages/server/src/backup/swap.js';
+import { holdInstanceLock } from '../packages/server/src/instance-lock.js';
+import { Layout } from '../packages/server/src/storage/layout.js';
+import { writeTarGz } from '../packages/server/src/storage/tar-archive.js';
 
 /**
  * ***An untested restore is not a backup*** —
@@ -148,6 +153,40 @@ describe('a backup of a data directory', () => {
   });
 });
 
+/**
+ * ***A directory a running server is using*** (2026-09-27). This script said
+ * the honest quiesce was *not to be running*, and could only take somebody's
+ * word for it. A server now holds `instance.lock` at the data root, and this
+ * takes the same lock for as long as it runs, so a directory a server has is
+ * refused in one line. The lock is held here the way a server holds it.
+ */
+describe('a directory a server is using', () => {
+  it('is refused a backup and a restore, and nothing is written', async () => {
+    await populate();
+    await create(source, archive);
+    const before = await filesUnder(source);
+    const held = holdInstanceLock(new Layout(source));
+    try {
+      await expect(create(source, `${archive}.again`)).rejects.toThrow(
+        /A StoryEngine server is using/,
+      );
+      await expect(restore(archive, source)).rejects.toThrow(/A StoryEngine server is using/);
+    } finally {
+      held.release();
+    }
+    expect(await filesUnder(source)).toEqual(before);
+    await expect(stat(join(source, '.restore'))).rejects.toThrow();
+  });
+
+  it('leaves the lock out of the archive it writes', async () => {
+    // The lock is this script's own while it walks: read, it would be let go.
+    await populate();
+    await writeFile(join(source, 'instance.lock'), '');
+
+    expect(await filesUnder(source)).not.toContain('instance.lock');
+  });
+});
+
 describe('restoring into a clean directory', () => {
   it('puts the library and the sessions back, byte for byte', async () => {
     await populate();
@@ -249,5 +288,172 @@ describe('restoring into a clean directory', () => {
     await done;
 
     await expect(restore(archive, destination)).rejects.toThrow(/outside the data directory/);
+  });
+});
+
+/**
+ * ***Over an install, and without deleting anything*** — corrected 2026-09-27.
+ *
+ * This command used to begin with `rm -rf` on the data directory, before it had
+ * read a single header. Every stored backup went with it, since they live in
+ * the data directory, and so did the install, whatever the archive then turned
+ * out to hold. And `shared/backup.ts` said it refused an account archive,
+ * which it never did.
+ */
+describe('restoring over an install', () => {
+  /** An install worth losing: a library, and archives at both of their homes. */
+  async function anInstallAt(dir: string): Promise<void> {
+    await mkdir(join(dir, 'users', 'ned', 'library', 'actors', 'kept'), { recursive: true });
+    await writeFile(join(dir, 'users', 'ned', 'library', 'actors', 'kept', 'actor.json'), '{}');
+    await writeFile(join(dir, 'accounts.json'), JSON.stringify({ accounts: [] }));
+    await mkdir(join(dir, 'backups'), { recursive: true });
+    await writeFile(join(dir, 'backups', 'install-full-2026-09-01-x.tar.gz'), 'an archive');
+    await mkdir(join(dir, 'users', 'ned', 'backups'), { recursive: true });
+    await writeFile(join(dir, 'users', 'ned', 'backups', 'account-ned-full-x.tar.gz'), 'theirs');
+  }
+
+  /**
+   * The two lists of what makes a directory an install, one here and one in
+   * the server's swap, are one set: the command decides *write straight in*
+   * or *stage for the server* with its copy, and the server moves aside with
+   * its own.
+   */
+  it('agrees with the server about what an install’s own entries are', () => {
+    expect([...OWN_ENTRIES].sort()).toEqual([...SERVER_OWN_ENTRIES].sort());
+  });
+
+  /**
+   * ***Staged, and the install untouched.*** The swap is the server's, at its
+   * next start, with the journal and the roll-back that has.
+   *
+   * Catches: writing into, or emptying, a directory that holds an install.
+   */
+  it('stages, and changes nothing in the install or its archives', async () => {
+    await populate();
+    await create(source, archive);
+    await anInstallAt(destination);
+
+    const outcome = (await restore(archive, destination)) as {
+      files: number;
+      staged: { id: string; replaced: string } | null;
+    };
+
+    expect(outcome.staged).not.toBeNull();
+    expect(
+      await readFile(
+        join(destination, 'users', 'ned', 'library', 'actors', 'kept', 'actor.json'),
+        'utf8',
+      ),
+    ).toBe('{}');
+    expect(
+      await readFile(join(destination, 'backups', 'install-full-2026-09-01-x.tar.gz'), 'utf8'),
+    ).toBe('an archive');
+    expect(await stat(join(destination, '.restore', 'swap.json'))).toBeTruthy();
+    await expect(
+      stat(join(destination, 'users', 'ned', 'library', 'actors', 'vera', 'actor.json')),
+    ).rejects.toThrow();
+  });
+
+  /**
+   * ***The server finishes it.*** The journal the command writes is the one
+   * the server's boot reads, which is the whole contract between the two, so
+   * it is proved with the server's own function rather than described.
+   */
+  it('is finished by the server’s next start, archives kept live', async () => {
+    await populate();
+    await create(source, archive);
+    await anInstallAt(destination);
+    await restore(archive, destination);
+
+    const outcome = await performPendingRestore(new Layout(destination));
+
+    expect(outcome.kind).toBe('restored');
+    const actor = await readFile(
+      join(destination, 'users', 'ned', 'library', 'actors', 'vera', 'actor.json'),
+      'utf8',
+    );
+    expect(JSON.parse(actor)).toEqual({ schema: 'se.actor.v1', id: 'actor-1', name: 'Vera' });
+    // Both archives are where the lists look for them.
+    expect(
+      await readFile(join(destination, 'backups', 'install-full-2026-09-01-x.tar.gz'), 'utf8'),
+    ).toBe('an archive');
+    expect(
+      await readFile(
+        join(destination, 'users', 'ned', 'backups', 'account-ned-full-x.tar.gz'),
+        'utf8',
+      ),
+    ).toBe('theirs');
+  });
+
+  /**
+   * ***One person's archive is not an install***, and restoring it as one
+   * would leave that person's tree and nothing else.
+   *
+   * Catches: a restore that reads no manifest.
+   */
+  it('refuses an account archive, and writes nothing', async () => {
+    const manifest = {
+      schema: 'storyengine.backup-manifest/1',
+      scope: 'account',
+      handle: 'ned',
+      files: 1,
+    };
+    await writeTarGz(
+      archive,
+      [
+        { name: 'backup.json', bytes: new TextEncoder().encode(JSON.stringify(manifest)) },
+        { name: 'users/ned/library/actors/vera/actor.json', bytes: new TextEncoder().encode('{}') },
+      ],
+      0,
+    );
+
+    await expect(restore(archive, destination)).rejects.toThrow(/one account's archive/);
+    expect(await filesUnder(destination)).toEqual([]);
+  });
+
+  /**
+   * ***Every header is read before anything is written.*** A hostile name as
+   * the *last* member used to be found after every member before it had been
+   * written, into a directory already emptied.
+   *
+   * Catches: checking each name as it is written.
+   */
+  it('refuses a bad name at the end of an archive before writing its beginning', async () => {
+    await writeTarGz(
+      archive,
+      [
+        { name: 'users/ned/library/actors/vera/actor.json', bytes: new TextEncoder().encode('{}') },
+        { name: 'backups/smuggled.tar.gz', bytes: new TextEncoder().encode('not ours') },
+      ],
+      0,
+    );
+
+    await expect(restore(archive, destination)).rejects.toThrow(/where a restore never writes/);
+    expect(await filesUnder(destination)).toEqual([]);
+  });
+
+  /**
+   * ***Two archives from one pattern.*** `docs/deploy.md`'s example is a glob,
+   * and two backups on one day expand it to two names. The second used to be
+   * taken for the data directory: emptied, which deleted that backup, and
+   * restored into.
+   */
+  it('takes exactly one archive, and deletes neither when given two', async () => {
+    const { spawnSync } = await import('node:child_process');
+    const second = join(destination, 'second.tar.gz');
+    await writeFile(second, 'the other backup');
+    await populate();
+    await create(source, archive);
+
+    const run = spawnSync(
+      process.execPath,
+      [join(import.meta.dirname, 'backup.mjs'), 'restore', archive, second, destination],
+      { encoding: 'utf8' },
+    );
+
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('one archive');
+    expect(await readFile(second, 'utf8')).toBe('the other backup');
+    expect(await stat(archive)).toBeTruthy();
   });
 });

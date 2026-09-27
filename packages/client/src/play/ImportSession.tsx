@@ -5,7 +5,7 @@ import { useRef, useState, type JSX } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { importSessionDocument } from '../api.js';
+import { ApiError, importSessionDocument } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
 import { Fine } from '../ui/Text.js';
@@ -40,6 +40,8 @@ const WORDS = labels('sessions.import', {
   unreadable: 'That file is not a session export this build can read.',
   wrongSchema: 'That is a StoryEngine file of another kind.',
   noTurns: 'That export has no turns in it.',
+  alreadyHere:
+    'That session is already here. A copy of it would share its turns, so it is not loaded twice.',
   failed: 'The session could not be loaded.',
 });
 
@@ -98,11 +100,17 @@ export function ImportSession(): JSX.Element {
                 setBusy(false);
                 /**
                  * **A class into a sentence, here** — [21 §1.4]. The server
-                 * sends `unreadable`, `wrong-schema` or `no-turns`, and the
-                 * three have different remedies: a broken file, the wrong file,
-                 * and a file that is right and empty.
+                 * sends `unreadable`, `wrong-schema`, `no-turns` or
+                 * `already-here`, and each has its own remedy: a broken file,
+                 * the wrong file, a file that is right and empty, and a
+                 * session this install already holds.
+                 *
+                 * ***Read from `ApiError.code`*** (2026-09-27). This read
+                 * `failure.body.error`, which `ApiError` has never had, so every
+                 * refusal showed the fallback and none of these sentences had
+                 * ever rendered.
                  */
-                const code = (failure as { body?: { error?: string } }).body?.error;
+                const code = failure instanceof ApiError ? failure.code : undefined;
                 setError(
                   code === 'wrong-schema'
                     ? WORDS.wrongSchema
@@ -110,7 +118,9 @@ export function ImportSession(): JSX.Element {
                       ? WORDS.noTurns
                       : code === 'unreadable'
                         ? WORDS.unreadable
-                        : WORDS.failed,
+                        : code === 'already-here'
+                          ? WORDS.alreadyHere
+                          : WORDS.failed,
                 );
               },
             );

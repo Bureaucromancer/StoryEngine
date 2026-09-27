@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -90,51 +90,49 @@ describe('a gzipped tar', () => {
   });
 
   /**
-   * ***A turn segment that grew between the `stat` and the read.***
+   * ***A file saved between the walk and the read*** — the case the old sizing
+   * got wrong (corrected 2026-09-27).
    *
-   * The header declared a length a moment before, and a member longer than its
-   * header says is not a slightly-wrong archive but an unreadable one — every
-   * later member lands at the wrong offset. Segments are append-only, so the
-   * prefix is a whole number of complete turns plus possibly a partial last
-   * line, and `sessions/segments.ts` already drops a line that does not parse.
+   * Every library and session JSON is written by temp-and-rename, so a save
+   * while a backup runs puts a *different file* at the path the walk sized.
+   * The header used to take the walk's size, so the new file went into the
+   * archive cut off, or padded with NULs: JSON that will not parse, in a backup
+   * that said it succeeded. The size now comes from the handle that is read.
+   *
+   * Catches: a header sized from the member's declared `size`.
    */
-  it('takes exactly the declared length from a file that grew under it', async () => {
-    const source = join(root, '000001.jsonl');
-    const first = '{"id":"t1"}\n';
-    await writeFileBytes(source, bytes(`${first}{"id":"t2","half":`));
+  it('archives a file saved after the walk whole, longer or shorter', async () => {
+    const longer = join(root, 'session.json');
+    const shorter = join(root, 'actor.json');
+    await writeFileBytes(longer, bytes('{"id":"s1"}'));
+    await writeFileBytes(shorter, bytes('{"id":"a1","name":"Vera the Lamplighter"}'));
+    // What the walk saw, before the saves.
+    const walked = [
+      { name: 'session.json', path: longer, size: '{"id":"s1"}'.length },
+      {
+        name: 'actor.json',
+        path: shorter,
+        size: '{"id":"a1","name":"Vera the Lamplighter"}'.length,
+      },
+    ];
 
-    const archive = join(root, 'grew.tar.gz');
+    // The saves: temp and rename, as `writeJsonAtomic` does them.
+    await writeFileBytes(`${longer}.tmp`, bytes('{"id":"s1","headTurnId":"t2"}'));
+    await rename(`${longer}.tmp`, longer);
+    await writeFileBytes(`${shorter}.tmp`, bytes('{"id":"a1","name":"Vera"}'));
+    await rename(`${shorter}.tmp`, shorter);
+
+    const archive = join(root, 'saved.tar.gz');
     await writeTarGz(
       archive,
-      [
-        { name: 'turns/000001.jsonl', path: source, size: first.length },
-        { name: 'after.txt', bytes: bytes('still readable') },
-      ],
+      [...walked, { name: 'after.txt', bytes: bytes('still readable') }],
       0,
     );
 
     const found = await members(archive);
-    expect(found.get('turns/000001.jsonl')).toBe(first);
-    // The member after it is the witness that the offsets stayed right.
-    expect(found.get('after.txt')).toBe('still readable');
-  });
-
-  it('pads a file that shrank, so the archive stays readable', async () => {
-    const source = join(root, 'shrank.txt');
-    await writeFileBytes(source, bytes('four'));
-
-    const archive = join(root, 'shrank.tar.gz');
-    await writeTarGz(
-      archive,
-      [
-        { name: 'shrank.txt', path: source, size: 8 },
-        { name: 'after.txt', bytes: bytes('still readable') },
-      ],
-      0,
-    );
-
-    const found = await members(archive);
-    expect(found.get('shrank.txt')).toBe('four\0\0\0\0');
+    expect(JSON.parse(found.get('session.json') ?? '')).toEqual({ id: 's1', headTurnId: 't2' });
+    expect(JSON.parse(found.get('actor.json') ?? '')).toEqual({ id: 'a1', name: 'Vera' });
+    // The member after them is the witness that the offsets stayed right.
     expect(found.get('after.txt')).toBe('still readable');
   });
 
@@ -158,6 +156,34 @@ describe('a gzipped tar', () => {
     expect(await listTreeFiles(root)).toEqual([]);
   });
 
+  /**
+   * ***A member far larger than one inflated chunk***, and one after it. The
+   * reader keeps chunks as they arrive and copies each into the member that
+   * takes it (it used to reallocate one growing buffer per chunk, which was
+   * quadratic), so a member split across many chunks, and a header that
+   * starts part way through one, are the cases worth pinning exactly.
+   */
+  it('reads a member spread across many chunks byte for byte', async () => {
+    const big = new Uint8Array(3 * 1024 * 1024 + 7);
+    for (let at = 0; at < big.length; at += 1) big[at] = (at * 31 + (at >> 11)) & 0xff;
+    const archive = join(root, 'big.tar.gz');
+    await writeTarGz(
+      archive,
+      [
+        { name: 'renditions/r1.png', bytes: big },
+        { name: 'after.txt', bytes: bytes('still readable') },
+      ],
+      0,
+    );
+
+    const read = new Map<string, Uint8Array>();
+    for await (const member of readTarGz(archive)) read.set(member.name, member.bytes);
+
+    expect(read.get('renditions/r1.png')?.length).toBe(big.length);
+    expect(Buffer.compare(Buffer.from(read.get('renditions/r1.png')!), Buffer.from(big))).toBe(0);
+    expect(text(read.get('after.txt')!)).toBe('still readable');
+  });
+
   /** A truncated archive ends the walk rather than inventing a member. */
   it('stops at a header it cannot read', async () => {
     const archive = join(root, 'short.tar.gz');
@@ -165,5 +191,20 @@ describe('a gzipped tar', () => {
 
     const whole = await members(archive);
     expect(whole.get('ok.txt')).toBe('fine');
+  });
+
+  /**
+   * ***An archive that is not there is an error the caller can catch.*** The
+   * file stream's failure used to go nowhere, because `pipe` forwards data and
+   * not errors: an `error` event nobody listened to is an uncaught exception,
+   * and at boot, with a restore pending on an archive somebody deleted, that
+   * was a crash on every start.
+   *
+   * Catches: dropping the listener that hands the failure on. The read then
+   * waits on a gunzip that never ends, and the process reports the unhandled
+   * `ENOENT`.
+   */
+  it('rejects, rather than crashing the process, when the archive cannot be read', async () => {
+    await expect(members(join(root, 'not-there.tar.gz'))).rejects.toThrow(/ENOENT/);
   });
 });

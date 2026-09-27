@@ -202,6 +202,29 @@ describe('rebuild-from-disk equals the incremental index, for sessions too', () 
     expect(searchTurns(index.db, [`user:${ACCOUNT}`], 'two')).toEqual([]);
   });
 
+  /**
+   * ***A turn is filed under the folder it is in*** (2026-09-27), because that
+   * is the session its segment and offset are true of. An imported turn used
+   * to keep the id it was exported under, and the index filed it there: under
+   * a session this install did not have, so the story could not be searched,
+   * and a rebuild did the same again. Turns imported before the fix still say
+   * the old id on disk, so this is what a rebuild repairs them with.
+   */
+  it('files a turn under the session whose folder holds it, whatever the turn says', async () => {
+    const session = await createSession(context, ACCOUNT, 'Rain City');
+    const turn = {
+      ...spokenTurn(session.id, null, 'The cathedral was three streets east.'),
+      sessionId: 'the-install-it-came-from',
+    };
+    await appendTurnToSession(context, ACCOUNT, session.id, turn);
+
+    const hitsIn = (): string[] =>
+      searchTurns(index.db, [`user:${ACCOUNT}`], 'cathedral').map((hit) => hit.sessionId);
+    expect(hitsIn()).toEqual([session.id]);
+    await rebuild(index.db, context.layout);
+    expect(hitsIn()).toEqual([session.id]);
+  });
+
   it('counts what it found', async () => {
     await aSessionWith('Rain City', ['one', 'two']);
 

@@ -47,7 +47,17 @@ const CHARACTER_ROW = {
   updatedAt: '2026-08-01T00:00:00.000Z',
 };
 
-/** A preset and its sections, which are a separate table pointing back by id. */
+/**
+ * A preset and its sections, which are a separate table pointing back by id.
+ *
+ * ***As Marinara stores them*** (2026-09-27). This fixture was written in the
+ * API's shape — `packages/shared/src/types/prompt.ts`, where `sectionOrder` is
+ * an array and `markerConfig` an object — while what a store holds is
+ * `packages/server/src/db/schema/prompts.ts`'s: text columns carrying JSON,
+ * and booleans as `"true"` and `"false"`. The converter was written against
+ * the fixture, so it read neither, and every real preset lost its order and
+ * its markers without a test noticing. The rows below are the stored shape.
+ */
 const PROMPT_PRESET = {
   id: 'preset_harbour',
   name: 'Harbour',
@@ -55,9 +65,18 @@ const PROMPT_PRESET = {
   imagePath: null,
   conversationPrompt: 'You are {{charName}} talking to {{userName}}.',
   gamePrompt: '',
-  sectionOrder: ['section_main', 'section_history'],
-  groupOrder: [],
+  sectionOrder: json(['section_main', 'section_history']),
+  groupOrder: '[]',
+  variableGroups: '[]',
+  variableValues: '{}',
+  parameters: json({ temperature: 0.8, maxTokens: 600, reasoningEffort: 'maximum' }),
   wrapFormat: 'xml',
+  defaultChoices: '{}',
+  isDefault: 'false',
+  author: '',
+  systemKey: '',
+  createdAt: '2026-08-01T00:00:00.000Z',
+  updatedAt: '2026-08-01T00:00:00.000Z',
 };
 
 const PROMPT_SECTIONS = [
@@ -90,7 +109,7 @@ const PROMPT_SECTIONS = [
     enabled: 'true',
     isMarker: 'true',
     groupId: null,
-    markerConfig: { type: 'chat_history' },
+    markerConfig: json({ type: 'chat_history' }),
     // Depth injection, counted from the last message exactly as ours is.
     injectionPosition: 'depth',
     injectionDepth: 4,
@@ -101,24 +120,38 @@ const PROMPT_SECTIONS = [
   },
 ];
 
+/** Booleans as text and lists as JSON text, as its schema has them (2026-09-27). */
 const LOREBOOK = {
   id: 'book_rain_city',
   name: 'Rain City',
   description: 'Harbour lore.',
-  enabled: 1,
+  category: 'uncategorized',
+  enabled: 'true',
+  isGlobal: 'false',
+  tags: '[]',
   createdAt: '2026-08-01T00:00:00.000Z',
+  updatedAt: '2026-08-01T00:00:00.000Z',
 };
 
 const LOREBOOK_ENTRIES = [
   {
     id: 'entry_docks',
     lorebookId: 'book_rain_city',
-    keys: ['docks', 'harbour'],
+    folderId: null,
+    name: 'Docks',
+    keys: json(['docks', 'harbour']),
+    secondaryKeys: '[]',
     content: 'The docks run on paperwork and nobody reads it.',
-    enabled: 1,
+    enabled: 'true',
+    constant: 'false',
+    selective: 'false',
     selectiveLogic: 'and',
+    matchWholeWords: 'false',
+    caseSensitive: 'false',
+    useRegex: 'false',
     position: 0,
     depth: 4,
+    order: 100,
   },
 ];
 

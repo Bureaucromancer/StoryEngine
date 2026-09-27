@@ -24,6 +24,7 @@ import { envelope, pngCardCodec } from '../storage/card/index.js';
 import { makePng } from '../storage/card/test-png.js';
 import { Layout, type LibraryOwner, userOwner } from '../storage/layout.js';
 import { ingestFile } from './ingest.js';
+import { markRebuilt } from './migrations.js';
 import { openIndex, type OpenedIndex } from './open.js';
 
 /**
@@ -55,6 +56,10 @@ export async function makeTestLibrary(
   const layout = new Layout(root);
   const owner = userOwner('ned');
   const index = await openIndex({ path: options.indexPath ?? layout.indexFile });
+  // A fresh directory holds nothing, so an empty index is already everything
+  // derived from it; saying so keeps a test that reopens the file from reading
+  // it as a rebuild that never finished (`migrate`).
+  markRebuilt(index.db);
   // Resolved once rather than passed through as `registry: undefined`, which
   // `exactOptionalPropertyTypes` correctly refuses.
   const registry = options.registry ?? selfWrites;

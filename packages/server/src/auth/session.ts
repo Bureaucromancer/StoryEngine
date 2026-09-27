@@ -39,6 +39,19 @@ export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 export interface SessionPayload {
   handle: string;
+  /**
+   * ***The account's `createdAt`, so the cookie names one account and not a
+   * handle*** (2026-09-27). A handle is free again once its account is
+   * removed, and a cookie that named only the handle signed in as whoever was
+   * given it next. Checked against the account on every request, in the
+   * identity hook in `app.ts`.
+   *
+   * A cookie issued before this field existed has none and is refused, so
+   * everyone signs in once more after the upgrade. That is the cost of the
+   * check meaning anything: accepting a cookie without it would accept exactly
+   * the cookies this exists to refuse.
+   */
+  createdAt: number;
   /** Milliseconds since the epoch. */
   expiresAt: number;
 }
@@ -106,11 +119,12 @@ export function readSession(cookie: string | undefined, key: string): SessionPay
   }
 
   if (typeof payload !== 'object' || payload === null) return null;
-  const { handle, expiresAt } = payload as Partial<SessionPayload>;
+  const { handle, createdAt, expiresAt } = payload as Partial<SessionPayload>;
   if (typeof handle !== 'string' || typeof expiresAt !== 'number') return null;
+  if (typeof createdAt !== 'number') return null;
   if (expiresAt <= Date.now()) return null;
 
-  return { handle, expiresAt };
+  return { handle, createdAt, expiresAt };
 }
 
 export interface CookieOptions {

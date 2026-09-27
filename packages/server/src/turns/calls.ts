@@ -62,6 +62,34 @@ export class RoleUnresolved extends Error {
 }
 
 /**
+ * ***A context window that holds nothing beside the reply*** (2026-09-27).
+ *
+ * Assembly spends the window less the room kept for the reply, and a window
+ * no larger than that reserve left it nothing: every block that was not
+ * required was dropped and the call went out anyway, so the model was asked to
+ * go on with a story none of which was in front of it. A context window typed
+ * as 1000 rather than 100000, an imported preset whose budget says 1, a reply
+ * length raised past the window — each produced a turn that read as the model
+ * having forgotten everything, and nothing said why. Refused before anything
+ * is sent, with both numbers, because one of them is the setting to change.
+ */
+export class WindowTooSmall extends Error {
+  readonly window: number;
+  readonly reserved: number;
+
+  constructor(window: number, reserved: number) {
+    super(
+      `The model's context window is ${String(window)} tokens and ${String(reserved)} are kept ` +
+        'for the reply, so nothing of the story would fit. Raise the context window in the ' +
+        'connection, or lower the reply length.',
+    );
+    this.name = 'WindowTooSmall';
+    this.window = window;
+    this.reserved = reserved;
+  }
+}
+
+/**
  * The turn was stopped. Distinct from a provider failure, and never retried.
  *
  * **Carries the interrupted call when there was one** — finding 2 in
@@ -301,8 +329,9 @@ export interface CallPlan {
 /**
  * Resolve, budget, assemble and render — the half a preview stops after.
  *
- * Both of its throws are load-bearing and stay throws: `RoleUnresolved` is how
- * the preview learns there is no denominator to measure against, and
+ * Its throws are load-bearing and stay throws: `RoleUnresolved` is how the
+ * preview learns there is no denominator to measure against, `WindowTooSmall`
+ * is how it learns the denominator is zero (2026-09-27), and
  * `AdvisoryLeakError` is [06 §5.2]'s structural guarantee, which a preview
  * must not be able to route around. [P3 §1.7]'s *assemble-without-dispatch as
  * a parameterised function* is this function.
@@ -402,6 +431,9 @@ export function planCall(
     context.config,
     context.preset?.budget,
   );
+  if (policy.limit.tokens <= policy.reserved) {
+    throw new WindowTooSmall(policy.limit.tokens, policy.reserved);
+  }
 
   // **The purpose comes from the definition, not from the request.** A step
   // that could name its own would be one honest declaration away from walking
@@ -728,8 +760,9 @@ export async function performCall(
       // person wins, and only silence that nobody asked to end is a stall. The
       // adapter's classifier matches `/abort/i` and would otherwise have called
       // this `transient` and retried the hang twice.
-      const stalled = bound.stalled();
-      if (stalled) {
+      // Or the transport's own limit, reported by the adapter as a stall.
+      const stalled = bound.stalled() || (error instanceof ProviderError && error.stalled);
+      if (bound.stalled()) {
         error = new Stalled(context.config.limits.providerTimeoutMs);
       }
 

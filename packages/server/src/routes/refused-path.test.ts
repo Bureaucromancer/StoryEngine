@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -243,6 +243,76 @@ async function until(ready: () => boolean, ms = 5_000): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
+
+/**
+ * ***A session folder this server will not name*** (2026-09-27).
+ *
+ * The same guard, one directory over. `readSession` is where every loop over
+ * sessions starts, and it threw on a name the layout refuses — `con`, a
+ * trailing dot, the colons of a `date -Iseconds` copy, every rule applied on
+ * every platform — so one such folder made the session list a 500 for the
+ * whole account, stopped a rebuild, and stopped the server starting. The same
+ * name in a URL was a logged 500 for what is simply no such session.
+ */
+describe('a session this server cannot name', () => {
+  it('is no such session at its address', async () => {
+    for (const id of ['con', 'a:b', 'x.']) {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+      expect(read.status).toBe(404);
+    }
+    const redo = await server.request({
+      method: 'POST',
+      url: '/api/sessions/con/turns',
+      payload: {
+        idempotencyKey: 'k-1',
+        headTurnId: null,
+        rewriteOf: 't-1',
+        input: { text: 'Again.' },
+      },
+    });
+    expect(redo.status).toBe(404);
+  });
+
+  // Folders these names cannot be made on Windows, and the rule is lexical,
+  // so one platform proves it for both.
+  it.skipIf(process.platform === 'win32')(
+    'is passed over by the list, and by a server starting over it',
+    async () => {
+      const made = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { name: 'Rain City' },
+      });
+      expect(made.status).toBe(201);
+      const sessions = join(server.dataDir, 'users', 'ned', 'sessions');
+      for (const name of ['con', '2026-09-27T10:00:00']) {
+        await mkdir(join(sessions, name), { recursive: true });
+        await writeFile(
+          join(sessions, name, 'session.json'),
+          JSON.stringify({ id: name, name: 'Copied by hand' }),
+        );
+      }
+      // And one the name allows and the link check refuses: a `session.json`
+      // that leads out of the data directory.
+      const outside = join(server.dataDir, '..', `outside-${String(Date.now())}.json`);
+      await writeFile(outside, JSON.stringify({ id: 'linked', name: 'Not yours' }));
+      await mkdir(join(sessions, 'linked'), { recursive: true });
+      await symlink(outside, join(sessions, 'linked', 'session.json'));
+
+      const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+      expect(listed.status).toBe(200);
+      expect((listed.body.sessions as { name: string }[]).map((session) => session.name)).toEqual([
+        'Rain City',
+      ]);
+
+      // A second server on the same directory runs the start-up pass over
+      // every session folder, which is where this used to stop the start.
+      const again = await makeTestServer({ dataDir: server.dataDir });
+      await again.dispose();
+      await rm(outside, { force: true });
+    },
+  );
+});
 
 describe('the scope this does not have', () => {
   it('leaves an ordinary object alone', async () => {

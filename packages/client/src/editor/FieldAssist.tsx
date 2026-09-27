@@ -3,7 +3,8 @@
 
 import { useState, type JSX } from 'react';
 
-import { assistField, type AssistFieldResult } from '../api.js';
+import { ApiError, assistField, type AssistFieldResult } from '../api.js';
+import { remedySentence } from '../failures.js';
 import { labels } from '../i18n/catalogue.js';
 import type { AssistSubject } from '../ui/assist.js';
 import { Button } from '../ui/Button.js';
@@ -54,6 +55,7 @@ const WORDS = labels('editor.assist', {
   working: 'Writing…',
   notBound: 'No model is set up for writing yet. Bind one in Settings.',
   noAnswer: 'The endpoint answered with nothing.',
+  stopped: 'The server stopped before the assist was written. Try again.',
   failed: 'The assist did not finish.',
 });
 
@@ -103,14 +105,7 @@ export function FieldAssist(props: {
          * `not-bound`, the client owns the words, and the remedy is the one
          * thing a person can act on.
          */
-        const code = (failure as { body?: { error?: string } }).body?.error;
-        setError(
-          code === 'not-bound'
-            ? WORDS.notBound
-            : code === 'no-answer'
-              ? WORDS.noAnswer
-              : WORDS.failed,
-        );
+        setError(assistFailure(failure));
       },
     );
   }
@@ -196,4 +191,26 @@ export function FieldAssist(props: {
       ) : null}
     </>
   );
+}
+
+/**
+ * ***The sentence for a failed assist, read off the code the server sent***
+ * (2026-09-27).
+ *
+ * This read `body.error`, which an `ApiError` does not have — the class is
+ * `code` — so every failure, an unbound role included, read *the assist did
+ * not finish*. An endpoint's failure now gets the remedy a failed turn gets
+ * ([P11.6]'s sentences), and a window with no room beside the reply gets its
+ * own, because each points at a different thing to change.
+ */
+export function assistFailure(failure: unknown): string {
+  const code = failure instanceof ApiError ? failure.code : null;
+  if (code === 'not-bound') return WORDS.notBound;
+  if (code === 'no-answer') return WORDS.noAnswer;
+  if (code === 'cancelled') return WORDS.stopped;
+  if (code === 'window-too-small') return remedySentence('window-too-small') ?? WORDS.failed;
+  if (code === 'provider-failed' && failure instanceof ApiError) {
+    return remedySentence(failure.remedy ?? null) ?? WORDS.failed;
+  }
+  return WORDS.failed;
 }

@@ -489,3 +489,85 @@ describe('a root reached through a link', () => {
     }
   });
 });
+
+/**
+ * ***One event's failure is that event's, and is said*** (2026-09-27).
+ *
+ * The queue ran the next event whether or not the last one failed, and left
+ * the failure as a rejected promise nothing handled until the next event came.
+ * Node's default for that is to end the process. So a card saved as a link to
+ * a file outside the data directory, a file a scanner held locked, or a full
+ * disk during the snapshot took the whole server down, and after the restart
+ * the edit was never looked at again, because the watcher does not replay
+ * what it has already seen. Unfixed, the first of these fails the run on an
+ * unhandled rejection before any assertion is reached.
+ */
+describe('an event the watcher cannot handle', () => {
+  function capture(): Record<string, unknown>[] {
+    const lines: Record<string, unknown>[] = [];
+    const write = (object: Record<string, unknown>) => lines.push(object);
+    watcher.setLogger({
+      child: () => ({ child: () => null as never, info: write, warn: write, error: write }),
+      info: write,
+      warn: write,
+      error: write,
+    });
+    return lines;
+  }
+
+  it('is logged, and the next event is still handled', async () => {
+    const lines = capture();
+    // An observer that throws on the first event is the handler failing, the
+    // way a locked file or a full disk fails it, on every platform.
+    let thrown = false;
+    const unsubscribe = watcher.observe(() => {
+      if (thrown) return;
+      thrown = true;
+      throw new Error('no space left on device');
+    });
+
+    try {
+      const first = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city');
+      await mkdir(dirname(first), { recursive: true });
+      await writeFile(first, JSON.stringify(newLorebook('Rain City')));
+      await eventually(() => lines.some((line) => line['event'] === 'watcher.failed'));
+
+      const second = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'the-harbour');
+      await mkdir(dirname(second), { recursive: true });
+      await writeFile(second, JSON.stringify(newLorebook('The Harbour')));
+      await eventually(() =>
+        listObjects(library.db, { owners: [library.owner] }).some(
+          (row) => row.name === 'The Harbour',
+        ),
+      );
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  // A file link needs privileges on Windows. The code under test is the same
+  // on both platforms, and the first test above holds the queue on both.
+  it.skipIf(process.platform === 'win32')(
+    'refuses a file that links out of the data directory, and says which',
+    async () => {
+      const lines = capture();
+      const outside = await mkdtemp(join(tmpdir(), 'se-watched-outside-'));
+      try {
+        const target = join(outside, 'lorebook.json');
+        await writeFile(target, JSON.stringify(newLorebook('Not Yours')));
+        const linked = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'not-yours');
+        await mkdir(dirname(linked), { recursive: true });
+        await symlink(target, linked);
+
+        await eventually(() =>
+          events.some((event) => event.path === linked && event.type === 'refused'),
+        );
+        const line = lines.find((entry) => entry['event'] === 'library.refused');
+        expect(String(line?.['path'])).toContain('not-yours');
+        expect(listObjects(library.db, { owners: [library.owner] })).toEqual([]);
+      } finally {
+        await rm(outside, { recursive: true, force: true });
+      }
+    },
+  );
+});

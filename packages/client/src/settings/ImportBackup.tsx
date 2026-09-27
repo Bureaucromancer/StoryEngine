@@ -181,10 +181,6 @@ export function ImportBackup(props: {
         here. It is not a restore: nothing is replaced wholesale, and accounts, sign-ins and the
         search index are untouched.
       </Fine>
-      <Fine>
-        Sessions always arrive as new copies. Importing a backup into the account it came from gives
-        you a second copy of each story, which you can delete.
-      </Fine>
 
       <SelectField
         label="Which backup"

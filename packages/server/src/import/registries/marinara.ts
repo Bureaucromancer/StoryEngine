@@ -124,20 +124,33 @@ export const MARINARA_TABLES = [
 export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> = {
   // ── Converted: the library half, and it is entirely unsharded ─────────────
   characters: 'converted',
-  character_images: 'converted',
   personas: 'converted',
-  persona_images: 'converted',
   lorebooks: 'converted',
   lorebook_entries: 'converted',
   lorebook_folders: 'converted',
   lorebook_character_links: 'converted',
-  lorebook_persona_links: 'converted',
   prompt_presets: 'converted',
   prompt_sections: 'converted',
-  prompt_groups: 'converted',
   choice_blocks: 'converted',
-  /** Becomes tags on whatever it organises; `Lorebook.category` was removed deliberately ([24 §2d]). */
-  library_folders: 'converted',
+
+  // ── Recorded: the library half nothing reads yet ──────────────────────────
+  //
+  // *Corrected 2026-09-27.* These five were marked `converted`, and the reader
+  // skips a converted table in the review because the objects it produced
+  // stand for it. Nothing read them: the two image tables were loaded and
+  // thrown away, and the other three never loaded. So an import said nothing
+  // at all about a character's sprites, a persona's pictures, a book's persona
+  // links, prompt groups or library folders. `recorded` is the honest arm:
+  // named in the review, waiting on a reader. `marinara.test.ts` now holds
+  // every `converted` table to one a sweep opens.
+  character_images: 'recorded',
+  persona_images: 'recorded',
+  lorebook_persona_links: 'recorded',
+  // Read with its presets since 2026-09-27: a disabled group switches its
+  // sections off, which is the part of a group a block can carry.
+  prompt_groups: 'converted',
+  /** Would become tags on whatever it organises; `Lorebook.category` was removed deliberately ([24 §2d]). */
+  library_folders: 'recorded',
 
   // ── Credential: never lands, not even in `compat` ([P4 §1.1]) ─────────────
   //

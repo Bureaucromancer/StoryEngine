@@ -3,7 +3,7 @@
 
 import { newPreset, type ImportNote, type PresetBlock } from '@storyengine/shared';
 
-import { convertMacros } from '../macros.js';
+import { convertMacros, macroNoteBudget, macroNotes } from '../macros.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 import type { ConvertedPreset } from './preset.js';
 import { stripSensitiveFields } from './sensitive-fields.js';
@@ -55,11 +55,13 @@ export function convertSyspromptPreset(
   const notes: ImportNote[] = [];
   const preset = newPreset(name);
   const blocks: PresetBlock[] = [];
+  // One budget for both fields' macros (`macros.ts`).
+  const budget = macroNoteBudget();
 
   if (typeof content === 'string' && content.length > 0) {
-    const converted = convertMacros(content);
+    const converted = convertMacros(content, budget, { angles: true });
     blocks.push(block('st.sysprompt.content', 'System prompt', converted.template));
-    reportMacros('st.sysprompt.content', converted.seen, notes);
+    notes.push(...macroNotes(converted.seen, 'st.sysprompt.content'));
   }
 
   // The history slot itself, so *after history* has something to be after. A
@@ -80,9 +82,9 @@ export function convertSyspromptPreset(
   });
 
   if (typeof postHistory === 'string' && postHistory.length > 0) {
-    const converted = convertMacros(postHistory);
+    const converted = convertMacros(postHistory, budget, { angles: true });
     blocks.push(block('st.sysprompt.postHistory', 'Post-history instructions', converted.template));
-    reportMacros('st.sysprompt.postHistory', converted.seen, notes);
+    notes.push(...macroNotes(converted.seen, 'st.sysprompt.postHistory'));
     notes.push({
       key: 'import.preset.postHistoryIsAfterNotAtDepth',
       params: {},
@@ -91,6 +93,9 @@ export function convertSyspromptPreset(
   }
 
   preset.blocks = blocks;
+  if (budget.unlisted > 0) {
+    notes.push({ key: 'import.macro.unlisted', params: { count: budget.unlisted }, level: 'warn' });
+  }
 
   /**
    * **The credential rule applies here too, and did not.** See the long note in
@@ -114,20 +119,4 @@ export function convertSyspromptPreset(
   );
 
   return parsed({ preset, notes });
-}
-
-function reportMacros(
-  where: string,
-  seen: ReadonlyMap<string, { kind: string }>,
-  notes: ImportNote[],
-): void {
-  for (const [macro, outcome] of seen) {
-    if (outcome.kind === 'unknown') {
-      notes.push({
-        key: 'import.macro.unrecognised',
-        params: { macro, block: where },
-        level: 'warn',
-      });
-    }
-  }
 }

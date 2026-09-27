@@ -187,6 +187,11 @@ export interface SessionFile {
    * **A copy, not a link**, and the asymmetry with `cast` is deliberate:
    * editing a preset must not silently change how an ongoing game is assembled,
    * while improving a character card *should* reach it.
+   *
+   * *Read through `presetOf`, never directly* (2026-09-27): a copy of the
+   * mode's own pack is read with what the mode shipped after it was taken, so
+   * a session begun before a block existed is assembled with it. A library
+   * preset's copy is read exactly as it is.
    */
   preset?: Preset;
   /**

@@ -32,6 +32,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.preset.perCharacterOrdersDropped':
     'Per-character prompt orders were dropped: {characters}.',
   'import.preset.samplerRatio': 'Sampler settings: {carried} of {total} fields carried over.',
+  'import.preset.maxLengthUnclear':
+    'The preset’s max_length ({tokens}) could be the reply length or the context size, so it was kept aside rather than guessed.',
   'import.preset.markerNeedsLaterMachinery': 'The “{marker}” block needs machinery from {when}.',
 
   /**
@@ -65,6 +67,10 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.macro.unrecognised': 'Unrecognised macro {macro} in “{block}” — left as written.',
   'import.card.personalityAsTraits': 'Personality read as {count} traits.',
   'import.card.personalityAsProse': 'Personality read as prose, and kept in the summary.',
+  'import.card.ownNameWritten':
+    'Wrote {actor}’s name in the {count} places the card had left a placeholder for it.',
+  'import.card.playerPlaceholderKept':
+    'This card names the player with SillyTavern’s placeholder. It is kept as written, so the model reads the placeholder rather than a name.',
   'import.card.wantsPromptOverride': 'This card wants to override prompts ({fields}); review.',
   'import.card.portraitUnreadable': 'The portrait could not be read, so the card has none.',
   // [P7.10]: a count rather than silence. An import that quietly grew a
@@ -150,6 +156,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'Settings were not brought across. Tick that box to include them.',
   'import.backup.configMissing': 'That backup carries no settings file.',
   'import.backup.configRefused': 'The settings in that backup were not valid here ({message}).',
+  'import.backup.configWithheld':
+    'Kept this install’s own {keys}: they describe the machine a server runs on, not how it behaves.',
   'import.file.notStored': '“{object}” could not be saved ({reason}).',
   'import.file.notYetConvertible':
     'Read and named, but this build has nowhere to put a {kind} yet.',
@@ -160,11 +168,30 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '“{entry}” used {original} matching, narrowed to what this supports.',
   'import.lore.characterLinksDangle':
     'Was linked to {count} characters that were not imported with it.',
-  'import.macro.refused': 'The macro {macro} in “{block}” was left as written — {because}.',
+  // ~~was left as written — {because}~~ (2026-09-27): a refused macro is taken
+  // *out*, which is the whole difference from an unrecognised one, and
+  // `{because}` printed a code. `sentence` turns the code into words.
+  'import.macro.refused': 'The macro {macro} in “{block}” was taken out: {because}.',
+  'import.macro.unlisted':
+    '{count} more uses of macros were converted the same way and are not listed one by one.',
   'import.preset.paramsCarried': '{count} sampler settings carried over.',
-  'import.preset.groupOrderUsed': 'Prompt order taken from the preset’s own group.',
-  'import.preset.groupOrderDropped': 'The preset’s group ordering could not be used.',
+  'import.preset.legacyOrderUsed':
+    'This preset only had the prompt order older SillyTavern versions used, so that one was converted.',
+  'import.preset.unusedPromptsKept':
+    'Kept {count} prompts the preset held but did not use ({names}), switched off.',
+  'import.preset.duplicatesDropped':
+    'The preset named some prompts twice ({identifiers}); the first of each was kept.',
+  'import.preset.triggerHasNoCall':
+    'The “{identifier}” block only runs for {triggers} in SillyTavern, which has no equivalent here, so it never applies.',
+  'import.preset.sectionOrderUnreadable':
+    'The preset’s section order could not be read, so its sections are in the order they were stored.',
+  'import.preset.groupWrappersDropped':
+    'Marinara also wraps each group of sections in the group’s name ({groups}); the sections keep their own wrappers, and the group’s is not carried.',
+  'import.preset.fromBeforePromptManager':
+    'An older SillyTavern preset, from before its prompt manager, converted the way SillyTavern upgrades one.',
   'import.preset.unknownMarker': 'The “{identifier}” block is not one this understands.',
+  'import.preset.promptFieldsIgnored':
+    'The “{identifier}” block had {fields} of a kind this cannot read, and they were left out.',
   'import.preset.modePromptConverted': 'Its {field} became a block.',
   'import.preset.variablesInert': '{count} variables were kept but do nothing yet.',
   'import.preset.noBlocksInSamplerPreset': 'A sampler panel only — it carries no prompt blocks.',
@@ -280,6 +307,22 @@ export function sentence(note: Pick<ImportNote, 'key' | 'params'>): string {
   if (template === undefined) return note.key;
   return template.replace(/\{(\w+)\}/g, (whole, key: string) => {
     const value = note.params[key];
-    return value === undefined ? whole : String(value);
+    if (value === undefined) return whole;
+    // A macro's reason arrives as the converter's code, which is not a sentence.
+    if (key === 'because' && typeof value === 'string') return MACRO_REASONS[value] ?? value;
+    return String(value);
   });
 }
+
+/**
+ * ***Why a macro was taken out, in words*** (2026-09-27). The server sends
+ * `macros.ts`'s `MacroRefusal` code; `note-labels.test.ts` holds this table to
+ * every code that file can send.
+ */
+export const MACRO_REASONS: Readonly<Record<string, string>> = labels('import.macro-reason', {
+  'body-comes-from-a-slot': 'that text comes from one of the pack’s own blocks here',
+  'randomness-must-be-drawn-and-recorded':
+    'a random pick has to come from the engine, or a turn could not be replayed',
+  'time-is-not-reproducible': 'the time would change every time a turn was replayed',
+  'no-equivalent': 'nothing here does what it did',
+});

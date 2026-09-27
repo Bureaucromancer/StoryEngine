@@ -51,6 +51,14 @@ export function hookWords(refusal: HookRefusal | (string & {})): string {
       return 'They are already in the story';
     case 'subject-unavailable':
       return 'They cannot arrive: gone, or here already';
+    /**
+     * ***The second authoring error*** (2026-09-27): the pool holds something
+     * the hook schema refuses, written by hand or brought in by an import, and
+     * the engine will not read it at all. *Broken*, for `subject-gone`'s reason:
+     * the remedy is to fix or remove the hook, not to play on.
+     */
+    case 'malformed':
+      return 'Broken: this is missing something every hook needs';
     default:
       return 'Held back for a reason this version does not recognise';
   }

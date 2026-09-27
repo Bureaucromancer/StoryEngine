@@ -3,8 +3,10 @@
 
 import type { Preset } from '@storyengine/shared';
 
+import type { AssembledBlock } from '../assembly/types.js';
 import type { Rng } from '../rng/rng.js';
 import { channelKey, keyBelongsTo, scopeKeyOf, SE_LORE_TIMING } from '../sessions/channels.js';
+import { storyDepth } from '../sessions/depth.js';
 import type { ChannelState, Turn, TurnAttachment } from '../sessions/types.js';
 import { scanText } from '../assembly/pictures.js';
 import type { EffectProposal } from '../turns/effects.js';
@@ -30,11 +32,20 @@ import { shelve, type ShelfResult } from './shelf.js';
  *
  * [P5 §1.3] puts recursion inside the step and the two-tier budget partly
  * outside it: per-book verdicts here, the chat-wide cut left to the budgeter.
- * The same split governs the counters. This function *computes* the timing
- * effects and returns them as proposals; it writes nothing, because only a step
- * may propose an effect and only `applyEffects` may commit one. That is also
- * what makes the whole thing safe to run for a preview — a preview that moved
- * everybody's cooldown would be a preview that changed the turn it previewed.
+ * The same split governs the counters. This function *computes* them and
+ * writes nothing, because only a step may propose an effect and only
+ * `applyEffects` may commit one. That is also what makes the whole thing safe
+ * to run for a preview — a preview that moved everybody's cooldown would be a
+ * preview that changed the turn it previewed.
+ *
+ * ***And it does not propose them either*** (2026-09-27): {@link settleTiming}
+ * does, once the call is assembled. The counters were proposed here, before
+ * the shelf, the outlets or the chat-wide budget had had their say, so an
+ * entry whose text never reached the prompt was recorded as having fired: an
+ * `ephemeral: 1` entry trimmed for budget was spent without being read once,
+ * a cooldown started on a turn the entry sat out, and a sticky window closed
+ * unseen. Which text reached the prompt is only known after the assembler has
+ * cut, so that is where the counters are settled.
  */
 
 export interface RetrieveContext {
@@ -65,8 +76,6 @@ export interface Retrieved {
    * made it*, which is only true if these travel that far.
    */
   refused: { blockId: string; tokens: number; rule: string }[];
-  /** The counter updates, as proposals for the step to make. */
-  effects: EffectProposal[];
 }
 
 export function retrieve(context: RetrieveContext): Retrieved {
@@ -80,8 +89,12 @@ export function retrieve(context: RetrieveContext): Retrieved {
      * while *how far into this story are we* is a fact about the whole path.
      * An entry set to wait twenty messages must not fire on turn three of a
      * session whose window happens to be twenty.
+     *
+     * *Story turns of it* (`depth.ts`, 2026-09-27): a HUD edit or a backdrop
+     * choice is a turn on the path and not a message anybody wrote, and
+     * counting them let an entry out early.
      */
-    messagesSoFar: context.history.length,
+    messagesSoFar: storyDepth(context.history),
     timing: timingFrom(context.channels),
     filters: {
       actorIds: castIds(context),
@@ -107,8 +120,62 @@ export function retrieve(context: RetrieveContext): Retrieved {
     shelf,
     unplaced,
     refused: refusalsFor(shelf.refused, unplaced),
-    effects: timingEffects(scan, context.channels),
   };
+}
+
+/**
+ * ***The counters as the turn leaves them, given what reached the prompt*** —
+ * [P5.6]'s counters, settled at last against the claim they make (2026-09-27).
+ *
+ * `scan.timing` is what the counters would be if every activation had been
+ * read; an activation the shelf refused, no outlet placed or the chat-wide
+ * budget cut **was not**, and for it the counters stand where they were. That
+ * is the whole of the rule, and it covers each counter the right way round:
+ * an entry that matched and was cut has not fired, so `fired` does not count
+ * it and no cooldown starts; a sticky entry that was cut has not spent a turn
+ * of its window. Everything else — a cooldown ticking down, an idle entry —
+ * is time passing, and moves whether or not anything was read.
+ *
+ * `reached` is {@link loreReached} over the assembled call. One proposal per
+ * entry whose counters actually move: a library of four hundred entries would
+ * otherwise write four hundred no-op effects every turn, and the effect log is
+ * what [07 §4] replays.
+ */
+export function settleTiming(
+  lore: Pick<Retrieved, 'scan'>,
+  reached: ReadonlySet<string>,
+  channels: Readonly<Record<string, ChannelState>>,
+): EffectProposal[] {
+  const activated = new Set(lore.scan.activated.map((one) => one.entry.id));
+  const proposals: EffectProposal[] = [];
+  for (const [entryId, advanced] of Object.entries(lore.scan.timing)) {
+    const key = channelKey(SE_LORE_TIMING, entryId);
+    const before = timingOf(channels[key]?.value);
+    const next = activated.has(entryId) && !reached.has(entryId) ? before : advanced;
+    if (same(before, next)) continue;
+    proposals.push({
+      channelId: SE_LORE_TIMING,
+      scopeKey: entryId,
+      op: { type: 'set', path: '/' },
+      after: next,
+      // Engine-computed, as the channel declares. The model does not get a vote
+      // on whether an entry is still sticky.
+      proposedBy: { kind: 'engine' },
+    });
+  }
+  return proposals;
+}
+
+/**
+ * The lore entries whose text an assembled call carried: an included block
+ * whose source is an entry. Keyed by entry id, as the timing channel is.
+ */
+export function loreReached(blocks: readonly AssembledBlock[] | undefined): Set<string> {
+  const reached = new Set<string>();
+  for (const block of blocks ?? []) {
+    if (block.included && block.source.kind === 'lore') reached.add(block.source.entryId);
+  }
+  return reached;
 }
 
 /**
@@ -210,37 +277,6 @@ function timingFrom(channels: Readonly<Record<string, ChannelState>>): Record<st
     held[entryId] = timingOf(state.value);
   }
   return held;
-}
-
-/**
- * One proposal per entry whose counters actually moved.
- *
- * **Filtered rather than proposed wholesale**, and the difference is the size
- * of the turn record: a library of four hundred entries would otherwise write
- * four hundred no-op effects every single turn, and the effect log is what
- * [07 §4] replays to reconstruct a node. Every one of those would be a real
- * entry in a real file that a person may one day read.
- */
-function timingEffects(
-  scan: ScanResult,
-  channels: Readonly<Record<string, ChannelState>>,
-): EffectProposal[] {
-  const proposals: EffectProposal[] = [];
-  for (const [entryId, next] of Object.entries(scan.timing)) {
-    const key = channelKey(SE_LORE_TIMING, entryId);
-    const before = timingOf(channels[key]?.value);
-    if (same(before, next)) continue;
-    proposals.push({
-      channelId: SE_LORE_TIMING,
-      scopeKey: entryId,
-      op: { type: 'set', path: '/' },
-      after: next,
-      // Engine-computed, as the channel declares. The model does not get a vote
-      // on whether an entry is still sticky.
-      proposedBy: { kind: 'engine' },
-    });
-  }
-  return proposals;
 }
 
 function same(left: EntryTiming, right: EntryTiming): boolean {

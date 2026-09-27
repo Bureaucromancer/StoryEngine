@@ -5,8 +5,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import type { Mode } from '@storyengine/sdk';
+
+import { registerMode } from '../mode-registry.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
+import { TEST_MODE, TEST_MODE_DEFINITION, TEST_STEP } from '../test-mode.js';
 import {
   newLorebook,
   newLoreEntry,
@@ -37,7 +41,7 @@ const CONNECTION_ID = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a04';
 let server: TestServer;
 let sessionId: string;
 
-async function bindProse(): Promise<void> {
+async function bindProse(models: string[] = ['fake-hi'], maxContextTokens = 32_000): Promise<void> {
   const root = new Layout(server.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
@@ -46,8 +50,8 @@ async function bindProse(): Promise<void> {
       id: CONNECTION_ID,
       label: 'The double',
       provider: 'openai-compatible',
-      models: ['fake-hi'],
-      capabilities: { maxContextTokens: 32_000 },
+      models,
+      capabilities: { maxContextTokens },
     }),
   );
   await writeFile(
@@ -169,6 +173,30 @@ describe('a preview with a model bound', () => {
   });
 });
 
+/**
+ * ***Measured against the model the session chose*** (2026-09-27). The
+ * preview resolved its model without the session's overrides, so a session
+ * whose narrator was pointed at a bigger model was metered against the account
+ * default's window, under the account default's name, and reported blocks
+ * dropped that the turn would send.
+ */
+describe('a preview for a session with its own model', () => {
+  it('names and measures the model the session overrides to', async () => {
+    await bindProse(['fake-hi', 'fake-lo']);
+    const roles = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/roles`,
+      payload: { roles: { prose: { connectionId: CONNECTION_ID, modelId: 'fake-lo' } } },
+    });
+    expect(roles.status).toBe(200);
+
+    const answer = (await preview({ input: { text: 'Look around.' } })).body.preview as {
+      resolved: { modelId: string };
+    };
+    expect(answer.resolved.modelId).toBe('fake-lo');
+  });
+});
+
 describe('a preview with nothing bound', () => {
   it('is unmeasurable rather than an error, and says which way', async () => {
     // The state every install is in before it is configured. A 4xx would push
@@ -195,6 +223,22 @@ describe('a preview with nothing bound', () => {
     expect(answer.notFilled.some((slot) => slot.blockId === 'se.lore')).toBe(true);
   });
 
+  /**
+   * *No room beside the reply is no denominator either* (2026-09-27): the turn
+   * would be refused, so the meter says so rather than measuring a prompt with
+   * every block dropped. Scene keeps 800 for the reply and spends three
+   * quarters of the window; a 1000-token window leaves nothing.
+   */
+  it('says the window has no room beside the reply', async () => {
+    await bindProse(['fake-hi'], 1000);
+
+    const answer = (await preview({ input: { text: 'Look.' } })).body.preview as {
+      state: string;
+      reason: string;
+    };
+    expect(answer).toMatchObject({ state: 'unmeasurable', reason: 'window-too-small' });
+  });
+
   it('tells a dangling binding from an unbound one', async () => {
     // The remedies differ — one is setup, the other is an admin having removed
     // a connection out from under a binding — so the class travels.
@@ -207,6 +251,55 @@ describe('a preview with nothing bound', () => {
       reason: string;
     };
     expect(answer.reason).toBe('role-dangling');
+  });
+});
+
+/**
+ * ***A preview asks the turn's question about cadence, in the turn's count***
+ * (2026-09-27) — `sessions/depth.ts`.
+ *
+ * The preview evaluates the prose step's condition so it can say *not this
+ * turn* instead of measuring a call that will not happen, and it counted the
+ * path's length the way the runner did. A channel write is a turn on the path
+ * and not one of the story, so a mode narrating every other turn was measured
+ * as narrating the first one.
+ */
+describe('a preview of a step that does not run every turn', () => {
+  const EVERY_OTHER_ID = 'storyengine.test.every-other';
+  const EVERY_OTHER: Mode = {
+    definition: {
+      ...TEST_MODE_DEFINITION,
+      id: EVERY_OTHER_ID,
+      displayName: 'Engine test fixture — every other turn',
+      steps: [{ ...TEST_STEP, when: { when: 'cadence', everyNTurns: 2 } }],
+    },
+    run: TEST_MODE.run,
+  };
+
+  it('counts the turns of the story, not a channel write before them', async () => {
+    registerMode(EVERY_OTHER);
+    await bindProse();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Alternate', mode: EVERY_OTHER_ID },
+    });
+    expect(created.status).toBe(201);
+    sessionId = created.body.session.id as string;
+
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.hook.pacing`,
+      payload: { value: 'sparse' },
+    });
+    expect(written.status).toBe(200);
+
+    // The first turn of the story, with a dial change before it: not the second.
+    const answer = (await preview({ input: { text: 'Look.' } })).body.preview as {
+      state: string;
+      reason?: string;
+    };
+    expect(answer).toMatchObject({ state: 'unmeasurable', reason: 'not-this-turn' });
   });
 });
 

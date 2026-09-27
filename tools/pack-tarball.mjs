@@ -50,9 +50,12 @@ import { padding, tarHeader, trailer } from './tar.mjs';
  *   easy to miss: the gzip *container* has a timestamp independent of anything
  *   in the tar, and Node stamps it unless told otherwise.
  *
- * *The mode is preserved only as executable-or-not*, which is the one bit that
- * matters (`install.sh`) and the one bit a `umask` on the packing machine could
- * otherwise leak into the artifact.
+ * *The mode is declared, not observed*: `install.sh` is executable because this
+ * file says so, and everything else is `0644`. It used to be read off the packing
+ * filesystem, which let a fact about the packing machine reach the artifact —
+ * exactly what the rest of this list refuses — and a pack on Windows, from a
+ * checkout with `core.fileMode=false`, or from a source zip, shipped an
+ * installer its own documented `sudo ./install.sh` could not run.
  *
  * Usage:
  *   node tools/pack-tarball.mjs <deployed-dir> <extras-dir> <archive.tar.gz>
@@ -60,6 +63,13 @@ import { padding, tarHeader, trailer } from './tar.mjs';
 
 /** The prefix every member sits under, so an unpack cannot scatter a tree. */
 const ROOT = 'storyengine';
+
+/**
+ * The members that are executable, **by name within the tree**. One today, the
+ * installer; a member added here is a decision someone made, not a mode bit the
+ * packing machine happened to have.
+ */
+const EXECUTABLE = new Set(['install.sh']);
 
 async function main() {
   const [tree, extras, archive] = process.argv.slice(2);
@@ -118,9 +128,8 @@ export async function pack(tree, extras, archive) {
 
   for (const member of members) {
     const info = await stat(member.from);
-    // Executable or not, and nothing else: a `umask` on the packing machine
-    // must not reach the artifact.
-    const mode = (info.mode & 0o111) === 0 ? 0o644 : 0o755;
+    // Executable by name, and nothing else: see `EXECUTABLE`.
+    const mode = EXECUTABLE.has(member.name) ? 0o755 : 0o644;
     gzip.write(tarHeader(`${ROOT}/${member.name}`, info.size, { mtime: 0, mode }));
     await pipeline(createReadStream(member.from), gzip, { end: false });
     const pad = padding(info.size);

@@ -93,6 +93,16 @@ bind mount, make the directory writable by that uid first — once, on the host:
 mkdir -p /srv/storyengine && chown 1000:1000 /srv/storyengine
 ```
 
+**One server per data directory.** A running server holds a lock on
+`instance.lock` at the data directory's root, and a second one started on the
+same directory stops at once with *Another StoryEngine server is using …*.
+Before the lock (2026-09-27), a second one took the directory over before it
+had even listened: it finished the first one's turn in flight as failed and
+deleted its backup half way. The lock is the operating system's, so a server
+that crashed leaves nothing to clean up, and the file itself is empty and never
+in a backup. Two containers, a service and a copy started by hand, or two
+installs pointed at one NAS share: give each its own directory.
+
 ## Configuration
 
 Four settings can be given as environment variables, because they are the ones
@@ -108,17 +118,42 @@ directory, which is empty on a first run:
 
 **And one more that is not a setting at all**: `SE_SUPERVISED`. It says that
 something will start this server again if it stops — `compose.yaml`'s
-`restart: unless-stopped`, unraid's autostart, a systemd unit — which is what
-lets the settings page offer **Restart now** instead of explaining that
-StoryEngine does not restart itself. Nothing inside a container can work this
-out for itself: a container is told nothing about its own restart policy, and
-every test that looks like it would work (PID 1, `/.dockerenv`, a cgroup path)
-is equally true of a `docker run` with no policy at all — which is exactly the
-case where the button would leave you with no server. So it is set beside the
-restart policy rather than baked into the image, and it is defaulted off: a
-wrong *no* costs you one manual restart, a wrong *yes* costs you the server.
-A systemd unit needs nothing, because systemd sets `INVOCATION_ID` itself and
-that is read.
+`restart: unless-stopped`, the `--restart=unless-stopped` in the unraid
+template's Extra Parameters, the tarball's systemd unit — which is what lets the
+settings page offer **Restart now** instead of explaining that StoryEngine does
+not restart itself. Nothing inside a container can work this out for itself: a
+container is told nothing about its own restart policy, and every test that
+looks like it would work (PID 1, `/.dockerenv`, a cgroup path) is equally true of
+a `docker run` with no policy at all — which is exactly the case where the button
+would leave you with no server. So it is set beside the restart policy rather
+than baked into the image, and it is defaulted off: a wrong *no* costs you one
+manual restart, a wrong *yes* costs you the server. `SE_SUPERVISED=0` is also an
+answer, and it outranks the detection below.
+
+unraid's own **Autostart** is not a restart policy: it starts containers when
+the array starts and restarts nothing that exits. The template's
+`--restart=unless-stopped` is what brings the container back. A container
+created from a copy of the template older than 2026-09-27 does not have it, so
+add `--restart=unless-stopped --stop-timeout=30` to its Extra Parameters
+(Advanced view), or set `SE_SUPERVISED` to 0.
+
+A systemd unit is detected rather than declared, but only on systemd 248 or
+later, which is the first to name the process it started (`SYSTEMD_EXEC_PID`).
+`INVOCATION_ID` alone is handed down to everything a unit starts — a shell in a
+tmux a user unit started, a CI job — so it no longer counts on its own. The
+tarball's unit sets `SE_SUPERVISED=1` anyway; a unit you write yourself should
+too if its systemd is older.
+
+**What a restart looks like to whatever restarts it.** *Restart now* and a
+restore exit with status **75**; a stop (`SIGTERM`, `docker stop`,
+`systemctl stop`) exits 0. Docker's `unless-stopped` and `always` both bring
+back the first, and a `docker stop` stays stopped under either. A systemd unit
+needs `Restart=on-failure`
+(which restarts on anything but 0) or, as the tarball's has,
+`RestartForceExitStatus=75`, which restarts on it whatever `Restart=` says. Give
+it time to stop, too: the server bounds its own shutdown at about twenty seconds
+(requests still open, then pictures still being made), which is longer than
+Docker's default of ten, so every shipped wrapper allows thirty.
 
 Everything else is `config.json` in the volume, or the settings page. **The file
 wins over the environment**, because the file is what the settings page writes:
@@ -126,12 +161,22 @@ changing a value in the UI and finding a variable had outranked it would be a bu
 ([21 §4](design/21-internal-contracts.md)). The server logs a warning when a
 variable is set and the file speaks for the same key.
 
+**A settings save writes only what you changed.** Before 2026-09-27 it wrote
+back every value the page showed, including the ones your `SE_*` variables set,
+so an install that has saved its settings once may have `server.host`,
+`server.port` or `server.clientRoot` in `config.json` that you never chose, and
+those outrank the variables. The start-up warning above names them; delete them
+from the file to let the variables speak again.
+
 **There is no HTTPS.** On a LAN it cannot be done well without a real domain or a
 private CA, and self-signed certificates train people to click through warnings.
 Put a reverse proxy in front if you want TLS, and then set `server.trustProxy`
 and `server.cookieSecure` in `config.json` — both default to off, and
 `cookieSecure` without TLS in front makes signing in fail silently, because a
-`Secure` cookie is never sent back over plain HTTP.
+`Secure` cookie is never sent back over plain HTTP. The settings page will only
+turn `cookieSecure` on from a page it can see arrived over HTTPS, directly or
+through a proxy it is told to trust, and it refuses an address, a port or a
+client root the next start could not use.
 
 ## Updates
 
@@ -334,6 +379,9 @@ the data directory: cards, lorebooks, sessions, turns, connections and accounts.
 process, and a copy taken mid-write catches a half-written session — which is a
 corrupt story rather than a corrupt cache. `POST /api/admin/restart` drains the
 turns in flight and refuses new ones, which is the supported way to get there.
+The bundled command checks: it takes the server's own lock for as long as it
+runs, so it refuses a directory a server is using, and a server cannot start on
+one it is halfway through. `rsync` cannot check, so stopping is up to you.
 
 **Leave `index.sqlite` out.** It is derived from the files
 ([03 §5.1](design/03-data-model.md)) and it carries a schema version — an archive
@@ -386,12 +434,23 @@ removes old ones yet: delete them from the same panel.
 **They are ordinary `.tar.gz` files**, so `pnpm backup restore` reads one:
 
 ```sh
-# An install archive, into a stopped server's data directory.
-pnpm backup restore data/backups/install-full-2026-09-22-*.tar.gz /path/to/data
+# An install archive, into a stopped server's data directory. Name one archive:
+# a pattern that matches two is refused.
+pnpm backup restore data/backups/install-full-2026-09-22-0199….tar.gz /path/to/data
 
 # An account archive is a subset of an install one, so it unpacks in place.
 tar -xzf data/users/ned/backups/account-ned-full-*.tar.gz -C /path/to/data
 ```
+
+**The command deletes nothing.** It reads every header and the manifest before
+it writes a byte, and refuses an account archive (restoring one as the install
+would leave that one person's tree and nothing else). Into a directory with no
+install in it, it writes the archive straight in. Over an install, it stages the
+archive in `.restore/<id>/staging` and leaves the install alone: the server's
+next start swaps it in exactly as a restore from the admin panel would, keeping
+what it replaces in `.restore/<id>/replaced`. *Until 2026-09-27 it began by
+emptying the data directory*, stored backups included, before it had read a
+single header.
 
 **A `full` archive contains credentials** — the account's provider keys, and for
 an install archive `accounts.json` and the session signing key. That is what
@@ -421,9 +480,17 @@ nothing. Clashes default to *leave what is here*, which is the opposite of the
 file-import default and deliberate: a backup meeting a live account is the past
 meeting the present.
 
+A session is never replaced, whatever the clash policy says. One that is still
+here, one in the trash (restore it from there), and one an earlier import
+already brought back are all left alone, so importing the same backup twice
+brings each session back once. Pictures come with what they belong to: an
+actor's portrait and expressions, a book's gallery, and a session's
+illustrations and backdrops.
+
 **Restore** is **Settings → Administration → Backups → Restore this install**,
 and it is only offered where something will start the server again — compose's
-`restart:`, a systemd unit, unraid, or `SE_SUPERVISED=1`. Everywhere else the
+`restart:`, a systemd unit, the unraid template's `--restart`, or
+`SE_SUPERVISED=1`. Everywhere else the
 panel gives the shell command instead, because a server that stopped and stayed
 stopped is worse than one that never offered.
 
@@ -431,24 +498,39 @@ What happens is a handoff across a restart. The server checks everything while
 it is still answering — the archive reads end to end, it is an install archive,
 a `redacted` one has been confirmed, and there is disk for it — writes
 `state/restore.pending`, drains the turns in flight, and exits. On the next
-start, **before anything opens the data directory**, it unpacks the archive to a
-sibling directory, renames the live one to `data.replaced-<uuid>`, and renames
-the new one into place.
+start, **before anything opens the data directory**, it unpacks the archive into
+`.restore/<id>/staging` inside the data directory, and then swaps it in one
+entry at a time: `users/`, `state/`, `config.json` and the rest move into
+`.restore/<id>/replaced`, and the archive's move into their places.
+
+*Until 2026-09-27 it staged beside the data directory and renamed the whole
+directory aside*, which needs to write in the data directory's parent. Docker,
+unraid and the systemd unit all make that parent unwritable, so a restore
+failed everywhere but a bare checkout. Everything now happens inside the data
+directory.
 
 ```sh
-# After a restore, beside the data directory:
-ls -d /path/to/data.replaced-*
+# After a restore, inside the data directory:
+ls -d /path/to/data/.restore/*/replaced
 ```
 
 ***That directory is the undo and StoryEngine will not delete it.*** Remove it
 yourself when you are sure — the same promise `data/removed/` makes about an
 account that was removed. A notice on that boot names it, which is the one place
 in this build that deliberately puts a filesystem path in front of a person.
+**Your stored backups are not in it**: `backups/` never moves, and each
+person's own archives are carried across to their restored account (an account
+the archive does not bring back keeps its archives in the undo, and the log
+says whose).
 
 **A restore that fails changes nothing.** Everything is unpacked before anything
-is renamed, so a bad archive leaves the install exactly where it was; the marker
-is kept so the next start refuses it rather than trying again, and **Call it
-off** in the same panel clears it. A bad archive must not become a restart loop.
+moves, and the swap writes a journal first, so a move that fails part way is
+moved back, and a start that was interrupted part way finishes the swap. The
+marker is kept so the next start refuses the restore rather than trying again,
+and **Call it off** in the same panel clears it. A bad archive must not become a
+restart loop. *If a move fails and so does moving it back*, the server will not
+start on a directory that is half of each: it says where both halves are, and
+tries again on each start.
 
 **And the archive carries no index**, so the restored install rebuilds it on
 that same boot. Run a search afterwards: a search answering is the only

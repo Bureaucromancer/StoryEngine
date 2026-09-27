@@ -167,8 +167,9 @@ describe('a call through the adapter', () => {
 
 describe('the system prompt', () => {
   it('travels as instructions, not as a message', async () => {
-    // Found by writing this suite: AI SDK 7 *refuses* a `system` role inside
-    // `messages`. Above the adapter the engine keeps thinking in
+    // ~~Found by writing this suite: AI SDK 7 *refuses* a `system` role inside
+    // `messages`.~~ *Corrected 2026-09-27: by default only* (see
+    // `splitForSdk`). Above the adapter the engine keeps thinking in
     // `RenderedMessage` including its system blocks, because that is what the
     // record and the workbench show; the translation stops here.
     let sent: { messages: { role: string; content: string }[] } | undefined;
@@ -210,6 +211,113 @@ describe('the system prompt', () => {
     expect(sent?.messages[0]?.role).toBe('user');
     // Both texts, in order, in the one message.
     expect(sent?.messages[0]?.content).toBe('You are a narrator.\n\nIt is raining.');
+  });
+});
+
+/**
+ * ***A system block after the history is sent where it sits*** (2026-09-27).
+ *
+ * Every system message used to be joined into the leading system prompt, so a
+ * preset's guidance, goal and depth-injected text, and the impersonation
+ * instruction, reached the model above the whole history rather than where the
+ * record placed them. Only the leading run is the system prompt now; a later
+ * one is user text in its place.
+ */
+describe('a system block inside the conversation', () => {
+  async function sentFor(
+    rendered: RenderedMessage[],
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ role: string; content: string }[]> {
+    let sent: { messages: { role: string; content: string }[] } | undefined;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as typeof sent;
+        return completion('ok');
+      },
+    });
+    await provider.generate({ modelId: 'llama-local', messages: rendered, params: {} });
+    return sent?.messages ?? [];
+  }
+
+  const block = (role: RenderedMessage['role'], content: string): RenderedMessage => ({
+    role,
+    content,
+    fromBlocks: [content],
+  });
+
+  it('goes in front of the player’s line, not above the history', async () => {
+    const sent = await sentFor([
+      block('system', 'You are a narrator.'),
+      block('user', 'I open the door.'),
+      block('assistant', 'Rain comes in.'),
+      block('system', 'Guidance: keep it quiet.'),
+      block('user', 'I step outside.'),
+    ]);
+
+    expect(sent).toEqual([
+      { role: 'system', content: 'You are a narrator.' },
+      { role: 'user', content: 'I open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+      { role: 'user', content: 'Guidance: keep it quiet.\n\nI step outside.' },
+    ]);
+  });
+
+  it('joins the user message before it when that is where it sits', async () => {
+    const sent = await sentFor([
+      block('system', 'You are a narrator.'),
+      block('user', 'I open the door.'),
+      block('system', 'Depth four: the city is flooding.'),
+      block('assistant', 'Rain comes in.'),
+      block('user', 'I step outside.'),
+    ]);
+
+    expect(sent.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(sent[1]?.content).toBe('I open the door.\n\nDepth four: the city is flooding.');
+  });
+
+  it('stands alone at the end, and wherever the endpoint wants roles kept apart', async () => {
+    const last = await sentFor([
+      block('system', 'You are a narrator.'),
+      block('user', 'I open the door.'),
+      block('assistant', 'Rain comes in.'),
+      block('system', 'Write Vera’s next message.'),
+    ]);
+    expect(last.at(-1)).toEqual({ role: 'user', content: 'Write Vera’s next message.' });
+
+    const apart = await sentFor(
+      [
+        block('system', 'You are a narrator.'),
+        block('user', 'I open the door.'),
+        block('assistant', 'Rain comes in.'),
+        block('system', 'Guidance: keep it quiet.'),
+        block('user', 'I step outside.'),
+      ],
+      { mergeSameRole: 'never' },
+    );
+    expect(apart.slice(-2)).toEqual([
+      { role: 'user', content: 'Guidance: keep it quiet.' },
+      { role: 'user', content: 'I step outside.' },
+    ]);
+  });
+
+  it('keeps its place when the leading run is folded into the first user message', async () => {
+    const sent = await sentFor(
+      [
+        block('system', 'You are a narrator.'),
+        block('user', 'I open the door.'),
+        block('assistant', 'Rain comes in.'),
+        block('system', 'Guidance: keep it quiet.'),
+        block('user', 'I step outside.'),
+      ],
+      { systemMessage: 'fold-into-first-user' },
+    );
+
+    expect(sent).toEqual([
+      { role: 'user', content: 'You are a narrator.\n\nI open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+      { role: 'user', content: 'Guidance: keep it quiet.\n\nI step outside.' },
+    ]);
   });
 });
 
@@ -544,6 +652,31 @@ describe('classifying a failure with no status', () => {
     expect(error?.class).toBe('transient');
   });
 
+  /**
+   * ***A transport that gave up on a quiet endpoint is a stall*** (2026-09-27).
+   * undici's header and body limits end with *Headers Timeout Error*, which the
+   * `/timeout/` route took for a connection that did not work, so the ladder
+   * asked twice more. Terminal, and marked as the stall it is.
+   */
+  it('reads undici’s own timeouts as a stall, not as a connection that failed', async () => {
+    for (const code of ['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']) {
+      const quiet = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('Headers Timeout Error'), { code }),
+      });
+      const provider = new OpenAICompatibleProvider({
+        connection: connectionWith(),
+        fetch: async () => {
+          throw quiet;
+        },
+      });
+
+      const { error } = await collect(provider);
+
+      expect(error?.class, code).toBe('terminal');
+      expect(error?.stalled, code).toBe(true);
+    }
+  });
+
   it('is terminal when nothing says otherwise', async () => {
     // The floor. Without this, a classifier that returned `transient` for
     // everything would satisfy every test above.
@@ -744,6 +877,25 @@ describe('which sampler settings reach the model', () => {
     return sent as Record<string, unknown>;
   }
 
+  it('sends no seed for a negative one, which every sampler panel means as random', async () => {
+    // Presets imported before the converters knew this carry SillyTavern's
+    // `-1`, and it went out as a fixed seed (2026-09-27).
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return completion('ok');
+      },
+    });
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { seed: -1 } });
+    expect(sent).not.toHaveProperty('seed');
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { seed: 0 } });
+    expect(sent['seed']).toBe(0);
+  });
+
   it('sends exactly the ones the constant names', async () => {
     const body = await bodyWithEveryParam();
 
@@ -809,6 +961,60 @@ describe('asking for a shape', () => {
     required: ['name'],
     additionalProperties: false,
   };
+
+  /**
+   * ***The same, streamed*** (2026-09-27). The streaming call left the shape
+   * out, so nothing asked for JSON on the wire and the object came back as the
+   * reply's text: a streamed call with a schema failed validation every time.
+   */
+  async function streaming(
+    pieces: string[],
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ body: Record<string, unknown>; text: string; result: GenerationResult }> {
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { ...capabilities } }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return sse(
+          pieces.map((piece, at) => delta(piece, at === pieces.length - 1 ? 'stop' : undefined)),
+        );
+      },
+    });
+    const stream = provider.stream({
+      modelId: 'llama-local',
+      messages,
+      params: {},
+      schema: SCHEMA,
+    });
+    let text = '';
+    let next = await stream.next();
+    while (next.done !== true) {
+      text += next.value.text;
+      next = await stream.next();
+    }
+    return { body: sent, text, result: next.value };
+  }
+
+  it('asks for the shape when streaming too, and hands back the object', async () => {
+    const declared = await streaming(['{"name":', '"Vera"}'], { supportsStructuredOutput: true });
+    expect(declared.body['response_format']).toMatchObject({ type: 'json_schema' });
+    expect(declared.text).toBe('{"name":"Vera"}');
+    expect(declared.result.object).toEqual({ name: 'Vera' });
+
+    const plain = await streaming(['{"name":"Vera"}']);
+    expect(plain.body['response_format']).toEqual({ type: 'json_object' });
+    expect(plain.result.object).toEqual({ name: 'Vera' });
+  });
+
+  it('keeps the streamed text when it does not parse, with no object', async () => {
+    const { text, result } = await streaming(['Here you go: ', '{"name":"Vera"'], {
+      supportsStructuredOutput: true,
+    });
+
+    expect(text).toBe('Here you go: {"name":"Vera"');
+    expect(result.object).toBeUndefined();
+  });
 
   /** Runs one call against a scripted reply and hands back the body and the result. */
   async function asking(

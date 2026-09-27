@@ -8,19 +8,21 @@ import {
   type UnmeasurableReason,
 } from '@storyengine/shared';
 
-import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
 import { digestsOf, presentAttachments } from '../sessions/attachments.js';
+import { storyDepth, storyTurns } from '../sessions/depth.js';
+import { readHeldChain } from '../sessions/summaries.js';
 import type { SessionContext } from '../sessions/store.js';
 import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
-import { planCall, RoleUnresolved } from './calls.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { planCall, RoleUnresolved, WindowTooSmall } from './calls.js';
+import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
+import { summaryPlanFor } from './summarise.js';
 
 /**
  * The stateless assemble — [P3.4], the affordance [P3 §1.6] created this stage
@@ -151,7 +153,7 @@ export async function previewAssembly(
    * turn that is not happening would have activated.
    */
   const gate = evaluateCondition(step.when, {
-    turnsOnPath: inputs.history.length,
+    turnsOnPath: storyDepth(inputs.history),
     stages: new Set<string>(),
     armed: new Set<string>(),
   });
@@ -167,14 +169,15 @@ export async function previewAssembly(
   }
 
   /**
-   * The retriever runs for a preview too, and **its effects are discarded** —
-   * [P5.6].
+   * The retriever runs for a preview too, and **moves nothing** — [P5.6].
    *
-   * That is the whole reason `retrieve` returns proposals rather than writing
-   * them: the preview needs the same blocks the turn will send, and must not
-   * move a single cooldown to get them. A preview that advanced timing would
-   * change the turn it was previewing, and it fires every time somebody pauses
-   * typing.
+   * ~~That is the whole reason `retrieve` returns proposals rather than writing
+   * them~~ — it returns no proposals at all now (2026-09-27): the runner
+   * settles the counters after assembly, over what reached the prompt, and a
+   * preview never asks it to. The rule is the same: the preview needs the
+   * same blocks the turn will send, and must not move a single cooldown to get
+   * them. A preview that advanced timing would change the turn it was
+   * previewing, and it fires every time somebody pauses typing.
    *
    * The RNG is a fresh one for the same reason, and its tape is thrown away
    * with it. A preview showing a 50% entry that the turn then rolls differently
@@ -210,52 +213,61 @@ export async function previewAssembly(
     unplaced: lore.unplaced,
   });
 
-  const collected = collectCandidates({
-    preset: inputs.preset,
+  /**
+   * ***`collectFor`, which is the turn's collector input by construction*** —
+   * [06 §7.3.3], [06 §7.3.1], and [P7.8]'s lesson made structural
+   * (2026-09-27).
+   *
+   * **A preview that omits a block the turn will send is a preview that
+   * lies**, and the goal was the sharpest case in the build because 7.3.3 calls
+   * it *"always injected"*: it shipped at [P7.6] wired into the runner and not
+   * here, and the dials would have shipped the same way one stage later. P7.8
+   * fixed both by adding them to this call by hand, which fixed those two;
+   * the gather now fills everything it knows for every caller, so the next
+   * producer cannot reach the turn alone. What stays here is what only a
+   * preview knows: the draft and the guidance, and [13 §8.3]'s per-kind block
+   * so a preview of a `say` turn shows the block a `say` turn sends.
+   */
+  /**
+   * ***The story above the window, as the session holds it*** (2026-09-27).
+   * The preview carried no summary at all, so on a long session the meter
+   * under-read by the whole chain and the workbench showed a prompt without
+   * the block the turn would send. `summaryPlanFor` asks the turn's three
+   * questions; what is read is what is on disk and nothing is derived, since a
+   * preview makes no model call — so a preview before a link the turn will
+   * write reads short by that link, which is the truth about *nothing has
+   * been asked yet*.
+   */
+  const plan = summaryPlanFor(inputs);
+  const summary =
+    plan === null
+      ? undefined
+      : await readHeldChain(
+          context.sessions.layout,
+          request.account,
+          request.sessionId,
+          storyTurns(inputs.history),
+          plan.key,
+          plan.policy,
+        );
+
+  const collected = collectFor(inputs, {
     callKind: step.callKind,
-    // [13 §8.3]'s per-kind block, so a preview of a `say` turn shows the block a
-    // `say` turn sends.
     ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
-    history: inputs.windowed,
-    persona: inputs.cast.persona,
-    actors: inputs.cast.actors,
-    channels: inputs.channels,
     lore: lore.blocks,
-    // The books and the treatment, for the samples slot — [P5.9]. Separate from
-    // `lore` above because a sample rides with its carrier rather than with an
-    // activation: a book's prose is offered because the book is in play.
-    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
-    /**
-     * ***The goal and the dials, which this call was missing*** — [06 §7.3.3],
-     * [06 §7.3.1], found and fixed at [P7.8].
-     *
-     * **A preview that omits a block the turn will send is a preview that
-     * lies**, and the goal is the sharpest case in the build because 7.3.3 calls
-     * it *"always injected"*: every session with a cursor would have previewed a
-     * prompt one block shorter than the one it sends, with the budget arithmetic
-     * under it correspondingly wrong. It shipped that way at [P7.6] — the arm
-     * was added to the collector and wired into the runner, and this second
-     * caller was not — and the dials would have shipped the same way for the
-     * same reason one stage later, which is why both are here in one line.
-     *
-     * *The gather resolves both*, so there is nothing to duplicate: the two
-     * callers hand over the same values or the preview is not a preview.
-     */
-    ...(inputs.goals.current === null
-      ? {}
-      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
-    dials: inputs.dials,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
+    // Nothing held reads as the turn's summariser with nothing yet written:
+    // absent, not an empty chain.
+    ...(summary === undefined || summary.length === 0 ? {} : { summary }),
   });
 
   /**
-   * ***The layers the turn uses, which this call did not pass*** — found
-   * 2026-09-27 by [25 E15]. The session's and the step's overrides and the
-   * cast's hints all decide which model answers, and a preview resolved without
-   * them could name a different model from the turn it previews. That was a
-   * wrong label before pictures; with them it is a wrong promise — *this picture
-   * will be seen* over a turn that sends it as words, or the reverse.
+   * ***Which of the draft's pictures are here*** — the send rule's *are the
+   * bytes present* ([25 E15]), asked before the plan because the plan is
+   * synchronous. With `roleLayersOf` resolving the model the turn will, the
+   * preview's *this picture will be seen* is the turn's answer rather than a
+   * guess.
    */
   const picturesPresent = await presentAttachments(
     context.sessions.layout,
@@ -267,12 +279,10 @@ export async function previewAssembly(
     const { call } = planCall(
       {
         definition: step,
-        bindings: inputs.bindings,
-        defaults: inputs.defaults,
-        usable: inputs.usable,
-        ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
-        ...(inputs.session?.stepRoles === undefined ? {} : { stepRoles: inputs.session.stepRoles }),
-        cast: inputs.cast,
+        // The session's own overrides among them, which a preview did not pass
+        // until `roleLayersOf` (2026-09-27): a session pointed at a bigger model
+        // was metered against the account default's window.
+        ...roleLayersOf(inputs),
         providers: context.providers,
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },
@@ -304,9 +314,15 @@ export async function previewAssembly(
     // refused request. `AdvisoryLeakError` is deliberately *not* caught: it is
     // [06 §5.2]'s structural refusal, and a preview that swallowed it would be
     // the one surface able to route around the guarantee.
-    if (error instanceof RoleUnresolved) {
+    // A window no larger than the reply reserve is the same kind of answer: the
+    // denominator is zero, and the turn would be refused for it (2026-09-27).
+    if (error instanceof RoleUnresolved || error instanceof WindowTooSmall) {
       const reason: UnmeasurableReason =
-        error.reason === 'unbound' ? 'role-unbound' : 'role-dangling';
+        error instanceof WindowTooSmall
+          ? 'window-too-small'
+          : error.reason === 'unbound'
+            ? 'role-unbound'
+            : 'role-dangling';
       return {
         state: 'unmeasurable',
         headTurnId,

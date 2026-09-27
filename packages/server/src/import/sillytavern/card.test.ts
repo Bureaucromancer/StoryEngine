@@ -159,6 +159,70 @@ describe('an embedded character book', () => {
   });
 });
 
+/**
+ * ***A card's placeholder for itself becomes its name*** (2026-09-27) —
+ * [00 §2.1]: macros are an import-time transform.
+ *
+ * Nothing reads a card's prose as a template, which is the fence that keeps a
+ * `{{` in somebody's writing from being executed — so every `{{char}}` a card
+ * carried reached the model as braces, in its description, its openings, its
+ * examples and its book. The forms are the ones SillyTavern resolves to the
+ * character, in any case.
+ */
+describe('a card that names itself with a placeholder', () => {
+  it('has its own name written in, wherever its prose reaches the model', () => {
+    const { actor, lorebook, scenario, notes } = convert({
+      description: '{{char}} inspects the docks.',
+      personality: 'What <BOT> notices, {{Char}} writes down.',
+      scenario: 'The rain has kept {{charIfNotGroup}} indoors.',
+      first_mes: '<CHAR> looks up.',
+      alternate_greetings: ['{{char}} is not here.'],
+      mes_example: '<START>\n{{user}}: Anything?\n{{char}}: Define anything.',
+      character_book: {
+        name: 'Vera lore',
+        entries: [{ uid: 0, key: ['docks'], content: '{{char}} owns a boat here.' }],
+      },
+    });
+
+    const summary = actor.profile.sections.find((section) => section.id === 'se.summary')?.body;
+    expect(summary).toContain('Vera Solano inspects the docks.');
+    expect(summary).toContain('What Vera Solano notices, Vera Solano writes down.');
+    expect(scenario).toBe('The rain has kept Vera Solano indoors.');
+    expect(actor.openings.written.map((opening) => opening.text)).toEqual([
+      'Vera Solano looks up.',
+      'Vera Solano is not here.',
+    ]);
+    expect(actor.writingSamples?.[0]?.body).toBe(
+      '<START>\n{{user}}: Anything?\nVera Solano: Define anything.',
+    );
+    expect(lorebook?.entries[0]?.content).toBe('Vera Solano owns a boat here.');
+    // One note for the card, counting every place, rather than one per field.
+    expect(notes.find((one) => one.key === 'import.card.ownNameWritten')?.params).toEqual({
+      actor: 'Vera Solano',
+      count: 8,
+    });
+  });
+
+  it('keeps the player’s placeholder, and says so', () => {
+    // Whoever plays is a session's to decide, so no name written here could be
+    // right for every session — and the review says the braces will reach the
+    // model, rather than the import quietly deciding.
+    const { actor, notes } = convert();
+
+    expect(actor.writingSamples?.[0]?.body).toContain('{{user}}: Anything?');
+    expect(notes.find((one) => one.key === 'import.card.playerPlaceholderKept')?.level).toBe(
+      'warn',
+    );
+  });
+
+  it('says nothing about a card with no placeholder in it', () => {
+    const keys = convert({ mes_example: 'Vera: Define anything.' }).notes.map((one) => one.key);
+
+    expect(keys).not.toContain('import.card.ownNameWritten');
+    expect(keys).not.toContain('import.card.playerPlaceholderKept');
+  });
+});
+
 describe('the shapes a card arrives in', () => {
   it('takes a bare V1 card with no envelope', () => {
     // Plenty of tools write the inner object straight into the chunk. Refusing

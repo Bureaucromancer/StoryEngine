@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { join } from 'node:path';
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
+import { RENDITION_SCHEMA, uuidv7, type Rendition } from '@storyengine/shared';
 
-import { digestOf } from '../library/assets.js';
-import { sessionAssetsRoot, writeRendition } from '../renditions/store.js';
-import { writeFileBytes } from '../storage/files.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { appendTurnToSession, createSession } from './store.js';
+import type { Turn } from './types.js';
 
 /**
  * ***The round trip, which is what row 10 actually asks for*** —
@@ -25,14 +22,17 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * a serialiser that exported a walk would drop every swipe — *"lossy against our
  * own data before any import touched it"*.
  *
- * ***A second install is one this file cannot have, so it uses a second
- * account.*** That is honest about what it does and does not prove: the bytes
- * make the round trip through a reader that shares no state with the writer,
- * and what it cannot show is a *different build* reading them. The live half is
+ * ***A second install is a second test server***, with its own data directory
+ * and its own index (corrected 2026-09-27). These tests used to import into the
+ * install that exported, which is the one case the format's kept turn ids
+ * cannot survive: the copy took the original's index rows. What this cannot
+ * show is a *different build* reading the bytes. The live half is
  * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s.
  */
 
 let server: TestServer;
+/** Every other install a test made, so each is disposed with it. */
+const others: TestServer[] = [];
 
 beforeEach(async () => {
   server = await makeTestServer();
@@ -41,7 +41,39 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await server.dispose();
+  for (const other of others.splice(0)) await other.dispose();
 });
+
+async function anotherInstall(): Promise<TestServer> {
+  const other = await makeTestServer();
+  await setUpAdmin(other, 'ned');
+  others.push(other);
+  return other;
+}
+
+/** A session holding one turn that says something, so search has words to find. */
+async function aSessionSaying(said: string): Promise<{ sessionId: string; turnId: string }> {
+  const session = await createSession(server.services.sessions, 'ned', 'Rain City');
+  const turn: Turn = {
+    id: uuidv7(),
+    sessionId: session.id,
+    parentTurnId: null,
+    createdAt: new Date(Date.UTC(2026, 8, 27, 12)).toISOString(),
+    status: 'complete',
+    input: { actorId: null, kind: 'say', text: 'And then?', raw: '' },
+    output: { text: said },
+    effects: [],
+    tape: [],
+  };
+  await appendTurnToSession(server.services.sessions, 'ned', session.id, turn);
+  return { sessionId: session.id, turnId: turn.id };
+}
+
+async function exported(from: TestServer, sessionId: string): Promise<Record<string, unknown>> {
+  const response = await from.request({ method: 'GET', url: `/api/sessions/${sessionId}/export` });
+  expect(response.status).toBe(200);
+  return response.body as Record<string, unknown>;
+}
 
 /** A session with a fork in it, made through the routes a person would use. */
 async function branched(): Promise<{ sessionId: string; turns: string[] }> {
@@ -74,17 +106,12 @@ async function branched(): Promise<{ sessionId: string; turns: string[] }> {
 describe('a session that travels', () => {
   it('comes back with every turn, under a new id, marked foreign', async () => {
     const { sessionId, turns } = await branched();
+    const there = await anotherInstall();
 
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    expect(exported.status).toBe(200);
-
-    const imported = await server.request({
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: exported.body,
+      payload: await exported(server, sessionId),
     });
     expect(imported.status).toBe(201);
     expect(imported.body.turns).toBe(turns.length);
@@ -100,10 +127,18 @@ describe('a session that travels', () => {
     const landed = imported.body.sessionId as string;
     expect(landed).not.toBe(sessionId);
 
-    const read = await server.request({ method: 'GET', url: `/api/sessions/${landed}/turns` });
-    const back = read.body.turns as { id: string; foreign?: { source: string } }[];
+    const read = await there.request({ method: 'GET', url: `/api/sessions/${landed}/turns` });
+    const back = read.body.turns as {
+      id: string;
+      sessionId: string;
+      foreign?: { source: string };
+    }[];
     expect(back.map((turn) => turn.id)).toEqual(turns);
-    for (const turn of back) expect(turn.foreign?.source).toBe(sessionId);
+    for (const turn of back) {
+      expect(turn.foreign?.source).toBe(sessionId);
+      // The session it is in now; where it came from is `foreign.source`.
+      expect(turn.sessionId).toBe(landed);
+    }
   });
 
   /**
@@ -114,20 +149,18 @@ describe('a session that travels', () => {
    */
   it('reconstructs the tree from the parent links rather than a walk', async () => {
     const { sessionId } = await branched();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
+    const document = await exported(server, sessionId);
     // The export is every turn in creation order, which is the property the
     // format's own docstring calls the one that costs data if it is wrong.
-    expect((exported.body as { turns: unknown[] }).turns.length).toBeGreaterThan(1);
+    expect((document as { turns: unknown[] }).turns.length).toBeGreaterThan(1);
 
-    const imported = await server.request({
+    const there = await anotherInstall();
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: exported.body,
+      payload: document,
     });
-    const read = await server.request({
+    const read = await there.request({
       method: 'GET',
       url: `/api/sessions/${imported.body.sessionId as string}`,
     });
@@ -138,16 +171,13 @@ describe('a session that travels', () => {
   /** It says where it came from — [03 §8]'s `origin`, finally with a writer. */
   it('records where it came from', async () => {
     const { sessionId } = await branched();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const imported = await server.request({
+    const there = await anotherInstall();
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: exported.body,
+      payload: await exported(server, sessionId),
     });
-    const again = await server.request({
+    const again = await there.request({
       method: 'GET',
       url: `/api/sessions/${imported.body.sessionId as string}/export`,
     });
@@ -184,26 +214,20 @@ describe('a session that travels', () => {
    */
   it('keeps the first install it came from when it travels again', async () => {
     const { sessionId } = await branched();
-    const first = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const once = await server.request({
+    const second = await anotherInstall();
+    const once = await second.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: first.body,
+      payload: await exported(server, sessionId),
     });
-    const again = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${once.body.sessionId as string}/export`,
-    });
-    const twice = await server.request({
+    const third = await anotherInstall();
+    const twice = await third.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: again.body,
+      payload: await exported(second, once.body.sessionId as string),
     });
 
-    const read = await server.request({
+    const read = await third.request({
       method: 'GET',
       url: `/api/sessions/${twice.body.sessionId as string}/turns`,
     });
@@ -214,198 +238,103 @@ describe('a session that travels', () => {
 });
 
 /**
- * A rendition record as the worker would have left it, hung off `turnId`.
+ * ***What an import leaves in the index and beside the turns*** (2026-09-27).
  *
- * The id is the worker's own spelling, `<turnId>.<n>`, because that is the
- * property the import leans on: turn ids are kept, so rendition ids are too.
+ * The import wrote `session.json` and the turns and stopped. The turns kept
+ * the session id they were exported under, the session had no index row, and
+ * the pictures' records were counted and never written. Search found nothing
+ * of an imported story; a copy imported where its original still was took the
+ * original's rows.
  */
-function aRendition(sessionId: string, turnId: string, over: Partial<Rendition> = {}): Rendition {
-  return {
-    schema: RENDITION_SCHEMA,
-    id: `${turnId}.0`,
-    sessionId,
-    turnId,
-    createdAt: '2026-09-27T10:00:00.000Z',
-    kind: 'image',
-    purpose: 'illustration',
-    scope: null,
-    state: 'ready',
-    prompt: {
-      fragments: [{ id: 'moment', text: 'a lantern', rank: 100, required: true }],
-      separator: ', ',
-      budget: { maxChars: null, usefulChars: null },
-      text: 'a lantern',
-      kept: ['moment'],
-      dropped: [],
-      overCap: false,
-    },
-    asset: null,
-    provenance: {
-      at: '2026-09-27T10:00:02.000Z',
-      binding: { connectionId: 'c-1', modelId: 'sdxl' },
-      answeredAs: null,
-      seed: 7,
-      workflow: { steps: 20 },
-    },
-    error: null,
-    digest: 'd-1',
-    ordering: 0,
-    ...over,
-  };
-}
+describe('an imported session is a session here', () => {
+  it('can be searched, under the session it landed in', async () => {
+    const { sessionId } = await aSessionSaying('The cathedral was three streets east.');
+    const there = await anotherInstall();
 
-const PIXELS = new TextEncoder().encode('not really a png');
-
-/**
- * ***The recipe travels*** — [21 §7.1](../../../../docs/design/21-internal-contracts.md)'s
- * *"the recipe travels and the pixels do not"*, and the half of it this importer
- * dropped until 2026-09-27: it counted the records it was handed, reported the
- * number, and wrote none of them.
- */
-describe('renditions that travel', () => {
-  async function withPictures(): Promise<{ sessionId: string; turns: string[] }> {
-    const made = await branched();
-    const [first, second, third] = made.turns as [string, string, string];
-    const layout = server.services.sessions.layout;
-
-    const ready = aRendition(made.sessionId, first, {
-      asset: {
-        path: `${first}.0.png`,
-        mime: 'image/png',
-        bytes: PIXELS.byteLength,
-        digest: digestOf(PIXELS),
-      },
+    const imported = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, sessionId),
     });
-    await writeRendition(layout, 'ned', made.sessionId, ready);
-    await writeFileBytes(
-      join(sessionAssetsRoot(layout, 'ned', made.sessionId), `${first}.0.png`),
-      PIXELS,
-    );
-    await writeRendition(
-      layout,
-      'ned',
-      made.sessionId,
-      aRendition(made.sessionId, second, {
-        state: 'pending',
-        provenance: { ...ready.provenance, at: null },
-      }),
-    );
-    await writeRendition(
-      layout,
-      'ned',
-      made.sessionId,
-      aRendition(made.sessionId, third, { state: 'failed', error: 'terminal' }),
-    );
-    return made;
-  }
+    expect(imported.status).toBe(201);
 
-  async function roundTrip(document: unknown): Promise<{ sessionId: string; renditions: number }> {
-    const imported = await server.request({
+    const found = await there.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(found.status).toBe(200);
+    expect(found.body.turns.map((hit: { sessionId: string }) => hit.sessionId)).toEqual([
+      imported.body.sessionId,
+    ]);
+  });
+
+  /**
+   * ***The same install, and the refusal is the fix.*** The turn ids are kept,
+   * so a second session holding them would take the first one's rows; before
+   * this the copy was made, and the original's search hits went to the copy.
+   */
+  it('refuses a session whose turns are already here, and the original keeps its rows', async () => {
+    const { sessionId } = await aSessionSaying('The cathedral was three streets east.');
+
+    const again = await server.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, sessionId),
+    });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe('already-here');
+
+    const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(found.body.turns.map((hit: { sessionId: string }) => hit.sessionId)).toEqual([
+      sessionId,
+    ]);
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect((listed.body.sessions as unknown[]).length).toBe(1);
+  });
+
+  /**
+   * ***The recipes come across; the pixels cannot.*** An export carries the
+   * records and not the pictures (`SessionExport.renditions`), so a ready one
+   * lands as one whose pixels were cleared — the recipe and a retry — and a
+   * pending one as interrupted, which offers the retry a pending one never
+   * will. A record of a turn that did not come, and one that is not a record,
+   * are left out.
+   */
+  it('writes the pictures’ records under the new session', async () => {
+    const { sessionId, turnId } = await aSessionSaying('The cathedral was three streets east.');
+    const document = await exported(server, sessionId);
+    document['renditions'] = [
+      aRendition({ id: `${turnId}.0`, sessionId, turnId }),
+      aRendition({ id: `${turnId}.1`, sessionId, turnId, state: 'pending', asset: null }),
+      aRendition({ id: 'elsewhere.0', sessionId, turnId: 'elsewhere' }),
+      { ...aRendition({ id: `${turnId}.2`, sessionId, turnId }), digest: undefined },
+    ];
+
+    const there = await anotherInstall();
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
       payload: document,
     });
     expect(imported.status).toBe(201);
-    return {
-      sessionId: imported.body.sessionId as string,
-      renditions: imported.body.renditions as number,
-    };
-  }
+    expect(imported.body.renditions).toBe(2);
 
-  async function renditionsOf(sessionId: string): Promise<Rendition[]> {
-    const read = await server.request({
+    const landed = imported.body.sessionId as string;
+    const listed = await there.request({
       method: 'GET',
-      url: `/api/sessions/${sessionId}/renditions`,
+      url: `/api/sessions/${landed}/renditions`,
     });
-    return (read.body.renditions as Rendition[]).sort((a, b) => a.id.localeCompare(b.id));
-  }
-
-  it('writes every record it counts, under the new session and the same ids', async () => {
-    const { sessionId, turns } = await withPictures();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-
-    const landed = await roundTrip(exported.body);
-    expect(landed.renditions).toBe(3);
-
-    const back = await renditionsOf(landed.sessionId);
-    expect(back.map((one) => one.id)).toEqual(turns.map((turn) => `${turn}.0`).sort());
-    for (const one of back) {
-      // The record's own session is what a live frame is matched on.
-      expect(one.sessionId).toBe(landed.sessionId);
-      expect(one.foreign).toEqual({ source: sessionId, id: one.id });
-      // The recipe came; the pixels did not, which is what an export carries.
-      expect(one.prompt.text).toBe('a lantern');
-      expect(one.provenance.seed).toBe(7);
-      expect(one.asset).toBeNull();
-    }
-  });
-
-  /**
-   * ***A picture still being made arrives as one that was interrupted.*** No
-   * job will ever run it — the one that owned it belongs to the session it came
-   * from — and a `pending` record has no retry button, so left alone it would
-   * say *making a picture of this* for good.
-   */
-  it('turns a pending record into an interrupted one, and leaves the others be', async () => {
-    const { sessionId, turns } = await withPictures();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const landed = await roundTrip(exported.body);
-
-    const byTurn = new Map((await renditionsOf(landed.sessionId)).map((one) => [one.turnId, one]));
-    expect(byTurn.get(turns[0] ?? '')).toMatchObject({ state: 'ready', error: null });
-    expect(byTurn.get(turns[1] ?? '')).toMatchObject({ state: 'failed', error: 'interrupted' });
-    expect(byTurn.get(turns[2] ?? '')).toMatchObject({ state: 'failed', error: 'terminal' });
-  });
-
-  /**
-   * ***What does not belong is skipped, and not counted.*** A record for a turn
-   * that did not arrive is a picture of nothing; one that is not a record is a
-   * hand edit; one whose id would climb out of the directory is a shape
-   * somebody will eventually send on purpose. None of them fails the import,
-   * and none of them inflates the number the import reports.
-   */
-  it('skips what is not a record of a turn that arrived', async () => {
-    const { sessionId, turns } = await branched();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const document = {
-      ...exported.body,
-      renditions: [
-        aRendition(sessionId, turns[0] ?? ''),
-        aRendition(sessionId, 'a-turn-that-never-came'),
-        { schema: RENDITION_SCHEMA, id: 'half-a-record' },
-        aRendition(sessionId, turns[1] ?? '', { id: '../../session' }),
-      ],
-    };
-
-    const landed = await roundTrip(document);
-    expect(landed.renditions).toBe(1);
-    expect((await renditionsOf(landed.sessionId)).map((one) => one.id)).toEqual([
-      `${turns[0] ?? ''}.0`,
+    expect(listed.status).toBe(200);
+    const records = (listed.body.renditions as Rendition[]).toSorted((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+    expect(records.map((record) => [record.id, record.sessionId])).toEqual([
+      [`${turnId}.0`, landed],
+      [`${turnId}.1`, landed],
     ]);
-  });
-
-  it('keeps the first install a record came from when it travels again', async () => {
-    const { sessionId } = await withPictures();
-    const first = await roundTrip(
-      (await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/export` })).body,
-    );
-    const second = await roundTrip(
-      (await server.request({ method: 'GET', url: `/api/sessions/${first.sessionId}/export` }))
-        .body,
-    );
-
-    for (const one of await renditionsOf(second.sessionId)) {
-      expect(one.foreign?.source).toBe(sessionId);
-    }
+    expect(records[0]).toMatchObject({ state: 'ready', asset: null });
+    expect(records[1]).toMatchObject({ state: 'failed', error: 'interrupted', asset: null });
+    // The recipe, which is the part that must never be lost.
+    expect(records[0]?.prompt.text).toBe('a lantern');
+    // Marked foreign once, as its turn is.
+    expect(records[0]?.foreign).toEqual({ source: sessionId, id: `${turnId}.0` });
   });
 });
 
@@ -423,11 +352,7 @@ describe('renditions that travel', () => {
 describe('what a newer build wrote', () => {
   it('carries an unknown field inside a move through import and export unchanged', async () => {
     const { sessionId } = await branched();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const body = exported.body as { turns: { input?: Record<string, unknown> }[] };
+    const document = await exported(server, sessionId);
     const future = { kind: 'hologram', notes: ['from a build that does not exist yet'] };
     /**
      * *Every turn is given a move.* The fixture's turns are channel writes,
@@ -436,24 +361,89 @@ describe('what a newer build wrote', () => {
      * next widening will land in.
      */
     const move = { actorId: null, kind: 'do', text: 'Knock.', raw: 'Knock.' };
-    body.turns = body.turns.map((turn) => ({
+    const turns = (document['turns'] as { input?: Record<string, unknown> }[]).map((turn) => ({
       ...turn,
       input: { ...(turn.input ?? move), future },
     }));
 
-    const landed = await server.request({
+    const there = await anotherInstall();
+    const landed = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: body,
+      payload: { ...document, turns },
     });
     expect(landed.status).toBe(201);
 
-    const again = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${landed.body.sessionId as string}/export`,
-    });
-    const carried = (again.body as { turns: { input?: Record<string, unknown> }[] }).turns;
-    expect(carried).toHaveLength(body.turns.length);
+    const again = await exported(there, landed.body.sessionId as string);
+    const carried = again['turns'] as { input?: Record<string, unknown> }[];
+    expect(carried).toHaveLength(turns.length);
     for (const turn of carried) expect(turn.input?.['future']).toEqual(future);
+  });
+});
+
+function aRendition(over: Partial<Rendition> = {}): Rendition {
+  return {
+    schema: RENDITION_SCHEMA,
+    id: 'r-1',
+    sessionId: 's-1',
+    turnId: 't-1',
+    createdAt: '2026-09-16T10:00:00.000Z',
+    kind: 'image',
+    purpose: 'illustration',
+    scope: null,
+    state: 'ready',
+    prompt: {
+      fragments: [{ id: 'moment', text: 'a lantern', rank: 100, required: true }],
+      separator: ', ',
+      budget: { maxChars: null, usefulChars: null },
+      text: 'a lantern',
+      kept: ['moment'],
+      dropped: [],
+      overCap: false,
+    },
+    asset: { path: 'r-1.png', mime: 'image/png', bytes: 11, digest: 'sha256:aa' },
+    provenance: {
+      at: '2026-09-16T10:00:02.000Z',
+      binding: { connectionId: 'c-1', modelId: 'sdxl' },
+      answeredAs: null,
+      seed: 7,
+      workflow: { steps: 20 },
+    },
+    error: null,
+    digest: 'd-1',
+    ordering: 0,
+    ...over,
+  };
+}
+
+/**
+ * ***A picture is served from its own session's `assets/` and nowhere else***
+ * (2026-09-27). The asset route joined the record's `path` on, and the only
+ * other check asks whether a path stays inside the data directory, so a record
+ * saying `../session.json` was served that file, and one reaching further up
+ * would have served another account's. The importer checks the records it
+ * writes; this is the door that does not depend on it.
+ */
+describe('a picture’s path', () => {
+  it('cannot leave its session’s assets', async () => {
+    const { writeRendition } = await import('../renditions/store.js');
+    const { sessionId, turnId } = await aSessionSaying('The cathedral was three streets east.');
+    await writeRendition(
+      server.services.sessions.layout,
+      'ned',
+      sessionId,
+      aRendition({
+        id: `${turnId}.0`,
+        sessionId,
+        turnId,
+        asset: { path: '../session.json', mime: 'application/json', bytes: 1, digest: 'sha256:aa' },
+      }),
+    );
+
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(`${turnId}.0`)}/asset`,
+    });
+    expect(served.status).toBe(404);
   });
 });
