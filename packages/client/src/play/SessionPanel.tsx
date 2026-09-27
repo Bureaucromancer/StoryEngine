@@ -127,10 +127,16 @@ export function SessionPanel(props: {
 
         {props.block === undefined || pack === undefined ? null : (
           <BlockEditor
+            // One editor per block. The page stays mounted when only `?block=`
+            // changes, so without the key the draft typed for one block stood in
+            // the next one's field — labelled as the next block, with *Save*
+            // live — and saving it wrote the first block's prose over the
+            // second's, in the session's only copy of its pack.
+            key={props.block}
             pack={pack}
             blockId={props.block}
-            onSave={(next) => {
-              setPreset.mutate({ preset: next });
+            onSave={(next, saved) => {
+              setPreset.mutate({ preset: next }, { onSuccess: saved });
             }}
           />
         )}
@@ -318,7 +324,8 @@ export function SessionPanel(props: {
 function BlockEditor(props: {
   pack: Record<string, unknown>;
   blockId: string;
-  onSave: (next: Record<string, unknown>) => void;
+  /** The pack with this block changed, and what to do once it is written. */
+  onSave: (next: Record<string, unknown>, saved: () => void) => void;
 }): JSX.Element {
   const blocks = Array.isArray(props.pack['blocks'])
     ? (props.pack['blocks'] as Record<string, unknown>[])
@@ -355,13 +362,20 @@ function BlockEditor(props: {
           variant="primary"
           disabled={value === template}
           onClick={() => {
-            props.onSave({
-              ...props.pack,
-              blocks: blocks.map((one) =>
-                one['id'] === props.blockId ? { ...one, template: value } : one,
-              ),
-            });
-            setDraft(null);
+            // The draft is let go once the pack holding it is written, not when
+            // the write is asked for: a save that fails is shown above, and the
+            // text somebody wrote has to still be here to try again with.
+            props.onSave(
+              {
+                ...props.pack,
+                blocks: blocks.map((one) =>
+                  one['id'] === props.blockId ? { ...one, template: value } : one,
+                ),
+              },
+              () => {
+                setDraft(null);
+              },
+            );
           }}
         >
           Save this block

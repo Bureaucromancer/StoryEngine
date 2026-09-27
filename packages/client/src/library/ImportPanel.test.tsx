@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { JSX } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -525,5 +525,142 @@ describe('choosing one file', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('too large');
     });
+  });
+});
+
+/**
+ * ***Answers that arrive after the question changed*** (2026-09-27).
+ *
+ * Every request here writes the one outcome slot when it lands, and a person
+ * can change the question in the meantime: cancel a preview while its other
+ * reading is being asked for, pick a file while an earlier report is being
+ * fetched. Each answer used to be written whatever had happened since, so a
+ * cancelled question came back and a report replaced a question being asked.
+ */
+describe('answers that arrive after the question changed', () => {
+  const fileInput = (): HTMLInputElement => {
+    const found = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (found === null) throw new Error('no file input');
+    return found;
+  };
+  const png = (): File => new File([new Uint8Array([1, 2, 3])], 'Vera.png', { type: 'image/png' });
+
+  const scenario = {
+    kind: 'scenario' as const,
+    name: 'Rain City',
+    blurb: 'A city where it always rains.',
+    framingChars: 420,
+    cast: ['Vera'],
+    openings: 1,
+    destination: 'treatment' as const,
+    alternatives: ['treatment' as const, 'lorebook' as const],
+  };
+  const SCENARIO: ImportPreview = {
+    source: 'Rain City.json',
+    disposition: 'converted',
+    notes: [],
+    advisories: [],
+    object: scenario,
+    reimport: 'new',
+  };
+
+  const JOB = {
+    id: 'job-1',
+    root: '/imports/last-week',
+    source: 'sillytavern',
+    status: 'finished' as const,
+    createdAt: 0,
+    finishedAt: 1,
+    counts: { converted: 3 },
+  };
+
+  it('stays cancelled when the other reading arrives after Cancel', async () => {
+    let second: (value: { preview: ImportPreview }) => void = () => undefined;
+    vi.spyOn(api, 'importFilePreview')
+      .mockResolvedValueOnce({ preview: SCENARIO })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            second = resolve;
+          }),
+      );
+    render(mount());
+
+    await userEvent.upload(fileInput(), new File(['{}'], 'Rain City.json'));
+    await userEvent.selectOptions(
+      await screen.findByRole('combobox', { name: 'What this should become' }),
+      'lorebook',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await act(async () => {
+      second({ preview: { ...SCENARIO, object: { ...scenario, destination: 'lorebook' } } });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole('button', { name: /^import$/i })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'What this should become' })).toBeNull();
+  });
+
+  /** The same rule its twin above keeps: nothing chosen while a request is on its way. */
+  it('holds the conflict choice still while the import is on its way', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({
+      preview: { ...PREVIEW, reimport: 'changed' },
+    });
+    vi.spyOn(api, 'importFile').mockImplementation(() => new Promise(() => undefined));
+    render(mount());
+
+    await userEvent.upload(fileInput(), png());
+    const choice = await screen.findByRole('combobox', {
+      name: 'What to do with the one already here',
+    });
+    expect(choice).toHaveProperty('disabled', false);
+    await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
+
+    expect(choice).toHaveProperty('disabled', true);
+  });
+
+  it('does not let a report opened earlier replace a preview asked for since', async () => {
+    vi.spyOn(api, 'importJobs').mockResolvedValue({ jobs: [JOB] });
+    let arrive: (value: Awaited<ReturnType<typeof api.importJob>>) => void = () => undefined;
+    vi.spyOn(api, 'importJob').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    render(mount());
+
+    await userEvent.click(await screen.findByRole('button', { name: '/imports/last-week' }));
+    await userEvent.upload(fileInput(), png());
+    await screen.findByRole('button', { name: /^import$/i });
+    await act(async () => {
+      arrive({ report: { jobId: 'job-1', source: 'sillytavern', items: [], counts: {} } });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('button', { name: /^import$/i })).toBeTruthy();
+  });
+
+  it('offers no earlier report while a preview waits for its answer', async () => {
+    vi.spyOn(api, 'importJobs').mockResolvedValue({ jobs: [JOB] });
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    render(mount());
+
+    const earlier = await screen.findByRole('button', { name: '/imports/last-week' });
+    await userEvent.upload(fileInput(), png());
+    await screen.findByRole('button', { name: /^import$/i });
+
+    expect(earlier).toHaveProperty('disabled', true);
+  });
+
+  it('says so when an earlier report cannot be opened', async () => {
+    vi.spyOn(api, 'importJobs').mockResolvedValue({ jobs: [JOB] });
+    vi.spyOn(api, 'importJob').mockRejectedValue(new Error('That import is no longer on record.'));
+    render(mount());
+
+    await userEvent.click(await screen.findByRole('button', { name: '/imports/last-week' }));
+
+    expect(await screen.findByText('That import is no longer on record.')).toBeTruthy();
   });
 });

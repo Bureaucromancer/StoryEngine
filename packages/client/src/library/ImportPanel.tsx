@@ -220,6 +220,24 @@ export function ImportPanel(): JSX.Element {
   const latest = useRef(0);
 
   /**
+   * ***Which outcome is still the one to show*** (2026-09-27).
+   *
+   * `latest` settles which *look* is current; this settles which *outcome* is.
+   * A look at a file, a re-ask under the other reading, a sweep, a folder
+   * upload and opening an earlier report each write the one outcome slot when
+   * their request lands, and each can land after something newer has been
+   * asked for: an earlier report opened a moment before a file was picked came
+   * back after the file's preview and replaced it, leaving a report on screen
+   * where the person was being asked a question. So each bumps this when it
+   * starts, and writes only if nothing has bumped it since.
+   *
+   * *The import itself is the exception, and deliberately.* Its write says what
+   * was written to the library, which is true however the screen moved on — and
+   * nothing can start while it runs, every picker being disabled while `busy`.
+   */
+  const asked = useRef(0);
+
+  /**
    * **A look never writes `error`.** Clicking *Import folder* blurs the path
    * box, so a check always fires just before the sweep does — and if the two
    * shared one error slot, a refusal from the look would land on top of whatever
@@ -278,6 +296,7 @@ export function ImportPanel(): JSX.Element {
     // a picker whose choice leaves no trace is one you cannot check before
     // committing to it.
     setChosen(file.name);
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
@@ -288,6 +307,7 @@ export function ImportPanel(): JSX.Element {
        * staging area [P4 §1.4] refused.
        */
       const { preview } = await api.importFilePreview(file);
+      if (asked.current !== mine) return;
       setOutcome({
         kind: 'preview',
         file,
@@ -296,6 +316,7 @@ export function ImportPanel(): JSX.Element {
         destination: destinationOf(preview),
       });
     } catch (cause) {
+      if (asked.current !== mine) return;
       setError(cause instanceof Error ? cause.message : 'That file could not be read.');
     } finally {
       setBusy(false);
@@ -315,15 +336,43 @@ export function ImportPanel(): JSX.Element {
    */
   const reask = async (destination: ImportDestination): Promise<void> => {
     if (outcome?.kind !== 'preview') return;
+    const { file } = outcome;
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
-      const { preview } = await api.importFilePreview(outcome.file, destination);
-      setOutcome({ ...outcome, preview, destination });
+      const { preview } = await api.importFilePreview(file, destination);
+      if (asked.current !== mine) return;
+      // Over the outcome as it is now, and only while it is still this file's
+      // question. The whole outcome of the click used to be written back, which
+      // put a cancelled preview back on screen and undid a conflict choice made
+      // while the second reading was being asked for.
+      setOutcome((current) =>
+        current?.kind === 'preview' && current.file === file
+          ? { ...current, preview, destination }
+          : current,
+      );
     } catch (cause) {
+      if (asked.current !== mine) return;
       setError(cause instanceof Error ? cause.message : 'That file could not be read.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** An earlier review, fetched and shown — see `asked` for why it may not be. */
+  const openPast = async (id: string): Promise<void> => {
+    const mine = ++asked.current;
+    setError(null);
+    try {
+      const { report } = await api.importJob(id);
+      if (asked.current !== mine) return;
+      setOutcome({ kind: 'report', report });
+    } catch (cause) {
+      if (asked.current !== mine) return;
+      // Said, rather than the rejection going nowhere: the button did nothing,
+      // and the person has to be told so.
+      setError(cause instanceof Error ? cause.message : 'That import could not be opened.');
     }
   };
 
@@ -382,6 +431,7 @@ export function ImportPanel(): JSX.Element {
     }));
 
     latest.current += 1;
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
@@ -395,7 +445,7 @@ export function ImportPanel(): JSX.Element {
         inside.map(({ path }) => path),
         inside.filter(({ path }) => wanted.has(path)),
       );
-      setOutcome({ kind: 'report', report: result.report });
+      if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
@@ -408,11 +458,12 @@ export function ImportPanel(): JSX.Element {
     if (root.trim().length === 0) return;
     // Any look still in the air is about to be out of date.
     latest.current += 1;
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
       const result = await api.importSweep(root.trim());
-      setOutcome({ kind: 'report', report: result.report });
+      if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
       // A sweep of the wrong folder succeeds, so the advice matters *more* after
       // one than before: nothing in the report itself says the wrong folder was
       // named.
@@ -656,8 +707,9 @@ export function ImportPanel(): JSX.Element {
 
       {outcome?.kind === 'report' ? <Report report={outcome.report} /> : null}
       <PastImports
-        onOpen={(report) => {
-          setOutcome({ kind: 'report', report });
+        disabled={pending}
+        onOpen={(id) => {
+          void openPast(id);
         }}
       />
     </div>
@@ -678,7 +730,14 @@ export function ImportPanel(): JSX.Element {
  * the one already below it — the same `Report`, so there is one renderer for a
  * review and no second surface to keep in step.
  */
-function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Element | null {
+function PastImports(props: {
+  /**
+   * While a decision is pending, the same rule as every picker above: opening a
+   * report would replace the question on screen with an answer to another one.
+   */
+  disabled: boolean;
+  onOpen: (id: string) => void;
+}): JSX.Element | null {
   const jobs = useQuery({ queryKey: ['import-jobs'], queryFn: () => api.importJobs() });
   const rows = jobs.data?.jobs ?? [];
   if (rows.length === 0) return null;
@@ -691,11 +750,10 @@ function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Ele
           <li key={job.id} className="flex flex-wrap items-baseline gap-2">
             <button
               type="button"
-              className="text-ink underline"
+              className="text-ink underline disabled:text-ink-faint disabled:no-underline"
+              disabled={props.disabled}
               onClick={() => {
-                void api.importJob(job.id).then((result) => {
-                  props.onOpen(result.report);
-                });
+                props.onOpen(job.id);
               }}
             >
               {job.root}
@@ -953,6 +1011,10 @@ function Preview(props: {
             id="import-on-conflict"
             className={control}
             value={props.onConflict}
+            // Disabled while busy, as the destination twin above is: a choice
+            // made while a re-ask or the import itself is on its way is a
+            // choice that request has already been sent without.
+            disabled={props.busy}
             onChange={(event) => {
               props.onPolicy(event.target.value === 'keep-both' ? 'keep-both' : 'replace');
             }}

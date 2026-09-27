@@ -210,6 +210,55 @@ describe('editing one block of the pack', () => {
     expect((body.preset['params'] as Record<string, unknown>)['temperature']).toBe(0.8);
   });
 
+  /**
+   * ***A draft belongs to one block*** (2026-09-27). The page stays mounted when
+   * only `?block=` changes, and the draft typed for one block used to stand in
+   * the next one's field under the next one's label, with *Save* live — so
+   * saving it wrote the first block's prose over the second's.
+   */
+  it('starts a fresh draft when the address names another block', async () => {
+    const preset = session['preset'] as { blocks: Record<string, unknown>[] };
+    preset.blocks.push({ id: 'se.style', template: 'Short sentences.' });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const panel = (block: string): ReactNode => (
+      <QueryClientProvider client={client}>
+        <SessionPanel sessionId={SESSION_ID} block={block} />
+      </QueryClientProvider>
+    );
+    const view = render(panel('se.instruction'));
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('Block: se.instruction'), ' And the rain.');
+    view.rerender(panel('se.style'));
+
+    expect(await screen.findByLabelText('Block: se.style')).toHaveProperty(
+      'value',
+      'Short sentences.',
+    );
+    expect(screen.getByRole('button', { name: 'Save this block' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+
+  /** The draft is let go once the pack is written — not when the write is asked for. */
+  it('keeps the draft when the save fails', async () => {
+    setSessionPreset.mockRejectedValue(new Error('The server could not be reached.'));
+    renderPanel('se.instruction');
+    const user = userEvent.setup();
+
+    const field = await screen.findByLabelText('Block: se.instruction');
+    await user.clear(field);
+    await user.type(field, 'You are a weary harbourmaster.');
+    await user.click(screen.getByRole('button', { name: 'Save this block' }));
+
+    expect(await screen.findByText('The server could not be reached.')).toBeTruthy();
+    expect(screen.getByLabelText('Block: se.instruction')).toHaveProperty(
+      'value',
+      'You are a weary harbourmaster.',
+    );
+  });
+
   it('says so for a slot, which has no text in the pack to edit', async () => {
     renderPanel('se.lore');
 
