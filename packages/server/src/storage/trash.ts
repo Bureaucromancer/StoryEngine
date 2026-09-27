@@ -181,6 +181,21 @@ export function trashEntryPath(layout: Layout, handle: string, id: string): stri
   return join(layout.trashRoot(handle), kind, entry);
 }
 
+/** What a restore did. */
+export type RestoreOutcome =
+  | {
+      ok: true;
+      path: string;
+      /**
+       * What came back, so the caller can index it (2026-09-27): the folder's
+       * name is the session's id or the object's slug once the suffix is off.
+       */
+      restored:
+        | { kind: 'session'; sessionId: string }
+        | { kind: 'object'; schemaId: PortableSchemaId; slug: string };
+    }
+  | { ok: false; reason: 'not-found' | 'occupied' };
+
 /**
  * Puts one entry back where it came from.
  *
@@ -198,7 +213,7 @@ export async function restoreFromTrash(
   layout: Layout,
   handle: string,
   id: string,
-): Promise<{ ok: true; path: string } | { ok: false; reason: 'not-found' | 'occupied' }> {
+): Promise<RestoreOutcome> {
   const [kind, entry] = splitTrashId(id);
   const from = trashEntryPath(layout, handle, id);
   if (!(await exists(from))) return { ok: false, reason: 'not-found' };
@@ -228,7 +243,15 @@ export async function restoreFromTrash(
   }
 
   await moveTree(from, to);
-  return { ok: true, path: to };
+  if (kind === 'sessions') {
+    return { ok: true, path: to, restored: { kind: 'session', sessionId: name } };
+  }
+  const schemaId = (Object.entries(LIBRARY_DIRECTORIES) as [PortableSchemaId, string][]).find(
+    ([, directory]) => directory === kind,
+  )?.[0];
+  // `splitTrashId` admitted only the library's directories and `sessions`.
+  if (schemaId === undefined) throw new Error(`No kind keeps its objects in ${kind}.`);
+  return { ok: true, path: to, restored: { kind: 'object', schemaId, slug: name } };
 }
 
 /** `kind/entry`, refusing anything that is not exactly that. */

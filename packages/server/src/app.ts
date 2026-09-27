@@ -82,7 +82,7 @@ import { route as routeNotification, type Occurrence } from './notifications/rou
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
-import { freeBytes, listDirectoryNames, readFileBytes } from './storage/files.js';
+import { freeBytes, readFileBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
 import { UNSUPERVISED, type Supervision } from './supervision.js';
 import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
@@ -1255,7 +1255,27 @@ export async function buildApp(
    */
   for (const handle of await listAccountHandles(services)) {
     for (const sessionId of await listSessions(services.sessions, handle)) {
-      const advanced = await reconcileSession(services.sessions, handle, sessionId);
+      /**
+       * ***One session that cannot be read is one session passed over***
+       * (2026-09-27), and said: a `session.json` linked out of the data
+       * directory, or one the server's user cannot read, threw out of this
+       * loop, and the start with it — every time, since the folder was still
+       * there at the next.
+       */
+      let advanced: number;
+      try {
+        advanced = await reconcileSession(services.sessions, handle, sessionId);
+      } catch (error) {
+        app.log.warn(
+          {
+            event: 'session.unreadable',
+            sessionId,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          'A session folder could not be read at start-up',
+        );
+        continue;
+      }
       if (advanced > 0) {
         app.log.info(
           { event: 'session.reconciled', sessionId, advanced },
@@ -1474,7 +1494,7 @@ export async function buildApp(
  * unlinked forever.
  */
 async function listAccountHandles(services: AppServices): Promise<string[]> {
-  return listDirectoryNames(services.layout.usersRoot);
+  return services.layout.userHandlesOnDisk();
 }
 
 function isApi(url: string): boolean {

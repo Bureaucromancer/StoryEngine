@@ -15,7 +15,7 @@ import {
   slugify,
 } from '@storyengine/shared';
 
-import { listEntryNames } from './files.js';
+import { listDirectoryNames, listEntryNames } from './files.js';
 import {
   PathEscapeError,
   assertRealContained,
@@ -325,6 +325,23 @@ export class Layout {
 
   get usersRoot(): string {
     return resolveWithin(this.dataRoot, 'users');
+  }
+
+  /**
+   * ***Every account directory on disk, and nothing else under `users/`***
+   * (2026-09-27).
+   *
+   * Read from the disk rather than from `accounts.json`, because a folder
+   * belonging to a removed account still holds somebody's files. But not every
+   * folder there is an account's: a NAS's indexer leaves `@eaDir`, and somebody
+   * keeping a copy leaves `ned.old`. The rebuild and the start-up session pass
+   * each listed the folder and then asked the layout for a path under it,
+   * which refuses a name that is not a handle, so one such folder stopped the
+   * start. The rebuild even had a `catch` for it, around a line that never
+   * throws. The name rule is the handle rule, applied once, here.
+   */
+  async userHandlesOnDisk(): Promise<string[]> {
+    return (await listDirectoryNames(this.usersRoot)).filter((name) => isValidHandle(name));
   }
 
   /**

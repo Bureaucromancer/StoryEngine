@@ -897,6 +897,12 @@ what must be true of it.
   and rows off the current path stay indexed but carry their branch
   ([10 §14.2](10-ui-surfaces.md)).
 - **Deleting `index.sqlite` is a non-event.** Startup notices and rebuilds.
+  *Added 2026-09-27:* and so are the two ways of losing it without deleting it.
+  A file that is not a database any more is set aside as `index.sqlite.damaged`
+  and a fresh one opened, where it used to stop the start; and the schema
+  version is written when a rebuild **finishes**, not when the empty tables are
+  made, so a first start killed partway through its scan rebuilds again rather
+  than serving the fraction it reached for good.
 
 ### 5.1 Operational state is not derived, and must not live in the index
 

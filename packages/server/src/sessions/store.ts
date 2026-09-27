@@ -16,7 +16,7 @@ import { writeJsonAtomic } from '../storage/atomic.js';
 import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '../storage/files.js';
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
-import { resolveWithin } from '../storage/paths.js';
+import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import type { Binding, ModelRole } from '../providers/types.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { acceptEffect } from '../turns/effects.js';
@@ -142,6 +142,42 @@ export function indexWrittenSession(
   indexSession(context.index, scopeOf(context, handle), session);
 }
 
+/**
+ * ***One session's rows, derived again from its folder*** (2026-09-27): the
+ * session row and its links, and every turn with its search text.
+ *
+ * **The rebuild's derivation, lifted out so a restore can use it too.** A
+ * delete removes a session's rows — a trashed session does not appear in a
+ * list or match a search ([03 §10.2]) — and `deleteSession` said *restoring
+ * re-indexes it*. Nothing did. The restore route left it to the watcher,
+ * which only knows library objects, so a restored session was listed (the
+ * list reads the disk) and never found by search, and counted in no *used
+ * by*, for as long as the install lived. One derivation for both callers, so
+ * the rebuild-equals-incremental gate still holds a single answer.
+ *
+ * Clears first, so it can be asked of a session that already has rows. `null`
+ * when the folder holds no readable session.
+ */
+export async function reindexSession(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+): Promise<{ turns: number } | null> {
+  const session = await readSession(context, handle, sessionId);
+  if (session === null) return null;
+
+  // Every read before the first write, so a folder that cannot be read leaves
+  // the rows it had rather than none.
+  const turns = await readAllTurns(turnsRoot(context.layout, handle, sessionId));
+
+  removeSessionRows(context.index, sessionId);
+  indexSession(context.index, scopeOf(context, handle), session);
+  // The session id is the folder's, never the one a turn carries: an imported
+  // or restored turn may have been written under another.
+  for (const { turn, location } of turns) indexTurn(context.index, sessionId, turn, location);
+  return { turns: turns.length };
+}
+
 export function sessionRoot(layout: Layout, handle: string, sessionId: string): string {
   return layout.sessionRoot(handle, sessionId);
 }
@@ -264,7 +300,25 @@ export async function readSession(
   handle: string,
   sessionId: string,
 ): Promise<SessionFile | null> {
-  const path = sessionFilePath(context.layout, handle, sessionId);
+  /**
+   * ***An id no folder can have names no session*** (2026-09-27).
+   *
+   * The layout refuses a name it will not resolve — `con`, a trailing dot, a
+   * colon — and every rule is applied on every platform, so a folder copied in
+   * under a `date -Iseconds` name refuses on Linux too. The refusal threw from
+   * here, and here is where every loop over sessions starts: the session list
+   * answered 500 for the whole account, a rebuild stopped, and the start-up
+   * pass over sessions took the server down with it. A URL naming such an id
+   * was a logged 500 rather than the 404 it is. The link check below still
+   * throws, because a link out of the data directory is the refusal working.
+   */
+  let path: string;
+  try {
+    path = sessionFilePath(context.layout, handle, sessionId);
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
   await context.layout.assertReal(path);
 
   const bytes = await readFileBytes(path);
@@ -298,7 +352,15 @@ export async function listSessionFiles(
 ): Promise<SessionFile[]> {
   const found: SessionFile[] = [];
   for (const id of await listSessions(context, handle)) {
-    const session = await readSession(context, handle, id);
+    // What the comment above promises, for a folder that throws as well as one
+    // that parses to nothing: a `session.json` linked out of the data
+    // directory, or one the server's user cannot read (2026-09-27).
+    let session: SessionFile | null;
+    try {
+      session = await readSession(context, handle, id);
+    } catch {
+      continue;
+    }
     if (session === null) continue;
     if (session.archivedAt !== undefined && options.includeArchived !== true) continue;
     found.push(session);
@@ -1588,7 +1650,14 @@ export async function readTurnById(
   sessionId: string,
   turnId: string,
 ): Promise<Turn | null> {
-  const root = turnsRoot(context.layout, handle, sessionId);
+  // A session no folder can have holds no turn (see `readSession`).
+  let root: string;
+  try {
+    root = turnsRoot(context.layout, handle, sessionId);
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
 
   const located = findTurnLocation(context.index, turnId);
   if (

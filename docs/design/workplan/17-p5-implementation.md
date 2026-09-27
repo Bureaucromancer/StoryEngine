@@ -1613,7 +1613,9 @@ and the tombstone filter, so the owner is in its `from` clause either way.
 `limit` before the route filters, so on a household server one account's matches
 can consume the whole budget before another's are considered. Recorded rather
 than fixed — it is `search`'s, not this stage's — and it matters more here,
-because what an unscoped entry hit would carry is the prose itself.
+because what an unscoped entry hit would carry is the prose itself. *Fixed
+2026-09-27:* `search` takes the owners and scopes in its own SQL too, and the
+route's filter is gone.
 
 **No client surface, and that is settled rather than deferred.**
 [10 §5.3](../10-ui-surfaces.md) says across-the-library search *"belongs to the

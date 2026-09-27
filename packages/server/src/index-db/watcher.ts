@@ -13,7 +13,13 @@ import { appendLine, statFile, unlinkFile } from '../storage/files.js';
 import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
 import { isContained, PathEscapeError } from '../storage/paths.js';
-import { ingestFile, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
+import {
+  clearFileError,
+  ingestFile,
+  matureTombstones,
+  recordUnusableName,
+  removeFile,
+} from './ingest.js';
 import { findByPath } from './query.js';
 
 /**
@@ -221,6 +227,11 @@ export class LibraryWatcher {
         this.#onUnlink(path);
       });
     });
+    watcher.on('unlinkDir', (path) => {
+      this.#enqueue(path, () => {
+        this.#onUnlinkDir(path);
+      });
+    });
 
     this.#watcher = watcher;
     await new Promise<void>((ready) => {
@@ -395,6 +406,18 @@ export class LibraryWatcher {
     matureTombstones(this.#db, this.#layout);
     const outcome = await ingestFile(this.#db, this.#layout, path);
 
+    // A link out of the data directory, refused and recorded by the ingest.
+    // What the queue's catch says for a refusal it meets anywhere else, and
+    // for the same reason: the check working is a `warn`, not an `error`.
+    if (outcome.kind === 'skipped' && outcome.reason === 'refused') {
+      this.#log?.warn(
+        { event: 'library.refused', path: this.#layout.portablePath(path) ?? basename(path) },
+        'A library file was refused',
+      );
+      this.#emit({ type: 'refused', path });
+      return;
+    }
+
     // **Hand-edits get history for free** ([03 §11.2]) — the strongest argument
     // for building the mechanism now, while the watcher exists and no editor
     // does. Snapshot when the content genuinely changed, and also when the new
@@ -458,6 +481,22 @@ export class LibraryWatcher {
     // object path is somebody deleting it.
     const removed = removeFile(this.#db, this.#layout, path);
     this.#emit({ type: removed ? 'removed' : 'ignored', path });
+  }
+
+  /**
+   * ***A folder that went away takes its name's complaint with it***
+   * (2026-09-27).
+   *
+   * An `unusable-name` row is keyed by the object *folder* (`recordUnusableName`
+   * says why), and every clear was keyed by a file path, so renaming `con` to
+   * `con-city` indexed the book and left the quarantine panel reporting a
+   * folder that no longer existed, until a rebuild — which by default never
+   * runs. chokidar reports the folder by the same absolute path the row was
+   * written under, since both are built from the data root.
+   */
+  #onUnlinkDir(path: string): void {
+    if (clearFileError(this.#db, path)) this.#emit({ type: 'removed', path });
+    else this.#emit({ type: 'ignored', path });
   }
 
   async #isOwnWrite(path: string): Promise<boolean> {

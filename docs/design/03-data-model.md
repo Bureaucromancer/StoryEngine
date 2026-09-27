@@ -1700,7 +1700,10 @@ The reason it is nearly free is the same reason the storage design keeps paying:
 a move, restoration is a move back, and neither needs a serialisation format, a
 tombstone convention or a schema. The index treats trashed objects as absent —
 they do not appear in the library, do not resolve as references, and do not match
-search. Restoring re-indexes them.
+search. Restoring re-indexes them. *(2026-09-27: for a session it did not, until
+now — the restore left it to the watcher, which does not look under `sessions/`,
+so a restored session was listed and never matched a search again. The restore
+indexes what it puts back, sessions through the rebuild's own derivation.)*
 
 Four properties worth fixing now:
 

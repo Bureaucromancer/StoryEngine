@@ -334,7 +334,10 @@ function dropAll(db: DatabaseSync): void {
 }
 
 export interface MigrationResult {
-  /** The version found on disk before anything was done. 0 for a fresh file. */
+  /**
+   * The version found on disk before anything was done. 0 for a fresh file, and
+   * for one whose rebuild never finished ({@link PENDING_VERSION}).
+   */
   from: number;
   to: number;
   /**
@@ -355,7 +358,44 @@ export function migrate(db: DatabaseSync): MigrationResult {
 
   dropAll(db);
   db.exec(SCHEMA);
-  writeVersion(db, INDEX_SCHEMA_VERSION);
+  /**
+   * ***Created, and not yet derived*** (2026-09-27).
+   *
+   * This wrote the current version here, before a single row existed, and the
+   * rebuild that fills the tables runs later and elsewhere. So a first start
+   * that died partway through its scan — killed by the stop timeout during a
+   * long first scan, or one unreadable file throwing out of it — came back
+   * with a version that said *current* over a fraction of the library. Nothing
+   * rebuilds a current index, so it stayed that way: objects missing from
+   * lists, search and retrieval, until somebody deleted the file by hand.
+   *
+   * The version now says what the file holds. {@link PENDING_VERSION} until a
+   * rebuild has run to the end ({@link markRebuilt}), and a file opened at
+   * that version is dropped and rebuilt again, which is exactly the retry the
+   * interrupted scan needed.
+   */
+  writeVersion(db, PENDING_VERSION);
 
   return { from, to: INDEX_SCHEMA_VERSION, rebuildRequired: true };
+}
+
+/**
+ * The version a file holds while its tables exist and their contents have not
+ * been derived: a fresh file's own `user_version`, so that a file nobody ever
+ * finished and a file nobody ever made are the same case.
+ */
+export const PENDING_VERSION = 0;
+
+/**
+ * Marks the contents as not derived, before anything is emptied — `rebuild`'s
+ * first act, so a rebuild asked for by `index.rebuildOnStart` and killed
+ * halfway is retried too, rather than leaving the half it got through.
+ */
+export function markRebuildPending(db: DatabaseSync): void {
+  writeVersion(db, PENDING_VERSION);
+}
+
+/** Marks the contents as derived from the disk — `rebuild`'s last act. */
+export function markRebuilt(db: DatabaseSync): void {
+  writeVersion(db, INDEX_SCHEMA_VERSION);
 }

@@ -273,9 +273,13 @@ files that sit where an object should and cannot be read as one.
 Static, so it is not a `:kind`; `errors` is not a library directory either.
 
 `reason` is `unparsable` (the bytes are not JSON, or not a card), `wrong-kind`
-(it parses, but declares another schema or has no id), or `schema` (it is that
-kind and fails validation). `detail` is the parser's or the validator's own
-complaint, which is the part anyone can act on. `path` is **relative to the data
+(it parses, but declares another schema or has no id), `schema` (it is that
+kind and fails validation), `unusable-name` (the folder is named something this
+build will not open, such as `con`), `unreadable` (the file is there and cannot
+be read — its permissions, or a directory where the file should be), or
+`refused-path` (it is a link that leads out of the data directory). `detail` is
+the parser's or the validator's own complaint, which is the part anyone can act
+on. `path` is **relative to the data
 directory**: the client needs to know which file, not where the server keeps its
 disk.
 
@@ -1575,6 +1579,9 @@ deletion is a move. **`409 busy` while a turn is in flight** (2026-09-27): its
 commit would write `sessions/<id>/` back beside the trashed one. A picture still
 being made when the session goes writes nothing, and a restore that finds a
 folder without a `session.json` in its place moves that aside into the trash.
+A restore (`POST /api/me/trash/restore`) indexes what it puts back before it
+answers, so a restored session is found by search again and a restored object
+reads at once.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 

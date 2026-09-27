@@ -4,7 +4,7 @@
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { ensureDirectory } from '../storage/files.js';
+import { ensureDirectory, renamePath, unlinkFile } from '../storage/files.js';
 import { migrate, type MigrationResult } from './migrations.js';
 
 /**
@@ -31,10 +31,52 @@ export interface OpenIndexOptions {
 }
 
 export async function openIndex({ path }: OpenIndexOptions): Promise<OpenedIndex> {
-  if (path !== ':memory:') {
-    await ensureDirectory(dirname(path));
-  }
+  if (path === ':memory:') return openAt(path);
+  await ensureDirectory(dirname(path));
 
+  try {
+    return openAt(path);
+  } catch (error) {
+    /**
+     * ***A file that is not an index is set aside, and the start goes on***
+     * (2026-09-27).
+     *
+     * [21 §5] makes deleting this file a non-event, and a file whose header a
+     * disk error or a bad copy has damaged is the same file with more steps:
+     * everything in it is a restatement of what is on disk. It used to stop
+     * the start instead — `pragma journal_mode` finds the damage and throws,
+     * and nothing caught it, so the one file whose loss costs nothing was the
+     * one that kept the server down until somebody with a shell deleted it.
+     *
+     * **Only damage**, which SQLite names (`SQLITE_NOTADB`, `SQLITE_CORRUPT`).
+     * A file that is locked or unreadable is a live question about somebody
+     * else's process or the disk's permissions, and setting it aside would be
+     * answering it wrongly. It is kept beside the new one, under `.damaged`,
+     * for whoever wants to know what happened to it, and the fresh file asks
+     * for a rebuild like any new one.
+     */
+    if (!isDamage(error)) throw error;
+    await renamePath(path, `${path}.damaged`);
+    await unlinkFile(`${path}-wal`);
+    await unlinkFile(`${path}-shm`);
+    return openAt(path);
+  }
+}
+
+/** What SQLite says when the bytes are not a database it can read. */
+function isDamage(error: unknown): boolean {
+  const code = (error as { errcode?: unknown } | null)?.errcode;
+  if (typeof code !== 'number') return false;
+  // The primary result code is the low byte; the extended ones carry detail in
+  // the rest (`SQLITE_CORRUPT_VTAB` is 267).
+  const primary = code & 0xff;
+  return primary === SQLITE_CORRUPT || primary === SQLITE_NOTADB;
+}
+
+const SQLITE_CORRUPT = 11;
+const SQLITE_NOTADB = 26;
+
+function openAt(path: string): OpenedIndex {
   const db = new DatabaseSync(path);
   let migration: MigrationResult;
   try {
