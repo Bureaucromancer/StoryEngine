@@ -28,7 +28,7 @@ import {
   unlinkFile,
   type TreeFile,
 } from '../storage/files.js';
-import { assertValidHandle, type Layout } from '../storage/layout.js';
+import { assertValidHandle, INSTANCE_LOCK_NAME, type Layout } from '../storage/layout.js';
 import { TarNameError, splitName } from '../storage/tar.js';
 import { readTarGz, writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
 
@@ -201,6 +201,16 @@ const note = (key: string, params: ImportNote['params'] = {}): ImportNote => ({
  */
 function alwaysSkipped(context: BackupContext, name: string): boolean {
   if (name === 'index' || name === BACKUP_MANIFEST_MEMBER) return true;
+  /**
+   * ***The instance lock, and not for tidiness*** (2026-09-27). On POSIX,
+   * closing any descriptor to a file drops every lock this process holds on
+   * it, and the walk below opens and closes each member it archives. So an
+   * install backup that carried the file would have let the lock go at the
+   * first backup, silently, and a second server could have started on this
+   * directory from then on. On Windows the lock is a sharing violation, and
+   * the backup would have failed there instead.
+   */
+  if (name === INSTANCE_LOCK_NAME || name.startsWith(`${INSTANCE_LOCK_NAME}-`)) return true;
   if (/^users\/[^/]+\/trash$/.test(name)) return true;
   /**
    * ***A removed account's archives and trash, for the reasons its live ones

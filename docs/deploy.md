@@ -93,6 +93,16 @@ bind mount, make the directory writable by that uid first — once, on the host:
 mkdir -p /srv/storyengine && chown 1000:1000 /srv/storyengine
 ```
 
+**One server per data directory.** A running server holds a lock on
+`instance.lock` at the data directory's root, and a second one started on the
+same directory stops at once with *Another StoryEngine server is using …*.
+Before the lock (2026-09-27), a second one took the directory over before it
+had even listened: it finished the first one's turn in flight as failed and
+deleted its backup half way. The lock is the operating system's, so a server
+that crashed leaves nothing to clean up, and the file itself is empty and never
+in a backup. Two containers, a service and a copy started by hand, or two
+installs pointed at one NAS share: give each its own directory.
+
 ## Configuration
 
 Four settings can be given as environment variables, because they are the ones
@@ -359,6 +369,9 @@ the data directory: cards, lorebooks, sessions, turns, connections and accounts.
 process, and a copy taken mid-write catches a half-written session — which is a
 corrupt story rather than a corrupt cache. `POST /api/admin/restart` drains the
 turns in flight and refuses new ones, which is the supported way to get there.
+The bundled command checks: it takes the server's own lock for as long as it
+runs, so it refuses a directory a server is using, and a server cannot start on
+one it is halfway through. `rsync` cannot check, so stopping is up to you.
 
 **Leave `index.sqlite` out.** It is derived from the files
 ([03 §5.1](design/03-data-model.md)) and it carries a schema version — an archive

@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { create, filesUnder, OWN_ENTRIES, restore } from './backup.mjs';
 import { performPendingRestore } from '../packages/server/src/backup/restore.js';
 import { OWN_ENTRIES as SERVER_OWN_ENTRIES } from '../packages/server/src/backup/swap.js';
+import { holdInstanceLock } from '../packages/server/src/instance-lock.js';
 import { Layout } from '../packages/server/src/storage/layout.js';
 import { writeTarGz } from '../packages/server/src/storage/tar-archive.js';
 
@@ -149,6 +150,40 @@ describe('a backup of a data directory', () => {
     const listed: string[] = await filesUnder(source);
     expect(listed.some((name: string) => name.startsWith('backups/'))).toBe(false);
     expect(listed.some((name: string) => name.includes('/backups/'))).toBe(false);
+  });
+});
+
+/**
+ * ***A directory a running server is using*** (2026-09-27). This script said
+ * the honest quiesce was *not to be running*, and could only take somebody's
+ * word for it. A server now holds `instance.lock` at the data root, and this
+ * takes the same lock for as long as it runs, so a directory a server has is
+ * refused in one line. The lock is held here the way a server holds it.
+ */
+describe('a directory a server is using', () => {
+  it('is refused a backup and a restore, and nothing is written', async () => {
+    await populate();
+    await create(source, archive);
+    const before = await filesUnder(source);
+    const held = holdInstanceLock(new Layout(source));
+    try {
+      await expect(create(source, `${archive}.again`)).rejects.toThrow(
+        /A StoryEngine server is using/,
+      );
+      await expect(restore(archive, source)).rejects.toThrow(/A StoryEngine server is using/);
+    } finally {
+      held.release();
+    }
+    expect(await filesUnder(source)).toEqual(before);
+    await expect(stat(join(source, '.restore'))).rejects.toThrow();
+  });
+
+  it('leaves the lock out of the archive it writes', async () => {
+    // The lock is this script's own while it walks: read, it would be let go.
+    await populate();
+    await writeFile(join(source, 'instance.lock'), '');
+
+    expect(await filesUnder(source)).not.toContain('instance.lock');
   });
 });
 

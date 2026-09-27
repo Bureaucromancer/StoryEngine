@@ -8,6 +8,7 @@ import { performPendingRestore } from './backup/restore.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
+import { holdInstanceLock, type InstanceLock, InstanceLockHeld } from './instance-lock.js';
 import { advertise } from './mdns/responder.js';
 import { announceRestored } from './notifications/notices.js';
 import { RESTART_EXIT_CODE } from './restart.js';
@@ -102,6 +103,23 @@ async function main(): Promise<void> {
         gid: process.getgid?.(),
       }),
     );
+  }
+
+  /**
+   * ***One server per data directory*** (2026-09-27), before anything writes
+   * to it: a restore swap, the stamp, the index, reconciliation. A second
+   * server on a directory another one was using finalised the first one's
+   * turn in flight as failed and deleted its backup half way (see
+   * `Layout.instanceLockFile`). **After `ensureWritableDirectory`**, whose
+   * answer is the better one when the directory cannot be written at all.
+   * **Not in `buildServices`**, which tests call to start a second server in
+   * one process on purpose; this is the process's own claim.
+   */
+  try {
+    instanceLock = holdInstanceLock(layout);
+  } catch (error) {
+    if (error instanceof InstanceLockHeld) throw new UsageError(error.message);
+    throw error;
   }
 
   /**
@@ -438,6 +456,9 @@ async function main(): Promise<void> {
     // Bounded, and the streams end first: see `closeApp`.
     await closeApp(app);
     await disposeServices(services);
+    // Last, once every store is closed. Exiting would let it go anyway; saying
+    // so here keeps the order where it can be read.
+    instanceLock?.release();
     process.exit(code);
   }
 }
@@ -455,6 +476,12 @@ async function main(): Promise<void> {
  * --reset-password ned` should not name a directory `--reset-password`.
  */
 class UsageError extends Error {}
+
+/**
+ * The data directory's lock, held for the life of the process: reachable from
+ * here so that nothing collects the handle that holds it (`instance-lock.ts`).
+ */
+let instanceLock: InstanceLock | null = null;
 
 function argumentValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);

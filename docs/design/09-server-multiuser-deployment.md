@@ -1187,6 +1187,17 @@ Clients reconnect on their own, since the event stream already reconnects
 ([19 §8](19-tech-stack.md)), so the user-visible result is a brief disconnected
 banner rather than a manual refresh.
 
+*Added 2026-09-27:* **one server per data directory**, which nothing here had
+said. A second process started on a directory in use took it over before it
+listened: its start-up reconciliation finalised the running server's turn in
+flight as failed, and its sweep of abandoned backups deleted the running
+server's half-written archive. A running server now holds an operating-system
+lock on `instance.lock` at the data root, and a second one exits at once with a
+sentence naming the directory. A supervised restart is unaffected, because a
+supervisor starts the new process after the old one has exited and the kernel
+has let its lock go; a start refused while the bundled backup command holds the
+directory is retried by the supervisor like any other failed start.
+
 **[OPEN]** Whether extension install/uninstall can avoid a full restart. In-process
 ESM modules make true unloading hard — stale references, already-registered
 channel definitions — so "restart required" is the honest 1.0 answer, and a

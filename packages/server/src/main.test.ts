@@ -16,6 +16,7 @@ import { CLOSE_BACKSTOP_MS } from './app.js';
 import { Accounts } from './auth/accounts.js';
 import { findBackup, takeBackup } from './backup/archive.js';
 import { prepareRestore } from './backup/restore.js';
+import { holdInstanceLock } from './instance-lock.js';
 import { Layout } from './storage/layout.js';
 import { tempRoot } from './test-server.js';
 
@@ -480,6 +481,36 @@ describe('a restore it cannot finish', () => {
     expect(result.stderr).toContain('swap.json');
     expect(result.stdout).not.toContain('listening');
     expect(result.timedOut).toBe(false);
+  });
+});
+
+/**
+ * ***One server per data directory*** (2026-09-27). A second server on a
+ * directory another one was using took it over piece by piece before it
+ * listened: it finalised the first one's turn in flight as failed, and swept
+ * the first one's half-written backup away. The lock is held here the way a
+ * running server holds it, in another process, and a planted half-written
+ * archive is the evidence that nothing ran: the start-up sweep would have
+ * deleted it.
+ */
+describe('a data directory another server is using', () => {
+  it('is refused before anything in it is touched', async () => {
+    const layout = new Layout(dataDir);
+    const partial = join(layout.backupsRoot, 'install-full-2026-09-27-x.tar.gz.part');
+    await mkdir(layout.backupsRoot, { recursive: true });
+    await writeFile(partial, 'half an archive');
+    const held = holdInstanceLock(layout);
+    try {
+      const result = await run(['--data', dataDir]);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('Another StoryEngine server is using');
+      expect(result.stderr).not.toContain('at async');
+      expect(result.stdout).not.toContain('listening');
+      expect(existsSync(partial)).toBe(true);
+    } finally {
+      held.release();
+    }
   });
 });
 

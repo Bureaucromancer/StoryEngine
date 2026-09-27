@@ -114,6 +114,14 @@ export function assertValidHandle(handle: string): void {
 }
 
 /**
+ * The name of the lock a running server holds on its data directory, at the
+ * data directory's root — see {@link Layout.instanceLockFile}. Exported for the
+ * two places that must never touch the file: the archive walk and the restore
+ * swap.
+ */
+export const INSTANCE_LOCK_NAME = 'instance.lock';
+
+/**
  * Every path in the data directory, derived from one root.
  *
  * A class rather than loose functions taking `dataRoot` everywhere, because the
@@ -286,6 +294,33 @@ export class Layout {
    */
   get restoreJournalFile(): string {
     return resolveWithin(this.restoreRoot, 'swap.json');
+  }
+
+  /**
+   * ***`instance.lock` — one server per data directory*** (2026-09-27).
+   *
+   * A second server started on a directory another one is using took it over
+   * piece by piece before it had even listened. Its start-up reconciliation
+   * finalised the first one's turn in flight as a failed one, and moved the
+   * head over it. Its sweep of abandoned backups deleted the first one's
+   * half-written archive, so that backup failed at its last step. Its rendition
+   * recovery told the owner a picture still being drawn had failed. Nothing
+   * said two were running. The shipped wrappers never start two, but a second
+   * container, a unit and a hand-started copy, or a restart that raced its own
+   * predecessor all can.
+   *
+   * A running server holds an operating-system lock on this file from before
+   * it touches anything until it exits (`instance-lock.ts`), and a second one
+   * is refused in one line. **At the root and not in `state/`**, because the
+   * restore swap moves `state/` aside, and a lock file moved aside leaves its
+   * old name free for a second server to lock. **Never read by this process
+   * while it holds it**: on POSIX, closing any descriptor to a file drops
+   * every lock the process holds on it, so an archive walk that opened it
+   * would silently let the lock go. It is left out of every archive, and the
+   * swap leaves it where it is.
+   */
+  get instanceLockFile(): string {
+    return resolveWithin(this.dataRoot, INSTANCE_LOCK_NAME);
   }
 
   /** `.restore/<id>/` — one restore's staging tree and the install it replaced. */

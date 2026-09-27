@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,7 +11,8 @@ import { readBackupManifest, BACKUP_MANIFEST_MEMBER } from '@storyengine/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ensureDirectory, listTreeFiles, writeFileBytes } from '../storage/files.js';
-import { Layout } from '../storage/layout.js';
+import { holdInstanceLock } from '../instance-lock.js';
+import { INSTANCE_LOCK_NAME, Layout } from '../storage/layout.js';
 import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import {
   BackupSpaceError,
@@ -51,6 +53,24 @@ async function membersOf(path: string): Promise<Map<string, string>> {
 }
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+/**
+ * Whether another process is refused the lock at `path`: the only way to see
+ * a POSIX lock this process has lost, since its own view of it does not
+ * change.
+ */
+function stillHeldElsewhere(path: string): boolean {
+  const script = [
+    "const { DatabaseSync } = require('node:sqlite');",
+    'const db = new DatabaseSync(process.argv[1]);',
+    "try { db.exec('pragma locking_mode = exclusive'); db.exec('begin exclusive'); process.stdout.write('taken'); }",
+    "catch { process.stdout.write('refused'); }",
+  ].join('\n');
+  const answer = execFileSync(process.execPath, ['-e', script, path], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).toString();
+  return answer === 'refused';
+}
 
 async function put(relative: string, text: string): Promise<void> {
   const path = join(root, ...relative.split('/'));
@@ -283,6 +303,32 @@ describe('an install backup', () => {
     expect([...members.keys()].filter((name) => name.startsWith('.restore'))).toEqual([]);
     // And the rest is still there, so the filter above is not passing over nothing.
     expect(members.has('users/ned/library/actors/vera/card.png')).toBe(true);
+  });
+
+  /**
+   * ***The instance lock, which the walk must never open*** (2026-09-27). On
+   * POSIX, closing any descriptor to a file drops every lock the process holds
+   * on it, so a walk that read the file would let a running server's lock go
+   * at its first backup. Held here as a server holds it, and asked about
+   * afterwards from another process, since this one cannot see the loss.
+   */
+  it('neither carries the instance lock nor lets it go', async () => {
+    const held = holdInstanceLock(layout);
+    try {
+      const record = await takeBackup(context, {
+        owner: INSTALL,
+        contents: 'full',
+        reason: 'manual',
+      });
+      const found = await findBackup(context, INSTALL, record.id);
+      const members = await membersOf(found!.path);
+
+      expect(members.has(INSTANCE_LOCK_NAME)).toBe(false);
+      expect(members.has('users/ned/library/actors/vera/card.png')).toBe(true);
+      expect(stillHeldElsewhere(layout.instanceLockFile)).toBe(true);
+    } finally {
+      held.release();
+    }
   });
 
   /**

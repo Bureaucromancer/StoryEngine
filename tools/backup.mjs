@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createReadStream, createWriteStream } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdir, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import { basename, dirname, join, resolve, sep } from 'node:path';
@@ -42,6 +43,13 @@ import { BLOCK, headerName, padding, tarHeader, trailer } from './tar.mjs';
  * subsystem E6 forbids. So the script says so rather than pretending, and
  * `POST /api/admin/restart` with a drain is how an operator gets there
  * ([09 §6.4], [P10.3]).
+ *
+ * ***And now it can tell*** (2026-09-27). A running server holds
+ * `instance.lock` at the data directory's root, which is one server per
+ * directory rather than a write-lock, and this script takes the same lock for
+ * as long as it runs. So it refuses a directory a server is using, in one
+ * line, where it used to take that server's word that it had been stopped; and
+ * a server cannot start on a directory this script is halfway through.
  *
  * **A tar, written by hand, and no dependency.** The format is forty years old
  * and the subset an archive of a directory tree needs is a header struct and
@@ -99,6 +107,9 @@ const EXCLUDED = [
   // a restore the moment it was itself restored.
   /^\.restore$/,
   /^state\/restore\.pending$/,
+  // The lock a running server holds, and this script while it runs. Reading it
+  // in the process that holds it would drop the lock: see `Layout.instanceLockFile`.
+  /^instance\.lock(-journal)?$/,
 ];
 
 /** Whether a path relative to the data root is one of {@link EXCLUDED}. */
@@ -110,7 +121,13 @@ async function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (command === 'create' && rest.length === 2) {
     const [dataDir, archive] = rest;
-    const count = await create(resolve(dataDir), resolve(archive));
+    let count;
+    try {
+      count = await create(resolve(dataDir), resolve(archive));
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
     console.log(`${archive}: ${String(count)} files; index, trash and backups excluded.`);
     return;
   }
@@ -185,7 +202,42 @@ async function filesUnder(root, at = '') {
   return found;
 }
 
+/**
+ * ***The data directory's lock, for as long as this script runs*** — the one a
+ * running server holds (`packages/server/src/instance-lock.ts`), taken the
+ * same way: an exclusive SQLite transaction never committed, which the kernel
+ * lets go when this process ends however it ends. Throws a sentence naming the
+ * directory when a server has it.
+ */
+async function holdDirectory(dataDir) {
+  await mkdir(dataDir, { recursive: true });
+  const db = new DatabaseSync(join(dataDir, 'instance.lock'));
+  try {
+    db.exec('pragma locking_mode = exclusive');
+    db.exec('begin exclusive');
+  } catch (error) {
+    db.close();
+    if (typeof error?.errcode === 'number' && (error.errcode & 0xff) === 5) {
+      throw new Error(
+        `A StoryEngine server is using ${dataDir}. Stop it first: a backup taken while it writes can catch a story half-written, and a restore needs it stopped to swap the files in.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+  return () => db.close();
+}
+
 async function create(dataDir, archive) {
+  const release = await holdDirectory(dataDir);
+  try {
+    return await createUnderLock(dataDir, archive);
+  } finally {
+    release();
+  }
+}
+
+async function createUnderLock(dataDir, archive) {
   const files = await filesUnder(dataDir);
   await mkdir(dirname(archive), { recursive: true });
 
@@ -237,7 +289,10 @@ const SWAP_JOURNAL_SCHEMA = 'storyengine.restore-swap/1';
  * restore's own directory. No archive either writer makes carries them.
  */
 function keptLive(name) {
-  return /^(backups|\.restore)(\/|$)/.test(name) || /^users\/[^/]+\/backups(\/|$)/.test(name);
+  return (
+    /^(backups|\.restore|instance\.lock)(\/|$)/.test(name) ||
+    /^users\/[^/]+\/backups(\/|$)/.test(name)
+  );
 }
 
 /**
@@ -359,6 +414,15 @@ async function entriesOf(path) {
  * every stored backup in it went too, and a bad archive left nothing at all.
  */
 async function restore(archive, dataDir) {
+  const release = await holdDirectory(dataDir);
+  try {
+    return await restoreUnderLock(archive, dataDir);
+  } finally {
+    release();
+  }
+}
+
+async function restoreUnderLock(archive, dataDir) {
   // Read whole rather than streamed, and the archive's size is why that is
   // fine: a data directory of stories and cards is megabytes, and a streaming
   // tar reader is a state machine — which is a thing to get wrong in the one

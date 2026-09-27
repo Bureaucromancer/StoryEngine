@@ -14,7 +14,7 @@ import {
   renamePath,
   unlinkFile,
 } from '../storage/files.js';
-import type { Layout } from '../storage/layout.js';
+import { INSTANCE_LOCK_NAME, type Layout } from '../storage/layout.js';
 
 /**
  * ***Swapping a restored tree in for the live one, one entry at a time*** —
@@ -55,8 +55,13 @@ import type { Layout } from '../storage/layout.js';
 /** The journal's format. */
 export const SWAP_JOURNAL_SCHEMA = 'storyengine.restore-swap/1';
 
-/** The root entries a swap never moves: the install's archives, and itself. */
-export const KEPT_LIVE: ReadonlySet<string> = new Set(['backups', '.restore']);
+/**
+ * The root entries a swap never moves: the install's archives, itself, and
+ * the lock the running server holds (2026-09-27). A lock file moved aside
+ * would leave its name free, so a second server could lock a new file there
+ * while this one still held the old.
+ */
+export const KEPT_LIVE: ReadonlySet<string> = new Set(['backups', '.restore', INSTANCE_LOCK_NAME]);
 
 /**
  * The root entries that are StoryEngine's, and so move aside whether or not the
