@@ -309,8 +309,23 @@ export async function sweepAttachments(
   let removed = 0;
   for (const { path, digest } of old) {
     if (named.has(digest)) continue;
-    await unlinkFile(path);
-    removed += 1;
+    /**
+     * ***Asked again, a moment before it goes.*** Reading the turns is the slow
+     * part, and it is not under the session's lock: a re-upload of this
+     * picture, or a move naming it, can renew it while the read runs — and was
+     * told it succeeded. Deleting from the list made before the read would take
+     * the picture that move is about to send. The window left is a stat and an
+     * unlink wide.
+     */
+    const facts = await statFile(path);
+    if (facts === null || now - facts.mtimeMs < UNSENT_GRACE_MS) continue;
+    try {
+      await unlinkFile(path);
+      removed += 1;
+    } catch {
+      // Something with a stored name that will not unlink — a directory put
+      // there by hand — is not this store's, and not a reason to stop.
+    }
   }
   return removed;
 }

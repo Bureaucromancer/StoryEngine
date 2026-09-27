@@ -270,6 +270,49 @@ describe('the sweep', () => {
     expect(await sweepAttachments(layout, HANDLE, SESSION, counting)).toBe(2);
     expect(asked).toBe(1);
   });
+
+  /**
+   * ***A picture renewed while the sweep reads the turns is kept.*** Reading
+   * every segment is the slow part, and it is not under the session's lock, so
+   * a re-upload or a submitted move can renew a picture the sweep has already
+   * listed as old — and be told it succeeded. The renewal here happens inside
+   * `referenced`, which is exactly that window. Deleting from the list made
+   * before the read took the picture the move was about to send; the mutation
+   * is dropping the second look before the unlink.
+   */
+  it('keeps a picture renewed while it reads the turns', async () => {
+    const wanted = await store(picture(7, 7));
+    const abandoned = await store(picture(8, 7));
+    await age(fileOf(wanted));
+    await age(fileOf(abandoned));
+
+    const renewing = async (): Promise<ReadonlySet<string>> => {
+      await store(picture(7, 7));
+      return new Set<string>();
+    };
+    expect(await sweepAttachments(layout, HANDLE, SESSION, renewing)).toBe(1);
+
+    expect(await readAttachment(layout, HANDLE, SESSION, wanted.digest)).not.toBeNull();
+    expect(await readAttachment(layout, HANDLE, SESSION, abandoned.digest)).toBeNull();
+  });
+
+  /**
+   * ***Something with a stored name that will not unlink is passed over***, not
+   * the end of the sweep. A directory named like a picture is the case — put
+   * there by hand, since this store writes only files — and the old pictures
+   * listed after it in the folder must still go.
+   */
+  it('passes over an entry it cannot remove, and collects the rest', async () => {
+    const old = await store(picture(9, 7));
+    await age(fileOf(old));
+    const stray = join(folder(), `${'0'.repeat(64)}.png`);
+    await mkdir(stray);
+    await age(stray);
+
+    expect(await sweepAttachments(layout, HANDLE, SESSION, nothingNamed)).toBe(1);
+    expect(await readAttachment(layout, HANDLE, SESSION, old.digest)).toBeNull();
+    expect(await readdir(folder())).toContain(`${'0'.repeat(64)}.png`);
+  });
 });
 
 /**

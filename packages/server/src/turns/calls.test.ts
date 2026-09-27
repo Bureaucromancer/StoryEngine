@@ -590,8 +590,8 @@ describe('a picture on the move, sent or held', () => {
     });
   }
 
-  function blockOf(blocks: readonly { id: string }[]) {
-    return blocks.find((block) => block.id === PICTURE_ID);
+  function blockOf<T extends { id: string }>(blocks: readonly T[] | undefined): T | undefined {
+    return blocks?.find((block) => block.id === PICTURE_ID);
   }
 
   function hasParts(messages: readonly RenderedMessage[]): boolean {
