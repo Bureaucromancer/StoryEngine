@@ -172,6 +172,8 @@ export function PlayPage({
    * nothing a phone recorded about where a photo was taken ever leaves it
    * (`preparePicture`, which refuses rather than sending an original).
    */
+  /** Whether the page is still here — read by an attach whose upload outlived it. */
+  const pageOpen = useRef(true);
   const attachPictures = async (files: readonly File[]): Promise<void> => {
     setPictureProblem(null);
     setAttaching(true);
@@ -186,6 +188,9 @@ export function PlayPage({
         if (room <= 0) break;
         const prepared = await preparePicture(file);
         const uploaded = await uploadPicture(sessionId, prepared);
+        // A page left while the upload was out has already let go of its
+        // previews, and a preview made now would be one nothing ever releases.
+        if (!pageOpen.current) return;
         // The same picture attached twice is one picture: its address is its bytes.
         if (seen.has(uploaded.digest)) continue;
         seen.add(uploaded.digest);
@@ -221,12 +226,13 @@ export function PlayPage({
    */
   const heldPictures = useRef(pictures);
   heldPictures.current = pictures;
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    pageOpen.current = true;
+    return () => {
+      pageOpen.current = false;
       for (const one of heldPictures.current) URL.revokeObjectURL(one.preview);
-    },
-    [],
-  );
+    };
+  }, []);
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
   // cache entry and the invalidate below refreshes both ([P3.1]).

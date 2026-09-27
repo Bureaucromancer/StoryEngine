@@ -132,3 +132,98 @@ describe('what changed about a block', () => {
     );
   });
 });
+
+/**
+ * ***A different picture is a change, whatever the words say*** — [25 E15].
+ *
+ * The three comparisons `changeOf` made before pictures existed — text,
+ * included, tokens — are all blind to one: two uncaptioned pictures render as
+ * the same placeholder text, estimate the same tokens and are both included,
+ * and they are different pixels. So is one picture held for two different
+ * reasons, which is two different answers to *did the model see it* — the
+ * question somebody opens a comparison of two rerolls to ask.
+ *
+ * Every pair below is identical in text, tokens and inclusion **on purpose**:
+ * that is what makes each one a test of the picture comparison alone. A pair
+ * that also differed in text would pass against a `changeOf` that never looked
+ * at the picture at all.
+ */
+describe('what changed about a picture', () => {
+  const HARBOUR = `sha256:${'a'.repeat(64)}`;
+  const LANTERN = `sha256:${'b'.repeat(64)}`;
+
+  function picture(image: Partial<NonNullable<AssembledBlock['image']>>): AssembledBlock {
+    return block('se.input.attachment.0', {
+      source: { kind: 'input', part: 'attachment', attachmentId: '0' },
+      role: 'user',
+      text: '[Picture]',
+      image: {
+        attachmentId: '0',
+        digest: HARBOUR,
+        mime: 'image/png',
+        sent: true,
+        ...image,
+      },
+    });
+  }
+
+  function pair(before: AssembledBlock, after: AssembledBlock) {
+    return { id: before.id, before, after };
+  }
+
+  it('calls two different pictures with the same words a change', () => {
+    // The case the text comparison cannot see: both render as `[Picture]`.
+    // The falsifying mutation is dropping the digest comparison, after which
+    // swapping the photo on a move reads as nothing having happened.
+    expect(
+      changeOf(pair(picture({ digest: HARBOUR }), picture({ digest: LANTERN })), 'r', 'r'),
+    ).toBe('changed');
+  });
+
+  it('calls one picture held for two different reasons a change', () => {
+    // Same bytes, both withheld — once because the model is text-only, once
+    // because the bytes are not on this server. Two different repairs, so two
+    // different rows. The mutation is dropping the `withheld` comparison.
+    expect(
+      changeOf(
+        pair(
+          picture({ sent: false, withheld: 'model-text-only' }),
+          picture({ sent: false, withheld: 'missing-bytes' }),
+        ),
+        'r',
+        'r',
+      ),
+    ).toBe('changed');
+  });
+
+  it('calls a picture seen on one turn and read on the other a change', () => {
+    // The reroll-against-another-model case, which is the one a person
+    // actually meets: the pixels went, then only the caption did. Not isolated
+    // from `withheld` — a well-formed record carries a reason exactly when it
+    // was not sent — so this pins the case rather than the one comparison.
+    expect(
+      changeOf(
+        pair(picture({ sent: true }), picture({ sent: false, withheld: 'model-text-only' })),
+        'r',
+        'r',
+      ),
+    ).toBe('changed');
+  });
+
+  it('calls the same picture, sent the same way, the same', () => {
+    // The other direction, which a comparison that flagged every picture
+    // would fail: each image is its own object here, so a check by identity
+    // rather than by field would report a change nobody made.
+    expect(changeOf(pair(picture({}), picture({})), 'r', 'r')).toBe('same');
+    expect(
+      changeOf(
+        pair(
+          picture({ digest: null, mime: null, sent: false, withheld: 'missing-bytes' }),
+          picture({ digest: null, mime: null, sent: false, withheld: 'missing-bytes' }),
+        ),
+        'r',
+        'r',
+      ),
+    ).toBe('same');
+  });
+});
