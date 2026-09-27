@@ -10,6 +10,7 @@ import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { CommaField } from './ListField.js';
 
 /**
  * ***Image slots, uploaded, cropped and replaced*** —
@@ -266,17 +267,15 @@ export function MediaStrip(props: {
                   ))}
                 </select>
               </label>
-              <Field
+              {/* Buffered (2026-09-27): split and re-joined on every
+                  keystroke, a comma was deleted the moment it was typed, so no
+                  picture could be given a second tag. */}
+              <CommaField
                 label={WORDS['tags'] ?? 'Tags'}
-                value={one.tags.join(', ')}
+                value={one.tags}
                 hint={WORDS['tags-hint'] ?? ''}
-                onChange={(text) => {
-                  patch(one.id, {
-                    tags: text
-                      .split(',')
-                      .map((tag) => tag.trim())
-                      .filter((tag) => tag !== ''),
-                  });
+                onChange={(tags) => {
+                  patch(one.id, { tags });
                 }}
               />
               <div className="flex flex-wrap gap-1">

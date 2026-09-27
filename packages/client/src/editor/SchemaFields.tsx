@@ -6,12 +6,14 @@ import type { JSX } from 'react';
 import {
   boundsOf,
   groupsOf,
+  itemSchemaOf,
   objectFieldsOf,
   type FieldGroup,
   type FieldRow,
   type SchemaNode,
 } from '../library/fields.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
+import { LinesField } from './ListField.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
 import { disclosure } from '../ui/classes.js';
 
@@ -76,8 +78,19 @@ function controlFor(schema: SchemaNode | undefined, value: unknown): Control {
   // An array of strings is a textarea, one per line — the shape the actor
   // editor's aliases and traits already use. Anything else in an array is a
   // structure, and a structure is its own component's business.
+  //
+  // ***Decided by what the list holds, not by what it holds now*** (2026-09-27).
+  // This asked the value, and `[].every(…)` is true of anything: every empty
+  // list was a list of strings, so a new treatment's Cast and Lore, a setup's
+  // Goals and a preset's Variables got a box that wrote strings where objects
+  // belong — refused by the server, with every other edit blocked until the
+  // box was emptied again. The item schema says; only an undeclared one falls
+  // back to the value, and then only to a value that has something in it.
   if (declared === 'array') {
-    return Array.isArray(value) && value.every((one) => typeof one === 'string')
+    const item = (itemSchemaOf(schema) as Node | undefined)?.type;
+    if (item === 'string') return 'lines';
+    if (item !== undefined) return 'opaque';
+    return Array.isArray(value) && value.length > 0 && value.every((one) => typeof one === 'string')
       ? 'lines'
       : 'opaque';
   }
@@ -118,9 +131,13 @@ function summaryOf(fields: FieldRow[], value: Record<string, unknown>): string |
   return `${String(set.length)} set`;
 }
 
-function linesOf(value: unknown): string {
-  return Array.isArray(value) ? value.filter((one) => typeof one === 'string').join('\n') : '';
-}
+/**
+ * The value of a field with nothing in it yet, as a list — **one array for
+ * every render**, because `LinesField` re-seeds its text whenever the array it
+ * is given is a different one, and a fresh `[]` each time would re-seed it on
+ * every render, forever.
+ */
+const NO_LINES: readonly string[] = [];
 
 export function SchemaFields(props: {
   schemaId: string;
@@ -247,20 +264,15 @@ function OneField(props: {
   }
 
   if (control === 'lines') {
+    // The entry editor's buffered field, so a space or an Enter at the end of
+    // a line survives being typed (2026-09-27) — this split and re-joined the
+    // box on every keystroke, and *dark fantasy* could not be typed as a tag.
     return (
-      <Field
+      <LinesField
         label={row.label}
         path={row.key}
-        value={linesOf(value)}
-        onChange={(next) => {
-          props.onChange(
-            next
-              .split('\n')
-              .map((line) => line.trim())
-              .filter((line) => line.length > 0),
-          );
-        }}
-        multiline
+        value={Array.isArray(value) ? (value as string[]) : NO_LINES}
+        onChange={props.onChange}
         rows={3}
         hint="One per line."
         {...(note === undefined ? {} : { readOnlyNote: note })}
@@ -277,8 +289,12 @@ function OneField(props: {
         value={text}
         onChange={props.onChange}
         // Presentation from the value: a field holding a paragraph gets room
-        // for one, and the same field holding a name does not.
-        {...(text.includes('\n') || text.length > 80 ? { multiline: true, rows: 4 } : {})}
+        // for one, and the same field holding a name does not. ***The height,
+        // never the element*** (2026-09-27): this swapped an `<input>` for a
+        // `<textarea>` at the 81st character, and a new element has no focus,
+        // so a blurb stopped taking keystrokes mid-sentence.
+        multiline
+        rows={text.includes('\n') || text.length > 80 ? 4 : 1}
         {...(note === undefined ? {} : { readOnlyNote: note })}
       />
     );

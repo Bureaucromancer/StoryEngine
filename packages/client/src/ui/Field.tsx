@@ -146,6 +146,10 @@ export function Field(props: FieldProps): JSX.Element {
           className={CONTROL_CLASS}
           value={props.value}
           rows={props.rows ?? 4}
+          // Read-only on the same terms as the `<input>` below (2026-09-27):
+          // this branch ignored the note, which was latent while no read-only
+          // field was ever multiline — and every generic text field is now.
+          readOnly={props.readOnlyNote !== undefined}
           onChange={(event) => {
             edited(event.target.value);
           }}

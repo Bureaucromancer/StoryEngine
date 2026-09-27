@@ -250,6 +250,58 @@ describe('a carrier whose hooks a hand edit broke', () => {
   });
 });
 
+/**
+ * ***Typing into the generic editor*** (2026-09-27).
+ *
+ * Three ways the fields every generic editor draws from the schema fought the
+ * person typing into them: a list box that split and re-joined itself on every
+ * keystroke, so a space or an Enter at the end of a line vanished as it was
+ * typed; a text field that swapped its element at the 81st character and took
+ * the focus with it; and an empty list of *objects* offered as a list of lines,
+ * whose first character made the object one the server refuses.
+ */
+describe('typing into the fields a generic editor draws', () => {
+  it('keeps a space and a new line typed into a list of tags', async () => {
+    saved = [];
+    renderApp();
+    await openEditor('treatments', BARE_TREATMENT_ID);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Tags' }), 'dark fantasy{Enter}noir');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(saved).toHaveLength(1);
+    });
+    expect(saved[0]?.['tags']).toEqual(['dark fantasy', 'noir']);
+  });
+
+  it('keeps the focus in a text field that grows past a line', async () => {
+    renderApp();
+    await openEditor('treatments', BARE_TREATMENT_ID);
+    const blurb = screen.getByRole('textbox', { name: 'Blurb' });
+    const long =
+      'The rain has not stopped in forty days, and the harbour has begun to forget the sun.';
+    expect(long.length).toBeGreaterThan(80);
+
+    await userEvent.type(blurb, long);
+
+    const now = screen.getByRole('textbox', { name: 'Blurb' });
+    expect((now as HTMLTextAreaElement).value).toBe(long);
+    expect(document.activeElement).toBe(now);
+  });
+
+  it('shows an empty list of objects as stored, with no box to type into', async () => {
+    renderApp();
+    await openEditor('treatments', BARE_TREATMENT_ID);
+
+    expect(screen.queryByRole('textbox', { name: 'Cast' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Lore' })).toBeNull();
+    expect(
+      screen.getAllByText('Shown as stored. This editor does not write this field yet.').length,
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe('the carriers that author their own hooks', () => {
   /**
    * ***The list is drawn, and the opaque fallback has let go of it.***
@@ -273,8 +325,10 @@ describe('the carriers that author their own hooks', () => {
 
       expect(screen.getByRole('region', { name: 'Plot hooks' })).toBeDefined();
       expect(screen.queryByText('Hooks')).toBeNull();
-      // An empty array reads as an array of strings, so the fallback would give
-      // it a textarea rather than a `<pre>` — neither is a hook editor.
+      // ~~An empty array reads as an array of strings, so the fallback would
+      // give it a textarea rather than a `<pre>`~~ — it did, and every empty
+      // list of objects got one (2026-09-27): the control is chosen by what
+      // the list holds now. Neither is a hook editor either way.
       expect(screen.queryByLabelText('Hooks')).toBeNull();
     });
   }

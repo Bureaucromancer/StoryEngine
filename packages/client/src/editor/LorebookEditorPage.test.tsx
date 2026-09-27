@@ -1840,6 +1840,35 @@ describe('image slots on a book and its entries', () => {
     expect(within(gallery).getByRole('textbox', { name: 'Tags' })).toBeTruthy();
   });
 
+  /**
+   * ***A comma survives being typed*** (2026-09-27). The box split and
+   * re-joined itself on every keystroke, so the comma went the moment it was
+   * typed — and with it any second tag, and the space after it.
+   */
+  it('takes tags typed with commas and spaces between them', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor();
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.type(
+      await within(gallery).findByRole('textbox', { name: 'Tags' }),
+      'winter, aerial view',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().media[0]?.tags).toEqual(['winter', 'aerial view']);
+  });
+
   it('says the pictures are never sent', async () => {
     renderApp();
     await openEditor();
