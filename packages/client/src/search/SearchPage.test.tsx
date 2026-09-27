@@ -43,7 +43,11 @@ function renderPage(query: string): void {
 
 beforeEach(() => {
   results = {
-    objects: [{ id: 'o1', schema: 'actor', name: 'Vera', slug: 'vera', source: 'user' }],
+    // The schema id the server sends. `'actor'` stood here, a value no server
+    // has ever sent, and nothing read the link it made (2026-09-27).
+    objects: [
+      { id: 'o1', schema: 'storyengine.actor/1', name: 'Vera', slug: 'vera', source: 'user' },
+    ],
     turns: [
       {
         turnId: 't-on',
@@ -77,6 +81,26 @@ beforeEach(() => {
 });
 
 describe('one surface, three kinds of hit', () => {
+  /**
+   * ***A library hit opens the file it found*** (2026-09-27). Every one of
+   * these linked to `/library/storyengine.actor/1s/<id>`, which no route
+   * matches: the schema with an `s` on it, where the kind belonged.
+   */
+  it('links a library hit to its kind, and to the copy that matched', async () => {
+    renderPage('vera');
+    const hit = await screen.findByRole('link', { name: 'Vera' });
+    expect(hit.getAttribute('href')).toBe('/library/actors/o1?source=user&slug=vera');
+  });
+
+  it('calls a hit in an unnamed session by the name the app gives it', async () => {
+    results = {
+      ...results,
+      turns: [{ ...results.turns[0]!, sessionName: '' }],
+    };
+    renderPage('lighthouse');
+    expect(await screen.findByRole('link', { name: 'Untitled session' })).toBeTruthy();
+  });
+
   it('returns objects, turns and lore entries from one query', async () => {
     renderPage('lighthouse');
     expect(await screen.findByText('the lighthouse keeper')).toBeTruthy();

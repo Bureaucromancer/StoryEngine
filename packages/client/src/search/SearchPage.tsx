@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
-import { searchEverything, type SearchResults } from '../api.js';
+import { kindOfSchema, searchEverything, type SearchResults } from '../api.js';
+import { sessionLabel } from '../play/session-label.js';
 import { Button } from '../ui/Button.js';
 import { link, page } from '../ui/classes.js';
 import { Note, PageTitle } from '../ui/Text.js';
@@ -134,7 +135,10 @@ function Results(props: {
                   className={link.object}
                   href={`/read/${hit.sessionId}?from=${encodeURIComponent(hit.turnId)}`}
                 >
-                  {hit.sessionName}
+                  {/* An unnamed session is *Untitled session* here as
+                      everywhere (2026-09-27): a blank link is nothing to
+                      click and has no name to announce. */}
+                  {sessionLabel(hit.sessionName)}
                 </a>
                 <p className="whitespace-pre-wrap text-sm text-ink-muted">{hit.snippet}</p>
                 {hit.onPath ? null : <p className="text-sm text-warn-ink">{OFF_PATH}</p>}
@@ -152,13 +156,37 @@ function Results(props: {
           <Note>Nothing in the library matched.</Note>
         ) : (
           <ul className="flex flex-col gap-2">
-            {props.data.objects.map((hit) => (
-              <li key={hit.id}>
-                <a className={link.object} href={`/library/${hit.schema}s/${hit.id}`}>
-                  {hit.name}
-                </a>
-              </li>
-            ))}
+            {props.data.objects.map((hit) => {
+              /**
+               * ***The kind from the schema, not the schema with an `s`***
+               * (2026-09-27). The hit carries `storyengine.actor/1`, so every
+               * link was `/library/storyengine.actor/1s/<id>`: four segments,
+               * no route, and not one library hit on this page opened.
+               *
+               * *And the copy the search found*, by its address: two files can
+               * hold one id (F19), each is its own hit, and an id alone would
+               * open the winner from either row. The key is per file for the
+               * same reason.
+               */
+              const kind = kindOfSchema(hit.schema);
+              return (
+                <li key={`${hit.source}/${hit.slug}/${hit.id}`}>
+                  {kind === null ? (
+                    <span>{hit.name}</span>
+                  ) : (
+                    <a
+                      className={link.object}
+                      href={
+                        `/library/${kind}/${encodeURIComponent(hit.id)}` +
+                        `?source=${hit.source}&slug=${encodeURIComponent(hit.slug)}`
+                      }
+                    >
+                      {hit.name}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

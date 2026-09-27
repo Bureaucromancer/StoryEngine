@@ -16,6 +16,7 @@ import { page } from '../ui/classes.js';
 import { Note, PageTitle } from '../ui/Text.js';
 import { MovePictures } from '../play/Pictures.js';
 import { anchorOffset } from '../play/Rendition.js';
+import { sessionLabel } from '../play/session-label.js';
 import { attribution, passages, toMarkdown, toPlainText } from './prose.js';
 
 /**
@@ -53,7 +54,14 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
       }),
   });
 
-  const title = session.data?.session.name ?? 'Untitled';
+  /**
+   * ***The app's own name for an unnamed session*** (2026-09-27). An empty name
+   * is a stored, ordinary state, and `?? 'Untitled'` only caught a missing one:
+   * a session never named read as a blank heading, and *Copy as Markdown*
+   * began with an empty title. `sessionLabel` is the one answer the play page
+   * and the list already give; the loading placeholder is the play page's too.
+   */
+  const title = session.data === undefined ? 'Session' : sessionLabel(session.data.session.name);
   const nameOf = (actorId: string): string | null =>
     (actors.data?.objects ?? []).find((one) => one.id === actorId)?.name ?? null;
   const turns: TurnRecord[] = transcript.data?.turns ?? [];

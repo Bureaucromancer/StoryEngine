@@ -656,7 +656,7 @@ export const api = {
   ): Promise<{ asset: { ref: string; digest: string; bytes: number; mime: string } }> => {
     const form = new FormData();
     form.append('file', blob, filename);
-    return requestForm(`/api/library/${kind}/${id}/assets`, form);
+    return requestForm(`${objectUrl(kind, id)}/assets`, form);
   },
 
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
@@ -808,11 +808,11 @@ export const api = {
   importJobs: (): Promise<{ jobs: ImportJob[] }> => request('GET', '/api/import/jobs'),
 
   importJob: (id: string): Promise<{ report: ImportReport }> =>
-    request('GET', `/api/import/jobs/${id}`),
+    request('GET', `/api/import/jobs/${encodeURIComponent(id)}`),
 
   /** What the imports said about one object, for its own page ([P5 §1.8]). */
   objectImportNotes: (objectId: string): Promise<{ notes: ObjectImportNotes[] }> =>
-    request('GET', `/api/import/objects/${objectId}/notes`),
+    request('GET', `/api/import/objects/${encodeURIComponent(objectId)}/notes`),
 
   /**
    * What a folder is, without importing from it — the check behind the path box.
@@ -1190,10 +1190,18 @@ export function createSession(input: NewSession): Promise<{
      * because an empty cast is being asserted — and the two are the same value
      * here, since a session created in a browser has never had actors and the
      * surface that gives it one is [P7.2]'s.
+     *
+     * ***A cast given whole is sent whole*** (2026-09-27). `cast` was declared
+     * on the input for the assistant panel, which passes the shipped card as
+     * its one actor, and never read here — so every assistant session was made
+     * with nobody in it, and the card that says what the assistant is never
+     * reached a prompt.
      */
-    ...(input.persona === undefined || input.persona === ''
-      ? {}
-      : { cast: { persona: input.persona, actors: [] } }),
+    ...(input.cast !== undefined
+      ? { cast: input.cast }
+      : input.persona === undefined || input.persona === ''
+        ? {}
+        : { cast: { persona: input.persona, actors: [] } }),
     ...(input.mode === undefined || input.mode === '' ? {} : { mode: input.mode }),
     /**
      * **Omitted when empty**, like every other field here: a mode with no
@@ -2310,18 +2318,21 @@ export const adminApi = {
    * behaviour the check exists to stop, which is silently reverting whatever
    * somebody changed in the file since the page loaded.
    */
+  // The id is encoded here and in the two below, as the personal twins' always
+  // was (2026-09-27): it is whatever a hand-written file says, and `lab/gpu`
+  // reached another route, or `house#2` a cut-short address, without it.
   updateConnection: (
     id: string,
     input: ConnectionInput & { contentHash: string },
   ): Promise<{ connection: AdminConnection }> =>
-    request('PUT', `/api/admin/connections/${id}`, input),
+    request('PUT', `/api/admin/connections/${encodeURIComponent(id)}`, input),
 
   deleteConnection: (id: string): Promise<undefined> =>
-    request('DELETE', `/api/admin/connections/${id}`),
+    request('DELETE', `/api/admin/connections/${encodeURIComponent(id)}`),
 
   /** How many bindings point at a connection. Counts, never contents ([09 §4.5]). */
   connectionBindings: (id: string): Promise<{ bindings: number }> =>
-    request('GET', `/api/admin/connections/${id}/bindings`),
+    request('GET', `/api/admin/connections/${encodeURIComponent(id)}/bindings`),
 
   /**
    * Asks an endpoint what it offers — an assist, never the path ([P2B §2.6]).

@@ -18,11 +18,12 @@ import type { TurnRecord } from '../api.js';
  */
 
 let turns: TurnRecord[] = [];
+let sessionName = 'The harbour';
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
   readTranscript: () => Promise.resolve({ turns }),
-  readSession: () => Promise.resolve({ session: { id: 's1', name: 'The harbour' } }),
+  readSession: () => Promise.resolve({ session: { id: 's1', name: sessionName } }),
   readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
   listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }),
   api: { listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }) },
@@ -40,6 +41,7 @@ function renderPage(from?: string): void {
 }
 
 beforeEach(() => {
+  sessionName = 'The harbour';
   turns = [
     {
       id: 't1',
@@ -54,6 +56,18 @@ beforeEach(() => {
 });
 
 describe('reading a session', () => {
+  /**
+   * ***An unnamed session is called what the app calls it*** (2026-09-27).
+   * `?? 'Untitled'` caught only a missing name, and a session never named has
+   * an empty one, so the page's heading was blank and a copy began with an
+   * empty title.
+   */
+  it('titles a session nobody has named', async () => {
+    sessionName = '';
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Untitled session' })).toBeTruthy();
+  });
+
   it('renders the story with its speakers', async () => {
     renderPage();
     expect(await screen.findByText('The keeper points north.')).toBeTruthy();
