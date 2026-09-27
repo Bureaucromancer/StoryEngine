@@ -175,7 +175,7 @@ export interface AppServices {
     sessionId: string,
     records: readonly Rendition[],
     turnId: string,
-  ) => void;
+  ) => Promise<void>;
   /**
    * Waits for every picture still being made — [P9.2]'s detached dispatch, given
    * the shutdown wait it never had.
@@ -830,13 +830,13 @@ async function assembleWithState(
     },
   };
 
-  const dispatch = (
+  const dispatch = async (
     account: string,
     sessionId: string,
     records: readonly Rendition[],
     turnId: string,
-  ): void => {
-    dispatchRenditions(renditions, account, sessionId, records, turnId);
+  ): Promise<void> => {
+    await dispatchRenditions(renditions, account, sessionId, records, turnId);
   };
 
   /**

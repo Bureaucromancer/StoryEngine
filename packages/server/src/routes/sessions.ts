@@ -2184,7 +2184,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.send({ held: made.held });
       }
 
-      services.renditions(account.handle, sessionId, [made.rendition], turnId);
+      // Awaited as far as the record, which the dispatch writes after claiming
+      // its job (2026-09-27): a client that refetches on this answer finds it.
+      // The picture itself is still never waited for.
+      await services.renditions(account.handle, sessionId, [made.rendition], turnId);
       return reply.code(202).send({ rendition: made.rendition });
     },
   );

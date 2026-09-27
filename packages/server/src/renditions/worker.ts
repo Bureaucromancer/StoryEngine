@@ -31,8 +31,9 @@ import type { DatabaseSync } from 'node:sqlite';
  * their own jobs and arrive later over the event stream."* Not an optimisation —
  * *"an image is seconds and a video can be minutes, and a story that stalls on
  * either is unusable"* — so the shape has to make stalling impossible rather
- * than merely unlikely. {@link dispatchRenditions} is one synchronous insert and
- * a detached promise, and nothing in a turn's lifetime awaits the second.
+ * than merely unlikely. {@link dispatchRenditions} is an insert, a record
+ * written and a detached promise per picture, and nothing in a turn's lifetime
+ * awaits the last of those.
  *
  * **The falsifying mutation is making the image call inside the step.** Every
  * assertion about pixels still passes and the turn blocks, which is why
@@ -180,21 +181,44 @@ export interface DispatchResult {
 }
 
 /**
- * Queues every rendition a turn asked for, and returns without waiting.
+ * Claims, records and starts every rendition a turn or a person asked for, and
+ * returns once they have started, without waiting for any picture.
  *
  * **Called after `finaliseTurn`, never before**, so that a client which sees
  * `turn.finished` and re-reads the session finds the turn there *and* finds the
  * rendition pending beside it. Enqueuing first would let a fast provider land an
  * asset on a turn the store has not appended.
+ *
+ * ***The job row first, then the record, then the run*** (2026-09-27). The
+ * runner and the Illustrate route used to write the `pending` record and then
+ * call this to claim its job, so a process that died between the two left a
+ * record no job named. Recovery reads job rows, so it never found one: a
+ * placeholder that said *Making a picture of this…* for good, with no button.
+ * P9 recorded the window and left it, because closing it was a choice of
+ * order. Claimed first, every record on disk has a job row behind it. A restart
+ * that cuts a picture off finds it and marks it `interrupted` with its retry,
+ * and a job whose record never landed has nothing to strand, so recovery
+ * abandons it. The retry route already worked in this order.
+ *
+ * ***And an open page is told the picture is coming*** (2026-09-27). The stream
+ * carried a `rendition` frame when a picture landed or failed and none while it
+ * was pending, so the placeholder [25 E3] decided on appeared only if the page
+ * happened to refetch. A turn's prose landed, nothing said a picture was on
+ * its way, and thirty seconds later one arrived. The frame goes out after the
+ * record is written and before the job starts, so it cannot arrive after the
+ * frame that says the picture landed.
+ *
+ * *A record that cannot be written costs that one picture*, and nothing is
+ * started for it.
  */
-export function dispatchRenditions(
+export async function dispatchRenditions(
   context: RenditionWorkerContext,
   account: string,
   sessionId: string,
   records: readonly Rendition[],
   turnId: string,
-): DispatchResult {
-  let dispatched = 0;
+): Promise<DispatchResult> {
+  const claimed: { record: Rendition; job: RenditionJob }[] = [];
   for (const record of records) {
     if (record.state !== 'pending') continue;
     const { job, created } = enqueueRendition(context.db, {
@@ -213,6 +237,31 @@ export function dispatchRenditions(
      * **run**: a double dispatch was two image calls on one job.
      */
     if (!created) continue;
+    claimed.push({ record, job });
+  }
+
+  let dispatched = 0;
+  for (const { record, job } of claimed) {
+    try {
+      await writeRendition(context.layout, account, sessionId, record);
+    } catch {
+      /**
+       * ***The disk is asked what happened***, because a write can land and
+       * still throw: the atomic writer stats the file after its rename. A
+       * record that is there is dispatched like any other, since giving its
+       * claim up would leave exactly the `pending` record with no live job
+       * this order exists to prevent. One that is not there gives its claim
+       * up, so a later retry is not answered *already in hand*.
+       */
+      const landed = await readRendition(context.layout, account, sessionId, record.id).catch(
+        () => null,
+      );
+      if (landed === null) {
+        setRenditionJobStatus(context.db, job.id, 'abandoned', 'retryable');
+        continue;
+      }
+    }
+    context.changed?.(sessionId, record);
     dispatched += 1;
     launch(context, job);
   }

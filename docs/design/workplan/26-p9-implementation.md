@@ -1255,6 +1255,12 @@ shape. This is the stage where [06 §10.2](../06-modes-and-turn-pipeline.md)'s
 *not an optimisation, the only workable design* is either true in the code or
 quietly false.
 
+*Added 2026-09-27:* the placeholder while pending reached an open page only if
+it happened to refetch, because the stream carried a `rendition` frame when a
+picture landed or failed and none while it was pending; the client's reducer
+already accepted one. `dispatchRenditions` now sends it, after the record is
+written and before the job starts.
+
 ***A second job shape beside the first, not a reuse of it*** — §0.1's finding 9,
 which corrects §5. `state/jobs.ts`'s `Job` is turn-shaped and exists to enforce
 [P2 §2.10](08-p2-implementation.md)'s *only one turn may advance a session*;
@@ -1380,6 +1386,15 @@ process that dies between the two leaves a record no job names, and recovery,
 which reads job rows, cannot find it. The window is one file write, and it
 predates all of the above. The fix is either a job row first or a scan of pending
 records at boot, and either is a decision rather than a repair.
+
+*Closed 2026-09-27, with the job row first.* A scan at boot would read every
+rendition record of every session at every start to find a window one write
+wide. `dispatchRenditions` now claims each job, then writes the record, then
+starts the job, and the runner and the Illustrate route hand it records rather
+than writing them. So every record on disk has a row recovery reads, and a job
+whose record never landed has nothing to strand. A write that lands and still
+throws is dispatched like any other, and one that does not land gives its
+claim up.
 
 ### P9.3 — Accumulation, selection, and the permanent recipe
 

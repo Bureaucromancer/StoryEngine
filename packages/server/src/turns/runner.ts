@@ -66,12 +66,7 @@ import {
 import { toneOf } from '../renditions/assemble.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
-import {
-  readRenditions,
-  renditionIdFor,
-  reusableBackdrop,
-  writeRendition,
-} from '../renditions/store.js';
+import { readRenditions, renditionIdFor, reusableBackdrop } from '../renditions/store.js';
 import { selectedBackdrop } from '../renditions/backdrop.js';
 import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
 import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
@@ -179,13 +174,18 @@ export interface RunnerOptions {
    * **Optional, so every existing test double stays a double.** Absent means the
    * step never asked for anything — which is every turn of every session before
    * this phase, and every test that is not about pictures.
+   *
+   * ***It writes the records*** (2026-09-27), after claiming each one's job, so
+   * that no `pending` record is ever on disk without a job row recovery can
+   * find (`dispatchRenditions`). It resolves once they are written and started,
+   * never once a picture is made.
    */
   dispatch?: (
     account: string,
     sessionId: string,
     records: readonly Rendition[],
     turnId: string,
-  ) => void;
+  ) => Promise<void>;
   /**
    * Says a turn ended, so somebody can be told — [09 §3.5], [P10.1].
    *
@@ -1907,11 +1907,16 @@ export class TurnRunner {
      * would let a fast provider land an asset on a turn the store has not
      * appended.
      *
-     * *Records first, then jobs.* The record is what a placeholder renders from
-     * and what the retry re-runs, so a job whose record did not land would be a
-     * spinner with nothing behind it. Written here rather than by the worker for
-     * the same reason: the recipe is known now and the worker may not start for
-     * seconds.
+     * ~~*Records first, then jobs.* The record is what a placeholder renders
+     * from and what the retry re-runs, so a job whose record did not land would
+     * be a spinner with nothing behind it.~~ *Corrected 2026-09-27: jobs first,
+     * then records.* A record written first and a process that died before its
+     * job was claimed was the spinner with nothing behind it, because recovery
+     * reads job rows and no row named that record. A job claimed first and a
+     * record that never landed is a row recovery abandons, with nothing on
+     * screen. `dispatchRenditions` does both, in that order; the recipe is
+     * still built here, because it is known now and the worker may not start
+     * for seconds.
      *
      * **Nothing below this line can fail the turn**, which is the whole of
      * §10.2 and the reason it is after the append rather than inside it.
@@ -2068,7 +2073,8 @@ export class TurnRunner {
   }
 
   /**
-   * Writes a turn's rendition records and queues their jobs.
+   * Builds a turn's rendition records and hands them to the dispatch, which
+   * claims their jobs and writes them, in that order.
    *
    * Every failure here is swallowed: a full disk or a store that would not write
    * costs a picture, and [06 §10.2] is explicit that it must never cost the turn
@@ -2114,14 +2120,8 @@ export class TurnRunner {
           ordering: request.ordering,
         };
         records.push(record);
-        await writeRendition(
-          this.#options.commit.sessions.layout,
-          job.account,
-          job.sessionId,
-          record,
-        );
       }
-      dispatch(job.account, job.sessionId, records, draft.id);
+      await dispatch(job.account, job.sessionId, records, draft.id);
     } catch {
       // Swallowed on purpose — see above.
     }
