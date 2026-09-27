@@ -1838,6 +1838,50 @@ describe('a preset block can be scoped to a kind of call', () => {
     ).toEqual([]);
   });
 
+  /**
+   * ***And it has not fired*** (2026-09-27). The counters were proposed before
+   * the book's own budget, the outlets or the chat-wide cut had had their say,
+   * so the entry the record above shows refused was also recorded as having
+   * fired — an `ephemeral: 1` entry spent on a turn it never reached, and never
+   * read at all. They are settled now against what the assembled call carried.
+   */
+  it('leaves the counters of an entry its book had no room for where they were', async () => {
+    const book = newLorebook('Rain City');
+    book.tokenBudget = 1;
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing and remembers every face that ever crossed it.',
+        ephemeral: 1,
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withLore = await createSession(sessions, ACCOUNT, {
+      name: 'A full book, once',
+      preset: TEST_PRESET,
+      lore: [book.id],
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withLore.id,
+      idempotencyKey: 'lore-once',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'She asked the ferryman.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withLore.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+
+    expect(turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING)).toEqual([]);
+  });
+
   it('drops a block whose appliesTo does not name this step kind', async () => {
     // Driven through the runner with a session whose preset scopes one block to
     // a call kind the step does not make.

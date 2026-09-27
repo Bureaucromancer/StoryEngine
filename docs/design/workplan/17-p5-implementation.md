@@ -1928,6 +1928,17 @@ running the verdict is `sticky` and never `fires`, so there is no arm that could
 reset it. `fired` counts firings and not turns for the same reason, which is why
 an `ephemeral: 1` entry with `sticky: 3` gets its three turns.
 
+*(2026-09-27)* **A firing is a reading, and until this date the counters did not
+wait to see whether there was one.** They were proposed with the scan, before
+the book's own budget, the outlets and the chat-wide cut had had their say, so an
+entry whose text never reached the prompt was recorded as having fired: an
+`ephemeral: 1` entry trimmed for budget on the turn it matched was spent and never
+read at all, a cooldown started on a turn the entry sat out, and a sticky window
+closed unseen. The counters are now settled after the call is assembled
+(`settleTiming` over the blocks the assembler included): an activation that did
+not reach the prompt leaves its counters where they were, and a cooldown running
+down, which is time passing rather than a reading, moves either way.
+
 **`delay` has no counter**, deliberately: *do not fire until N messages in* is a
 fact about the conversation's length, already on the path, and a stored copy is
 the thing that reconstructs wrong at a node.

@@ -75,7 +75,7 @@ import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
 import { storyDepth } from '../sessions/depth.js';
-import { retrieve } from '../retrieval/retrieve.js';
+import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
@@ -1334,7 +1334,10 @@ export class TurnRunner {
                *
                * The effects it proposes are collected into `loreEffects` and
                * committed with the step's own, because only a step may propose
-               * one and this is inside a step's `call`.
+               * one and this is inside a step's `call`. ***Proposed after the
+               * call is assembled*** (2026-09-27), by `settleTiming` over what
+               * the assembler included: an entry the shelf, the outlets or the
+               * chat-wide budget cut was otherwise counted as having fired.
                *
                * ***Not at all when the step brought its own candidates***, which
                * is [P7.5] and is a correctness fix rather than a saving.
@@ -1366,7 +1369,6 @@ export class TurnRunner {
                     rng,
                     ...(payload.input === undefined ? {} : { input: payload.input }),
                   });
-              if (lore !== null) loreEffects.push(...lore.effects);
 
               const fromPreset = brought
                 ? { candidates: [], notFilled: [] }
@@ -1513,6 +1515,9 @@ export class TurnRunner {
               );
 
               finalise(outcome.call);
+              if (lore !== null) {
+                loreEffects.push(...settleTiming(lore, loreReached(outcome.call.blocks), running));
+              }
               log?.info(
                 {
                   event: 'call.finished',

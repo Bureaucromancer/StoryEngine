@@ -12,7 +12,7 @@ import { newLorebook, newLoreEntry, uuidv7, type LoreEntry } from '@storyengine/
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { TEST_PRESET } from '../test-mode.js';
-import { retrieve, type Retrieved } from '../retrieval/retrieve.js';
+import { retrieve, settleTiming, type Retrieved } from '../retrieval/retrieve.js';
 import {
   advanceTiming,
   NO_TIMING,
@@ -189,10 +189,11 @@ interface Played {
 
 /**
  * Runs one turn the way `turns/runner.ts` does, minus the model: the retriever
- * proposes, `acceptEffect` decides and stamps `before` from the running map,
- * `applyEffects` chains, and the clock goes last through the same gate. The
- * parent's `state` is the starting map — never the session file's, which is
- * what makes this a forward computation rather than a read-back.
+ * scans, its counters settle over what reached the prompt (everything, with no
+ * assembler here to cut), `acceptEffect` decides and stamps `before` from the
+ * running map, `applyEffects` chains, and the clock goes last through the same
+ * gate. The parent's `state` is the starting map — never the session file's,
+ * which is what makes this a forward computation rather than a read-back.
  */
 function playTurn(sessionId: string, parent: Played | null, text: string, at: number): Played {
   const history = parent === null ? [] : [...parent.history, parent.turn];
@@ -211,8 +212,15 @@ function playTurn(sessionId: string, parent: Played | null, text: string, at: nu
     rng: new Rng({ source: seededSource(0x9e3779b9) }),
   });
 
+  // Every block the retriever handed over reaches the prompt: there is no
+  // assembler here to cut one, which is the runner's case with room to spare.
+  const reached = new Set(
+    retrieved.blocks.flatMap((one) =>
+      one.candidate.source.kind === 'lore' ? [one.candidate.source.entryId] : [],
+    ),
+  );
   const effects: ChannelEffect[] = [];
-  for (const proposal of retrieved.effects) {
+  for (const proposal of settleTiming(retrieved, reached, running)) {
     const effect = acceptEffect(id, proposal, running);
     effects.push(effect);
     running = applyEffects(running, [effect]);
