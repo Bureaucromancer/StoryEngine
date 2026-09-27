@@ -401,6 +401,22 @@ export async function listBackups(
 }
 
 /**
+ * One archive, as a place on this disk and as the name it is known by.
+ *
+ * ***Both, because they are different strings on Windows.*** The routes used to
+ * take the name back off the path with `path.split('/').pop()`, and `join`
+ * separates with a backslash there — so a download's `Content-Disposition`
+ * carried the server's whole absolute path, account name and all, and the
+ * import ledger stored it. The name is the one thing a client or a record
+ * should ever be given.
+ */
+export interface FoundBackup {
+  path: string;
+  name: string;
+  record: BackupRecord;
+}
+
+/**
  * The path of one archive, resolved **against the listing** rather than built
  * from the id.
  *
@@ -413,12 +429,12 @@ async function pathOf(
   context: BackupContext,
   owner: BackupOwner,
   id: string,
-): Promise<{ path: string; record: BackupRecord } | null> {
+): Promise<FoundBackup | null> {
   const root = rootFor(context, owner);
   for (const file of await listTreeFiles(root)) {
     if (file.name.includes('/')) continue;
     const record = recordOf(owner, file.name, file.size);
-    if (record?.id === id) return { path: join(root, file.name), record };
+    if (record?.id === id) return { path: join(root, file.name), name: file.name, record };
   }
   return null;
 }
@@ -427,7 +443,7 @@ export async function findBackup(
   context: BackupContext,
   owner: BackupOwner,
   id: string,
-): Promise<{ path: string; record: BackupRecord } | null> {
+): Promise<FoundBackup | null> {
   return pathOf(context, owner, id);
 }
 

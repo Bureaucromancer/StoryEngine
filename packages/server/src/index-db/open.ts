@@ -36,8 +36,18 @@ export async function openIndex({ path }: OpenIndexOptions): Promise<OpenedIndex
   }
 
   const db = new DatabaseSync(path);
-  applyPragmas(db);
-  const migration = migrate(db);
+  let migration: MigrationResult;
+  try {
+    applyPragmas(db);
+    migration = migrate(db);
+  } catch (error) {
+    // `openState`'s rule, which this had drifted from: a failed open must not
+    // leave its handle behind. `new DatabaseSync` succeeds on any file; the
+    // first pragma is what finds a file that is not a database — and a handle
+    // abandoned there holds it, and its `-wal` and `-shm`, locked on Windows.
+    db.close();
+    throw error;
+  }
 
   // Idempotent, because shutdown paths overlap: a signal handler and a `finally`
   // both reasonably close the index, and `node:sqlite` throws on the second.

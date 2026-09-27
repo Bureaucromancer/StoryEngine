@@ -13,7 +13,13 @@ import type { Rendition } from '@storyengine/shared';
 import { FakeProvider } from '../providers/fake.js';
 import { readRenditions, reusableBackdrop } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Gate steps 4, 9, 10 and 11*** —
@@ -131,6 +137,8 @@ async function takeATurn(): Promise<string> {
     const now = await readHead();
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
   head = await readHead();
   return head ?? '';
 }

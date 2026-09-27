@@ -4,7 +4,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtemp, rm, truncate } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { BACKUP_MANIFEST_MEMBER, BACKUP_MANIFEST_SCHEMA } from '@storyengine/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -75,7 +75,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  state.close();
+  // The swap tests close it first, as production has it closed; closing twice
+  // throws in `node:sqlite`.
+  if (state.isOpen) state.close();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -236,6 +238,17 @@ describe('performing a pending restore', () => {
     return archive(INSTALL);
   }
 
+  /**
+   * ***The order production has.*** `main.ts` runs the swap before
+   * `buildServices` opens a single store, so nothing holds a file inside the
+   * directory being renamed. This fixture's `state.sqlite` handle did — which
+   * Linux shrugs at and Windows refuses, so the swap tests failed there as
+   * `failed`, over a handle the product never has open.
+   */
+  function closeLikeBoot(): void {
+    state.close();
+  }
+
   it('does nothing at all without a marker, which is every ordinary boot', async () => {
     expect(await performPendingRestore(layout)).toEqual({ kind: 'none' });
     expect(await fileExists(join(root, 'accounts.json'))).toBe(true);
@@ -247,6 +260,7 @@ describe('performing a pending restore', () => {
     // Written after the archive was taken, so its absence afterwards is proof
     // the directory was replaced rather than written into.
     await put('users/ned/library/actors/later/card.png', 'added after the backup');
+    closeLikeBoot();
 
     const outcome = await performPendingRestore(layout);
 
@@ -277,9 +291,13 @@ describe('performing a pending restore', () => {
   it('leaves no marker behind, because the archive carried none', async () => {
     const path = await archiveOfSomethingElse();
     await prepareRestore(layout, { path, requestedBy: 'ned' });
+    closeLikeBoot();
 
     const outcome = await performPendingRestore(layout);
 
+    // Asserted first, because the marker below is only proof of anything once
+    // the swap has actually happened.
+    expect(outcome.kind).toBe('restored');
     /**
      * ***Nothing deleted this.*** The marker lived in the directory that just
      * moved aside, and no archive holds one — which is what makes the handoff
@@ -333,13 +351,32 @@ describe('performing a pending restore', () => {
   it('leaves no staging directory behind when it fails', async () => {
     const path = await archiveOfSomethingElse();
     await prepareRestore(layout, { path, requestedBy: 'ned' });
-    await writeFileBytes(path, bytes('no longer an archive'));
+    /**
+     * ***Failing after the unpack, which is the only failure that leaves
+     * anything to clean up.*** A file that is no longer an archive fails in the
+     * gunzip, before staging holds a byte, and so passes whether the cleanup
+     * runs or not. A count one more than the archive holds unpacks every
+     * member and then refuses.
+     */
+    const plan = (await marker())!;
+    await writeFileBytes(
+      layout.restorePendingFile,
+      bytes(
+        JSON.stringify({ ...plan, manifest: { ...plan.manifest, files: plan.manifest.files + 1 } }),
+      ),
+    );
+    closeLikeBoot();
 
-    await performPendingRestore(layout);
+    const outcome = await performPendingRestore(layout);
+    expect(outcome.kind).toBe('failed');
 
     const { readdir } = await import('node:fs/promises');
     const siblings = await readdir(join(root, '..'));
-    const mine = siblings.filter((name) => name.startsWith(`${root.split('/').pop() ?? ''}.`));
+    // **Proof the listing is the right one**, so the filter below cannot pass
+    // over nothing. `root.split('/')` did exactly that on Windows, where no
+    // name could start with a whole absolute path.
+    expect(siblings).toContain(basename(root));
+    const mine = siblings.filter((name) => name.startsWith(`${basename(root)}.`));
     expect(mine).toEqual([]);
   });
 });

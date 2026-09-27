@@ -53,6 +53,19 @@ export type Supervision =
   | { supervised: false; how: 'none' };
 
 /**
+ * The answer for anything that did not start the process — a test harness, an
+ * embedding, a tool that builds the services to read them.
+ *
+ * ***A value rather than a call, because the environment belongs to whoever
+ * owns the process.*** `buildServices` used to ask `process.env` itself, so a
+ * test's answer depended on the machine it ran on — and on the GitHub runner,
+ * which is itself a systemd service, every test server inherited the runner's
+ * `INVOCATION_ID` and believed it was supervised. The Linux leg was red for
+ * eighteen runs on exactly that. Only `main.ts` reads the environment now.
+ */
+export const UNSUPERVISED: Supervision = { supervised: false, how: 'none' };
+
+/**
  * Reads the environment, defaulting to *no*.
  *
  * **Default-deny, and it is the one place that matters.** A wrong *no* costs an

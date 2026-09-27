@@ -12,7 +12,13 @@ import { FakeProvider } from '../providers/fake.js';
 import { pendingRenditionJobs } from '../renditions/jobs.js';
 import { readRenditions, writeRendition } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Gate steps 4, 8, 12 and 14*** —
@@ -137,6 +143,8 @@ async function takeATurn(): Promise<string> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
 
   const transcript = await server.request({
     method: 'GET',

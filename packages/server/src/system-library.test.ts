@@ -12,7 +12,7 @@ import { listObjects } from './index-db/query.js';
 import { registeredModes } from './mode-registry.js';
 import { SYSTEM_OWNER } from './storage/layout.js';
 import { materialiseModePresets } from './system-library.js';
-import { makeTestServer, setUpAdmin, type TestServer } from './test-server.js';
+import { makeTestServer, setUpAdmin, tempRoot, type TestServer } from './test-server.js';
 
 /**
  * **The system library has contents** — [P7B.0].
@@ -32,11 +32,30 @@ import { makeTestServer, setUpAdmin, type TestServer } from './test-server.js';
  */
 
 let servers: TestServer[] = [];
+let owned: string[] = [];
 
 afterEach(async () => {
   await Promise.all(servers.map((server) => server.dispose()));
   servers = [];
+  // Only after every server on them has closed its stores: removing a directory
+  // a live `DatabaseSync` holds is `EBUSY` on Windows.
+  await Promise.all(owned.map((dir) => rm(dir, { recursive: true, force: true })));
+  owned = [];
 });
+
+/**
+ * ***A data directory the test owns, so a restart is a restart.*** A server made
+ * without one owns its directory and deletes it on dispose — so the restart
+ * tests here used to boot their second server on an empty directory, and then
+ * removed it while that server still held its index open. Linux allowed both;
+ * Windows refused the second as `EBUSY`, and the first meant *overwrites a hand
+ * edit* passed whether or not anything was overwritten.
+ */
+async function ownedDataDir(): Promise<string> {
+  const dir = await tempRoot('se-syslib-');
+  owned.push(dir);
+  return dir;
+}
 
 async function start(dataDir?: string): Promise<TestServer> {
   const server = await makeTestServer(dataDir === undefined ? {} : { dataDir });
@@ -71,8 +90,8 @@ describe('the built-in packs reach the system library', () => {
   });
 
   it('writes nothing on a restart that changes nothing', async () => {
-    const first = await start();
-    const { dataDir } = first;
+    const dataDir = await ownedDataDir();
+    const first = await start(dataDir);
     await first.dispose();
     servers = servers.filter((server) => server !== first);
 
@@ -84,13 +103,12 @@ describe('the built-in packs reach the system library', () => {
 
     expect(again.length).toBeGreaterThan(0);
     expect(again.map((one) => one.written)).toEqual(again.map(() => false));
-
-    await rm(dataDir, { recursive: true, force: true });
   });
 
   it('overwrites a hand edit, because that is what shipped means', async () => {
-    const first = await start();
-    const { dataDir, services } = first;
+    const dataDir = await ownedDataDir();
+    const first = await start(dataDir);
+    const { services } = first;
     const firstMode = registeredModes()[0];
     expect(firstMode).toBeDefined();
     const path = services.layout.objectFile(
@@ -106,6 +124,10 @@ describe('the built-in packs reach the system library', () => {
 
     await first.dispose();
     servers = servers.filter((server) => server !== first);
+    // The edit has to survive the first server going away, or the second boot
+    // proves nothing: it would be writing a fresh directory, and this test
+    // passed that way for as long as the first server deleted it on dispose.
+    expect(await readFile(path, 'utf8')).not.toBe(original);
 
     const second = await start(dataDir);
     expect(await readFile(path, 'utf8')).toBe(original);
@@ -115,8 +137,6 @@ describe('the built-in packs reach the system library', () => {
     // reaching a different answer rather than an unconditional rewrite.
     const again = await materialiseModePresets(second.services.index.db, second.services.layout);
     expect(again.map((one) => one.written)).toEqual(again.map(() => false));
-
-    await rm(dataDir, { recursive: true, force: true });
   });
 });
 

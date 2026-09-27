@@ -34,9 +34,15 @@ on:
 permissions:
   contents: read
 
+# ***A pull request supersedes itself; `main` does not.*** A newer push to a PR
+# makes the older run's answer irrelevant, so it is cancelled. On `main` every
+# commit is a commit somebody may later need a result for — two release tags
+# (v1.0.0-alpha.1 and alpha.4) and the p8 merge each landed with a *cancelled*
+# run and no record at all, because the next push came within ten seconds.
+# So each push to main is its own group, and nothing there is cancelled.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -62,7 +68,8 @@ jobs:
           node-version: 26
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
 
       # Formatting before anything that reads the files, because a failure here
       # is mechanical and its fix touches nothing else. It is also the step most
@@ -88,30 +95,44 @@ jobs:
       # check that only really runs in CI is a check nobody sees fail until it is
       # someone else's problem. Roughly seven seconds, cold, for the whole
       # workspace — cheaper than the class of bug it retires.
-      - run: pnpm typecheck
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm typecheck
 
       # `--max-warnings 0` lives in package.json's `lint:es`, not on this line,
       # so that `pnpm lint` means the same thing here and on a developer's
       # machine. A warning that only fails in CI is a warning nobody sees until
       # it is someone else's problem.
-      - run: pnpm lint
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm lint
 
-      - run: pnpm build
+      - id: build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm build
 
       # The JSON Schemas are the published artefact (docs/design/19-tech-stack.md
       # §4) and are committed, so third-party tools can fetch one without
       # building anything. `pnpm build` regenerates them; if that changes a file,
       # someone edited a TypeBox schema without re-emitting.
       - name: Emitted schemas are current
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: git diff --exit-code -- packages/shared/schemas
 
-      - run: pnpm test
+      # ***Every step from here runs whatever the one before it did***, as long as
+      # the build produced something to run. Under the implicit `success()` a
+      # failing `pnpm test` skipped all three named gates below — for eighteen
+      # runs the checks list said *skipped* where it should have said which
+      # gates still held. And since `pnpm test` runs those same projects first,
+      # without this a named gate could only ever show green or skipped, never
+      # red under its own name, which is the one thing it is named for.
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm test
 
       # Named, because [work plan P1] calls this the phase's CI assertion and a
       # gate folded anonymously into the suite is one a `test.skip` can retire
       # without anyone noticing (F11). It runs inside `pnpm test` above as well
       # — this step is about the name in the checks list, and it is cheap.
       - name: Rebuild from disk equals the incremental index
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm test:gate
 
       # Named for the same reason, and overdue: [work plan P4 §3] and [P5 §0]
@@ -121,6 +142,7 @@ jobs:
       # invisibility the step above exists to prevent, so [P5 §0] gave P5.6 the
       # choice of adding the step or dropping the word. This is the step.
       - name: A converted card, preset and lorebook agree
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm test:fixture-pair
 
       # Named for the third time and the same reason. A link into docs/ sat
@@ -131,6 +153,7 @@ jobs:
       # links, 0 broken" — and never committed it, which is how a stated
       # citation convention could then rot in five hundred places unseen.
       - name: Every documentation link resolves and is labelled with its target
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm test:docs
 
   # ***The browser tier*** — docs/design/workplan/03-testing.md §3.5,

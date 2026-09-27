@@ -83,7 +83,7 @@ import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { listDirectoryNames, readFileBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
-import { supervisionOf, type Supervision } from './supervision.js';
+import { UNSUPERVISED, type Supervision } from './supervision.js';
 import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
@@ -410,6 +410,17 @@ export interface BuildAppOptions {
    * the phase's standing line — P2C adds exactly one key — stays true.
    */
   captureDir?: string;
+  /**
+   * Whether something will start this process again — [09 §6.4], [P10.3].
+   *
+   * ***Passed in, because it is a fact about how the process was started, and
+   * only the caller that started it can know.*** `main.ts` reads the
+   * environment; everything else — every test harness, every embedding — gets
+   * `UNSUPERVISED`, which is `config.ts`'s rule for the environment layer
+   * applied to a second subject: a function that reached for `process.env`
+   * itself made each test's answer depend on the machine running it.
+   */
+  supervision?: Supervision;
 }
 
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
@@ -449,8 +460,9 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   /**
    * **Everything after the first handle opens runs under a guard.**
    *
-   * `openState` already closes its own handle on a failed open, for a reason
-   * its comment states: on Windows a leaked SQLite handle keeps `-wal` and
+   * `openState` and `openIndex` each close their own handle on a failed open
+   * (`openIndex` only since it was found to have drifted), for a reason their
+   * comments state: on Windows a leaked SQLite handle keeps `-wal` and
    * `-shm` locked, so the *next* thing to touch that directory fails with
    * `EBUSY` and the real error is two layers from where it was caused. The same
    * argument applies to everything between the two opens and the return — a
@@ -810,7 +822,7 @@ async function assembleWithState(
     tags: new TagStore(layout),
     backupSettings: new BackupSettingsStore(layout),
     backupSchedule: null,
-    supervision: supervisionOf(process.env),
+    supervision: options.supervision ?? UNSUPERVISED,
     // Wired by `main.ts`, which is the only caller that owns the process.
     exit: null,
     draining: false,

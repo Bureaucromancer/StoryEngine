@@ -12,6 +12,7 @@ import { advertise } from './mdns/responder.js';
 import { announceRestored } from './notifications/notices.js';
 import { describeUnusableDataDirectory, ensureWritableDirectory } from './storage/files.js';
 import { Layout } from './storage/layout.js';
+import { supervisionOf } from './supervision.js';
 
 /**
  * The entry point.
@@ -130,6 +131,9 @@ async function main(): Promise<void> {
     config,
     configPath,
     configDocument: document,
+    // The one caller that owns the process, so the one that may ask how it was
+    // started. See `BuildAppOptions.supervision`.
+    supervision: supervisionOf(process.env),
     ...(captureDir === undefined ? {} : { captureDir: resolve(captureDir) }),
   });
   const app = await buildApp(services);

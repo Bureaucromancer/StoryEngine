@@ -320,7 +320,7 @@ async function runImport(
 
   const jobId = recordImport(services.state.db, {
     account: intoHandle,
-    root: found.path.split('/').pop() ?? body.id,
+    root: found.name,
     source: 'storyengine-backup',
     items: outcome.result.report.items,
     at: Date.now(),
@@ -407,10 +407,7 @@ function register(
       return reply
         .header('content-type', 'application/gzip')
         .header('content-length', String(found.record.bytes))
-        .header(
-          'content-disposition',
-          `attachment; filename="${found.path.split('/').pop() ?? ''}"`,
-        )
+        .header('content-disposition', `attachment; filename="${found.name}"`)
         .send(openFileRead(found.path));
     },
   );

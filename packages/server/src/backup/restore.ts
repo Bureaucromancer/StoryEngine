@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 
 import { uuidv7, type BackupManifest } from '@storyengine/shared';
 
@@ -157,8 +157,18 @@ export async function prepareRestore(
     return { ok: false, refusal: 'no-space' };
   }
 
+  /**
+   * ***Forward slashes on every platform***, through the layout's own
+   * conversion. `path.relative` separates with a backslash on Windows, and the
+   * marker is a record read back by string: split on `/` at the swap, shown in
+   * the notice, logged. Outside the root it is not an archive this install can
+   * name, whatever it holds.
+   */
+  const archive = layout.portablePath(request.path);
+  if (archive === null) return { ok: false, refusal: 'unreadable' };
+
   const plan: RestorePlan = {
-    archive: relative(layout.dataRoot, request.path),
+    archive,
     manifest,
     requestedBy: request.requestedBy,
     at: new Date().toISOString(),

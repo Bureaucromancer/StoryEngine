@@ -591,3 +591,27 @@ export async function eventually(
       (seen === null ? '.' : `. What was true instead: ${seen}`),
   );
 }
+
+/**
+ * Waits until everything a turn set off has finished — the turn's own body,
+ * and the pictures it dispatched.
+ *
+ * ***The head moving is not the end of a turn.*** The commit moves the head at
+ * its third step, and the runner then records the turn's renditions,
+ * dispatches them, and tells the person — in that order, deliberately: *"the
+ * person is told, last of all"* ([09 §3.5], in `runner.ts`). A test that
+ * returned when the head moved and then asserted on a notification, or on the
+ * image provider's call log, was racing that tail. On the Windows runner,
+ * where every atomic write is slower, it lost: `producers.test.ts` found no
+ * completion notification, and the P9 selection gate counted one picture
+ * where two had been paid for.
+ *
+ * **And a negative assertion needs it more than a positive one.** *No picture
+ * was requested* checked the moment the head moved cannot fail, because the
+ * request it is watching for comes later — which is what made three of P9's
+ * gate rows pass whatever the code did.
+ */
+export async function settled(server: TestServer): Promise<void> {
+  await server.services.runner.settle();
+  await server.services.drainRenditions();
+}

@@ -12,7 +12,13 @@ import { FakeProvider } from '../providers/fake.js';
 import { readRenditions } from '../renditions/store.js';
 import { listNotifications } from '../state/notifications.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * The producers, through a whole server — [09 §3.5](../../../../docs/design/09-server-multiuser-deployment.md),
@@ -145,6 +151,8 @@ async function takeATurn(): Promise<void> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
 
   const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
   head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
@@ -199,16 +207,6 @@ describe('a turn that ran through a whole server', () => {
       // successfully for a picture that was never asked for.
       return all.length > 0 && all.every((one) => one.state !== 'pending');
     });
-    const tr = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
-    console.log(
-      'STEPS',
-      JSON.stringify((tr.body as { turns: { steps?: unknown }[] }).turns.map((x) => x.steps)),
-    );
-    console.log(
-      'RENDITIONS',
-      JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error])),
-    );
-    console.log('NOTIFS', JSON.stringify(held().map((n) => [n.class, n.params])));
     await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
 
     const picture = held().find((one) => one.class === 'artifact.ready');

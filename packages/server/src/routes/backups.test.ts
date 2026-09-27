@@ -124,7 +124,15 @@ describe('downloading one', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toBe('application/gzip');
-    expect(response.headers['content-disposition']).toMatch(/^attachment; filename="account-ned-/);
+    /**
+     * ***The whole value, anchored at both ends.*** This matched only a prefix,
+     * which could not see that on Windows the "filename" was the server's entire
+     * absolute path with the name at the end of it — the leg that failed was the
+     * only one the prefix was ever wrong on.
+     */
+    expect(response.headers['content-disposition']).toMatch(
+      /^attachment; filename="account-ned-(full|redacted)-\d{4}-\d{2}-\d{2}-[0-9a-f-]{36}\.tar\.gz"$/,
+    );
     // **The length the listing reported**, which is the cheapest proof that a
     // file rather than a description of one came back — and that the stream
     // carried all of it rather than being cut off by the response ending.
@@ -465,6 +473,18 @@ describe('importing one', () => {
     const keys = body.notes.map((note) => note.key);
     expect(keys).toContain('import.backup.connectionsNotTaken');
     expect(keys).toContain('import.backup.prefsNotTaken');
+
+    /**
+     * ***The ledger names the archive, not where it sits on this disk.*** A
+     * backup import is chosen by id, so [21 §4.1.1]'s allowance for an absolute
+     * root — a path the person typed — does not reach it. On Windows it used to
+     * store the server's whole path, which then appeared in the import history.
+     */
+    const jobs = await server.request({ method: 'GET', url: '/api/import/jobs' });
+    const job = (jobs.body as { jobs: { id: string; root: string }[] }).jobs.find(
+      (one) => one.id === body.report.jobId,
+    );
+    expect(job?.root).toMatch(/^account-ned-full-\d{4}-\d{2}-\d{2}-[0-9a-f-]{36}\.tar\.gz$/);
   });
 
   it('will not be pointed at somebody else’s part of an archive', async () => {

@@ -3,7 +3,8 @@
 
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, sep } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
@@ -234,6 +235,33 @@ describe('deleting index.sqlite is a non-event', () => {
       expect(afterBump.migration).toMatchObject({ from: 999, rebuildRequired: true });
     } finally {
       afterBump.close();
+    }
+  });
+
+  /**
+   * ***A file that is not a database fails the open — and the open closes what it
+   * opened.*** `new DatabaseSync` succeeds on anything; the first pragma is what
+   * finds out. `openState` has always closed on that path, and `openIndex` had
+   * drifted from it: the handle was abandoned, which on Windows holds the file
+   * and its `-wal`/`-shm` locked, so whatever touched the directory next failed
+   * with `EBUSY` two layers from the cause.
+   *
+   * Asserted on the handle rather than on a later `rm`, because Linux lets an
+   * open file be deleted and so cannot tell the two apart any other way.
+   */
+  it('closes its own handle when the file is not a database', async () => {
+    library.index.close();
+    await writeFile(
+      library.layout.indexFile,
+      'This is prose, not a database, and long enough to be read.',
+    );
+
+    const close = vi.spyOn(DatabaseSync.prototype, 'close');
+    try {
+      await expect(openIndex({ path: library.layout.indexFile })).rejects.toThrow();
+      expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      close.mockRestore();
     }
   });
 });
