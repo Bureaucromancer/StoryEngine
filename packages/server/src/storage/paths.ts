@@ -288,18 +288,6 @@ export function realRoot(root: string): string {
 }
 
 /**
- * {@link resolveWithin}, plus the check only the filesystem can answer.
- *
- * A path can pass every lexical rule and still escape: `library/actors/vera`
- * is innocent until `actors` turns out to be a symlink to `/etc`. This resolves
- * the deepest existing ancestor of the target and re-checks containment against
- * the *real* root.
- *
- * Both sides are realpath'd, because the root itself is frequently a link — a
- * data directory on another volume is a normal deployment, and comparing a real
- * candidate against a symlinked root would reject every path in it.
- */
-/**
  * The real-path check on a path that is already built — F1's other half.
  *
  * {@link resolveWithinReal} is for a caller holding a root and some segments.
@@ -325,6 +313,18 @@ export async function assertRealContained(root: string, target: string): Promise
   }
 }
 
+/**
+ * {@link resolveWithin}, plus the check only the filesystem can answer.
+ *
+ * A path can pass every lexical rule and still escape: `library/actors/vera`
+ * is innocent until `actors` turns out to be a symlink to `/etc`. This resolves
+ * the deepest existing ancestor of the target and re-checks containment against
+ * the *real* root.
+ *
+ * Both sides are realpath'd, because the root itself is frequently a link — a
+ * data directory on another volume is a normal deployment, and comparing a real
+ * candidate against a symlinked root would reject every path in it.
+ */
 export async function resolveWithinReal(root: string, ...segments: string[]): Promise<string> {
   const candidate = resolveWithin(root, ...segments);
   const realRoot = await realpathOfNearestExisting(resolve(root));
@@ -348,7 +348,10 @@ export async function resolveWithinReal(root: string, ...segments: string[]): Pr
  *
  * A separate name rather than a comment on `resolveWithin`, because this is the
  * check that stops a malicious package writing outside its own directory, and a
- * reviewer should be able to find every place it is applied.
+ * reviewer should be able to find every place it is applied. ***Which was
+ * nowhere until 2026-09-27***, so the one place bytes beside an object are read,
+ * stored and swept followed any link it met. Those three are now its callers,
+ * all in `library/assets.ts`, and each roots it at the object folder.
  */
 export async function resolveAssetPath(
   objectFolder: string,

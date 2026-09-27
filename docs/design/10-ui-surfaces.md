@@ -1905,6 +1905,16 @@ that decided would write the object behind the editor's draft. What that costs i
 an orphan, and what pays it back is a sweep on save: **a file no manifest row
 names is exactly a file whose digest nothing carries.**
 
+*Corrected 2026-09-27.* ~~a file no manifest row names is exactly a file whose
+digest nothing carries~~: the history carries it too. Versions keep JSON and
+never pixels ([03 §11.2](03-data-model.md)), so removing a map and saving
+deleted the map, and restoring the version before brought back a row naming
+nothing. The manifest was also the only thing asked while an upload waited for
+its save, so a picture uploaded during another save, or in a second tab, went
+before it was named. A file is now collected when no version names it either,
+it is a day old, and its name is one the store writes, and every read, store
+and sweep checks where its path really lands ([03 §5.3](03-data-model.md)).
+
 *The crop is a centred square, in the browser.* §11's *"uploaded, cropped and
 replaced"* is three of four here; a drag-to-choose rectangle is a better tool and
 a surface of its own, and what this does is stop a wide photograph being

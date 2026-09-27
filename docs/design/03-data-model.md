@@ -1855,6 +1855,13 @@ an unbounded list is a list nobody scrolls.
 - **Pruning is not deletion of content.** Content-addressed payloads referenced
   by a surviving entry stay; only unreferenced ones are collected.
 
+*Corrected 2026-09-27.* The bytes beside a folder object, a lorebook's gallery
+and its entries' pictures, were under neither rule. A version names them and
+does not hold them, and the sweep on save ([10 §11.2b](10-ui-surfaces.md))
+deleted a file the moment the current manifest stopped naming it, so a restored
+version could name a picture that was gone. The sweep now keeps a file while
+any surviving version names it, which is the bullet above applied to the bytes.
+
 ### 11.4 Three scales of undo, and why they do not overlap
 
 Worth stating together, because this is the third one and someone will otherwise
