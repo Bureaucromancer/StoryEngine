@@ -1573,7 +1573,9 @@ export type HookRefusal =
   | 'cast-gone'
   | 'subject-gone'
   | 'subject-met'
-  | 'subject-unavailable';
+  | 'subject-unavailable'
+  /** Not a hook the engine can read (2026-09-27). */
+  | 'malformed';
 
 /**
  * One row of the cast panel — [10 §13.2], [P7.2].

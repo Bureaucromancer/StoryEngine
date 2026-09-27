@@ -34,6 +34,7 @@ import {
   quarantineEffects,
   splitChannelKey,
 } from './channels.js';
+import { pooledId } from './pool-shape.js';
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
@@ -1823,9 +1824,17 @@ export async function setSessionHooks(
     const session = await readSession(context, handle, sessionId);
     if (session === null) return null;
 
-    const pool = session.hooks ?? [];
+    /**
+     * ***By the id the entry carries, whatever else it lacks*** (2026-09-27).
+     * An entry the schema refuses may have no `hook` at all, and reading
+     * `entry.hook.id` off one threw before the remove it was asked for; a
+     * malformed hook with an id is exactly what a person removes.
+     */
+    const pool = Array.isArray(session.hooks) ? session.hooks : [];
     const without =
-      change.remove === undefined ? pool : pool.filter((entry) => entry.hook.id !== change.remove);
+      change.remove === undefined
+        ? pool
+        : pool.filter((entry) => pooledId(entry) !== change.remove);
     /**
      * **A structured clone, the way creation copies one**, so an author editing
      * the object they submitted cannot reach into a running session — and
@@ -1837,7 +1846,7 @@ export async function setSessionHooks(
       change.add === undefined
         ? without
         : [
-            ...without.filter((entry) => entry.hook.id !== change.add?.id),
+            ...without.filter((entry) => pooledId(entry) !== change.add?.id),
             { hook: structuredClone(change.add), source: { kind: 'session' as const } },
           ];
 

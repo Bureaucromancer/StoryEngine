@@ -14,6 +14,7 @@ import type {
 import { introducedOn, isTerminal, readParty, readStatus } from './cast.js';
 import { channelKey, initialValue } from './channels.js';
 import { levelFragments } from './dials.js';
+import { isHookSource } from './pool-shape.js';
 import type { PooledHook, Turn } from './types.js';
 
 /**
@@ -670,6 +671,33 @@ export function hookRows(pool: readonly PooledHook[], context: FilterContext): H
         id: entrance.id,
         label: entrance.label,
       })),
+    };
+  });
+}
+
+/**
+ * ***A pool entry the engine cannot read, as a row that says so*** (2026-09-27).
+ *
+ * [10 §10.1] says *nothing about a held hook may be invisible*, and a hook the
+ * schema refuses is held by the engine absolutely: it is never filtered, never
+ * weighed and never carried by a commitment. The row names it by whatever it
+ * does carry, its id and title if it has them, with `malformed` as the reason
+ * and nothing that would need the parts it lacks. A person who wrote it can
+ * find it and take it out.
+ */
+export function malformedRows(entries: readonly Record<string, unknown>[]): HookRow[] {
+  return entries.map((entry) => {
+    const hook =
+      typeof entry['hook'] === 'object' && entry['hook'] !== null
+        ? (entry['hook'] as Record<string, unknown>)
+        : {};
+    return {
+      hookId: typeof hook['id'] === 'string' ? hook['id'] : '',
+      title: typeof hook['title'] === 'string' ? hook['title'] : '',
+      source: isHookSource(entry['source']) ? entry['source'] : { kind: 'session' },
+      state: null,
+      refusal: 'malformed',
+      entrances: [],
     };
   });
 }

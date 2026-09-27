@@ -691,7 +691,8 @@ export type SpanTarget = ActorSpanTarget;
  * stage three. It was written beside the filter that produces it and moved the
  * moment the selector's line landed on a turn: a class the client renders is
  * `shared`'s the same way `StepSkipReason` and `NotFilledReason` are, and a
- * second copy of a nine-arm union is the thing that drifts.
+ * second copy of a nine-arm union (ten since 2026-09-27) is the thing that
+ * drifts.
  */
 export type HookRefusal =
   | 'fired'
@@ -702,7 +703,17 @@ export type HookRefusal =
   | 'cast-gone'
   | 'subject-gone'
   | 'subject-met'
-  | 'subject-unavailable';
+  | 'subject-unavailable'
+  /**
+   * ***Not a hook the engine can read*** (2026-09-27): the pool holds something
+   * the `PlotHook` schema refuses — no `involves`, an `introduces` without an
+   * actor, a `blockedBy` that is not a list. The tenth arm, and the second that
+   * is an authoring error, with the same remedy as `subject-gone`: fix the hook.
+   * Only the panel ever sees it. The engine never reads such an entry, so no
+   * selection, commitment or force can carry one past the filter; before this
+   * class existed, one of them made the whole session unreadable.
+   */
+  | 'malformed';
 
 /**
  * What the plot-hook selector did this turn — [06 §6.1], [P7 §1.5], [P7.5].

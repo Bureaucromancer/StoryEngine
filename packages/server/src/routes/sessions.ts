@@ -6,11 +6,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import {
   Goal,
+  PlotHook,
   Preset,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   uuidv7,
-  type PlotHook,
   type Setup,
 } from '@storyengine/shared';
 
@@ -49,7 +49,8 @@ import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
 import type { HookSource } from '../sessions/types.js';
 import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
-import { hookRows, readPacing } from '../sessions/hooks.js';
+import { hookRows, malformedRows, readPacing } from '../sessions/hooks.js';
+import { readPool } from '../sessions/pool-shape.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { ownerKey } from '../index-db/ingest.js';
 import { listSessionRows } from '../index-db/sessions.js';
@@ -211,6 +212,25 @@ const CastBody = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * ***A hook as a session takes one*** (2026-09-27): the shared `PlotHook`, with
+ * the id optional because a session's own hook has no object upstream to keep
+ * one from, so the server mints it.
+ *
+ * The creation route and the add route both took any object and stored it as a
+ * `PlotHook` by a cast, on the reasoning that a hook the schema would refuse is
+ * an authoring mistake to show rather than a request to reject. Nothing showed
+ * it. One without `involves` made every read of the session a 500 and every
+ * turn a failure, since the actor lookup iterates `involves` on every gather,
+ * and the panel whose Remove could fix it was the page that would not load. A
+ * mistake is a `400` naming the field now, before anything is kept; one that
+ * reaches the file another way is `malformed` on the panel (`pool-shape.ts`).
+ */
+const HookInput = Type.Object(
+  { ...PlotHook.properties, id: Type.Optional(PlotHook.properties.id) },
+  { additionalProperties: false },
+);
+
 const CreateBody = Type.Object(
   {
     /**
@@ -299,12 +319,15 @@ const CreateBody = Type.Object(
      * session's own — which is the one source with no object to navigate to,
      * because the session is what you are already looking at.
      *
-     * *Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
+     * ~~*Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
      * a hook the schema would refuse is an authoring mistake to show rather than
      * a request to reject, and the selector's filter is where a broken one stops
-     * being eligible.*
+     * being eligible.*~~ ***Checked as hooks*** (2026-09-27): nothing showed one
+     * and the filter never saw it, because the actor lookup before it fell over
+     * a hook with no `involves`, and so did every read of the session after.
+     * See {@link HookInput}.
      */
-    hooks: Type.Optional(Type.Array(Type.Object({}, { additionalProperties: true }))),
+    hooks: Type.Optional(Type.Array(HookInput, { maxItems: 256 })),
   },
   { additionalProperties: false },
 );
@@ -372,17 +395,15 @@ const SessionPatch = Type.Object(
 /**
  * One hook added to a running session — [03 §4.1], [P7.5].
  *
- * *Open, like the creation route's `hooks` array and for the same stated
+ * ~~*Open, like the creation route's `hooks` array and for the same stated
  * reason*: a hook the schema would refuse is an authoring mistake to **show**
  * rather than a request to reject, and the filter is where a broken one stops
- * being eligible with a class the panel can turn into a sentence. What is
- * closed is the envelope — one hook, under one key, so a client cannot post an
- * array and expect a pool.
+ * being eligible with a class the panel can turn into a sentence.~~ ***Checked
+ * as a hook*** (2026-09-27), for {@link HookInput}'s reason. The envelope is
+ * closed as it was — one hook, under one key, so a client cannot post an array
+ * and expect a pool.
  */
-const HookBody = Type.Object(
-  { hook: Type.Object({}, { additionalProperties: true }) },
-  { additionalProperties: false },
-);
+const HookBody = Type.Object({ hook: HookInput }, { additionalProperties: false });
 
 /**
  * One goal written at a completion — [06 §7.3.4]'s *"or one written now"*,
@@ -719,7 +740,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset?: string;
       modeConfig?: Record<string, unknown>;
       setup?: string;
-      hooks?: PlotHook[];
+      /** Checked against `HookInput`, so a hook may arrive without its id. */
+      hooks?: (Omit<PlotHook, 'id'> & { id?: string })[];
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
@@ -929,7 +951,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         hooks: poolFor({
           lore: resolveLore(services.library, account.handle, { treatment, lore }),
           ...(from === undefined ? {} : { setup: from }),
-          ...(body.hooks === undefined ? {} : { own: body.hooks }),
+          /**
+           * ***With ids minted, as the add route mints them*** (2026-09-27). A
+           * hook created with the session and no id was pooled as `se.hook#`
+           * with nothing after it: it could not be committed, blocked, recorded
+           * as fired or removed, since each of those keys on the id. Only the
+           * session's own hooks are minted for; a copied one keeps its source's
+           * id, which is [15 §5]'s obligation.
+           */
+          ...(body.hooks === undefined
+            ? {}
+            : {
+                own: body.hooks.map((hook) => ({
+                  ...hook,
+                  id: hook.id !== undefined && hook.id !== '' ? hook.id : uuidv7(),
+                })),
+              }),
         }),
       });
 
@@ -1097,7 +1134,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * today: the reads are real, the route is on the path of every poll, and an
      * empty array costs nothing to send.
      */
-    const pool = session.hooks ?? [];
+    /**
+     * ***What the engine can read, and what it can only show*** (2026-09-27).
+     * One hook the schema refuses, with no `involves`, made this read a 500:
+     * the actor lookup below iterated it. The engine takes `usable`; the panel
+     * lists the rest as `malformed`, so the person who wrote it can find it.
+     */
+    const { usable: pool, malformed } = readPool(session.hooks);
     const library = {
       db: services.sessions.index,
       layout: services.sessions.layout,
@@ -1124,8 +1167,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         ...(isRecord(session.setup) ? { setup: session.setup } : {}),
         ...(isRecord(lore?.treatment?.treatment) ? { treatment: lore.treatment.treatment } : {}),
       }),
-      rows:
-        lore === null
+      rows: [
+        ...(lore === null
           ? []
           : hookRows(pool, {
               channels: session.channels,
@@ -1133,7 +1176,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               activeBooks: new Set(lore.books.map((book) => book.id)),
               known: resolvableActors(library, account.handle, pool).known,
               persona: session.cast?.persona ?? null,
-            }),
+            })),
+        ...malformedRows(malformed),
+      ],
     };
 
     /**
@@ -1348,7 +1393,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { hook } = request.body as { hook: Record<string, unknown> };
+      const { hook } = request.body as { hook: Omit<PlotHook, 'id'> & { id?: string } };
       const { sessionId } = request.params as { sessionId: string };
 
       /**
@@ -1360,9 +1405,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * without one it cannot be committed, blocked, or recorded as fired: every
        * one of those keys on `hook.id`.
        */
-      const id = typeof hook['id'] === 'string' && hook['id'] !== '' ? hook['id'] : uuidv7();
+      const id = hook.id !== undefined && hook.id !== '' ? hook.id : uuidv7();
       const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
-        add: { ...hook, id } as unknown as PlotHook,
+        add: { ...hook, id },
       });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });

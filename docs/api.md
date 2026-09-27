@@ -1291,14 +1291,22 @@ So the pool is session-wide — a hook added at turn forty is in the pool at tur
 one — while everything about what has *happened to* a hook stays per-node in
 `se.hook`. The turn list is untouched: nothing happened in the story.
 
-The body is open beyond `{ hook }` itself, like the creation route's `hooks`
+~~The body is open beyond `{ hook }` itself, like the creation route's `hooks`
 array: a hook the schema would refuse is an authoring mistake to **show** rather
 than a request to reject, and the selector's filter is where a broken one stops
-being eligible with a class the panel turns into a sentence. **An `id` is minted
+being eligible with a class the panel turns into a sentence.~~ ***The hook is
+checked as a hook*** (2026-09-27), here and in the creation route's `hooks`: the
+shared `PlotHook` with `id` optional, so a mistake is `400 invalid` naming the
+field and nothing is kept. The open body showed nothing: one hook without
+`involves` made every read of the session a `500` and every turn a failure,
+because the actor lookup iterates `involves` on every gather. A hook that
+reaches the pool another way (a hand edit, an import) is never read by the
+engine, and the panel lists it with the refusal `malformed`. **An `id` is minted
 when the hook arrives without one** — every other hook in a pool was copied from
 an object that had one and [15 §5](design/15-world.md) requires the copy to keep
 it, but a session's own hook has no upstream, and without an id it could never be
-committed, blocked, or recorded as fired.
+committed, blocked, or recorded as fired. *Since 2026-09-27 the creation route
+mints them too; it did not, and those hooks could never be removed.*
 
 The delete takes **any** hook, whichever source put it there: the pool was copied
 at creation, so a treatment-borne entry is this session's copy and refusing to

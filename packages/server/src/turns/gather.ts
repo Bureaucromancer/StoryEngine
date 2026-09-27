@@ -16,6 +16,7 @@ import type { DifficultyLevel, Goal, Preset } from '@storyengine/shared';
 import { readRegistry } from '../tags/store.js';
 import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
 import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { readPool } from '../sessions/pool-shape.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
@@ -258,7 +259,9 @@ export async function gatherAssemblyInputs(
    * the treatment it names, selected it — see `LoreRoute`.
    */
   const lore = resolveLore(library, request.account, session);
-  const pool = Array.isArray(session?.hooks) ? session.hooks : [];
+  // The hooks the engine can read; one the schema refuses is the panel's to
+  // show and never the selector's to weigh (`pool-shape.ts`, 2026-09-27).
+  const pool = readPool(session?.hooks).usable;
   const chain = readableGoals(session?.goals);
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 

@@ -2358,6 +2358,139 @@ describe('a session’s hook pool', () => {
       committed: { overrode: 'too-early' },
     });
   });
+
+  /**
+   * ***A hook is checked before it is kept*** (2026-09-27). Both doors took any
+   * object and stored it as a hook by a cast, so one with no `involves` made
+   * every later read of the session a 500 and every turn a failure: the actor
+   * lookup iterates `involves` on every gather.
+   */
+  it('refuses a hook with no involves, at creation and when added, and keeps nothing', async () => {
+    const storm = { title: 'Storm', premise: 'The bridge falls.' };
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', hooks: [storm] },
+    });
+    expect(created.status).toBe(400);
+
+    const added = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/hooks`,
+      payload: { hook: storm },
+    });
+    expect(added.status).toBe(400);
+    expect(JSON.stringify(added.body.issues)).toMatch(/involves/);
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    expect(read.body.session.hooks).toBeUndefined();
+  });
+
+  /**
+   * ***A session's own hook gets an id at creation, as it does when added***
+   * (2026-09-27). Without one it pooled as `se.hook#` with nothing after it,
+   * and could never be committed, blocked, recorded as fired or removed.
+   */
+  it('mints an id for a hook a session is created with', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Rain',
+        hooks: [
+          {
+            title: 'Storm',
+            premise: 'The bridge falls.',
+            magnitude: 'sweeping',
+            involves: [],
+            weight: 1,
+            delivery: 'guidance',
+            once: true,
+          },
+        ],
+      },
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.session.hooks[0].hook.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  /**
+   * ***And one already in the file is shown as broken and never read***
+   * (2026-09-27): a hand edit, an import or an older build can hold one. The
+   * session reads, the turn plays past it, the panel names it `malformed`, and
+   * Remove takes it out, which is the repair that was on a page that would not
+   * load.
+   */
+  it('reads past a malformed hook in the file, shows it as broken, and removes it', async () => {
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...stored,
+        hooks: [
+          { hook: { id: 'broken', title: 'Storm', premise: 'x' }, source: { kind: 'session' } },
+          { hook: hook('hook-fine'), source: { kind: 'session' } },
+        ],
+      }),
+    );
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    const rows = read.body.hooks.rows as { hookId: string; refusal: string | null }[];
+    expect(rows.find((row) => row.hookId === 'broken')?.refusal).toBe('malformed');
+    expect(rows.find((row) => row.hookId === 'hook-fine')?.refusal).not.toBe('malformed');
+
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, TURN_FINISHES_MS);
+    await stream.abort();
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns.at(-1)?.status).toBe('complete');
+
+    // Never saved out into a library object, which it would break too.
+    const treatment = await aTreatment([]);
+    const promoted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/hooks/broken/promote`,
+      payload: { target: { kind: 'treatment', id: treatment } },
+    });
+    expect(promoted.status).toBe(404);
+
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${sessionId}/hooks/broken`,
+    });
+    expect(removed.status).toBe(200);
+    expect(
+      (removed.body.session.hooks as { hook: { id: string } }[]).map((entry) => entry.hook.id),
+    ).toEqual(['hook-fine']);
+  });
+
+  it('removes a hook beside an entry with no hook in it at all', async () => {
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...stored,
+        hooks: [
+          { source: { kind: 'session' } },
+          { hook: hook('hook-fine'), source: { kind: 'session' } },
+        ],
+      }),
+    );
+
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${sessionId}/hooks/hook-fine`,
+    });
+
+    expect(removed.status).toBe(200);
+    expect(removed.body.session.hooks).toEqual([{ source: { kind: 'session' } }]);
+  });
 });
 
 /**

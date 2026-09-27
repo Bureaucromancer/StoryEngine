@@ -14,6 +14,7 @@ import {
 import { LibraryError, read, update, type LibraryContext } from '../library.js';
 
 import { readSession, type SessionContext } from './store.js';
+import { readPool } from './pool-shape.js';
 import type { HookSource, PooledHook } from './types.js';
 
 /**
@@ -211,7 +212,9 @@ export async function promoteSessionHook(
   const session = await readSession(sessions, handle, sessionId);
   if (session === null) return { kind: 'no-session' };
 
-  const pooled = pooledHook(session.hooks ?? [], hookId, from);
+  // Only a hook the engine can read is saved out: a malformed one written into
+  // a library object would break that object too (2026-09-27).
+  const pooled = pooledHook(readPool(session.hooks).usable, hookId, from);
   if (pooled === undefined) return { kind: 'no-such-hook' };
 
   const inKind = SCHEMA_FOR[target.kind];
