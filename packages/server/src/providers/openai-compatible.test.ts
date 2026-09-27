@@ -949,3 +949,132 @@ describe('asking for a shape', () => {
     expect('object' in result).toBe(false);
   });
 });
+
+/**
+ * ***A picture on the wire*** — [25 E15], R1.
+ *
+ * **The wire test the design asked for before anything else**, because this SDK
+ * has dropped a field in silence before ([polish §8]): a picture that never
+ * left would look, from every record on this side, exactly like one that did.
+ * So the assertion is on the request body — an `image_url` carrying a `data:`
+ * URL, in order after the words that introduce it.
+ *
+ * And the other half, which is what keeps a text-only model working: a message
+ * with no picture in it stays a **string**. Some endpoints reject array content
+ * outright, so building parts where none were needed would break a model that
+ * has never seen a picture.
+ */
+describe('a picture on the wire', () => {
+  const PIXELS = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const DIGEST = `sha256:${'a'.repeat(64)}`;
+
+  const withPicture: RenderedMessage[] = [
+    { role: 'system', content: 'You are a narrator.', fromBlocks: ['b1'] },
+    {
+      role: 'user',
+      content: 'Look at this.\n\n[Picture: the harbour at dusk]',
+      fromBlocks: ['b2', 'b3'],
+      parts: [
+        { kind: 'text', text: 'Look at this.\n\n[Picture: the harbour at dusk]' },
+        { kind: 'image', blockId: 'b3', digest: DIGEST, mime: 'image/png' },
+      ],
+    },
+  ];
+
+  it('sends the bytes as a data URL, after the words that introduce them', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('A harbour, yes.');
+      },
+    });
+
+    await provider.generate({
+      modelId: 'llama-local',
+      messages: withPicture,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+
+    const body = sent as {
+      messages: { role: string; content: string | Record<string, unknown>[] }[];
+    };
+    const user = body.messages.find((message) => message.role === 'user');
+    expect(Array.isArray(user?.content)).toBe(true);
+    const parts = user?.content as Record<string, unknown>[];
+    expect(parts[0]).toMatchObject({ type: 'text', text: expect.stringContaining('harbour') });
+    const url = (parts[1]?.['image_url'] as { url?: string } | undefined)?.url ?? '';
+    expect(parts[1]?.['type']).toBe('image_url');
+    expect(url.startsWith('data:image/png;base64,')).toBe(true);
+    expect(url.slice('data:image/png;base64,'.length)).toBe(Buffer.from(PIXELS).toString('base64'));
+  });
+
+  it('keeps a message with no picture a plain string', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('The rain had not stopped.');
+      },
+    });
+
+    await provider.generate({
+      modelId: 'llama-local',
+      messages,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+
+    const body = sent as { messages: { role: string; content: unknown }[] };
+    for (const message of body.messages) expect(typeof message.content).toBe('string');
+  });
+
+  /**
+   * ***Parts without their bytes are words.*** The caller never hands over a
+   * message naming a picture it did not load, but if one arrived the adapter
+   * must still send a message a text-only endpoint accepts.
+   */
+  it('falls back to the text when the bytes were not handed over', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('Words only.');
+      },
+    });
+
+    await provider.generate({ modelId: 'llama-local', messages: withPicture, params: {} });
+
+    const body = sent as { messages: { role: string; content: unknown }[] };
+    const user = body.messages.find((message) => message.role === 'user');
+    expect(user?.content).toBe('Look at this.\n\n[Picture: the harbour at dusk]');
+  });
+
+  it('folds a system prompt into a picture message as a leading text part', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { systemMessage: 'fold-into-first-user' } }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('Folded.');
+      },
+    });
+
+    await provider.generate({
+      modelId: 'llama-local',
+      messages: withPicture,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+
+    const body = sent as { messages: { role: string; content: unknown }[] };
+    expect(body.messages.some((message) => message.role === 'system')).toBe(false);
+    const parts = body.messages[0]?.content as Record<string, unknown>[];
+    expect(parts[0]).toMatchObject({ type: 'text', text: 'You are a narrator.\n\n' });
+    expect(parts.some((part) => part['type'] === 'image_url')).toBe(true);
+  });
+});

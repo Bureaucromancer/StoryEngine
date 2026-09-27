@@ -15,7 +15,8 @@ import { estimateTokens } from './assemble.js';
 import { channelDefinition, initialValue } from '../sessions/channels.js';
 import { levelFragments } from '../sessions/dials.js';
 import type { SummaryLink } from '../sessions/summary-chain.js';
-import type { ChannelState, Turn } from '../sessions/types.js';
+import type { ChannelState, Turn, TurnAttachment } from '../sessions/types.js';
+import { pictureTexts } from './pictures.js';
 import { renderChannelValue, renderTemplate, type RenderContext } from './template.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
@@ -86,7 +87,11 @@ export interface CollectContext {
   persona: { actor: Actor; contentHash: string } | null;
   actors: readonly { actor: Actor; contentHash: string }[];
   channels: Readonly<Record<string, ChannelState>>;
-  input?: { text: string };
+  /**
+   * What the player just did — the words, and since 2026-09-27 the pictures on
+   * the move ([25 E15]), each of which becomes a candidate of its own.
+   */
+  input?: { text: string; attachments?: readonly TurnAttachment[] };
   guidance?: string;
   /**
    * A fired plot hook's words, for the same slot — [06 §5.1]'s second producer,
@@ -555,17 +560,45 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
 
       return context.history.flatMap((turn, index) =>
         halves.flatMap(({ of, role }) => {
+          const turnBlock = { ...block, priority: block.priority + index, role };
           const text = of === 'input' ? turn.input?.text : turn.output?.text;
-          if (text === undefined || text.length === 0) return [];
-          return emit(
-            { ...block, priority: block.priority + index, role },
-            text,
-            // The turn id is the identity and the block id is keyed by it
-            // ([P3.0]): a window-relative id names a different turn every
-            // twenty turns, which is exactly what an id must never do.
-            { kind: 'history', turnId: turn.id, range: [index, index], part: of },
-            `${block.id}.${turn.id}.${of}`,
+          const words =
+            text === undefined || text.length === 0
+              ? []
+              : emit(
+                  turnBlock,
+                  text,
+                  // The turn id is the identity and the block id is keyed by it
+                  // ([P3.0]): a window-relative id names a different turn every
+                  // twenty turns, which is exactly what an id must never do.
+                  { kind: 'history', turnId: turn.id, range: [index, index], part: of },
+                  `${block.id}.${turn.id}.${of}`,
+                );
+          if (of === 'output') return words;
+          /**
+           * ***The move's pictures, after its words and before the reply*** —
+           * [25 E15]. Emitted **whether or not the move had words**: a move that
+           * was only a picture used to be an empty half, and an empty half is
+           * dropped above — which is how a text consumer would have lost the
+           * move entirely. Never `current`, so R1's window sends them as their
+           * words whatever the model can see.
+           */
+          const pictures = (turn.input?.attachments ?? []).map((attachment) =>
+            emitPicture(
+              turnBlock,
+              attachment,
+              {
+                kind: 'history',
+                turnId: turn.id,
+                range: [index, index],
+                part: 'attachment',
+                attachmentId: attachment.id,
+              },
+              `${block.id}.${turn.id}.attachment.${attachment.id}`,
+              false,
+            ),
           );
+          return [...words, ...pictures];
         }),
       );
     }
@@ -648,7 +681,25 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * the player's action droppable would not produce a shorter prompt; it
        * would produce the wrong one.
        */
-      return emit(block, context.input?.text ?? '', { kind: 'input' }, undefined);
+      return [
+        ...emit(block, context.input?.text ?? '', { kind: 'input' }, undefined),
+        /**
+         * ***The move's pictures, required as its words are*** — [25 E15].
+         * A picture the player is showing *now* is the part of their move a
+         * budget must not take, and it is the only kind R1 may send as pixels
+         * (`current`). Whether it does is decided per call, by the plan, from
+         * the model that call resolved to.
+         */
+        ...(context.input?.attachments ?? []).map((attachment) =>
+          emitPicture(
+            block,
+            attachment,
+            { kind: 'input', part: 'attachment', attachmentId: attachment.id },
+            `${block.id}.attachment.${attachment.id}`,
+            true,
+          ),
+        ),
+      ];
 
     case 'summary': {
       /**
@@ -900,6 +951,53 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
 }
 
 /**
+ * The slot's wrapper around filled text — see `emit` for why every occurrence
+ * and why a function replacement.
+ */
+function wrap(block: PresetBlock, text: string): string {
+  return block.kind === 'slot' && block.wrapper !== undefined
+    ? block.wrapper.replaceAll('{{content}}', () => text)
+    : text;
+}
+
+/**
+ * One picture as a candidate — [25 E15], R1.
+ *
+ * ***Its text is the picture as words***, wrapped as its slot wraps everything
+ * else, because that is what goes whenever the pixels do not; `sentText` is the
+ * same wrapper around what goes beside them when they do. Never empty, so the
+ * empty rule never drops a picture, and never advisory — a picture a person
+ * showed is part of the story, not a steer.
+ */
+function emitPicture(
+  block: PresetBlock,
+  attachment: TurnAttachment,
+  source: Candidate['source'],
+  id: string,
+  current: boolean,
+): Candidate {
+  const texts = pictureTexts(attachment);
+  const required = current && block.kind === 'slot' && block.source.of === 'input';
+  return {
+    id,
+    source,
+    reason: block.label,
+    role: block.role,
+    text: wrap(block, texts.held),
+    priority: block.priority,
+    ...(required ? { required: true } : {}),
+    image: {
+      attachmentId: attachment.id,
+      kind: attachment.kind,
+      digest: attachment.digest ?? null,
+      mime: attachment.mime ?? null,
+      sentText: wrap(block, texts.sent),
+      current,
+    },
+  };
+}
+
+/**
  * Turns filled text into a candidate, applying the wrapper and the empty rule.
  *
  * `omitWhenEmpty` is read literally — *drop the block rather than emit a heading
@@ -930,10 +1028,7 @@ function emit(
    * the output. A function replacement is returned verbatim, so the fix is not
    * "escape the input" — it is "stop treating the input as a pattern".
    */
-  const wrapped =
-    block.kind === 'slot' && block.wrapper !== undefined
-      ? block.wrapper.replaceAll('{{content}}', () => text)
-      : text;
+  const wrapped = wrap(block, text);
 
   // The union, not the special case: an author- or import-declared advisory
   // block is advisory too, or the firewall only covers the one slot somebody

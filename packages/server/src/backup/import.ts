@@ -14,6 +14,7 @@ import { BackupFileSource } from '../import/backup-source.js';
 import { sweep } from '../import/sweep.js';
 import type { ConflictPolicy } from '../import/identity.js';
 import type { LibraryContext } from '../library.js';
+import { storeAttachment } from '../sessions/attachments.js';
 import { importSession } from '../sessions/import.js';
 import type { SessionContext } from '../sessions/store.js';
 import { ensureDirectory, fileExists, writeFileBytes } from '../storage/files.js';
@@ -284,8 +285,24 @@ async function importSessions(
       request.handle,
       envelope,
     );
-    if (result.ok) imported += 1;
-    else skipped += 1;
+    if (result.ok) {
+      imported += 1;
+      /**
+       * ***The pictures on its moves, which only a backup can bring*** —
+       * [25 E15]. An export carries the records and not the bytes; an archive
+       * carries the session directory whole. Stored through the attachment
+       * store rather than copied by name, so every file is re-addressed by its
+       * own bytes: one renamed or altered in the archive lands under the digest
+       * it actually has, where no turn names it, and the turn that named the
+       * original sends its words.
+       */
+      for await (const path of request.files.list()) {
+        if (!path.startsWith(`${prefix}${id}/attachments/`)) continue;
+        const bytes = await request.files.read(path);
+        if (bytes === null) continue;
+        await storeAttachment(context.sessions.layout, request.handle, result.sessionId, bytes);
+      }
+    } else skipped += 1;
   }
 
   notes.push({ key: 'import.backup.sessions', params: { imported, skipped }, level: 'info' });

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Binding } from '../providers/types.js';
+import { moveText } from '../assembly/pictures.js';
 import { digest } from './digest.js';
 
 /**
@@ -109,7 +110,11 @@ export const DEFAULT_SUMMARY_POLICY: SummaryPolicy = { span: 20, window: 20 };
  */
 export interface SummarisableTurn {
   id: string;
-  input?: { text: string };
+  /**
+   * The move's words, and since 2026-09-27 its pictures' captions ([25 E15]) —
+   * so a move that was a picture is summarised as one rather than as nothing.
+   */
+  input?: { text: string; attachments?: readonly { caption?: string }[] };
   output?: { text: string };
 }
 
@@ -231,7 +236,22 @@ export function summariserKey(binding: Binding, prompt: string, params: unknown)
  * which is the honest reading: something was said and nothing came back.
  */
 export function unitTextOf(turn: SummarisableTurn): string {
-  return JSON.stringify({ i: turn.input?.text ?? '', o: turn.output?.text ?? '' });
+  const pictures = turn.input?.attachments ?? [];
+  /**
+   * ***The pictures' captions join the key only when there are pictures***, so
+   * every chain built before they existed keeps every key it had. And it is the
+   * captions that are hashed — `null` for none — never the words a prompt uses
+   * to describe a picture: *"a prompt rewrite must never be able to invalidate
+   * a chain"*, and rewording a placeholder is a prompt rewrite.
+   */
+  if (pictures.length === 0) {
+    return JSON.stringify({ i: turn.input?.text ?? '', o: turn.output?.text ?? '' });
+  }
+  return JSON.stringify({
+    i: turn.input?.text ?? '',
+    a: pictures.map((picture) => picture.caption ?? null),
+    o: turn.output?.text ?? '',
+  });
 }
 
 /** `H(SUMMARISER + content(t))`. **Content, never the turn id** — see the header. */
@@ -293,7 +313,7 @@ export function planChain(
       units.push({
         key: unitKeyOf(summariser, turn),
         turnId: turn.id,
-        said: turn.input?.text ?? '',
+        said: moveText(turn.input),
         replied: turn.output?.text ?? '',
       });
     }

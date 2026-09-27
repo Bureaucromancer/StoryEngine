@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@storyengine/shared';
+import {
+  NO_LORE_REPORT,
+  type TurnAttachment,
+  type TurnPreview,
+  type UnmeasurableReason,
+} from '@storyengine/shared';
 
 import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
+import { digestsOf, presentAttachments } from '../sessions/attachments.js';
 import type { SessionContext } from '../sessions/store.js';
 import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
@@ -81,7 +87,7 @@ export interface PreviewRequest {
    * ([13 §8.3]). A caller that omits it previews the mode's kindless default,
    * which is what every caller did before the selector existed.
    */
-  input?: { text: string; kind?: string };
+  input?: { text: string; kind?: string; attachments?: TurnAttachment[] };
   guidance?: string;
 }
 
@@ -111,6 +117,7 @@ export async function previewAssembly(
   const headTurnId = request.parentTurnId;
   const pendingInput =
     (request.input !== undefined && request.input.text.trim() !== '') ||
+    (request.input?.attachments?.length ?? 0) > 0 ||
     (request.guidance !== undefined && request.guidance.trim() !== '');
 
   const step = previewStepFor(inputs.mode);
@@ -242,6 +249,20 @@ export async function previewAssembly(
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });
 
+  /**
+   * ***The layers the turn uses, which this call did not pass*** — found
+   * 2026-09-27 by [25 E15]. The session's and the step's overrides and the
+   * cast's hints all decide which model answers, and a preview resolved without
+   * them could name a different model from the turn it previews. That was a
+   * wrong label before pictures; with them it is a wrong promise — *this picture
+   * will be seen* over a turn that sends it as words, or the reverse.
+   */
+  const picturesPresent = await presentAttachments(
+    context.sessions.layout,
+    request.account,
+    request.sessionId,
+    digestsOf(request.input === undefined ? [] : [{ input: request.input }]),
+  );
   try {
     const { call } = planCall(
       {
@@ -249,11 +270,15 @@ export async function previewAssembly(
         bindings: inputs.bindings,
         defaults: inputs.defaults,
         usable: inputs.usable,
+        ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
+        ...(inputs.session?.stepRoles === undefined ? {} : { stepRoles: inputs.session.stepRoles }),
+        cast: inputs.cast,
         providers: context.providers,
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },
         notFilled: collected.notFilled,
         refused: lore.refused,
+        picturesPresent,
       },
       {},
       collected.candidates,

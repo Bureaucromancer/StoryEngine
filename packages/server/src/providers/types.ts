@@ -150,6 +150,18 @@ export interface GenerationRequest {
    * is dropped and the endpoint is asked for bare JSON.*
    */
   schema?: object;
+  /**
+   * ***The bytes of every picture the messages name*** — [25 E15], R1. Keyed by
+   * digest, as a message's image parts are, and present only when a message has
+   * one. **Never persisted**: the record names pictures by digest and this is
+   * where they are loaded for the wire, and nowhere else.
+   *
+   * *An adapter that cannot send a picture never receives one*, because the
+   * caller decides per call from the connection's `imageModels` whether a
+   * picture goes as pixels or as words; one that receives this is being told
+   * the model it is calling sees.
+   */
+  images?: ReadonlyMap<string, { bytes: Uint8Array; mime: string }>;
   signal?: AbortSignal;
 }
 

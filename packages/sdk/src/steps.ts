@@ -11,6 +11,7 @@ import type {
   StepStage,
   TokenUsage,
   Turn,
+  TurnAttachment,
 } from '@storyengine/shared';
 
 import type { RandomApi } from './random.js';
@@ -129,6 +130,33 @@ export interface Candidate {
    * step declaring a non-empty `writes` is such a call.
    */
   advisory?: boolean;
+  /**
+   * ***The picture this candidate stands for*** — [25 E15], R1, and a change to
+   * this published contract made deliberately: optional, so every step written
+   * before it is unchanged.
+   *
+   * `text` is the picture's rendering **as words**, which is what goes when the
+   * pixels do not; `sentText` is what goes beside them when they do. The engine
+   * decides which per call, from the model that call resolved to, and records
+   * the answer on the assembled block. A step never decides it — a step cannot
+   * know which model will answer.
+   */
+  image?: CandidateImage;
+}
+
+/** What a picture candidate carries — see {@link Candidate.image}. */
+export interface CandidateImage {
+  attachmentId: string;
+  kind: string;
+  digest: string | null;
+  mime: string | null;
+  /** The text that accompanies the pixels when they are sent. */
+  sentText: string;
+  /**
+   * Whether the picture belongs to the move being made now. R1 sends only
+   * these; a picture from an earlier turn always goes as its words.
+   */
+  current: boolean;
 }
 
 /**
@@ -232,7 +260,14 @@ export interface StepInput {
   turnId: string;
   sessionId: string;
   parentTurnId: string | null;
-  input?: { actorId: string | null; kind: string; text: string; raw: string };
+  input?: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    raw: string;
+    /** Pictures on the move — `Turn.input.attachments`'s shape. */
+    attachments?: TurnAttachment[];
+  };
   /**
    * **Who the mode's participant policy says talks this turn** — [06 §7.2],
    * [P7.3].
@@ -353,7 +388,18 @@ export interface StepInput {
  */
 export interface TranscriptTurn {
   turnId: string;
-  input?: { actorId: string | null; kind: string; text: string };
+  input?: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    /**
+     * The move's pictures, as a transcript may know them — [25 E15]: their kind
+     * and the player's caption, never their bytes or their digest. Absent when
+     * there were none. A step that summarises or remembers should say a picture
+     * was shown; what it showed is the caption's to say.
+     */
+    attachments?: readonly { kind: string; caption?: string }[];
+  };
   output?: { text: string };
 }
 

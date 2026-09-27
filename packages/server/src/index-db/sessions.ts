@@ -4,6 +4,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { TurnLocation } from '../sessions/segments.js';
+import { moveText } from '../assembly/pictures.js';
 import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
 import { clearLinks, writeLinks } from './links.js';
@@ -72,7 +73,12 @@ export interface TurnHit {
  * in the session the moment a lorebook entry mentioned the word.
  */
 export function turnText(turn: Turn): string {
-  return [turn.input?.text, turn.output?.text].filter((text) => Boolean(text)).join('\n');
+  // The move with its pictures' stand-ins ([25 E15]), so searching for what a
+  // caption said finds the turn — and a move with no pictures indexes exactly
+  // as it always did.
+  return [turn.input === undefined ? undefined : moveText(turn.input), turn.output?.text]
+    .filter((text) => Boolean(text))
+    .join('\n');
 }
 
 export function indexSession(db: DatabaseSync, owner: string, session: SessionFile): void {

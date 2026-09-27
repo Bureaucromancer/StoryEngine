@@ -47,6 +47,7 @@ export type {
   StepSkipReason,
   StepStage,
   Turn,
+  TurnAttachment,
   TurnCost,
   TurnRequest,
 } from '@storyengine/shared';

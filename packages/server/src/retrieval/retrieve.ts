@@ -5,7 +5,8 @@ import type { Preset } from '@storyengine/shared';
 
 import type { Rng } from '../rng/rng.js';
 import { channelKey, keyBelongsTo, scopeKeyOf, SE_LORE_TIMING } from '../sessions/channels.js';
-import type { ChannelState, Turn } from '../sessions/types.js';
+import type { ChannelState, Turn, TurnAttachment } from '../sessions/types.js';
+import { scanText } from '../assembly/pictures.js';
 import type { EffectProposal } from '../turns/effects.js';
 import type { CastMember } from '../turns/cast.js';
 import type { ResolvedLore } from '../turns/lore.js';
@@ -42,7 +43,7 @@ export interface RetrieveContext {
   /** Oldest first, as the assembler holds it. */
   history: readonly Turn[];
   /** The pending message, which is the newest thing to scan and is not in history yet. */
-  input?: { text: string };
+  input?: { text: string; attachments?: readonly TurnAttachment[] };
   channels: Readonly<Record<string, ChannelState>>;
   persona: { actor: CastMember['actor'] } | null;
   actors: readonly { actor: CastMember['actor'] }[];
@@ -120,12 +121,19 @@ export function retrieve(context: RetrieveContext): Retrieved {
  * makes `latestMessage` above mean the right thing for the trim order.
  */
 function messagesToScan(context: RetrieveContext): string[] {
+  // A move's words with its pictures' captions — the player's own words about
+  // what they showed are scanned as their other words are ([25 E15]). The
+  // placeholder a picture with no caption gets is not: it is this engine's
+  // words, and an entry keyed on *picture* must not fire because of it.
   const past = [...context.history]
     .reverse()
-    .flatMap((turn) => [turn.output?.text, turn.input?.text])
+    .flatMap((turn) => [
+      turn.output?.text,
+      turn.input === undefined ? undefined : scanText(turn.input),
+    ])
     .filter((text): text is string => typeof text === 'string' && text.length > 0);
 
-  const pending = context.input?.text;
+  const pending = context.input === undefined ? undefined : scanText(context.input);
   return pending === undefined || pending.length === 0 ? past : [pending, ...past];
 }
 
