@@ -147,6 +147,23 @@ export interface ObjectEditor<F> {
   /** After a restore, so the page can re-seed without knowing how. */
   adopt: (object: Record<string, unknown>, contentHash: string, notice: string) => void;
   /**
+   * ***How many times the form has been replaced wholesale*** (2026-09-27) — a
+   * count that `adopt` moves and nothing else does.
+   *
+   * An assist started before a restore was written for the form the person
+   * restored *away from*; its answer landing on the restored version would put
+   * text into a document it was never about, and clear the notice saying the
+   * restore happened. So an assist reads this when it starts and again when it
+   * lands, and a difference means it is not applied (`useAssistFor`).
+   *
+   * *The 412's reapply does not move it*, and that is the distinction: a reapply
+   * keeps the person's edits over the newer version, and an assist still running
+   * is one of those edits in progress. *A function rather than a value*, because
+   * the reader is a promise callback holding the render it started in, and it
+   * has to ask the count as it is now.
+   */
+  replacements: () => number;
+  /**
    * ***The next save is an import, and this is where it came from*** —
    * [10 §11.2c](../../../../docs/design/10-ui-surfaces.md), [P11].
    *
@@ -232,6 +249,9 @@ export function useObjectEditor<F>(
    */
   const importedFrom = useRef<string | null>(null);
 
+  /** See `replacements`. A ref, for the reason `importedFrom` is one: nothing renders from it. */
+  const replaced = useRef(0);
+
   const saveMutation = useSaveObject();
   const create = useCreateObject();
   const navigate = useNavigate();
@@ -254,6 +274,7 @@ export function useObjectEditor<F>(
   }
 
   function adopt(object: Record<string, unknown>, contentHash: string, message: string): void {
+    replaced.current += 1;
     setBase((previous) => ({ ...previous, object, contentHash }));
     setForm(descriptor.formOf(object));
     setPristineForm(descriptor.formOf(object));
@@ -449,6 +470,7 @@ export function useObjectEditor<F>(
     noteImport: (from: string) => {
       importedFrom.current = from;
     },
+    replacements: () => replaced.current,
     generatedAt: (path) => generated[path] ?? null,
     recordGenerated: (path, record) => {
       setGenerated((was) => ({ ...was, [path]: record }));

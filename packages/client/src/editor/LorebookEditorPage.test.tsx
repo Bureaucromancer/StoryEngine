@@ -179,14 +179,16 @@ let server = makeLibrary();
 const assist = {
   asked: [] as { path: string }[],
   answers: [] as ((text: string) => void)[],
+  failures: [] as ((cause: Error) => void)[],
 };
 
 function askAssist(body: { path: string }): Promise<AssistFieldResult> {
   assist.asked.push(body);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     assist.answers.push((text) => {
       resolve({ text, model: 'fake-hi', seed: 'the prompt that ran' });
     });
+    assist.failures.push(reject);
   });
 }
 
@@ -229,6 +231,7 @@ beforeEach(() => {
   server = makeLibrary();
   assist.asked = [];
   assist.answers = [];
+  assist.failures = [];
 });
 
 /** Opens the assist beside this control and presses *Write it*, leaving it running. */
@@ -246,6 +249,13 @@ async function startAssist(control: HTMLElement): Promise<void> {
 async function answerAssist(at: number, text: string): Promise<void> {
   await act(async () => {
     assist.answers[at]?.(text);
+    await Promise.resolve();
+  });
+}
+
+async function failAssist(at: number, cause: Error): Promise<void> {
+  await act(async () => {
+    assist.failures[at]?.(cause);
     await Promise.resolve();
   });
 }
@@ -1848,6 +1858,135 @@ describe('image slots on a book and its entries', () => {
     const saved = server.stored();
     expect(saved.entries.find((one) => one.id === HARBOUR)?.media).toHaveLength(1);
     expect(saved.entries.find((one) => one.id === BRIDGE)?.media).toEqual([]);
+  });
+});
+
+/**
+ * ***An assist belongs to its field*** (2026-09-27).
+ *
+ * The page does not remount when `?entry=` changes, and the assist control used
+ * to be one instance serving whichever entry was open: its *Writing…* followed
+ * the person to the next entry, about text that was going somewhere else. Keyed
+ * by its field, the control goes when the field does — so the running request,
+ * and a failure that lands while the person is elsewhere, are held by the
+ * editor and drawn by whichever control is the field's now.
+ */
+describe('an assist belongs to its field', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('keeps its progress on the entry it was started on', async () => {
+    const client = renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    expect(screen.getByRole('button', { name: 'Writing…' })).toBeTruthy();
+
+    await openEditor(BRIDGE);
+    // Neither the running request nor Harbour's open panel follows the person
+    // to Bridge's field.
+    expect(screen.queryByRole('button', { name: 'Writing…' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Write it' })).toBeNull();
+
+    await answerAssist(0, 'A wet quay under sodium light.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.content).toBe(
+      'A wet quay under sodium light.',
+    );
+    expect(saved.entries.find((one) => one.id === BRIDGE)?.content).toBe('');
+  });
+
+  it('says on return that it failed while the person was elsewhere', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+
+    await openEditor(BRIDGE);
+    await failAssist(0, new Error('the network went away'));
+    expect(screen.queryByText('The assist did not finish.')).toBeNull();
+
+    await openEditor(HARBOUR);
+    expect(await screen.findByText('The assist did not finish.')).toBeTruthy();
+  });
+
+  /**
+   * *Undo the assist* returns what the field held when the answer landed. It
+   * returned what it held at the click, so a paragraph typed into the field
+   * while the model wrote was replaced by the answer and then not brought back
+   * by undoing it either.
+   */
+  it('undoes to what was typed while the model was writing', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+
+    await answerAssist(0, 'A wet quay under sodium light.');
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty(
+        'value',
+        'A wet quay under sodium light.',
+      );
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Undo the assist' }));
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty('value', 'Cranes.');
+  });
+
+  /**
+   * An answer written for the form a restore replaced is not put into the
+   * restored version — it was never about that text — and the restore's own
+   * notice stays up rather than being cleared by a write nobody made.
+   */
+  it('is not put into a version restored while it was running', async () => {
+    const restored = { ...makeBook(), name: 'Ardent, as it was' };
+    vi.spyOn(api, 'history').mockResolvedValue({
+      versions: [
+        {
+          id: 'version-1',
+          digest: 'sha256:then',
+          revision: 1,
+          authoredAt: '2026-09-01T00:00:00.000Z',
+          recordedAt: '2026-09-01T00:00:00.000Z',
+          source: { kind: 'user' },
+          reason: '',
+          authorVersion: null,
+          pinned: false,
+        },
+      ],
+    });
+    vi.spyOn(api, 'restoreVersion').mockImplementation(() => {
+      server.handEdit(restored);
+      return Promise.resolve({
+        contentHash: server.envelope().contentHash,
+        object: structuredClone(restored),
+      });
+    });
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'History' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+    await screen.findByText(/^Version restored\./);
+    expect(screen.getByRole('textbox', { name: 'Book name' })).toHaveProperty(
+      'value',
+      'Ardent, as it was',
+    );
+
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    expect(
+      await screen.findByText(
+        'A version was restored while this was being written, so it was not put in.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty('value', '');
+    expect(screen.getByText(/^Version restored\./)).toBeTruthy();
   });
 });
 
