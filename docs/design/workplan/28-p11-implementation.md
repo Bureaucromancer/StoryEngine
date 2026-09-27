@@ -1591,6 +1591,12 @@ here rather than discovered by a reader of the gate:
   `selectionAsLorebook` clears the **book's** gallery rather than pretending to
   select from it, and says why.
 
+  *Corrected 2026-09-27:* ~~has nothing to carry until entry media exists~~ —
+  it existed from `80bc80c`, the same day, and an export then carried entry
+  picture rows without their bytes. The rows now stay behind and the export and
+  the import review both say so ([10 §11.2c](../10-ui-surfaces.md)); the clause
+  waits on the zip container.
+
 **Neither is in *Ends at***, which reads *"every editor offers assist,
 provenance and history, and a collapsed section names what inside it is not at
 its default"* — and all four of those are true. The fourth was already true:

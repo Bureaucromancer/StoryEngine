@@ -139,6 +139,7 @@ function envelopeFor(id: string): LibraryObject {
 
 /** What a save carried — the half of every claim below that a rendering cannot see. */
 let saved: Record<string, unknown>[] = [];
+const createObject = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -154,6 +155,7 @@ vi.mock('../api.js', async (importOriginal) => {
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       listTags: () => Promise.resolve({ tags: [] }),
       readObject: (_kind: unknown, id: unknown) => Promise.resolve(envelopeFor(id as string)),
+      createObject: (...a: unknown[]) => createObject(...a) as unknown,
       updateObject: (_kind: unknown, _id: unknown, object: Record<string, unknown>) => {
         saved.push(structuredClone(object));
         return Promise.resolve({ contentHash: 'sha256:fixture-2', object });
@@ -247,6 +249,33 @@ describe('a carrier whose hooks a hand edit broke', () => {
     await openEditor('packages', HOOKED_PACKAGE_ID);
 
     expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
+  });
+});
+
+/**
+ * ***A first Save the server refused says so*** (2026-09-27). A page that has
+ * never been saved writes with a create, and the failure the Save row shows was
+ * read from the update alone — so a refused create left the page as it was and
+ * said nothing at all.
+ */
+describe('a new object whose first save is refused', () => {
+  it('says why beside Save, and stays on the new page', async () => {
+    const { ApiError } = await import('../api.js');
+    createObject.mockRejectedValue(
+      new ApiError(400, 'invalid', 'The object is not valid: /cast/0 must be object'),
+    );
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library/treatments/new' });
+    });
+
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'The Harbour Job');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The object is not valid: /cast/0 must be object',
+    );
+    expect(router.state.location.pathname).toBe('/library/treatments/new');
   });
 });
 

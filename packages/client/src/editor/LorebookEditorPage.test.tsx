@@ -1351,6 +1351,26 @@ describe('a new lorebook', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
   });
 
+  /**
+   * ***A picture needs a saved book to sit beside*** (2026-09-27). An upload is
+   * stored in the object's folder, and a draft has none: every picture added
+   * to a new book was refused. The mocked upload succeeds for any id, so what
+   * is asserted is the control's absence — nothing here can prove a refusal the
+   * real server would make.
+   */
+  it('says to save before adding pictures, on the book and on a new entry', async () => {
+    renderApp();
+    await openNew();
+    const sentence = 'Pictures are stored beside the saved book. Save it once, then add them here.';
+
+    expect(screen.queryByRole('button', { name: 'Add a picture' })).toBeNull();
+    expect(screen.getByText(sentence)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'New entry' }));
+    expect(screen.queryByRole('button', { name: 'Add a picture' })).toBeNull();
+    expect(screen.getAllByText(sentence)).toHaveLength(2);
+  });
+
   it('refuses a nameless book rather than filing one', async () => {
     renderApp();
     await openNew();
@@ -1458,6 +1478,37 @@ describe('entries travelling on their own', () => {
     expect(written.folders.map((one) => one.id)).toEqual(['places']);
   });
 
+  /**
+   * ***What the export leaves behind is said before the click*** (2026-09-27):
+   * a lorebook file cannot carry a picture's bytes, so the export leaves the
+   * entry's pictures where they are and counts them beside the button.
+   */
+  it('says how many pictures an export of the ticked entries leaves behind', async () => {
+    const book = makeBook();
+    const row = (id: string) => ({
+      id,
+      role: 'gallery' as const,
+      tags: [],
+      ref: `assets/${id}.png`,
+      digest: `sha256:${id}`,
+      bytes: 4,
+      mime: 'image/png',
+    });
+    book.entries[0] = { ...book.entries[0]!, media: [row('p1'), row('p2')] };
+    server.handEdit(book);
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Harbour' }));
+
+    expect(
+      screen.getByText(
+        '2 pictures stay behind: an export carries the entries’ text, not their pictures.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('will not export nothing', async () => {
     renderApp();
     await openEditor();
@@ -1518,6 +1569,45 @@ describe('entries travelling on their own', () => {
     const saved = server.stored();
     expect(saved.name).toBe('Ardent Isles');
     expect(saved.entries.map((one) => one.name)).toContain('The lock keeper');
+  });
+
+  /**
+   * ***An entry that arrives without its pictures is named*** (2026-09-27): a
+   * lorebook file carries a picture's row and never its bytes, so the rows are
+   * dropped on the way in, and the review says whose.
+   */
+  it('names the entries that arrived without their pictures', async () => {
+    renderApp();
+    await openEditor();
+    const pictured = {
+      ...entry('01a008de-7e08-70d0-899c-00000000000b', 'The lighthouse'),
+      media: [
+        {
+          id: 'm1',
+          role: 'gallery' as const,
+          tags: [],
+          ref: 'assets/m1.png',
+          digest: 'sha256:m1',
+          bytes: 4,
+          mime: 'image/png',
+        },
+      ],
+    };
+    const incoming: Lorebook = { ...newLorebook('A gift'), entries: [pictured] };
+    const file = new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' });
+
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+
+    const review = await screen.findByRole('region', { name: 'What arrived' });
+    expect(
+      within(review).getByText(
+        'These arrived without their pictures, which a lorebook file names and cannot carry:',
+      ),
+    ).toBeTruthy();
+    expect(within(review).getByText('The lighthouse')).toBeTruthy();
   });
 
   it('merges a file into the open book, reviews it, and saves it as an import', async () => {

@@ -83,13 +83,20 @@ export function foldersFor(book: Lorebook, entries: readonly LoreEntry[]): LoreF
  * ***What travels, and what does not, is the part worth reading.*** §11.2c names
  * three things that go — the folders above them, entry media in the book's own
  * container, and `stateSchema` but never state. The first is {@link foldersFor};
- * the second is free until [§11.2b](../../../../docs/design/10-ui-surfaces.md)
- * builds entry media at all, and is noted below; the third is free by
- * construction, because an entry carries its `stateSchema` as a field and the
- * **values** live in a session channel and were never in the book
- * ([03 §3.3](../../../../docs/design/03-data-model.md)). *That an export must
- * not carry somebody's playthrough is inherited here rather than re-decided*,
- * which is the same split paying off in a second place.
+ * the third is free by construction, because an entry carries its `stateSchema`
+ * as a field and the **values** live in a session channel and were never in
+ * the book ([03 §3.3](../../../../docs/design/03-data-model.md)). *That an export
+ * must not carry somebody's playthrough is inherited here rather than
+ * re-decided*, which is the same split paying off in a second place.
+ *
+ * ~~The second is free until [§11.2b](../../../../docs/design/10-ui-surfaces.md)
+ * builds entry media at all.~~ ***It built them, and this file cannot carry
+ * them*** (2026-09-27). A picture is bytes stored beside the book, and a
+ * `.json` lorebook holds rows naming them — so the rows travelled and the
+ * bytes did not, and every entry arrived naming pictures its new book did not
+ * have. The container §11.2c means ([03 §5.2.3]) is not built, so the rows stay
+ * behind with their pictures, and {@link picturesLeftBehind} is what the
+ * export says about it.
  *
  * **The book-level activation numbers travel because this is a book.** A
  * selection is not a fragment with a header bolted on: `scanDepth`, both
@@ -114,7 +121,9 @@ export function foldersFor(book: Lorebook, entries: readonly LoreEntry[]): LoreF
  * a month still says where it came from.
  */
 export function selectionAsLorebook(book: Lorebook, ids: ReadonlySet<string>): Lorebook {
-  const entries = book.entries.filter((entry) => ids.has(entry.id));
+  const entries = book.entries
+    .filter((entry) => ids.has(entry.id))
+    .map((entry) => ({ ...entry, media: [] }));
   return {
     ...book,
     id: uuidv7(),
@@ -132,6 +141,16 @@ export function selectionAsLorebook(book: Lorebook, ids: ReadonlySet<string>): L
     ...(book.writingSamples === undefined ? {} : { writingSamples: [] }),
     ...(book.hooks === undefined ? {} : { hooks: [] }),
   };
+}
+
+/**
+ * How many pictures an export of these entries leaves behind — said beside the
+ * button, because the file cannot carry them (see {@link selectionAsLorebook}).
+ */
+export function picturesLeftBehind(book: Lorebook, ids: ReadonlySet<string>): number {
+  return book.entries
+    .filter((entry) => ids.has(entry.id))
+    .reduce((count, entry) => count + entry.media.length, 0);
 }
 
 /** One entry's fate on the way in — the rows §11.2c's review step shows. */
@@ -166,6 +185,14 @@ export interface MergeReport {
    * {@link bookDifferences}.
    */
   differences: BookDifference[];
+  /**
+   * Entries whose file named pictures, which arrived without them
+   * (2026-09-27). A lorebook file carries a picture's row and never its bytes,
+   * so an entry exported before the export learned to leave them behind — or
+   * one written by hand — names pictures this book does not have. The rows are
+   * dropped on the way in and the review says whose.
+   */
+  withoutPictures: { entry: LoreEntry; count: number }[];
 }
 
 /** One book-level setting the two books disagree about. */
@@ -254,6 +281,7 @@ export function mergeEntries(
 
   const merged: MergedEntry[] = [];
   const dangling: MergeReport['dangling'] = [];
+  const withoutPictures: MergeReport['withoutPictures'] = [];
 
   for (const incoming of from.entries) {
     const clash = into.entries.find((entry) => entry.id === incoming.id);
@@ -264,7 +292,10 @@ export function mergeEntries(
     // review reports as a collision.
     const id = heldIds.has(incoming.id) ? uuidv7() : incoming.id;
     const name = freeName(heldNames, incoming.name);
-    const entry: LoreEntry = { ...incoming, id, name };
+    const entry: LoreEntry = { ...incoming, id, name, media: [] };
+    // `?? []`: a hand-written file may carry no `media` at all.
+    const pictures = (incoming.media as LoreEntry['media'] | undefined) ?? [];
+    if (pictures.length > 0) withoutPictures.push({ entry, count: pictures.length });
 
     heldIds.add(id);
     heldNames.add(name);
@@ -289,6 +320,7 @@ export function mergeEntries(
       foldersAdded,
       dangling,
       differences: bookDifferences(into, from),
+      withoutPictures,
     },
   };
 }

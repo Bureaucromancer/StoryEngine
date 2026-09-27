@@ -441,6 +441,7 @@ function Editor(props: EditorProps): JSX.Element {
           kind="lorebooks"
           objectId={props.initial.id}
           media={book.media}
+          unsaved={editor.unsaved}
           crop={false}
           coverId={book.primaryMediaId}
           onCover={(primaryMediaId) => {
@@ -573,6 +574,7 @@ function Editor(props: EditorProps): JSX.Element {
                 kind="lorebooks"
                 objectId={props.initial.id}
                 media={selected.media}
+                unsaved={editor.unsaved}
                 onChange={(update) => {
                   edit((current) =>
                     withEntry(current, selected.id, {

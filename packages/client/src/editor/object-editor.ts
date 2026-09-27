@@ -135,6 +135,11 @@ export interface ObjectEditor<F> {
    * when the body carried `current`, so a 412 without one vanished entirely.
    * Computed here rather than in the frame so the frame cannot get it wrong for
    * five kinds.
+   *
+   * ***On a draft, the create's*** (2026-09-27). A page that has never been
+   * saved writes with a create, not an update, and this read only the update:
+   * a first Save the server refused — a name it would not take, a field it
+   * could not validate — left the page as it was and said nothing at all.
    */
   saveError: string | null;
   /** The 412's first offer: take theirs, reapply mine. */
@@ -504,13 +509,16 @@ export function useObjectEditor<F>(
       });
     },
     savePending: saveMutation.isPending,
-    saveError:
-      saveMutation.isError &&
-      !(
-        saveMutation.error instanceof ApiError &&
-        saveMutation.error.status === 412 &&
-        saveMutation.error.current
-      )
+    saveError: unsaved
+      ? create.isError
+        ? create.error.message
+        : null
+      : saveMutation.isError &&
+          !(
+            saveMutation.error instanceof ApiError &&
+            saveMutation.error.status === 412 &&
+            saveMutation.error.current
+          )
         ? saveMutation.error.message
         : null,
     reloadAndReapply,

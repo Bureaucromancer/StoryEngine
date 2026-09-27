@@ -303,6 +303,24 @@ describe('the list', () => {
   });
 
   /**
+   * ***A gate naming a hook this object does not carry*** (2026-09-27) — one
+   * removed here, promoted without its sibling, or imported. It named no
+   * option, so the select showed *No hook first* while the engine held the
+   * hook back; and picking that option changed nothing, so the gate could not
+   * be let go.
+   */
+  it('shows a gate on a hook this object does not carry, and lets it go', async () => {
+    mount([hook('The war', { notBefore: { afterHook: 'a-hook-elsewhere' } })]);
+    const after = (await screen.findAllByRole('combobox', { name: 'After hook' }))[0]!;
+
+    expect((after as HTMLSelectElement).value).toBe('a-hook-elsewhere');
+    expect(within(after).getByRole('option', { name: 'A hook not on this object' })).toBeTruthy();
+
+    await userEvent.selectOptions(after, '');
+    expect(Object.hasOwn(latest[0]!, 'notBefore')).toBe(false);
+  });
+
+  /**
    * The eligibility gates, which are the other thing no surface could set —
    * [04 §6.1a].
    */
