@@ -1674,6 +1674,84 @@ confine a session to models that can.** Continuing, redoing, branching,
 summarising, exporting and importing all keep working on a text-only model
 afterwards — and on an install that has never had a model that sees at all.
 
+**R1 built 2026-09-27; R2 onward open.** What landed, against the tier list
+below:
+
+- **Storage and upload.** `sessions/<id>/attachments/<sha256 hex>.<ext>`,
+  content-addressed, written atomically, never evicted
+  ([03 §5.5](03-data-model.md)). `POST /api/sessions/:id/attachments` takes a
+  PNG, JPEG or WebP by its own signature, up to 8 MB; `GET …/:digest` serves it.
+  The sweep rides on the upload, on age (a day), counting every turn in the
+  session as a reference. The browser scales to a 1568-pixel long edge and
+  re-encodes before upload, and fails closed.
+- **The record**, all optional: `input.attachments` (id, open `kind`, digest,
+  type and size from the store, caption); `RenderedMessage.parts` beside
+  `content` ([21 §2](21-internal-contracts.md)); `AssembledBlock.image`, the
+  disclosure; `part: "attachment"` on the `input` and `history` sources
+  ([21 §1.1](21-internal-contracts.md)). Four pictures to a move.
+- **Per-model support**: `imageModels` on a connection, a subset of `models`,
+  empty by default, with a checkbox per model in the connection editor
+  ([21 §3](21-internal-contracts.md)).
+- **The send rule, in `planCall`**, against the model resolved after the session
+  and step layers and the actor hint. A picture whose pixels do not go sends its
+  words, and the block says why. The adapter builds array content only for a
+  user message carrying a loaded picture, and a wire test asserts the
+  `image_url` data URL leaves.
+- **Every text consumer reads the picture's words**: the summariser, memory
+  extraction, the index and a step's transcript through one function; the lore
+  scan and speaker detection read captions only. A summary unit's key gains the
+  captions only for a turn that has pictures, so no existing chain re-keys. A
+  move that is only a picture is no longer dropped from history.
+- **Play, the reading view and the workbench**: attach and caption in the
+  composer, pictures on the move in the transcript and the reading view with a
+  placeholder where the bytes are missing, and a badge on the block —
+  *Picture sent* or *Picture as words*, with the reason.
+- **Continuity**: redo carries a move's pictures; export carries the records;
+  backup import re-stores the bytes under their own digest; and a redo of an
+  imported turn whose bytes never arrived is accepted and sends words. The one
+  obligation test — an unknown field inside `input` surviving import and
+  re-export — is in `sessions/import.test.ts`.
+- **The lock-in tests** are the ones this entry turns on
+  (`routes/attachments.test.ts`): a picture sent to a model that sees, `prose`
+  rebound to a text model on the same connection, and the next turn completing
+  with the earlier picture as its words; and a session imported without its
+  bytes, whose picture turn is redone as a sibling and goes as words.
+
+***Where R1 departs from this entry's text, said here rather than
+silently:***
+
+- **The placeholder reaches the summariser, memory and the index.** The floor
+  bullet below says the placeholder is never handed to them; this entry's own
+  opening says a picture with no text form is what every one of those consumers
+  would silently lose. R1 sided with the opening: a move that was an undescribed
+  picture reaches them as `[Picture, not described]`, because a summary that
+  says a picture was shown is truer than one that skips the move. The half of
+  the rule that matters for stability holds: the placeholder's **wording** is
+  never hashed into a summary key (the key carries the caption or `null`), and
+  the lore scan never sees it. Reversing this is one function, `moveText`.
+- **The placeholder is message content, inside a block of its own.** The floor
+  bullet says *a block with its own source, never message content*; R1 emits it
+  as the picture's own block, whose text — like every block's — renders into
+  `content`, which the restraint on `RenderedMessage.content` requires. What
+  the bullet protects, `input.text`, is untouched.
+- **No dimensions.** The record list below includes them; the server reads a
+  picture's signature and has no decoder, so R1 records type and size only.
+  Adding them later is an optional field.
+- **Play does not mark each picture *sent as a picture* or *sent as its
+  description*.** That is a per-call fact, and R1 shows it where calls are
+  shown — the workbench's block table. Play shows the pictures.
+- **No budget line of its own.** The current move's picture is required, so the
+  budgeter cannot drop it, and it is counted as its words. Pixels have no token
+  figure until R3's declared per-image cost; `budget` is not among the withheld
+  reasons because nothing in R1 can produce it.
+- **Two changes to published shapes, named as this entry asked.** The SDK's
+  `Candidate` gained `image?`, and its transcript's move gained `attachments?`
+  (kind and caption). And `POST …/turns`'s `input` is now **closed**: it was
+  open, so a newer client's field was accepted and silently dropped, which for a
+  picture sent to an older server would have lost it without a word.
+- **No SDK helper for a move's words plus its pictures.** The server has it
+  (`assembly/pictures.ts`); publishing it is P7's contract work.
+
 *Surveyed 2026-09-26, against the build as P12 left it.* No design note
 addressed image input before this entry. The `vision` role
 ([19 §5.1](19-tech-stack.md)) is the only hook, and nothing calls it.
@@ -1899,7 +1977,7 @@ more.
 What moves it: C15 decided as *(d)*, which this entry is the occasion for; or
 somebody who plays with a model that sees wanting R1 enough to build it, which
 needs nothing else first.
-*[24 §3.1, 06 §5.1, 21 §2, 21 §3, 21 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 19 §5.1, C14, C15, E3]*
+*[24 §3.1, 06 §5.1, 21 §1.1, 21 §2, 21 §3, 21 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 19 §5.1, C14, C15, E3]*
 
 ### E16. Money — the provider's figure, a declared price, and never a shipped table
 

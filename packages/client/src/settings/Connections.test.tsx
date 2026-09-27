@@ -866,3 +866,35 @@ describe('what the endpoint offers', () => {
     expect(createConnection.mock.calls[0]?.[0]).toMatchObject({ models: [] });
   });
 });
+
+/**
+ * ***Which models see pictures, per model*** — [25 E15]. One endpoint
+ * routinely serves a model that sees and one that does not, and a picture sent
+ * to the second is refused — so the form asks per model, starts with none, and
+ * saves only models the connection still lists.
+ */
+describe('models that can see pictures', () => {
+  it('saves the models ticked as seeing pictures, and only those still listed', async () => {
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The house key');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'llava, llama3');
+    await userEvent.click(screen.getByText('What this endpoint can do', { selector: 'summary' }));
+
+    const sees: HTMLInputElement = await screen.findByRole('checkbox', {
+      name: 'llava can see pictures',
+    });
+    expect(sees.checked).toBe(false);
+    await userEvent.click(sees);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalled();
+    });
+    expect(createConnection.mock.calls[0]?.[0]).toMatchObject({
+      models: ['llava', 'llama3'],
+      imageModels: ['llava'],
+    });
+  });
+});

@@ -315,6 +315,13 @@ function ConnectionForm({
   const [reportsUsage, setReportsUsage] = useState<boolean | null>(
     connection?.capabilities?.reportsUsage ?? null,
   );
+  /**
+   * ***Which models see pictures*** — [25 E15], per model because one endpoint
+   * routinely serves one that does and one that does not. Empty by default,
+   * which is the conservative answer: a picture shown to a model not ticked
+   * here goes as its caption, and the story carries on either way.
+   */
+  const [imageModels, setImageModels] = useState<readonly string[]>(connection?.imageModels ?? []);
   /** What a refusal handed back, so both ways out of a 412 are reachable. */
   const [conflict, setConflict] = useState<AdminConnection | null>(null);
   const [saved, setSaved] = useState<AdminConnection | null>(null);
@@ -360,6 +367,9 @@ function ConnectionForm({
             // on the wire — an empty box cannot say *no key* and *unchanged*
             // apart, so the form says nothing and the server preserves.
             ...(apiKey.length === 0 ? {} : { apiKey }),
+            // Narrowed to the models being saved: one removed from the list
+            // cannot stay marked as one that sees.
+            imageModels: imageModels.filter((model) => chosen.includes(model)),
             /**
              * **Merged over what is stored, never replacing it.** A capability
              * this form does not know about was written by hand by somebody who
@@ -532,6 +542,33 @@ function ConnectionForm({
               setReportsUsage(next === 'default' ? null : next === 'yes');
             }}
           />
+          {chosen.length === 0 ? null : (
+            <fieldset className="flex flex-col gap-1">
+              <legend className="text-sm text-ink">Models that can see pictures</legend>
+              <Fine>
+                A picture a player attaches is sent to these models as a picture. Every other model
+                gets the player’s description of it instead, so leave a model unticked unless you
+                know it takes images.
+              </Fine>
+              <ul className="flex flex-col gap-1">
+                {chosen.map((model) => (
+                  <li key={model}>
+                    <CheckboxField
+                      label={`${model} can see pictures`}
+                      checked={imageModels.includes(model)}
+                      onChange={(on) => {
+                        setImageModels((held) =>
+                          on
+                            ? [...held.filter((each) => each !== model), model]
+                            : held.filter((each) => each !== model),
+                        );
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          )}
         </div>
       </details>
 

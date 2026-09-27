@@ -45,6 +45,7 @@ const createBranchRef = vi.fn();
 const previewTurn = vi.fn();
 const setSessionLore = vi.fn();
 const impersonateAs = vi.fn();
+const uploadPicture = vi.fn();
 const readRenditions = vi.fn();
 const listLibrary = vi.fn();
 const patchPrefs = vi.fn();
@@ -84,6 +85,8 @@ vi.mock('../api.js', async (importOriginal) => {
     // Since [P11.4] the composer offers a draft of the player's own next
     // message, which is a model call and must never be a real one here.
     impersonateAs: (...a: unknown[]) => impersonateAs(...a) as unknown,
+    // Since [25 E15] the composer uploads pictures as they are attached.
+    uploadPicture: (...a: unknown[]) => uploadPicture(...a) as unknown,
     api: {
       ...actual.api,
       listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
@@ -98,6 +101,17 @@ vi.mock('../api.js', async (importOriginal) => {
       },
     },
   };
+});
+
+/**
+ * The browser half of preparing a picture is a canvas, which jsdom does not
+ * have — so it is replaced by one that hands the file straight back. What the
+ * page does with the prepared picture is what these tests are about; what the
+ * redraw does is `preparePicture.test.ts`'s.
+ */
+vi.mock('./preparePicture.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./preparePicture.js')>();
+  return { ...actual, preparePicture: (file: Blob) => Promise.resolve(file) };
 });
 
 /** The last handlers the page opened a stream with — the test's way to speak. */
@@ -206,7 +220,13 @@ beforeEach(() => {
   listLibrary.mockResolvedValue({ objects: [] });
   readRenditions.mockResolvedValue({ renditions: [], selection: {} });
   impersonateAs.mockResolvedValue({ text: 'I would not go in there.' });
+  uploadPicture.mockResolvedValue({ digest: DIGEST, mime: 'image/webp', bytes: 12 });
+  // jsdom has no object URLs; the thumbnail only needs one to exist.
+  URL.createObjectURL = vi.fn(() => 'blob:picture');
+  URL.revokeObjectURL = vi.fn();
 });
+
+const DIGEST = `sha256:${'f'.repeat(64)}`;
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -1297,5 +1317,109 @@ describe('the composer', () => {
     await user.click(await screen.findByRole('button', { name: 'Stop' }));
 
     expect(await screen.findByText('That turn had already finished.')).toBeTruthy();
+  });
+});
+
+/**
+ * ***Pictures on a move*** — [25 E15], R1. The composer's half of the one
+ * property the feature rests on: every picture carries words, and a move may
+ * be only a picture.
+ */
+describe('pictures on a move', () => {
+  async function attach(): Promise<void> {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('no picture input');
+    await userEvent.upload(input, new File(['png'], 'photo.png', { type: 'image/png' }));
+  }
+
+  it('uploads a picture as it is attached, and sends it with its caption', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await attach();
+    await waitFor(() => {
+      expect(uploadPicture).toHaveBeenCalledWith(SESSION.id, expect.any(Blob));
+    });
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'What it shows' }),
+      'the harbour at dusk',
+    );
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'Look.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: 'Look.',
+          attachments: [{ digest: DIGEST, caption: 'the harbour at dusk' }],
+        }),
+      );
+    });
+  });
+
+  /**
+   * ***A move may be only a picture.*** The empty-action refusal is about a
+   * move with nothing in it, and a picture is something.
+   */
+  it('sends a move that is only a picture', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await attach();
+    await screen.findByRole('textbox', { name: 'What it shows' });
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: '', attachments: [{ digest: DIGEST }] }),
+      );
+    });
+  });
+
+  it('redoes a turn with its pictures, as the record names them', async () => {
+    readTranscript.mockResolvedValue({
+      turns: [
+        {
+          ...TURN,
+          input: {
+            ...TURN.input!,
+            attachments: [{ id: '0', kind: 'image', digest: DIGEST, caption: 'a lantern' }],
+          },
+        },
+      ],
+    });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Redo' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ attachments: [{ digest: DIGEST, caption: 'a lantern' }] }),
+      );
+    });
+  });
+
+  /**
+   * ***A picture whose bytes never arrived is a placeholder with a reason***,
+   * which is the ordinary state of an imported session's pictures — never a
+   * broken image.
+   */
+  it('shows a picture with no bytes here as its description and a reason', async () => {
+    readTranscript.mockResolvedValue({
+      turns: [
+        {
+          ...TURN,
+          input: {
+            ...TURN.input!,
+            attachments: [{ id: '0', kind: 'image', caption: 'a lantern' }],
+          },
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText('a lantern')).toBeTruthy();
+    expect(screen.getByText(/only its description travelled here/)).toBeTruthy();
   });
 });

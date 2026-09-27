@@ -408,3 +408,52 @@ describe('renditions that travel', () => {
     }
   });
 });
+
+/**
+ * ***A field this build does not know survives the round trip*** — the one
+ * test [25 E15] said 1.0 owed, and [04 §2]'s rule that a newer file must
+ * survive a round trip through an older reader.
+ *
+ * Nested inside `input` on purpose: `input` is where a newer build puts things
+ * about the player's move — pictures were the first — and an importer that
+ * rebuilt it field by field would drop the next one in silence. The assertion
+ * is on the re-export, because an older install passing a session on is the
+ * case where a loss would travel.
+ */
+describe('what a newer build wrote', () => {
+  it('carries an unknown field inside a move through import and export unchanged', async () => {
+    const { sessionId } = await branched();
+    const exported = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/export`,
+    });
+    const body = exported.body as { turns: { input?: Record<string, unknown> }[] };
+    const future = { kind: 'hologram', notes: ['from a build that does not exist yet'] };
+    /**
+     * *Every turn is given a move.* The fixture's turns are channel writes,
+     * which carry none, and a move is where the field has to be: `input` is
+     * the part of the record [25 E15] widens, and the part a newer build's
+     * next widening will land in.
+     */
+    const move = { actorId: null, kind: 'do', text: 'Knock.', raw: 'Knock.' };
+    body.turns = body.turns.map((turn) => ({
+      ...turn,
+      input: { ...(turn.input ?? move), future },
+    }));
+
+    const landed = await server.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: body,
+    });
+    expect(landed.status).toBe(201);
+
+    const again = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${landed.body.sessionId as string}/export`,
+    });
+    const carried = (again.body as { turns: { input?: Record<string, unknown> }[] }).turns;
+    expect(carried).toHaveLength(body.turns.length);
+    for (const turn of carried) expect(turn.input?.['future']).toEqual(future);
+  });
+});

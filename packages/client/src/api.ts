@@ -1785,6 +1785,37 @@ export function readRenditions(
  * what changes when a retry produces different ones. `route-callers.test.ts`
  * strips the query string, so this helper is what credits the route.
  */
+/**
+ * A picture on a move — [25 E15], R1. What the upload answers with: the content
+ * address the move will name, and what the server's store read from the bytes.
+ */
+export interface UploadedPicture {
+  digest: string;
+  mime: string;
+  bytes: number;
+}
+
+/**
+ * Uploads a picture for a move — the bytes first, then the move names them by
+ * digest in its ordinary JSON body ([10 §11.2b]'s two steps).
+ */
+export function uploadPicture(sessionId: string, blob: Blob): Promise<UploadedPicture> {
+  const form = new FormData();
+  form.append('file', blob, 'picture');
+  return requestForm<{ attachment: UploadedPicture }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/attachments`,
+    form,
+  ).then((answer) => answer.attachment);
+}
+
+/**
+ * Where a picture on a move is served. Content-addressed, so the digest in the
+ * path is also the cache key — a picture never changes under its address.
+ */
+export function pictureUrl(sessionId: string, digest: string): string {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(digest)}`;
+}
+
 export function renditionAssetUrl(sessionId: string, renditionId: string, digest: string): string {
   return (
     `/api/sessions/${encodeURIComponent(sessionId)}` +
@@ -1884,6 +1915,11 @@ export interface SubmitTurn {
   /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
   /**
+   * Pictures on the move, by digest — [25 E15]. The server reads their type
+   * and size from its own store; a caption is the player's words about one.
+   */
+  attachments?: readonly { digest: string; caption?: string }[];
+  /**
    * Attach this turn to a node other than the head — [P6.0c].
    *
    * **Absent and `null` are different requests.** Absent means *the head*, and
@@ -1921,6 +1957,9 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
     input: {
       text: submission.text,
       ...(submission.kind === undefined ? {} : { kind: submission.kind }),
+      ...(submission.attachments === undefined || submission.attachments.length === 0
+        ? {}
+        : { attachments: submission.attachments }),
     },
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
@@ -1981,6 +2020,8 @@ export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: s
 export interface PendingInput {
   text: string;
   guidance: string;
+  /** The move's pictures, so the preview assembles the blocks the turn will. */
+  attachments?: readonly { digest: string; caption?: string }[];
 }
 
 /**
@@ -1996,8 +2037,16 @@ export function previewTurn(
   sessionId: string,
   pending: PendingInput,
 ): Promise<{ preview: TurnPreview }> {
+  const pictures = pending.attachments ?? [];
   return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/preview`, {
-    ...(pending.text === '' ? {} : { input: { text: pending.text } }),
+    ...(pending.text === '' && pictures.length === 0
+      ? {}
+      : {
+          input: {
+            text: pending.text,
+            ...(pictures.length === 0 ? {} : { attachments: pictures }),
+          },
+        }),
     ...(pending.guidance === '' ? {} : { guidance: pending.guidance }),
   });
 }
@@ -2058,6 +2107,8 @@ export interface AdminConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
+  /** Which of `models` can see pictures ([25 E15]). */
+  imageModels?: string[];
   baseUrl?: string;
   /**
    * What this endpoint can do, where the install disagrees with the defaults.
@@ -2102,6 +2153,11 @@ export interface ConnectionInput {
   apiKey?: string;
   baseUrl?: string;
   models: string[];
+  /**
+   * Which of `models` can see pictures ([25 E15]). Omitted keeps what is
+   * stored, on the key's terms; the server narrows it to `models` either way.
+   */
+  imageModels?: string[];
   /** Omitted keeps what is stored, on the same terms as the key. */
   capabilities?: ConnectionCapabilities;
 }
@@ -2148,6 +2204,8 @@ export interface UsableConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
+  /** Which of `models` can see pictures ([25 E15]). Absent means none. */
+  imageModels?: string[];
 }
 
 /**

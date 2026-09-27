@@ -1574,11 +1574,45 @@ alternative is reachable at all — a swipe is a sibling nobody named, and witho
 this it would be on disk and invisible. A map of every turn to its lone self
 would grow with the transcript and say nothing.
 
+### `POST /api/sessions/:sessionId/attachments` · `GET /api/sessions/:sessionId/attachments/:digest`
+
+A picture for a player's move, uploaded before the move is sent —
+[25 E15](design/25-open-questions.md), R1. Upload is `multipart/form-data` with
+one file part, the library import's two-step shape
+([10 §11.2b](design/10-ui-surfaces.md)): the bytes first, then the turn names
+them by digest in its ordinary JSON body.
+
+→ **201** `{ attachment: { digest: "sha256:…", mime, bytes } }`; **413
+`too-large`** past 8 MB; **415 `not-an-image`** unless the bytes are a PNG,
+JPEG or WebP **by their own signature** — never by the file name or the part's
+declared type.
+
+**Never re-encoded here.** The client scales a picture down and re-encodes it
+before upload, and **fails closed**: a browser that cannot re-encode refuses
+rather than sending the original, because a phone photograph records where it
+was taken. The server keeps its position of having no raster encoder, so this
+route stores exactly the bytes it was given, under their own content address in
+`sessions/<id>/attachments/` ([03 §5.5](design/03-data-model.md)). The same
+picture uploaded twice is one file.
+
+**The upload also sweeps**: pictures no turn in the session names — every turn,
+siblings and tombstones included, never only the head path — and nobody has
+touched for a day are removed. On age rather than on commit, because the
+composer holds uploads no turn names yet while the session goes on committing.
+
+`GET` serves the bytes in the rendition asset route's shape: `content-type`
+from the store, the digest as the `etag`, and cached as immutable, since the
+address is the content. **`404 no-picture`** when the bytes are not here, which
+after an import from an export is the ordinary state rather than an error — the
+record says a picture was there and carries its caption, and the client renders
+that caption with a placeholder where the picture would be.
+
 ### `POST /api/sessions/:sessionId/turns`
 
 ```
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
-  rewriteOf?: string, redoOf?: string, input: { text, actorId?, kind? },
+  rewriteOf?: string, redoOf?: string,
+  input: { text, actorId?, kind?, attachments?: [{ digest, caption? }] },
   guidance? }
 ```
 
@@ -1628,6 +1662,32 @@ alone, and a plain redo names it in neither and gets the prompt it always got.
 The named turn is not required to be a sibling of the one being written; the
 client always sends one, and the record carries the id either way. Usually sent
 with `guidance`; the schema does not couple them.
+
+**`input.attachments` names pictures already uploaded to this session** —
+at most four, each by digest with an optional caption
+([25 E15](design/25-open-questions.md)). **Digests and captions are all a client
+says**: the type and size on the turn are read from this server's store, on
+`rewriteOf`'s reasoning. A digest the store does not hold is **`422
+unknown-attachment`**, carrying the `digest` — unless a turn already in this
+session names it, which is the redo of an imported turn whose bytes never
+travelled. Refusing that redo would make a session that once had a picture
+harder to continue than one that never did, so it is recorded as it was and
+goes to every model as its words.
+
+**The caption is the picture for every model that cannot see it**, and it is
+never folded into `input.text`, which stays the player's words. Whether the
+pixels go is decided **per call**, from the model the call resolved to: only a
+picture on the move being taken, in a user message, to a model its connection
+lists in `imageModels` (below), with its bytes present. Otherwise the caption
+goes, or an honest placeholder when there is none — and the assembled block's
+`image` says which and why (`model-text-only`, `outside-window`,
+`missing-bytes`, `not-user-role`, `unknown-kind`). Nothing records a session as
+able to see pictures, which is what keeps one used with a model that sees
+continuable on a model that does not.
+
+**`input` is closed** since the same change, 2026-09-27. It was open, so a
+field this server did not know got a `200` and was silently dropped from the
+turn; a closed object answers `400`, which a client can act on.
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
@@ -1769,7 +1829,7 @@ a walk from anything below them. Several refs may name one node.
 ### `POST /api/sessions/:sessionId/preview`
 
 ```
-{ input?: { text, actorId?, kind? }, guidance? }
+{ input?: { text, actorId?, kind?, attachments?: [{ digest, caption? }] }, guidance? }
 ```
 
 What this turn **would** assemble to, if it were taken now — the stateless
@@ -1820,6 +1880,17 @@ context meter shows at rest. It takes an optional `kind`, so a preview of a
 against the session's current head and echoes back which one that was.
 `pendingInput` says whether an action or guidance was supplied, which is how the
 workbench decides between showing the composed turn and the last committed one.
+
+`input.attachments` previews the pictures in the composer, and each picture's
+block carries the same `image` disclosure a turn's does — so *will this model
+see the picture* is answerable before sending. **A digest the store does not
+hold is dropped here rather than refused**: the preview runs every time
+somebody pauses typing, and a picture removed from the composer a moment ago is
+not a request worth a `422`. And since 2026-09-27 the preview resolves its model
+through the same session and step layers, and the same actor hint, as the turn
+does; before, it read the account's binding alone, and could name a different
+model from the one that answered — which the send rule would have made a
+preview promising pixels the turn then sent as words.
 
 When no model resolves for the prose role the answer is still `200`, in its
 other arm — because *nothing is bound* is a true answer to *how full is the
@@ -2225,6 +2296,7 @@ will not.
       "provider": "openai-compatible",
       "scope": "system",
       "models": ["gpt-hi", "gpt-lo"],
+      "imageModels": ["gpt-hi"],
       "baseUrl": "https://api.openai.com/v1",
       "hasKey": true,
       "shadowed": false,
@@ -2266,6 +2338,7 @@ change do nothing.
   "apiKey": "sk-…",
   "baseUrl": "https://api.openai.com/v1",
   "models": ["gpt-hi", "gpt-lo"],
+  "imageModels": ["gpt-hi"],
   "capabilities": { "maxContextTokens": 32768, "reportsUsage": true }
 }
 ```
@@ -2288,6 +2361,17 @@ Those two are `maxContextTokens` and `reportsUsage`, and they are the two only
 the operator can know: **this build assumes a conservative context window**, and
 an endpoint that does not count tokens will make every figure in a turn record
 null. The rest of the capability shape travels untouched.
+
+**`imageModels` names which of `models` can see pictures** on a player's move
+([25 E15](design/25-open-questions.md)), and it is **per model, not a
+capability**, which is the point of it: one endpoint serves a vision model and a
+text one, so a connection-wide flag would send pixels to the text model the
+first time a binding or an actor hint picked it. Absent keeps what is stored;
+anything not in `models` is dropped on save, so removing a model removes it here
+too. Empty, the default, means no model on this connection is sent pictures —
+their captions go instead, which is always a working answer. It is absent from
+a connection that never set it, and rides on the non-admin shape too, beside
+`models`.
 
 **A provider this build cannot construct is refused at save**, `400 unbuildable`,
 naming it. `KNOWN_PROVIDERS` carries capability defaults for five names and one
