@@ -82,6 +82,11 @@ export const FREEFORM_PRESET: Preset = {
         part: 'framing',
       },
     },
+    /**
+     * *Whose block is whose* (2026-09-27): the persona and actor wrappers
+     * name who each block is about, for the reasons Scene's pack gives beside
+     * its own.
+     */
     {
       id: 'se.persona',
       label: 'persona',
@@ -98,6 +103,7 @@ export const FREEFORM_PRESET: Preset = {
       source: {
         of: 'persona',
       },
+      wrapper: 'The player’s character, {{ user }}:\n{{content}}',
     },
     {
       id: 'se.actor.summary',
@@ -116,6 +122,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.summary',
       },
+      wrapper: '{{ char }}:\n{{content}}',
     },
     {
       id: 'se.actor.appearance',
@@ -134,6 +141,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.appearance',
       },
+      wrapper: 'What {{ char }} looks like:\n{{content}}',
     },
     {
       id: 'se.actor.voice',
@@ -152,6 +160,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.voice',
       },
+      wrapper: 'How {{ char }} speaks:\n{{content}}',
     },
     {
       id: 'se.actor.traits',
@@ -170,6 +179,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         field: 'traits',
       },
+      wrapper: '{{ char }}’s traits: {{content}}',
     },
     {
       id: 'se.actor.background',
@@ -188,6 +198,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.background',
       },
+      wrapper: '{{ char }}’s background:\n{{content}}',
     },
     {
       id: 'se.lore',

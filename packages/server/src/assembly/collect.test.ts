@@ -2056,3 +2056,138 @@ describe('a past input as the pack framed it', () => {
     ]);
   });
 });
+
+/**
+ * ***Whose block is whose*** (2026-09-27) — a wrapper is a template over the
+ * participants' names, and the content inside it never is.
+ *
+ * The shipped packs' persona and actor blocks went to the model as bodies with
+ * no names on them, so with two characters in a scene the narrator had two
+ * descriptions, two appearances and two voices, and nothing to say which was
+ * which — and the persona's name was in no prompt at all.
+ */
+describe('a wrapper names who its block is about', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const persona = {
+    actor: actorWith('Ned', 'Ned keeps the rain off other people.'),
+    contentHash: 'sha256:ned-1',
+  };
+  const vera = {
+    actor: actorWith('Vera', 'Vera runs the night desk.'),
+    contentHash: 'sha256:vera-1',
+  };
+  const marlow = {
+    actor: actorWith('Marlow', 'Marlow owes somebody money.'),
+    contentHash: 'sha256:marlow-1',
+  };
+
+  function scene(): Preset {
+    const pack = modeById('storyengine.scene')?.definition.assembly.defaultPreset;
+    if (pack === undefined) throw new Error('Scene is a built-in');
+    return pack;
+  }
+
+  it('says whose block is whose in the shipped Scene pack', () => {
+    const { candidates } = collectCandidates(
+      context({ preset: scene(), persona, actors: [vera, marlow] }),
+    );
+    const text = (id: string): string | undefined =>
+      candidates.find((candidate) => candidate.id === id)?.text;
+
+    expect(text('se.persona')).toBe(
+      "The player's character, Ned:\nNed keeps the rain off other people.",
+    );
+    // Each actor's block by that actor's name, not the first of the cast's.
+    expect(text(`se.actor.summary.${vera.actor.id}`)).toBe('Vera:\nVera runs the night desk.');
+    expect(text(`se.actor.summary.${marlow.actor.id}`)).toBe(
+      'Marlow:\nMarlow owes somebody money.',
+    );
+    expect(text(`se.actor.traits.${marlow.actor.id}`)).toBe("Marlow's traits: watchful");
+  });
+
+  it('renders the names and never the content', () => {
+    // A card's prose is somebody else's, and a `{{` in it is prose.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            source: { of: 'actor', sectionId: 'se.summary' },
+            wrapper: 'About {{ char }}, for {{ user }}: {{content}}',
+          }),
+        ]),
+        persona,
+        actors: [
+          {
+            actor: actorWith('Vera', 'She signs as {{ char }} and means {{user}}.'),
+            contentHash: 'h',
+          },
+        ],
+      }),
+    );
+
+    expect(candidates[0]?.text).toBe(
+      'About Vera, for Ned: She signs as {{ char }} and means {{user}}.',
+    );
+  });
+
+  it('keeps a wrapper’s words as written when it will not render', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            source: { of: 'persona' },
+            wrapper: '{% if user %}Played by {{ user }}: {{content}}',
+          }),
+        ]),
+        persona,
+      }),
+    );
+
+    // An unclosed tag: the wrapper stays as it was, content still in place.
+    expect(candidates[0]?.text).toBe(
+      '{% if user %}Played by {{ user }}: Ned keeps the rain off other people.',
+    );
+  });
+
+  it('names the player in a past input’s wrapper too', () => {
+    const turn: Turn = {
+      id: 't1',
+      sessionId: 's',
+      parentTurnId: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'complete',
+      input: { actorId: null, kind: 'say', text: 'Evening.', raw: '' },
+      output: { text: 'She nods.' },
+      effects: [],
+      tape: [],
+    };
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.h', source: { of: 'history' } }),
+          block({
+            kind: 'slot',
+            id: 'se.input',
+            role: 'user',
+            source: { of: 'input' },
+            wrapper: '{{ user }} says: {{content}}',
+          }),
+        ]),
+        persona,
+        history: [turn],
+        input: { text: 'Goodnight.' },
+      }),
+    );
+
+    expect(candidates.map((candidate) => candidate.text)).toEqual([
+      'Ned says: Evening.',
+      'She nods.',
+      'Ned says: Goodnight.',
+    ]);
+  });
+});

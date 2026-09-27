@@ -1101,6 +1101,11 @@ Two items — 3 and 8 — were discharged earlier, in the stage that needed them
    `collect.ts` resolves `{{user}}` to `context.persona?.actor.name ?? 'the
    player'`. **Every session started in a browser had `persona: null`** — the
    slot emitted nothing and the narrator was instructed to address *the player*.
+   *(Correction, 2026-09-27: `{{user}}` was resolved in text-block templates
+   only, and no shipped block's template said it, so **with** a persona the
+   narrator still never read its name — the persona slot sent the sections'
+   bodies bare. The persona and actor wrappers name who each block is about
+   since then; see `wrap` in `collect.ts`.)*
    That is not a missing panel, it is the model being told nothing about who it
    is narrating for, on every turn of every browser-made session, and sitting K
    is walked against browser-made sessions.

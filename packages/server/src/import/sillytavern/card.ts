@@ -102,18 +102,106 @@ export function convertCard(input: unknown, fallbackName: string): ParseOutcome<
   const notes: ImportNote[] = [];
   const actor = newActor(card['name'] || fallbackName);
 
-  applyProfile(card, actor, notes);
-  applyOpenings(card, actor);
-  applySample(card, actor);
+  // The card's prose with its own name written where it left a placeholder,
+  // before anything reads it — see `inOwnName`.
+  const named = inOwnName(card, actor.name);
+  if (named.written > 0) {
+    notes.push(note('import.card.ownNameWritten', { actor: actor.name, count: named.written }));
+  }
+  if (named.player) {
+    notes.push(note('import.card.playerPlaceholderKept', { actor: actor.name }, 'warn'));
+  }
+
+  applyProfile(named.card, actor, notes);
+  applyOpenings(named.card, actor);
+  applySample(named.card, actor);
   applyTags(card, actor);
 
-  const lorebook = extractBook(card, actor, notes);
+  const lorebook = extractBook(named.card, actor, notes);
   const compat = buildCompat(card, notes);
   if (Object.keys(compat).length > 0) actor.compat = compat;
 
-  const scenario = typeof card['scenario'] === 'string' ? card['scenario'].trim() : '';
+  const scenario = typeof named.card['scenario'] === 'string' ? named.card['scenario'].trim() : '';
 
   return parsed({ actor, lorebook, scenario: scenario.length > 0 ? scenario : null, notes });
+}
+
+/**
+ * ***A card's own name, where it left a placeholder for it*** (2026-09-27) —
+ * [00 §2.1], [triage §6.1].
+ *
+ * SillyTavern resolves a card's `{{char}}` when it sends a message, so a card
+ * says `{{char}}` wherever it means itself: in its description, its openings,
+ * its example dialogue, the entries of the book it carries. Nothing here reads
+ * a body as a template — [P4 §1.6]'s fence, and the reason a `{{` in prose is
+ * prose — so every one of those reached the model as braces. [00 §2.1] makes
+ * macros an **import-time transform**, and for these it is exact: a card is
+ * one character, and its placeholder for itself can only ever mean its name.
+ * The forms are the ones SillyTavern's own `evaluateMacros` resolves to the
+ * character — `{{char}}` and `{{charIfNotGroup}}`, and the legacy `<BOT>`,
+ * `<CHAR>` and `<CHARIFNOTGROUP>` — matched without regard to case, as it
+ * matches them.
+ *
+ * ***The player's placeholder is kept, and said.*** `{{user}}` means whoever
+ * is playing, which a card cannot know and a session decides; writing any one
+ * name in would be wrong for every other session, and a stand-in like *the
+ * player* reads wrongly in half the sentences it lands in. [triage §6.1] leaves
+ * open whether any macro survives into authoring, and a flag loses nothing
+ * while that is open, so the review says this card uses it.
+ *
+ * *What changes identity*: an opening's id is derived from its text, so a card
+ * imported before this and imported again reports its openings changed, once.
+ */
+const OWN_NAME = /\{\{(?:char|charifnotgroup)\}\}|<(?:bot|char|charifnotgroup)>/gi;
+const PLAYER = /\{\{user\}\}|<user>/i;
+
+/** The prose fields a card's text reaches the model through. */
+const PROSE_FIELDS = ['description', 'personality', 'scenario', 'first_mes', 'mes_example'];
+
+function inOwnName(
+  card: Readonly<Record<string, unknown>>,
+  name: string,
+): { card: Record<string, unknown>; written: number; player: boolean } {
+  let written = 0;
+  let player = false;
+  const rewrite = (text: string): string => {
+    if (PLAYER.test(text)) player = true;
+    return text.replace(OWN_NAME, () => {
+      written += 1;
+      return name;
+    });
+  };
+
+  const out: Record<string, unknown> = { ...card };
+  for (const field of PROSE_FIELDS) {
+    const value = out[field];
+    if (typeof value === 'string') out[field] = rewrite(value);
+  }
+  const greetings = out['alternate_greetings'];
+  if (Array.isArray(greetings)) {
+    out['alternate_greetings'] = greetings.map((one: unknown) =>
+      typeof one === 'string' ? rewrite(one) : one,
+    );
+  }
+  // The book it carries is its own too, so `{{char}}` in an entry is this
+  // character. A world book on its own is not, and is not touched here.
+  const book = out['character_book'];
+  if (isRecord(book)) {
+    const entries = book['entries'];
+    const entry = (one: unknown): unknown =>
+      isRecord(one) && typeof one['content'] === 'string'
+        ? { ...one, content: rewrite(one['content']) }
+        : one;
+    if (Array.isArray(entries)) {
+      out['character_book'] = { ...book, entries: entries.map(entry) };
+    } else if (isRecord(entries)) {
+      out['character_book'] = {
+        ...book,
+        entries: Object.fromEntries(Object.entries(entries).map(([key, one]) => [key, entry(one)])),
+      };
+    }
+  }
+  return { card: out, written, player };
 }
 
 /**

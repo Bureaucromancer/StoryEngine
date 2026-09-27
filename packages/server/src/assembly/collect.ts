@@ -481,6 +481,9 @@ function renderContextOf(context: CollectContext): RenderContext {
 }
 
 function fill(block: PresetBlock, context: CollectContext): Candidate[] {
+  // Who is who, for a text block's template and for any block's wrapper. The
+  // actor arm narrows `char` to the actor each of its candidates is about.
+  const names = renderContextOf(context);
   if (block.kind === 'text') {
     /**
      * **Liquid, rendered within the block — never across blocks** ([06 §5]).
@@ -500,7 +503,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      * The literal braces that result are the visible failure §8.4.2 prefers to
      * a mangled prompt that looks fine.
      */
-    const rendered = renderTemplate(block.template, renderContextOf(context));
+    const rendered = renderTemplate(block.template, names);
     return emit(
       block,
       rendered.ok ? rendered.text : rendered.source,
@@ -515,6 +518,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       // other end of it.
       { kind: 'preset', blockId: block.id, presetId: context.preset.id },
       undefined,
+      names,
     );
   }
 
@@ -530,16 +534,19 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           contentHash: context.persona?.contentHash ?? null,
         },
         undefined,
+        names,
       );
 
     case 'actor':
       // One candidate per actor, so the budgeter can drop one and keep another.
+      // Each named for the actor it is about, so a wrapper can say whose it is.
       return context.actors.flatMap(({ actor, contentHash }) =>
         emit(
           block,
           actorText(actor, source),
           actorSource(actor.id, contentHash, source),
           `${block.id}.${actor.id}`,
+          { ...names, char: actor.name },
         ),
       );
 
@@ -580,7 +587,8 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
 
       return context.history.flatMap((turn, index) =>
         halves.flatMap(({ of, role }) => {
-          const text = of === 'input' ? asItWasSaid(turn, context.preset) : turn.output?.text;
+          const text =
+            of === 'input' ? asItWasSaid(turn, context.preset, names) : turn.output?.text;
           if (text === undefined || text.length === 0) return [];
           return emit(
             { ...block, priority: block.priority + index, role },
@@ -590,6 +598,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             // twenty turns, which is exactly what an id must never do.
             { kind: 'history', turnId: turn.id, range: [index, index], part: of },
             `${block.id}.${turn.id}.${of}`,
+            names,
           );
         }),
       );
@@ -609,6 +618,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         context.guidance ?? '',
         { kind: 'guidance', producer: 'user' },
         undefined,
+        names,
       );
       /**
        * **[06 §5.1]'s *one slot, several producers*, with the second one at
@@ -643,6 +653,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           context.hookGuidance,
           { kind: 'guidance', producer: 'step' },
           `${block.id}.hook`,
+          names,
         ),
       ];
     }
@@ -664,6 +675,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         context.attempt?.text ?? '',
         { kind: 'attempt', turnId: context.attempt?.turnId ?? null },
         undefined,
+        names,
       );
 
     case 'input':
@@ -673,7 +685,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * the player's action droppable would not produce a shorter prompt; it
        * would produce the wrong one.
        */
-      return emit(block, context.input?.text ?? '', { kind: 'input' }, undefined);
+      return emit(block, context.input?.text ?? '', { kind: 'input' }, undefined, names);
 
     case 'summary': {
       /**
@@ -705,6 +717,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           link.text,
           { kind: 'summary', linkKey: link.key, range: [link.from, link.to] },
           `${block.id}.${link.key}`,
+          names,
         ),
       );
     }
@@ -760,6 +773,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
                   sampleId: sample.id,
                 },
                 `${block.id}.${owner.id}.${sample.id}`,
+                names,
               ),
             ),
         ),
@@ -796,6 +810,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             one.candidate.text,
             one.candidate.source,
             one.candidate.id,
+            names,
           ).map((candidate) => ({
             ...candidate,
             // The entry's own role and reason, which `emit` has no way to know
@@ -840,6 +855,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         // so the id crosses and the discriminator is restated.
         { kind: 'channel', channelId: source.channelId },
         undefined,
+        names,
       );
 
     /**
@@ -864,7 +880,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     case 'goal': {
       const goal = context.goal;
       if (goal === undefined) return [];
-      return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined);
+      return emit(block, goal.statement, { kind: 'goal', goalId: goal.id }, undefined, names);
     }
 
     /**
@@ -905,6 +921,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             fragmentIndex: fragment.index,
           },
           `${block.id}.${String(fragment.index)}`,
+          names,
         ),
       );
     }
@@ -926,7 +943,13 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     case 'treatment': {
       const held = context.carriers?.treatment;
       if (source.part !== 'framing' || held === null || held === undefined) return [];
-      return emit(block, held.treatment.framing, { kind: 'treatment', part: 'framing' }, undefined);
+      return emit(
+        block,
+        held.treatment.framing,
+        { kind: 'treatment', part: 'framing' },
+        undefined,
+        names,
+      );
     }
 
     default:
@@ -953,7 +976,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
  * has one, else a slot for every kind. No wrapper, no change, which is Scene's
  * case and the assistant's.
  */
-function asItWasSaid(turn: Turn, preset: Preset): string | undefined {
+function asItWasSaid(turn: Turn, preset: Preset, names: RenderContext): string | undefined {
   const text = turn.input?.text;
   if (text === undefined || text.length === 0) return text;
   const kind = turn.input?.kind;
@@ -965,7 +988,39 @@ function asItWasSaid(turn: Turn, preset: Preset): string | undefined {
     inputs.find((one) => kind !== undefined && one.appliesTo.includes(kind)) ??
     inputs.find((one) => one.appliesTo.length === 0);
   if (slot?.kind !== 'slot' || slot.wrapper === undefined) return text;
-  return slot.wrapper.replaceAll('{{content}}', () => text);
+  return wrap(slot.wrapper, text, names);
+}
+
+/** Where the content goes while the rest of a wrapper is rendered: no template can produce it. */
+const CONTENT = '\u0000content\u0000';
+
+/**
+ * ***A wrapper, with the names in it rendered*** (2026-09-27) — [06 §5],
+ * [P4 §1.6].
+ *
+ * A wrapper was one fixed placeholder and nothing else, so a pack could frame
+ * a block but never say *whose* it was — and the shipped packs' persona and
+ * actor blocks went to the model as bodies with no names on them. With two
+ * characters in a scene, what reached the narrator was two descriptions, then
+ * two appearances, then two voices, and nothing to say which was which; the
+ * persona's name was in no prompt at all.
+ *
+ * So the wrapper is a template over the same closed namespace a text block
+ * has — `char` and `user`, **names and never bodies** — while the content is
+ * not. The placeholder is swapped for a mark no template can produce before
+ * rendering and swapped back for the text afterwards, which keeps the fence
+ * where [P4 §1.6] drew it: nothing in a card, a book or a turn is ever read
+ * as Liquid, so a `{{` in somebody's prose is prose. `char` is the actor the
+ * candidate is about where there is one (the actor arm narrows it), else the
+ * first of the cast, as in a text block.
+ *
+ * *A wrapper that will not render keeps its words as written*, which is what
+ * every wrapper did before this — the one outcome that changes nothing.
+ */
+function wrap(wrapper: string, text: string, names: RenderContext): string {
+  const marked = wrapper.replaceAll('{{content}}', CONTENT);
+  const rendered = renderTemplate(marked, names);
+  return (rendered.ok ? rendered.text : marked).replaceAll(CONTENT, () => text);
 }
 
 /**
@@ -980,6 +1035,7 @@ function emit(
   text: string,
   source: Candidate['source'],
   id: string | undefined,
+  names: RenderContext,
 ): Candidate[] {
   if (text.length === 0 && block.omitWhenEmpty) return [];
 
@@ -1000,9 +1056,7 @@ function emit(
    * "escape the input" — it is "stop treating the input as a pattern".
    */
   const wrapped =
-    block.kind === 'slot' && block.wrapper !== undefined
-      ? block.wrapper.replaceAll('{{content}}', () => text)
-      : text;
+    block.kind === 'slot' && block.wrapper !== undefined ? wrap(block.wrapper, text, names) : text;
 
   // The union, not the special case: an author- or import-declared advisory
   // block is advisory too, or the firewall only covers the one slot somebody

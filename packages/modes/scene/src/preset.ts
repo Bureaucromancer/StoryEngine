@@ -88,6 +88,22 @@ export const SCENE_PRESET: Preset = {
         part: 'framing',
       },
     },
+    /**
+     * ***Whose block is whose*** (2026-09-27) — the persona's and the five
+     * actor blocks' wrappers name who each one is about.
+     *
+     * Bare, they reached the model as bodies with no names on them: the
+     * persona's sections with nothing to say they were the player's
+     * character, and — with two characters in a scene — two descriptions, then
+     * two appearances, then two voices, and nothing to say which was which.
+     * The persona's name was in no prompt at all. A wrapper renders `char` as
+     * the actor its candidate is about and `user` as the persona, and never the
+     * content, so a `{{` in somebody's card is still prose.
+     *
+     * *Sessions copied before this keep their bare blocks* — a pack follows
+     * the shipped one in what it adds, not in what it changes — and *Switch to
+     * the mode's own* brings these.
+     */
     {
       id: 'se.persona',
       label: 'persona',
@@ -104,6 +120,7 @@ export const SCENE_PRESET: Preset = {
       source: {
         of: 'persona',
       },
+      wrapper: "The player's character, {{ user }}:\n{{content}}",
     },
     {
       id: 'se.actor.summary',
@@ -122,6 +139,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.summary',
       },
+      wrapper: '{{ char }}:\n{{content}}',
     },
     {
       id: 'se.actor.appearance',
@@ -140,6 +158,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.appearance',
       },
+      wrapper: 'What {{ char }} looks like:\n{{content}}',
     },
     {
       id: 'se.actor.voice',
@@ -158,6 +177,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.voice',
       },
+      wrapper: 'How {{ char }} speaks:\n{{content}}',
     },
     {
       id: 'se.actor.traits',
@@ -176,6 +196,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         field: 'traits',
       },
+      wrapper: "{{ char }}'s traits: {{content}}",
     },
     {
       id: 'se.actor.background',
@@ -194,6 +215,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.background',
       },
+      wrapper: "{{ char }}'s background:\n{{content}}",
     },
     {
       id: 'se.lore',

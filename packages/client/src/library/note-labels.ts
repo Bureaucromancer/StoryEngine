@@ -65,6 +65,10 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.macro.unrecognised': 'Unrecognised macro {macro} in “{block}” — left as written.',
   'import.card.personalityAsTraits': 'Personality read as {count} traits.',
   'import.card.personalityAsProse': 'Personality read as prose, and kept in the summary.',
+  'import.card.ownNameWritten':
+    'Wrote {actor}’s name in the {count} places the card had left a placeholder for it.',
+  'import.card.playerPlaceholderKept':
+    'This card names the player with SillyTavern’s placeholder. It is kept as written, so the model reads the placeholder rather than a name.',
   'import.card.wantsPromptOverride': 'This card wants to override prompts ({fields}); review.',
   'import.card.portraitUnreadable': 'The portrait could not be read, so the card has none.',
   // [P7.10]: a count rather than silence. An import that quietly grew a

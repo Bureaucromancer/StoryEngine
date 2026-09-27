@@ -45,6 +45,7 @@ import {
   TEST_STEP,
 } from '../test-mode.js';
 import { create, type LibraryContext } from '../library.js';
+import { convertCard } from '../import/sillytavern/card.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
 import type { Occurrence } from '../notifications/router.js';
@@ -1721,6 +1722,61 @@ describe('a preset block can be scoped to a kind of call', () => {
         { kind: 'treatment', part: 'framing' },
       ],
     ]);
+  });
+
+  /**
+   * ***A card's own name reaches the wire, and its placeholder does not***
+   * (2026-09-27). The join the converter's own tests cannot show: a real
+   * SillyTavern card through the real converter, into the library, into a
+   * cast, into a turn. Its example dialogue said `{{char}}`, which nothing
+   * here renders in prose, so until the import wrote the name in, the braces
+   * were what the model read. The player's placeholder is kept on purpose and
+   * the review says so; see `inOwnName`.
+   */
+  it('sends an imported card’s own name where the card left a placeholder', async () => {
+    const converted = convertCard(
+      {
+        spec: 'chara_card_v2',
+        data: {
+          name: 'Vera Solano',
+          description: '{{char}} inspects the docks.',
+          mes_example: '<START>\n{{user}}: Anything unusual?\n{{char}}: Define unusual.',
+        },
+      },
+      'fallback',
+    );
+    if (!converted.ok) throw new Error(`refused: ${converted.refusal}`);
+    const vera = converted.value.actor;
+    await create(library, ACCOUNT, vera);
+
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Imported',
+      preset: TEST_PRESET,
+      cast: { persona: null, actors: [vera.id] },
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: 'imported-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+
+    expect(blocks.find((one) => one.source.kind === 'samples')?.text).toBe(
+      '<START>\n{{user}}: Anything unusual?\nVera Solano: Define unusual.',
+    );
+    expect(blocks.find((one) => one.id === `se.actor.summary.${vera.id}`)?.text).toBe(
+      'Vera Solano inspects the docks.',
+    );
+    expect(blocks.filter((one) => /\{\{\s*char\s*\}\}/i.test(one.text))).toEqual([]);
   });
 
   /**
