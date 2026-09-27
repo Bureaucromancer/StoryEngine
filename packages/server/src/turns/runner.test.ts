@@ -3348,10 +3348,39 @@ describe('a session with a goal', () => {
       rejectedReason: 'needs-confirmation',
       proposedBy: { kind: 'model' },
     });
-    // The call it judged in, so the workbench can show the reasoning.
-    expect(turn.request?.calls.map((call) => call.id)).toContain(
-      (achieved?.proposedBy as { callId?: string }).callId,
-    );
+    // The call it judged in, so the workbench can show the reasoning — *that*
+    // call, not merely one of the turn's.
+    const judge = turn.request?.calls.find((call) => call.stepId === 'se.goals.judge');
+    expect(judge).toBeDefined();
+    expect((achieved?.proposedBy as { callId?: string }).callId).toBe(judge?.id);
+  });
+
+  /**
+   * ***The judge's call, not the turn's last one*** (2026-09-27). The credit
+   * read `calls.at(-1)`, and the judge is not the last step that calls when
+   * suggestions, the memory extractor or an illustration run after it: the
+   * record named the suggester's call as the reasoning for a completion. Only
+   * the id the judge reports can name the call it judged in.
+   */
+  it('credits the call the judge made, when a later step makes one too', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({
+      script: [
+        { text: 'She walked out with it.' },
+        { object: { met: true } },
+        { object: { actions: ['Run.', 'Hide.', 'Wait.'] } },
+      ],
+    });
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.suggest', true);
+
+    const turn = await runNextTurn();
+    const achieved = turn.effects.find((effect) => effect.channelId === 'se.goal');
+    const judge = turn.request?.calls.find((call) => call.stepId === 'se.goals.judge');
+
+    // The case is only the case if something called after the judge.
+    expect(turn.request?.calls.at(-1)?.stepId).toBe('se.suggest');
+    expect(judge).toBeDefined();
+    expect(achieved?.proposedBy).toEqual({ kind: 'model', callId: judge?.id });
   });
 
   /**
@@ -3606,5 +3635,27 @@ describe('an introduction the narrator was asked to make', () => {
     makeRunner({ script: [{ object: { hookId: null } }, { text: 'Still raining.' }] });
     const next = await takeTurn(sessionId, 'intro-3');
     expect(next.hooks?.considered).toEqual([{ hookId: 'hook-vera', refusal: null }]);
+  });
+
+  /**
+   * ***The recovery path, for a subject who is not in the cast*** (2026-09-27).
+   * A firing its own turn could not settle — the extract step failed, or it
+   * predates [P7.7] — stays `provisional`, and a later turn confirms it when
+   * the narrator writes the subject in. The scan decided who was in flight by
+   * reading an empty channel map, so a subject outside the cast was never
+   * looked for and the arrival was recorded as declined.
+   */
+  it('confirms a firing an earlier turn left provisional, when the subject arrives', async () => {
+    const { sessionId, actorId } = await aSessionIntroducing();
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook#hook-vera', 'provisional');
+    // Nothing is eligible — the one hook is pending — so nobody is asked, and
+    // the only call is the narrator's.
+    makeRunner({ script: [{ text: 'Vera Kohl stepped in out of the rain.' }] });
+
+    const turn = await takeTurn(sessionId, 'intro-4');
+
+    const settled = turn.effects.find((effect) => effect.channelId === 'se.hook');
+    expect(settled).toMatchObject({ scopeKey: 'hook-vera', after: 'fired', applied: true });
+    expect(turn.spans?.some((span) => span.target.ref.id === actorId)).toBe(true);
   });
 });

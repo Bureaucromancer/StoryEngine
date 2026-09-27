@@ -1845,10 +1845,15 @@ export class TurnRunner {
      * it is not — a mode that redeclares the channel without `confirm` — must
      * not silently leave `running` stale for the clock write underneath it.
      *
+     * ***The judge's own call***, which its report names (2026-09-27).
+     * ~~`calls.at(-1)`~~ was the turn's last call, and the suggester, the memory
+     * extractor and an illustration all run after the judge: with any of them
+     * on, the completion was credited to a call that never judged it.
+     *
      * *The fallback is `step` rather than `engine`, and that is the gate rather
      * than tidiness.* `confirm` is checked for `model` and `step` only, so an
      * `engine` stamp here would have been a **bypass**: a judged completion
-     * applying itself unasked on the one path where `calls` came back empty.
+     * applying itself unasked on a path where the report names no call.
      * `step` is also the truer claim — with no call to point at, what is known
      * is that the judge step reported it.
      *
@@ -1858,7 +1863,7 @@ export class TurnRunner {
      * [06 §7.3.4] is explicit that none of it happens without asking.
      */
     if (!aborted && goals.report?.met === true) {
-      const judged = calls.at(-1);
+      const judged = goals.report.callId;
       const effect = acceptEffect(
         job.turnId,
         {
@@ -1867,9 +1872,9 @@ export class TurnRunner {
           op: { type: 'set', path: '/' },
           after: 'achieved',
           proposedBy:
-            judged === undefined
+            judged === null
               ? { kind: 'step', stepId: GOAL_JUDGE_STEP.id }
-              : { kind: 'model', callId: judged.id },
+              : { kind: 'model', callId: judged },
         },
         running,
       );
@@ -2337,8 +2342,16 @@ function castTerms(
     // Only the ones in flight: a pool of thirty introductions would otherwise
     // put thirty names into every turn's scan for arrivals that are not
     // happening, which is a highlight claiming somebody is here who is not.
+    /**
+     * ***`pending`, which is what the state at this node says*** (2026-09-27).
+     * ~~`readHookState({}, …)`~~ read an empty channel map, which answers null
+     * for every hook, so a firing left provisional by an earlier turn never
+     * put its subject's names in the scan: the narrator wrote them in, the
+     * scan could not find them, and the recovery path recorded the arrival
+     * that happened as declined.
+     */
     const inFlight =
-      introducing?.actorId === subject.id || readHookState({}, entry.hook.id) === 'provisional';
+      introducing?.actorId === subject.id || pending.some((one) => one.hookId === entry.hook.id);
     if (!inFlight || out.has(subject.id)) continue;
     /**
      * ***The card's aliases, not just the `Ref`'s name*** — [06 §6.1] requires
