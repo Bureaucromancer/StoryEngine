@@ -1,11 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { uuidv7, SESSION_EXPORT_SCHEMA, type SessionExport, type Turn } from '@storyengine/shared';
+import { createHash } from 'node:crypto';
 
+import {
+  uuidv7,
+  SESSION_EXPORT_SCHEMA,
+  type Rendition,
+  type SessionExport,
+  type Turn,
+} from '@storyengine/shared';
+
+import { sessionHoldingTurns } from '../index-db/sessions.js';
+import { renditionFrom, sessionAssetsRoot, writeRendition } from '../renditions/store.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory } from '../storage/files.js';
-import { appendTurnOnly, sessionFilePath, sessionRoot, type SessionContext } from './store.js';
+import { ensureDirectory, writeFileBytes } from '../storage/files.js';
+import { resolveWithin } from '../storage/paths.js';
+import {
+  appendTurnOnly,
+  indexWrittenSession,
+  sessionFilePath,
+  sessionRoot,
+  type SessionContext,
+} from './store.js';
 import type { SessionFile } from './types.js';
 
 /**
@@ -32,12 +49,16 @@ import type { SessionFile } from './types.js';
  * re-argued.*** Every turn names its parent by id, so re-minting them means
  * rewriting every parent link, every `headTurnId`, every effect's turn
  * reference and every rendition's — a graph rewrite over the one structure this
- * project spends the most care on. Keeping them costs a collision **only**
- * between two installs importing each other's sessions of the same session,
- * which is `uuidv7` on two machines and is the collision the id scheme is chosen
- * to make negligible. *The session's own id is re-minted*, because that one is
- * an address on this install and two installs with the same session id is a
- * real and immediate confusion rather than a theoretical one.
+ * project spends the most care on. ~~Keeping them costs a collision **only**
+ * between two installs importing each other's sessions of the same session~~
+ * (corrected 2026-09-27): it also costs one on **this** install whenever the
+ * session is still here, which is every backup import of an account's own
+ * sessions and every export loaded back where it came from. The index keeps
+ * one row per turn id, so the copy took the original's. That case is refused
+ * (`already-here`, below) rather than paid for with a graph rewrite. *The
+ * session's own id is re-minted*, because that one is an address on this
+ * install and two installs with the same session id is a real and immediate
+ * confusion rather than a theoretical one.
  *
  * ***Every turn is marked foreign.*** `Turn.foreign` exists for this — [18 §3]'s
  * second consequence, *"a foreign identifier has somewhere to go"* — and marking
@@ -51,9 +72,19 @@ export interface ImportContext {
   sessions: SessionContext;
 }
 
+export interface SessionImportOptions {
+  /**
+   * A rendition's pixels, by the record's `asset.path`, when the source has
+   * them. A backup does; an export carries the records and not the pixels
+   * (`SessionExport.renditions`), so a picture imported without them arrives
+   * as one whose pixels were cleared, with its recipe and a retry.
+   */
+  pixels?: (path: string) => Promise<Uint8Array | null>;
+}
+
 export type SessionImport =
   | { ok: true; sessionId: string; turns: number; renditions: number }
-  | { ok: false; reason: 'unreadable' | 'wrong-schema' | 'no-turns' };
+  | { ok: false; reason: 'unreadable' | 'wrong-schema' | 'no-turns' | 'already-here' };
 
 /**
  * Reads a document that came from somewhere else.
@@ -86,6 +117,7 @@ export async function importSession(
   context: ImportContext,
   handle: string,
   document: unknown,
+  options: SessionImportOptions = {},
 ): Promise<SessionImport> {
   const read = readSessionExport(document);
   if ('reason' in read) {
@@ -100,6 +132,26 @@ export async function importSession(
    */
   if (read.turns.length === 0) return { ok: false, reason: 'no-turns' };
 
+  // `unknown[]` rather than `Turn[]`, for `readSessionExport`'s reason: the
+  // declared element type is the claim the file makes about itself, and a
+  // malformed member is exactly what a hand-edited export has.
+  const turns = (read.turns as unknown[]).filter(
+    (candidate): candidate is Turn =>
+      typeof candidate === 'object' &&
+      candidate !== null &&
+      typeof (candidate as { id?: unknown }).id === 'string',
+  );
+
+  /**
+   * ***A session whose turns are already here is refused*** (2026-09-27), the
+   * header's correction. The copy used to be made, and the original's search
+   * hits and by-id reads then went to the copy's segments at the copy's
+   * offsets; deleting the copy took the original's rows with it.
+   */
+  if (sessionHoldingTurns(context.sessions.index, turnIdsOf(turns)) !== null) {
+    return { ok: false, reason: 'already-here' };
+  }
+
   const now = new Date().toISOString();
   const id = uuidv7();
   const { id: was, ...document_ } = read.session;
@@ -113,9 +165,10 @@ export async function importSession(
      * ***What it came from*** — [03 §8]'s `origin`, which that section specified
      * and nothing implemented until the format needed it.
      *
-     * *The exporting install's own id for the session goes here*, which is the
-     * only place it can honestly live once this install has minted its own: it
-     * is not an address here, it is a fact about where the file was made.
+     * *The exporting install's own id for the session is not an address here*
+     * once this install has minted its own; it is a fact about where the file
+     * was made. It travels on every turn, as `foreign.source` (below), and this
+     * record carries the rest of that fact.
      */
     origin: {
       source: 'import' as const,
@@ -132,6 +185,11 @@ export async function importSession(
   await ensureDirectory(root);
   await context.sessions.layout.assertReal(root);
   await writeJsonAtomic(sessionFilePath(context.sessions.layout, handle, id), session);
+  // Indexed as every other session write is, so the session lists, links and
+  // joins its turns' search rows from the moment it exists. This wrote the
+  // file and nothing else, and an imported session had no row until somebody
+  // happened to save it.
+  indexWrittenSession(context.sessions, handle, session);
 
   /**
    * ***In the order the exporter wrote them, which is creation order.*** The
@@ -139,25 +197,132 @@ export async function importSession(
    * a child before its parent would make every reader that walks forward see a
    * turn with a dangling parent for the length of the import, and creation order
    * is a total order in which that cannot happen.
+   *
+   * ***Each turn names the session it is in now.*** It kept the exporter's id,
+   * which went into the index beside a location in this session's segments.
+   * The id it came from is `foreign.source`, which is where provenance lives.
    */
-  let written = 0;
-  // `unknown[]` rather than `Turn[]`, for `readSessionExport`'s reason: the
-  // declared element type is the claim the file makes about itself, and a
-  // malformed member is exactly what a hand-edited export has.
-  for (const candidate of read.turns as unknown[]) {
-    if (typeof candidate !== 'object' || candidate === null) continue;
-    const turn = candidate as Turn;
-    if (typeof turn.id !== 'string') continue;
-    await appendTurnOnly(context.sessions, handle, id, foreignise(turn, was));
-    written += 1;
+  for (const turn of turns) {
+    await appendTurnOnly(context.sessions, handle, id, { ...foreignise(turn, was), sessionId: id });
   }
 
-  const renditions = read.renditions as unknown;
+  const renditions = await importRenditions(
+    context,
+    handle,
+    id,
+    read,
+    new Set(turnIdsOf(turns)),
+    options,
+  );
+  return { ok: true, sessionId: id, turns: turns.length, renditions };
+}
+
+function turnIdsOf(turns: readonly Turn[]): string[] {
+  return turns.map((turn) => turn.id);
+}
+
+/**
+ * ***The pictures' records, which the import counted and never wrote***
+ * (2026-09-27) — [06 §10.7]'s *recipes are never discarded*.
+ *
+ * It answered `renditions: n` for the records in the file and wrote none of
+ * them, so the imported session's `se.backdrop` and `renditionSelection`
+ * named records that did not exist, and the recipes were gone. Each record
+ * `readRendition` would accept is written under the new session, and:
+ *
+ * - **A `pending` one becomes `interrupted`**, as boot recovery writes it: no
+ *   job on this install will ever finish it, and `interrupted` is the state
+ *   that offers a retry.
+ * - **A picture keeps its pixels only if they came with it**, written where
+ *   its `asset.path` says, inside this session's `assets/` and nowhere else.
+ *   Without them it is a picture whose pixels were cleared: the recipe and a
+ *   retry, which is `SessionExport.renditions`' own promise for an export.
+ * - **A record of a turn that did not come across is left out**, because
+ *   nothing could show it.
+ */
+async function importRenditions(
+  context: ImportContext,
+  handle: string,
+  sessionId: string,
+  read: SessionExport,
+  turnIds: ReadonlySet<string>,
+  options: SessionImportOptions,
+): Promise<number> {
+  const listed = (read as unknown as Record<string, unknown>)['renditions'];
+  if (!Array.isArray(listed)) return 0;
+
+  const { layout } = context.sessions;
+  let written = 0;
+  for (const candidate of listed) {
+    const record = renditionFrom(candidate);
+    if (record === null || !turnIds.has(record.turnId)) continue;
+
+    let rendition: Rendition = { ...record, sessionId };
+    if (rendition.state === 'pending') {
+      rendition = { ...rendition, state: 'failed', asset: null, error: 'interrupted' };
+    }
+    rendition = {
+      ...rendition,
+      asset: await carryPixels(layout, handle, sessionId, rendition.asset, options),
+    };
+
+    try {
+      await writeRendition(layout, handle, sessionId, rendition);
+      written += 1;
+    } catch {
+      // An id that names no path, which `writeRendition` refuses. The record
+      // is somebody's hand edit rather than a picture this install could show.
+    }
+  }
+  return written;
+}
+
+/**
+ * A rendition's pixels, written into the new session, or null when absent.
+ *
+ * The asset is read as `unknown`: `renditionFrom` checks the recipe, which is
+ * what must survive, and not this, which may be anything a file says.
+ */
+async function carryPixels(
+  layout: SessionContext['layout'],
+  handle: string,
+  sessionId: string,
+  held: unknown,
+  options: SessionImportOptions,
+): Promise<Rendition['asset']> {
+  if (options.pixels === undefined || typeof held !== 'object' || held === null) return null;
+  const asset = held as Record<string, unknown>;
+  const path = asset['path'];
+  const mime = asset['mime'];
+  if (typeof path !== 'string' || typeof mime !== 'string') return null;
+
+  const root = sessionAssetsRoot(layout, handle, sessionId);
+  let to: string;
+  try {
+    to = resolveWithin(root, path);
+  } catch {
+    return null;
+  }
+  if (to === root) return null;
+
+  const bytes = await options.pixels(path);
+  if (bytes === null) return null;
+
+  try {
+    await ensureDirectory(root);
+    await writeFileBytes(to, bytes);
+  } catch {
+    // A picture that cannot be written is one whose pixels are not here, which
+    // is a state the record already has words and a retry for. It is not a
+    // reason to lose the session it belongs to.
+    return null;
+  }
+  // Described by the bytes that arrived, since `digest` is the route's etag.
   return {
-    ok: true,
-    sessionId: id,
-    turns: written,
-    renditions: Array.isArray(renditions) ? renditions.length : 0,
+    path,
+    mime,
+    bytes: bytes.byteLength,
+    digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
   };
 }
 

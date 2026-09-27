@@ -2690,8 +2690,30 @@ groups produced:
 ```
 
 `403` for a `handle` that is not this account's — a person may only read their
-own subtree. `422` for an archive that will not read, or that does not hold the
-handle asked for.
+own subtree — and for `options.config` on an account's archive, before anything
+is read or written. `422` for an archive that will not read, that does not hold
+the handle asked for, or (`too-large`) that holds more of that account than an
+import reads in one go. ***Only the members an import reads count against those
+bounds*** (2026-09-27): the account's library objects and their `assets/`, its
+tags, prefs and connections, and each session's file, turns, rendition records
+and pictures. Another account's work, the operational store and every object's
+history used to count as well, and an ordinary account was refused as unreadable.
+
+***What "already here" means for a session*** (2026-09-27). A session is skipped,
+under every `onConflict`, when this account has it under its own id, when it is
+in this account's trash, or when its turns are already on this install, which is
+what an earlier import of the same archive leaves. Before, nothing was asked,
+and each import of a person's own backup added another copy of every session. An
+imported session's turns name the session they landed in, it is indexed and
+searchable, and its pictures arrive with their records: pixels and all, since a
+backup holds them, and a picture that was still being made as `interrupted`,
+with a retry.
+
+**A tag whose name is already here under another id keeps the one here.** An
+object brought in with the archive's id for it still reads that name, because a
+dangling id falls back to the name beside it ([05 §3](design/05-tagging.md)),
+and adopting tags again points it at this registry's. The merge used to throw at
+that clash after the library had been written, so the sessions never came.
 
 ***The archive is named by id rather than uploaded***, which is a scoping
 decision rather than an omission: a person's backups are already on this server,

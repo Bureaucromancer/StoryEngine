@@ -289,6 +289,21 @@ on"*, and a backup has one.
 *And the default policy is `skip` rather than `sweep`'s `replace`*, because a
 backup meeting a live account is the past meeting the present.
 
+***Corrected 2026-09-27: the bounds were the upload's, and the pictures were
+left behind.*** The bounds were `zip.ts`'s upload limits, applied to every
+member, so another account, the operational store and each object's history
+counted against an import that reads none of them. An account of about eighty
+edited objects is more than 4,096 files and was refused as *could not be read*. Now only what the import reads is held
+and counted, against limits sized for a backup (`importedBy`,
+`BACKUP_IMPORT_LIMITS`); every member is still checked for escaping. And **the
+reader dropped every picture**. An actor was created on the blank 1×1 card and
+not the archived one, so its portrait was gone and every expression answered
+*the bytes are missing*. A folder kind's `assets/` were skipped as *not the
+object*, so every gallery named files that were not there. The review said
+`created` throughout. The archived card is now the canvas, `assets/` ride on the
+object's candidate, and a `replace` keeps the portrait here and gains the
+archive's blobs, so the rows it writes resolve.
+
 ### P12.9 — Import routes, and what is optional
 
 Apply then report, through `sweep` and `import/jobs.ts`, so a backup import
@@ -316,6 +331,22 @@ questions the controls actually turn on. The safety story is the one a sweep
 already has and it is written down rather than assumed: `skip` is the default
 so nothing here is touched, `replace` writes what was here into the object's
 history first, and a session is never replaced at all.
+
+***Corrected 2026-09-27: a session was never replaced, and never left alone
+either.*** Nothing asked whether one was here, so every import of somebody's own
+backup made a second copy of every session, and the next import a third. The
+copies kept the turn ids ([P11.10]'s decision), and the index holds one row per
+turn id, so each copy took the original's search rows. An imported session also
+had no index row, its turns still named the session they were exported from, and
+its renditions were counted and not written. Now a session is skipped when it is
+here under its own id, in the trash, or when its turns are already on the
+install. An imported one is indexed, its turns name it, and its pictures arrive
+with their pixels. **The tag merge threw on a name clash** (`npc` minted on
+two installs) after the library had been written, so no session ever came from
+such an archive. It now runs inside `TagStore.mutate`, reads the archive with
+`readTagRegistry`, and keeps the tag here. **And the settings refusal came last**:
+a person ticking *settings* on their own archive got a 403 over a library, tags
+and sessions already written. It is now the route's first check.
 
 ### P12.10 — The import flow
 

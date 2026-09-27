@@ -124,8 +124,21 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
  * draft change it describes: a turn that is locatable but unsearchable, or
  * searchable but unlocatable, is a state no reader knows how to handle, and
  * there is no reason to allow it to exist.
+ *
+ * ***The session is the folder's, not the turn's own field*** (2026-09-27).
+ * `segment` and `offset` say where the turn is, and they are only true of the
+ * session whose `turns/` holds it, so the id beside them has to be that one.
+ * It was `turn.sessionId`, and an imported session's turns still named the
+ * session they were exported from: the rows went under an id this install did
+ * not have, and the imported story could not be searched. A rebuild now files
+ * such a turn where it lives.
  */
-export function indexTurn(db: DatabaseSync, turn: Turn, location: TurnLocation): void {
+export function indexTurn(
+  db: DatabaseSync,
+  sessionId: string,
+  turn: Turn,
+  location: TurnLocation,
+): void {
   inTransaction(db, () => {
     db.prepare(
       `insert into turn (turn_id, session_id, segment, offset)
@@ -133,7 +146,7 @@ export function indexTurn(db: DatabaseSync, turn: Turn, location: TurnLocation):
          on conflict(turn_id) do update set session_id = excluded.session_id,
                                             segment = excluded.segment,
                                             offset = excluded.offset`,
-    ).run(turn.id, turn.sessionId, location.segment, location.offset);
+    ).run(turn.id, sessionId, location.segment, location.offset);
 
     // FTS5 has no upsert, so a reindex of the same turn is a delete and an
     // insert. Cheap, and it keeps a re-run of the same append — which the commit
@@ -145,7 +158,7 @@ export function indexTurn(db: DatabaseSync, turn: Turn, location: TurnLocation):
     if (text.length > 0) {
       db.prepare('insert into turn_fts (turn_id, session_id, text) values (?, ?, ?)').run(
         turn.id,
-        turn.sessionId,
+        sessionId,
         text,
       );
     }
@@ -283,6 +296,26 @@ export function findTurnLocation(
     segment: row.segment,
     offset: row.offset,
   };
+}
+
+/**
+ * The session already holding any of these turns, or null.
+ *
+ * ***A turn id is one row on the whole install***, which is what `turn`'s
+ * primary key says, and what an import has to ask before it keeps a session's
+ * turn ids ([P11.10]'s decision). A second session holding the same turns
+ * would take the first one's rows at every append: its search hits, its
+ * locations, and on deletion the rows themselves. Asked of the `turn` table
+ * alone, without the `session` join, because a row is a claim whether or not
+ * its session row is there.
+ */
+export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>): string | null {
+  const find = db.prepare('select session_id from turn where turn_id = ?');
+  for (const turnId of turnIds) {
+    const row = find.get(turnId) as { session_id: string } | undefined;
+    if (row !== undefined) return row.session_id;
+  }
+  return null;
 }
 
 /**

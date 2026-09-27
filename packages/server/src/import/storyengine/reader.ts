@@ -101,6 +101,24 @@ export class BackupReader implements SourceReader {
   async *items(): AsyncIterable<SourceItem> {
     const prefix = `users/${this.#handle}/library/`;
 
+    /**
+     * ***Each object's `assets/`, so they travel with it*** (2026-09-27). A
+     * folder kind keeps its pictures beside its file, named by their digest,
+     * and its `media` rows name them. They used to be skipped here as *not the
+     * object*, which is true, and then nothing carried them: every gallery and
+     * every entry's pictures came back from a backup as rows naming files that
+     * were not there. Gathered in a first pass because the source lists
+     * members in whatever order the archive has them.
+     */
+    const assets = new Map<string, string[]>();
+    for await (const path of this.#files.list()) {
+      if (!path.startsWith(prefix)) continue;
+      const [directory, slug, folder, file, ...deeper] = path.slice(prefix.length).split('/');
+      if (folder !== 'assets' || file === undefined || file === '' || deeper.length > 0) continue;
+      const key = `${String(directory)}/${String(slug)}`;
+      assets.set(key, [...(assets.get(key) ?? []), path]);
+    }
+
     for await (const path of this.#files.list()) {
       if (!path.startsWith(prefix)) continue;
 
@@ -108,7 +126,8 @@ export class BackupReader implements SourceReader {
        * `users/<handle>/library/<kind>/<slug>/<file>` — and **anything deeper
        * is not the object**, which is the same rule `Layout.parseObjectPath`
        * applies on disk: an actor's `assets/portrait.png` is not an actor, and
-       * counting it would produce one spurious candidate per picture.
+       * counting it would produce one spurious candidate per picture. What is
+       * in `assets/` rides on the object's candidate instead (above).
        */
       const parts = path.slice(prefix.length).split('/');
       const [directory, slug, filename, ...deeper] = parts;
@@ -164,9 +183,15 @@ export class BackupReader implements SourceReader {
         continue;
       }
 
+      const carried = assets.get(`${directory}/${slug}`);
       yield {
         outcome: 'candidate',
-        candidate: { source: path, format: 'storyengine.object', payload: body },
+        candidate: {
+          source: path,
+          format: 'storyengine.object',
+          payload: body,
+          ...(carried === undefined ? {} : { assets: carried }),
+        },
       };
     }
   }

@@ -2,7 +2,6 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
 
 import type { Rendition, RenditionError } from '@storyengine/shared';
 
@@ -660,7 +659,16 @@ function filterScalars(
   return out;
 }
 
-/** Where a rendition's bytes are, for the route that serves them. */
+/**
+ * Where a rendition's bytes are, for the route that serves them.
+ *
+ * ***Within the session's `assets/`, checked*** (2026-09-27). This joined the
+ * record's `path` on, and a record is a file: a hand edit can say
+ * `../../../connections/x.json`, and the route would have served it, since
+ * `assertReal` asks only whether the path stays inside the data directory.
+ * The session importer checks the records it writes; this is the door that
+ * does not depend on it.
+ */
 export function assetPath(
   layout: Layout,
   handle: string,
@@ -669,7 +677,7 @@ export function assetPath(
 ): string | null {
   if (rendition.asset === null) return null;
   try {
-    return join(sessionAssetsRoot(layout, handle, sessionId), rendition.asset.path);
+    return resolveWithin(sessionAssetsRoot(layout, handle, sessionId), rendition.asset.path);
   } catch {
     return null;
   }

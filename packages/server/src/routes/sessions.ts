@@ -2444,8 +2444,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       request.body,
     );
     if (!result.ok) {
-      // A class, for the client to word — [21 §1.4], as everywhere else.
-      return reply.code(422).send({ error: result.reason });
+      // A class, for the client to word — [21 §1.4], as everywhere else. A
+      // session already here is a conflict with what is here rather than a
+      // fault in the file.
+      return reply
+        .code(result.reason === 'already-here' ? 409 : 422)
+        .send({ error: result.reason });
     }
     return reply.code(201).send(result);
   });

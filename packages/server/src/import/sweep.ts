@@ -28,9 +28,12 @@ import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook } from './aventuras/lorebook.js';
 import { convertScenario } from './aventuras/scenario.js';
 import { identify, identifyNative, stampImported, type ConflictPolicy } from './identity.js';
-import { create, update, type LibraryContext } from '../library.js';
+import { create, read, update, type LibraryContext } from '../library.js';
 import { contentHashOf } from '../index-db/ingest.js';
 import { codecFor } from '../storage/card/index.js';
+import { fileExists, writeFileBytes } from '../storage/files.js';
+import { userOwner } from '../storage/layout.js';
+import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
@@ -318,13 +321,76 @@ class Writer {
 
     const object = candidate.payload as { id: string; name: string; provenance: Provenance };
 
+    /**
+     * ***An actor is created on the card it was archived as*** (2026-09-27).
+     * The card is the portrait and carries the expressions and every embedded
+     * picture as its own chunks, and the archive holds it whole; this passed
+     * no pixels, so an actor brought back from a backup was written on the
+     * blank 1×1 card with every `media` row naming bytes it did not have.
+     * A `replace` keeps the portrait that is here and gains the archived
+     * card's pictures, so the rows it writes resolve (see `update`'s
+     * `extraBlobs` for why the portrait is not swapped).
+     */
+    let pixels: Uint8Array | null = null;
+    if (schemaId === ACTOR_SCHEMA) {
+      const card = await this.#request.files.read(candidate.source);
+      pixels = card !== null && codecFor(card) !== null ? card : null;
+    }
+
     const notes: ImportNote[] = [];
-    const outcome = await this.store(object, schemaId, notes);
+    const outcome = await this.store(object, schemaId, notes, pixels);
+    if (outcome !== 'skipped' && outcome !== 'failed') {
+      await this.#carryAssets(candidate, object.id, schemaId, notes);
+    }
     return {
       source: candidate.source,
       disposition: Writer.dispositionOf(outcome),
       notes,
     };
+  }
+
+  /**
+   * ***The object's pictures, into its folder*** — what `candidate.assets`
+   * holds for a backup's folder kinds (see `BackupReader`).
+   *
+   * **By the name they had**, which is their digest, so the object's `media`
+   * rows resolve exactly as they did, and a file already there is the same
+   * bytes and is left alone. After an `unchanged` as well as a write: the
+   * object matching the archive does not mean its files survived. Never after
+   * a `skip`, where the object here differs and its rows may name other
+   * pictures, so these would be orphans.
+   */
+  async #carryAssets(
+    candidate: ImportCandidate,
+    id: string,
+    schemaId: PortableSchemaId,
+    notes: ImportNote[],
+  ): Promise<void> {
+    if (candidate.assets === undefined || candidate.assets.length === 0) return;
+    const { library, handle } = this.#request;
+    try {
+      const row = read(library, handle, id, schemaId);
+      const root = library.layout.assetsRoot(userOwner(handle), schemaId, row.slug);
+      for (const path of candidate.assets) {
+        // Within the object's own folder whatever the archive calls it: the
+        // source refused `..` already, and this is the door that would not
+        // need it to have.
+        const to = resolveWithin(root, path.slice(path.lastIndexOf('/') + 1));
+        if (to === root || (await fileExists(to))) continue;
+        const bytes = await this.#request.files.read(path);
+        if (bytes === null) continue;
+        await writeFileBytes(to, bytes);
+      }
+    } catch (error) {
+      notes.push({
+        key: 'import.file.notStored',
+        params: {
+          object: candidate.source,
+          reason: error instanceof Error ? error.name : 'unknown',
+        },
+        level: 'warn',
+      });
+    }
   }
 
   async #card(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -551,14 +617,23 @@ class Writer {
           break;
         case 'replace': {
           try {
-            await update(library, handle, identity.id, object, identity.contentHash, {
-              // **The `{ kind: 'import' }` attribution's first writer**, three
-              // phases after the type declared it with "no writers until their
-              // phases". History snapshots the replaced state, so the person's
-              // own edits survive as a version rather than being destroyed.
-              source: { kind: 'import', from: object.provenance.originalFilename ?? '' },
-              reason: 'Replaced by a re-import',
-            });
+            await update(
+              library,
+              handle,
+              identity.id,
+              object,
+              identity.contentHash,
+              {
+                // **The `{ kind: 'import' }` attribution's first writer**, three
+                // phases after the type declared it with "no writers until their
+                // phases". History snapshots the replaced state, so the person's
+                // own edits survive as a version rather than being destroyed.
+                source: { kind: 'import', from: object.provenance.originalFilename ?? '' },
+                reason: 'Replaced by a re-import',
+              },
+              undefined,
+              schemaId === ACTOR_SCHEMA ? blobsOf(pixels, media) : undefined,
+            );
             notes.push({
               key: 'import.object.replaced',
               params: { object: object.name },
@@ -872,6 +947,28 @@ class Writer {
     if (outcome === 'unchanged' || outcome === 'skipped') return 'unchanged';
     return outcome === 'failed' ? 'unrecognised' : 'converted';
   }
+}
+
+/**
+ * Every picture an incoming card brings: the ones inside it, then the ones
+ * that arrived beside it over them, the order `encodeObject` merges in.
+ *
+ * A card this build cannot read contributes nothing rather than failing the
+ * write. It is the portrait the replace keeps from disk anyway, and the rows
+ * that named its blobs are the only loss, which is the loss there was before.
+ */
+function blobsOf(pixels: Uint8Array | null, media: BlobStore | undefined): BlobStore | undefined {
+  let inside: BlobStore | undefined;
+  if (pixels !== null) {
+    try {
+      inside = codecFor(pixels)?.read(pixels).blobs;
+    } catch {
+      inside = undefined;
+    }
+  }
+  if (inside === undefined) return media;
+  if (media === undefined) return inside;
+  return new Map([...inside, ...media]);
 }
 
 function refusedItem(candidate: ImportCandidate, refusal: string): ImportItemReport {

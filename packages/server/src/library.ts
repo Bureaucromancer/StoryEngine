@@ -713,6 +713,18 @@ export async function update(
   expectedHash: string,
   change: ChangeAttribution = MANUAL,
   inKind?: PortableSchemaId,
+  /**
+   * ***Pictures a replacing import brings*** (2026-09-27), merged over the
+   * card's own as `create`'s `media` is.
+   *
+   * **The canvas stays the one on disk.** An actor's history keeps its JSON
+   * and not its pixels, so a replace that swapped the portrait would destroy
+   * the one somebody had with nothing to restore it from. Adding blobs
+   * destroys nothing, and it is what makes an incoming `media` row resolve:
+   * before this, a replace wrote rows naming pictures this card had never
+   * held, and each answered *the bytes are missing*.
+   */
+  extraBlobs?: BlobStore,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
 
@@ -802,6 +814,8 @@ export async function update(
       current.slug,
       object,
       existingBytes,
+      undefined,
+      extraBlobs,
     );
 
     // **The no-op rule** ([03 §11.1]). A write that changes nothing produces no
@@ -825,7 +839,16 @@ export async function update(
     const stamp = change.stamp !== false;
     const stamped = stamp ? stampProvenance(object) : object;
     const { path, bytes, contentHash } = stamp
-      ? await encodeObject(context.layout, owner, schemaId, current.slug, stamped, existingBytes)
+      ? await encodeObject(
+          context.layout,
+          owner,
+          schemaId,
+          current.slug,
+          stamped,
+          existingBytes,
+          undefined,
+          extraBlobs,
+        )
       : asSent;
 
     // Write, then snapshot the replaced state (held in memory), then index.

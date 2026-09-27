@@ -110,6 +110,22 @@ function scopeOf(context: SessionContext, handle: string): string {
   return (context.scope ?? ((each: string) => `user:${each}`))(handle);
 }
 
+/**
+ * Indexes a session file the caller wrote whole — the importer, which builds
+ * one from a document rather than through `createSession`.
+ *
+ * Every write in this module indexes what it wrote as it writes it; the
+ * importer wrote `session.json` and indexed nothing, so an imported session
+ * had no row until something else saved it.
+ */
+export function indexWrittenSession(
+  context: SessionContext,
+  handle: string,
+  session: SessionFile,
+): void {
+  indexSession(context.index, scopeOf(context, handle), session);
+}
+
 export function sessionRoot(layout: Layout, handle: string, sessionId: string): string {
   return layout.sessionRoot(handle, sessionId);
 }
@@ -525,7 +541,7 @@ export async function appendTurnOnly(
   const root = turnsRoot(context.layout, handle, sessionId);
   await context.layout.assertReal(root);
   const location = await appendTurn(root, turn, context.limits);
-  indexTurn(context.index, turn, location);
+  indexTurn(context.index, sessionId, turn, location);
   return location;
 }
 

@@ -144,7 +144,7 @@ async function rebuildSessions(
     for (const { turn, location } of await readAllTurns(
       resolveWithin(layout.sessionRoot(handle, sessionId), 'turns'),
     )) {
-      indexTurn(db, turn, location);
+      indexTurn(db, sessionId, turn, location);
       turns += 1;
     }
   }

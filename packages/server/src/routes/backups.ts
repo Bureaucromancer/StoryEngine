@@ -20,7 +20,7 @@ import {
   type BackupRecord,
 } from '../backup/archive.js';
 import { DEFAULT_BACKUP_CONFLICT, importBackup } from '../backup/import.js';
-import { BackupFileSource } from '../import/backup-source.js';
+import { BACKUP_IMPORT_LIMITS, BackupFileSource, importedBy } from '../import/backup-source.js';
 import { recordImport } from '../import/jobs.js';
 import { openFileRead } from '../storage/files.js';
 import { prepareRestore, type RestoreRefusal } from '../backup/restore.js';
@@ -224,17 +224,22 @@ async function runImport(
   },
   reply: FastifyReply,
 ): Promise<FastifyReply> {
+  /**
+   * ***Refused before anything is written*** (2026-09-27). This check used to
+   * come after the import, so a person asking to bring settings across from
+   * their own backup got a 403 for it, over a library, tags and sessions that
+   * had already been written.
+   */
+  if (body.options?.config === true && owner.kind !== 'install') {
+    return reply.code(403).send({
+      error: 'not-install-scope',
+      message: 'Only an administrator importing an install backup may bring settings across.',
+    });
+  }
+
   const found = await findBackup(backupContextOf(services), owner, body.id);
   if (found === null) {
     return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
-  }
-
-  const opened = await BackupFileSource.open(found.path);
-  if (!opened.ok) {
-    return reply.code(422).send({
-      error: opened.refusal,
-      message: 'That archive could not be read.',
-    });
   }
 
   /**
@@ -244,6 +249,27 @@ async function runImport(
    * asking a question with one answer.
    */
   const fromHandle = body.handle ?? intoHandle;
+
+  /**
+   * ***Only what the import reads is held, and only that is counted*** — see
+   * `BACKUP_IMPORT_LIMITS`. The whole archive used to be read into memory and
+   * held to an upload's limits, so an ordinary account was refused as
+   * unreadable.
+   */
+  const opened = await BackupFileSource.open(
+    found.path,
+    BACKUP_IMPORT_LIMITS,
+    importedBy(fromHandle, { config: body.options?.config === true }),
+  );
+  if (!opened.ok) {
+    return reply.code(422).send({
+      error: opened.refusal,
+      message:
+        opened.refusal === 'too-large'
+          ? 'That archive holds more than an import reads in one go.'
+          : 'That archive could not be read.',
+    });
+  }
 
   const outcome = await importBackup(
     {
@@ -283,12 +309,6 @@ async function runImport(
    * about how an install behaves and travels.
    */
   if (body.options?.config === true) {
-    if (owner.kind !== 'install') {
-      return reply.code(403).send({
-        error: 'not-install-scope',
-        message: 'Only an administrator importing an install backup may bring settings across.',
-      });
-    }
     const document = await readArchivedConfig(opened.source);
     if (document === null) {
       notes.push({ key: 'import.backup.configMissing', params: {}, level: 'warn' });

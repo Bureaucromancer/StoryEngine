@@ -2822,6 +2822,20 @@ sessions sharing one is an immediate confusion. And a turn that already carries
 matters — a session that had travelled twice and claimed it came from the middle
 would be a provenance record that gets less true the more it is used.
 
+***Corrected 2026-09-27: keeping the turn ids has a price on the same install,
+and the importer now refuses to pay it.*** `sessions/import.ts` priced a
+collision only between two installs importing each other's copies. The common
+case is one install: an export loaded back where its session still is, and
+every backup import of an account's own sessions ([P12.9]). The index holds one
+row per turn id, so the copy took the original's rows at every append. The importer refuses a session
+whose turns the install already holds (`409 already-here`), and three defects
+found beside it are fixed with it: each turn now names the session it landed
+in, where it kept the exporter's id; the session row is indexed, where there was
+none; and the renditions' records are written (a `pending` one as `interrupted`,
+pixels only when the source carries them), where they were counted and dropped.
+The tests behind row 10 now use a second test server, where they used the same
+one.
+
 ### P11.11 — Backup and restore
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:
