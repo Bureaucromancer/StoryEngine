@@ -480,7 +480,7 @@ export function planCall(
     });
     return withheld === null ? { ...candidate, text: candidate.image.sentText } : candidate;
   });
-  const assembled = assemble({
+  const packed = assemble({
     candidates: needsPrompting(request.schema, provider.capabilities.supportsStructuredOutput)
       ? [...asked, schemaInstruction(request.schema)]
       : asked,
@@ -494,6 +494,20 @@ export function planCall(
       ? { refused: context.refused }
       : {}),
   });
+  /**
+   * ***A picture the budget dropped was not sent*** — decided before the budget
+   * ran, so said again after it. The collector's pictures on the move being made
+   * are required and cannot be dropped; a step's own candidate can be, and the
+   * record would otherwise say *Picture sent* over a block that never left.
+   */
+  const assembled = {
+    ...packed,
+    blocks: packed.blocks.map((block) =>
+      block.image?.sent === true && !block.included
+        ? { ...block, image: { ...block.image, sent: false, withheld: 'budget' as const } }
+        : block,
+    ),
+  };
   // A step that supplied its own candidates never consulted the preset, so
   // the not-filled list honestly empties rather than describing a collection
   // this call did not use ([P3.0] §7.5).
@@ -523,9 +537,13 @@ export function planCall(
  * The send rule, one picture at a time — [25 E15]. Null means *send the
  * pixels*; anything else is the reason the block records for not sending them.
  *
- * Ordered so the reason is the most fundamental one that applies: a kind this
- * build does not send is that before it is anything else, and a picture from
- * an earlier turn is outside the window whatever the model can see.
+ * ***When several reasons apply, the record names the one that choosing
+ * another model cannot fix*** — so the model comes last. A kind this build does
+ * not send, a picture from an earlier turn, a slot whose message cannot carry a
+ * picture and bytes that are not here would each still hold the picture back on
+ * a model that sees; *this model is not marked as seeing pictures* is the one
+ * reason a person answers in settings, and it is only true as the whole answer
+ * when nothing else is in the way.
  */
 function withheldBecause(
   candidate: Candidate,
@@ -537,10 +555,10 @@ function withheldBecause(
   if (image.kind !== 'image') return 'unknown-kind';
   if (!image.current) return 'outside-window';
   if (candidate.role !== 'user') return 'not-user-role';
-  if (!seesImages(resolution.connection, resolution.modelId)) return 'model-text-only';
   if (image.digest === null || image.mime === null || present?.has(image.digest) !== true) {
     return 'missing-bytes';
   }
+  if (!seesImages(resolution.connection, resolution.modelId)) return 'model-text-only';
   return null;
 }
 
@@ -564,6 +582,10 @@ function picturesIn(messages: readonly RenderedMessage[]): Set<string> {
  * goes with its words, which is the answer the check would have given a moment
  * earlier. A call that failed instead would be the one way a picture could stop
  * a story.
+ *
+ * *A loader says a picture is missing by answering null* — and the runner's
+ * answers null for a file it can see and cannot read, too, having said so in
+ * the log: an unreadable picture is as absent from the wire as a deleted one.
  */
 async function planWithPictures(
   context: CallContext,

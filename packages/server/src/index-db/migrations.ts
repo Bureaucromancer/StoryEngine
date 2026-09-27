@@ -75,8 +75,14 @@ import type { DatabaseSync } from 'node:sqlite';
  * and still true of what it was about: a change in what is derived from files
  * that have not changed needs a bump, because nothing re-reads an unchanged
  * file.
+ *
+ * **11 is 9's shape again** (2026-09-27): no table changed, and what a turn's
+ * search text holds did. A move's pictures were indexed as the stand-ins a model
+ * reads (*[Picture, not described]*) and are now indexed as their captions
+ * only ([25 E15]), because search is read by a person. Turns written before
+ * pictures index exactly as they did; the bump is for the ones written since.
  */
-export const INDEX_SCHEMA_VERSION = 10;
+export const INDEX_SCHEMA_VERSION = 11;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for

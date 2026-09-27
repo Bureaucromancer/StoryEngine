@@ -697,8 +697,25 @@ export class TurnRunner {
       job.sessionId,
       digestsOf(payload.input === undefined ? [] : [{ input: payload.input }]),
     );
-    const loadPicture = (digest: string): ReturnType<typeof readAttachment> =>
-      readAttachment(commit.sessions.layout, job.account, job.sessionId, digest);
+    /**
+     * ***A file that is there and cannot be read is missing too*** — the
+     * storage layer's rule is that only absence is a value, and it throws for
+     * anything else; this is the one reader that turns that into *go with the
+     * words*, because a picture must never be what stops a turn
+     * (`planWithPictures`). Said in the log with the digest and the error's code,
+     * never the path.
+     */
+    const loadPicture = async (digest: string): ReturnType<typeof readAttachment> => {
+      try {
+        return await readAttachment(commit.sessions.layout, job.account, job.sessionId, digest);
+      } catch (error) {
+        log?.warn(
+          { event: 'picture.unreadable', digest, code: (error as NodeJS.ErrnoException).code },
+          'A picture on this move could not be read; it goes as its words',
+        );
+        return null;
+      }
+    };
 
     /**
      * **Revoking disables; it never deletes** ([09 §4.5]).

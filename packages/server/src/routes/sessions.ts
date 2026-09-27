@@ -41,7 +41,9 @@ import {
   setMemoryConfig,
   setRenditionSelection,
   setName,
+  sessionFilePath,
   undoTurn,
+  withSessionLock,
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
@@ -64,7 +66,7 @@ import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
 import { assetPath } from '../renditions/worker.js';
-import { readFileBytes } from '../storage/files.js';
+import { fileExists, readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -76,6 +78,7 @@ import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { exportSession } from '../sessions/export.js';
 import { importSession } from '../sessions/import.js';
 import {
+  attachmentsAgain,
   attachmentsFor,
   digestsOf,
   isDigest,
@@ -86,7 +89,7 @@ import {
 import { readOnePart } from './import.js';
 import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
-import { previewAssembly } from '../turns/preview.js';
+import { DEFAULT_INPUT_KIND, previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
 import { PathEscapeError } from '../storage/paths.js';
@@ -724,6 +727,15 @@ const SubmitBody = Type.Object(
         actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
         kind: Type.Optional(Type.String({ maxLength: 40 })),
         attachments: AttachmentsField,
+        /**
+         * ***A redo's pictures, named by the turn that has them*** —
+         * [25 E15]. The server copies that turn's `input.attachments` as
+         * recorded, ids and kinds and digest-less pictures included, rather
+         * than rebuilding them from what a client re-sends — see
+         * `attachmentsAgain`. Not with `attachments`, which is for pictures
+         * just uploaded.
+         */
+        attachmentsOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
       },
       { additionalProperties: false },
     ),
@@ -2112,22 +2124,6 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***The pixels*** — [P9.2], and the shape `routes/library.ts` already
-   * promised this phase.
-   *
-   * That file's `GET /library/:kind/:id/media/:mediaId` says it in as many
-   * words: *"[P9] is the next consumer — a rendition's asset needs serving the
-   * same way, and `MediaSelection`'s two arms are already the one shape both go
-   * through."* So: `content-type` from the record, `etag` from the bytes' own
-   * digest, and the buffer. No `sendFile`, no range support, and nothing this
-   * build does not already do once.
-   *
-   * **The record is read to serve the bytes**, rather than the path being
-   * derived from the id alone. It costs one file read and buys the two headers —
-   * and it is the only thing that can tell an evicted rendition (`asset: null`,
-   * a **404** and a placeholder) from one that was never made.
-   */
-  /**
    * ***A picture for a move, uploaded before the move is sent*** — [25 E15], R1,
    * and [10 §11.2b]'s two-step shape: the bytes first, then the turn names them
    * by digest in its ordinary JSON body.
@@ -2161,12 +2157,31 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         });
       }
 
-      const stored = await storeAttachment(
-        services.sessions.layout,
-        account.handle,
-        sessionId,
-        part.bytes,
-      );
+      /**
+       * ***Stored under the session's lock, and only while the session is
+       * there*** — `intoSession`'s rule for a late writer. The body is read
+       * before this, outside the lock, so a slow transfer never holds it; and a
+       * session deleted during the transfer is not recreated as a folder holding
+       * one picture beside the trashed one, which nothing would ever list,
+       * sweep or remove.
+       */
+      const { layout } = services.sessions;
+      let stored: Awaited<ReturnType<typeof storeAttachment>> | 'gone';
+      try {
+        stored = await withSessionLock(sessionId, async () =>
+          (await fileExists(sessionFilePath(layout, account.handle, sessionId)))
+            ? storeAttachment(layout, account.handle, sessionId, part.bytes)
+            : 'gone',
+        );
+      } catch (error) {
+        if (error instanceof PathEscapeError) {
+          return reply.code(422).send({ error: 'refused-path', message: error.message });
+        }
+        throw error;
+      }
+      if (stored === 'gone') {
+        return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+      }
       if (stored === null) {
         return reply
           .code(415)
@@ -2174,12 +2189,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       }
 
       try {
-        const turns = await readTurns(services.sessions, account.handle, sessionId);
-        await sweepAttachments(
-          services.sessions.layout,
-          account.handle,
-          sessionId,
-          digestsOf(turns.values()),
+        await sweepAttachments(layout, account.handle, sessionId, async () =>
+          digestsOf((await readTurns(services.sessions, account.handle, sessionId)).values()),
         );
       } catch {
         // A sweep that fails leaves a file for next time; it must not cost the
@@ -2221,6 +2232,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     },
   );
 
+  /**
+   * ***The pixels*** — [P9.2], and the shape `routes/library.ts` already
+   * promised this phase.
+   *
+   * That file's `GET /library/:kind/:id/media/:mediaId` says it in as many
+   * words: *"[P9] is the next consumer — a rendition's asset needs serving the
+   * same way, and `MediaSelection`'s two arms are already the one shape both go
+   * through."* So: `content-type` from the record, `etag` from the bytes' own
+   * digest, and the buffer. No `sendFile`, no range support, and nothing this
+   * build does not already do once.
+   *
+   * **The record is read to serve the bytes**, rather than the path being
+   * derived from the id alone. It costs one file read and buys the two headers —
+   * and it is the only thing that can tell an evicted rendition (`asset: null`,
+   * a **404** and a placeholder) from one that was never made.
+   */
   app.get(
     '/sessions/:sessionId/renditions/:renditionId/asset',
     { schema: { params: RenditionParams } },
@@ -2622,10 +2649,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       };
       /**
        * The move's pictures, read as a submission reads them — so the preview
-       * and the turn assemble the same blocks. **A picture this session never
-       * had is left out rather than refused**: a preview answers *what would be
-       * sent*, and it fires on every pause in typing, so a stale composer must
-       * not turn the meter into an error.
+       * and the turn assemble the same blocks. **A picture this session does not
+       * hold is left out rather than refused, and only that picture**: a preview
+       * answers *what would be sent*, and it fires on every pause in typing, so a
+       * stale composer must not turn the meter into an error — nor hide the
+       * pictures that are fine behind the one that is not.
        */
       const { attachments: named, ...rest } = body.input ?? { text: '' };
       let attachments: TurnAttachment[] | undefined;
@@ -2635,8 +2663,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           account.handle,
           session.id,
           named,
-          async () =>
-            digestsOf((await readTurns(services.sessions, account.handle, session.id)).values()),
+          'preview',
         );
         if (read.ok) attachments = read.attachments;
       }
@@ -3097,6 +3124,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           actorId?: string | null;
           kind?: string;
           attachments?: { digest: string; caption?: string }[];
+          attachmentsOf?: string;
         };
         guidance?: string;
       };
@@ -3201,16 +3229,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * [25 E15], R1. A digest the store does not hold names a picture that was
        * never uploaded here, and recording it would be a turn pointing at
        * nothing; refused before a job exists, while the request is still one.
+       *
+       * ***Or a redo's, copied from the turn it names*** — which is how a
+       * picture whose bytes never reached this server (an imported turn) is
+       * carried: it is on the record, so it is not a claim.
        */
       let attachments: TurnAttachment[] | undefined;
-      if (body.input.attachments !== undefined && body.input.attachments.length > 0) {
+      const composed = body.input.attachments ?? [];
+      if (body.input.attachmentsOf !== undefined) {
+        if (composed.length > 0) {
+          return reply.code(400).send({
+            error: 'invalid',
+            message: 'A move carries its own pictures or another turn’s, not both.',
+          });
+        }
+        const source = await readTurnById(
+          services.sessions,
+          account.handle,
+          sessionId,
+          body.input.attachmentsOf,
+        );
+        if (source === null) {
+          return reply.code(404).send({
+            error: 'no-such-turn',
+            message: 'No such turn in this session to take the pictures from.',
+          });
+        }
+        const again = await attachmentsAgain(
+          services.sessions.layout,
+          account.handle,
+          sessionId,
+          source.input?.attachments ?? [],
+        );
+        if (again.length > 0) attachments = again;
+      } else if (composed.length > 0) {
         const read = await attachmentsFor(
           services.sessions.layout,
           account.handle,
           sessionId,
-          body.input.attachments,
-          async () =>
-            digestsOf((await readTurns(services.sessions, account.handle, sessionId)).values()),
+          composed,
+          'submit',
         );
         if (!read.ok) {
           return reply.code(422).send({
@@ -3445,7 +3503,7 @@ function payloadOf(
   return {
     input: {
       actorId: body.input.actorId ?? null,
-      kind: body.input.kind ?? 'do',
+      kind: body.input.kind ?? DEFAULT_INPUT_KIND,
       text: body.input.text,
       // What the player typed, before anything normalised it. Kept because a
       // rewrite replays the original rather than the interpretation.

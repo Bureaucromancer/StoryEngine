@@ -143,6 +143,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    */
   'import.backup.tagsMerged': 'Brought {added} tags across and kept {kept} that were already here.',
   'import.backup.sessions': 'Brought {imported} sessions across, and left {skipped}.',
+  'import.backup.picturesNotStored':
+    '{count} pictures on players’ moves could not be written here. Their moves keep their captions.',
   'import.backup.connectionsTaken':
     'Brought {added} connections across and kept {kept} that were already here.',
   'import.backup.connectionsNotTaken':

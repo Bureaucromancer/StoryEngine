@@ -2179,9 +2179,13 @@ before they are discovered:
   assist somebody rejected (which cost exactly as much) would leave nothing. The
   record is the account's usage log, `users/<handle>/usage.jsonl`
   ([21 §1.4](21-internal-contracts.md)): one line per call, the provider's own
-  figures or null. It covers every call that makes no turn — field assists,
-  impersonation, and the moment call behind **Illustrate** — and it is what the
-  aggregate view in [24 §3](24-roadmap.md) will read.
+  figures or null. ~~It covers every call that makes no turn~~ *It covers the
+  text calls that make no turn and return* (corrected the same day) — field
+  assists, impersonation, and the moment call behind **Illustrate** — and it is
+  what the aggregate view in [24 §3](24-roadmap.md) will read. **Not yet**: an
+  image render's own cost, which [25 E16](25-open-questions.md) records as
+  dropped, and a call that failed or was cancelled after the provider had
+  started billing, which records nothing because nothing returned.
 
 ### 11.5 Traps
 

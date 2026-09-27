@@ -1666,10 +1666,15 @@ one file part, the library import's two-step shape
 ([10 §11.2b](design/10-ui-surfaces.md)): the bytes first, then the turn names
 them by digest in its ordinary JSON body.
 
-→ **201** `{ attachment: { digest: "sha256:…", mime, bytes } }`; **413
-`too-large`** past 8 MB; **415 `not-an-image`** unless the bytes are a PNG,
-JPEG or WebP **by their own signature** — never by the file name or the part's
-declared type.
+→ **201** `{ attachment: { digest: "sha256:…", mime, bytes, width?, height? } }`
+— the pixel size read from the file's header, absent if it could not be read;
+**413 `too-large`** past 8 MB; **415 `not-an-image`** unless the bytes are a
+PNG, JPEG or WebP **by their own signature** — never by the file name or the
+part's declared type; **404 `not-found`** when the session was deleted while the
+picture was on its way — the store is written under the session's lock and only
+while the session is there, so a late upload never recreates a deleted
+session's folder; **422 `refused-path`** when the session's folder leads
+somewhere else on disk.
 
 **Never re-encoded here.** The client scales a picture down and re-encodes it
 before upload, and **fails closed**: a browser that cannot re-encode refuses
@@ -1677,12 +1682,18 @@ rather than sending the original, because a phone photograph records where it
 was taken. The server keeps its position of having no raster encoder, so this
 route stores exactly the bytes it was given, under their own content address in
 `sessions/<id>/attachments/` ([03 §5.5](design/03-data-model.md)). The same
-picture uploaded twice is one file.
+picture uploaded twice is one file, and **uploading it again renews it**: the
+sweep below counts a day from the last time anybody wanted a picture, not from
+the first time it was written.
 
-**The upload also sweeps**: pictures no turn in the session names — every turn,
-siblings and tombstones included, never only the head path — and nobody has
-touched for a day are removed. On age rather than on commit, because the
-composer holds uploads no turn names yet while the session goes on committing.
+**The upload also sweeps**: pictures no turn in the session names — every turn a
+reader sees, siblings included, never only the head path — and nobody has
+wanted for a day are removed. On age rather than on commit, because the composer
+holds uploads no turn names yet while the session goes on committing; a
+submitted move renews its pictures too, so one is safe while its turn is still
+running. Only names this store writes are ever removed, and the turns are read
+only when something is old enough to go. *A tombstoned turn is not a
+reference* — the reader skips it, and nothing writes tombstones at 1.0.
 
 `GET` serves the bytes in the rendition asset route's shape: `content-type`
 from the store, the digest as the `etag`, and cached as immutable, since the
@@ -1696,7 +1707,8 @@ that caption with a placeholder where the picture would be.
 ```
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
   rewriteOf?: string, redoOf?: string,
-  input: { text, actorId?, kind?, attachments?: [{ digest, caption? }] },
+  input: { text, actorId?, kind?, attachments?: [{ digest, caption? }],
+           attachmentsOf?: string },
   guidance? }
 ```
 
@@ -1750,13 +1762,21 @@ with `guidance`; the schema does not couple them.
 **`input.attachments` names pictures already uploaded to this session** —
 at most four, each by digest with an optional caption
 ([25 E15](design/25-open-questions.md)). **Digests and captions are all a client
-says**: the type and size on the turn are read from this server's store, on
-`rewriteOf`'s reasoning. A digest the store does not hold is **`422
-unknown-attachment`**, carrying the `digest` — unless a turn already in this
-session names it, which is the redo of an imported turn whose bytes never
-travelled. Refusing that redo would make a session that once had a picture
-harder to continue than one that never did, so it is recorded as it was and
-goes to every model as its words.
+says**: the type, size and dimensions on the turn are read from this server's
+store, on `rewriteOf`'s reasoning. A digest the store does not hold is **`422
+unknown-attachment`**, carrying the `digest`.
+
+**`input.attachmentsOf` is a redo's pictures**: a turn in this session whose
+`input.attachments` this move carries, **copied as recorded** — every id, kind
+and caption, and a picture whose bytes never reached this server, which is the
+ordinary state of an imported turn and goes to every model as its words.
+Type, size and dimensions are re-read for any picture whose bytes are here now.
+A turn that is not in this session is **`404 no-such-turn`**, and naming both
+`attachments` and `attachmentsOf` is **`400`**. *Why a turn rather than a
+re-sent list*: the client can only re-send what it can name, so a rebuilt list
+lost every picture without a digest and turned a kind this build does not know
+into `image` — which, bytes present, a model that sees would then have been
+sent.
 
 **The caption is the picture for every model that cannot see it**, and it is
 never folded into `input.text`, which stays the player's words. Whether the
@@ -1764,8 +1784,10 @@ pixels go is decided **per call**, from the model the call resolved to: only a
 picture on the move being taken, in a user message, to a model its connection
 lists in `imageModels` (below), with its bytes present. Otherwise the caption
 goes, or an honest placeholder when there is none — and the assembled block's
-`image` says which and why (`model-text-only`, `outside-window`,
-`missing-bytes`, `not-user-role`, `unknown-kind`). Nothing records a session as
+`image` says which and why (`unknown-kind`, `outside-window`, `not-user-role`,
+`missing-bytes`, `model-text-only`, in the order the record prefers when several
+hold: the model last, since it is the one reason another binding fixes; and
+`budget` when the budgeter dropped a step's own picture). Nothing records a session as
 able to see pictures, which is what keeps one used with a model that sees
 continuable on a model that does not.
 
@@ -1967,10 +1989,14 @@ workbench decides between showing the composed turn and the last committed one.
 
 `input.attachments` previews the pictures in the composer, and each picture's
 block carries the same `image` disclosure a turn's does — so *will this model
-see the picture* is answerable before sending. **A digest the store does not
-hold is dropped here rather than refused**: the preview runs every time
-somebody pauses typing, and a picture removed from the composer a moment ago is
-not a request worth a `422`. And since 2026-09-27 the preview resolves its model
+see the picture* is answerable before sending, and the composer says it under
+each picture. **A digest the store does not hold is left out here rather than
+refused, and only that one**: the preview runs every time somebody pauses
+typing, and a picture swept a moment ago is not a request worth a `422` — nor a
+reason to hide the pictures that are fine. The rest keep the ids they will have
+when the move is sent. And **`input` without a `kind` previews the kind a
+submission defaults to** (`do`), so a pack whose input slots are all per-kind —
+Freeform's — previews the move's words and pictures rather than neither. And since 2026-09-27 the preview resolves its model
 through the same session and step layers, and the same actor hint, as the turn
 does; before, it read the account's binding alone, and could name a different
 model from the one that answered — which the send rule would have made a
@@ -3097,7 +3123,7 @@ proof obligation arriving for free.
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 409 | `exists` | An account with that handle already exists |
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
-| 413 | `too-large` | The preference document would exceed its size cap, or an upload exceeds `limits.maxUploadMb` |
+| 413 | `too-large` | The preference document would exceed its size cap, an upload exceeds `limits.maxUploadMb`, or it exceeds a route's own fixed cap — an avatar's, or a picture on a move's (8 MB) |
 | 415 | `not-multipart` | An upload that was not `multipart/form-data` |
 | 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
 | 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |

@@ -51,7 +51,8 @@ import { fromModelCall, recordUsage } from '../usage/log.js';
  *
  * ***No session, and therefore no preset, no lore and no cast.*** A library
  * object is authored outside any story, so there is no assembly to run: this
- * resolves the account's `prose` role, renders one instruction, and calls.
+ * resolves the role the account chose for assist (`prose` unless it chose
+ * otherwise, `providers/task-roles.ts`), renders one instruction, and calls.
  * *That is a deliberate floor rather than a first draft.* The alternative — an
  * assist that reached for whichever session happened to be open — would make
  * the quality of a library edit depend on a piece of state the author is not
@@ -140,8 +141,9 @@ export type AssistResult =
  * that ends when the person leaves.
  *
  * *A step definition for a call that is not a step*, because that is what
- * `performCall` takes and every field of it is true here: it asks the `prose`
- * role (the module docstring says why), it contributes the text a person will
+ * `performCall` takes and every field of it is true here: its role is
+ * `prose`, which the call replaces with the account's choice (below), it
+ * contributes the text a person will
  * read, and it writes no channel — so its purpose derives to `prose` like a
  * narration's.
  */

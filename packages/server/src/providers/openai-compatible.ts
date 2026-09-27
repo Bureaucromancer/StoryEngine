@@ -334,8 +334,14 @@ export class OpenAICompatibleProvider implements Provider {
  * What the SDK takes as one message's content: a string, or — for a user
  * message carrying a picture ([25 E15]) — its parts in order.
  */
+/**
+ * *A `file` part with an image type*, not the SDK's `image` part: this SDK
+ * version deprecated `image` and warned on every call that used it, through
+ * `process.emitWarning` rather than the server's log. The two reach the wire as
+ * the same `image_url` data URL, which the wire test holds.
+ */
 type SdkPart =
-  { type: 'text'; text: string } | { type: 'image'; image: Uint8Array; mediaType: string };
+  { type: 'text'; text: string } | { type: 'file'; data: Uint8Array; mediaType: string };
 
 /** Only a user message can carry a picture — an assistant's is always a string. */
 type SdkMessage =
@@ -369,9 +375,9 @@ function contentFor(
       continue;
     }
     const held = images.get(part.digest);
-    if (held !== undefined) built.push({ type: 'image', image: held.bytes, mediaType: held.mime });
+    if (held !== undefined) built.push({ type: 'file', data: held.bytes, mediaType: held.mime });
   }
-  return built.some((part) => part.type === 'image') ? built : message.content;
+  return built.some((part) => part.type === 'file') ? built : message.content;
 }
 
 /**

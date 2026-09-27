@@ -12,7 +12,7 @@ import type {
 import type { Lorebook } from '@storyengine/shared';
 import { newLoreEntry } from '@storyengine/shared';
 
-import { moveText } from '../assembly/pictures.js';
+import { moveText, quoted } from '../assembly/pictures.js';
 import { read, update, type LibraryContext } from '../library.js';
 import { ensureMemoryBook, type MemoryScope } from './books.js';
 import { readMemoryConfig } from './config.js';
@@ -359,7 +359,7 @@ function renderExchange(input: StepInput): string {
     .map((turn) =>
       // The move with its pictures' stand-ins, so a remembered moment that was a
       // picture is remembered as one ([25 E15]).
-      [turn.input === undefined ? '' : `> ${moveText(turn.input)}`, turn.output?.text ?? '']
+      [quoted(moveText(turn.input)), turn.output?.text ?? '']
         .filter((line) => line !== '')
         .join('\n'),
     )

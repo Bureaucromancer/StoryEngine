@@ -2198,7 +2198,9 @@ describe('a wrapper names who its block is about', () => {
  *
  * - a picture on the move being made is **required**, as the move's words are —
  *   a budget that could drop it would drop the part of the move being shown;
- * - it is wrapped as its slot wraps everything, both ways it can go;
+ * - it is **never framed by the move's kind** — a picture is not speech — and
+ *   in history wears the history slot's wrapper as every history block does, so
+ *   the same picture reads the same before and after its turn;
  * - in history it follows its turn's words and precedes the reply, and is
  *   **never current**, so R1 never sends an old picture as pixels;
  * - a move that was only a picture still has its picture in history, where an
@@ -2213,7 +2215,7 @@ describe('pictures on a move', () => {
     caption: 'a lantern',
   };
 
-  it('makes the move’s picture a required candidate, wrapped both ways', () => {
+  it('makes the move’s picture a required candidate, in its own words both ways', () => {
     const { candidates } = collectCandidates(
       context({
         preset: preset([
@@ -2222,23 +2224,78 @@ describe('pictures on a move', () => {
             id: 'se.input',
             role: 'user',
             source: { of: 'input' },
-            wrapper: 'You: {{content}}',
+            wrapper: 'You say: “{{content}}”',
           }),
         ]),
         input: { text: 'Look.', attachments: [PICTURE] },
       }),
     );
 
+    const words = candidates.find((one) => one.id === 'se.input');
+    expect(words?.text).toBe('You say: “Look.”');
     const picture = candidates.find((one) => one.image !== undefined);
     expect(picture?.id).toBe('se.input.attachment.0');
     expect(picture?.required).toBe(true);
-    expect(picture?.text).toBe('You: [Picture — not shown: a lantern]');
+    // Not *you say: "[Picture…]"* — a picture is not a line of speech.
+    expect(picture?.text).toBe('[Picture — not shown: a lantern]');
     expect(picture?.image).toMatchObject({
       current: true,
       digest: PICTURE.digest,
-      sentText: 'You: [Picture: a lantern]',
+      sentText: '[Picture: a lantern]',
     });
     expect(picture?.source).toEqual({ kind: 'input', part: 'attachment', attachmentId: '0' });
+  });
+
+  /**
+   * ***The same picture, before and after its turn*** — the drift main's
+   * `asItWasSaid` removed for a move's words, which pictures reached from the
+   * other side: framed as speech while current, bare a turn later. Pack-shaped:
+   * a `say` slot that quotes, a history slot with a wrapper of its own.
+   */
+  it('reads the same as the move being made and in history, but for the history slot’s own frame', () => {
+    const say = block({
+      kind: 'slot',
+      id: 'se.input.say',
+      role: 'user',
+      source: { of: 'input' },
+      appliesTo: ['say'],
+      wrapper: 'The player’s character says: “{{content}}”',
+    });
+    const history = block({
+      kind: 'slot',
+      id: 'se.history',
+      source: { of: 'history' },
+      wrapper: '(earlier) {{content}}',
+    });
+    const now = collectCandidates(
+      context({
+        preset: preset([history, say]),
+        inputKind: 'say',
+        input: { text: 'Look.', attachments: [PICTURE] },
+      }),
+    ).candidates.find((one) => one.image !== undefined);
+    const later = collectCandidates(
+      context({
+        preset: preset([history, say]),
+        history: [
+          {
+            id: 'turn-1',
+            input: {
+              actorId: null,
+              kind: 'say',
+              text: 'Look.',
+              raw: 'Look.',
+              attachments: [PICTURE],
+            },
+            output: { text: 'A lantern, lit.' },
+          } as Turn,
+        ],
+      }),
+    ).candidates.find((one) => one.image !== undefined);
+
+    expect(now?.image?.sentText).toBe('[Picture: a lantern]');
+    expect(later?.text).toBe('(earlier) [Picture — not shown: a lantern]');
+    expect(later?.image?.sentText).toBe('(earlier) [Picture: a lantern]');
   });
 
   it('places an old picture after its words and before the reply, never as current', () => {

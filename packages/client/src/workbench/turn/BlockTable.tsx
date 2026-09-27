@@ -13,19 +13,42 @@ import { blockSourceAddress } from '../address.js';
 import { labels } from '../../i18n/catalogue.js';
 
 /**
- * ***Pixels or words, and why*** — [25 E15]. A picture's block always went, as
- * one or the other, and the workbench is where somebody asks *did the model
- * actually see it*. The reason is the send rule's own, in words.
+ * ***Pixels or words, and why*** — [25 E15]. A picture's block went as one or
+ * the other unless the budget dropped it, and the workbench is where somebody
+ * asks *did the model actually see it*. The reason is the send rule's own, in
+ * words.
+ *
+ * *The sent badge says what its token figure leaves out*: a sent picture is
+ * counted as its words, and what the pixels cost the model is not estimated
+ * until per-picture costs exist — so a call that overflowed on the endpoint's
+ * side while this table showed room is explained here rather than nowhere.
  */
-const PICTURE_WORDS: Readonly<Record<string, string>> = labels('workbench.picture', {
+export const PICTURE_WORDS: Readonly<Record<string, string>> = labels('workbench.picture', {
   sent: 'Picture sent',
   held: 'Picture as words',
+  dropped: 'Picture dropped',
+  'sent-cost': 'Counted as its words: what the picture itself costs the model is not estimated yet',
   'model-text-only': 'this model is not marked as seeing pictures',
   'outside-window': 'from an earlier turn — only the move being made sends pictures',
   'missing-bytes': 'the picture is not on this server',
   'not-user-role': 'it sits in a message that cannot carry a picture',
   'unknown-kind': 'a kind of attachment this build does not send',
+  budget: 'the budget left it out, so neither the picture nor its words went',
 });
+
+/** The badge's words and its explanation, from the block's disclosure. */
+export function pictureBadge(image: NonNullable<AssembledBlock['image']>): {
+  label: string;
+  title: string;
+} {
+  if (image.sent)
+    return { label: PICTURE_WORDS['sent'] ?? '', title: PICTURE_WORDS['sent-cost'] ?? '' };
+  const reason = image.withheld ?? 'missing-bytes';
+  return {
+    label: (reason === 'budget' ? PICTURE_WORDS['dropped'] : PICTURE_WORDS['held']) ?? '',
+    title: PICTURE_WORDS[reason] ?? reason,
+  };
+}
 
 /**
  * The block list, in order — [10 §3]'s primary view: source, plain-language
@@ -140,13 +163,8 @@ function BlockRow({
           )}
           {block.advisory === true ? <Badge tone="provenance">Advisory</Badge> : null}
           {block.image === undefined ? null : (
-            <Badge
-              tone="provenance"
-              {...(block.image.withheld === undefined
-                ? {}
-                : { title: PICTURE_WORDS[block.image.withheld] ?? block.image.withheld })}
-            >
-              {block.image.sent ? PICTURE_WORDS['sent'] : PICTURE_WORDS['held']}
+            <Badge tone="provenance" title={pictureBadge(block.image).title}>
+              {pictureBadge(block.image).label}
             </Badge>
           )}
         </span>

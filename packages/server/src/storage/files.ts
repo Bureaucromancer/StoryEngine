@@ -14,6 +14,7 @@ import {
   rmdir,
   stat,
   statfs,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -259,6 +260,25 @@ export async function removeTree(path: string): Promise<void> {
  */
 export async function unlinkFile(path: string): Promise<void> {
   await rm(path, { force: true });
+}
+
+/**
+ * Marks a file as just used, and says whether it was there to mark.
+ *
+ * ***For a sweep that collects by age***, where *nobody has touched this for a
+ * day* is the whole rule: a file somebody named again today has to read as
+ * today's, or the sweep's clock is the first time it was written rather than
+ * the last time it was wanted. `false` when the file is absent, which is the
+ * one outcome a caller is expected to branch on; anything else is thrown.
+ */
+export async function touchFile(path: string, at: Date = new Date()): Promise<boolean> {
+  try {
+    await utimes(path, at, at);
+    return true;
+  } catch (error) {
+    if (isMissing(error)) return false;
+    throw error;
+  }
 }
 
 /**

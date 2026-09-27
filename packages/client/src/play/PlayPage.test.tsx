@@ -1419,13 +1419,20 @@ describe('pictures on a move', () => {
     });
   });
 
-  it('redoes a turn with its pictures, as the record names them', async () => {
+  /**
+   * ***A redo is that move again: its kind, and its pictures as recorded*** —
+   * named by the turn, so the server copies them rather than a client
+   * rebuilding them; and the kind, so a redone `think` is not narrated as a
+   * `do`.
+   */
+  it('redoes a turn with its kind and its pictures, named by the turn', async () => {
     readTranscript.mockResolvedValue({
       turns: [
         {
           ...TURN,
           input: {
             ...TURN.input!,
+            kind: 'think',
             attachments: [{ id: '0', kind: 'image', digest: DIGEST, caption: 'a lantern' }],
           },
         },
@@ -1438,9 +1445,22 @@ describe('pictures on a move', () => {
 
     await waitFor(() => {
       expect(submitTurn).toHaveBeenCalledWith(
-        expect.objectContaining({ attachments: [{ digest: DIGEST, caption: 'a lantern' }] }),
+        expect.objectContaining({ kind: 'think', attachmentsOf: TURN.id }),
       );
     });
+    expect(submitTurn.mock.calls.at(-1)?.[0]).not.toHaveProperty('attachments');
+  });
+
+  it('names no pictures on the redo of a move that had none', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Redo' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(expect.objectContaining({ kind: 'action' }));
+    });
+    expect(submitTurn.mock.calls.at(-1)?.[0]).not.toHaveProperty('attachmentsOf');
   });
 
   /**

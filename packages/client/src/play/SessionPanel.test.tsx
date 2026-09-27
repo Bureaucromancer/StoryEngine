@@ -39,6 +39,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   setSessionArchived: (...a: unknown[]) => setSessionArchived(...a) as unknown,
   deleteSession: (...a: unknown[]) => deleteSession(...a) as unknown,
   readSession: () => Promise.resolve({ session }),
+  readTranscript: () => Promise.resolve({ turns: [] }),
   api: { listLibrary: () => Promise.resolve({ objects: [] }) },
 }));
 

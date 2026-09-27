@@ -10,6 +10,7 @@ import {
   useSession,
   useSetSessionArchived,
   useSetSessionPreset,
+  useTranscript,
 } from '../queries.js';
 import { disclosure, link } from '../ui/classes.js';
 import { Alert } from '../ui/Alert.js';
@@ -60,6 +61,14 @@ export function SessionPanel(props: {
   block?: string;
 }): JSX.Element | null {
   const session = useSession(props.sessionId);
+  /**
+   * ***Whether the story has pictures on its moves*** — [25 E15]: *"an export
+   * containing attachments should say so"*. The transcript Play already holds,
+   * read from the same cache entry, so asking costs nothing.
+   */
+  const transcript = useTranscript(props.sessionId);
+  const hasPictures =
+    transcript.data?.turns.some((turn) => (turn.input?.attachments?.length ?? 0) > 0) ?? false;
   // The same key the library page holds, so opening this issues no request.
   const presets = useLibrary('presets');
   const setPreset = useSetSessionPreset(props.sessionId);
@@ -213,6 +222,15 @@ export function SessionPanel(props: {
           <a href={`/api/sessions/${props.sessionId}/export`} className={link.inline} download>
             Export this session
           </a>
+          {/* *Said where the choice is made*: an export carries the record of
+              every picture and its caption, and not the picture — the file
+              is the story's text. A backup is what carries the pixels. */}
+          {hasPictures ? (
+            <Fine>
+              The pictures on this story’s moves travel as their captions. A backup carries the
+              pictures themselves.
+            </Fine>
+          ) : null}
           <Button
             type="button"
             onClick={() => {

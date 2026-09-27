@@ -631,6 +631,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
               `${block.id}.${turn.id}.attachment.${attachment.id}`,
               false,
               names,
+              turnBlock.wrapper,
             ),
           );
           return [...words, ...pictures];
@@ -736,6 +737,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             `${block.id}.attachment.${attachment.id}`,
             true,
             names,
+            undefined,
           ),
         ),
       ];
@@ -1079,11 +1081,19 @@ function wrap(wrapper: string, text: string, names: RenderContext): string {
 /**
  * One picture as a candidate — [25 E15], R1.
  *
- * ***Its text is the picture as words***, wrapped as its slot wraps everything
- * else, because that is what goes whenever the pixels do not; `sentText` is the
- * same wrapper around what goes beside them when they do. Never empty, so the
- * empty rule never drops a picture, and never advisory — a picture a person
- * showed is part of the story, not a steer.
+ * ***Its text is the picture as words***, because that is what goes whenever
+ * the pixels do not; `sentText` is what goes beside them when they do. Never
+ * empty, so the empty rule never drops a picture, and never advisory — a
+ * picture a person showed is part of the story, not a steer.
+ *
+ * ***Never framed by the move's kind*** (2026-09-27). The input slot's wrapper
+ * is the kind's — Freeform's `say` is *the player's character says: "…"* — and
+ * a picture is not speech, nor thought, nor narration: framed that way it went
+ * out as `says: "[Picture: the harbour]"`, and a turn later, through the
+ * history slot, bare. Now it is bare as the move being made and wears only
+ * the history slot's own wrapper in history, as every history block does, so
+ * the same picture reads the same on both sides of its turn. Its words already
+ * say what it is.
  */
 function emitPicture(
   block: PresetBlock,
@@ -1092,10 +1102,12 @@ function emitPicture(
   id: string,
   current: boolean,
   names: RenderContext,
+  /** The history slot's wrapper, in history; nothing, as the move being made. */
+  wrapper: string | undefined,
 ): Candidate {
   const texts = pictureTexts(attachment);
   const framed = (text: string): string =>
-    block.kind === 'slot' && block.wrapper !== undefined ? wrap(block.wrapper, text, names) : text;
+    wrapper === undefined ? text : wrap(wrapper, text, names);
   const required = current && block.kind === 'slot' && block.source.of === 'input';
   return {
     id,

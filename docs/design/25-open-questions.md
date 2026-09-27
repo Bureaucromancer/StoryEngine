@@ -1683,36 +1683,55 @@ below:
 
 - **Storage and upload.** `sessions/<id>/attachments/<sha256 hex>.<ext>`,
   content-addressed, written atomically, never evicted
-  ([03 §5.5](03-data-model.md)). `POST /api/sessions/:id/attachments` takes a
-  PNG, JPEG or WebP by its own signature, up to 8 MB; `GET …/:digest` serves it.
-  The sweep rides on the upload, on age (a day), counting every turn in the
-  session as a reference. The browser scales to a 1568-pixel long edge and
-  re-encodes before upload, and fails closed.
+  ([03 §5.5](03-data-model.md)), and resolved against the real session folder so
+  a linked `attachments/` cannot lead out of it. `POST /api/sessions/:id/attachments`
+  takes a PNG, JPEG or WebP by its own signature, up to 8 MB, and only while the
+  session exists; `GET …/:digest` serves it. The sweep rides on the upload, on
+  age: a day since anybody last *wanted* the file — an upload or a submitted move
+  renews it — and counts every turn a reader sees as a reference. The browser
+  scales to a 1568-pixel long edge and re-encodes before upload, and fails
+  closed.
 - **The record**, all optional: `input.attachments` (id, open `kind`, digest,
-  type and size from the store, caption); `RenderedMessage.parts` beside
-  `content` ([21 §2](21-internal-contracts.md)); `AssembledBlock.image`, the
-  disclosure; `part: "attachment"` on the `input` and `history` sources
+  and the type, size and pixel dimensions the server read from its own store,
+  and the caption); `RenderedMessage.parts` beside `content`
+  ([21 §2](21-internal-contracts.md)); `AssembledBlock.image`, the disclosure;
+  `part: "attachment"` on the `input` and `history` sources
   ([21 §1.1](21-internal-contracts.md)). Four pictures to a move.
 - **Per-model support**: `imageModels` on a connection, a subset of `models`,
   empty by default, with a checkbox per model in the connection editor
   ([21 §3](21-internal-contracts.md)).
 - **The send rule, in `planCall`**, against the model resolved after the session
   and step layers and the actor hint. A picture whose pixels do not go sends its
-  words, and the block says why. The adapter builds array content only for a
-  user message carrying a loaded picture, and a wire test asserts the
-  `image_url` data URL leaves.
-- **Every text consumer reads the picture's words**: the summariser, memory
-  extraction, the index and a step's transcript through one function; the lore
-  scan and speaker detection read captions only. A summary unit's key gains the
-  captions only for a turn that has pictures, so no existing chain re-keys. A
-  move that is only a picture is no longer dropped from history.
+  words, and the block says why. When several reasons hold, the one recorded is
+  the one choosing another model cannot fix — kind, then window, then role, then
+  bytes, and the model last — and a picture a budget dropped says `budget`. The
+  adapter builds array content only for a user message carrying a loaded
+  picture; a wire test asserts the `image_url` data URL leaves, and a live test
+  (`STORYENGINE_LIVE_VISION_MODEL`) sends one to a real endpoint.
+- **A picture is never framed by its move's kind.** Freeform's `say` slot wraps
+  words as *the player's character says: "…"*, and a picture is not speech; it
+  goes in its own words as the move being made and wears only the history
+  slot's wrapper in history, so it reads the same on both sides of its turn.
+- **Every text consumer reads the picture's words**: the summariser and memory
+  extraction read a move's words plus its pictures' stand-ins through one
+  function (`moveText`), every line of it quoted as the player's; the index, the
+  lore scan and speaker detection read captions only. A step's transcript
+  carries each picture's kind and caption beside the unchanged `text`, and the
+  built-in steps that read it apply `moveText` themselves. A summary unit's key
+  gains the captions only for a turn that has pictures, so no existing chain
+  re-keys. A move that is only a picture is no longer dropped from history.
 - **Play, the reading view and the workbench**: attach and caption in the
-  composer, pictures on the move in the transcript and the reading view with a
-  placeholder where the bytes are missing, and a badge on the block —
-  *Picture sent* or *Picture as words*, with the reason.
-- **Continuity**: redo carries a move's pictures; export carries the records;
-  backup import re-stores the bytes under their own digest; and a redo of an
-  imported turn whose bytes never arrived is accepted and sends words. The one
+  composer, which says under each picture — from the preview, so it is the
+  turn's own answer — whether the model will see it or get the caption, and
+  why; pictures on the move in the transcript and the reading view, with a
+  placeholder where the bytes are missing; and a badge on the block — *Picture
+  sent*, *Picture as words* or *Picture dropped*, with the reason.
+- **Continuity**: redo carries a move's kind and its pictures — named by the turn
+  (`input.attachmentsOf`), so the server copies them as recorded, ids and kinds
+  and digest-less pictures included, rather than a client rebuilding them.
+  Export carries the records, and the export control says the pictures travel
+  as their captions; backup import re-stores the bytes under their own digest;
+  a redo of an imported turn whose bytes never arrived sends words. The one
   obligation test — an unknown field inside `input` surviving import and
   re-export — is in `sessions/import.test.ts`.
 - **The lock-in tests** are the ones this entry turns on
@@ -1721,40 +1740,63 @@ below:
   with the earlier picture as its words; and a session imported without its
   bytes, whose picture turn is redone as a sibling and goes as words.
 
+*Revised the same day, after an audit of the build against `main` as the
+merge left it.* The first cut's sweep deleted a picture re-uploaded after a day,
+in the request that uploaded it, because a second upload of the same bytes
+changed nothing on disk; it followed a linked folder; its redo rebuilt pictures
+from digest and caption and so lost what it could not name, and lost the move's
+kind; its preview hid every picture when one was unknown and, in a pack whose
+input slots are per-kind, showed none; and it framed a `say` move's picture as
+speech. Each is fixed above and pinned by a test.
+
 ***Where R1 departs from this entry's text, said here rather than
 silently:***
 
-- **The placeholder reaches the summariser, memory and the index.** The floor
-  bullet below says the placeholder is never handed to them; this entry's own
-  opening says a picture with no text form is what every one of those consumers
-  would silently lose. R1 sided with the opening: a move that was an undescribed
-  picture reaches them as `[Picture, not described]`, because a summary that
-  says a picture was shown is truer than one that skips the move. The half of
-  the rule that matters for stability holds: the placeholder's **wording** is
-  never hashed into a summary key (the key carries the caption or `null`), and
-  the lore scan never sees it. Reversing this is one function, `moveText`.
+- **The placeholder reaches the summariser and memory.** The floor bullet below
+  says the placeholder is never handed to them; this entry's own opening says a
+  picture with no text form is what those consumers would silently lose. R1
+  sided with the opening: a move that was an undescribed picture reaches them as
+  `[Picture, not described]`, because a summary that says a picture was shown is
+  truer than one that skips the move. The half of the rule that matters for
+  stability holds: the placeholder's **wording** is never hashed into a summary
+  key (the key carries the caption or `null`), and neither the lore scan nor the
+  index — which a person reads, in search snippets — ever sees it. Reversing
+  this is one function, `moveText`.
 - **The placeholder is message content, inside a block of its own.** The floor
   bullet says *a block with its own source, never message content*; R1 emits it
   as the picture's own block, whose text — like every block's — renders into
   `content`, which the restraint on `RenderedMessage.content` requires. What
   the bullet protects, `input.text`, is untouched.
-- **No dimensions.** The record list below includes them; the server reads a
-  picture's signature and has no decoder, so R1 records type and size only.
-  Adding them later is an optional field.
-- **Play does not mark each picture *sent as a picture* or *sent as its
-  description*.** That is a per-call fact, and R1 shows it where calls are
-  shown — the workbench's block table. Play shows the pictures.
-- **No budget line of its own.** The current move's picture is required, so the
-  budgeter cannot drop it, and it is counted as its words. Pixels have no token
-  figure until R3's declared per-image cost; `budget` is not among the withheld
-  reasons because nothing in R1 can produce it.
-- **Two changes to published shapes, named as this entry asked.** The SDK's
-  `Candidate` gained `image?`, and its transcript's move gained `attachments?`
-  (kind and caption). And `POST …/turns`'s `input` is now **closed**: it was
-  open, so a newer client's field was accepted and silently dropped, which for a
-  picture sent to an older server would have lost it without a word.
+- **No token figure for the pixels.** The current move's picture is required, so
+  the budgeter cannot drop it, and it is counted as its words; what the pixels
+  cost the model is not estimated until R3's declared per-image figure. So a
+  near-full window can overflow on the endpoint's side when pictures are sent —
+  the call view's estimated-against-reported line is where that shows, and the
+  *Picture sent* badge says its figure leaves the picture out. A step's own
+  picture candidate can be dropped, and records `budget`.
+- **Changes to published shapes, named as this entry asked.** The SDK's
+  `Candidate` gained `image?` (the new `CandidateImage`), `StepInput.input`
+  gained `attachments?` (the record's `TurnAttachment`, as `history` already
+  carries it), and the transcript's move gained `attachments?` (kind and caption
+  only). `ImageWithheld` is a new exported union, and it grew `budget` the day it
+  shipped. `POST …/turns`'s `input` is now **closed** — it was open, so a newer
+  client's field was accepted and silently dropped, which for a picture sent to
+  an older server would have lost it without a word — and gained
+  `attachmentsOf`. The preview's `input` was already closed.
 - **No SDK helper for a move's words plus its pictures.** The server has it
   (`assembly/pictures.ts`); publishing it is P7's contract work.
+
+***What the changelog will say***, parked here until the next tag is cut, as
+[P12 §2.1](workplan/29-p12-implementation.md) parks its own: *Pictures on a
+move* — attach up to four, caption each, and a model that can see pictures is
+shown them, while one that cannot gets the caption, so using a picture never
+ties a session to a model that sees; mark which models see pictures in
+Settings → Connections. **For an existing install**: `POST …/turns` and the
+preview now answer `400` to an unknown `input` field; new files appear under
+`sessions/<id>/attachments/`, `users/<handle>/usage.jsonl` and
+`users/<handle>/task-roles.json`; the state store gains a migration
+(`STEPS[7]`, rendition jobs keyed by session) and the search index rebuilds once
+(version 11). Nothing needs doing by hand.
 
 *Surveyed 2026-09-26, against the build as P12 left it.* No design note
 addressed image input before this entry. The `vision` role
@@ -1978,9 +2020,12 @@ library pictures. Pictures out of the text model, which renditions already
 cover. Video, audio and documents: `kind` is held open for them, and nothing
 more.
 
-What moves it: C15 decided as *(d)*, which this entry is the occasion for; or
+~~What moves it: C15 decided as *(d)*, which this entry is the occasion for; or
 somebody who plays with a model that sees wanting R1 enough to build it, which
-needs nothing else first.
+needs nothing else first.~~ **R1 is built (2026-09-27).** What moves the rest:
+R2 waits on C15 decided as *(d)*; R3 has no outside gate — its per-picture
+figure is part of its own work; R4's chat-attached pictures wait on a chat
+importer (E4).
 *[24 §3.1, 06 §5.1, 21 §1.1, 21 §2, 21 §3, 21 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 19 §5.1, C14, C15, E3]*
 
 ### E16. Money — the provider's figure, a declared price, and never a shipped table

@@ -33,6 +33,12 @@ export interface FieldProps {
   hint?: string;
   placeholder?: string;
   /**
+   * The most characters the control holds — the server's own limit, said where
+   * the typing happens, so a field that goes past it is stopped at the key
+   * rather than refused whole at the save.
+   */
+  maxLength?: number;
+  /**
    * Marked with a glyph and announced as required — [10 §11.1a].
    *
    * **The glyph is `aria-hidden` and the announcement is `aria-required`**,
@@ -153,6 +159,7 @@ export function Field(props: FieldProps): JSX.Element {
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           placeholder={props.placeholder}
+          maxLength={props.maxLength}
         />
       ) : (
         <input
@@ -167,6 +174,7 @@ export function Field(props: FieldProps): JSX.Element {
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           placeholder={props.placeholder}
+          maxLength={props.maxLength}
         />
       )}
       <Notes errorId={errorId} hintId={hintId} error={props.error} hint={note} />

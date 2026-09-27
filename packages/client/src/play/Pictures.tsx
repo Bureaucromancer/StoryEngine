@@ -3,7 +3,7 @@
 
 import { useRef, useState, type JSX } from 'react';
 
-import type { TurnAttachment } from '@storyengine/shared';
+import type { AssembledBlock, TurnAttachment } from '@storyengine/shared';
 
 import { ApiError, pictureUrl } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
@@ -32,7 +32,19 @@ const WORDS: Readonly<Record<string, string>> = labels('play.pictures', {
   attach: 'Attach a picture',
   attaching: 'Preparing…',
   remove: 'Remove',
+  'remove-named': 'Remove picture {n}',
   caption: 'What it shows',
+  'caption-named': 'What picture {n} shows',
+  'picture-named': 'Picture {n} on this move',
+  undescribed: 'A picture, not described',
+  'will-see': 'The model will see this picture.',
+  'will-read': 'The model will get your caption instead: {reason}.',
+  'model-text-only': 'the model answering is not marked as seeing pictures',
+  'missing-bytes': 'the picture is not on this server',
+  'not-user-role': 'this pack puts the move where a picture cannot go',
+  'unknown-kind': 'this build does not send this kind of attachment',
+  'outside-window': 'only the move being made sends pictures',
+  budget: 'the budget left it out',
   'caption-hint':
     'Your words about the picture. A model that cannot see pictures gets these instead.',
   full: 'Four pictures is the most one move can carry.',
@@ -47,12 +59,46 @@ const WORDS: Readonly<Record<string, string>> = labels('play.pictures', {
 /** The most pictures one move can carry — the server's limit, said here too. */
 export const MAX_PICTURES = 4;
 
+/** The longest caption the server records — `AttachmentsField`'s limit. */
+export const MAX_CAPTION = 2000;
+
+function numbered(key: string, n: number): string {
+  return (WORDS[key] ?? '').replace('{n}', String(n));
+}
+
 /** A picture in the composer, attached and not yet sent. */
 export interface ComposerPicture {
   digest: string;
   /** A local URL for the prepared bytes, so the thumbnail costs no request. */
   preview: string;
   caption: string;
+}
+
+/**
+ * ***Will the model see it*** — [25 E15]'s *"Play marks each attachment sent
+ * as a picture or sent as its description"*, answered **before** the move is
+ * sent rather than after, which is when the answer is worth having.
+ *
+ * Read from the preview's block for the picture, which the server decided with
+ * the same rule, the same model and the same bytes the turn will use — so this
+ * is the turn's answer, not a guess the composer makes. Null until the preview
+ * has a block for the picture (just attached, or nothing is bound).
+ */
+export function pictureOutlook(
+  blocks: readonly AssembledBlock[] | undefined,
+  digest: string,
+): string | null {
+  const block = blocks?.find(
+    (one) =>
+      one.source.kind === 'input' &&
+      one.source.part === 'attachment' &&
+      one.image?.digest === digest,
+  );
+  const image = block?.image;
+  if (image === undefined) return null;
+  if (image.sent) return WORDS['will-see'] ?? null;
+  const reason = WORDS[image.withheld ?? 'missing-bytes'] ?? image.withheld ?? '';
+  return (WORDS['will-read'] ?? '').replace('{reason}', reason);
 }
 
 /** Why an attach failed, in the composer's words. */
@@ -71,6 +117,8 @@ export function attachProblem(error: unknown): string {
  */
 export function ComposerPictures(props: {
   pictures: readonly ComposerPicture[];
+  /** The preview's blocks, for each picture's {@link pictureOutlook}. */
+  previewBlocks?: readonly AssembledBlock[] | undefined;
   busy: boolean;
   problem: string | null;
   disabled: boolean;
@@ -100,24 +148,54 @@ export function ComposerPictures(props: {
       />
       {props.pictures.length === 0 ? null : (
         <ul className="flex flex-wrap gap-3" aria-label="Pictures on this move">
-          {props.pictures.map((picture) => (
-            <li key={picture.digest} className="flex w-44 flex-col gap-1">
+          {props.pictures.map((picture, index) => (
+            <li
+              key={picture.digest}
+              className="flex w-44 flex-col gap-1"
+              /**
+               * ***Enter in a caption is not Send.*** The caption is a
+               * one-line field inside the composer's form, so a bare Enter
+               * there submitted the move — with the next picture still
+               * uncaptioned, which is the one thing the caption exists to stop.
+               * Caught here, where it bubbles, because the field is the shared
+               * `Field`; a composition in progress (an IME) is left alone.
+               */
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter' &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing &&
+                  event.target instanceof HTMLInputElement
+                ) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {/* *Numbered*, so a reader that cannot see the thumbnails can tell
+                  which caption and which Remove belong to which picture. */}
               <img
                 src={picture.preview}
-                alt={picture.caption}
+                alt={numbered('picture-named', index + 1)}
                 className="aspect-square w-full rounded-control border border-line object-cover"
               />
               <Field
-                label={WORDS['caption'] ?? ''}
+                label={
+                  props.pictures.length === 1
+                    ? (WORDS['caption'] ?? '')
+                    : numbered('caption-named', index + 1)
+                }
                 value={picture.caption}
+                maxLength={MAX_CAPTION}
                 onChange={(value) => {
                   props.onCaption(picture.digest, value);
                 }}
               />
+              <PictureOutlook text={pictureOutlook(props.previewBlocks, picture.digest)} />
               <Button
                 type="button"
                 size="compact"
                 disabled={props.disabled}
+                aria-label={numbered('remove-named', index + 1)}
                 onClick={() => {
                   props.onRemove(picture.digest);
                 }}
@@ -145,6 +223,16 @@ export function ComposerPictures(props: {
           {props.problem}
         </p>
       )}
+    </div>
+  );
+}
+
+/** The outlook line, or nothing — polite, so a change is read out without taking focus. */
+function PictureOutlook(props: { text: string | null }): JSX.Element | null {
+  if (props.text === null) return null;
+  return (
+    <div aria-live="polite">
+      <Fine>{props.text}</Fine>
     </div>
   );
 }
@@ -187,7 +275,9 @@ function MovePicture(props: { sessionId: string; picture: TurnAttachment }): JSX
   return (
     <img
       src={pictureUrl(props.sessionId, digest)}
-      alt={props.picture.caption ?? ''}
+      // Never empty: an empty alt marks an image decorative, and a move that
+      // was only a picture would then be announced as nothing.
+      alt={props.picture.caption ?? WORDS['undescribed'] ?? ''}
       className="aspect-square w-full rounded-control border border-line object-cover"
       onError={() => {
         setBroken(true);

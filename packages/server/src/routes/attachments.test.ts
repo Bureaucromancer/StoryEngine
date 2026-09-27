@@ -284,9 +284,10 @@ describe('a picture on a move', () => {
 describe('pictures that travel', () => {
   /**
    * Redoes a session's first turn with its picture, as the client does — the
-   * digest and caption re-sent — and returns the sibling once it is complete.
+   * turn named as the one whose pictures the move carries — and returns the
+   * sibling once it is complete.
    */
-  async function redo(on: TestServer, session: string, shown: Turn, digest: string): Promise<Turn> {
+  async function redo(on: TestServer, session: string, shown: Turn): Promise<Turn> {
     const redone = await on.request({
       method: 'POST',
       url: `/api/sessions/${session}/turns`,
@@ -294,7 +295,7 @@ describe('pictures that travel', () => {
         idempotencyKey: 'k-redo',
         headTurnId: null,
         parentTurnId: shown.parentTurnId,
-        input: { text: 'Look.', attachments: [{ digest, caption: 'a lantern' }] },
+        input: { text: 'Look.', attachmentsOf: shown.id },
       },
     });
     expect(redone.status, JSON.stringify(redone.body)).toBe(202);
@@ -356,7 +357,7 @@ describe('pictures that travel', () => {
     });
     expect(served.status).toBe(200);
 
-    await redo(server, back, shown, digest);
+    await redo(server, back, shown);
     expect(fake.requests.at(-1)?.images).toEqual([digest]);
   });
 
@@ -398,10 +399,15 @@ describe('pictures that travel', () => {
     expect(missing.status).toBe(404);
 
     // The model sees pictures; the bytes are what is missing, and the words go.
-    const again = await redo(there, copy, shown, digest);
+    const again = await redo(there, copy, shown);
     expect(fake.requests.at(-1)?.modelId).toBe('fake-vision');
     expect(fake.requests.at(-1)?.images).toEqual([]);
-    expect(again.input?.attachments?.[0]).toMatchObject({ digest, caption: 'a lantern' });
-    expect(again.input?.attachments?.[0]?.mime).toBeUndefined();
+    // Pinned on the record too: without the bytes check this would read *sent*.
+    expect(pictureBlocks(again)[0]?.image).toMatchObject({
+      sent: false,
+      withheld: 'missing-bytes',
+    });
+    // The picture as the record had it, copied rather than rebuilt.
+    expect(again.input?.attachments).toEqual(shown.input?.attachments);
   });
 });

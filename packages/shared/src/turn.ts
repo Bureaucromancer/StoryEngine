@@ -91,10 +91,12 @@ export interface RenderedMessage {
   /** Which blocks produced this message, in order. Non-empty always. */
   fromBlocks: string[];
   /**
-   * ***The message in order, when it carries a picture*** — [25 E15], R1.
+   * ***The message in order, when a picture's pixels go in it*** — [25 E15],
+   * R1.
    *
-   * Absent on every message with no picture in it, which is almost all of them
-   * and every one written before 2026-09-27. When present, **its text parts
+   * Absent on every other message — one with no picture, and one whose picture
+   * went as its words — which is almost all of them and every one written before
+   * 2026-09-27. When present, **its text parts
    * joined are exactly `content`**, so `content` stays what the frozen contract
    * says it is — the whole text rendering — and a reader that knows nothing of
    * pictures reads the same message it always did. An image part names its
@@ -130,8 +132,10 @@ export type MessagePart =
  */
 export interface TurnAttachment {
   /**
-   * Stable within the turn, and copied unchanged by a redo — the assembled
-   * block's id is keyed by it, so the workbench can pair two siblings' pictures.
+   * Stable within the turn — the assembled block's id is keyed by it, so the
+   * workbench can pair two siblings' pictures. **An ordinal of the list the
+   * move was composed with**, and a redo copies the record's list as it stands
+   * (`input.attachmentsOf` on submit), so a redone move keeps its ids.
    */
   id: string;
   /**
@@ -149,6 +153,13 @@ export interface TurnAttachment {
   digest?: string;
   mime?: string;
   bytes?: number;
+  /**
+   * Its size in pixels, read from the stored file's header — what a model's
+   * per-picture cost is a function of. Absent when the bytes never arrived, or
+   * were recorded before 2026-09-27.
+   */
+  width?: number;
+  height?: number;
   /** What the player wrote about the picture, in their own words. */
   caption?: string;
 }
@@ -496,10 +507,22 @@ export interface AssembledBlock {
  *   ordinary state after an import from an export;
  * - `not-user-role` — the block sits in a system or assistant message, which
  *   cannot carry a picture;
- * - `unknown-kind` — an attachment kind this build does not send.
+ * - `unknown-kind` — an attachment kind this build does not send;
+ * - `budget` — the budget dropped the block, so neither the pixels nor the
+ *   words went. The collector's pictures on the move being made are required
+ *   and never meet this; a step's own picture candidate can.
+ *
+ * ***When several apply, the one recorded is the one choosing another model
+ * cannot fix***: kind, then window, then role, then bytes, and the model last
+ * (`budget` is decided after the rest, by the budgeter).
  */
 export type ImageWithheld =
-  'model-text-only' | 'outside-window' | 'missing-bytes' | 'not-user-role' | 'unknown-kind';
+  | 'model-text-only'
+  | 'outside-window'
+  | 'missing-bytes'
+  | 'not-user-role'
+  | 'unknown-kind'
+  | 'budget';
 
 export interface BlockImage {
   attachmentId: string;
