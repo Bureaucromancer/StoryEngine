@@ -59,7 +59,7 @@ export function convertSyspromptPreset(
   const budget = macroNoteBudget();
 
   if (typeof content === 'string' && content.length > 0) {
-    const converted = convertMacros(content, budget);
+    const converted = convertMacros(content, budget, { angles: true });
     blocks.push(block('st.sysprompt.content', 'System prompt', converted.template));
     reportMacros('st.sysprompt.content', converted.seen, notes);
   }
@@ -82,7 +82,7 @@ export function convertSyspromptPreset(
   });
 
   if (typeof postHistory === 'string' && postHistory.length > 0) {
-    const converted = convertMacros(postHistory, budget);
+    const converted = convertMacros(postHistory, budget, { angles: true });
     blocks.push(block('st.sysprompt.postHistory', 'Post-history instructions', converted.template));
     reportMacros('st.sysprompt.postHistory', converted.seen, notes);
     notes.push({

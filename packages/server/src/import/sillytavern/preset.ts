@@ -531,7 +531,7 @@ function blockFor(
 
   const source = ownEntry(MARKERS, entry.identifier);
   if (source !== undefined) {
-    const wrapper = wrapperFor(entry.identifier, source, body);
+    const wrapper = wrapperFor(entry.identifier, source, body, notes, budget);
     return { ...common, kind: 'slot', source, ...(wrapper === null ? {} : { wrapper }) };
   }
 
@@ -542,7 +542,7 @@ function blockFor(
     return null;
   }
 
-  const { template, seen } = convertMacros(prompt.content ?? '', budget);
+  const { template, seen } = convertMacros(prompt.content ?? '', budget, { angles: true });
   reportMacros(entry.identifier, seen, notes);
   return { ...common, kind: 'text', template };
 }
@@ -626,23 +626,50 @@ function fromBeforePromptManager(
   return out;
 }
 
-/** ST's format strings are `{{...}}`-shaped; ours is one fixed `{{content}}`. */
+/**
+ * ST's format strings are `{{...}}`-shaped; ours is one fixed `{{content}}`.
+ *
+ * ***Only the field's own placeholder is the content*** (2026-09-27). Every
+ * `{{…}}` in a format string was taken for it, so SillyTavern's own
+ * `personality_format` of 1.11 and 1.12, `[{{char}}'s personality:
+ * {{personality}}]`, became `[{{content}}'s personality: {{content}}]` and sent
+ * the traits twice with no name. The field's own placeholder — `{0}` in
+ * `wi_format`, `{{scenario}}` and `{{personality}}` in the other two — is the
+ * content, and the rest goes through the macro table like any template: a
+ * wrapper renders `char` and `user` since the persona and actor blocks learned
+ * to say whose they are, so `{{char}}` becomes the name it always meant.
+ */
 function wrapperFor(
   identifier: string,
   source: SlotSource,
   body: Readonly<Record<string, unknown>>,
+  notes: ImportNote[],
+  budget: MacroNoteBudget,
 ): string | null {
   for (const [field, target] of Object.entries(WRAPPER_FIELDS)) {
     const applies = target === identifier || target === source.of;
     if (!applies) continue;
     const format = body[field];
     if (typeof format !== 'string' || format.length === 0) continue;
-    // ST writes `{0}` in `wi_format` and `{{scenario}}` in `scenario_format`;
-    // both mean *the filled value goes here*, which is our one placeholder.
-    return format.replace(/\{0\}|\{\{[a-zA-Z_]+\}\}/g, '{{content}}');
+    const own = ownEntry(OWN_PLACEHOLDERS, field);
+    if (own === undefined) continue;
+    const marked = format.replace(own, PLACED);
+    const { template, seen } = convertMacros(marked, budget, { angles: true });
+    reportMacros(field, seen, notes);
+    return template.replaceAll(PLACED, '{{content}}');
   }
   return null;
 }
+
+/** Each format field's own placeholder: what SillyTavern puts the value in. */
+const OWN_PLACEHOLDERS: Readonly<Record<string, RegExp>> = {
+  wi_format: /\{0\}/g,
+  scenario_format: /\{\{scenario\}\}/gi,
+  personality_format: /\{\{personality\}\}/gi,
+};
+
+/** The content's place while the rest of a format string is converted. */
+const PLACED = '\u0000content\u0000';
 
 /** The six fields that become a `TextBlock` gated on a call kind (§8.4.3). */
 function callKindBlocks(
@@ -655,7 +682,7 @@ function callKindBlocks(
     const content = body[field];
     if (typeof content !== 'string' || content.length === 0) continue;
 
-    const { template, seen } = convertMacros(content, budget);
+    const { template, seen } = convertMacros(content, budget, { angles: true });
     reportMacros(field, seen, notes);
     blocks.push({
       id: `st.${field}`,
@@ -699,6 +726,11 @@ function applyParams(
   for (const [field, target] of Object.entries(PARAM_FIELDS)) {
     const value = body[field];
     if (typeof value !== 'number') continue;
+    // SillyTavern's `seed: -1` means *pick one at random*, and it sends no seed
+    // at all below zero (2026-09-27). Carried, it went to every endpoint as a
+    // fixed `-1`: the same reply on a server that honours it, a refusal from
+    // one that wants an unsigned seed. Absent is our spelling of *random*.
+    if (field === 'seed' && value < 0) continue;
     (preset.params as Record<string, unknown>)[target] = value;
     carried += 1;
   }

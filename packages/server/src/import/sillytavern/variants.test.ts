@@ -27,7 +27,10 @@ const TEXT_COMPLETION = {
   top_p: 0.92,
   top_k: 40,
   rep_pen: 1.1,
-  max_length: 400,
+  // As SillyTavern saves a text-generation panel: the reply in `genamt`, the
+  // context in `max_length`.
+  genamt: 400,
+  max_length: 8192,
   dry_multiplier: 0.8,
   dry_base: 1.75,
   dry_allowed_length: 2,
@@ -116,6 +119,52 @@ describe('a text-completion preset', () => {
     expect(validate(preset).valid).toBe(true);
     expect(preset.params.temperature).toBe(0.85);
     expect(preset.params.maxTokens).toBe(400);
+  });
+
+  /**
+   * ***`max_length` is whichever length the backend means*** (2026-09-27). It
+   * was read as the reply beside `genamt`, so a panel's context size went
+   * nowhere; and a NovelAI panel, where it *is* the reply, must not become a
+   * 150-token context.
+   */
+  it('reads max_length as the context size when genamt is beside it', () => {
+    expect(preset.budget.maxContextTokens).toBe(8192);
+    expect(preset.compat).not.toHaveProperty('max_length');
+    expect(notes.find((n) => n.key === 'import.preset.contextCeilingWasAbsolute')?.params).toEqual({
+      tokens: 8192,
+    });
+  });
+
+  it('reads it as the reply when the panel is NovelAI’s, with max_context beside it', () => {
+    const nai = convertTextCompletionPreset(
+      { temperature: 1, max_length: 150, max_context: 8000 },
+      'N',
+    );
+    if (!nai.ok) throw new Error('refused');
+
+    expect(nai.value.preset.params.maxTokens).toBe(150);
+    expect(nai.value.preset.budget.maxContextTokens).toBe(8000);
+  });
+
+  it('keeps it aside, and says so, when nothing says which it is', () => {
+    const alone = convertTextCompletionPreset({ temperature: 1, max_length: 2048 }, 'Alone');
+    if (!alone.ok) throw new Error('refused');
+
+    expect(alone.value.preset.params.maxTokens).toBeUndefined();
+    expect(alone.value.preset.budget.maxContextTokens).toBeNull();
+    expect(alone.value.preset.compat?.['max_length']).toBe(2048);
+    expect(
+      alone.value.notes.find((n) => n.key === 'import.preset.maxLengthUnclear')?.params,
+    ).toEqual({ tokens: 2048 });
+  });
+
+  it('sends no seed for SillyTavern’s -1, which means random', () => {
+    const random = convertTextCompletionPreset({ temp: 0.8, seed: -1 }, 'Random');
+    const fixed = convertTextCompletionPreset({ temp: 0.8, seed: 42 }, 'Fixed');
+    if (!random.ok || !fixed.ok) throw new Error('refused');
+
+    expect(random.value.preset.params).not.toHaveProperty('seed');
+    expect(fixed.value.preset.params.seed).toBe(42);
   });
 
   it('keeps a field named like a property of every object in compat', () => {

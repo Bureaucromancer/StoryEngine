@@ -156,9 +156,39 @@ describe('the macros a review names', () => {
 
   it('never spends the budget on a macro that maps', () => {
     const budget = macroNoteBudget();
-    convertMacros('{{char}} {{user}} {{persona}}', budget);
+    convertMacros('{{char}} {{user}} {{bot}}', budget);
 
     expect(budget).toEqual({ left: MACRO_NOTE_LIMIT, unlisted: 0 });
+  });
+});
+
+/**
+ * ***Read the way SillyTavern binds them*** (2026-09-27) — two corrections the
+ * table owed its source.
+ */
+describe('what SillyTavern means by a name', () => {
+  it('takes {{persona}} for the persona’s description, which a slot supplies', () => {
+    // SillyTavern binds it to the description; the table put the name there.
+    const { template, seen } = convertMacros('Who you are: {{persona}}');
+
+    expect(template).toBe('Who you are: ');
+    expect(seen.get('persona')).toEqual({ kind: 'refused', because: 'body-comes-from-a-slot' });
+  });
+
+  it('reads the legacy angle forms when a SillyTavern converter asks', () => {
+    const { template, seen } = convertMacros('<BOT> greets <user> for <GROUP>.', undefined, {
+      angles: true,
+    });
+
+    expect(renderTemplate(template, CONTEXT)).toEqual({
+      ok: true,
+      text: 'Vera Solano greets The Inspector for .',
+    });
+    expect(seen.get('group')).toEqual({ kind: 'refused', because: 'no-equivalent' });
+  });
+
+  it('leaves angle brackets alone for everyone else, where they may be markup', () => {
+    expect(convertMacros('<char>Vera</char>').template).toBe('<char>Vera</char>');
   });
 });
 

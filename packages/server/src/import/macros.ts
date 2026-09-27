@@ -69,7 +69,15 @@ const MACROS: Readonly<Record<string, MacroOutcome>> = {
   char: { kind: 'mapped', liquid: '{{ char }}' },
   bot: { kind: 'mapped', liquid: '{{ char }}' },
   user: { kind: 'mapped', liquid: '{{ user }}' },
-  persona: { kind: 'mapped', liquid: '{{ user }}' },
+  /**
+   * ~~`persona` → `{{ user }}`~~ ***A body, not a name*** (2026-09-27).
+   * SillyTavern binds `{{persona}}` to the persona's **description**
+   * (`environment.persona = fields.persona`, beside `description`, `scenario`
+   * and the rest), not to its name — so the mapping put the player's name where
+   * a preset asked for the player's whole description. It is a body, and the
+   * persona slot supplies it.
+   */
+  persona: { kind: 'refused', because: 'body-comes-from-a-slot' },
 
   /**
    * `{{charIfNotGroup}}` is the one §8.4.2 names specifically, and it becomes a
@@ -191,10 +199,11 @@ const MACRO_PATTERN =
 export function convertMacros(
   template: string,
   budget: MacroNoteBudget = macroNoteBudget(),
+  options: { angles?: boolean } = {},
 ): MacroConversion {
   const seen = new Map<string, MacroOutcome>();
 
-  const converted = template.replace(MACRO_PATTERN, (whole, rawName: string) => {
+  const replace = (whole: string, rawName: string): string => {
     const name = rawName.toLowerCase();
     // Own entries only: `{{constructor}}` looked up `Object`, and came out as
     // the text `undefined` with no note (2026-09-27).
@@ -221,7 +230,19 @@ export function convertMacros(
       case 'unknown':
         return whole;
     }
-  });
+  };
 
-  return { template: converted, seen };
+  /**
+   * ***SillyTavern's legacy forms, for the converters that read its files***
+   * (2026-09-27). Its `evaluateMacros` still resolves `<USER>`, `<BOT>`,
+   * `<CHAR>`, `<CHARIFNOTGROUP>` and `<GROUP>`, in any case, before any curly
+   * macro; they are the same names by another spelling and go through the
+   * same table. Asked for rather than always done, because in another format a
+   * `<char>` may be markup.
+   */
+  const unangled = options.angles === true ? template.replace(ANGLES, replace) : template;
+  return { template: unangled.replace(MACRO_PATTERN, replace), seen };
 }
+
+/** The legacy names SillyTavern resolves in angle brackets. */
+const ANGLES = /<(user|bot|char|charifnotgroup|group)>/gi;

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { isKnownSchema, schemaIdOf, validate } from '@storyengine/shared';
+import { isKnownSchema, newActor, schemaIdOf, validate } from '@storyengine/shared';
 
 import { collectCandidates } from '../../assembly/collect.js';
 import { MACRO_NOTE_LIMIT } from '../macros.js';
@@ -408,6 +408,59 @@ describe('the nine fixed fields become two general properties', () => {
     const lore = preset.blocks.find((b) => b.id === 'st.worldInfoBefore');
 
     expect(lore?.kind === 'slot' ? lore.wrapper : null).toBe('[Lore: {{content}}]');
+  });
+
+  /**
+   * ***Only the field's own placeholder is the content*** (2026-09-27).
+   * SillyTavern's own `personality_format` in 1.11 and 1.12 is
+   * `[{{char}}'s personality: {{personality}}]`, and every `{{…}}` was taken
+   * for the content: the traits went out twice, with no name.
+   */
+  it('makes only the field’s own placeholder the content, and the name a name', () => {
+    const { preset } = convert({ personality_format: "[{{char}}'s personality: {{personality}}]" });
+    const personality = preset.blocks.find((b) => b.id === 'st.charPersonality');
+    const wrapper = personality?.kind === 'slot' ? (personality.wrapper ?? '') : '';
+
+    expect(wrapper).toBe("[{{ char }}'s personality: {{content}}]");
+
+    // And the collector says it the way SillyTavern did.
+    const vera = newActor('Vera');
+    vera.profile.traits = ['watchful', 'dry'];
+    const { candidates } = collectCandidates({
+      preset: {
+        ...preset,
+        blocks: personality === undefined ? [] : [{ ...personality, enabled: true }],
+      },
+      callKind: 'narrate',
+      history: [],
+      persona: null,
+      actors: [{ actor: vera, contentHash: 'h' }],
+      channels: {},
+    });
+    expect(candidates.map((candidate) => candidate.text)).toEqual([
+      "[Vera's personality: watchful, dry]",
+    ]);
+  });
+
+  it('flags a macro in a format string it does not know, naming the field', () => {
+    const { preset, notes } = convert({
+      scenario_format: 'Scenario: {{scenario}} {{fictitious}}',
+      prompt_order: [{ character_id: 100001, order: [{ identifier: 'scenario', enabled: true }] }],
+    });
+    const scenario = preset.blocks.find((b) => b.id === 'st.scenario');
+
+    expect(scenario?.kind === 'slot' ? scenario.wrapper : null).toBe(
+      'Scenario: {{content}} {{fictitious}}',
+    );
+    expect(notes.find((n) => n.key === 'import.macro.unrecognised')?.params).toEqual({
+      macro: 'fictitious',
+      block: 'scenario_format',
+    });
+  });
+
+  it('sends no seed for SillyTavern’s -1, which means random, and keeps a real one', () => {
+    expect(convert({ seed: -1 }).preset.params).not.toHaveProperty('seed');
+    expect(convert({ seed: 42 }).preset.params.seed).toBe(42);
   });
 
   it('turns the nudge prompts into blocks gated on a call kind', () => {

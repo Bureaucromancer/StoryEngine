@@ -1537,7 +1537,15 @@ named consequence, never as a silent drop.
   covers the common set; **an unrecognised macro is preserved verbatim and
   flagged**, because a mangled prompt that looks fine is worse than one that
   visibly needs a look. `{{charIfNotGroup}}` and similar conditionals become
-  Liquid conditionals rather than being dropped.
+  Liquid conditionals rather than being dropped. *Three corrections to the table
+  as built, 2026-09-27, each read off SillyTavern's own source:* `{{persona}}`
+  is the persona's **description** there, not its name, so it is refused as a
+  body a slot supplies rather than mapped to `{{ user }}`; the legacy
+  `<USER>`, `<BOT>`, `<CHAR>` and `<CHARIFNOTGROUP>` spellings, which it still
+  resolves everywhere, convert as their curly forms in its files; and a format
+  string's own placeholder (`{0}`, `{{scenario}}`, `{{personality}}`) is the
+  content while its other macros convert like any template's, where every
+  `{{…}}` had been taken for the content.
 - **`system_prompt: true`** means *"came from the built-in set"*, not *"has the
   system role"* — a genuinely misleading field name. It carries no meaning here
   and drops.

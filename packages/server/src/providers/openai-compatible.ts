@@ -530,7 +530,10 @@ function toSdkParams(request: GenerationRequest): Record<string, unknown> {
     ...(params.presencePenalty === undefined ? {} : { presencePenalty: params.presencePenalty }),
     ...(params.maxTokens === undefined ? {} : { maxOutputTokens: params.maxTokens }),
     ...(params.stop === undefined ? {} : { stopSequences: params.stop }),
-    ...(params.seed === undefined || params.seed === null ? {} : { seed: params.seed }),
+    // Only a real seed: a negative one is every sampler UI's *random*, which
+    // is what sending none means, and presets imported before the converters
+    // knew that carry `-1` (2026-09-27).
+    ...(typeof params.seed === 'number' && params.seed >= 0 ? { seed: params.seed } : {}),
     ...(request.signal === undefined ? {} : { abortSignal: request.signal }),
   };
 }

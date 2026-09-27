@@ -877,6 +877,25 @@ describe('which sampler settings reach the model', () => {
     return sent as Record<string, unknown>;
   }
 
+  it('sends no seed for a negative one, which every sampler panel means as random', async () => {
+    // Presets imported before the converters knew this carry SillyTavern's
+    // `-1`, and it went out as a fixed seed (2026-09-27).
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return completion('ok');
+      },
+    });
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { seed: -1 } });
+    expect(sent).not.toHaveProperty('seed');
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { seed: 0 } });
+    expect(sent['seed']).toBe(0);
+  });
+
   it('sends exactly the ones the constant names', async () => {
     const body = await bodyWithEveryParam();
 

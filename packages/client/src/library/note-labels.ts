@@ -32,6 +32,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.preset.perCharacterOrdersDropped':
     'Per-character prompt orders were dropped: {characters}.',
   'import.preset.samplerRatio': 'Sampler settings: {carried} of {total} fields carried over.',
+  'import.preset.maxLengthUnclear':
+    'The preset’s max_length ({tokens}) could be the reply length or the context size, so it was kept aside rather than guessed.',
   'import.preset.markerNeedsLaterMachinery': 'The “{marker}” block needs machinery from {when}.',
 
   /**
