@@ -498,7 +498,7 @@ export async function encodeObject(
  */
 let blankCard: Uint8Array | null = null;
 
-function blankCardPixels(): Uint8Array {
+export function blankCardPixels(): Uint8Array {
   if (blankCard) return blankCard;
 
   const ihdr = new Uint8Array(13);

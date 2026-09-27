@@ -27,8 +27,15 @@ import {
 import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook } from './aventuras/lorebook.js';
 import { convertScenario } from './aventuras/scenario.js';
-import { identify, identifyNative, stampImported, type ConflictPolicy } from './identity.js';
-import { create, read, update, type LibraryContext } from '../library.js';
+import {
+  identify,
+  identifyNative,
+  priorImportId,
+  stableId,
+  stampImported,
+  type ConflictPolicy,
+} from './identity.js';
+import { blankCardPixels, create, read, update, type LibraryContext } from '../library.js';
 import { contentHashOf } from '../index-db/ingest.js';
 import { codecFor } from '../storage/card/index.js';
 import { fileExists, writeFileBytes } from '../storage/files.js';
@@ -111,6 +118,12 @@ export interface SweepRequest {
    * the default is the one a person would have picked.
    */
   destination?: ImportDestination;
+  /**
+   * ***The name the root arrived under***, when it arrived as one file: an
+   * uploaded archive's filename, never a path ([21 §4.1.1]). A CHARX is
+   * identified by it (see `CharxReader`); every other source ignores it.
+   */
+  rootName?: string;
 }
 
 export type SweepOutcome =
@@ -128,6 +141,7 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
     classification.kind,
     request.files,
     request.fromHandle ?? request.handle,
+    request.rootName,
   );
   if (reader === null) {
     throw new ImportNotImplementedError(`a ${classification.kind} root`);
@@ -187,7 +201,12 @@ export async function convertOne(
   return [first, ...(await writer.flushTreatments())];
 }
 
-function readerFor(kind: string, files: FileSource, forHandle: string): SourceReader | null {
+function readerFor(
+  kind: string,
+  files: FileSource,
+  forHandle: string,
+  rootName?: string,
+): SourceReader | null {
   // `loose-files` is swept by the same walker: a folder of cards somebody
   // assembled by hand is the ST tree with most of it missing, and the walker
   // already reports what it does not recognise.
@@ -198,7 +217,7 @@ function readerFor(kind: string, files: FileSource, forHandle: string): SourceRe
   if (kind === 'marinara') return new MarinaraReader(files);
   // A card in a zip rather than in a PNG chunk ([P4 §7.5]). One entry, one
   // candidate, and the same converter on the other side of it.
-  if (kind === 'charx') return new CharxReader(files);
+  if (kind === 'charx') return new CharxReader(files, rootName);
   // One of ours — [P12.8]. Told whose subtree to read, because an install
   // archive holds several and the archive does not know which was asked for.
   if (kind === 'storyengine-backup') return new BackupReader(files, forHandle);
@@ -338,7 +357,7 @@ class Writer {
     }
 
     const notes: ImportNote[] = [];
-    const outcome = await this.store(object, schemaId, notes, pixels);
+    const outcome = await this.store(object, schemaId, notes, pixels, undefined, true);
     if (outcome !== 'skipped' && outcome !== 'failed') {
       await this.#carryAssets(candidate, object.id, schemaId, notes);
     }
@@ -400,10 +419,29 @@ class Writer {
     const { actor, lorebook, scenario, notes } = converted.value;
 
     if (lorebook !== null) {
+      /**
+       * ***Both ids settled before either names the other*** (2026-09-27).
+       *
+       * The book is scoped to the card's actor and the actor links back to
+       * the book, and the converter wrote both links with ids it had just
+       * minted. `identify` re-points each object to the id its earlier import
+       * has here, but only as that object is stored, so on every re-import
+       * the book named an actor that did not exist and the actor linked a
+       * book that was never stored. Neither could compare `unchanged`, and
+       * every re-sweep added two history versions per such card.
+       */
+      const { library, handle } = this.#request;
+      const bookSource = `${candidate.source}#character_book`;
+      actor.id = priorImportId(library, handle, ACTOR_SCHEMA, candidate.source) ?? actor.id;
+      lorebook.id = priorImportId(library, handle, LOREBOOK_SCHEMA, bookSource) ?? lorebook.id;
+      lorebook.scope = { kind: 'linked', actorIds: [actor.id] };
+
       // The book travelled inside the card, so its identity is the card file.
-      stampImported(lorebook, `${candidate.source}#character_book`);
+      stampImported(lorebook, bookSource);
       const stored = await this.#store(lorebook, notes);
       if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
+      // Under the id it was stored with, which *keep both* makes a new one.
+      actor.lore = [{ id: lorebook.id, name: lorebook.name }];
     }
 
     stampImported(actor, candidate.source);
@@ -469,15 +507,25 @@ class Writer {
     notes: ImportNote[],
   ): Promise<string> {
     const asset = candidate.assets?.[0];
-    const pixels = asset === undefined ? null : await this.#request.files.read(asset);
+    let pixels = asset === undefined ? null : await this.#request.files.read(asset);
 
+    /**
+     * ***A portrait that will not read costs the portrait, and only that***
+     * (2026-09-27). This returned here, before the expressions were read, so a
+     * CHARX whose first image is a JPEG or a WebP (common from RisuAI) lost
+     * every expression with it and no note said so. The actor is now written
+     * on the blank card, which is what an actor without a portrait always is,
+     * and the expressions go into it as they would into any other.
+     */
+    let portraitless = false;
     if (pixels !== null && codecFor(pixels) === null) {
       notes.push({
         key: 'import.card.portraitUnreadable',
         params: { file: asset ?? '', actor: actor.name },
         level: 'warn',
       });
-      return this.#write(actor, notes, null);
+      pixels = null;
+      portraitless = true;
     }
 
     /**
@@ -519,12 +567,22 @@ class Writer {
       const mime = mimeOf(path);
       if (bytes === null || mime === null) continue;
 
-      const ref = uuidv7();
+      /**
+       * ***Ids from the file, not from the clock*** (2026-09-27), which is
+       * what `identity.ts`'s `stableId` is for. They were minted fresh on every
+       * conversion, so a re-upload of the same card could never compare
+       * `unchanged`, and its replace wrote rows naming blobs the card on disk
+       * had never held. The id comes from the path, so what points at an
+       * expression survives a changed picture; the blob key comes from the
+       * path and the bytes, so a changed picture is a new blob.
+       */
+      const digest = contentHashOf(bytes);
+      const ref = stableId('expression-ref', path, digest);
       expressions.push({
-        id: uuidv7(),
+        id: stableId('expression', path),
         role: 'expression',
         mime,
-        digest: contentHashOf(bytes),
+        digest,
         bytes: bytes.byteLength,
         ref,
         label: stemOf(path),
@@ -544,7 +602,10 @@ class Writer {
     const withMedia =
       expressions.length === 0 ? actor : { ...actor, media: [...actor.media, ...expressions] };
 
-    return this.#write(withMedia, notes, pixels, blobs.size === 0 ? undefined : blobs);
+    // The blank card, only when there are pictures to carry on it: with none,
+    // no canvas at all is the same file and the path every other actor takes.
+    const canvas = portraitless && blobs.size > 0 ? blankCardPixels() : pixels;
+    return this.#write(withMedia, notes, canvas, blobs.size === 0 ? undefined : blobs);
   }
 
   async #write(
@@ -573,6 +634,13 @@ class Writer {
     pixels: Uint8Array | null = null,
     /** Media that arrived beside the card — [P7.10]. Keyed by `EmbeddedMedia.ref`. */
     media?: BlobStore,
+    /**
+     * ***Identified by its own id***, for an object this project wrote
+     * (2026-09-27): `#native`'s, whether it came from a backup or was
+     * downloaded and uploaded again. Its id is the better answer than a
+     * filename, which is `identifyNative`'s whole argument.
+     */
+    native = this.#request.fromHandle !== undefined,
   ): Promise<'created' | 'unchanged' | 'replaced' | 'kept-both' | 'skipped' | 'failed'> {
     const { library, handle } = this.#request;
     /**
@@ -583,10 +651,9 @@ class Writer {
      * better answer and keeping the workaround — and would double a library
      * whose slugs happen to differ. [P12.8].
      */
-    const identity =
-      this.#request.fromHandle === undefined
-        ? await identify(library, handle, schemaId, object)
-        : await identifyNative(library, handle, schemaId, object);
+    const identity = native
+      ? await identifyNative(library, handle, schemaId, object)
+      : await identify(library, handle, schemaId, object);
 
     if (identity.kind === 'unchanged') {
       notes.push({

@@ -952,6 +952,9 @@ async function importOneFile(
       library: services.library,
       handle,
       files: opened.source,
+      // What a CHARX is identified by: the file the person sent, rather than
+      // the `card.json` inside every one of them.
+      rootName: filename,
       ...(onConflict === undefined ? {} : { onConflict }),
     });
     if (!outcome.ok) {

@@ -67,6 +67,34 @@ export function stampImported<T extends { provenance: Provenance }>(
 }
 
 /**
+ * ***The id a file's object already has here, or null*** — the lookup
+ * `identify` starts with, and nothing else (2026-09-27).
+ *
+ * For an object another is about to name: a card's embedded book scopes itself
+ * to the card's actor, and the actor links back to the book, both by id. Both
+ * ids used to be minted fresh by the converter, and `identify` re-pointed each
+ * object to its prior id only as it was stored, so a re-import wrote a book
+ * scoped to an actor that did not exist and an actor linking to a book that
+ * was never stored, and neither could ever compare `unchanged`.
+ */
+export function priorImportId(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  filename: string,
+): string | null {
+  const owner = userOwner(handle);
+  return (
+    findPriorImport(
+      context.db,
+      owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
+      schemaId,
+      filename,
+    )?.id ?? null
+  );
+}
+
+/**
  * Whether this object has been imported from this file before, and if so
  * whether anything about it changed.
  *

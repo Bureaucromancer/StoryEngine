@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
+import {
+  schemaIdOf,
+  type ImportDisposition,
+  type ImportItemReport,
+  type ImportNote,
+} from '@storyengine/shared';
 
 import { codecFor } from '../storage/card/index.js';
 
@@ -285,6 +290,20 @@ function readCard(
  *   preset shapes: any object with a temperature in it.
  */
 function probe(body: Record<string, unknown>, confidence: ProbeConfidence): string | null {
+  /**
+   * ***Our own files first, by what they say they are*** (2026-09-27).
+   *
+   * A lorebook this build wrote, downloaded or entry-exported, has `entries`,
+   * and the next line claimed it for SillyTavern. The ST converter reads ST's
+   * spellings: `disable` for off, a number for position, `keysecondary`. Every
+   * entry its author had switched off came back on, depth and outlet entries
+   * moved to before the character, and secondary keys, folders and the book's
+   * scope were dropped, with no note. Any other kind came back as *nothing here
+   * recognised this file*, which is a confident wrong answer about a file this
+   * build wrote. The whole `storyengine.` namespace is claimed, so a newer or
+   * unknown one of ours is refused as ours rather than guessed at as ST's.
+   */
+  if (schemaIdOf(body)?.startsWith('storyengine.') === true) return 'storyengine.object';
   if (Array.isArray(body['prompts'])) return 'sillytavern.preset.chat';
   if (body['entries'] !== undefined && body['entries'] !== null) return 'sillytavern.lorebook';
 

@@ -2075,6 +2075,12 @@ That is [§6.2](#6-what-the-design-still-has-to-settle)'s open question about fi
 direction rather than a new defect, and the answers it already names — a
 source-app tag, a content hash — are the answers here too.
 
+*Corrected 2026-09-27.* ~~two unrelated files sharing a name replace each
+other~~ was a coincidence for two files and a certainty for every archive: each
+CHARX was identified as the `card.json` inside it, so the second one imported
+replaced the first, Bob's text on Alice's id and Alice's portrait. An archive is
+now identified by the name it was uploaded under, as a card PNG always was.
+
 ### 7.11 The wrong folder inside the right install — 2026-08-31
 
 **`classifyRoot` has never failed on a folder that is merely wrong**, and

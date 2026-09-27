@@ -195,6 +195,9 @@ describe('the notes a book can actually find', () => {
    * the embedded book's identity is not stable across imports, so the actor's
    * link to it changes and the actor reads as changed. Not this stage's to fix,
    * and not a reason to weaken an assertion that is right.
+   *
+   * *Fixed 2026-09-27*: both ids are settled before either names the other,
+   * and `reimport.test.ts` holds a card with a book to compare `unchanged`.
    */
   async function cardCarryingABook(): Promise<void> {
     await writeFile(

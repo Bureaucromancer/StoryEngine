@@ -1313,6 +1313,12 @@ reporting it unchanged, because the embedded book's identity is not stable
 across imports. That is [P4 §7.14]'s re-import-identity question from a fourth
 direction, and it is left as one.
 
+*Settled 2026-09-27, and it was a defect rather than a question.* The converter
+linked the card and its book with ids it had just minted, and each object moved
+to its earlier id only as it was stored, so the links named objects that did not
+exist. Both ids are now settled before either names the other, and such a card
+re-imports `unchanged`.
+
 *A trade worth naming rather than settling:* an entry-level note appears both in
 the book's list and on the entry it names. Complete and scannable at the top,
 met where you are reading at the bottom — but a book with two hundred collapsed
