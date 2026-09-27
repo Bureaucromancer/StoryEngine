@@ -839,6 +839,20 @@ subject — and systemd's own `INVOCATION_ID` is the one honest detection.
 **Default-deny**, because a wrong *no* costs one manual restart and a wrong *yes*
 costs the server.
 
+*Corrected 2026-09-27* ([09 §6.4](../09-server-multiuser-deployment.md) has the
+whole of it). Two of the three wrappers this section counted as supervised were
+not: the unraid template had no restart policy, and the unit's
+`Restart=on-failure` did not restart the clean exit *Restart now* made. Under
+all three the process never exited in the first place, because the admin's own
+tab held the listener's close open. And `INVOCATION_ID` was not honest on its
+own. It is inherited, and for eighteen CI runs every test server on the GitHub
+runner, itself a systemd service, believed it. The stream closer runs in
+`preClose`, the restart exits 75, the unraid template sets
+`--restart=unless-stopped`, the unit declares `SE_SUPERVISED=1` beside a
+`RestartForceExitStatus=75`, and detection asks for `SYSTEMD_EXEC_PID` as well.
+`restart.test.ts`'s in-process proof was sound and could not see any of this:
+`services.exit` is null under the harness, and `inject()` never listens.
+
 *And "drain" meant writing one*, because `runner.drain()` aborts. The sequence is
 **stop accepting** (a 503 with `retry-after` at the submission route, which is
 the only door), then `settle()`, then — after thirty seconds — the abort, which

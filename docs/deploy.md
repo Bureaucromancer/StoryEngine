@@ -108,17 +108,42 @@ directory, which is empty on a first run:
 
 **And one more that is not a setting at all**: `SE_SUPERVISED`. It says that
 something will start this server again if it stops — `compose.yaml`'s
-`restart: unless-stopped`, unraid's autostart, a systemd unit — which is what
-lets the settings page offer **Restart now** instead of explaining that
-StoryEngine does not restart itself. Nothing inside a container can work this
-out for itself: a container is told nothing about its own restart policy, and
-every test that looks like it would work (PID 1, `/.dockerenv`, a cgroup path)
-is equally true of a `docker run` with no policy at all — which is exactly the
-case where the button would leave you with no server. So it is set beside the
-restart policy rather than baked into the image, and it is defaulted off: a
-wrong *no* costs you one manual restart, a wrong *yes* costs you the server.
-A systemd unit needs nothing, because systemd sets `INVOCATION_ID` itself and
-that is read.
+`restart: unless-stopped`, the `--restart=unless-stopped` in the unraid
+template's Extra Parameters, the tarball's systemd unit — which is what lets the
+settings page offer **Restart now** instead of explaining that StoryEngine does
+not restart itself. Nothing inside a container can work this out for itself: a
+container is told nothing about its own restart policy, and every test that
+looks like it would work (PID 1, `/.dockerenv`, a cgroup path) is equally true of
+a `docker run` with no policy at all — which is exactly the case where the button
+would leave you with no server. So it is set beside the restart policy rather
+than baked into the image, and it is defaulted off: a wrong *no* costs you one
+manual restart, a wrong *yes* costs you the server. `SE_SUPERVISED=0` is also an
+answer, and it outranks the detection below.
+
+unraid's own **Autostart** is not a restart policy: it starts containers when
+the array starts and restarts nothing that exits. The template's
+`--restart=unless-stopped` is what brings the container back. A container
+created from a copy of the template older than 2026-09-27 does not have it, so
+add `--restart=unless-stopped --stop-timeout=30` to its Extra Parameters
+(Advanced view), or set `SE_SUPERVISED` to 0.
+
+A systemd unit is detected rather than declared, but only on systemd 248 or
+later, which is the first to name the process it started (`SYSTEMD_EXEC_PID`).
+`INVOCATION_ID` alone is handed down to everything a unit starts — a shell in a
+tmux a user unit started, a CI job — so it no longer counts on its own. The
+tarball's unit sets `SE_SUPERVISED=1` anyway; a unit you write yourself should
+too if its systemd is older.
+
+**What a restart looks like to whatever restarts it.** *Restart now* and a
+restore exit with status **75**; a stop (`SIGTERM`, `docker stop`,
+`systemctl stop`) exits 0. Docker's `unless-stopped` and `always` both bring
+back the first, and a `docker stop` stays stopped under either. A systemd unit
+needs `Restart=on-failure`
+(which restarts on anything but 0) or, as the tarball's has,
+`RestartForceExitStatus=75`, which restarts on it whatever `Restart=` says. Give
+it time to stop, too: the server bounds its own shutdown at about twenty seconds
+(requests still open, then pictures still being made), which is longer than
+Docker's default of ten, so every shipped wrapper allows thirty.
 
 Everything else is `config.json` in the volume, or the settings page. **The file
 wins over the environment**, because the file is what the settings page writes:
@@ -423,7 +448,8 @@ meeting the present.
 
 **Restore** is **Settings → Administration → Backups → Restore this install**,
 and it is only offered where something will start the server again — compose's
-`restart:`, a systemd unit, unraid, or `SE_SUPERVISED=1`. Everywhere else the
+`restart:`, a systemd unit, the unraid template's `--restart`, or
+`SE_SUPERVISED=1`. Everywhere else the
 panel gives the shell command instead, because a server that stopped and stayed
 stopped is worse than one that never offered.
 

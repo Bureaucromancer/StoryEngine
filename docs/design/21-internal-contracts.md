@@ -704,6 +704,14 @@ deployment §6.4 is warning about. So it is set **beside the restart policy**, i
 read as the one honest detection. Default-deny: a wrong *no* costs a manual
 restart, a wrong *yes* costs the server.
 
+*Amended 2026-09-27.* It is set beside the restart policy in **three** files
+now: the tarball's unit declares it too, because detection needs systemd 248.
+`INVOCATION_ID` is inherited by everything a unit's process starts, so it counts
+only when `SYSTEMD_EXEC_PID` names this process, and **`SE_SUPERVISED=0` is an
+answer that outranks the detection**, where it used to be read as unset. The
+reasoning is [09 §6.4](09-server-multiuser-deployment.md)'s correction of the
+same date.
+
 **Precedence is defaults, then the environment, then the file** — and `--data`
 above all three. The file outranking a variable is the part worth stating: the
 file is what the settings page writes, so an operator who changed a value in the

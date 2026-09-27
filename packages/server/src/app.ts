@@ -62,6 +62,7 @@ import {
   drainRenditions,
   recoverRenditions,
   retryRendition,
+  type RenditionDrainOptions,
   type RenditionWorkerContext,
 } from './renditions/worker.js';
 import type { Rendition } from '@storyengine/shared';
@@ -180,10 +181,15 @@ export interface AppServices {
    * **On the services beside `renditions` rather than inside it**, because the
    * two are the same seam from opposite ends: `renditions` says *make this and
    * do not wait*, and this says *and now, once, wait*. `disposeServices` is the
-   * only caller and the only one that should be — anything else waiting on a
-   * picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra steps.
+   * only product caller and the only one that should be — anything else waiting
+   * on a picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra
+   * steps. (`settled()` in `test-server.ts` also calls it, as a test waiting for
+   * quiet, not a turn waiting for a picture.)
+   *
+   * ***And then it stops waiting***: a picture still running after the grace is
+   * cut off and recorded as interrupted. See `drainRenditions` in the worker.
    */
-  drainRenditions: () => Promise<void>;
+  drainRenditions: (options?: RenditionDrainOptions) => Promise<void>;
   /**
    * Runs a picture's recipe again — the retry route's path, [06 §10.2].
    *
@@ -207,9 +213,18 @@ export interface AppServices {
   /**
    * Every open stream's closer.
    *
-   * `app.close()` resolves in zero milliseconds with a hijacked response open,
-   * so an `onClose` hook has to end them — otherwise a surviving keepalive
-   * interval is a hung process rather than a failed test.
+   * ~~`app.close()` resolves in zero milliseconds with a hijacked response
+   * open, so an `onClose` hook has to end them — otherwise a surviving
+   * keepalive interval is a hung process rather than a failed test.~~
+   *
+   * ***Ended in `preClose`, because `onClose` runs too late on a listening
+   * server*** (corrected 2026-09-27). The zero milliseconds were measured
+   * under `inject()`, where nothing listens and there is no socket to wait
+   * for. On a real listener `server.close()` waits for every open response,
+   * and Fastify runs `onClose` only *after* that wait, so the hook that would
+   * have ended the streams never ran while one was open. With one tab signed
+   * in, *Restart now*, a restore and `SIGTERM` all hung. `preClose` runs
+   * before the listener closes, under `inject()` and on a socket alike.
    */
   streams: Set<() => void>;
   /**
@@ -687,6 +702,8 @@ async function assembleWithState(
      * one layer up.
      */
     inFlight: new Set(),
+    // Aborted by `drainRenditions` when shutdown stops waiting for pictures.
+    shutdown: new AbortController(),
     /**
      * The connection the `image` role resolves to, for this account.
      *
@@ -805,7 +822,7 @@ async function assembleWithState(
     notify,
     runner,
     renditions: dispatch,
-    drainRenditions: () => drainRenditions(renditions),
+    drainRenditions: (options) => drainRenditions(renditions, options),
     retryRendition: (account, sessionId, record) =>
       retryRendition(renditions, account, sessionId, record),
     recoverRenditions: () => recoverRenditions(renditions),
@@ -938,6 +955,46 @@ export async function disposeServices(services: AppServices): Promise<void> {
   services.state.close();
 }
 
+/**
+ * How long closing the listener waits for requests still being answered
+ * before it ends their sockets.
+ *
+ * Event streams end at once, in `preClose`. This is for everything else a
+ * person can have in flight: an assist or a preview waiting on a model, which
+ * can be as long as `limits.providerTimeoutMs`, or a backup download on a
+ * slow link. Ten seconds for those to finish is worth waiting. A restart that
+ * one of them held open indefinitely is not.
+ */
+export const CLOSE_BACKSTOP_MS = 10_000;
+
+/**
+ * `app.close()`, with a bound.
+ *
+ * ***The sockets are ended, not skipped past.*** Going on to
+ * `disposeServices` while a request is still running would close the stores
+ * under its handler. `closeAllConnections()` ends the request, so its handler
+ * sees the client leave (the disconnect signal assist and illustrate listen
+ * for) and unwinds before anything is disposed.
+ */
+export async function closeApp(
+  app: FastifyInstance,
+  backstopMs = CLOSE_BACKSTOP_MS,
+): Promise<void> {
+  const backstop = setTimeout(() => {
+    app.log.warn(
+      { event: 'shutdown.backstop', afterMs: backstopMs },
+      'Requests were still open when shutdown stopped waiting; ending their connections',
+    );
+    app.server.closeAllConnections();
+  }, backstopMs);
+  backstop.unref();
+  try {
+    await app.close();
+  } finally {
+    clearTimeout(backstop);
+  }
+}
+
 export interface BuildOptions {
   /** Where log lines go. A test reads them back; production uses stdout. */
   logStream?: NodeJS.WritableStream;
@@ -1034,9 +1091,15 @@ export async function buildApp(
     return reply.code(status).send({ error: 'invalid', message: error.message });
   });
 
-  // A hijacked stream survives `app.close()` — measured at zero milliseconds
-  // with one open — so the app has to end them itself.
-  app.addHook('onClose', (_instance, done) => {
+  /**
+   * ***A hijacked stream has to be ended by the app, and before the listener
+   * closes.*** Fastify's `onClose` runs after `server.close()` has waited for
+   * every open response, and an event stream never finishes on its own, so an
+   * `onClose` closer waited on itself (see `AppServices.streams`). Ending a
+   * stream finishes its response, which leaves the keep-alive socket idle,
+   * and Fastify closes idle sockets as it stops listening.
+   */
+  app.addHook('preClose', (done) => {
     for (const close of services.streams) close();
     services.streams.clear();
     done();

@@ -1144,11 +1144,38 @@ a **persistent banner naming the specific changes**, not a toast.
 
 Admin-only, and there are two things it must not do naively.
 
-**It only works under a supervisor.** Docker with `restart: unless-stopped`,
-systemd, or unraid will bring the process back; a bare `node server.js` will
-simply exit and the admin who clicked the button now has no server and possibly
-no shell. So: detect whether the process is supervised, and where it is not,
-disable the control with an explanation rather than offering a trap.
+**It only works under a supervisor.** ~~Docker with `restart: unless-stopped`,
+systemd, or unraid will bring the process back~~ Docker with
+`restart: unless-stopped`, or a systemd unit that restarts on the status a
+restart exits with, will bring the process back (corrected below); a bare
+`node server.js` will simply exit and the admin who clicked the button now has
+no server and possibly no shell. So: detect whether the process is supervised,
+and where it is not, disable the control with an explanation rather than
+offering a trap.
+
+*Corrected 2026-09-27, by the audit that fixed it.* Three things were wrong,
+and between them no shipped install ever came back from its own *Restart now*:
+
+- **The process never exited.** The admin pressing the button has a tab open,
+  every signed-in tab holds the notification stream, and the stream's closer
+  ran in Fastify's `onClose`, which runs only after the listener has waited for
+  every open response. So the close waited on itself. It runs in `preClose`
+  now, with a ten-second backstop for any other request still open.
+- **unraid is not a supervisor on its own.** Its Autostart starts containers
+  when the array starts and restarts nothing that exits. The template now
+  carries `--restart=unless-stopped` in its Extra Parameters, and that flag is
+  what brings the container back.
+- **"systemd will" was true only of a non-zero exit.** The shipped unit said
+  `Restart=on-failure`, and the restart exited 0, which that directive reads
+  as a deliberate stop. A requested restart now exits 75, and the unit
+  restarts on 75 whatever `Restart=` says (`RestartForceExitStatus=75`).
+
+`tools/release.test.ts` holds each wrapper to its half, and `main.test.ts`
+proves the status and that a process with a tab open exits at all. The
+detection also tightened: `INVOCATION_ID` is inherited by everything a unit
+starts, so it counts only beside a `SYSTEMD_EXEC_PID` naming this process, and
+`SE_SUPERVISED=0` outranks it. What is still missing is a person watching a
+real box come back: [manual-testing R11](workplan/05-manual-testing.md).
 
 **Drain before exiting.** A restart during a turn loses it — C4 says in-flight
 turns are recorded as failed rather than resumed, which is survivable but rude

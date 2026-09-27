@@ -3,13 +3,14 @@
 
 import { resolve } from 'node:path';
 
-import { buildApp, buildServices, disposeServices } from './app.js';
+import { buildApp, buildServices, closeApp, disposeServices } from './app.js';
 import { performPendingRestore } from './backup/restore.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
 import { advertise } from './mdns/responder.js';
 import { announceRestored } from './notifications/notices.js';
+import { RESTART_EXIT_CODE } from './restart.js';
 import { describeUnusableDataDirectory, ensureWritableDirectory } from './storage/files.js';
 import { Layout } from './storage/layout.js';
 import { supervisionOf } from './supervision.js';
@@ -133,7 +134,7 @@ async function main(): Promise<void> {
     configDocument: document,
     // The one caller that owns the process, so the one that may ask how it was
     // started. See `BuildAppOptions.supervision`.
-    supervision: supervisionOf(process.env),
+    supervision: supervisionOf(process.env, process.pid),
     ...(captureDir === undefined ? {} : { captureDir: resolve(captureDir) }),
   });
   const app = await buildApp(services);
@@ -347,6 +348,24 @@ async function main(): Promise<void> {
     }
   }
 
+  /**
+   * ***Once, whoever asks first.*** A `SIGTERM` can land while a restart is
+   * already closing: `systemctl stop` during the drain, or `docker stop` on a
+   * container that is restarting itself. Two runs would close the app and the
+   * stores twice over, and the exit status would go to whichever reached
+   * `process.exit` first. Now the first reason is the one the process leaves
+   * with, so a stop that arrives first exits 0 and stays down, which is what
+   * the person who sent it asked for.
+   *
+   * *Declared above the handlers that call it*, so no signal can find it
+   * uninitialised.
+   */
+  let stopping: Promise<void> | null = null;
+  function shutdown(code = 0): Promise<void> {
+    stopping ??= stop(code);
+    return stopping;
+  }
+
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
       void shutdown();
@@ -363,14 +382,16 @@ async function main(): Promise<void> {
    * `SIGTERM` must leave the data directory in the same state, and two exit
    * paths is how one of them stops closing the stores. What differs is only
    * *who asked* — `restart.ts` has already drained the turns by the time this
-   * runs, so `disposeServices`' own `drain()` finds nothing left to abort.
+   * runs, so `disposeServices`' own `drain()` finds nothing left to abort —
+   * and the status it leaves with, which is how a supervisor tells the two
+   * apart: see `RESTART_EXIT_CODE`.
    */
   services.exit = () => {
     app.log.info({ event: 'restart.exiting' }, 'Drained; exiting for a supervisor to restart');
-    void shutdown();
+    void shutdown(RESTART_EXIT_CODE);
   };
 
-  async function shutdown(): Promise<void> {
+  async function stop(code: number): Promise<void> {
     app.log.info('Shutting down.');
     /**
      * ***The goodbye first***, because it is the only thing here that is about
@@ -380,9 +401,10 @@ async function main(): Promise<void> {
      * already shut.
      */
     await mdns?.stop();
-    await app.close();
+    // Bounded, and the streams end first: see `closeApp`.
+    await closeApp(app);
     await disposeServices(services);
-    process.exit(0);
+    process.exit(code);
   }
 }
 

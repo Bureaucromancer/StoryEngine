@@ -3037,9 +3037,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const release = (): void => {
         writer.close();
       };
-      // Registered so `app.close()` can end it: closing resolves in zero
-      // milliseconds with a hijacked stream open, so a surviving keepalive is a
-      // hung process rather than a failed test.
+      // Registered so closing the app can end it, in `preClose`, before the
+      // listener waits for open responses: a stream never finishes on its own.
+      // See `AppServices.streams`.
       services.streams.add(release);
 
       request.raw.on('close', release);

@@ -12,6 +12,12 @@
  * bare `node server.js` will simply exit and the admin who clicked the button
  * now has no server and possibly no shell."*
  *
+ * ***unraid does not, on its own*** (corrected 2026-09-27). Its Autostart
+ * starts containers when the array starts and restarts nothing that exits, so
+ * the template carries `--restart=unless-stopped` in its Extra Parameters, and
+ * that flag, not unraid, is what brings the container back. §6.4's sentence
+ * names three supervisors and has two.
+ *
  * ***So the honest answer is mostly *ask*, and that is the finding rather than
  * a shortcut.*** Nothing inside a container can see its own `restart:` policy —
  * the policy is the daemon's, the container is told nothing about it, and every
@@ -28,13 +34,28 @@
  * again, which is the actual risk §6.4 names: *no server and possibly no
  * shell*.
  *
+ * ***But only for the process systemd started.*** `INVOCATION_ID` is inherited
+ * like any variable, by everything a unit's process starts: a shell in a tmux
+ * started by a user unit, a CI job on a runner that is itself a service. A
+ * server started by hand from any of those believed it was supervised, and
+ * that is the costly direction. `SYSTEMD_EXEC_PID` (systemd 248 and later)
+ * names the one process systemd started, so the detection asks for both. An
+ * older systemd sets only the first, and gets a *no*: the cheap direction. The
+ * shipped unit does not depend on detection at all, because it declares
+ * `SE_SUPERVISED=1` beside its own `Restart=` line.
+ *
  * **Everything else says so out loud.** `SE_SUPERVISED` is
  * [P10 §1.2](../../../docs/design/workplan/27-p10-implementation.md)'s rule
  * applied to a second subject — *one documented environment variable rather
  * than a build difference* — and it is set **beside the restart policy**, in
- * `compose.yaml` and in the unraid template, because those are the two files
- * where the policy itself is written. An image that claimed supervision on its
- * own would be claiming something the person who ran it may not have arranged.
+ * `compose.yaml`, in the unraid template and in the tarball's unit, because
+ * those are the three files where the policy itself is written. An image that
+ * claimed supervision on its own would be claiming something the person who
+ * ran it may not have arranged.
+ *
+ * ***And an explicit no is an answer.*** `SE_SUPERVISED=0` used to be read as
+ * *not said*, so a detection could overrule it. It now outranks detection, so
+ * an operator who knows their unit has `Restart=no` can say so.
  *
  * ***And it is deliberately not a config key.*** A value in `config.json` can be
  * copied to a machine where it is false, and the settings page would offer to
@@ -45,9 +66,12 @@
  */
 
 export type Supervision =
-  /** A unit file: `INVOCATION_ID` is in the environment, set by systemd. */
+  /** A unit file: systemd started this very process, and said so in its environment. */
   | { supervised: true; how: 'systemd' }
-  /** `SE_SUPERVISED` is set: compose's `restart:`, unraid, or a hand-written wrapper. */
+  /**
+   * `SE_SUPERVISED` is set: compose's `restart:`, the unraid template's
+   * `--restart`, the shipped unit, or a hand-written wrapper.
+   */
   | { supervised: true; how: 'declared' }
   /** Nothing said so. A bare `node server.js` lands here, which is the point. */
   | { supervised: false; how: 'none' };
@@ -73,7 +97,11 @@ export const UNSUPERVISED: Supervision = { supervised: false, how: 'none' };
  * them the server. The asymmetry is the whole argument for asking rather than
  * guessing.
  */
-export function supervisionOf(env: Record<string, string | undefined>): Supervision {
+export function supervisionOf(
+  env: Record<string, string | undefined>,
+  /** This process's id — `process.pid` in production, a number in a test. */
+  pid: number,
+): Supervision {
   // An empty value is an unset variable — `docker compose`'s `environment:`
   // forwards a host variable that does not exist as an empty string, and 21 §4
   // already states that rule for the config ones.
@@ -81,6 +109,12 @@ export function supervisionOf(env: Record<string, string | undefined>): Supervis
   if (declared === '1' || declared === 'true' || declared === 'yes') {
     return { supervised: true, how: 'declared' };
   }
-  if ((env['INVOCATION_ID'] ?? '').trim() !== '') return { supervised: true, how: 'systemd' };
-  return { supervised: false, how: 'none' };
+  // An explicit no outranks a detection: the operator knows their `Restart=`.
+  if (declared === '0' || declared === 'false' || declared === 'no') return UNSUPERVISED;
+
+  // Both variables, and the second naming this process: see the module note.
+  const invocation = (env['INVOCATION_ID'] ?? '').trim();
+  const started = (env['SYSTEMD_EXEC_PID'] ?? '').trim();
+  if (invocation !== '' && started === String(pid)) return { supervised: true, how: 'systemd' };
+  return UNSUPERVISED;
 }

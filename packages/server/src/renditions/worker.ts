@@ -113,6 +113,49 @@ export interface RenditionWorkerContext {
    * tracked and the dispatch behaves exactly as it did.
    */
   inFlight?: Set<Promise<void>>;
+  /**
+   * ***Aborted when shutdown stops waiting***, and every picture's call to the
+   * endpoint carries its signal.
+   *
+   * `renderImage` used to be called with no signal at all, though the adapter
+   * already accepted one, and `drainRenditions` waited without a bound. So a
+   * picture against an endpoint that had stopped answering held shutdown open
+   * for as long as the socket lived: a restart or a restore waited on it, and
+   * a `docker stop` waited for Docker's `SIGKILL`. What `drainRenditions` now
+   * does with the signal is in that function's note.
+   *
+   * *Optional, for `inFlight`'s reason.*
+   */
+  shutdown?: AbortController;
+}
+
+/**
+ * How long shutdown lets a picture still being made land on its own.
+ *
+ * ***Five seconds, so a plain `docker stop` can still end cleanly.*** Docker's
+ * default grace is ten seconds in all, and closing the app and draining the
+ * turns come first. Pictures are paid for, so some wait is worth it, but not a
+ * wait that makes the supervisor `SIGKILL` the process: a picture cut off
+ * here is recorded as interrupted, with its retry button, which is what a
+ * restart owes it anyway ([06 §10.2]: *"a failed rendition is a placeholder,
+ * never a failed turn"*). The shipped wrappers allow thirty seconds in all.
+ */
+export const RENDITION_DRAIN_MS = 5_000;
+
+/**
+ * How long a picture that shutdown cut off gets to record that it was.
+ *
+ * The abort makes the endpoint call reject at once, and the worker's own catch
+ * writes the record. This bound is for an adapter that ignores the signal:
+ * shutdown stops waiting for it, and the next boot's `recoverRenditions` marks
+ * whatever it left `pending`.
+ */
+export const RENDITION_ABORT_SETTLE_MS = 2_000;
+
+/** How `drainRenditions` is bounded — the constants above, unless a test says otherwise. */
+export interface RenditionDrainOptions {
+  graceMs?: number;
+  settleMs?: number;
 }
 
 /**
@@ -324,7 +367,8 @@ export async function recoverRenditions(
 }
 
 /**
- * Waits for every picture still being made — the other half of `inFlight`.
+ * Waits for every picture still being made — the other half of `inFlight` —
+ * and then stops waiting.
  *
  * ***A loop rather than one `Promise.all`***, because a rendition can outlive
  * the snapshot taken when the wait began: `select` writes a channel, and a
@@ -332,17 +376,52 @@ export async function recoverRenditions(
  * again. Waiting on a list captured once would return with work still running,
  * which is the bug this function exists to prevent wearing a fix.
  *
+ * ***Bounded twice*** (2026-09-27). It used to wait with no bound for pictures
+ * whose endpoint calls had no signal, so one stalled image endpoint held every
+ * shutdown open until the supervisor killed it. Now:
+ *
+ * 1. **The grace.** Pictures get `graceMs` to land on their own.
+ * 2. **The cut.** Whatever is left has its call aborted through `shutdown`, and
+ *    the worker records each one as `failed` / `interrupted`, recipe intact,
+ *    the same record `recoverRenditions` writes for a picture a crash
+ *    interrupted.
+ * 3. **The settle.** Those records get `settleMs` to be written. After that
+ *    this returns whatever is still running, because the stores are about to
+ *    close and a process that cannot exit is worse than a job the next boot
+ *    reconciles.
+ *
  * **It never rejects.** Each entry is already `.catch`ed at dispatch, and a
  * shutdown that threw because a picture failed would turn [06 §10.2]'s *"a
  * failed rendition is a placeholder, never a failed turn"* into *a failed
  * process* at the one moment nobody is watching.
  */
-export async function drainRenditions(context: RenditionWorkerContext): Promise<void> {
+export async function drainRenditions(
+  context: RenditionWorkerContext,
+  options: RenditionDrainOptions = {},
+): Promise<void> {
   const live = context.inFlight;
   if (live === undefined) return;
+  if (await quietWithin(live, options.graceMs ?? RENDITION_DRAIN_MS)) return;
+  context.shutdown?.abort();
+  await quietWithin(live, options.settleMs ?? RENDITION_ABORT_SETTLE_MS);
+}
+
+/** True once `live` is empty, false if `ms` ran out first. */
+async function quietWithin(live: Set<Promise<void>>, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
   while (live.size > 0) {
-    await Promise.all([...live]);
+    const left = deadline - Date.now();
+    if (left <= 0) return false;
+    let timer: NodeJS.Timeout | undefined;
+    const expired = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, left);
+      // Never the reason a process stays alive: this is shutdown.
+      timer.unref();
+    });
+    await Promise.race([Promise.all([...live]), expired]);
+    clearTimeout(timer);
   }
+  return true;
 }
 
 /**
@@ -409,6 +488,8 @@ export async function runRendition(
       prompt: record.prompt.text,
       seed,
       workflow: filterScalars(record.provenance.workflow),
+      // Shutdown's, so a stalled endpoint cannot hold the process open.
+      ...(context.shutdown === undefined ? {} : { signal: context.shutdown.signal }),
     });
 
     const path = assetPathFor(context.layout, job.account, job.sessionId, record.id, result.mime);
@@ -460,7 +541,16 @@ export async function runRendition(
     context.changed?.(job.sessionId, ready);
     context.settled?.(job.account, job.sessionId, ready);
   } catch (error) {
-    await fail(context, job, record, classOf(error));
+    /**
+     * ***Cut off by shutdown is `interrupted`, whatever the adapter threw.***
+     * The abort reaches the adapter as a cancellation, which it reports as
+     * `transient` or not at all, and neither is what happened: the picture was
+     * fine and the process was leaving. `interrupted` is the class
+     * `recoverRenditions` gives a picture a crash cut off, and the client
+     * already has its sentence and its retry button.
+     */
+    const interrupted = context.shutdown?.signal.aborted === true;
+    await fail(context, job, record, interrupted ? 'interrupted' : classOf(error));
   }
 }
 

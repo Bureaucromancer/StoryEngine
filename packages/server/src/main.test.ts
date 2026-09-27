@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { CLOSE_BACKSTOP_MS } from './app.js';
 import { Accounts } from './auth/accounts.js';
 import { Layout } from './storage/layout.js';
 import { tempRoot } from './test-server.js';
@@ -406,6 +407,201 @@ describe('an unusable data directory', () => {
     expect(result.stderr).not.toContain('at async');
     expect(result.stdout).not.toContain('listening');
     expect(result.timedOut).toBe(false);
+  });
+});
+
+/**
+ * ***Leaving, with somebody watching*** — [09 §6.4], and the two ways a
+ * supervised process ends.
+ *
+ * **As a child, because the subjects are an exit status and whether there is
+ * one at all.** Neither exists in-process: `services.exit` is null under the
+ * harness, and `inject()` never listens, so it cannot hold a close open. Both
+ * defects lived exactly there:
+ *
+ * - **A requested restart exited 0**, which the shipped unit's
+ *   `Restart=on-failure` reads as a deliberate stop. The install stayed down.
+ * - **One open tab hung every exit.** The stream closer ran in `onClose`,
+ *   which Fastify runs only after the listener has waited for every open
+ *   response, so it waited on itself. *Restart now*, a restore and `SIGTERM`
+ *   all never returned.
+ *
+ * Each test opens the notification stream every signed-in tab holds, and then
+ * asks the process to leave.
+ */
+describe('leaving, with a tab open', () => {
+  const HANDLE = 'ned';
+  const PASSWORD = 'correct horse battery';
+  // Double-submit: the server compares the cookie with the header, so a client
+  // that sets both has passed it.
+  const CSRF = 'test-csrf-token';
+
+  /**
+   * ***Shorter than the backstop, deliberately.*** `closeApp` ends every open
+   * socket after `CLOSE_BACKSTOP_MS`, so a deadline past it would pass with the
+   * stream closer broken: the backstop would end the tab, just late. A clean
+   * exit here takes well under a second.
+   */
+  const LEAVES_WITHIN_MS = CLOSE_BACKSTOP_MS - 2_000;
+
+  interface Running {
+    child: ReturnType<typeof spawn>;
+    port: number;
+    /** The exit status, or `'hung'` if the process was still there at the deadline. */
+    exited: (ms: number) => Promise<number | null | 'hung'>;
+  }
+
+  async function start(): Promise<Running> {
+    const port = await freePort();
+    const child = spawn(process.execPath, ['--import', 'tsx', ENTRY, '--data', dataDir], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: HERE,
+      env: {
+        ...process.env,
+        SE_HOST: '127.0.0.1',
+        SE_PORT: String(port),
+        SE_SUPERVISED: '1',
+        INVOCATION_ID: '',
+      },
+    });
+    const gone = new Promise<number | null>((resolve) => {
+      child.once('exit', resolve);
+    });
+    const exited = async (ms: number): Promise<number | null | 'hung'> => {
+      let timer: NodeJS.Timeout | undefined;
+      const hung = new Promise<'hung'>((resolve) => {
+        timer = setTimeout(() => {
+          resolve('hung');
+        }, ms);
+      });
+      const outcome = await Promise.race([gone, hung]);
+      clearTimeout(timer);
+      if (outcome === 'hung') {
+        child.kill('SIGKILL');
+        await gone;
+      }
+      return outcome;
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      let seen = '';
+      const timer = setTimeout(() => {
+        reject(new Error('the server never said it was listening'));
+      }, 15_000);
+      child.stdout.on('data', (chunk: Buffer) => {
+        seen += chunk.toString();
+        if (!seen.includes('StoryEngine listening')) return;
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+    return { child, port, exited };
+  }
+
+  /** One request on its own connection, the way a browser would send it. */
+  async function call(
+    port: number,
+    method: string,
+    path: string,
+    options: { cookie?: string; body?: unknown } = {},
+  ): Promise<{ status: number; cookies: string[] }> {
+    const { request } = await import('node:http');
+    return await new Promise((resolve, reject) => {
+      const outgoing = request(
+        {
+          host: '127.0.0.1',
+          port,
+          method,
+          path,
+          agent: false,
+          headers: {
+            // Only with a body: Fastify refuses an empty one that claims JSON.
+            ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+            'x-csrf-token': CSRF,
+            cookie: [`se_csrf=${CSRF}`, options.cookie].filter(Boolean).join('; '),
+          },
+        },
+        (incoming) => {
+          incoming.resume();
+          incoming.on('end', () => {
+            const cookies = (incoming.headers['set-cookie'] ?? []).map(
+              (line) => line.split(';')[0] ?? '',
+            );
+            resolve({ status: incoming.statusCode ?? 0, cookies });
+          });
+        },
+      );
+      outgoing.on('error', reject);
+      outgoing.end(options.body === undefined ? undefined : JSON.stringify(options.body));
+    });
+  }
+
+  /** Signs the first admin in, then opens the stream a signed-in tab holds. */
+  async function aTabOpen(port: number): Promise<{ cookie: string; ended: Promise<void> }> {
+    const setup = await call(port, 'POST', '/api/auth/setup', {
+      body: { handle: HANDLE, password: PASSWORD },
+    });
+    expect(setup.status).toBe(201);
+    const cookie = setup.cookies.join('; ');
+
+    const { get } = await import('node:http');
+    const stream = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+      get(
+        {
+          host: '127.0.0.1',
+          port,
+          path: '/api/me/notifications/stream',
+          agent: false,
+          headers: { cookie },
+        },
+        resolve,
+      ).on('error', reject);
+    });
+    expect(stream.statusCode).toBe(200);
+    const ended = new Promise<void>((resolve) => {
+      stream.on('close', resolve);
+      stream.resume();
+    });
+    return { cookie, ended };
+  }
+
+  /**
+   * Catches: exiting 0 from `services.exit` (the unit stays down), and the
+   * stream closer back in `onClose` (the process never exits, and this reads
+   * `'hung'`).
+   */
+  it('restarts with the status a supervisor restarts on', async () => {
+    const running = await start();
+    const tab = await aTabOpen(running.port);
+
+    const accepted = await call(running.port, 'POST', '/api/admin/restart', {
+      cookie: tab.cookie,
+    });
+    expect(accepted.status).toBe(202);
+
+    // `RESTART_EXIT_CODE`, spelled out: the unit's `RestartForceExitStatus`
+    // is held to the same number by `release.test.ts`.
+    expect(await running.exited(LEAVES_WITHIN_MS)).toBe(75);
+    await tab.ended;
+  });
+
+  /**
+   * *A stop is still a stop*: 0, so a supervisor told to stop does not read
+   * the exit as a request to come back. No Windows leg, because Node there has
+   * no `SIGTERM` to send: `kill()` ends the process outright, and no handler
+   * runs.
+   *
+   * Catches: the stream closer back in `onClose`, which hangs this until the
+   * deadline.
+   */
+  it.skipIf(process.platform === 'win32')('stops on SIGTERM, and says so with 0', async () => {
+    const running = await start();
+    const tab = await aTabOpen(running.port);
+
+    running.child.kill('SIGTERM');
+
+    expect(await running.exited(LEAVES_WITHIN_MS)).toBe(0);
+    await tab.ended;
   });
 });
 
