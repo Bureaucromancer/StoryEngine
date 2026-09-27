@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
+import { issueSession, readSession, SESSION_COOKIE, type SessionPayload } from '../auth/session.js';
 import { ingestFile } from '../index-db/ingest.js';
 import { userOwner } from '../storage/layout.js';
 import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
@@ -66,6 +67,22 @@ describe('first-run setup gates everything', () => {
     // Never over the wire, not even to the admin who just set the password.
     expect(response.body.account).not.toHaveProperty('passwordHash');
     expect(response.body.account).not.toHaveProperty('salt');
+  });
+
+  it('refuses a handle it cannot use with 400, before any account exists', async () => {
+    // The setup route mapped only `exists`, so this was a 500 even after the
+    // store learned to say what was wrong (2026-09-27).
+    for (const handle of ['-ned', 'aux']) {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/auth/setup',
+        payload: { handle, password: 'correct horse battery' },
+      });
+
+      expect(response.status, handle).toBe(400);
+      expect(response.body.error, handle).toBe('invalid');
+    }
+    expect(await server.services.accounts.needsSetup()).toBe(true);
   });
 
   it('refuses a second setup', async () => {
@@ -262,6 +279,76 @@ describe('CSRF', () => {
   it('does not require one for a read', async () => {
     const response = await server.request({ method: 'GET', url: '/api/library', skipCsrf: true });
     expect(response.status).toBe(200);
+  });
+});
+
+/**
+ * ***A session cookie names one account, not a handle*** (2026-09-27).
+ *
+ * The cookie carried only the handle, and a handle is free again once its
+ * account is removed. So the person whose account was removed kept a cookie,
+ * good for fourteen days, that signed into whoever was given the handle next:
+ * their library, their connections, their backups. It carries the account's
+ * `createdAt` now, and the identity hook compares it.
+ */
+describe('a session cookie names one account', () => {
+  beforeEach(async () => {
+    await setUpAdmin(server);
+  });
+
+  it('does not sign a removed account’s cookie into the next account with its handle', async () => {
+    const first = await server.services.accounts.create({
+      handle: 'sam',
+      password: 'the first sam',
+      role: 'user',
+    });
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    const signedIn = await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'sam', password: 'the first sam' },
+    });
+    expect(signedIn.status).toBe(200);
+    const kept = new Map(server.cookies);
+
+    await server.services.accounts.remove('sam');
+    const second = await server.services.accounts.create({
+      handle: 'sam',
+      password: 'the second sam',
+      role: 'user',
+    });
+    // What the check stands on: two lifetimes of one handle are told apart.
+    expect(second.createdAt).not.toBe(first.createdAt);
+
+    server.cookies.clear();
+    for (const [name, value] of kept) server.cookies.set(name, value);
+    const state = await server.request({ method: 'GET', url: '/api/auth/state' });
+    expect(state.body.account).toBeNull();
+    const library = await server.request({ method: 'GET', url: '/api/library' });
+    expect(library.status).toBe(401);
+  });
+
+  it('refuses a cookie issued before it carried the account’s creation time', async () => {
+    // Everyone signs in once more after the upgrade, and this is why: a cookie
+    // without the field is exactly the cookie the check exists to refuse.
+    const key = server.services.sessionKey;
+    const expiresAt = Date.now() + 60_000;
+    const legacy = issueSession({ handle: 'ned', expiresAt } as unknown as SessionPayload, key);
+    expect(readSession(legacy, key)).toBeNull();
+
+    server.cookies.set(SESSION_COOKIE, legacy);
+    const refused = await server.request({ method: 'GET', url: '/api/auth/state' });
+    expect(refused.body.account).toBeNull();
+
+    // The same cookie with the field is a signed-in request, so the field is
+    // what the first one lacked.
+    const ned = await server.services.accounts.find('ned');
+    server.cookies.set(
+      SESSION_COOKIE,
+      issueSession({ handle: 'ned', createdAt: ned?.createdAt ?? 0, expiresAt }, key),
+    );
+    const accepted = await server.request({ method: 'GET', url: '/api/auth/state' });
+    expect(accepted.body.account?.handle).toBe('ned');
   });
 });
 

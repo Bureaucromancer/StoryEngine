@@ -18,6 +18,7 @@ import {
   restoreFromTrash,
   startTrashSweep,
   sweepTrash,
+  TrashAddressError,
 } from './trash.js';
 
 /**
@@ -224,7 +225,35 @@ describe('restoring', () => {
   });
 
   it('refuses an address that is not one', async () => {
-    await expect(restoreFromTrash(layout, 'ned', '../../etc')).rejects.toThrow();
-    await expect(restoreFromTrash(layout, 'ned', 'actors/..')).rejects.toThrow();
+    // As its own error, which is what lets the route tell a malformed address
+    // from a rename the disk refused (2026-09-27).
+    await expect(restoreFromTrash(layout, 'ned', '../../etc')).rejects.toBeInstanceOf(
+      TrashAddressError,
+    );
+    await expect(restoreFromTrash(layout, 'ned', 'actors/..')).rejects.toBeInstanceOf(
+      TrashAddressError,
+    );
+  });
+
+  /**
+   * ***Two restores of one entry at once*** (2026-09-27) — two tabs, or a
+   * double press. Both find the entry and its place free, and the second
+   * rename finds nothing left to move. That was a throw, which the route then
+   * turned into *not an address in the trash*; it is the refusal a moment's
+   * later look would have given.
+   */
+  it('answers the second of two restores at once with a refusal, not a throw', async () => {
+    const id = await deleted('actors', 'vera', 1_757_000_000_000);
+
+    const both = await Promise.allSettled([
+      restoreFromTrash(layout, 'ned', id),
+      restoreFromTrash(layout, 'ned', id),
+    ]);
+
+    expect(both.map((outcome) => outcome.status)).toEqual(['fulfilled', 'fulfilled']);
+    const answers = both.map((outcome) => (outcome.status === 'fulfilled' ? outcome.value : null));
+    expect(answers.filter((answer) => answer?.ok)).toHaveLength(1);
+    const refused = answers.find((answer) => answer?.ok === false);
+    expect(['not-found', 'occupied']).toContain(refused?.ok === false ? refused.reason : null);
   });
 });

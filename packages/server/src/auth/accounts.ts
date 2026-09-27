@@ -13,8 +13,9 @@ import {
   readFileBytes,
   statFile,
 } from '../storage/files.js';
-import { assertValidHandle, type Layout } from '../storage/layout.js';
-import { hashPassword, verifyPassword } from './secrets.js';
+import { KeyedQueue } from '../storage/keyed-queue.js';
+import { isValidHandle, type Layout } from '../storage/layout.js';
+import { hashPassword, type PasswordHash, verifyPassword } from './secrets.js';
 
 /**
  * Accounts — docs/design/09-server-multiuser-deployment.md §4.2.
@@ -212,6 +213,23 @@ type AccountsFile = Static<typeof AccountsFile>;
 
 const ACCOUNTS_SCHEMA = 'storyengine.accounts/1';
 
+/**
+ * What a refused handle is told — the rule `isValidHandle` checks, as a
+ * sentence the setup form and *Add someone* show as they receive it.
+ */
+const HANDLE_RULE =
+  'A handle is lowercase letters, digits and hyphens, up to 63 characters, ' +
+  'starting with a letter or a digit and not ending in a hyphen. It cannot be a ' +
+  'name Windows keeps for itself, such as con, aux or nul.';
+
+/**
+ * The record a sign-in for nobody is checked against, so it costs what a real
+ * one does (see `authenticate`). The same sizes as a stored record: the salt
+ * is sixteen bytes and the hash sixty-four, which is the length scrypt is asked
+ * for. Nothing can match it, and nothing is told whether it did.
+ */
+const NOBODY: PasswordHash = { salt: '00'.repeat(16), hash: '00'.repeat(64) };
+
 export class AccountError extends Error {
   readonly code: 'exists' | 'not-found' | 'invalid' | 'last-admin';
 
@@ -328,8 +346,33 @@ export class Accounts {
    */
   #cache: { facts: FileFacts | null; file: AccountsFile } | null = null;
 
+  /**
+   * ***Every change is one read and one write, one change at a time***
+   * (2026-09-27).
+   *
+   * Each verb read the whole file, changed its copy and wrote the copy back,
+   * with awaits between, so two changes at once were decided on one read and
+   * the second write dropped the first: an admin unticking *Signed in* for one
+   * person and a capability for another saw both answered `200`, and the
+   * first person was enabled again. A password change hashing for fifty
+   * milliseconds while an admin removed that account wrote the account back.
+   * Two first-run setups at once could both find no accounts.
+   *
+   * One key, because the file is one document. The password hash is worked
+   * out before the queue is joined, so nobody waits on another person's
+   * scrypt. This process only: `--reset-password`, the other writer, is a
+   * person at the console, and the stat on every read is what lets each side
+   * see the other's file.
+   */
+  readonly #writes = new KeyedQueue();
+
   constructor(layout: Layout) {
     this.#layout = layout;
+  }
+
+  /** Runs one read-change-write against the file, after every earlier one. */
+  #change<T>(task: () => Promise<T>): Promise<T> {
+    return this.#writes.run('accounts', task);
   }
 
   async #read(): Promise<AccountsFile> {
@@ -410,7 +453,17 @@ export class Accounts {
    */
   async authenticate(handle: string, password: string): Promise<PublicAccount | null> {
     const account = (await this.#read()).accounts.find((entry) => entry.handle === handle);
-    if (!account?.enabled) return null;
+    if (!account?.enabled) {
+      /**
+       * ***The same scrypt a wrong password costs*** (2026-09-27). The answer
+       * was one answer and the time was not: a handle nobody holds, or a
+       * disabled one, came back in about a millisecond and a real one in about
+       * fifty, so anyone who could reach the port could list the handles in a
+       * form-mode install a request each. The result is thrown away.
+       */
+      await verifyPassword(password, NOBODY);
+      return null;
+    }
 
     const ok = await verifyPassword(password, { salt: account.salt, hash: account.passwordHash });
     return ok ? toPublic(account) : null;
@@ -424,38 +477,64 @@ export class Accounts {
     locale?: string | null;
     capabilities?: Partial<Capabilities>;
   }): Promise<PublicAccount> {
+    return this.#create(input, { onlyIfFirst: false });
+  }
+
+  async #create(
+    input: {
+      handle: string;
+      displayName?: string;
+      password: string;
+      role: Account['role'];
+      locale?: string | null;
+      capabilities?: Partial<Capabilities>;
+    },
+    options: { onlyIfFirst: boolean },
+  ): Promise<PublicAccount> {
     // The handle becomes a directory name, so it is checked here rather than
     // trusted from wherever it arrived ([09 §4.3]: the path is the owner).
-    assertValidHandle(input.handle);
-
-    const file = await this.#read();
-    if (file.accounts.some((entry) => entry.handle === input.handle)) {
-      throw new AccountError(
-        'exists',
-        `An account with the handle ${input.handle} already exists.`,
-      );
-    }
+    //
+    // ***And refused as the caller's mistake*** (2026-09-27). The check threw
+    // the path guard's own error, which nothing maps, so `Sam`, `-ned` or
+    // `aux` at setup or in *Add someone* was a 500 and *The request failed*,
+    // with nothing saying what was wrong with the name.
+    if (!isValidHandle(input.handle)) throw new AccountError('invalid', HANDLE_RULE);
 
     const { salt, hash } = await hashPassword(input.password);
-    const account: Account = {
-      handle: input.handle,
-      displayName: input.displayName ?? input.handle,
-      passwordHash: hash,
-      salt,
-      role: input.role,
-      enabled: true,
-      locale: input.locale ?? null,
-      capabilities: { ...DEFAULT_CAPABILITIES, ...input.capabilities },
-      createdAt: Date.now(),
-    };
+    return this.#change(async () => {
+      const file = await this.#read();
+      // Inside the queue, so two setups at once cannot both find none.
+      if (options.onlyIfFirst && file.accounts.length > 0) {
+        throw new AccountError('exists', 'Setup has already been completed.');
+      }
+      if (file.accounts.some((entry) => entry.handle === input.handle)) {
+        throw new AccountError(
+          'exists',
+          `An account with the handle ${input.handle} already exists.`,
+        );
+      }
 
-    await this.#write({ ...file, accounts: [...file.accounts, account] });
-    // The library directory is created eagerly so the folder appears the moment
-    // an account does, rather than on the first write. `ls data/users/ned/` is
-    // part of the P1 demo.
-    await ensureDirectory(this.#layout.libraryRoot({ kind: 'user', handle: input.handle }));
+      const account: Account = {
+        handle: input.handle,
+        displayName: input.displayName ?? input.handle,
+        passwordHash: hash,
+        salt,
+        role: input.role,
+        enabled: true,
+        locale: input.locale ?? null,
+        capabilities: { ...DEFAULT_CAPABILITIES, ...input.capabilities },
+        createdAt: Date.now(),
+      };
 
-    return toPublic(account);
+      await this.#write({ ...file, accounts: [...file.accounts, account] });
+      // The library directory is created eagerly so the folder appears the
+      // moment an account does, rather than on the first write. `ls
+      // data/users/ned/` is part of the P1 demo. Inside the queue, so a removal
+      // right behind this cannot move a directory this has not made yet.
+      await ensureDirectory(this.#layout.libraryRoot({ kind: 'user', handle: input.handle }));
+
+      return toPublic(account);
+    });
   }
 
   /**
@@ -474,7 +553,9 @@ export class Accounts {
     if (!(await this.needsSetup())) {
       throw new AccountError('exists', 'Setup has already been completed.');
     }
-    return this.create({ ...input, role: 'admin' });
+    // Asked again inside the write, which is the check that counts; the one
+    // above only spares a second setup the scrypt.
+    return this.#create({ ...input, role: 'admin' }, { onlyIfFirst: true });
   }
 
   /**
@@ -559,41 +640,43 @@ export class Accounts {
       hiddenFromGallery?: boolean;
     },
   ): Promise<PublicAccount> {
-    const file = await this.#read();
-    const account = file.accounts.find((entry) => entry.handle === handle);
-    if (!account) {
-      throw new AccountError('not-found', `No account with the handle ${handle}.`);
-    }
+    return this.#change(async () => {
+      const file = await this.#read();
+      const account = file.accounts.find((entry) => entry.handle === handle);
+      if (!account) {
+        throw new AccountError('not-found', `No account with the handle ${handle}.`);
+      }
 
-    const updated: Account = {
-      ...account,
-      ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
-      ...(patch.locale === undefined ? {} : { locale: patch.locale }),
-      ...(patch.role === undefined ? {} : { role: patch.role }),
-      ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
-      ...(patch.capabilities === undefined
-        ? {}
-        : { capabilities: { ...account.capabilities, ...patch.capabilities } }),
-      /**
-       * **`false` removes the field rather than storing it**, which keeps
-       * [12 §4]'s polarity true on disk: absence means listed, so *"only
-       * objectors carry the field"* and `accounts.json` stays a document where
-       * a field's presence marks a choice somebody made.
-       */
-      ...(patch.hiddenFromGallery === undefined
-        ? {}
-        : patch.hiddenFromGallery
-          ? { hiddenFromGallery: true }
-          : {}),
-    };
-    if (patch.hiddenFromGallery === false) delete updated.hiddenFromGallery;
+      const updated: Account = {
+        ...account,
+        ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
+        ...(patch.locale === undefined ? {} : { locale: patch.locale }),
+        ...(patch.role === undefined ? {} : { role: patch.role }),
+        ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
+        ...(patch.capabilities === undefined
+          ? {}
+          : { capabilities: { ...account.capabilities, ...patch.capabilities } }),
+        /**
+         * **`false` removes the field rather than storing it**, which keeps
+         * [12 §4]'s polarity true on disk: absence means listed, so *"only
+         * objectors carry the field"* and `accounts.json` stays a document
+         * where a field's presence marks a choice somebody made.
+         */
+        ...(patch.hiddenFromGallery === undefined
+          ? {}
+          : patch.hiddenFromGallery
+            ? { hiddenFromGallery: true }
+            : {}),
+      };
+      if (patch.hiddenFromGallery === false) delete updated.hiddenFromGallery;
 
-    assertAdminSurvives(file, account, updated);
-    await this.#write({
-      ...file,
-      accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
+      assertAdminSurvives(file, account, updated);
+      await this.#write({
+        ...file,
+        accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
+      });
+      return toPublic(updated);
     });
-    return toPublic(updated);
   }
 
   /**
@@ -613,27 +696,29 @@ export class Accounts {
    * recoverable by hand from a folder StoryEngine has promised not to touch.
    */
   async remove(handle: string): Promise<void> {
-    const file = await this.#read();
-    const account = file.accounts.find((entry) => entry.handle === handle);
-    if (!account) {
-      throw new AccountError('not-found', `No account with the handle ${handle}.`);
-    }
-    assertAdminSurvives(file, account, null);
+    await this.#change(async () => {
+      const file = await this.#read();
+      const account = file.accounts.find((entry) => entry.handle === handle);
+      if (!account) {
+        throw new AccountError('not-found', `No account with the handle ${handle}.`);
+      }
+      assertAdminSurvives(file, account, null);
 
-    // Guarded because an account whose directory is already gone should still
-    // be removable — refusing there would trap an admin inside a broken state
-    // rather than letting them leave it. (`fileExists` is a stat, which does
-    // not care that this one is a directory.)
-    if (await fileExists(this.#layout.userRoot(handle))) {
-      await moveTree(
-        this.#layout.userRoot(handle),
-        this.#layout.removedDestination(handle, uuidv7()),
-      );
-    }
+      // Guarded because an account whose directory is already gone should
+      // still be removable — refusing there would trap an admin inside a
+      // broken state rather than letting them leave it. (`fileExists` is a
+      // stat, which does not care that this one is a directory.)
+      if (await fileExists(this.#layout.userRoot(handle))) {
+        await moveTree(
+          this.#layout.userRoot(handle),
+          this.#layout.removedDestination(handle, uuidv7()),
+        );
+      }
 
-    await this.#write({
-      ...file,
-      accounts: file.accounts.filter((entry) => entry.handle !== handle),
+      await this.#write({
+        ...file,
+        accounts: file.accounts.filter((entry) => entry.handle !== handle),
+      });
     });
   }
 
@@ -683,24 +768,28 @@ export class Accounts {
     password: string,
     options: { reEnable: boolean },
   ): Promise<PublicAccount> {
-    const file = await this.#read();
-    const account = file.accounts.find((entry) => entry.handle === handle);
-    if (!account) {
-      throw new AccountError('not-found', `No account with the handle ${handle}.`);
-    }
-
     const { salt, hash } = await hashPassword(password);
-    const updated: Account = {
-      ...account,
-      passwordHash: hash,
-      salt,
-      ...(options.reEnable ? { enabled: true } : {}),
-    };
-    await this.#write({
-      ...file,
-      accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
+    // The account is looked for after the hash, inside the queue: looked for
+    // before it, a removal during the scrypt was undone by this write.
+    return this.#change(async () => {
+      const file = await this.#read();
+      const account = file.accounts.find((entry) => entry.handle === handle);
+      if (!account) {
+        throw new AccountError('not-found', `No account with the handle ${handle}.`);
+      }
+
+      const updated: Account = {
+        ...account,
+        passwordHash: hash,
+        salt,
+        ...(options.reEnable ? { enabled: true } : {}),
+      };
+      await this.#write({
+        ...file,
+        accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
+      });
+      return toPublic(updated);
     });
-    return toPublic(updated);
   }
 }
 

@@ -47,6 +47,11 @@ install.
 needed — gating the discovery endpoint behind the thing being discovered leaves
 the UI with a 503 and no way to read it.
 
+**The gate asks which route the request reached, not how its path was spelled**
+(2026-09-27). The router decodes a path before matching it, and the gate read
+the raw one, so `/%61pi/…` reached every route past it. The same is true of the
+CSRF check below.
+
 ### CSRF
 
 Double-submit: `se_csrf` is a script-readable cookie, and its value must come
@@ -58,6 +63,13 @@ authority to abuse — forging either requires already knowing the password — 
 requiring a token there would be a bootstrap paradox, since the token is issued
 *by* signing in. `SameSite=Lax` covers the login-CSRF gap that leaves.
 
+**At every address** (2026-09-27). The check was limited to paths spelled
+`/api/…`, and the router also answers `/%61pi/…`, so a page on another port of
+the same machine could restart the server or post into a signed-in person's
+library with no token. Outside `/api` only `GET` and `HEAD` are served, so the one
+visible change is that a signed-in `POST` to an address nothing serves is `403
+csrf` rather than the page.
+
 ### Sessions
 
 A signed stateless cookie, 14 days, `httpOnly` + `SameSite=Lax`. **No `secure`
@@ -68,6 +80,12 @@ be logged in.
 Logout clears the cookie. A copy already taken elsewhere stays valid until it
 expires; that is the honest cost of having no session table, argued in
 `packages/server/src/auth/session.ts`.
+
+**The cookie names one account, not a handle** (2026-09-27). It carries the
+account's `createdAt` beside the handle, and a request whose account was created
+at another time is anonymous. Before, a removed account's cookie signed into the
+next account given the same handle. A cookie from before this has no
+`createdAt` and is refused, so everyone signs in once more after upgrading.
 
 **A password change does not end them either**, and neither does an
 administrator disabling the account — for the second, the identity hook re-reads
@@ -182,8 +200,9 @@ admin answers `409 already-setup` instead — the honest reason, rather than a
 token refusal about a route that no longer applies.
 
 `handle` becomes a directory name, so it is validated hard: lowercase letters,
-digits and hyphens, 1–63 characters, not ending in a hyphen, and not a Windows
-reserved device name.
+digits and hyphens, 1–63 characters, starting with a letter or a digit, not
+ending in a hyphen, and not a Windows reserved device name. One that breaks the
+rule is `400 invalid` with the rule as the message (2026-09-27; it was a `500`).
 
 `locale` is defaulted from `Accept-Language`.
 
@@ -193,7 +212,9 @@ reserved device name.
 
 **One answer for a wrong password, an unknown handle and a disabled account.**
 The caller cannot tell which, which costs nothing here and avoids a handle
-oracle.
+oracle. ***Nor from how long it took*** (2026-09-27): an unknown or disabled
+handle pays the same key derivation a wrong password does. It answered in about a
+millisecond against fifty, which listed the handles a request each.
 
 **No length rule applies here, deliberately.** An empty password is a legitimate
 request — legal wherever `auth.minPasswordLength` is `0`, and possible on any
@@ -1581,7 +1602,12 @@ being made when the session goes writes nothing, and a restore that finds a
 folder without a `session.json` in its place moves that aside into the trash.
 A restore (`POST /api/me/trash/restore`) indexes what it puts back before it
 answers, so a restored session is found by search again and a restored object
-reads at once.
+reads at once. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
+is not an address is `400 invalid`, one no longer there is `404 not-found`, and
+one whose place is taken is `409 occupied`. ***Anything else is a `500` and is
+logged*** (2026-09-27): every failure used to be *not an address in the trash*,
+including a rename the disk refused. The second of two restores of one entry at
+once is the `404` or `409` a moment's later look would give.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
@@ -2148,7 +2174,9 @@ connection*.
 `{ handle, password, role, displayName?, locale?, capabilities? }` →
 `201 { account }`. A duplicate handle is `409 exists`. Unknown fields are refused,
 the same way `/api/me` refuses them. A password shorter than
-`auth.minPasswordLength` is `400 invalid`, naming `/password`.
+`auth.minPasswordLength` is `400 invalid`, naming `/password`. A handle the rule
+under [setup](#post-apiauthsetup) refuses is `400 invalid` with that rule as
+the message (2026-09-27; it was a `500`).
 
 The library directory is created with the account, so `ls data/users/<handle>/`
 works immediately rather than after their first write.

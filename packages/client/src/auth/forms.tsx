@@ -41,8 +41,13 @@ const LABEL_CLASS = `${fieldLabel} mb-1`;
  * The handle becomes a directory name, so the server validates it hard
  * (docs/api.md). Mirroring the rule here turns a rejection into inline
  * guidance; the server remains the authority.
+ *
+ * ***Starting with a letter or a digit, as the server's does*** (2026-09-27).
+ * This let `-ned` through, which the server refused as a 500 and *The request
+ * failed*. The server answers that with a sentence now, and it is the sentence
+ * that covers what a pattern cannot sensibly carry, the names Windows keeps.
  */
-const HANDLE_PATTERN = '[a-z0-9\\-]{0,62}[a-z0-9]';
+const HANDLE_PATTERN = '[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?';
 
 /**
  * The password rule as one whole sentence per case — [01 §2].
@@ -239,7 +244,7 @@ export function SetupForm(props: {
             }}
             autoComplete="username"
             pattern={HANDLE_PATTERN}
-            title="Lowercase letters, digits and hyphens, not ending in a hyphen."
+            title="Lowercase letters, digits and hyphens, starting with a letter or a digit and not ending in a hyphen."
             maxLength={63}
             autoFocus
             required

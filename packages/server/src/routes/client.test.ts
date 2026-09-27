@@ -153,6 +153,13 @@ describe('with a client root configured', () => {
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: 'not-found', message: 'No such route.' });
+
+    // ***And spelled in escapes*** (2026-09-27). The static handler checks the
+    // path it is handed, still encoded, and then serves the decoded one, so
+    // `/%61pi/nonsense` answered `200` with the file past the guard above.
+    const escaped = await app.request({ method: 'GET', url: '/%61pi/nonsense' });
+    expect(escaped.status).toBe(404);
+    expect(escaped.body).toEqual({ error: 'not-found', message: 'No such route.' });
   });
 
   /**

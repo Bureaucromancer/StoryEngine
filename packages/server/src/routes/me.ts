@@ -21,7 +21,7 @@ import { presentRoleRow, roleTable } from '../providers/roles.js';
 import { ingestFile } from '../index-db/ingest.js';
 import { reindexSession, withSessionLock } from '../sessions/store.js';
 import { userOwner } from '../storage/layout.js';
-import { listTrash, restoreFromTrash } from '../storage/trash.js';
+import { listTrash, restoreFromTrash, TrashAddressError } from '../storage/trash.js';
 
 /**
  * What a signed-in person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
@@ -320,12 +320,12 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     let restored;
     try {
       restored = await restoreFromTrash(services.layout, account.handle, id);
-    } catch {
-      // `splitTrashId` throws for an address that is not one, which is a
-      // malformed request rather than a server fault.
-      return reply
-        .code(400)
-        .send({ error: 'invalid', message: 'That is not an address in the trash.' });
+    } catch (error) {
+      // An address that is not one is a malformed request rather than a
+      // server fault. ***Only that*** (2026-09-27): anything else, a rename
+      // the disk refused, is the 500 it is, and is logged.
+      if (!(error instanceof TrashAddressError)) throw error;
+      return reply.code(400).send({ error: 'invalid', message: error.message });
     }
 
     if (!restored.ok) {

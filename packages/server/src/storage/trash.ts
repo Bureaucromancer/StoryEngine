@@ -244,7 +244,20 @@ export async function restoreFromTrash(
     await moveTree(to, stray);
   }
 
-  await moveTree(from, to);
+  try {
+    await moveTree(from, to);
+  } catch (error) {
+    /**
+     * ***Two restores of one entry at once*** (2026-09-27): two tabs, or a
+     * double press. Both find the entry, both find its place free, and the
+     * second rename finds nothing left to move. That is the answer the first
+     * look would have given a moment later, so it is given now, and a rename
+     * that failed for any other reason is still the failure it was.
+     */
+    if (!(await exists(from))) return { ok: false, reason: 'not-found' };
+    if (await exists(to)) return { ok: false, reason: 'occupied' };
+    throw error;
+  }
   if (kind === 'sessions') {
     return { ok: true, path: to, restored: { kind: 'session', sessionId: name } };
   }
@@ -256,13 +269,27 @@ export async function restoreFromTrash(
   return { ok: true, path: to, restored: { kind: 'object', schemaId, slug: name } };
 }
 
+/**
+ * ***An address that is not one, told apart from everything else that can go
+ * wrong in a restore*** (2026-09-27). The route caught every throw as this one
+ * and answered *That is not an address in the trash*, so a rename refused by a
+ * scanner holding the folder on Windows, or a full disk, told the person their
+ * trash entry did not exist and wrote nothing to the log.
+ */
+export class TrashAddressError extends Error {
+  constructor() {
+    super('That is not an address in the trash.');
+    this.name = 'TrashAddressError';
+  }
+}
+
 /** `kind/entry`, refusing anything that is not exactly that. */
 function splitTrashId(id: string): [string, string] {
   const parts = id.split('/');
   const kind = parts[0] ?? '';
   const entry = parts[1] ?? '';
   if (parts.length !== 2 || !trashKinds().includes(kind) || entry === '' || entry.includes('..')) {
-    throw new Error('That is not an address in the trash.');
+    throw new TrashAddressError();
   }
   return [kind, entry];
 }

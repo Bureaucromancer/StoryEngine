@@ -382,6 +382,16 @@ CSRF protection on state-changing routes, session cookies with sane flags, and
 path traversal checks on every filesystem-touching route. Those are cheap and
 their absence is embarrassing rather than defensible.
 
+***Measured against that list, 2026-09-27.*** Three of them had a hole. The
+CSRF check and the first-run gate held only for paths spelled `/api/…`, and the
+router also answers `/%61pi/…`, so a page on another port of the same machine
+could restart the server through a signed-in browser. A session cookie named a
+handle, which removing an account frees for the next one, so the removed
+person's cookie signed into the new account. And login's one answer took about
+a millisecond for a handle nobody holds against fifty for a real one, which
+lists the handles a request each. Each is fixed where it lived (`app.ts`,
+`auth/session.ts`, `auth/accounts.ts`) and recorded in `docs/api.md`.
+
 **One rule survives the skip-list, and it belongs to the operator rather than to
 us.** `auth.minPasswordLength` is a length floor, default 8, settable anywhere in
 0–128 from the settings surface. Everything above stays true as the *default*

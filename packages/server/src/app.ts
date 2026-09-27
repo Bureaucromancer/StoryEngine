@@ -1413,11 +1413,39 @@ export async function buildApp(
    */
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const session = readSession(request.cookies[SESSION_COOKIE], services.sessionKey);
-    request.account = session ? await services.accounts.find(session.handle) : null;
-    if (request.account && !request.account.enabled) {
-      // Disabled between issuing the cookie and using it.
-      request.account = null;
-    }
+    const holder = session ? await services.accounts.find(session.handle) : null;
+    /**
+     * ***The account the cookie was issued to, not whoever holds its handle
+     * now*** (2026-09-27). A cookie named only a handle, so after an admin
+     * removed `sam` and later made a new `sam` for somebody else, the first
+     * person's cookie, valid for fourteen days, signed straight into the
+     * second person's library, connections and backups. The cookie carries
+     * the account's `createdAt` now, which no writer ever changes and a
+     * restore brings back as it was, so it names one account's lifetime.
+     *
+     * Disabled between issuing the cookie and using it is the other half, as
+     * before.
+     */
+    request.account =
+      holder !== null &&
+      session !== null &&
+      holder.enabled &&
+      holder.createdAt === session.createdAt
+        ? holder
+        : null;
+
+    /**
+     * ***What the router matched, not what the request spelled***
+     * (2026-09-27). The router decodes a path before it matches it, and both
+     * checks below read the raw URL, so `POST /%61pi/admin/restart` reached
+     * the restart route with no CSRF token and, before setup, past the setup
+     * gate. Any page on the same site (another port on the same box is enough
+     * for `SameSite=Lax`) could restart the server or post a file into
+     * somebody's library through a signed-in browser. The CSRF check reads no
+     * path at all now; the gate reads `routeOptions.url`, the pattern the
+     * request was routed to, which is unset when nothing matched.
+     */
+    const routed = request.routeOptions.url;
 
     // CSRF before anything else acts on the request. Double-submit: a token in
     // a script-readable cookie, echoed in a header a cross-site caller cannot
@@ -1433,7 +1461,12 @@ export async function buildApp(
     // Login CSRF — forcing someone into an account the attacker controls — is
     // the one real gap this leaves, and `SameSite=Lax` is what covers it: a
     // cross-site POST does not carry cookies at all.
-    if (request.account && isStateChanging(request.method) && isApi(request.url)) {
+    //
+    // ***On every address, not only `/api`*** (2026-09-27): there is no path
+    // left to misread. Outside `/api` the server answers only `GET` and `HEAD`,
+    // so the one change is that a signed-in `POST` to an address nothing
+    // serves is refused as `csrf` rather than answered with the page.
+    if (request.account && isStateChanging(request.method)) {
       if (!csrfValid(request.cookies[CSRF_COOKIE], request.headers[CSRF_HEADER_NAME])) {
         await reply.code(403).send({ error: 'csrf', message: 'Missing or invalid CSRF token.' });
         return;
@@ -1446,8 +1479,8 @@ export async function buildApp(
     // the loopback default this closes the window in which anyone on the
     // network could claim the admin account.
     if (
-      isApi(request.url) &&
-      !survivesSetupGate(request.url) &&
+      isApi(routed ?? request.url) &&
+      !survivesSetupGate(routed) &&
       (await services.accounts.needsSetup())
     ) {
       await reply
@@ -1604,8 +1637,22 @@ async function listAccountHandles(services: AppServices): Promise<string[]> {
   return services.layout.userHandlesOnDisk();
 }
 
+/**
+ * ***Read the way the router reads it*** (2026-09-27). The router decodes a
+ * path before matching it, so `/%61pi/nonsense` is `/api/nonsense` to it, and
+ * the static handler hands this its path still encoded. Undecoded, the two
+ * callers below disagreed with the router: the fallback answered the page for
+ * an API address, and a file at `<clientRoot>/api/…` was served at `/%61pi/…`
+ * past the one guard written to stop exactly that.
+ */
 function isApi(url: string): boolean {
-  return url.startsWith('/api/');
+  let path = url;
+  try {
+    path = decodeURI(url);
+  } catch {
+    // A malformed escape: the router matched nothing for it either.
+  }
+  return path.startsWith('/api/');
 }
 
 /**
@@ -1614,9 +1661,13 @@ function isApi(url: string): boolean {
  * `setup` for obvious reasons, and `state` because it is how a client *learns*
  * that setup is needed — gating the discovery endpoint behind the thing being
  * discovered would leave the UI with a 503 and no way to know what it means.
+ *
+ * ***Asked of the route the request matched, and exactly*** (2026-09-27): a
+ * prefix test on the raw URL is what the encoded-prefix fault above lived in,
+ * and an unmatched address survives nothing.
  */
-function survivesSetupGate(url: string): boolean {
-  return url.startsWith('/api/auth/setup') || url.startsWith('/api/auth/state');
+function survivesSetupGate(routed: string | undefined): boolean {
+  return routed === '/api/auth/setup' || routed === '/api/auth/state';
 }
 
 /**
