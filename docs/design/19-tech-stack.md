@@ -600,7 +600,13 @@ mechanical part.
   a bug in the driver costs a rebuild, not data. Fall back to `better-sqlite3`,
   which is mature and has the same synchronous ergonomics, if anything bites.
 - **`chokidar`** for the filesystem watcher feeding the index, which is also what
-  makes [10 §4](10-ui-surfaces.md)'s file access safe.
+  makes [10 §4](10-ui-surfaces.md)'s file access safe. *Patched, 2026-09-27*
+  (`patches/chokidar@5.0.0.patch`): 5.0.0 met a new directory by reading it and
+  only then watching it, so a folder made inside one it was still discovering
+  was never watched, and a tree copied into the library faster than it was
+  discovered lost every hand edit under it until the next start's reconcile.
+  The patch moves the watch ahead of the read in `_handleDir` and nothing else;
+  it goes when a release of chokidar does the same.
 - **`write-file-atomic`** for every canonical write (temp + rename). SillyTavern
   already uses it; the failure it prevents is a truncated character card.
 - **`png-chunks-extract` + `png-chunk-text`** — the pair SillyTavern's card
