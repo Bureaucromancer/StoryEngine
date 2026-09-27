@@ -268,12 +268,6 @@ export function ImportPanel(): JSX.Element {
   };
 
   /**
-   * Everything the library shows is now different, and which queries is not
-   * worth enumerating — a sweep can write six kinds. `resetQueries` rather than
-   * `removeQueries`, because a destroyed entry does not notify its observers
-   * and the list would sit on what it was already holding ([P3.5]).
-   */
-  /**
    * Whether a picker may start something new.
    *
    * **Disabled, not hidden**, while a decision is pending — [10 §1.1] rejects
@@ -284,8 +278,24 @@ export function ImportPanel(): JSX.Element {
    */
   const pending = busy || outcome?.kind === 'preview';
 
+  /**
+   * Everything the library shows is now different, and which queries is not
+   * worth enumerating — a sweep can write six kinds.
+   *
+   * ~~`resetQueries` rather than `removeQueries`, because a destroyed entry does
+   * not notify its observers and the list would sit on what it was already
+   * holding ([P3.5]).~~ **`invalidateQueries`** (2026-09-27). The reason
+   * against `removeQueries` stands; the choice it led to was the wrong one. A
+   * reset puts every entry back to *pending* before it refetches, and
+   * `useLibrary` keeps no placeholder, so the list beside this panel unmounted
+   * its table on every import — and the sort, the filters and the search a
+   * person had set went with it, to show *Loading…* in place of a list about to
+   * gain one row. Invalidating refetches every entry on screen and tells its
+   * observers, which is what [P3.5] was after, and keeps what is shown until the
+   * new answer replaces it.
+   */
   const refresh = async (): Promise<void> => {
-    await queryClient.resetQueries({ queryKey: ['library'] });
+    await queryClient.invalidateQueries({ queryKey: ['library'] });
     await queryClient.invalidateQueries({ queryKey: ['import-jobs'] });
   };
 

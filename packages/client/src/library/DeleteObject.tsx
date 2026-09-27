@@ -57,10 +57,27 @@ export function DeleteObject(props: {
     setError(null);
     try {
       await api.deleteObject(props.kind, props.id, props.contentHash);
-      // The list is now wrong in a way it cannot detect. `resetQueries` rather
-      // than `removeQueries`: a destroyed entry does not notify its observers
-      // ([P3.5]).
-      await queryClient.resetQueries({ queryKey: ['library'] });
+      /**
+       * ***Leave first, then refetch*** (2026-09-27).
+       *
+       * The list is now wrong in a way it cannot detect. ~~`resetQueries`
+       * rather than `removeQueries`: a destroyed entry does not notify its
+       * observers ([P3.5]).~~ That reset ran *before* the navigation and was
+       * awaited, and it reached the page still on screen: the object just
+       * deleted went back to pending and was read again, answered `404`, was
+       * retried a second later, and only then did the page leave — a second
+       * and more of *Loading…* where the object had been, after a click that
+       * had already succeeded.
+       *
+       * So in order: what nothing is watching is dropped, so the shelf this
+       * lands on is read fresh rather than shown with the deleted row in it;
+       * the page leaves; the deleted object's own entries go, now that nothing
+       * mounted watches them; and what is left under `['library']` — lists an
+       * editor's pickers were holding, say — is refetched as usual. A fetch the
+       * shelf has already started since arriving is kept, not restarted: it
+       * began after the delete.
+       */
+      queryClient.removeQueries({ queryKey: ['library'], type: 'inactive' });
       /**
        * **`ignoreBlocker`, because the editors mount an unsaved-changes guard**
        * and the draft it guards is of an object that is now in the trash. Left
@@ -77,8 +94,11 @@ export function DeleteObject(props: {
        * browser's Back button would reopen the editor on a cached envelope of
        * a file that is gone, and never refetch. Removed after the navigation
        * rather than before it, so no mounted observer watches its entry vanish.
+       * The read page's entries are the same ghost under the other prefix.
        */
       queryClient.removeQueries({ queryKey: ['editor', props.kind, props.id] });
+      queryClient.removeQueries({ queryKey: ['library', props.kind, props.id] });
+      void queryClient.invalidateQueries({ queryKey: ['library'] }, { cancelRefetch: false });
     } catch (cause) {
       // A 412 here means somebody edited it while this page was open, which is
       // exactly when a delete should stop and say so.

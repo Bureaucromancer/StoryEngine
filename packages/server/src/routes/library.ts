@@ -32,6 +32,7 @@ import {
   LibraryError,
   list,
   read,
+  type ObjectAddress,
   readableOwners,
   readCardPixels,
   readMedia,
@@ -105,14 +106,34 @@ const VersionPatch = Type.Object({
  *
  * A **query parameter on the read route**, not a second path segment. The
  * canonical address of an object is its id and stays so — this narrows a read,
- * the way a filter does, and nothing else in the API accepts it. It is
- * `(source, slug)` rather than the stored path because the path is native and
- * platform-divergent (F23); the slug is the same string everywhere.
+ * the way a filter does. It is `(source, slug)` rather than the stored path
+ * because the path is native and platform-divergent (F23); the slug is the same
+ * string everywhere.
+ *
+ * ~~*…and nothing else in the API accepts it.*~~ **The download and the export
+ * accept it too** (2026-09-27), because they are reads of the same object in
+ * other clothes. Without it, the detail page of a shadowed copy showed that
+ * copy and offered buttons that handed over the winner, a different file,
+ * under the loser's name. Still reads only: every write and every reference
+ * between objects stays id-only ({@link ObjectAddress}).
  */
 const ObjectQuery = Type.Object({
   slug: Type.Optional(Type.String()),
   source: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('system')])),
 });
+
+/**
+ * The copy a query names, or `undefined` for the winner.
+ *
+ * One function for the three routes that accept the address, so they cannot
+ * disagree about what a partial one means: a slug with no source is the
+ * account's own library, as it has been on the read route since F19.
+ */
+function addressOf(query: Static<typeof ObjectQuery>): ObjectAddress | undefined {
+  return query.slug === undefined
+    ? undefined
+    : { slug: query.slug, source: query.source ?? 'user' };
+}
 
 /**
  * The **envelope** a write arrives in — not the object inside it.
@@ -301,19 +322,15 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       const schemaId = schemaFor(request.params as { kind: string }, reply);
       if (!schemaId) return;
 
-      const query = request.query as { slug?: string; source?: 'user' | 'system' };
-
       try {
         const row = read(
           services.library,
           account.handle,
           (request.params as { id: string }).id,
           schemaId,
-          // Only when the caller asks for a specific copy. Everything else —
-          // every write, every reference — stays id-only and winner-resolving.
-          query.slug === undefined
-            ? undefined
-            : { slug: query.slug, source: query.source ?? 'user' },
+          // Everything else — every write, every reference — stays id-only and
+          // winner-resolving.
+          addressOf(request.query as Static<typeof ObjectQuery>),
         );
         const registry = await services.tags.read(account.handle);
         return await reply.header('etag', row.contentHash).send(present(row, registry));
@@ -383,10 +400,13 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    *
    * It carries no `x-storyengine-missing`: a package resolves references and can
    * come up short, and an object is just itself.
+   *
+   * **`?source=&slug=` reaches one copy of a duplicated id**, as it does on the
+   * read above: the bytes a person downloads from a copy's page are that copy's.
    */
   app.get(
     '/library/:kind/:id/download',
-    { schema: { params: ObjectParams } },
+    { schema: { params: ObjectParams, querystring: ObjectQuery } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
@@ -400,6 +420,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           account.handle,
           (request.params as { id: string }).id,
           schemaId,
+          addressOf(request.query as Static<typeof ObjectQuery>),
         );
         return await reply
           .header('content-type', 'application/json; charset=utf-8')
@@ -441,7 +462,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    */
   app.get(
     '/library/:kind/:id/export/:format',
-    { schema: { params: ExportParams } },
+    { schema: { params: ExportParams, querystring: ObjectQuery } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
@@ -465,7 +486,20 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       }
 
       try {
-        const row = read(services.library, account.handle, id, schemaId);
+        /**
+         * The copy asked for, when one is ({@link ObjectQuery}) — but only the
+         * object being written out. What it names below is resolved as every
+         * reference is, by id to the winner: a copy's cast is the same `Ref`s
+         * the winner's is, and nothing about one copy of a duplicated
+         * treatment makes its actors a different actor.
+         */
+        const row = read(
+          services.library,
+          account.handle,
+          id,
+          schemaId,
+          addressOf(request.query as Static<typeof ObjectQuery>),
+        );
         /**
          * **Resolved by id against the same library, and a miss is `null`.**
          *

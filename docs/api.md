@@ -336,10 +336,13 @@ nothing. An address that matches no row is `404`, including one that names the
 
 Three things it deliberately is not. It is **read-only**: no write takes it, so
 a `PUT` still resolves to the winner and a duplicate stays a warning rather than
-becoming a fork. It is **not the canonical address**: an object is its id, and
-this narrows a read the way a filter does. And it is **`slug`, not the path** —
-the stored path is the native absolute one and differs by platform, while the
-folder name is the same string everywhere.
+becoming a fork. (The two other reads of an object take it too —
+[`/download`](#get-apilibrarykindiddownload) and
+[`/export/:format`](#get-apilibrarykindidexportformat), since 2026-09-27 — so a
+copy's page hands over that copy's file.) It is **not the canonical address**:
+an object is its id, and this narrows a read the way a filter does. And it is
+**`slug`, not the path** — the stored path is the native absolute one and
+differs by platform, while the folder name is the same string everywhere.
 
 ### `PUT /api/library/:kind/:id`
 
@@ -666,6 +669,11 @@ No `suggestions` here — the plan step is where advice can still be acted on.
 **The object as stored, byte for byte** → `200`, `application/json`, with a
 `content-disposition` naming an ASCII-slugged file. Works for every kind.
 
+**`?source=&slug=` downloads one specific copy of a duplicated id**, exactly as
+it reads one on [`GET /api/library/:kind/:id`](#get-apilibrarykindid). Without
+it, the winner. Before 2026-09-27 the route ignored the address, so a shadowed
+copy's page offered the winner's bytes under the loser's name.
+
 **The primitive, and it converts nothing.** Everything under `/export/` below is
 a *writer*, and a writer loses something by definition; this loses nothing
 because nothing is converted. It carries no `x-storyengine-missing`: a package
@@ -693,6 +701,11 @@ that decides which of those you have built, and adding a third is a table row.
   schema. The folder is the object and somebody may have hand-edited it, so
   *this file is not a treatment any more* is a real answer and a better one than
   a cheerfully empty download.
+
+**`?source=&slug=` writes out one specific copy of a duplicated id**, as the
+download does. It narrows the object being exported and nothing else: the
+objects *it* names — a treatment's cast, a scenario's lorebooks — resolve by id
+to their winners, as every reference does.
 
 **What the file does not carry travels in `x-storyengine-export-notes`**, base64
 of a JSON `ImportNote[]`. In a header on `.sepack`'s reasoning — *the body is the

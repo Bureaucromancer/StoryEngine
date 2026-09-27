@@ -211,6 +211,129 @@ describe('deleting a library object', () => {
     );
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  /**
+   * ***It leaves first, and does not read again what it deleted*** —
+   * 2026-09-27. The refresh ran before the navigation and reset the entry this
+   * page was watching, so the object just deleted was read again — a `404`,
+   * retried a second later — and the page showed *Loading…* for it until the
+   * navigation finally ran. Reddened by putting the reset back.
+   */
+  it('leaves for the library without re-reading what it deleted', async () => {
+    renderPage();
+    const user = await askToDelete();
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await vi.waitFor(() => {
+      expect(navigate).toHaveBeenCalled();
+    });
+    // TanStack starts a refetch on a timer, so its absence needs one to pass.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(readObject).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **And the shelf it lands on is read fresh**, not shown from a cached list
+   * that still holds the row just deleted. Reddened by dropping the
+   * inactive-entry removal.
+   */
+  it('does not hand the shelf a cached list with the deleted object in it', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['library', 'actors'], { objects: [actor()] });
+    render(
+      <QueryClientProvider client={client}>
+        <ObjectDetailPage />
+      </QueryClientProvider>,
+    );
+    const user = await askToDelete();
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await vi.waitFor(() => {
+      expect(navigate).toHaveBeenCalled();
+    });
+
+    expect(client.getQueryData(['library', 'actors'])).toBeUndefined();
+  });
+});
+
+/**
+ * ***The file a copy's page hands over is that copy*** (2026-09-27).
+ *
+ * An id resolves to the winner, and these are plain anchors to routes keyed by
+ * id — so on the page of a shadowed copy, which is reached through
+ * `?source=&slug=` and shows the right file, *Download* and *Export* handed over
+ * the other one under this one's heading. The address travels now, and only
+ * where it changes the answer.
+ */
+describe('taking an object with you', () => {
+  const SHADOWED = `?source=user&slug=vera-kohl-2`;
+
+  function hrefOf(name: string): string | null {
+    return screen.getByRole('link', { name }).getAttribute('href');
+  }
+
+  it('downloads and exports the shadowed copy on screen, not the winner', async () => {
+    search = { source: 'user', slug: 'vera-kohl-2' };
+    readObject.mockResolvedValue(actor({ shadowed: true, slug: 'vera-kohl-2' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(hrefOf('Download this actor')).toBe(
+      `/api/library/actors/${ACTOR_ID}/download${SHADOWED}`,
+    );
+    expect(hrefOf('Export as Aventuras character')).toBe(
+      `/api/library/actors/${ACTOR_ID}/export/aventuras.character${SHADOWED}`,
+    );
+  });
+
+  it('names the id alone when the copy on screen is the one it resolves to', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(hrefOf('Download this actor')).toBe(`/api/library/actors/${ACTOR_ID}/download`);
+  });
+
+  /**
+   * The package route takes an id and nothing narrower, so from a shadowed
+   * copy it would bundle the winner — offered nowhere rather than wrongly.
+   */
+  it('offers a package bundle only on the copy its id resolves to', async () => {
+    params = { kind: 'packages', id: ACTOR_ID };
+    const pack = {
+      schema: 'storyengine.package/1',
+      name: 'Harbour set',
+      slug: 'harbour-set',
+      object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+    };
+    readObject.mockResolvedValue(actor(pack));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Export this package' })).toBeTruthy();
+  });
+
+  it('withholds the package bundle on a shadowed copy', async () => {
+    params = { kind: 'packages', id: ACTOR_ID };
+    search = { source: 'user', slug: 'harbour-set-2' };
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.package/1',
+        name: 'Harbour set',
+        slug: 'harbour-set-2',
+        shadowed: true,
+        object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Export this package' })).toBeNull();
+    // The object itself still downloads, as that copy.
+    expect(hrefOf('Download this package')).toBe(
+      `/api/library/packages/${ACTOR_ID}/download?source=user&slug=harbour-set-2`,
+    );
+  });
 });
 
 /**

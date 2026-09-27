@@ -194,27 +194,45 @@ function ConnectionsPanel({
                   <p className="font-medium">{row.label}</p>
                   <Fine>{row.provider}</Fine>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="compact"
-                    onClick={() => {
-                      setEditing(row);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="dangerOutline"
-                    size="compact"
-                    onClick={() => {
-                      setConfirming(row);
-                    }}
-                  >
-                    {removeLabel(row.label)}
-                  </Button>
-                </div>
+                {/*
+                 * ***No controls on the copy that loses*** (2026-09-27).
+                 *
+                 * Both buttons act on an *id*, and both reached the other file.
+                 * Edit writes to whichever copy resolution picks
+                 * (`editTarget`) and checks that copy's hash, so a form opened
+                 * on this copy either saved over the winner — when the two
+                 * files were byte-identical, as a straight copy is — or was
+                 * refused as changed on disk when nothing had changed. Remove
+                 * unlinks *every* file with the id (`findConnectionFiles`,
+                 * deliberately — a leaked key must not survive in a second
+                 * file), so an admin tidying the dead copy deleted the working
+                 * key with it. Nothing the server offers acts on one file of
+                 * two, and it should not: a duplicated id is a hand edit, and
+                 * the sentence below says where to undo it.
+                 */}
+                {row.shadowed ? null : (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="compact"
+                      onClick={() => {
+                        setEditing(row);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="dangerOutline"
+                      size="compact"
+                      onClick={() => {
+                        setConfirming(row);
+                      }}
+                    >
+                      {removeLabel(row.label)}
+                    </Button>
+                  </div>
+                )}
               </div>
               <p className="mt-2 text-xs text-ink-faint">{keyState(row)}</p>
               {row.shadowed ? (
@@ -224,11 +242,12 @@ function ConnectionsPanel({
                  * one id is what a hand-edited directory does, and an admin
                  * editing the copy nothing resolves to would otherwise watch
                  * their change do nothing at all.
+                 *
+                 * ~~*Remove one of them.*~~ It pointed at a button that
+                 * removed both (2026-09-27), so the remedy it names now is the
+                 * only one that touches this copy alone.
                  */
-                <p className="mt-2 text-sm text-warn-ink">
-                  Another connection file on disk already uses this id, so nothing will ever resolve
-                  to this one. Remove one of them.
-                </p>
+                <p className="mt-2 text-sm text-warn-ink">{shadowedNote()}</p>
               ) : null}
             </li>
           ))}
@@ -263,6 +282,7 @@ function ConnectionsPanel({
         <RemoveConnectionDialog
           scope={scope}
           connection={confirming}
+          duplicated={rows.filter((row) => row.id === confirming.id).length > 1}
           onDone={() => {
             setConfirming(null);
           }}
@@ -779,10 +799,24 @@ function FirstRunDefaults({
 function RemoveConnectionDialog({
   scope,
   connection,
+  duplicated,
   onDone,
 }: {
   scope: ConnectionScope;
   connection: AdminConnection;
+  /**
+   * Whether the list holds a second file with this id (2026-09-27).
+   *
+   * Remove reaches the winner's row only now, but it still unlinks every file
+   * claiming the id — which is right, for the leaked key [P2B §2.8] is about —
+   * so the dialog says so before, not after. The list the panel already holds
+   * is the evidence: the server presented both files in it.
+   *
+   * *Counted by id, never by identity with the row the dialog opened on*: a
+   * refetch while it is open hands the panel new row objects whenever a file
+   * changed, and the winner's own new row would then read as a second file.
+   */
+  duplicated: boolean;
   onDone: () => void;
 }): JSX.Element {
   /**
@@ -811,6 +845,7 @@ function RemoveConnectionDialog({
         The key stops working here straight away. Nothing revokes it at the provider — do that there
         as well if it has leaked.
       </p>
+      {duplicated ? <p className="text-sm text-warn-ink">{duplicateRemoved()}</p> : null}
       {remove.isError ? (
         <p role="alert" className="text-sm text-danger-ink">
           {remove.error.message}
@@ -1189,6 +1224,14 @@ function removeLabel(label: string): string {
 
 function removeTitle(label: string): string {
   return `Remove ${label}?`;
+}
+
+function shadowedNote(): string {
+  return "Another connection file on disk already uses this id, so nothing will ever resolve to this one. Delete this copy's file by hand: removing the connection here removes every file with this id, including the one in use.";
+}
+
+function duplicateRemoved(): string {
+  return 'Another file on disk claims this id as well, and it is removed too.';
 }
 
 function editTitle(label: string): string {

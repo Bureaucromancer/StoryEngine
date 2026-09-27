@@ -251,8 +251,13 @@ function ObjectView(props: {
         shipped the package editor with *"the honest limit"* written beside it —
         *the editor lands able to make and describe a bundle and not to send
         one* — and this is the send. **A plain anchor, because it is a file.**
+
+        *Not on a shadowed copy* (2026-09-27): the route takes an id and
+        nothing narrower, so from this copy's page it would bundle the winner —
+        a different package, under this one's heading. Read-only addresses stop
+        at single objects; a bundle resolves what it names by id anyway.
       */}
-      {kind === 'packages' ? (
+      {kind === 'packages' && !object.shadowed ? (
         <a
           href={`/api/library/packages/${encodeURIComponent(object.id)}/export`}
           className={link.inline}
@@ -343,6 +348,18 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
   const { kind, object } = props;
   const id = encodeURIComponent(object.id);
   const formats = exportFormatsFor(object.schema);
+  /**
+   * ***The copy on screen, not the winner*** (2026-09-27).
+   *
+   * An id resolves to the winner, so on a shadowed copy's page these links
+   * handed over the other file under this one's name. The page was reached
+   * through `?source=&slug=` and already shows the right copy; the download and
+   * the export take the same address now, and carry it only where it changes
+   * the answer — a copy that is not shadowed *is* what its id resolves to.
+   */
+  const at = object.shadowed
+    ? `?source=${object.source}&slug=${encodeURIComponent(object.slug)}`
+    : '';
 
   return (
     <section aria-label="Take it with you" className="flex flex-col gap-1">
@@ -352,15 +369,16 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
         package for `/api/...` literals to prove every route the server serves is
         reached by something, and it resolves helper *functions* and not local
         constants. A stem factored out here is two routes that read as orphaned.
+        The copy's address is appended after the literal for the same reason.
       */}
-      <a href={`/api/library/${kind}/${id}/download`} className={link.inline} download>
+      <a href={`/api/library/${kind}/${id}/download` + at} className={link.inline} download>
         {downloadLabel(kind)}
       </a>
 
       {formats.map((format) => (
         <span key={format.id} className="flex flex-col">
           <a
-            href={`/api/library/${kind}/${id}/export/${format.id}`}
+            href={`/api/library/${kind}/${id}/export/${format.id}` + at}
             className={link.inline}
             download
           >

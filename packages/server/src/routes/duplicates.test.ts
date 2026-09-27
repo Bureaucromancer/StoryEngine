@@ -154,6 +154,54 @@ describe('a duplicated id', () => {
     expect(wrongScope.status).toBe(404);
   });
 
+  /**
+   * ***What a copy's page hands over is that copy*** (2026-09-27).
+   *
+   * The detail page of a shadowed copy is reached through this address and
+   * showed the right file, and its Download and Export buttons went to routes
+   * that ignored the address — so they served the winner's bytes, named after
+   * the copy on screen. Here the two copies differ in what they hold, which is
+   * the only way a route ignoring the address can be seen.
+   */
+  it('downloads and exports the copy the address names, and the winner without one', async () => {
+    const { id, shadowed } = await duplicateOnDisk();
+    const kindRoot = join(server.dataDir, ...KIND_ROOT);
+    const edited = { ...newLorebook('Hand Edited'), id };
+    await writeFile(join(kindRoot, shadowed, 'lorebook.json'), JSON.stringify(edited, null, 2));
+    await rebuild(server.services.index.db, server.services.layout);
+    const at = `?source=user&slug=${shadowed}`;
+
+    const downloaded = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/download${at}`,
+    });
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.body.name).toBe('Hand Edited');
+
+    const exported = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/export/aventuras.lorebook${at}`,
+    });
+    expect(exported.status).toBe(200);
+    // An Aventuras lorebook is its entries; the name travels as the file's.
+    expect(exported.headers['content-disposition']).toBe('attachment; filename="Hand-Edited.json"');
+
+    // No address is the winner, as it is everywhere else.
+    const plain = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/download`,
+    });
+    expect(plain.body.name).toBe('Rain City');
+
+    // And an address that names nothing is a 404, not a quiet fall back to the
+    // winner: a page that asked for one file must not be handed another.
+    const nowhere = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/export/aventuras.lorebook?source=user&slug=no-such-folder`,
+    });
+    expect(nowhere.status).toBe(404);
+  });
+
   it('does not make the shadowed copy writable', async () => {
     // The line the plan draws: reads may name a copy, writes may not. A write
     // carries no address, so it resolves to the winner and the hash check does
