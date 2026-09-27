@@ -308,15 +308,26 @@ async function runImport(
    * `server.clientRoot` are refused by name.*** Both are filesystem paths on
    * the machine the archive came from: one would point a running server at a
    * directory that may be somebody else's, the other would make it serve a 404
-   * where the built client used to be. Everything else in a config is a fact
-   * about how an install behaves and travels.
+   * where the built client used to be. ~~Everything else in a config is a fact
+   * about how an install behaves and travels.~~ *Corrected 2026-09-27:* so are
+   * where it listens and what stands in front of it, which `NOT_IMPORTABLE`
+   * says why; and *by name* is true now, in the note below.
    */
   if (body.options?.config === true) {
     const document = await readArchivedConfig(opened.source);
     if (document === null) {
       notes.push({ key: 'import.backup.configMissing', params: {}, level: 'warn' });
     } else {
-      const applied = await applyConfigDocument(app, services, document, NOT_IMPORTABLE);
+      const applied = await applyConfigDocument(app, services, document, {
+        drop: NOT_IMPORTABLE,
+      });
+      if (applied.ok && applied.withheld.length > 0) {
+        notes.push({
+          key: 'import.backup.configWithheld',
+          params: { keys: applied.withheld.join(', ') },
+          level: 'info',
+        });
+      }
       if (!applied.ok) {
         notes.push({
           key: 'import.backup.configRefused',

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
@@ -84,8 +84,9 @@ import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { type OperationalPrune, startOperationalPrune } from './state/prune.js';
-import { fileExists, freeBytes, readFileBytes } from './storage/files.js';
+import { fileExists, freeBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
+import { clientBuildMissing, MACHINE, type StartableSeams } from './startable.js';
 import { UNSUPERVISED, type Supervision } from './supervision.js';
 import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
 import { createCaptureStore } from './storage/captures.js';
@@ -317,6 +318,17 @@ export interface AppServices {
    * changed since we read it?*
    */
   configDocument: Record<string, unknown>;
+  /**
+   * ***The environment layer this process started with*** (2026-09-27): the
+   * document `SE_HOST`, `SE_PORT`, `SE_DATA_DIR` and `SE_CLIENT_ROOT` made,
+   * which a boot layers under the file. The settings write had no copy of it,
+   * so the config it said would run was not the one a restart ran. Empty
+   * unless `main.ts` says otherwise, so no test depends on the machine it runs
+   * on.
+   */
+  environment: Record<string, unknown>;
+  /** What a write asks of the machine before it is written. See `startable.ts`. */
+  startable: StartableSeams;
   library: LibraryContext;
   /**
    * Whether something will start this process again — [09 §6.4], [P10.3].
@@ -422,6 +434,10 @@ export interface BuildAppOptions {
   fetch?: typeof globalThis.fetch;
   /** The file's contents as this process read them. See {@link AppServices.configDocument}. */
   configDocument?: Record<string, unknown>;
+  /** The environment layer. See {@link AppServices.environment}. */
+  environment?: Record<string, unknown>;
+  /** Substitute the machine a settings write is checked against. See `startable.ts`. */
+  startable?: StartableSeams;
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
   watch?: boolean;
   /**
@@ -943,6 +959,8 @@ async function assembleWithState(
     fetch: options.fetch ?? globalThis.fetch,
     configPath: options.configPath ?? layout.configFile,
     configDocument: options.configDocument ?? {},
+    environment: options.environment ?? {},
+    startable: options.startable ?? MACHINE,
     library,
   };
   return built;
@@ -1569,7 +1587,7 @@ export async function buildApp(
   const clientRoot = services.config.server.clientRoot;
   if (clientRoot !== '') {
     const root = resolve(clientRoot);
-    if ((await readFileBytes(join(root, 'index.html'))) === null) {
+    if (await clientBuildMissing(root)) {
       throw new Error(`server.clientRoot has no index.html in it: ${root}`);
     }
     await app.register(fastifyStatic, {

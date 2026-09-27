@@ -183,6 +183,9 @@ async function main(): Promise<void> {
     config,
     configPath,
     configDocument: document,
+    // The layer the boot put under the file, so a settings write resolves the
+    // next config the way the next boot will (`resolveConfigDocument`).
+    environment: fromEnvironment,
     // The one caller that owns the process, so the one that may ask how it was
     // started. See `BuildAppOptions.supervision`.
     supervision: supervisionOf(process.env, process.pid),

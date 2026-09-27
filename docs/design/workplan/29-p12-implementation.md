@@ -332,6 +332,13 @@ each a checkbox, each off by default, each reported whether taken or not**. A
 configuration import refuses `dataDir` and `server.clientRoot`: both are paths
 on another machine.
 
+*Amended 2026-09-27.* **And the four keys that say where the other machine
+listened and what stood in front of it** — `server.host`, `server.port`,
+`server.cookieSecure`, `server.trustProxy`. A laptop's `127.0.0.1` imported into
+a container outranked `SE_HOST` at the next start and bound the container's own
+loopback. The refusal is *by name* now as well: the review says which keys the
+archive carried and this install kept, which it had not.
+
 ***This stage was planned as "preview then apply" and shipped as "apply then
 report", which is a correction rather than a cut.*** The plan named
 `import/preview.ts`, and reading it settled the question the other way:

@@ -161,12 +161,22 @@ changing a value in the UI and finding a variable had outranked it would be a bu
 ([21 §4](design/21-internal-contracts.md)). The server logs a warning when a
 variable is set and the file speaks for the same key.
 
+**A settings save writes only what you changed.** Before 2026-09-27 it wrote
+back every value the page showed, including the ones your `SE_*` variables set,
+so an install that has saved its settings once may have `server.host`,
+`server.port` or `server.clientRoot` in `config.json` that you never chose, and
+those outrank the variables. The start-up warning above names them; delete them
+from the file to let the variables speak again.
+
 **There is no HTTPS.** On a LAN it cannot be done well without a real domain or a
 private CA, and self-signed certificates train people to click through warnings.
 Put a reverse proxy in front if you want TLS, and then set `server.trustProxy`
 and `server.cookieSecure` in `config.json` — both default to off, and
 `cookieSecure` without TLS in front makes signing in fail silently, because a
-`Secure` cookie is never sent back over plain HTTP.
+`Secure` cookie is never sent back over plain HTTP. The settings page will only
+turn `cookieSecure` on from a page it can see arrived over HTTPS, directly or
+through a proxy it is told to trust, and it refuses an address, a port or a
+client root the next start could not use.
 
 ## Updates
 

@@ -728,6 +728,19 @@ to *would this start?* — but its issues are translated from JSON pointers back
 to the variable that was typed, so `SE_PORT=99999` reports `SE_PORT`, not
 `/server/port`, which is in a file the operator never edited.
 
+***Two amendments, 2026-09-27.*** **The settings write had no environment
+layer**: it resolved the next config as defaults then file, so on a container
+the config it said would run was not the one a restart ran, and its unedited
+Save copied every `SE_*` value it had been shown into the file, where the file's
+precedence then held them against the environment for good. It resolves as a
+boot does now (`resolveConfigDocument`), and writes a key the file does not set
+only when its value differs from what lies under the file. **And the schema is
+one answer to *would this start?*, not the whole of it.** A port somebody else
+holds, an address this machine lacks, a client root with no build and `Secure`
+cookies over plain HTTP all pass it; the write asks the machine too
+(`startable.ts`), for the deployment keys that differ from what this process
+started with.
+
 ### 4.1 The log record
 
 `log.format` had two literals and no meaning behind either. This is the meaning,

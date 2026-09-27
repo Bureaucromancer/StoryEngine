@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RestorePlan } from '../backup/restore.js';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ensureDirectory, fileExists, readFileBytes, writeFileBytes } from '../storage/files.js';
@@ -645,6 +645,51 @@ describe('importing one', () => {
      * server at one that may not exist or may be somebody else's.
      */
     expect(server.services.config.dataDir).not.toBe('/somewhere/else/entirely');
+  });
+
+  /**
+   * ***Where the other machine listened, and what stood in front of it***
+   * (2026-09-27). A laptop's `127.0.0.1` imported into a container outranked
+   * `SE_HOST` at the next start, and the container bound its own loopback,
+   * which nothing outside it can reach. Its port broke the port mapping the
+   * same way, and its `cookieSecure`, from behind HTTPS, meant nobody on plain
+   * HTTP could sign in. None of the four comes across, and the review says so.
+   */
+  it('keeps this install’s own address, port and proxy settings, and names them', async () => {
+    const { newLorebook } = await import('@storyengine/shared');
+    const { create } = await import('../library.js');
+    await create(server.services.library, 'ned', newLorebook('Rain City'));
+
+    const { writeJsonAtomic } = await import('../storage/atomic.js');
+    await writeJsonAtomic(server.services.configPath, {
+      trash: { retentionDays: 11 },
+      server: { host: '127.0.0.1', port: 3000, cookieSecure: true, trustProxy: true },
+    });
+    const id = await take('/api/admin/backups');
+    await writeJsonAtomic(server.services.configPath, {});
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/backups/import',
+      payload: { id, handle: 'ned', options: { config: true } },
+    });
+
+    expect(response.status).toBe(200);
+    expect(server.services.config.trash.retentionDays).toBe(11);
+    const written = JSON.parse(await readFile(server.services.configPath, 'utf8')) as {
+      server?: unknown;
+    };
+    expect(written.server).toBeUndefined();
+
+    const withheld = (
+      response.body as { notes: { key: string; params: { keys?: string } }[] }
+    ).notes.find((note) => note.key === 'import.backup.configWithheld');
+    expect(withheld?.params.keys?.split(', ').sort()).toEqual([
+      'server.cookieSecure',
+      'server.host',
+      'server.port',
+      'server.trustProxy',
+    ]);
   });
 });
 

@@ -12,6 +12,7 @@ import type { BuildInfo } from './build-info.js';
 import { type Config, DEFAULT_CONFIG, loadConfig } from './config.js';
 import type { WatchEvent } from './index-db/watcher.js';
 import type { ProviderFactory } from './providers/factory.js';
+import { MACHINE, type StartableSeams } from './startable.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -129,6 +130,17 @@ export interface TestServerOptions {
   logStream?: NodeJS.WritableStream;
   /** Substitute the outbound fetch — the model-fetch action ([P2B §2.6]). */
   fetch?: typeof globalThis.fetch;
+  /** The environment layer a boot would have put under the file (`SE_*`). */
+  environment?: Record<string, unknown>;
+  /**
+   * The machine a settings write is checked against (`startable.ts`).
+   *
+   * **The trial listen is a no-op unless a test supplies one**, because a real
+   * one binds a real port: suites that move `server.port` to 9999 would take it
+   * for a moment on the machine running them, and two such files at once would
+   * refuse each other. The address checks stay real; they bind nothing.
+   */
+  startable?: Partial<StartableSeams>;
 }
 
 /**
@@ -181,6 +193,8 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     },
     configPath: layout.configFile,
     configDocument: loaded?.document ?? {},
+    environment: options.environment ?? {},
+    startable: { ...MACHINE, trialListen: () => Promise.resolve(), ...options.startable },
     watch: options.watch ?? false,
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     ...(options.providers === undefined ? {} : { providers: options.providers }),

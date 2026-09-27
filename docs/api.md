@@ -2261,6 +2261,24 @@ rather than present-and-empty.
 - A value the schema refuses is `400 invalid` and **nothing is written**: the
   document is validated by the same function the server boots on, so a save
   cannot leave a file the process will not start on.
+- ***And resolved and checked as the next start would meet it*** (2026-09-27).
+  The environment's `SE_*` values sit under the file, as they do at boot, so
+  `pendingRestart` names what a restart would actually change. A deployment key
+  that differs from what this process started with is asked of the machine:
+  `server.host` must be the wildcard, loopback, or an address this machine has
+  (a name must resolve to one here); a changed `server.port` must be one a
+  listen here could take; `server.clientRoot` must hold an `index.html`, and
+  cannot be emptied while this server serves the app; `server.cookieSecure`
+  can be turned on only from a page reached over HTTPS, or through a proxy
+  named in `x-forwarded-proto` when the same save trusts proxies. Each refusal
+  is `400 invalid` with an `issues` line naming the key, and nothing is written.
+  The schema alone had passed each of these, and each was a start that failed,
+  or one nobody could reach or sign in to.
+- ***A save writes what somebody chose*** (2026-09-27). The form sends the whole
+  running config back; a key the file does not already set is written only
+  when its value differs from what the environment or the default would give
+  it. An unedited save used to copy `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT`
+  into the file, where they outranked the environment from then on.
 
 ### The stale check
 
@@ -2825,6 +2843,14 @@ filesystem paths on the machine the archive came from: one would point a running
 server at a directory that may be somebody else's, the other would make it serve
 a 404 where the built client used to be. Ticking it on an *account* archive is
 `403 not-install-scope`.
+
+***And `server.host`, `server.port`, `server.cookieSecure` and
+`server.trustProxy`*** (2026-09-27): where the other machine listened and what
+stood in front of it. A laptop's loopback address imported into a container
+outranked `SE_HOST` at the next start and bound the container's own loopback.
+The keys the archive carried and this install kept are named in an
+`import.backup.configWithheld` note, which is what *by name* promised and did
+not do before.
 
 ### `POST /api/admin/restore`
 

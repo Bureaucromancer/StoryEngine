@@ -940,10 +940,7 @@ export async function loadConfig(
     }
   }
 
-  // `mergeDefaults` reads its first argument as the layer underneath, which is
-  // exactly the environment's position here — the name says `defaults` because
-  // that was the only thing ever underneath a file until now.
-  const merged = validateConfigDocument(mergeDefaults(environment, parsed), path);
+  const merged = resolveConfigDocument(parsed, environment, path);
 
   const fromFile = new Set(configKeys(parsed));
   const setByEnvironment = configKeys(environment);
@@ -963,6 +960,29 @@ export async function loadConfig(
 /** The variable name for a key, falling back to the key for anything unmapped. */
 function variableFor(key: string): string {
   return VARIABLE_OF[key] ?? key;
+}
+
+/**
+ * ***What a start would make of a document***: the defaults, then the
+ * environment, then the document, validated (2026-09-27).
+ *
+ * The one composition {@link loadConfig} boots on, exported so the settings
+ * write asks the same question. It asked {@link validateConfigDocument}, which
+ * has no environment layer, so on a container (`SE_HOST`, `SE_PORT`,
+ * `SE_CLIENT_ROOT` all set) the config a save said would run differed from
+ * the one a restart ran, and the restart notice was computed from the wrong
+ * one.
+ *
+ * `mergeDefaults` reads its first argument as the layer underneath, which is
+ * exactly the environment's position here — the name says `defaults` because
+ * that was the only thing ever underneath a file until the environment came.
+ */
+export function resolveConfigDocument(
+  document: unknown,
+  environment: Record<string, unknown> = {},
+  path = 'the config',
+): Config {
+  return validateConfigDocument(mergeDefaults(environment, document), path);
 }
 
 /**

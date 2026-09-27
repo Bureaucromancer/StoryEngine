@@ -150,6 +150,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'Settings were not brought across. Tick that box to include them.',
   'import.backup.configMissing': 'That backup carries no settings file.',
   'import.backup.configRefused': 'The settings in that backup were not valid here ({message}).',
+  'import.backup.configWithheld':
+    'Kept this install’s own {keys}: they describe the machine a server runs on, not how it behaves.',
   'import.file.notStored': '“{object}” could not be saved ({reason}).',
   'import.file.notYetConvertible':
     'Read and named, but this build has nowhere to put a {kind} yet.',
