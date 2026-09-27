@@ -644,8 +644,9 @@ export async function performCall(
       // person wins, and only silence that nobody asked to end is a stall. The
       // adapter's classifier matches `/abort/i` and would otherwise have called
       // this `transient` and retried the hang twice.
-      const stalled = bound.stalled();
-      if (stalled) {
+      // Or the transport's own limit, reported by the adapter as a stall.
+      const stalled = bound.stalled() || (error instanceof ProviderError && error.stalled);
+      if (bound.stalled()) {
         error = new Stalled(context.config.limits.providerTimeoutMs);
       }
 

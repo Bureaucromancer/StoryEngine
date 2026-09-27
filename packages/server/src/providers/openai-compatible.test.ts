@@ -652,6 +652,31 @@ describe('classifying a failure with no status', () => {
     expect(error?.class).toBe('transient');
   });
 
+  /**
+   * ***A transport that gave up on a quiet endpoint is a stall*** (2026-09-27).
+   * undici's header and body limits end with *Headers Timeout Error*, which the
+   * `/timeout/` route took for a connection that did not work, so the ladder
+   * asked twice more. Terminal, and marked as the stall it is.
+   */
+  it('reads undici’s own timeouts as a stall, not as a connection that failed', async () => {
+    for (const code of ['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']) {
+      const quiet = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('Headers Timeout Error'), { code }),
+      });
+      const provider = new OpenAICompatibleProvider({
+        connection: connectionWith(),
+        fetch: async () => {
+          throw quiet;
+        },
+      });
+
+      const { error } = await collect(provider);
+
+      expect(error?.class, code).toBe('terminal');
+      expect(error?.stalled, code).toBe(true);
+    }
+  });
+
   it('is terminal when nothing says otherwise', async () => {
     // The floor. Without this, a classifier that returned `transient` for
     // everything would satisfy every test above.

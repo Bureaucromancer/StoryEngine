@@ -49,7 +49,11 @@ export interface ScriptedReply {
    * double that could not would let the log-shape tests pass over a system that
    * drops them.
    */
-  error?: { class: ErrorClass; message: string; detail?: string };
+  /**
+   * `stalled` is a transport that gave up on a quiet endpoint beneath the
+   * runner's own bound — undici's header and body limits (2026-09-27).
+   */
+  error?: { class: ErrorClass; message: string; detail?: string; stalled?: boolean };
   /** The model the endpoint says answered, when it is not the one asked for. */
   answeredAs?: string;
   /** Why generation stopped. Defaults to a clean `stop`. */
@@ -251,7 +255,9 @@ export class FakeProvider implements Provider {
     const reply = this.#next(request, false);
     await quiet(reply.stallMs, request.signal);
     if (reply.error) {
-      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail);
+      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail, {
+        stalled: reply.error.stalled === true,
+      });
     }
     return this.#result(reply, request);
   }
@@ -261,7 +267,9 @@ export class FakeProvider implements Provider {
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
     const reply = this.#next(request, true);
     if (reply.error && reply.failAfterChunks === undefined) {
-      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail);
+      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail, {
+        stalled: reply.error.stalled === true,
+      });
     }
 
     await quiet(reply.stallMs, request.signal);

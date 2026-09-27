@@ -13,6 +13,7 @@ import {
 } from 'ai';
 
 import { capabilitiesFor } from './capabilities.js';
+import { patientFetch } from './patient-fetch.js';
 import type { Connection } from './connections.js';
 import {
   ProviderError,
@@ -103,7 +104,13 @@ export class OpenAICompatibleProvider implements Provider {
       // Absent for a local endpoint that needs none, which is the ordinary
       // case for the local-model story and not an error.
       ...(connection.apiKey === undefined ? {} : { apiKey: connection.apiKey }),
-      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      /**
+       * ***Never the SDK's default***, which is Node's global `fetch` and its
+       * five-minute limits on headers and on a quiet body (2026-09-27). Those
+       * sat underneath `providerTimeoutMs`, so a slow model could not be given
+       * longer, and `0` switched off only our bound — see `patient-fetch.ts`.
+       */
+      fetch: options.fetch ?? patientFetch,
     });
 
     this.#model = (modelId: string) => client(modelId);
@@ -562,6 +569,17 @@ const TRANSIENT_CODES = new Set([
   'UND_ERR_CONNECT_TIMEOUT',
 ]);
 
+/**
+ * ***undici giving up on a response, which is a stall and not a connection
+ * that failed*** (2026-09-27). The request was accepted and the endpoint went
+ * quiet — the case `withIdleTimeout` calls a stall — and the message, *Headers
+ * Timeout Error*, matched the classifier's `/timeout/`, so it was retried twice
+ * as transient. Terminal, and marked as a stall so the remedy says so. The
+ * patient dispatcher means a provider call should not meet these at all; a
+ * `fetch` handed in from elsewhere still can.
+ */
+const STALL_CODES = new Set(['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+
 /** The first error code on the cause chain, which is where fetch buries it. */
 function codeOf(error: unknown): string | undefined {
   for (let at = error, depth = 0; at !== undefined && at !== null && depth < 8; depth += 1) {
@@ -582,10 +600,19 @@ function asProviderError(error: unknown): ProviderError {
     (error as { statusCode?: number; status?: number }).statusCode ??
     (error as { status?: number }).status;
 
+  const body = (error as { responseBody?: unknown }).responseBody;
+  const detail =
+    typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
+
+  const code = codeOf(error);
+  if (status === undefined && STALL_CODES.has(code ?? '')) {
+    return new ProviderError('terminal', 'The provider call failed.', detail, { stalled: true });
+  }
+
   let errorClass: ErrorClass = 'terminal';
   if (status === 429 || (status !== undefined && status >= 500)) {
     errorClass = 'retryable';
-  } else if (status === undefined && TRANSIENT_CODES.has(codeOf(error) ?? '')) {
+  } else if (status === undefined && TRANSIENT_CODES.has(code ?? '')) {
     // The connection never worked. Nothing about the request was refused.
     errorClass = 'transient';
   } else if (status === undefined && (error as { isRetryable?: unknown }).isRetryable === true) {
@@ -614,10 +641,6 @@ function asProviderError(error: unknown): ProviderError {
    * than *"Bad Request"*. Bounded, because an HTML error page is a whole
    * document and a log line is not.
    */
-  const body = (error as { responseBody?: unknown }).responseBody;
-  const detail =
-    typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
-
   return new ProviderError(errorClass, 'The provider call failed.', detail);
 }
 

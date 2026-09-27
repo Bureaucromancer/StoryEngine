@@ -668,6 +668,16 @@ comment frame every millisecond and `providerTimeoutMs` abandoned every call at
 once. The bound is `TIMER_MAX_MS` in the schema, and it reaches the form with
 the others.
 
+***And `providerTimeoutMs` is the only clock a provider call runs under***
+(2026-09-27). Every call went through Node's global `fetch`, whose undici
+dispatcher gives up on headers after 300 seconds and on a quiet body after 300
+more — beneath this key, so a slow local model could not be given longer, and
+`0` switched off only the engine's bound. When it fired, *Headers Timeout Error*
+read as a connection that did not work and was retried twice. Provider calls now
+go through a dispatcher with neither limit (`providers/patient-fetch.ts`), and a
+transport timeout from a `fetch` handed in elsewhere is classified as the stall
+it is: terminal, and remedied as `endpoint-stalled`.
+
 **The tier annotation is the source, not documentation of it.** The
 restart-required notice ([09 §6](09-server-multiuser-deployment.md)) is derived
 from this table at runtime rather than hand-maintained, which is the whole point

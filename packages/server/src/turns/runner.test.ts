@@ -948,6 +948,35 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
   });
 
   /**
+   * ***The same remedy when the transport, not our timer, ran out of
+   * patience*** (2026-09-27). undici's header and body limits sat beneath
+   * `providerTimeoutMs`; a request they cut off was retried as transient and
+   * then read as a refusal. It is a stall, asked once.
+   */
+  it('calls a transport that gave up on a quiet endpoint a stall, and asks once', async () => {
+    makeRunner({
+      script: [
+        {
+          error: {
+            class: 'terminal',
+            message: 'The provider call failed.',
+            detail: 'Headers Timeout Error',
+            stalled: true,
+          },
+        },
+      ],
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.status).toBe('failed');
+    expect(turn.request?.calls.at(-1)).toMatchObject({ outcome: 'error', retries: 0 });
+
+    await until(() => announced.length === 1, 'the failure to be announced');
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
+    expect(failure.remedy).toBe('endpoint-stalled');
+  });
+
+  /**
    * ***[09 §6.5]'s sentence, reaching the seam it has to cross*** — [P11.6].
    *
    * `remedy.test.ts` owns the decision table; what this asserts is the **wiring**

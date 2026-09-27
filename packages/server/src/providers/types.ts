@@ -117,12 +117,25 @@ export class ProviderError extends Error {
   readonly class: ErrorClass;
   /** The provider's own words, for the log. Never rendered as UI copy. */
   readonly detail: string | undefined;
+  /**
+   * The endpoint accepted the request and then went quiet past a limit the
+   * transport kept (2026-09-27): terminal, and the opposite remedy to a
+   * refusal, which the class alone cannot say — `CallFailed.stalled`'s case,
+   * reported from below `performCall` instead of by its own timer.
+   */
+  readonly stalled: boolean;
 
-  constructor(errorClass: ErrorClass, message: string, detail?: string) {
+  constructor(
+    errorClass: ErrorClass,
+    message: string,
+    detail?: string,
+    how: { stalled?: boolean } = {},
+  ) {
     super(message);
     this.name = 'ProviderError';
     this.class = errorClass;
     this.detail = detail;
+    this.stalled = how.stalled === true;
   }
 }
 
