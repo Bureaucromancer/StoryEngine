@@ -2957,3 +2957,59 @@ describe('what a session reply carries', () => {
     expect(read.session.goals.map((goal) => goal.id)).toEqual(['g-ledger']);
   });
 });
+
+/**
+ * ***A session's reply shows the pack its turns are assembled from***
+ * (2026-09-27) — `presetOf`, at the presenter and at the dials.
+ *
+ * Each file below is the one a session copied before something shipped would
+ * hold, arriving the way such a file reaches a newer build: already on disk.
+ * The panel edits the pack it is shown and writes it back whole, so a block the
+ * turn assembles from and the reply leaves out is a block nobody can switch off.
+ */
+describe('the pack a session reply shows', () => {
+  async function asCopiedBefore(id: string, change: (pack: any) => void): Promise<void> {
+    const path = join(server.dataDir, 'users', 'ned', 'sessions', id, 'session.json');
+    const file = JSON.parse(await readFile(path, 'utf8'));
+    change(file.preset);
+    await writeFile(path, JSON.stringify(file));
+  }
+
+  it('shows a block the mode shipped after the copy was taken', async () => {
+    await asCopiedBefore(sessionId, (pack) => {
+      pack.blocks = pack.blocks.filter((block: { id: string }) => block.id !== 'se.summary');
+    });
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.status).toBe(200);
+    expect(read.body.session.preset.blocks.map((block: { id: string }) => block.id)).toContain(
+      'se.summary',
+    );
+  });
+
+  it('offers a dial whose levels shipped after the copy was taken', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Freeform, begun early',
+        mode: 'storyengine.freeform',
+        modeConfig: { premise: 'Rain.', difficulty: 'even', directedness: 'following' },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.session.id as string;
+    await asCopiedBefore(id, (pack) => {
+      delete pack.difficultyLevels;
+    });
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+
+    expect(read.body.dials.difficulty.levels.map((level: { id: string }) => level.id)).toEqual([
+      'gentle',
+      'even',
+      'harsh',
+    ]);
+  });
+});

@@ -19,6 +19,7 @@ import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
 import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
 import { readPool } from '../sessions/pool-shape.js';
 import { storyTurns } from '../sessions/depth.js';
+import { presetOf } from '../sessions/preset-of.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
 import type { PlanContext } from './calls.js';
 import { resolveCast, type CastMember } from './cast.js';
@@ -241,7 +242,13 @@ export async function gatherAssemblyInputs(
   const declaredMode = session?.mode?.id ?? DEFAULT_MODE_ID;
   const mode = modeById(declaredMode) ?? defaultMode();
 
-  const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
+  /**
+   * The session's own copy, or the mode's pack for a session that has none —
+   * and a copy of the mode's own pack with whatever the mode has shipped since
+   * it was taken (2026-09-27, `presetOf`), so a block added after a session
+   * began is a block that session's turns are assembled from.
+   */
+  const preset = presetOf(session?.preset, mode);
   // One library handle for both resolvers. They read the same store as the same
   // account, and building it twice would be two chances to disagree about the
   // history depth.

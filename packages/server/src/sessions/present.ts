@@ -3,7 +3,9 @@
 
 import type { Goal } from '@storyengine/shared';
 
+import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { readableGoals } from './goals.js';
+import { presetOf } from './preset-of.js';
 import type { SessionFile } from './types.js';
 
 /**
@@ -28,6 +30,11 @@ import type { SessionFile } from './types.js';
  * its id and name, and the goals without `detail`, each read past as the turn
  * reads them. **The export is untouched**: it is the file, on purpose, for
  * somebody moving their own session.
+ *
+ * ***And the pack as the turn reads it*** (2026-09-27): a copy of the mode's own
+ * pack with what the mode shipped after it was taken (`presetOf`). The panel
+ * edits the pack it is shown and writes it back whole, so showing the file's
+ * would offer no way to switch off a block every turn now assembles from.
  */
 export type PresentedSession = Omit<SessionFile, 'hooks' | 'setup' | 'goals'> & {
   setup?: { id: string; name: string };
@@ -47,8 +54,12 @@ export function presentSession(file: SessionFile | null): PresentedSession | nul
   delete shown.hooks;
   delete shown.setup;
   delete shown.goals;
+  // No mode registered is a unit test's world, not a server's, and the file's
+  // own pack is then the only honest answer.
+  const mode = modeById(file.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
   return {
     ...shown,
+    ...(file.preset === undefined || mode === null ? {} : { preset: presetOf(file.preset, mode) }),
     ...(file.setup === undefined ? {} : { setup: { id: file.setup.id, name: file.setup.name } }),
     ...(file.goals === undefined ? {} : { goals: readableGoals(file.goals).map(withoutDetail) }),
   };

@@ -1442,6 +1442,21 @@ The rest of this block is older than the implementation in other ways too:
 `origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
 treatment later must not affect this session.
 
+***A copy of the mode's own pack gains what the mode ships later*** (2026-09-27).
+`preset` is a resolved copy, and for a pack taken from the library it stays
+exactly that: editing the library's preset reaches no session. But nothing ever
+brought a copy of the **mode's own** pack up to date either, so a session begun
+on the first alpha went without the summary slot, the goal slot and the pacing
+levels for good — its story above the window never reached a prompt — and the
+only remedy, switching to the mode's own, discarded every edit made to the copy.
+A copy that carries the id of its mode's default is now read with each block and
+level list the mode ships and the copy lacks, placed where the mode puts it
+(`sessions/preset-of.ts`), at every read and never written back. **Presence is
+the test, never state**: a block switched off stays off, and an edited block
+keeps its edit. *A change to a block the copy already has still reaches new
+sessions only* — telling an unedited block from an edited one needs a digest per
+block recorded at the copy, which sessions do not carry yet.
+
 ### 8.1 `session.json`'s channel state is the head snapshot
 
 Worth stating plainly, because the naive reading produces a bug that only

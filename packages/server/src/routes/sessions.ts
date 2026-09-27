@@ -52,6 +52,7 @@ import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
 import { hookRows, malformedRows, readPacing } from '../sessions/hooks.js';
 import { readPool } from '../sessions/pool-shape.js';
 import { presentSession } from '../sessions/present.js';
+import { presetOf } from '../sessions/preset-of.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { ownerKey } from '../index-db/ingest.js';
 import { listSessionRows } from '../index-db/sessions.js';
@@ -1229,11 +1230,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     /**
      * *The same resolution `gather.ts` makes*, in the one line that is the whole
      * of it: a session's own copied preset, or the mode's default. Copied at
-     * creation, so editing a preset does not change a game in progress ([03 §8]).
+     * creation, so editing a preset does not change a game in progress ([03 §8])
+     * — ***and through `presetOf` since 2026-09-27***, so a copy of the mode's
+     * own pack has the level lists the mode shipped after it was taken, and a
+     * dial the turn resolves is a dial this panel offers.
      */
-    const preset =
-      session.preset ??
-      (modeById(modeId) ?? modeById(DEFAULT_MODE_ID))?.definition.assembly.defaultPreset;
+    const packMode = modeById(modeId) ?? modeById(DEFAULT_MODE_ID);
+    const preset = packMode === null ? session.preset : presetOf(session.preset, packMode);
     const dials: Record<
       string,
       { levelId: string | null; levels: { id: string; label: string }[] }
