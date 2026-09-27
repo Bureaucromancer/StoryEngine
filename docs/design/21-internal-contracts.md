@@ -1001,8 +1001,23 @@ interface Rendition {
   ordering: number
   /** The anchor did not occur in the message. Absent means it did. */
   anchorResolved?: false
+  /** Where this record came from, when an import brought it. Turn.foreign's shape. */
+  foreign?: { source: string; id: string }
 }
 ```
+
+**`foreign` is the one field added after the freeze**, and it is an addition
+rather than a migration for [P11.10](workplan/28-p11-implementation.md)'s
+reason — *a promise not to tighten*. It arrived 2026-09-27, when session import
+started writing the rendition records an export carries instead of counting
+them and dropping them. §7.1's *"the recipe travels and the pixels do not"* was
+always a rule about the file; the recipe was never meant to stop at the
+importer. An imported record keeps its id (a rendition id is its turn's, and turn
+ids are kept), takes the new session as its `sessionId`, arrives with
+`asset: null` — or, from a backup archive, with the bytes that match its digest —
+and a `pending` one arrives `failed` with `error: "interrupted"`, since no job
+anywhere will finish it. Because the same id can then exist in two sessions of
+one install, the rendition job table is keyed by session and id together.
 
 **Three fields of [06 §10.1]'s sketch are typed differently here, and each is a
 correction rather than a preference.**

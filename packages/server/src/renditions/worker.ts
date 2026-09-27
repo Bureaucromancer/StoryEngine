@@ -2,7 +2,6 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
 
 import type { Rendition, RenditionError } from '@storyengine/shared';
 
@@ -426,7 +425,16 @@ function filterScalars(
   return out;
 }
 
-/** Where a rendition's bytes are, for the route that serves them. */
+/**
+ * Where a rendition's bytes are, for the route that serves them.
+ *
+ * ***Contained in `assets/`, not merely in the data root.*** `asset.path` is a
+ * field in a file, and since 2026-09-27 a file can arrive by import; the route's
+ * `assertReal` only proves a path is somewhere under the data root, which would
+ * let a record naming `../../../accounts.json` be served as a picture. So the
+ * lexical guard is the session's own asset directory, and a path that climbs out
+ * of it is no path at all.
+ */
 export function assetPath(
   layout: Layout,
   handle: string,
@@ -435,7 +443,7 @@ export function assetPath(
 ): string | null {
   if (rendition.asset === null) return null;
   try {
-    return join(sessionAssetsRoot(layout, handle, sessionId), rendition.asset.path);
+    return resolveWithin(sessionAssetsRoot(layout, handle, sessionId), rendition.asset.path);
   } catch {
     return null;
   }

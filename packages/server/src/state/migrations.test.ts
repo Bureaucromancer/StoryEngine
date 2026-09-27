@@ -133,6 +133,38 @@ describe('the operational store upgrades without losing anything', () => {
     db.close();
   });
 
+  /**
+   * ***The step that narrows a rendition job's uniqueness to its session***,
+   * written at the version it leaves from — the rule the import-item test above
+   * learned the hard way, because only a store at that version can hold a job
+   * row for the step to carry.
+   *
+   * Two claims: the row an older build wrote survives, and a second session may
+   * now hold a job for a record with the same id — which is what an imported
+   * copy of a session on the install that exported it is.
+   */
+  it('keeps rendition jobs and lets two sessions share a rendition id', () => {
+    const db = storeAtVersion(6);
+    const insert = db.prepare(
+      `insert into rendition_job (id, session_id, account, rendition_id, turn_id, purpose,
+                                  status, attempt, created_at, updated_at)
+       values (?, ?, 'ned', 'turn-1.0', 'turn-1', 'illustration', 'done', 1, 1, 1)`,
+    );
+    insert.run('job-1', 'session-original');
+
+    expect(migrateState(db)).toEqual({ from: 6, to: STATE_SCHEMA_VERSION });
+
+    const kept = db.prepare(`select id from rendition_job`).all() as { id: string }[];
+    expect(kept).toEqual([{ id: 'job-1' }]);
+
+    insert.run('job-2', 'session-copy');
+    expect(() => {
+      insert.run('job-3', 'session-copy');
+    }).toThrow(/UNIQUE/);
+
+    db.close();
+  });
+
   it('is a no-op on a store already at the current version', () => {
     const db = storeAtVersion(STATE_SCHEMA_VERSION);
 

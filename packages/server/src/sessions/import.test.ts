@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
+
+import { digestOf } from '../library/assets.js';
+import { sessionAssetsRoot, writeRendition } from '../renditions/store.js';
+import { writeFileBytes } from '../storage/files.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -202,6 +209,202 @@ describe('a session that travels', () => {
     });
     for (const turn of read.body.turns as { foreign?: { source: string } }[]) {
       expect(turn.foreign?.source).toBe(sessionId);
+    }
+  });
+});
+
+/**
+ * A rendition record as the worker would have left it, hung off `turnId`.
+ *
+ * The id is the worker's own spelling, `<turnId>.<n>`, because that is the
+ * property the import leans on: turn ids are kept, so rendition ids are too.
+ */
+function aRendition(sessionId: string, turnId: string, over: Partial<Rendition> = {}): Rendition {
+  return {
+    schema: RENDITION_SCHEMA,
+    id: `${turnId}.0`,
+    sessionId,
+    turnId,
+    createdAt: '2026-09-27T10:00:00.000Z',
+    kind: 'image',
+    purpose: 'illustration',
+    scope: null,
+    state: 'ready',
+    prompt: {
+      fragments: [{ id: 'moment', text: 'a lantern', rank: 100, required: true }],
+      separator: ', ',
+      budget: { maxChars: null, usefulChars: null },
+      text: 'a lantern',
+      kept: ['moment'],
+      dropped: [],
+      overCap: false,
+    },
+    asset: null,
+    provenance: {
+      at: '2026-09-27T10:00:02.000Z',
+      binding: { connectionId: 'c-1', modelId: 'sdxl' },
+      answeredAs: null,
+      seed: 7,
+      workflow: { steps: 20 },
+    },
+    error: null,
+    digest: 'd-1',
+    ordering: 0,
+    ...over,
+  };
+}
+
+const PIXELS = new TextEncoder().encode('not really a png');
+
+/**
+ * ***The recipe travels*** — [21 §7.1](../../../../docs/design/21-internal-contracts.md)'s
+ * *"the recipe travels and the pixels do not"*, and the half of it this importer
+ * dropped until 2026-09-27: it counted the records it was handed, reported the
+ * number, and wrote none of them.
+ */
+describe('renditions that travel', () => {
+  async function withPictures(): Promise<{ sessionId: string; turns: string[] }> {
+    const made = await branched();
+    const [first, second, third] = made.turns as [string, string, string];
+    const layout = server.services.sessions.layout;
+
+    const ready = aRendition(made.sessionId, first, {
+      asset: {
+        path: `${first}.0.png`,
+        mime: 'image/png',
+        bytes: PIXELS.byteLength,
+        digest: digestOf(PIXELS),
+      },
+    });
+    await writeRendition(layout, 'ned', made.sessionId, ready);
+    await writeFileBytes(
+      join(sessionAssetsRoot(layout, 'ned', made.sessionId), `${first}.0.png`),
+      PIXELS,
+    );
+    await writeRendition(
+      layout,
+      'ned',
+      made.sessionId,
+      aRendition(made.sessionId, second, {
+        state: 'pending',
+        provenance: { ...ready.provenance, at: null },
+      }),
+    );
+    await writeRendition(
+      layout,
+      'ned',
+      made.sessionId,
+      aRendition(made.sessionId, third, { state: 'failed', error: 'terminal' }),
+    );
+    return made;
+  }
+
+  async function roundTrip(document: unknown): Promise<{ sessionId: string; renditions: number }> {
+    const imported = await server.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: document,
+    });
+    expect(imported.status).toBe(201);
+    return {
+      sessionId: imported.body.sessionId as string,
+      renditions: imported.body.renditions as number,
+    };
+  }
+
+  async function renditionsOf(sessionId: string): Promise<Rendition[]> {
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions`,
+    });
+    return (read.body.renditions as Rendition[]).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  it('writes every record it counts, under the new session and the same ids', async () => {
+    const { sessionId, turns } = await withPictures();
+    const exported = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/export`,
+    });
+
+    const landed = await roundTrip(exported.body);
+    expect(landed.renditions).toBe(3);
+
+    const back = await renditionsOf(landed.sessionId);
+    expect(back.map((one) => one.id)).toEqual(turns.map((turn) => `${turn}.0`).sort());
+    for (const one of back) {
+      // The record's own session is what a live frame is matched on.
+      expect(one.sessionId).toBe(landed.sessionId);
+      expect(one.foreign).toEqual({ source: sessionId, id: one.id });
+      // The recipe came; the pixels did not, which is what an export carries.
+      expect(one.prompt.text).toBe('a lantern');
+      expect(one.provenance.seed).toBe(7);
+      expect(one.asset).toBeNull();
+    }
+  });
+
+  /**
+   * ***A picture still being made arrives as one that was interrupted.*** No
+   * job will ever run it — the one that owned it belongs to the session it came
+   * from — and a `pending` record has no retry button, so left alone it would
+   * say *making a picture of this* for good.
+   */
+  it('turns a pending record into an interrupted one, and leaves the others be', async () => {
+    const { sessionId, turns } = await withPictures();
+    const exported = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/export`,
+    });
+    const landed = await roundTrip(exported.body);
+
+    const byTurn = new Map((await renditionsOf(landed.sessionId)).map((one) => [one.turnId, one]));
+    expect(byTurn.get(turns[0] ?? '')).toMatchObject({ state: 'ready', error: null });
+    expect(byTurn.get(turns[1] ?? '')).toMatchObject({ state: 'failed', error: 'interrupted' });
+    expect(byTurn.get(turns[2] ?? '')).toMatchObject({ state: 'failed', error: 'terminal' });
+  });
+
+  /**
+   * ***What does not belong is skipped, and not counted.*** A record for a turn
+   * that did not arrive is a picture of nothing; one that is not a record is a
+   * hand edit; one whose id would climb out of the directory is a shape
+   * somebody will eventually send on purpose. None of them fails the import,
+   * and none of them inflates the number the import reports.
+   */
+  it('skips what is not a record of a turn that arrived', async () => {
+    const { sessionId, turns } = await branched();
+    const exported = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/export`,
+    });
+    const document = {
+      ...exported.body,
+      renditions: [
+        aRendition(sessionId, turns[0] ?? ''),
+        aRendition(sessionId, 'a-turn-that-never-came'),
+        { schema: RENDITION_SCHEMA, id: 'half-a-record' },
+        aRendition(sessionId, turns[1] ?? '', { id: '../../session' }),
+      ],
+    };
+
+    const landed = await roundTrip(document);
+    expect(landed.renditions).toBe(1);
+    expect((await renditionsOf(landed.sessionId)).map((one) => one.id)).toEqual([
+      `${turns[0] ?? ''}.0`,
+    ]);
+  });
+
+  it('keeps the first install a record came from when it travels again', async () => {
+    const { sessionId } = await withPictures();
+    const first = await roundTrip(
+      (await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/export` })).body,
+    );
+    const second = await roundTrip(
+      (await server.request({ method: 'GET', url: `/api/sessions/${first.sessionId}/export` }))
+        .body,
+    );
+
+    for (const one of await renditionsOf(second.sessionId)) {
+      expect(one.foreign?.source).toBe(sessionId);
     }
   });
 });

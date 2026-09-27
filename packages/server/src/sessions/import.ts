@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { uuidv7, SESSION_EXPORT_SCHEMA, type SessionExport, type Turn } from '@storyengine/shared';
+import {
+  uuidv7,
+  SESSION_EXPORT_SCHEMA,
+  type Rendition,
+  type RenditionAsset,
+  type SessionExport,
+  type Turn,
+} from '@storyengine/shared';
 
+import { digestOf } from '../library/assets.js';
+import {
+  namesARendition,
+  parseRendition,
+  sessionAssetsRoot,
+  writeRendition,
+} from '../renditions/store.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory } from '../storage/files.js';
+import { ensureDirectory, writeFileBytes } from '../storage/files.js';
+import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import { appendTurnOnly, sessionFilePath, sessionRoot, type SessionContext } from './store.js';
 import type { SessionFile } from './types.js';
 
@@ -49,6 +64,17 @@ import type { SessionFile } from './types.js';
 
 export interface ImportContext {
   sessions: SessionContext;
+  /**
+   * The bytes of a rendition's picture, when whoever is importing has them.
+   *
+   * ***Absent for a session export, present for a backup.*** An export carries
+   * *"the records, not the pixels"* (`SessionExport`), so a picture that arrives
+   * that way arrives as its recipe and a placeholder. A backup archive holds the
+   * session directory whole, `assets/` included, and throwing away pixels that
+   * are physically in the file somebody handed over would be a loss with no
+   * reason behind it.
+   */
+  assets?: (asset: RenditionAsset) => Promise<Uint8Array | null>;
 }
 
 export type SessionImport =
@@ -141,6 +167,7 @@ export async function importSession(
    * is a total order in which that cannot happen.
    */
   let written = 0;
+  const arrivedTurns = new Set<string>();
   // `unknown[]` rather than `Turn[]`, for `readSessionExport`'s reason: the
   // declared element type is the claim the file makes about itself, and a
   // malformed member is exactly what a hand-edited export has.
@@ -149,17 +176,127 @@ export async function importSession(
     const turn = candidate as Turn;
     if (typeof turn.id !== 'string') continue;
     await appendTurnOnly(context.sessions, handle, id, foreignise(turn, was));
+    arrivedTurns.add(turn.id);
     written += 1;
   }
 
-  const renditions = read.renditions as unknown;
+  /**
+   * ***The renditions come across as records*** — written, not counted, which
+   * is what this function did until 2026-09-27 while reporting a number as if
+   * it had. [21 §7.1]'s *"the recipe travels and the pixels do not"* is a rule
+   * about what the **file** carries; the recipe was never meant to stop at the
+   * importer, and [testing]'s export → re-import walk names renditions among
+   * what has to survive it.
+   *
+   * *Only records whose turn arrived.* A rendition names its turn and nothing
+   * else holds it in place, so one pointing at a turn that was skipped above is
+   * a picture of nothing.
+   */
+  let renditions = 0;
+  const offered = read.renditions as unknown;
+  if (Array.isArray(offered)) {
+    for (const candidate of offered as unknown[]) {
+      const rendition = parseRendition(candidate);
+      if (rendition === null || !arrivedTurns.has(rendition.turnId)) continue;
+      if (!namesARendition(context.sessions.layout, handle, id, rendition.id)) continue;
+      const asset = await carriedAsset(context, handle, id, rendition);
+      await writeRendition(context.sessions.layout, handle, id, arrived(rendition, id, was, asset));
+      renditions += 1;
+    }
+  }
+
+  return { ok: true, sessionId: id, turns: written, renditions };
+}
+
+/**
+ * A rendition as this session holds it.
+ *
+ * - ***Its id is kept***, for the reason turn ids are: a rendition's id is its
+ *   turn's plus an ordinal, the session document's `renditionSelection` names
+ *   records by it, and re-minting would be a rewrite of every one of those
+ *   references. That the same id can now exist in two sessions of one install
+ *   is why the job table is keyed by session as well.
+ * - ***Its session is this one.*** The record's own `sessionId` is what a live
+ *   frame is matched against, and a record that still named the session it was
+ *   exported from would never update on screen.
+ * - ***A picture still being made becomes one that was interrupted.*** Nothing
+ *   will ever run an imported `pending` record — the job that owned it is on
+ *   another install, or on this one under another session — so left as it
+ *   was it would say *"Making a picture of this…"* for good, with no retry.
+ *   `interrupted` is what boot recovery calls the same fact, and it renders
+ *   with a reason and a *Try again*.
+ * - ***Marked foreign once***, as a turn is.
+ */
+function arrived(
+  rendition: Rendition,
+  sessionId: string,
+  source: string,
+  asset: RenditionAsset | null,
+): Rendition {
   return {
-    ok: true,
-    sessionId: id,
-    turns: written,
-    renditions: Array.isArray(renditions) ? renditions.length : 0,
+    ...rendition,
+    sessionId,
+    ...(rendition.state === 'pending'
+      ? { state: 'failed' as const, error: 'interrupted' as const }
+      : {}),
+    asset,
+    foreign: rendition.foreign ?? { source, id: rendition.id },
   };
 }
+
+/**
+ * The picture's bytes, written beside the record — or null, which is the
+ * ordinary answer.
+ *
+ * Null from an export, which carries no pixels, and null from anything that
+ * fails a check. A `ready` record with a null asset is the state this build
+ * already renders as a picture that can be made again ([25 E3]), so every
+ * refusal here costs a regeneration and never the record.
+ *
+ * ***Every field is somebody else's claim, so each is checked before it is
+ * believed:***
+ *
+ * - **The path is a bare file name inside this session's `assets/`.** The route
+ *   that serves pixels joins it to that directory, so a `../` here would be a
+ *   way to have this server hand out any file under the data root.
+ * - **The type is one the worker writes.** The route serves the record's `mime`
+ *   as the response's content type, and a picture that said `text/html` would
+ *   be a page on this server's own origin.
+ * - **The bytes are the ones the record describes**, by their digest — the
+ *   `sha256:` spelling `RenditionAsset.digest` already uses.
+ */
+async function carriedAsset(
+  context: ImportContext,
+  handle: string,
+  sessionId: string,
+  rendition: Rendition,
+): Promise<RenditionAsset | null> {
+  const asset = rendition.asset;
+  if (asset === null || context.assets === undefined) return null;
+  if (!SAFE_FILE_NAME.test(asset.path) || !IMAGE_TYPES.has(asset.mime)) return null;
+
+  let target: string;
+  try {
+    target = resolveWithin(
+      sessionAssetsRoot(context.sessions.layout, handle, sessionId),
+      asset.path,
+    );
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
+
+  const bytes = await context.assets(asset);
+  if (bytes === null || digestOf(bytes) !== asset.digest) return null;
+  await writeFileBytes(target, bytes);
+  return { ...asset, bytes: bytes.byteLength };
+}
+
+/** What `fileNameFor` in the worker produces: an id, a dot, an extension. */
+const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/** The three types the rendition worker writes, and so the three it can serve. */
+const IMAGE_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 /** What wrote the file, if it said — the same unknown-first reading as above. */
 function exportedBy(read: SessionExport): string | null {

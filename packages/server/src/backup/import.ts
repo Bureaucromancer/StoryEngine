@@ -257,7 +257,22 @@ async function importSessions(
       renditions,
     } as unknown as SessionExport;
 
-    const result = await importSession({ sessions: context.sessions }, request.handle, envelope);
+    /**
+     * ***And the pixels, because they are in the archive.*** An export carries
+     * the records and not the pictures; a backup carries the session directory
+     * whole, `assets/` included, and until 2026-09-27 this built the envelope
+     * and left them where they lay. `importSession` checks what it is handed —
+     * a bare file name, an image type, the bytes matching the record's digest —
+     * so this only has to say where the bytes would be.
+     */
+    const result = await importSession(
+      {
+        sessions: context.sessions,
+        assets: (asset) => request.files.read(`${prefix}${id}/assets/${asset.path}`),
+      },
+      request.handle,
+      envelope,
+    );
     if (result.ok) imported += 1;
     else skipped += 1;
   }

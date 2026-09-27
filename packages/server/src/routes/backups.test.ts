@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fileExists } from '../storage/files.js';
+import { RENDITION_SCHEMA, type Rendition, type RenditionAsset } from '@storyengine/shared';
+
+import { digestOf } from '../library/assets.js';
+import { sessionAssetsRoot, writeRendition } from '../renditions/store.js';
+import { fileExists, writeFileBytes } from '../storage/files.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -701,5 +707,154 @@ describe('restoring the install', () => {
      * restore nobody asked for, at a moment nobody chose.
      */
     expect(await pending()).toBe(false);
+  });
+});
+
+/**
+ * ***The pixels in an archive come back with it*** — the half of a merge-import
+ * that, until 2026-09-27, rebuilt a session's records from the archive and left
+ * its `assets/` where they lay.
+ *
+ * A backup is not an export: an export carries *"the records, not the
+ * pixels"*, while an archive holds the session directory whole. So a picture
+ * whose bytes are in the file and match the record's digest arrives as a
+ * picture, and anything that fails a check arrives as its recipe — the
+ * placeholder this build already renders for a picture that can be made again.
+ */
+describe('importing a session’s pictures from a backup', () => {
+  const PIXELS = new TextEncoder().encode('not really a png');
+
+  function aRendition(sessionId: string, turnId: string, asset: RenditionAsset): Rendition {
+    return {
+      schema: RENDITION_SCHEMA,
+      id: `${turnId}.0`,
+      sessionId,
+      turnId,
+      createdAt: '2026-09-27T10:00:00.000Z',
+      kind: 'image',
+      purpose: 'illustration',
+      scope: null,
+      state: 'ready',
+      prompt: {
+        fragments: [{ id: 'moment', text: 'a lantern', rank: 100, required: true }],
+        separator: ', ',
+        budget: { maxChars: null, usefulChars: null },
+        text: 'a lantern',
+        kept: ['moment'],
+        dropped: [],
+        overCap: false,
+      },
+      asset,
+      provenance: {
+        at: '2026-09-27T10:00:02.000Z',
+        binding: { connectionId: 'c-1', modelId: 'sdxl' },
+        answeredAs: null,
+        seed: 7,
+        workflow: { steps: 20 },
+      },
+      error: null,
+      digest: 'd-1',
+      ordering: 0,
+    };
+  }
+
+  it('brings back the bytes a record describes, and nothing it does not', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain City' },
+    });
+    const original = created.body.session.id as string;
+    for (const value of ['each-turn', 'off', 'each-turn', 'off']) {
+      await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${original}/channels/se.illustrate`,
+        payload: { value },
+      });
+    }
+    const listed = await server.request({ method: 'GET', url: `/api/sessions/${original}/turns` });
+    const [good, tampered, climbing, disguised] = (listed.body.turns as { id: string }[]).map(
+      (turn) => turn.id,
+    ) as [string, string, string, string];
+
+    const layout = server.services.sessions.layout;
+    const assets = sessionAssetsRoot(layout, 'ned', original);
+    const honest = (turnId: string): RenditionAsset => ({
+      path: `${turnId}.0.png`,
+      mime: 'image/png',
+      bytes: PIXELS.byteLength,
+      digest: digestOf(PIXELS),
+    });
+    // The picture as the worker leaves it.
+    await writeRendition(layout, 'ned', original, aRendition(original, good, honest(good)));
+    await writeFileBytes(join(assets, `${good}.0.png`), PIXELS);
+    // Bytes that are not the ones the record describes.
+    await writeRendition(layout, 'ned', original, aRendition(original, tampered, honest(tampered)));
+    await writeFileBytes(join(assets, `${tampered}.0.png`), new TextEncoder().encode('other'));
+    // A path that would reach out of the session's `assets/`.
+    await writeRendition(
+      layout,
+      'ned',
+      original,
+      aRendition(original, climbing, { ...honest(climbing), path: '../session.json' }),
+    );
+    // Real bytes under a type the asset route would serve as a page.
+    await writeRendition(
+      layout,
+      'ned',
+      original,
+      aRendition(original, disguised, { ...honest(disguised), mime: 'text/html' }),
+    );
+    await writeFileBytes(join(assets, `${disguised}.0.png`), PIXELS);
+
+    /**
+     * ***The route that serves pixels is contained in `assets/`, not merely in
+     * the data root.*** Before `assetPath` resolved within the session's asset
+     * directory, this record would have been answered with the session's own
+     * `session.json`, labelled a PNG.
+     */
+    const escaped = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${original}/renditions/${encodeURIComponent(`${climbing}.0`)}/asset`,
+    });
+    expect(escaped.status).toBe(404);
+
+    const id = await take();
+    const imported = await server.request({
+      method: 'POST',
+      url: '/api/me/backups/import',
+      payload: { id },
+    });
+    expect(imported.status).toBe(200);
+
+    const sessions = (await server.request({ method: 'GET', url: '/api/sessions' })).body
+      .sessions as { id: string }[];
+    const copy = sessions.map((one) => one.id).find((one) => one !== original);
+    expect(copy).toBeDefined();
+
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${copy ?? ''}/renditions`,
+    });
+    const byTurn = new Map(
+      (read.body.renditions as Rendition[]).map((one) => [one.turnId, one] as const),
+    );
+    expect(byTurn.size).toBe(4);
+    expect(byTurn.get(good)?.asset?.digest).toBe(digestOf(PIXELS));
+    expect(byTurn.get(tampered)?.asset).toBeNull();
+    expect(byTurn.get(climbing)?.asset).toBeNull();
+    expect(byTurn.get(disguised)?.asset).toBeNull();
+
+    // Served from the copy's own `assets/`, as the bytes the record describes.
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${copy ?? ''}/renditions/${encodeURIComponent(`${good}.0`)}/asset`,
+    });
+    expect(served.status).toBe(200);
+    expect(served.headers['content-type']).toBe('image/png');
+    expect(served.headers['etag']).toBe(digestOf(PIXELS));
+    expect(
+      await fileExists(join(sessionAssetsRoot(layout, 'ned', copy ?? ''), `${good}.0.png`)),
+    ).toBe(true);
   });
 });

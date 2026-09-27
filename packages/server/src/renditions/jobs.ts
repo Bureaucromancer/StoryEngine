@@ -26,9 +26,16 @@ import { inTransaction } from '../storage/transaction.js';
  * *So what is reused is the store, the status vocabulary and the event stream;
  * what is not is the reservation.* There is no idempotency table either: a
  * turn's renditions are enqueued once, by the runner, after the commit, and the
- * unique index on `rendition_id` is what stops a double dispatch — a constraint
- * rather than a check-then-insert, for the reason `job_one_active_per_session`
- * is an index rather than a query.
+ * unique index on `(session_id, rendition_id)` is what stops a double dispatch —
+ * a constraint rather than a check-then-insert, for the reason
+ * `job_one_active_per_session` is an index rather than a query.
+ *
+ * ***Both columns, because an id alone does not name a record.*** Rendition ids
+ * are `<turnId>.<n>` and an imported session keeps its turn ids, so a copy of a
+ * session on the install it came from holds records whose ids are the
+ * original's. Keyed by id alone, the copy's Illustrate found the original's job
+ * and re-rendered the original — the migration that narrowed the index says
+ * how that was found.
  */
 
 export type RenditionJobStatus = 'queued' | 'running' | 'done' | 'abandoned';
@@ -103,10 +110,10 @@ export interface EnqueueRequest {
  * Queues one picture, or returns the job already queued for it.
  *
  * **Idempotent by constraint rather than by query.** The unique index on
- * `rendition_id` means a second enqueue for one record cannot insert, and this
- * reads the existing row rather than raising — which is what makes the runner's
- * dispatch safe to call from a commit path that may itself be retried by
- * `reconcile`.
+ * `(session_id, rendition_id)` means a second enqueue for one record cannot
+ * insert, and this reads the existing row rather than raising — which is what
+ * makes the runner's dispatch safe to call from a commit path that may itself
+ * be retried by `reconcile`.
  *
  * *No session lock.* The whole point of the second job shape is that a rendition
  * does not advance a head, so there is no head to be deciding against — and
@@ -120,8 +127,8 @@ export function enqueueRendition(
 ): RenditionJob {
   return inTransaction(db, () => {
     const held = db
-      .prepare(`select ${COLUMNS} from rendition_job where rendition_id = ?`)
-      .get(request.renditionId) as JobRow | undefined;
+      .prepare(`select ${COLUMNS} from rendition_job where session_id = ? and rendition_id = ?`)
+      .get(request.sessionId, request.renditionId) as JobRow | undefined;
     if (held) return toJob(held);
 
     const job: RenditionJob = {
@@ -190,11 +197,18 @@ export function readRenditionJob(db: DatabaseSync, id: string): RenditionJob | n
   return row ? toJob(row) : null;
 }
 
-/** The job for one record, whatever state it is in. At most one, by constraint. */
-export function jobForRendition(db: DatabaseSync, renditionId: string): RenditionJob | null {
+/**
+ * The job for one record, whatever state it is in. At most one, by constraint —
+ * and a record is its session plus its id, never the id alone.
+ */
+export function jobForRendition(
+  db: DatabaseSync,
+  sessionId: string,
+  renditionId: string,
+): RenditionJob | null {
   const row = db
-    .prepare(`select ${COLUMNS} from rendition_job where rendition_id = ?`)
-    .get(renditionId) as JobRow | undefined;
+    .prepare(`select ${COLUMNS} from rendition_job where session_id = ? and rendition_id = ?`)
+    .get(sessionId, renditionId) as JobRow | undefined;
   return row ? toJob(row) : null;
 }
 

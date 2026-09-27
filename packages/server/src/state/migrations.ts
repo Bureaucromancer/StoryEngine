@@ -423,6 +423,29 @@ create index notification_by_account on notification(account, created_at);
 create index notification_by_dedupe on notification(account, dedupe_key, updated_at);
 create index notification_unread on notification(account, read_at);
 `,
+
+  /**
+   * ***A rendition job is one per record, and a record's name is its session
+   * plus its id*** — found 2026-09-27, when importing renditions made it
+   * reachable twice over.
+   *
+   * \`STEPS[4]\` made \`rendition_id\` unique on its own, on the reading that a
+   * rendition id names one record. It does not: ids are \`<turnId>.<n>\`, and
+   * session import keeps turn ids ([P11.10]), so a session imported onto the
+   * install that exported it — a backup merged back into the account that took
+   * it is the ordinary way to get there — holds records with **the same ids as
+   * the original's**. With the index as it was, pressing Illustrate or Try again
+   * in the copy found the original's job row, and the worker, which reads the
+   * record at the job's own session, re-rendered **the original** while the copy
+   * sat pending for good.
+   *
+   * *Less strict than what it replaces*, so no row an older build wrote can
+   * violate it, and it drops an index rather than a table.
+   */
+  `
+drop index rendition_job_by_rendition;
+create unique index rendition_job_by_rendition on rendition_job(session_id, rendition_id);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;
