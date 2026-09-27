@@ -12,7 +12,10 @@ import {
   formChanges,
   formFromActor,
   reapplyEdits,
+  rowIndex,
   splitLines,
+  withoutRow,
+  withRow,
 } from './form.js';
 
 /**
@@ -320,5 +323,50 @@ describe('writing samples, the first list the form can grow and shrink', () => {
 
     const merged = reapplyEdits(pristine, edited, fresh);
     expect(merged.samples.map((sample) => sample.id)).toEqual(['ws-1', 'ws-3']);
+  });
+});
+
+/**
+ * ***Finding a row that may have moved*** (2026-09-27) — the lookup a late write
+ * uses. The editor's writes are updaters over the form as it is when they land,
+ * and the row a write is about may have moved since the render that made it:
+ * an earlier sample removed while an assist on a later one ran.
+ */
+describe('rowIndex, withRow and withoutRow', () => {
+  const row = (id: string, body = ''): { id: string; body: string } => ({ id, body });
+
+  it('finds a row where it was drawn while it is still there', () => {
+    const rows = [row('a'), row('b'), row('c')];
+    expect(rowIndex(rows, 'b', 1)).toBe(1);
+    expect(withRow(rows, 'b', 1, { body: 'written' })[1]).toEqual(row('b', 'written'));
+  });
+
+  it('follows a row that moved, by its id', () => {
+    // `a` was removed after `c` was drawn at index 2.
+    const rows = [row('b'), row('c')];
+    expect(rowIndex(rows, 'c', 2)).toBe(1);
+    expect(withRow(rows, 'c', 2, { body: 'written' })).toEqual([row('b'), row('c', 'written')]);
+    expect(withoutRow(rows, 'c', 2)).toEqual([row('b')]);
+  });
+
+  /**
+   * *Twins*: ids are required and not unique, so the index is what tells two
+   * rows with one id apart — the second twin removed is the second twin, where
+   * an id match would take the first, and every-match would take both.
+   */
+  it('keeps twins apart by where they were drawn', () => {
+    const rows = [row('twin', 'first'), row('twin', 'second')];
+    expect(withoutRow(rows, 'twin', 1)).toEqual([row('twin', 'first')]);
+    expect(withRow(rows, 'twin', 1, { body: 'edited' })).toEqual([
+      row('twin', 'first'),
+      row('twin', 'edited'),
+    ]);
+  });
+
+  it('leaves the list alone when the row has gone', () => {
+    const rows = [row('a')];
+    expect(rowIndex(rows, 'gone', 0)).toBe(-1);
+    expect(withRow(rows, 'gone', 0, { body: 'written' })).toBe(rows);
+    expect(withoutRow(rows, 'gone', 0)).toBe(rows);
   });
 });

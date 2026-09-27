@@ -48,7 +48,18 @@ import { moveHook, newHook, patchHook, removeHook } from './hook-form.js';
 
 export function HookList(props: {
   hooks: PlotHook[];
-  onChange: (next: PlotHook[]) => void;
+  /**
+   * ***A change to the list, never the list*** (2026-09-27).
+   *
+   * A hook's premise and an entrance's text both carry an assist, and an
+   * assist's result lands long after its click — through the `onChange` of the
+   * render that started it. When that built the next list from `props.hooks`,
+   * the result put back every hook as it was at the click, and the page's own
+   * write then did the same to the rest of the object. So every change here is
+   * an updater, and the carrier applies it to the hooks as its form holds them
+   * when the change arrives.
+   */
+  onChange: (update: (hooks: PlotHook[]) => PlotHook[]) => void;
   /** A sentence under the heading — each carrier says something different. */
   note?: string;
 }): JSX.Element {
@@ -74,13 +85,15 @@ export function HookList(props: {
   }));
 
   function add(): void {
+    // Minted out here, where it runs once: React runs an updater twice under
+    // StrictMode, and a hook minted inside one would be two different hooks.
     const made = newHook(title.trim());
-    props.onChange([...props.hooks, made]);
+    props.onChange((hooks) => [...hooks, made]);
     setTitle('');
   }
 
   function move(hook: PlotHook, to: number): void {
-    props.onChange(moveHook(props.hooks, hook.id, to));
+    props.onChange((hooks) => moveHook(hooks, hook.id, to));
     // Announced rather than only shown: what changed is a *position*, and a row
     // moving under the pointer is exactly the change the DOM does not report.
     setMoved(movedLine(hook, to, props.hooks.length));
@@ -127,7 +140,7 @@ export function HookList(props: {
                 variant="dangerOutline"
                 size="tiny"
                 onClick={() => {
-                  props.onChange(removeHook(props.hooks, hook.id));
+                  props.onChange((hooks) => removeHook(hooks, hook.id));
                 }}
               >
                 {removeLabel(hook)}
@@ -148,19 +161,29 @@ export function HookList(props: {
             siblings={props.hooks.filter((other) => other.id !== hook.id)}
             actors={cast}
             onPatch={(patch) => {
-              props.onChange(patchHook(props.hooks, hook.id, patch));
+              props.onChange((hooks) => patchHook(hooks, hook.id, patch));
             }}
-            onIntroduce={(next) => {
+            onIntroduce={(update) => {
               /**
-               * ***`null` unsets rather than blanks***, and the actor picker's
-               * empty option is the only thing in the application that turns an
-               * arrival back into an ordinary hook. `HookFields`' own docstring
-               * has the reason it must remove rather than blank: an
+               * ***An absent arrival unsets rather than blanks***, and the actor
+               * picker's empty option is the only thing in the application that
+               * turns an arrival back into an ordinary hook. `HookFields`' own
+               * docstring has the reason it must remove rather than blank: an
                * `Introduction` with no subject is a hook that is ineligible
                * forever, with a visible reason, which is worse than the hook the
-               * author was trying to get back to.
+               * author was trying to get back to. `patchHook` removes a key
+               * given `undefined`, which is the whole of how.
+               *
+               * The update is applied to the arrival this hook holds *now* —
+               * the first hook with this id, the one `patchHook` then writes —
+               * so an entrance's text written by an assist lands beside the
+               * label typed while it was being written, not over it.
                */
-              props.onChange(patchHook(props.hooks, hook.id, { introduces: next ?? undefined }));
+              props.onChange((hooks) =>
+                patchHook(hooks, hook.id, {
+                  introduces: update(hooks.find((one) => one.id === hook.id)?.introduces),
+                }),
+              );
             }}
           />
         </Panel>

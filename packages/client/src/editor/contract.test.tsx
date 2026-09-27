@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -108,6 +108,13 @@ function envelopeFor(kind: LibraryKind): LibraryObject {
 let opened: LibraryKind = 'actors';
 /** What the assist was asked for, and what a save then carried. */
 let assists: { path: string }[] = [];
+/**
+ * ***Assists that wait to be answered*** (2026-09-27), when a test sets this to
+ * an array — see *assists that finish after other edits*. Null is every other
+ * test: those are about what an accepted assist leaves behind, not about when
+ * it arrives, so they are answered at once.
+ */
+let holding: ((text: string) => void)[] | null = null;
 let saved: Record<string, unknown>[] = [];
 
 vi.mock('../api.js', async (importOriginal) => {
@@ -123,11 +130,16 @@ vi.mock('../api.js', async (importOriginal) => {
      */
     assistField: (body: { path: string }) => {
       assists.push(body);
-      return Promise.resolve({
-        text: 'A wet quay under sodium light.',
-        model: 'fake-hi',
-        seed: 'the prompt that ran',
-      });
+      const answer = (text: string) => ({ text, model: 'fake-hi', seed: 'the prompt that ran' });
+      const queue = holding;
+      if (queue !== null) {
+        return new Promise((resolve) => {
+          queue.push((text) => {
+            resolve(answer(text));
+          });
+        });
+      }
+      return Promise.resolve(answer('A wet quay under sodium light.'));
     },
     api: {
       ...actual.api,
@@ -184,6 +196,7 @@ beforeEach(() => {
   opened = 'actors';
   assists = [];
   saved = [];
+  holding = null;
 });
 
 describe('every editor, over the key set', () => {
@@ -306,5 +319,167 @@ describe('an assist, accepted and then edited', () => {
     const after = (saved.at(-1)?.['generated'] as Record<string, Record<string, unknown>>)['name'];
     expect(after?.['unreviewed']).toBe(false);
     expect(after?.['original']).toBe('A wet quay under sodium light.');
+  });
+});
+
+/**
+ * ***Assists that finish after other edits*** (2026-09-27) — [10 §11.5]:
+ * *"every field stays directly typeable while an assist is running"*.
+ *
+ * The result of an assist arrives through the change handler of the render that
+ * started it, ten to sixty seconds later. Every editor's handlers used to build
+ * the whole next form from that render — so the result put back the form as it
+ * was at the click, and everything typed meanwhile was gone. The lorebook's half
+ * is in `LorebookEditorPage.test.tsx`, which has entries to move between; these
+ * are the schema-driven editor and the actor's lists.
+ */
+describe('assists that finish after other edits', () => {
+  /** Opens the assist beside this control and presses *Write it*, leaving it running. */
+  async function startAssist(control: HTMLElement): Promise<void> {
+    const field = control.parentElement;
+    if (field === null) throw new Error('a control outside any field');
+    const before = holding?.length ?? 0;
+    await userEvent.click(within(field).getByRole('button', { name: 'Assist' }));
+    await userEvent.click(within(field).getByRole('button', { name: 'Write it' }));
+    await waitFor(() => {
+      expect(holding).toHaveLength(before + 1);
+    });
+  }
+
+  async function answer(at: number, text: string): Promise<void> {
+    await act(async () => {
+      holding?.[at]?.(text);
+      await Promise.resolve();
+    });
+  }
+
+  async function save(): Promise<Record<string, unknown>> {
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(saved).toHaveLength(1);
+    });
+    return saved[0] ?? {};
+  }
+
+  const text = (label: string, at = 0): HTMLInputElement => {
+    const found = screen.getAllByRole('textbox', { name: label })[at];
+    if (found === undefined) throw new Error(`no field labelled ${label}`);
+    return found as HTMLInputElement;
+  };
+
+  it('keeps a field typed in while another was being written', async () => {
+    holding = [];
+    renderApp();
+    await openEditor('treatments');
+
+    await startAssist(text('Framing'));
+    await userEvent.type(text('Blurb'), 'It rains.');
+    await answer(0, 'Second person, present tense.');
+
+    await waitFor(() => {
+      expect(text('Framing').value).toBe('Second person, present tense.');
+    });
+    expect(text('Blurb').value).toBe('It rains.');
+    expect(await save()).toMatchObject({
+      blurb: 'It rains.',
+      framing: 'Second person, present tense.',
+    });
+  });
+
+  /**
+   * Through the hook list and then the page: both halves have to apply the
+   * answer to what they hold now, or the list puts back the hooks and the page
+   * puts back everything else.
+   */
+  it('keeps a field typed in while a hook’s premise was being written', async () => {
+    holding = [];
+    renderApp();
+    await openEditor('treatments');
+
+    await userEvent.type(text('Something you want to happen'), 'The war');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a hook' }));
+    await startAssist(text('Premise'));
+    await userEvent.type(text('Blurb'), 'It rains.');
+    await answer(0, 'Over some damned island.');
+
+    await waitFor(() => {
+      expect(text('Premise').value).toBe('Over some damned island.');
+    });
+    expect(text('Blurb').value).toBe('It rains.');
+    const written = await save();
+    expect(written['blurb']).toBe('It rains.');
+    expect((written['hooks'] as { title: string; premise: string }[])[0]).toMatchObject({
+      title: 'The war',
+      premise: 'Over some damned island.',
+    });
+  });
+
+  /**
+   * *Two at once, answered out of order.* Each result used to carry the form as
+   * it was at its own click, so the second to land put back the first.
+   */
+  it('keeps both of two assists that ran at once', async () => {
+    holding = [];
+    renderApp();
+    await openEditor('treatments');
+
+    await startAssist(text('Framing'));
+    await startAssist(text('Blurb'));
+    await answer(1, 'It rains.');
+    await answer(0, 'Second person, present tense.');
+
+    await waitFor(() => {
+      expect(text('Framing').value).toBe('Second person, present tense.');
+    });
+    expect(text('Blurb').value).toBe('It rains.');
+    expect(await save()).toMatchObject({
+      blurb: 'It rains.',
+      framing: 'Second person, present tense.',
+    });
+  });
+
+  it('keeps another section edited while one section was being written', async () => {
+    holding = [];
+    renderApp();
+    await openEditor('actors');
+
+    await startAssist(text('Body', 0));
+    await userEvent.type(text('Title', 1), ' (revised)');
+    const title = text('Title', 1).value;
+    await answer(0, 'Tall, and tired of the rain.');
+
+    await waitFor(() => {
+      expect(text('Body', 0).value).toBe('Tall, and tired of the rain.');
+    });
+    expect(text('Title', 1).value).toBe(title);
+    expect(title.endsWith(' (revised)')).toBe(true);
+  });
+
+  /**
+   * ***The row it was started on, wherever that row now is.*** The editor found
+   * a sample by the index it was rendered at, and the first sample removed while
+   * an assist on the second ran made the second sample's index point at nothing
+   * — or, in the whole-form version, put the removed sample back.
+   */
+  it('lands on its sample after an earlier sample is removed', async () => {
+    holding = [];
+    renderApp();
+    await openEditor('actors');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add a writing sample' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a writing sample' }));
+    await userEvent.type(text('Sample', 0), 'The first.');
+    await startAssist(text('Sample', 1));
+    const [first] = screen.getAllByRole('button', { name: 'Remove this sample' });
+    if (first === undefined) throw new Error('no sample to remove');
+    await userEvent.click(first);
+    await answer(0, 'Rain on the tin roof, all night.');
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('textbox', { name: 'Sample' })).toHaveLength(1);
+    });
+    expect(text('Sample').value).toBe('Rain on the tin roof, all night.');
+    const samples = (await save())['writingSamples'] as { body: string }[];
+    expect(samples.map((sample) => sample.body)).toEqual(['Rain on the tin roof, all night.']);
   });
 });

@@ -103,7 +103,22 @@ export function withEntry(book: Draft, id: string, patch: Partial<LoreEntry>): D
  */
 export function withNewEntry(book: Draft, name: string): { book: Draft; id: string } {
   const entry = newLoreEntry(name);
-  return { book: { ...book, entries: [...entriesOf(book), entry] }, id: entry.id };
+  return { book: withAddedEntry(book, entry), id: entry.id };
+}
+
+/**
+ * ***The book with an entry the caller already made, at the end*** (2026-09-27).
+ *
+ * `withNewEntry` mints the entry and appends it in one call, which is right
+ * everywhere the book is at hand. It is wrong inside a state updater, and that
+ * is where the editor now writes from: React runs an updater twice under
+ * StrictMode, so an entry minted inside one is a *different* entry the second
+ * time — and the id the page goes on to select is the one that was thrown
+ * away. So the page mints outside, with `newLoreEntry`, and appends here, which
+ * is a function of its arguments and nothing else.
+ */
+export function withAddedEntry(book: Draft, entry: LoreEntry): Draft {
+  return { ...book, entries: [...entriesOf(book), entry] };
 }
 
 /** The book without that entry. */

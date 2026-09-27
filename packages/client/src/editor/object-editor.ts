@@ -95,7 +95,20 @@ export interface ObjectEditor<F> {
   /** What is on disk, as far as this page knows. */
   base: LibraryObject;
   form: F;
-  /** Patch the form and clear the notice and refusal, which is always wanted together. */
+  /**
+   * Patch the form and clear the notice and refusal, which is always wanted
+   * together.
+   *
+   * ***Give it an updater*** (2026-09-27). A value is accepted and replaces the
+   * whole form, which is only right for a write that *means* the whole form.
+   * Every edit is an updater over the form as it is when the write lands,
+   * because some writes land late: an assist resolves ten to sixty seconds after
+   * its click, a picture after its upload. [10 §11.5] promises that *"every
+   * field stays directly typeable while an assist is running"*, and a completion
+   * that wrote back the form as it was at the click reverted everything typed
+   * in the meantime — silently, and in whichever entry or fold was out of sight.
+   * A value closed over by the render is that bug, however the write is spelled.
+   */
   patch: (next: F | ((previous: F) => F)) => void;
   /** Never written, so there is nothing on disk for any of this to be about. */
   unsaved: boolean;
@@ -350,7 +363,12 @@ export function useObjectEditor<F>(
       return;
     }
     const fresh = descriptor.formOf(conflict.object);
-    setForm(descriptor.reapply(pristineForm, form, fresh));
+    // Over the form as it is when this runs, not as the render had it — the
+    // rule `patch` states, and the reapply helpers are pure, so they can run
+    // inside the updater. An assist or an upload landing between the render and
+    // the click is one of *my* edits, and the reapply's whole job is to keep
+    // those.
+    setForm((current) => descriptor.reapply(pristineForm, current, fresh));
     setPristineForm(fresh);
     setBase(conflict);
     setConflict(null);

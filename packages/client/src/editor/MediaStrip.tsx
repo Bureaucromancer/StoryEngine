@@ -143,7 +143,21 @@ export function MediaStrip(props: {
   /** The object the bytes are stored beside — always the book, even for an entry's strip. */
   objectId: string;
   media: readonly EmbeddedMedia[];
-  onChange: (media: EmbeddedMedia[]) => void;
+  /**
+   * ***A change to the list, never the list*** (2026-09-27).
+   *
+   * An upload lands after an `await`, and the list this component had when it
+   * started is the list as it was then: appending to `props.media` wrote back a
+   * strip without whatever was labelled, retagged or removed while the picture
+   * was on its way. So every change here is an updater, and the page applies it
+   * to the list as the form holds it when the change arrives.
+   *
+   * *The cover is the synchronous case of the same bug.* Removing the picture
+   * that is the cover is two writes — the row, then `onCover(null)` — and when
+   * both were whole books built from one render, the second restored the first:
+   * the cover was unset and the picture stayed. Two updaters apply in order.
+   */
+  onChange: (update: (media: readonly EmbeddedMedia[]) => EmbeddedMedia[]) => void;
   /** The book's gallery designates one; an entry's strip does not. */
   coverId?: string | null;
   onCover?: (mediaId: string | null) => void;
@@ -157,7 +171,7 @@ export function MediaStrip(props: {
   const [replacing, setReplacing] = useState<string | null>(null);
 
   function patch(id: string, over: Partial<EmbeddedMedia>): void {
-    props.onChange(props.media.map((one) => (one.id === id ? { ...one, ...over } : one)));
+    props.onChange((media) => media.map((one) => (one.id === id ? { ...one, ...over } : one)));
   }
 
   async function take(file: File): Promise<void> {
@@ -168,7 +182,11 @@ export function MediaStrip(props: {
       const { asset } = await api.uploadAsset(props.kind, props.objectId, blob, file.name);
       const target = replacing;
       if (target === null) {
-        props.onChange([...props.media, { id: uuidv7(), role: 'gallery', tags: [], ...asset }]);
+        // The row is made out here and only appended inside: React runs an
+        // updater twice under StrictMode, and a uuid minted inside one would
+        // name a different row each time.
+        const row: EmbeddedMedia = { id: uuidv7(), role: 'gallery', tags: [], ...asset };
+        props.onChange((media) => [...media, row]);
       } else {
         // **Replace keeps the row.** Its id, role, label and tags are the
         // author's decisions about a slot; the bytes are what is being swapped,
@@ -263,10 +281,11 @@ export function MediaStrip(props: {
                   type="button"
                   variant="quiet"
                   onClick={() => {
-                    props.onChange(props.media.filter((row) => row.id !== one.id));
+                    props.onChange((media) => media.filter((row) => row.id !== one.id));
                     // A cover that has been removed is no cover — the schema
                     // tolerates a dangling id and nothing is served by leaving
-                    // one behind.
+                    // one behind. A second write, applied after the first rather
+                    // than over it: see `onChange`.
                     if (props.coverId === one.id) props.onCover?.(null);
                   }}
                 >

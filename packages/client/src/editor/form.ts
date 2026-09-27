@@ -79,6 +79,53 @@ export function joinLines(values: string[]): string {
 }
 
 /**
+ * ***Where a section or sample the editor rendered is now*** (2026-09-27).
+ *
+ * The editor's writes are updaters over the form as it is when they land
+ * (`patch` in `object-editor.ts` says why), and an updater needs to find its row
+ * in a list that may have moved since the render. Neither half of the obvious
+ * answers does it alone:
+ *
+ * - **The index the row was rendered at** is what the editor used, and it is
+ *   right for a click — but an assist on the third sample resolves long after
+ *   its click, and if the first was removed meanwhile, the third is now second
+ *   and index 2 is somebody else's prose.
+ * - **The id** survives the removal, and is wrong the other way: ids are
+ *   required and not unique (`actorFormShape` checks the one and not the other,
+ *   and an importer deriving ids from content can mint twins), so matching by
+ *   id alone edits the first twin whichever one the person was typing in — and
+ *   matching every twin edits both.
+ *
+ * So: the rendered index, **if the row there still has the id**; otherwise the
+ * first row that does, which is the defence `withEntry` and `patchHook` make
+ * for the same reason. −1 when it has gone, and the callers below then leave the
+ * list alone — a late write to a removed row has nowhere to land, and making
+ * one up would bring the row back.
+ */
+export function rowIndex(rows: readonly { id: string }[], id: string, rendered: number): number {
+  return rows[rendered]?.id === id ? rendered : rows.findIndex((row) => row.id === id);
+}
+
+/** That row changed, found by {@link rowIndex}; the list itself when it has gone. */
+export function withRow<T extends { id: string }>(
+  rows: T[],
+  id: string,
+  rendered: number,
+  over: Partial<T>,
+): T[] {
+  const at = rowIndex(rows, id, rendered);
+  if (at === -1) return rows;
+  return rows.map((row, position) => (position === at ? { ...row, ...over } : row));
+}
+
+/** The list without that row, found by {@link rowIndex}; itself when it has gone. */
+export function withoutRow<T extends { id: string }>(rows: T[], id: string, rendered: number): T[] {
+  const at = rowIndex(rows, id, rendered);
+  if (at === -1) return rows;
+  return rows.filter((_, position) => position !== at);
+}
+
+/**
  * Why this object cannot back the actor form, in one sentence — or null when
  * it can.
  *

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { Lorebook } from '@storyengine/shared';
@@ -110,6 +110,26 @@ export function EntryTravel(props: {
   const [report, setReport] = useState<MergeReport | null>(null);
 
   /**
+   * ***The book as the form last rendered it, for a merge that lands late***
+   * (2026-09-27).
+   *
+   * The merge waits on `file.text()`, and the file input's handler closes over
+   * the book as it was when the dialog closed. Merging into that one wrote back,
+   * with the imported entries, a book that had lost whatever an assist or an
+   * upload put in it meanwhile. Everywhere else in the editor that is solved by
+   * writing an updater (`LorebookEditorPage`'s `edit` says why); this write
+   * cannot be one, because `mergeEntries` mints ids for clashing entries and the
+   * report it returns describes the book it merged into — an updater may run
+   * twice, and a report computed outside it would describe a different book. So
+   * it reads the book at the last possible moment instead. Kept in an effect
+   * rather than written during render, which is React's rule for refs.
+   */
+  const latestBook = useRef(props.book);
+  useEffect(() => {
+    latestBook.current = props.book;
+  });
+
+  /**
    * **Who this install has**, which is the only way *refers to nothing* gets an
    * answer — an `actorFilter` names an actor and a file cannot know whether it
    * is here. Read once when the panel mounts; a merge is not a moment where
@@ -201,7 +221,7 @@ export function EntryTravel(props: {
                   setProblem(WORDS[read.problem] ?? WORDS['unreadable'] ?? '');
                   return;
                 }
-                const merged = mergeEntries(props.book, read.book, knownActors);
+                const merged = mergeEntries(latestBook.current, read.book, knownActors);
                 setReport(merged.report);
                 props.onMerged(merged.book, file.name);
               },

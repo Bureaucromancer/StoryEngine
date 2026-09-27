@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlotHook } from '@storyengine/shared';
 
 import { choicesOf, fieldsOf, plotHookSchema } from '../library/fields.js';
+import { AssistProvider, type AssistSubject } from '../ui/assist.js';
 
 /**
  * The hook editor, which is the first surface in the application where a plot
@@ -77,9 +78,14 @@ function Harness(props: { hooks: PlotHook[] }): JSX.Element {
   return (
     <HookList
       hooks={hooks}
-      onChange={(next) => {
-        latest = next;
-        setHooks(next);
+      // Applied to the list as it is, the way every carrier applies it — the
+      // list handed back is a change, not a value (see `HookList`'s `onChange`).
+      onChange={(update) => {
+        setHooks((was) => {
+          const next = update(was);
+          latest = next;
+          return next;
+        });
       }}
       note="Hooks on this treatment travel with it."
     />
@@ -106,8 +112,54 @@ function mount(hooks: PlotHook[]): void {
  * *prop* changes and neither passes one — so the attribute set here stays set
  * across the re-renders the test then causes.
  */
-function openFold(summary: string): void {
+function openFold(summary: string | RegExp): void {
   screen.getByText(summary).closest('details')?.setAttribute('open', '');
+}
+
+/**
+ * Every assist subject the fields offered, by path, as of the last render.
+ *
+ * A running assist holds the subject of the render that started it and calls
+ * its `onChange` when the model answers. Taking one from here and calling it
+ * after other edits is that, with the network and the model taken out: what is
+ * left is the only thing that differs between a click and an answer — the time
+ * in between.
+ */
+const offered = new Map<string, AssistSubject>();
+
+function mountWithAssist(hooks: PlotHook[]): void {
+  latest = hooks;
+  offered.clear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <AssistProvider
+        contract={{
+          slot: (subject) => {
+            offered.set(subject.path, subject);
+            return null;
+          },
+          onEdited: () => undefined,
+        }}
+      >
+        <Harness hooks={hooks} />
+      </AssistProvider>
+    </QueryClientProvider>,
+  );
+}
+
+/** The subject for this path as the fields offer it now — what an assist started now would hold. */
+function heldSubject(path: string): AssistSubject {
+  const found = offered.get(path);
+  if (found === undefined) throw new Error(`no assist offered for ${path}`);
+  return found;
+}
+
+async function answerLate(subject: AssistSubject, text: string): Promise<void> {
+  await act(async () => {
+    subject.onChange(text);
+    await Promise.resolve();
+  });
 }
 
 function hook(title: string, over: Partial<PlotHook> = {}): PlotHook {
@@ -430,5 +482,87 @@ describe('introduces', () => {
     // edit a patch cannot express.
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Arrives' }), '');
     expect(Object.hasOwn(latest[0] ?? {}, 'introduces')).toBe(false);
+  });
+});
+
+/**
+ * ***An answer that arrives after other edits*** (2026-09-27) — [10 §11.5]'s
+ * *"every field stays directly typeable while an assist is running"*.
+ *
+ * A hook's premise and an entrance's text carry an assist. Its answer used to
+ * build the next list — and the next arrival — from the render that started it,
+ * so it put back everything typed in the meantime, and an entrance removed in
+ * the meantime came back with its primacy. Each change is now a function of the
+ * list as it is when it lands.
+ */
+describe('an answer that arrives after other edits', () => {
+  const VERA = { id: 'actor-vera', name: 'Vera Kohl' };
+
+  it('keeps the title typed while the premise was being written', async () => {
+    const one = hook('The war');
+    mountWithAssist([one]);
+    await screen.findByLabelText('Title');
+    const premise = heldSubject(`hooks.${one.id}.premise`);
+
+    await userEvent.type(screen.getByLabelText('Title'), '!');
+    await answerLate(premise, 'Over some damned island.');
+
+    expect(latest[0]?.title).toBe('The war!');
+    expect(latest[0]?.premise).toBe('Over some damned island.');
+  });
+
+  it('keeps an entrance’s label typed while its text was being written', async () => {
+    const one = hook('Somebody arrives', {
+      introduces: {
+        actor: VERA,
+        entrances: [{ id: 'entrance-rain', label: '', text: '' }],
+        primaryEntranceId: null,
+      },
+    });
+    mountWithAssist([one]);
+    await screen.findByLabelText('Title');
+    openFold(/^Introduces/);
+    const text = heldSubject(`hooks.${one.id}.introduces.entrances.entrance-rain.text`);
+
+    await userEvent.type(screen.getByLabelText('Label'), 'Through the rain');
+    await answerLate(text, 'She is already sitting down.');
+
+    expect(latest[0]?.introduces?.entrances).toEqual([
+      { id: 'entrance-rain', label: 'Through the rain', text: 'She is already sitting down.' },
+    ]);
+  });
+
+  /**
+   * The answer for an entrance that has gone has nowhere to land. And the
+   * primary is read off the arrival as it is: a favourite chosen after the
+   * answer was asked for is one the answer knows nothing about, and must keep.
+   */
+  it('does not bring back an entrance removed meanwhile, or unset the primary chosen since', async () => {
+    const one = hook('Somebody arrives', {
+      introduces: {
+        actor: VERA,
+        entrances: [
+          { id: 'entrance-rain', label: 'Through the rain', text: '' },
+          { id: 'entrance-door', label: 'By the door', text: 'She knocks.' },
+        ],
+        primaryEntranceId: 'entrance-rain',
+      },
+    });
+    mountWithAssist([one]);
+    await screen.findByLabelText('Title');
+    openFold(/^Introduces/);
+    const text = heldSubject(`hooks.${one.id}.introduces.entrances.entrance-rain.text`);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Through the rain' }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Primary entrance' }),
+      'entrance-door',
+    );
+    await answerLate(text, 'She is already sitting down.');
+
+    expect(latest[0]?.introduces?.entrances.map((entrance) => entrance.id)).toEqual([
+      'entrance-door',
+    ]);
+    expect(latest[0]?.introduces?.primaryEntranceId).toBe('entrance-door');
   });
 });
