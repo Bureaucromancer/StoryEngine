@@ -1519,6 +1519,7 @@ export class TurnRunner {
                 text: outcome.text,
                 ...(outcome.object === undefined ? {} : { object: outcome.object }),
                 usage: outcome.usage,
+                outcome: outcome.call.outcome,
               };
             },
           },
@@ -1892,10 +1893,9 @@ export class TurnRunner {
 
     draft.status = aborted ? 'failed' : 'complete';
     draft.cost = costOf(calls);
-    write();
 
-    // The lock is taken here and nowhere before it.
-    await finaliseTurn(commit, job.id, draft);
+    // From here the turn is finished, and a failure is the commit's.
+    if (!(await this.#commitFinished(job, draft, write, log))) return;
 
     /**
      * ***Renditions, after the commit and awaited no further than the insert***
@@ -1933,6 +1933,57 @@ export class TurnRunner {
      * against `finaliseTurn`, one layer out.
      */
     await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null, remedyFound);
+  }
+
+  /**
+   * Commits a turn that finished, and never replaces it with another.
+   *
+   * ***Its own `try`, because `#run`'s is for a turn that never started***
+   * (2026-09-27). The last checkpoint and `finaliseTurn` sat inside that one,
+   * so a disk that refused the append (a full volume, or a scanner holding the
+   * segment open on Windows) was handled as *could not be set up*. The
+   * stand-in overwrote the saved draft and was committed in the turn's place:
+   * the prose, its calls and its effects were gone, and the record said
+   * `se.setup` had failed. When the append had landed and the head had not,
+   * the retry advanced the head with the stand-in's empty effects, so the
+   * session's channels no longer matched its own segment.
+   *
+   * ***The draft is the turn***, which is the step-1 invariant in
+   * `state/commit.ts`, so a failure is answered with the same draft: once more
+   * here, where a condition that has passed has passed, and after that by
+   * startup reconciliation, which resumes at the step the job reached. Every
+   * step is idempotent by turn id, so neither can append the turn twice. A
+   * job left for startup keeps its session busy until then, and that is the
+   * honest state: the turn exists and is not yet in the story.
+   */
+  async #commitFinished(
+    job: Job,
+    draft: Turn,
+    write: () => void,
+    log: Logger | undefined,
+  ): Promise<boolean> {
+    const commit = this.#options.commit;
+    try {
+      write();
+      // The lock is taken here and nowhere before it.
+      await finaliseTurn(commit, job.id, draft);
+      return true;
+    } catch (error) {
+      log?.error(
+        { event: 'job.commitFailed', ...failureShape(error) },
+        'A finished turn could not be committed; trying once more',
+      );
+    }
+    try {
+      await finaliseTurn(commit, job.id, draft);
+      return true;
+    } catch (error) {
+      log?.error(
+        { event: 'job.lost', ...failureShape(error) },
+        'A finished turn could not be committed; startup will finish it from its draft',
+      );
+      return false;
+    }
   }
 
   /** `RunnerOptions.committed`, which nothing it does may turn into a failed turn. */

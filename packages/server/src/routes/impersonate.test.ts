@@ -3,6 +3,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { Writable } from 'node:stream';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -233,10 +234,9 @@ describe('the provider timeout, as a draft sees it', () => {
    * bounds it. The stall is far longer than the suite's per-test timeout, so a
    * draft with no bound at all fails by timing out rather than by passing.
    *
-   * *The status pins that the bound exists, not what the answer should say.*
-   * The route has no classed answer for a stalled draft, so the `Stalled`
-   * failure reaches `setErrorHandler` as an unhandled error. Giving it a class
-   * is a separate change, and it will need to update this line when it lands.
+   * ~~*The status pins that the bound exists, not what the answer should
+   * say.*~~ *Answered 2026-09-27*: a draft's provider failure has a class and a
+   * remedy now, so the stall says so rather than reaching `setErrorHandler`.
    */
   it('still gives up on an endpoint that says nothing', async () => {
     await server.dispose();
@@ -253,6 +253,75 @@ describe('the provider timeout, as a draft sees it', () => {
       payload: {},
     });
 
-    expect(drafted.status).toBe(500);
+    expect(drafted.status).toBe(502);
+    expect(drafted.body).toMatchObject({
+      error: 'provider-failed',
+      class: 'terminal',
+      remedy: 'endpoint-stalled',
+    });
+  });
+});
+
+/**
+ * ***A provider failure is an answer, not an accident*** (2026-09-27).
+ *
+ * It was rethrown, so a wrong key, a model server that was down or a 429
+ * reached the unhandled-error path. The person got a bare 500 with no class and
+ * no remedy, and the log got the error object, whose `call` is the whole
+ * rendered story prompt.
+ */
+describe('a draft the endpoint refuses', () => {
+  let lines: string[];
+
+  beforeEach(async () => {
+    await server.dispose();
+    lines = [];
+    await standUp({
+      config: { log: { level: 'info', format: 'json' } },
+      logStream: new Writable({
+        write(chunk: Buffer, _encoding, done) {
+          lines.push(chunk.toString());
+          done();
+        },
+      }),
+      providers: () =>
+        new FakeProvider({
+          script: [
+            {
+              error: {
+                class: 'terminal',
+                message: 'The endpoint refused the request.',
+                detail: 'Incorrect API key provided',
+              },
+            },
+          ],
+        }),
+    });
+  });
+
+  it('says which class it was and what to do, and keeps the prompt out of the log', async () => {
+    await bindProse();
+    const sessionId = await aSession(vera);
+
+    const drafted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/impersonate`,
+      payload: {},
+    });
+
+    expect(drafted.status).toBe(502);
+    expect(drafted.body).toMatchObject({
+      error: 'provider-failed',
+      class: 'terminal',
+      remedy: 'endpoint-refused',
+    });
+
+    const logged = lines.join('');
+    // The one line an operator needs, with the endpoint's own words on it…
+    expect(logged).toContain('"event":"impersonate.failed"');
+    expect(logged).toContain('Incorrect API key provided');
+    // …and none of the story. The impersonation instruction is in every
+    // draft's prompt, so it is what a serialised call would have carried.
+    expect(logged).not.toContain('next message, as Vera');
   });
 });

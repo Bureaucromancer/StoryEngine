@@ -2535,27 +2535,59 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       const signal = disconnectSignal(reply);
 
-      let drafted: Awaited<ReturnType<typeof impersonate>>;
-      try {
-        drafted = await impersonate(
+      const drafted = await impersonate(
+        {
+          sessions: services.sessions,
+          accounts: services.accounts,
+          providers: services.providers,
+          config: services.config,
+          // Read at failure time, since a completed check replaces it wholesale.
+          online: () => services.updates.online,
+        },
+        {
+          account: account.handle,
+          sessionId: session.id,
+          parentTurnId: session.headTurnId ?? null,
+          ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
+          signal,
+        },
+      );
+
+      if (!drafted.ok && drafted.reason === 'cancelled') {
+        // Nobody is left to answer when this route's own signal did it, as in
+        // the illustrate route. Anything else that stops a draft is the server
+        // stopping, and the person waiting is told so.
+        if (signal.aborted) return;
+        return reply.code(503).send({
+          error: 'cancelled',
+          message: 'The server stopped before the draft was written.',
+        });
+      }
+
+      if (!drafted.ok && drafted.reason === 'provider-failed') {
+        /**
+         * ***The class and the remedy, and never the prompt*** (2026-09-27).
+         * One line with the fields a reader filters on, which is the runner's
+         * `step.failed` shape, and a `502` because the server did its part and
+         * the endpoint behind it did not. The client words the remedy with the
+         * sentences a failed turn uses.
+         */
+        request.log.error(
           {
-            sessions: services.sessions,
-            accounts: services.accounts,
-            providers: services.providers,
-            config: services.config,
-          },
-          {
-            account: account.handle,
+            event: 'impersonate.failed',
             sessionId: session.id,
-            parentTurnId: session.headTurnId ?? null,
-            ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
-            signal,
+            class: drafted.class,
+            callId: drafted.callId,
+            ...(drafted.detail === undefined ? {} : { detail: drafted.detail }),
           },
+          'A draft could not be written',
         );
-      } catch (error) {
-        // Swallowed only when this route caused it, as in the illustrate route.
-        if (error instanceof Cancelled && signal.aborted) return;
-        throw error;
+        return reply.code(502).send({
+          error: 'provider-failed',
+          class: drafted.class,
+          remedy: drafted.remedy,
+          message: 'The model endpoint could not write that draft.',
+        });
       }
 
       if (!drafted.ok) {

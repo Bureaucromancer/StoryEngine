@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Candidate } from '@storyengine/sdk';
+import { remedyFor, type ErrorClass, type FailureRemedy } from '@storyengine/shared';
 
 import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
@@ -12,7 +13,7 @@ import { retrieve } from '../retrieval/retrieve.js';
 import { Rng } from '../rng/rng.js';
 import type { SessionContext } from '../sessions/store.js';
 import { readParty } from '../sessions/cast.js';
-import { performCall, RoleUnresolved } from './calls.js';
+import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { gatherAssemblyInputs } from './gather.js';
 import { previewStepFor } from './preview.js';
 
@@ -67,6 +68,12 @@ export interface ImpersonateContext {
   accounts: Accounts;
   providers: ProviderFactory;
   config: Config;
+  /**
+   * What the last update check learned about this server's internet, read when
+   * a draft fails. The runner's `connectivity`, for the same reason: a silent
+   * remote endpoint and a server with no internet are different remedies.
+   */
+  online?: () => boolean | null;
 }
 
 export interface ImpersonateRequest {
@@ -90,7 +97,22 @@ export interface ImpersonateRequest {
 
 export type ImpersonateResult =
   | { ok: true; text: string }
-  | { ok: false; reason: 'no-prose-step' | 'not-a-player' | 'role-unbound' | 'role-dangling' };
+  | { ok: false; reason: 'no-prose-step' | 'not-a-player' | 'role-unbound' | 'role-dangling' }
+  /**
+   * ***The endpoint failed, said as a class and a remedy*** (2026-09-27). The
+   * call's record and the endpoint's own words are here for the log line and
+   * go no further: [21 §4.1] keeps a prompt out of the log, and a client gets
+   * the class and what a person could do about it.
+   */
+  | {
+      ok: false;
+      reason: 'provider-failed';
+      class: ErrorClass;
+      remedy: FailureRemedy;
+      callId: string;
+      detail?: string;
+    }
+  | { ok: false; reason: 'cancelled' };
 
 /**
  * The instruction that flips the call.
@@ -240,6 +262,35 @@ export async function impersonate(
     if (error instanceof RoleUnresolved) {
       return { ok: false, reason: error.reason === 'unbound' ? 'role-unbound' : 'role-dangling' };
     }
+    /**
+     * ***A provider failure is an answer, not an accident*** (2026-09-27).
+     *
+     * It was rethrown, so a model server that was down, a wrong key, a 429 or
+     * a stall reached the unhandled-error path. The person got a bare 500 with
+     * no class and no remedy. The log got `err: error`, which serialises every
+     * enumerable property, and a `CallFailed` carries `call`, the whole
+     * rendered story prompt, and `partialText`. The runner's step-failure line
+     * exists to keep exactly those out (F32). The same classes and remedy a
+     * failed turn gets now come back here.
+     */
+    if (error instanceof CallFailed) {
+      return {
+        ok: false,
+        reason: 'provider-failed',
+        class: error.class,
+        remedy: remedyFor({
+          reason: error.class,
+          endpoint: error.endpoint,
+          stalled: error.stalled,
+          online: context.online?.() ?? null,
+        }),
+        callId: error.call.id,
+        ...(error.detail === undefined ? {} : { detail: error.detail }),
+      };
+    }
+    // Carries the call and the partial text too, and for the same reason
+    // stops here rather than travelling as an error object.
+    if (error instanceof Cancelled) return { ok: false, reason: 'cancelled' };
     throw error;
   }
 }

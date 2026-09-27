@@ -86,6 +86,17 @@ which was built, which is exactly why it belongs in the plan.
 summariser is a regeneration rather than lost history. That is the argument for
 shipping a simple version here rather than designing a good one first.
 
+*Corrected 2026-09-27.* ~~a bad summariser is a regeneration~~ only for somebody
+who knows to ask for one. A link is served from its key from then on and handed
+to the next link as `previous`, so a summary that ran into its length limit
+mid-sentence was the story above the window for the rest of the session, and a
+long session reaches that limit by design, since each link covers everything
+before it. A filtered reply came back empty and removed the summary. Nothing
+regenerated either until the binding changed or somebody deleted `summaries/`.
+The step could not tell, because a call's result carried no word of how it
+ended. It does now (`StepCallResult.outcome`), and a cut-off, refused or empty
+reply is not kept, so the next turn asks again.
+
 **CI this phase establishes:** the [testing §1](03-testing.md) invariant that has
 been waiting for a producer — *summaries shared across a fork are byte-identical
 to the parent's* — which is the chain constraint above expressed as a property

@@ -187,7 +187,33 @@ export function summarise(context: SummariseContext): {
               block('se.summary.turns', 'user', renderUnits(units)),
             ],
           });
-          return result.text.trim();
+          const text = result.text.trim();
+          /**
+           * ***Only a finished summary is kept*** (2026-09-27).
+           *
+           * A link is written under a content key, served from then on without
+           * being asked for again, and handed to the next link as `previous`. So
+           * a reply that ran into its length limit mid-sentence was the story
+           * above the window for the rest of the session, and every link after
+           * it summarised the cut. A long session reaches that limit by design,
+           * since each link covers everything before it. A filtered reply came
+           * back empty and quietly removed the summary.
+           *
+           * Thrown rather than kept, so nothing is written for this link and the
+           * next turn asks again: the step is `warn`, and a turn without a
+           * summary is the state [P8]'s safety argument already prices.
+           * *`incomplete` is kept when it has words*, because some local
+           * endpoints never report why they stopped, and refusing those would
+           * refuse every summary they write.
+           */
+          if (result.outcome === 'truncated') {
+            throw new Error('The summary was cut off at its length limit, so it was not kept.');
+          }
+          if (result.outcome === 'refused') {
+            throw new Error('The provider refused to write the summary, so none was kept.');
+          }
+          if (text === '') throw new Error('The summary came back empty, so it was not kept.');
+          return text;
         },
       };
 

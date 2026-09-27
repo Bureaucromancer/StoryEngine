@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NO_LORE_REPORT } from '@storyengine/shared';
 
-import type { TurnPreview, TurnRecord } from '../api.js';
+import { ApiError, type TurnPreview, type TurnRecord } from '../api.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -1134,6 +1134,32 @@ describe('drafting your own next message', () => {
 
     expect(await screen.findByDisplayValue('Fine. After you.')).toBeTruthy();
     expect(screen.queryByDisplayValue('I would not go in there.')).toBeNull();
+  });
+
+  /**
+   * ***A refused draft says what a failed turn would*** (2026-09-27). It was a
+   * bare 500, so a wrong key read *try again in a moment*, which is the one
+   * remedy that cannot work.
+   */
+  it('says what to do when the endpoint refused the draft', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('I knock twice.');
+    impersonateAs.mockRejectedValue(
+      new ApiError(
+        502,
+        'provider-failed',
+        'The model endpoint could not write that draft.',
+        undefined,
+        undefined,
+        undefined,
+        'endpoint-refused',
+      ),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Draft my next message' }));
+
+    expect(await screen.findByText(/refused the request\. Check the key/)).toBeTruthy();
   });
 });
 

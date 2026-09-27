@@ -1113,7 +1113,7 @@ export async function buildApp(
 
     const status = error.statusCode ?? 500;
     if (status >= 500) {
-      request.log.error({ err: error }, 'Unhandled error');
+      request.log.error({ event: 'request.failed', ...unhandledShape(error) }, 'Unhandled error');
       return reply.code(status).send({ error: 'internal', message: 'The request failed.' });
     }
     return reply.code(status).send({ error: 'invalid', message: error.message });
@@ -1617,6 +1617,36 @@ function assignInPlace(target: Record<string, unknown>, next: Record<string, unk
       target[key] = value;
     }
   }
+}
+
+/**
+ * ***An unhandled error as what diagnoses it, and nothing else it carries***
+ * (2026-09-27).
+ *
+ * This logged `err: error`, and the serialiser copies every enumerable
+ * property. A `CallFailed` carries the call it failed on, which is the whole
+ * rendered prompt, and the text streamed before it failed, and a `Cancelled`
+ * can carry both too. So a failed Illustrate wrote the turn's prose into the log
+ * as an *Unhandled error*, and so did a failed draft until that route learned
+ * to answer. [21 §4.1] keeps portable object bodies out of the log, and the
+ * runner's step-failure line already did (F32). This is the same rule at the
+ * door every other route falls through.
+ *
+ * What stays is what an operator searches for: the kind, the sentence, the
+ * stack, and the system's own codes. Fields rather than an `err` object,
+ * which is the runner's `failureShape` and for its reason: the serialiser
+ * treats anything with a `message` as an error and puts its own guess at the
+ * kind over ours.
+ */
+export function unhandledShape(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { message: String(error) };
+  const shape: Record<string, unknown> = { type: error.name, message: error.message };
+  for (const key of ['code', 'errno', 'syscall', 'path']) {
+    const value: unknown = (error as unknown as Record<string, unknown>)[key];
+    if (typeof value === 'string' || typeof value === 'number') shape[key] = value;
+  }
+  if (error.stack !== undefined) shape['stack'] = error.stack;
+  return shape;
 }
 
 /**

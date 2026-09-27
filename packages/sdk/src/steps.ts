@@ -7,6 +7,7 @@ import type {
   ChannelState,
   EffectOp,
   GenerationParams,
+  ModelCall,
   ModelRole,
   StepStage,
   TokenUsage,
@@ -401,6 +402,19 @@ export interface StepCallResult {
   text: string;
   object?: unknown;
   usage: TokenUsage | null;
+  /**
+   * ***How the call ended, as its record says*** (2026-09-27): `truncated` for
+   * a ceiling reached, `refused` for a provider's filter, `incomplete` for a
+   * stream that stopped without saying why. A call that failed outright never
+   * returns here; those reach the step as a rejection.
+   *
+   * **A step could not tell a finished reply from a cut-off one**, and a step
+   * that keeps what it is given has to. The summariser cached a summary that
+   * ran into its length limit mid-sentence, and every later link was built on
+   * it. Optional, so a host that does not say is read as having nothing to
+   * report, and every step written before this compiles unchanged.
+   */
+  outcome?: ModelCall['outcome'];
 }
 
 /**

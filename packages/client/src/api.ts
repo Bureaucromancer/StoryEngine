@@ -215,6 +215,15 @@ export class ApiError extends Error {
    * leaves somebody guessing which field on a form they did not design.
    */
   readonly issues?: string[];
+  /**
+   * What a person could do about a provider failure — a `FailureRemedy`, from
+   * a route that says (2026-09-27).
+   *
+   * **A string rather than the union**, because a newer server may send a
+   * remedy this build has never heard of, and `remedySentence` already answers
+   * that with nothing rather than a guess. Lifted here for `issues`' reason.
+   */
+  readonly remedy?: string;
 
   constructor(
     status: number,
@@ -223,6 +232,7 @@ export class ApiError extends Error {
     current?: unknown,
     contentHash?: string,
     issues?: string[],
+    remedy?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -231,6 +241,7 @@ export class ApiError extends Error {
     if (current !== undefined) this.current = current;
     if (contentHash !== undefined) this.contentHash = contentHash;
     if (issues !== undefined) this.issues = issues;
+    if (remedy !== undefined) this.remedy = remedy;
   }
 }
 
@@ -300,7 +311,8 @@ async function request<T>(
       payload['issues'].every((one) => typeof one === 'string')
         ? payload['issues']
         : undefined;
-    throw new ApiError(response.status, code, message, current, contentHash, issues);
+    const remedy = typeof payload?.['remedy'] === 'string' ? payload['remedy'] : undefined;
+    throw new ApiError(response.status, code, message, current, contentHash, issues, remedy);
   }
 
   return payload as T;

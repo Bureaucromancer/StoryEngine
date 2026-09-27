@@ -1878,6 +1878,34 @@ text **is** an input.
 Nothing here is truncated. A surface may cap what it shows; a report that
 arrived pre-trimmed could not offer *and 40 more* honestly.
 
+### `POST /api/sessions/:sessionId/impersonate`
+
+```
+{ actorId? }
+```
+
+A draft of your own character's next message — [06 §3.1](design/06-modes-and-turn-pipeline.md),
+[P11.4](design/workplan/28-p11-implementation.md). → `200 { text }`. The persona
+speaks by default; `actorId` names another member you play. **Nothing is
+committed**: no job, no turn, no head moved, which is also why it is not refused
+while a turn is in flight. The client leaving cancels the call.
+
+Refusals, each a class the client words:
+
+- `409 not-a-player` — that member is not one you author.
+- `422 no-prose-step` — the session's mode writes no prose, so there is no voice
+  to borrow.
+- `422 role-unbound` · `422 role-dangling` — no connection for the model this
+  needs, or a binding to one that is gone.
+- `502 provider-failed` — the endpoint failed after the server asked it
+  (added 2026-09-27; it was a bare `500`). The body carries `class`
+  (`transient`, `retryable` or `terminal`) and `remedy`, the same
+  `FailureRemedy` a failed turn gets, so a wrong key, a model server that is
+  down and a stall read as three different things. The log line is
+  `impersonate.failed`, with the class, the call and the endpoint's own words,
+  and never the prompt.
+- `503 cancelled` — the server stopped the call before it answered.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a

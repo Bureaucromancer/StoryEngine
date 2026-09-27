@@ -574,6 +574,17 @@ uncommitted draft can be lost — the explicit cost of deleting authoritative
 operational state — but a terminal turn already appended to JSONL is reconciled
 into the session rather than duplicated or discarded.
 
+*Corrected 2026-09-27.* ~~a job interrupted in steps 2–4 completes those steps
+idempotently~~ was true of a restart and not of a failure the process lived
+through. The runner's catch for a turn that could not be set up also caught
+the commit, so a disk that refused step 2 or 3 got a stand-in with no prose and
+no effects written over the terminal draft, and the stand-in was committed in
+the finished turn's place. Where step 2 had landed, the segment held the real
+turn and the head was built from the stand-in's effects. Startup then completed
+the stand-in, idempotently. The runner now commits a finished turn inside its
+own `try`, retries once with the same draft, and otherwise leaves the job for
+startup, which completes the real turn's steps as this paragraph says.
+
 Progress events receive a monotonically increasing per-job sequence in the same
 operational transaction as the draft change they describe. **Streaming deltas
 coalesce into those checkpoints rather than each being one** — a durable
