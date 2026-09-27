@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Rendition } from '@storyengine/shared';
 
 import { FakeProvider } from '../providers/fake.js';
+import { jobForRendition } from '../renditions/jobs.js';
 import { readRenditions, writeRendition } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -463,5 +464,12 @@ describe('the recipe outlives the pixels', () => {
     expect(remade?.prompt.text).toBe(before.text);
     expect(remade?.provenance.seed).toBe(before.seed);
     expect(remade?.asset).not.toBeNull();
+
+    /**
+     * ***And the retry is on the books as a second try.*** Until 2026-09-27 the
+     * finished job was run again under attempt 1, so the store could not say a
+     * picture had been paid for twice — which is what the column is for.
+     */
+    expect(jobForRendition(server.services.state.db, sessionId, made.id)?.attempt).toBe(2);
   });
 });

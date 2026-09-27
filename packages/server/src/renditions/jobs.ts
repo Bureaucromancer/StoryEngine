@@ -25,10 +25,13 @@ import { inTransaction } from '../storage/transaction.js';
  *
  * *So what is reused is the store, the status vocabulary and the event stream;
  * what is not is the reservation.* There is no idempotency table either: a
- * turn's renditions are enqueued once, by the runner, after the commit, and the
- * unique index on `(session_id, rendition_id)` is what stops a double dispatch —
+ * turn's renditions are enqueued once, by the runner, after the commit, and a
+ * partial unique index — **one live job per record**, `(session_id,
+ * rendition_id)` where `finished_at is null` — is what stops a double dispatch:
  * a constraint rather than a check-then-insert, for the reason
- * `job_one_active_per_session` is an index rather than a query.
+ * `job_one_active_per_session` is an index rather than a query. *Live* rather
+ * than *ever*, because a retry is a new job with the next attempt number; the
+ * finished ones stay as the count of what a picture has cost.
  *
  * ***Both columns, because an id alone does not name a record.*** Rendition ids
  * are `<turnId>.<n>` and an imported session keeps its turn ids, so a copy of a
@@ -102,18 +105,35 @@ export interface EnqueueRequest {
   renditionId: string;
   turnId: string;
   purpose: RenditionPurpose;
-  /** Which try. Defaults to the first; a retry passes the previous plus one. */
+  /**
+   * Which try. Absent means *the next one* — one past the highest attempt this
+   * record has had, which is what a retry is and what the first dispatch is too.
+   */
   attempt?: number;
 }
 
+/** What `enqueueRendition` found or made. */
+export interface Enqueued {
+  job: RenditionJob;
+  /**
+   * **Whether this call made the job.** False when a live one already existed,
+   * and then the caller must not start it a second time: whoever made it is
+   * already running it, and two workers on one record would race to write it.
+   */
+  fresh: boolean;
+}
+
 /**
- * Queues one picture, or returns the job already queued for it.
+ * Queues one picture, or returns the job still working on it.
  *
- * **Idempotent by constraint rather than by query.** The unique index on
- * `(session_id, rendition_id)` means a second enqueue for one record cannot
- * insert, and this reads the existing row rather than raising — which is what
- * makes the runner's dispatch safe to call from a commit path that may itself
- * be retried by `reconcile`.
+ * **Idempotent while a job is live, and a new job once it is not.** The partial
+ * unique index means a second enqueue for a record whose job has not finished
+ * cannot insert, so this reads that row and says it did not make it — which is
+ * what makes the runner's dispatch safe to call from a commit path that may
+ * itself be retried by `reconcile`. Once the job has finished, the same call is
+ * a **retry**: a new row, the next attempt number, and the old row left where it
+ * is as the record of what was already paid for. Until 2026-09-27 this returned
+ * the finished row and the worker re-ran it under its old number.
  *
  * *No session lock.* The whole point of the second job shape is that a rendition
  * does not advance a head, so there is no head to be deciding against — and
@@ -124,12 +144,22 @@ export function enqueueRendition(
   db: DatabaseSync,
   request: EnqueueRequest,
   now: number = Date.now(),
-): RenditionJob {
+): Enqueued {
   return inTransaction(db, () => {
-    const held = db
-      .prepare(`select ${COLUMNS} from rendition_job where session_id = ? and rendition_id = ?`)
+    const live = db
+      .prepare(
+        `select ${COLUMNS} from rendition_job
+         where session_id = ? and rendition_id = ? and finished_at is null`,
+      )
       .get(request.sessionId, request.renditionId) as JobRow | undefined;
-    if (held) return toJob(held);
+    if (live) return { job: toJob(live), fresh: false };
+
+    const tried = db
+      .prepare(
+        `select coalesce(max(attempt), 0) as attempts from rendition_job
+         where session_id = ? and rendition_id = ?`,
+      )
+      .get(request.sessionId, request.renditionId) as { attempts: number };
 
     const job: RenditionJob = {
       id: uuidv7(),
@@ -139,7 +169,7 @@ export function enqueueRendition(
       turnId: request.turnId,
       purpose: request.purpose,
       status: 'queued',
-      attempt: request.attempt ?? 1,
+      attempt: request.attempt ?? tried.attempts + 1,
       createdAt: now,
       updatedAt: now,
       finishedAt: null,
@@ -163,7 +193,7 @@ export function enqueueRendition(
       null,
       null,
     );
-    return job;
+    return { job, fresh: true };
   });
 }
 
@@ -198,8 +228,9 @@ export function readRenditionJob(db: DatabaseSync, id: string): RenditionJob | n
 }
 
 /**
- * The job for one record, whatever state it is in. At most one, by constraint —
- * and a record is its session plus its id, never the id alone.
+ * The latest job for one record, whatever state it is in — a record is its
+ * session plus its id, never the id alone, and since retries became new jobs a
+ * record can have several. The newest is the one that says what is happening.
  */
 export function jobForRendition(
   db: DatabaseSync,
@@ -207,7 +238,10 @@ export function jobForRendition(
   renditionId: string,
 ): RenditionJob | null {
   const row = db
-    .prepare(`select ${COLUMNS} from rendition_job where session_id = ? and rendition_id = ?`)
+    .prepare(
+      `select ${COLUMNS} from rendition_job where session_id = ? and rendition_id = ?
+       order by attempt desc, created_at desc limit 1`,
+    )
     .get(sessionId, renditionId) as JobRow | undefined;
   return row ? toJob(row) : null;
 }

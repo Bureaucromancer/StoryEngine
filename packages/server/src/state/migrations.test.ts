@@ -165,6 +165,33 @@ describe('the operational store upgrades without losing anything', () => {
     db.close();
   });
 
+  /**
+   * ***One live job per record, and as many finished ones as there were tries***
+   * — the step that made a retry a new row. Written at the version it leaves
+   * from, with a finished job in it, because the row an older build wrote is
+   * the one a person's retry has to be allowed to follow.
+   */
+  it('lets a finished rendition job be followed by a retry, but not a live one', () => {
+    const db = storeAtVersion(7);
+    const insert = db.prepare(
+      `insert into rendition_job (id, session_id, account, rendition_id, turn_id, purpose,
+                                  status, attempt, created_at, updated_at, finished_at)
+       values (?, 'session-1', 'ned', 'turn-1.0', 'turn-1', 'illustration', ?, ?, 1, 1, ?)`,
+    );
+    insert.run('job-1', 'done', 1, 1);
+
+    expect(migrateState(db)).toEqual({ from: 7, to: STATE_SCHEMA_VERSION });
+
+    insert.run('job-2', 'queued', 2, null);
+    expect(() => {
+      insert.run('job-3', 'queued', 3, null);
+    }).toThrow(/UNIQUE/);
+    const kept = db.prepare(`select id from rendition_job order by id`).all() as { id: string }[];
+    expect(kept.map((row) => row.id)).toEqual(['job-1', 'job-2']);
+
+    db.close();
+  });
+
   it('is a no-op on a store already at the current version', () => {
     const db = storeAtVersion(STATE_SCHEMA_VERSION);
 

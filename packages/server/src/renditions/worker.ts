@@ -143,13 +143,19 @@ export function dispatchRenditions(
   let dispatched = 0;
   for (const record of records) {
     if (record.state !== 'pending') continue;
-    const job = enqueueRendition(context.db, {
+    const { job, fresh } = enqueueRendition(context.db, {
       sessionId,
       account,
       renditionId: record.id,
       turnId,
       purpose: record.purpose,
     });
+    /**
+     * **A live job already has a worker.** Before 2026-09-27 this ran whatever
+     * row came back, so a repeated dispatch of a picture still being made put a
+     * second worker on the same record, racing the first to write it.
+     */
+    if (!fresh) continue;
     dispatched += 1;
     /**
      * **Detached, and the promise is deliberately not returned.** `TurnRunner`

@@ -446,6 +446,28 @@ create index notification_unread on notification(account, read_at);
 drop index rendition_job_by_rendition;
 create unique index rendition_job_by_rendition on rendition_job(session_id, rendition_id);
 `,
+
+  /**
+   * ***A retry is a new job, which is what \`STEPS[4]\` already said it was.***
+   *
+   * That step's own comment on \`attempt\` reads *"A retry is a **new job** with
+   * a higher number rather than a reset, so the store can say how many times a
+   * picture has been paid for"* — and the unique index beneath it made a second
+   * row for one record impossible, so \`enqueueRendition\` handed a retry the
+   * finished row back and the worker ran it again under attempt 1. Every retry
+   * overwrote the history the column existed to keep.
+   *
+   * *One **live** job per record* is the uniqueness a rendition actually wants —
+   * \`job_one_active_per_session\`'s shape on the turn table, for the same
+   * reason: it stops a double dispatch without forbidding a second try. The
+   * plain index keeps the latest-job lookup an index read.
+   */
+  `
+drop index rendition_job_by_rendition;
+create unique index rendition_job_one_live on rendition_job(session_id, rendition_id)
+  where finished_at is null;
+create index rendition_job_by_record on rendition_job(session_id, rendition_id, created_at);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;
