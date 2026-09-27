@@ -58,8 +58,11 @@ import {
  * **The limit is checked per request, off the live config reference**, which is
  * what flips `limits.maxUploadMb` from `unread` to `applied` after it spent
  * three phases as [21 §4.3]'s standing example of an honestly-unread key.
- * Fastify's constructor `bodyLimit` stays as the outer bound: it refuses a body
- * before it is read, and this is the number a person actually set.
+ * ~~Fastify's constructor `bodyLimit` stays as the outer bound: it refuses a
+ * body before it is read, and this is the number a person actually set.~~
+ * *Corrected 2026-09-27:* `bodyLimit` bounds the bodies Fastify's own parsers
+ * read, and the multipart plugin reads none, so this is the only bound on an
+ * upload, and the one that counts its bytes.
  */
 
 /** What the route answers with — one item's worth of the review vocabulary. */

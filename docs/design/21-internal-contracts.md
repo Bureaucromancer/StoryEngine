@@ -638,7 +638,7 @@ interface Config {
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([25 C8](25-open-questions.md)) |
 | `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
 | `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
-| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3) |
+| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; ~~there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3)~~ *corrected 2026-09-27:* read on every upload since [P4.1](workplan/16-p4-implementation.md), a file or a folder's total, so `applied`; the only bound on an upload, since Fastify's `bodyLimit` never sees a multipart body |
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
 | `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([25 E5](25-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
@@ -647,10 +647,17 @@ interface Config {
 | `backup.frequency` | `live` | `off` | The **install's** backup, not anybody's own — a person's schedule is theirs, gated by `scheduledBackups` ([P12.4](workplan/29-p12-implementation.md)) |
 | `backup.onStart` | `live` | `false` | Independent of the frequency rather than a value in it: a machine that is usually up but occasionally rebooted wants both, and a single list cannot say so. `unread` in [§4.3](#43-what-a-live-key-actually-does-which-is-not-always-what-its-tier-says) by construction — the boot pass is over before anybody can change it |
 | `backup.contents` | `live` | `full` | `redacted` leaves out `accounts.json`, the connections and the session key, and restores to an install nobody can sign into |
-| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)) |
+| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)). `0` keeps every version (2026-09-27; it pruned every unpinned one on each save) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([09 §6.5](09-server-multiuser-deployment.md)) |
 | `updates.channel` | `live` | `latest` | |
 | `dev.enabled` | `restart` | `false` | |
+
+***Every millisecond key stops at `2147483647`*** (2026-09-27), the longest
+delay a Node timer holds. A larger one is not refused: Node warns once and uses
+one millisecond, so `streamKeepaliveMs` meant as *effectively never* sent a
+comment frame every millisecond and `providerTimeoutMs` abandoned every call at
+once. The bound is `TIMER_MAX_MS` in the schema, and it reaches the form with
+the others.
 
 **The tier annotation is the source, not documentation of it.** The
 restart-required notice ([09 §6](09-server-multiuser-deployment.md)) is derived

@@ -2230,7 +2230,7 @@ refuses it is the state of the install.
   "config": { "…the running config": true },
   "path": "/data/config.json",
   "tiers": { "server.port": "restart", "log.level": "live" },
-  "appliers": { "log.level": "applied", "limits.maxUploadMb": "unread" },
+  "appliers": { "log.level": "applied", "limits.extensionStorageQuotaMb": "unread" },
   "bounds": { "server.port": { "minimum": 1, "maximum": 65535 } },
   "pendingRestart": []
 }
