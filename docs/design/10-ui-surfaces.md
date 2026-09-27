@@ -2841,6 +2841,17 @@ rather than a bug report. The admin's panel adds a fourth box for the install's
 settings, and says which account in the archive — from **the archive's** list of
 handles, because an account here the archive holds nothing for is not a choice.
 
+**Sessions always arrive as new copies, and the panel says so** (2026-09-27).
+There is no *skip what is already here* for a session, though the code once
+claimed one: an import mints a new session every time, so importing a backup
+into the account that took it doubles every story in it. That is deliberate.
+*The same session* has no clean definition once a tree may have grown on either
+side of the archive — the turn ids match and a branch played afterwards exists
+on one side only — and each way of settling it either drops a line somebody
+played or is the merge [25 E4](25-open-questions.md) declined. A duplicate is
+visible and deletable; a wrong deduplication is silent, so the cost goes where
+a person can see it.
+
 ### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
 
 *Added 2026-09-22.* **Inside its own border, at the foot of the admin panel,

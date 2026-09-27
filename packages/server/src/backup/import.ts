@@ -194,10 +194,21 @@ async function mergeTags(
  * property that path already has comes free: a re-minted session id, the turn
  * ids kept, every turn marked foreign, and `origin` recorded.
  *
- * ***A session already here is skipped and never replaced.*** A session is an
- * append-only log, so *replace* would be a delete plus an import — two
- * decisions wearing one word — and the one it would throw away is the one
- * somebody has been playing.
+ * ***A session is never replaced — and it is never recognised either, so every
+ * one arrives as a new copy.*** A session is an append-only log, so *replace*
+ * would be a delete plus an import — two decisions wearing one word — and the
+ * one it would throw away is the one somebody has been playing.
+ *
+ * ~~A session already here is skipped.~~ *Corrected 2026-09-27: nothing ever
+ * checked, and nothing will.* `importSession` mints a new id every time, so
+ * importing a backup into the account that took it gives that account a second
+ * copy of every session in it. **That is the decision, not a gap.** Recognising
+ * "the same session" means deciding what sameness is for a tree that may have
+ * grown on either side since the archive was taken — the turn ids match, and a
+ * branch played here afterwards does not exist there — and every answer either
+ * loses a line somebody played or builds the merge [25 E4] refused. A duplicate
+ * is visible, harmless and deletable; a wrong dedupe is silent. So the import
+ * panel says it plainly instead ([10 §15.3b]).
  */
 async function importSessions(
   context: BackupImportContext,
