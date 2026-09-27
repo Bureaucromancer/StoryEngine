@@ -41,7 +41,7 @@ const CONNECTION_ID = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a04';
 let server: TestServer;
 let sessionId: string;
 
-async function bindProse(models: string[] = ['fake-hi']): Promise<void> {
+async function bindProse(models: string[] = ['fake-hi'], maxContextTokens = 32_000): Promise<void> {
   const root = new Layout(server.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
@@ -51,7 +51,7 @@ async function bindProse(models: string[] = ['fake-hi']): Promise<void> {
       label: 'The double',
       provider: 'openai-compatible',
       models,
-      capabilities: { maxContextTokens: 32_000 },
+      capabilities: { maxContextTokens },
     }),
   );
   await writeFile(
@@ -221,6 +221,22 @@ describe('a preview with nothing bound', () => {
 
     expect(answer.notFilled.length).toBeGreaterThan(0);
     expect(answer.notFilled.some((slot) => slot.blockId === 'se.lore')).toBe(true);
+  });
+
+  /**
+   * *No room beside the reply is no denominator either* (2026-09-27): the turn
+   * would be refused, so the meter says so rather than measuring a prompt with
+   * every block dropped. Scene keeps 800 for the reply and spends three
+   * quarters of the window; a 1000-token window leaves nothing.
+   */
+  it('says the window has no room beside the reply', async () => {
+    await bindProse(['fake-hi'], 1000);
+
+    const answer = (await preview({ input: { text: 'Look.' } })).body.preview as {
+      state: string;
+      reason: string;
+    };
+    expect(answer).toMatchObject({ state: 'unmeasurable', reason: 'window-too-small' });
   });
 
   it('tells a dangling binding from an unbound one', async () => {

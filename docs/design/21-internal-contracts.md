@@ -421,6 +421,15 @@ interface BudgetVerdict {
 }
 ```
 
+*(2026-09-27)* **A verdict needs `limit.tokens > reserved`, and a call without it
+is refused rather than recorded.** Assembly spends `limit.tokens − reserved`; at
+zero or below, every block that was not required was dropped and the call went
+out anyway, so the model continued a story none of which was in front of it, and
+the verdict was the only trace. `planCall` now throws `WindowTooSmall` first: the
+step fails with `window-too-small` and its own remedy (the connection's window or
+the reply length is the setting to change), and the preview and a draft answer
+with the same class rather than a context meter over an empty prompt.
+
 ### 1.6 `VersionRecord`
 
 One line of `history/index.jsonl` inside a library object's folder

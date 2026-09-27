@@ -2666,11 +2666,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       if (!drafted.ok) {
         /**
-         * **A class, and the client has the sentences.** The four reasons point
-         * at four different places: a mode with no prose step is a mode that
-         * cannot do this at all, a non-player member is the design's own line
-         * ([06 §8]'s *"the difference between a party member and a second
-         * player"*), and the two role failures are the bindings surface.
+         * **A class, and the client has the sentences.** The reasons point at
+         * different places: a mode with no prose step is a mode that cannot do
+         * this at all, a non-player member is the design's own line ([06 §8]'s
+         * *"the difference between a party member and a second player"*), the
+         * two role failures are the bindings surface, and a window too small
+         * for the reply is the connection's or the pack's setting.
          */
         return reply.code(drafted.reason === 'not-a-player' ? 409 : 422).send({
           error: drafted.reason,

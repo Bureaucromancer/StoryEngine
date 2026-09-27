@@ -13,7 +13,7 @@ import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
-import { planCall, RoleUnresolved } from './calls.js';
+import { planCall, RoleUnresolved, WindowTooSmall } from './calls.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 
 /**
@@ -265,9 +265,15 @@ export async function previewAssembly(
     // refused request. `AdvisoryLeakError` is deliberately *not* caught: it is
     // [06 §5.2]'s structural refusal, and a preview that swallowed it would be
     // the one surface able to route around the guarantee.
-    if (error instanceof RoleUnresolved) {
+    // A window no larger than the reply reserve is the same kind of answer: the
+    // denominator is zero, and the turn would be refused for it (2026-09-27).
+    if (error instanceof RoleUnresolved || error instanceof WindowTooSmall) {
       const reason: UnmeasurableReason =
-        error.reason === 'unbound' ? 'role-unbound' : 'role-dangling';
+        error instanceof WindowTooSmall
+          ? 'window-too-small'
+          : error.reason === 'unbound'
+            ? 'role-unbound'
+            : 'role-dangling';
       return {
         state: 'unmeasurable',
         headTurnId,

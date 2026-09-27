@@ -80,6 +80,8 @@ export function remedyFor(diagnosis: Diagnosis): FailureRemedy {
    * than failing obscurely.
    */
   if (reason === 'unbound' || reason === 'dangling') return 'not-bound';
+  // A setting, too, and one no endpoint was asked about: nothing was sent.
+  if (reason === 'window-too-small') return 'window-too-small';
 
   // Ours, and saying anything about the network would send somebody to look in
   // the wrong place. `advisory-leak` is [06 §5.2]'s structural refusal firing,

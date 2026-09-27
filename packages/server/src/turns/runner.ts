@@ -50,7 +50,14 @@ import {
 } from '../state/events.js';
 import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
-import { CallFailed, Cancelled, performCall, resolveStepRole, RoleUnresolved } from './calls.js';
+import {
+  CallFailed,
+  Cancelled,
+  performCall,
+  resolveStepRole,
+  RoleUnresolved,
+  WindowTooSmall,
+} from './calls.js';
 import { acceptEffect } from './effects.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
@@ -2161,6 +2168,7 @@ function classifyStep(error: unknown): StepFailureReason {
   if (error instanceof Cancelled) return 'cancelled';
   if (error instanceof AdvisoryLeakError) return 'advisory-leak';
   if (error instanceof RoleUnresolved) return error.reason;
+  if (error instanceof WindowTooSmall) return 'window-too-small';
   if (error instanceof CallFailed) return error.class;
   return 'internal';
 }

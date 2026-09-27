@@ -165,6 +165,33 @@ describe('drafting your own next message', () => {
   });
 
   /**
+   * *A window with no room beside the reply is refused before anything is
+   * sent* (2026-09-27), and the answer names the setting.
+   */
+  it('refuses a draft whose window has no room beside the reply', async () => {
+    // The double's own window, since the factory here answers with it: Scene
+    // keeps 800 for the reply and spends three quarters of 1000.
+    await server.dispose();
+    const cramped = new FakeProvider({
+      capabilities: { maxContextTokens: 1000 },
+      script: [{ text: 'I would not go in there.' }],
+    });
+    await standUp({ providers: () => cramped });
+    await bindProse();
+    const sessionId = await aSession(vera);
+
+    const drafted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/impersonate`,
+      payload: {},
+    });
+
+    expect(drafted.status).toBe(422);
+    expect(drafted.body.error).toBe('window-too-small');
+    expect(cramped.requests).toHaveLength(0);
+  });
+
+  /**
    * An unbound install is the state every install is in before somebody
    * configures a model, and the answer names the bindings rather than the
    * feature — [P2B]'s dangling posture.

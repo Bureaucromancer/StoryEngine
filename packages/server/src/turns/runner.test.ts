@@ -749,6 +749,24 @@ describe('the three failure modes are three', () => {
     expect(readEvents(commit, job.id).map((event) => event.key)).not.toContain('step.failed');
   });
 
+  /**
+   * ***A window that holds nothing beside the reply fails the step, and asks
+   * nobody*** (2026-09-27). It was sent with every unrequired block dropped,
+   * which read as the model having forgotten the story.
+   */
+  it('refuses a call whose window has no room beside the reply, and sends nothing', async () => {
+    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 100 } } });
+
+    const { turn } = await runTurn();
+
+    expect(provider.requests).toHaveLength(0);
+    expect(turn.status).toBe('failed');
+    expect(turn.steps?.[0]).toMatchObject({
+      state: 'failed',
+      error: { reason: 'window-too-small' },
+    });
+  });
+
   it('a skipped step is on the record as well as on the stream', async () => {
     // Silence is the worst possible answer to "why didn't that happen?".
     makeRunner({
@@ -2013,7 +2031,10 @@ describe('the turn record answers what actually ran — gate step 11', () => {
   it('names what would go next when the window is too small to hold it all', async () => {
     // Under real pressure, which is the only state where the answer is
     // interesting — and where a verdict that merely existed would not do.
-    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 300 } } });
+    // ~~300~~ (2026-09-27): three-quarters of 300 is less than the 800 kept
+    // for the reply, which is no window at all and is refused now (below).
+    // 1200 leaves 100 tokens to spend: pressure, and a call to make.
+    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 1200 } } });
     const { turn } = await runTurn('a'.repeat(400));
 
     const budget = turn.request?.calls[0]?.budget;

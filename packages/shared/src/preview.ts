@@ -54,7 +54,14 @@ export type UnmeasurableReason =
    * sentence, different remedy, and collapsing them would tell somebody their
    * mode cannot narrate when it is about to.
    */
-  | 'not-this-turn';
+  | 'not-this-turn'
+  /**
+   * *The model's context window is no larger than the room kept for the
+   * reply* (2026-09-27), so there is nothing to measure a prompt against: the
+   * turn is refused rather than sent with every block dropped, and the meter
+   * says the same thing the turn would.
+   */
+  | 'window-too-small';
 
 /**
  * What the retriever did, and — mostly — what it declined to do.

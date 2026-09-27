@@ -109,6 +109,7 @@ export const MACHINE_FRENCH: Record<string, Record<string, string>> = {
     'role-dangling': 'le rôle de rédaction pointe vers une connexion qui n’existe plus',
     'no-prose-step': 'ce mode ne raconte rien du tout',
     'not-this-turn': 'ce tour ne racontera rien',
+    'window-too-small': 'la fenêtre de contexte du modèle n’est pas plus grande que sa réponse',
   },
 
   'workbench.step.state': { ok: 'Exécuté', skipped: 'Ignoré', failed: 'Échoué' },

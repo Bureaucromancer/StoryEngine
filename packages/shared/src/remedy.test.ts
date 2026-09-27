@@ -104,6 +104,15 @@ describe('the failures that are not about a network at all', () => {
     expect(remedyFor({ reason: 'dangling', online: false })).toBe('not-bound');
   });
 
+  /**
+   * *A window too small for the reply is a setting, and nothing was sent*
+   * (2026-09-27): neither the bindings (the model resolved) nor the endpoint
+   * (it was never asked) is the place to look.
+   */
+  it('sends a window too small for the reply to its own remedy', () => {
+    expect(remedyFor({ reason: 'window-too-small', online: false })).toBe('window-too-small');
+  });
+
   it('owns the engine faults rather than blaming the endpoint', () => {
     for (const reason of ['advisory-leak', 'internal', 'cancelled'] as const) {
       expect(remedyFor({ reason, endpoint: 'remote', online: false })).toBe('engine');

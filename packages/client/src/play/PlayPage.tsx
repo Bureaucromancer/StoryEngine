@@ -1673,6 +1673,7 @@ function impersonateLine(error: unknown): string {
   if (code === 'role-unbound' || code === 'role-dangling') {
     return 'No connection is set up for the model this needs. Bind one in Settings.';
   }
+  if (code === 'window-too-small') return remedySentence('window-too-small') ?? '';
   /**
    * ***The endpoint's failure, in the words a failed turn gets*** (2026-09-27).
    * This was a bare 500 until the route learned to answer it, so every one of

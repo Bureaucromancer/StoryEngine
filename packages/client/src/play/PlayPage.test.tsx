@@ -1161,6 +1161,23 @@ describe('drafting your own next message', () => {
 
     expect(await screen.findByText(/refused the request\. Check the key/)).toBeTruthy();
   });
+
+  /**
+   * *A window with no room beside the reply is a setting* (2026-09-27): the
+   * draft names the setting, not the endpoint and not *try again*.
+   */
+  it('names the setting when the window has no room for the draft', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('I knock twice.');
+    impersonateAs.mockRejectedValue(
+      new ApiError(422, 'window-too-small', 'That character’s next message could not be drafted.'),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Draft my next message' }));
+
+    expect(await screen.findByText(/Raise the context window/)).toBeTruthy();
+  });
 });
 
 /**

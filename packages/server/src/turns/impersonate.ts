@@ -11,7 +11,7 @@ import { retrieve } from '../retrieval/retrieve.js';
 import { Rng } from '../rng/rng.js';
 import type { SessionContext } from '../sessions/store.js';
 import { readParty } from '../sessions/cast.js';
-import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
+import { CallFailed, Cancelled, performCall, RoleUnresolved, WindowTooSmall } from './calls.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { previewStepFor } from './preview.js';
 
@@ -95,7 +95,16 @@ export interface ImpersonateRequest {
 
 export type ImpersonateResult =
   | { ok: true; text: string }
-  | { ok: false; reason: 'no-prose-step' | 'not-a-player' | 'role-unbound' | 'role-dangling' }
+  | {
+      ok: false;
+      reason:
+        | 'no-prose-step'
+        | 'not-a-player'
+        | 'role-unbound'
+        | 'role-dangling'
+        /** The model's context window holds nothing beside the reply (2026-09-27). */
+        | 'window-too-small';
+    }
   /**
    * ***The endpoint failed, said as a class and a remedy*** (2026-09-27). The
    * call's record and the endpoint's own words are here for the log line and
@@ -270,6 +279,7 @@ export async function impersonate(
     if (error instanceof RoleUnresolved) {
       return { ok: false, reason: error.reason === 'unbound' ? 'role-unbound' : 'role-dangling' };
     }
+    if (error instanceof WindowTooSmall) return { ok: false, reason: 'window-too-small' };
     /**
      * ***A provider failure is an answer, not an accident*** (2026-09-27).
      *

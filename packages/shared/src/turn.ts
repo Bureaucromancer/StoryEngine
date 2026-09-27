@@ -529,7 +529,20 @@ export interface ModelCall {
  * own words go to the log; a class is what crosses to a reader.
  */
 export type StepFailureReason =
-  ErrorClass | 'cancelled' | 'advisory-leak' | 'unbound' | 'dangling' | 'internal';
+  | ErrorClass
+  | 'cancelled'
+  | 'advisory-leak'
+  | 'unbound'
+  | 'dangling'
+  | 'internal'
+  /**
+   * ***The context window is no larger than the room kept for the reply***
+   * (2026-09-27). Assembly spends the window less that reserve, and at zero or
+   * below it dropped every block that was not required and sent the call
+   * anyway: the model was asked to continue a story with none of it in front
+   * of it, and nothing said why. Refused before anything is sent.
+   */
+  | 'window-too-small';
 
 /**
  * ***What a person could do about it*** — [09 §6.5](../../../docs/design/09-server-multiuser-deployment.md),
@@ -582,6 +595,12 @@ export type FailureRemedy =
   | 'endpoint-stalled'
   /** No connection is bound to the role this step asked for, or it points at nothing. */
   | 'not-bound'
+  /**
+   * A setting leaves the call no room: the model's context window is no larger
+   * than what is kept for the reply. The connection's window or the reply
+   * length is the thing to change, not the network.
+   */
+  | 'window-too-small'
   /** Nothing about the network. This build did something it should not have. */
   | 'engine';
 
