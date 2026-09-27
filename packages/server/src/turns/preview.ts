@@ -7,7 +7,8 @@ import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
-import { storyDepth } from '../sessions/depth.js';
+import { storyDepth, storyTurns } from '../sessions/depth.js';
+import { readHeldChain } from '../sessions/summaries.js';
 import type { SessionContext } from '../sessions/store.js';
 import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
@@ -15,6 +16,7 @@ import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
 import { planCall, RoleUnresolved, WindowTooSmall } from './calls.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
+import { summaryPlanFor } from './summarise.js';
 
 /**
  * The stateless assemble — [P3.4], the affordance [P3 §1.6] created this stage
@@ -219,12 +221,38 @@ export async function previewAssembly(
    * preview knows: the draft and the guidance, and [13 §8.3]'s per-kind block
    * so a preview of a `say` turn shows the block a `say` turn sends.
    */
+  /**
+   * ***The story above the window, as the session holds it*** (2026-09-27).
+   * The preview carried no summary at all, so on a long session the meter
+   * under-read by the whole chain and the workbench showed a prompt without
+   * the block the turn would send. `summaryPlanFor` asks the turn's three
+   * questions; what is read is what is on disk and nothing is derived, since a
+   * preview makes no model call — so a preview before a link the turn will
+   * write reads short by that link, which is the truth about *nothing has
+   * been asked yet*.
+   */
+  const plan = summaryPlanFor(inputs);
+  const summary =
+    plan === null
+      ? undefined
+      : await readHeldChain(
+          context.sessions.layout,
+          request.account,
+          request.sessionId,
+          storyTurns(inputs.history),
+          plan.key,
+          plan.policy,
+        );
+
   const collected = collectFor(inputs, {
     callKind: step.callKind,
     ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
     lore: lore.blocks,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
+    // Nothing held reads as the turn's summariser with nothing yet written:
+    // absent, not an empty chain.
+    ...(summary === undefined || summary.length === 0 ? {} : { summary }),
   });
 
   try {

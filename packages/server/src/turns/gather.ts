@@ -18,6 +18,7 @@ import { readRegistry } from '../tags/store.js';
 import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
 import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
 import { readPool } from '../sessions/pool-shape.js';
+import { storyTurns } from '../sessions/depth.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
 import type { PlanContext } from './calls.js';
 import { resolveCast, type CastMember } from './cast.js';
@@ -53,7 +54,11 @@ export interface AssemblyInputs {
   turnsById: Map<string, Turn>;
   /** The path from the head, oldest first. */
   history: Turn[];
-  /** `history`, cut to the mode's `historyWindow`. **What the collector is given.** */
+  /**
+   * The story turns of `history`, cut to the mode's `historyWindow`. **What
+   * the collector is given.** Story turns, so a turn nothing narrated takes no
+   * place in the window (`sessions/depth.ts`).
+   */
   windowed: Turn[];
   channels: Record<string, ChannelState>;
   usable: Connection[];
@@ -265,7 +270,15 @@ export async function gatherAssemblyInputs(
   // show and never the selector's to weigh (`pool-shape.ts`, 2026-09-27).
   const pool = readPool(session?.hooks).usable;
   const chain = readableGoals(session?.goals);
-  const windowed = history.slice(-mode.definition.assembly.historyWindow);
+  /**
+   * ***The last turns of the story, not of the path*** (2026-09-27). A channel
+   * write, an undo or a backdrop choice is on the path and says nothing, and
+   * each one in the last twenty took the place of a turn somebody read: a
+   * session with a few HUD edits sent the model fifteen turns of a twenty-turn
+   * window. The summary chain covers the rest of the same list
+   * (`transcriptOf`), so the two meet without a gap or an overlap.
+   */
+  const windowed = storyTurns(history).slice(-mode.definition.assembly.historyWindow);
 
   return {
     session,

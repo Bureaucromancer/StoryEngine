@@ -184,6 +184,17 @@ export interface ChainResult {
    * against turns.
    */
   derived: number;
+  /**
+   * ***Why the chain stops short, when it does*** (2026-09-27).
+   *
+   * A derivation that failed — a reply cut off at its limit, a refusal, an
+   * endpoint that was down — threw out of this loop and took every link
+   * already read with it, so one bad link removed the whole chain from the
+   * prompt, and with it the story above the window, on every turn until the
+   * link could be written. Now the links before it are returned as held, and
+   * the failure beside them for the step to raise.
+   */
+  failure?: unknown;
 }
 
 /**
@@ -219,7 +230,14 @@ export async function ensureChain(
     }
 
     const previous = links.at(-1)?.text ?? null;
-    const text = await summariser.run({ previous, units: plan.units });
+    let text: string;
+    try {
+      text = await summariser.run({ previous, units: plan.units });
+    } catch (failure) {
+      // A link is `f(previous, units)`, so nothing after this one can be made
+      // either: the held prefix is the chain, and the next turn asks again.
+      return { links, derived, failure };
+    }
     const link: SummaryLink = {
       schema: SUMMARY_SCHEMA,
       key: plan.key,
@@ -237,4 +255,32 @@ export async function ensureChain(
   }
 
   return { links, derived };
+}
+
+/**
+ * ***The links a path already has, derived by nobody*** (2026-09-27) — for the
+ * preview, which answers *what would this turn send* and must not make a model
+ * call to answer it.
+ *
+ * The prefix of the plan that is on disk, in order, stopping at the first link
+ * that is not: a link is `f(previous, units)`, so a held link after a missing
+ * one belongs to a different chain. The turn derives what is missing, so a
+ * preview of a turn that will derive reads short by that much, which is the
+ * honest reading of *nothing has been asked yet*.
+ */
+export async function readHeldChain(
+  layout: Layout,
+  handle: string,
+  sessionId: string,
+  path: readonly SummarisableTurn[],
+  key: string,
+  policy: SummaryPolicy,
+): Promise<SummaryLink[]> {
+  const links: SummaryLink[] = [];
+  for (const plan of planChain(path, key, policy)) {
+    const held = await readSummary(layout, handle, sessionId, plan.key);
+    if (held === null) break;
+    links.push(held);
+  }
+  return links;
 }

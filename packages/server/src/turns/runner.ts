@@ -75,8 +75,7 @@ import { capabilitiesFor } from '../providers/capabilities.js';
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
 import { readRenditions, renditionIdFor, reusableBackdrop } from '../renditions/store.js';
 import { selectedBackdrop } from '../renditions/backdrop.js';
-import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
-import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
+import { summarise, summaryPlanFor, type SummariseReport } from './summarise.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
@@ -898,40 +897,23 @@ export class TurnRunner {
      * is why it was extracted rather than restated: a second answer to *which
      * model is this* would let a session derive its chain under one model and
      * read it under another.
+     *
+     * *All three are `summaryPlanFor`'s now* (2026-09-27), because the preview
+     * asks them too, to read the chain this turn would carry; and *above the
+     * window* is counted in story turns, the way the window is.
      */
-    const wantsSummary =
-      payload.setup !== true &&
-      preset.blocks.some(
-        (block) => block.enabled && block.kind === 'slot' && block.source.of === 'summary',
-      ) &&
-      history.length > mode.definition.assembly.historyWindow;
-
-    const summariserRole = wantsSummary
-      ? resolveStepRole(
-          roleLayersOf(inputs),
-          SUMMARISE_STEP,
-          SUMMARISE_STEP.role ?? 'prose',
-          undefined,
-        )
-      : null;
+    const summaryPlan = payload.setup === true ? null : summaryPlanFor(inputs);
 
     const withSummary: TurnPlan =
-      summariserRole?.ok === true
+      summaryPlan !== null
         ? {
             steps: [
               summarise({
                 layout: commit.sessions.layout,
                 handle: job.account,
                 sessionId: job.sessionId,
-                policy: {
-                  ...DEFAULT_SUMMARY_POLICY,
-                  window: mode.definition.assembly.historyWindow,
-                },
-                key: summariserKey(
-                  { connectionId: summariserRole.connection.id, modelId: summariserRole.modelId },
-                  SUMMARISE_PROMPT,
-                  preset.params,
-                ),
+                policy: summaryPlan.policy,
+                key: summaryPlan.key,
                 report: (report) => {
                   summaries.report = report;
                 },

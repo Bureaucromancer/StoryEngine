@@ -818,9 +818,11 @@ Three rules keep it honest.
   derived from the path (`sessions/depth.ts`), which keeps the rewind argument
   above true, and skip what nobody narrated. The same reading now holds for a
   step's `everyNTurns` (§6), `list`'s speaker rotation and a lore entry's
-  `delay`. *Not yet for the history window*, which still takes the last N turns
-  of the path: it has to move with the summary chain's boundary, or the two
-  overlap or leave a gap between them.
+  `delay`. ~~*Not yet for the history window*, which still takes the last N
+  turns of the path: it has to move with the summary chain's boundary, or the
+  two overlap or leave a gap between them.~~ The window followed, with the
+  chain: it takes the last N story turns, and the summary chain covers the rest
+  of the same list, so they meet without a gap or an overlap.
 
 **Force-fire** is the authoring affordance above, and it stays what it sounds
 like: the hook is delivered on the next turn with no judgement call at all. *The

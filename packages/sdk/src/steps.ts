@@ -334,6 +334,10 @@ export interface StepInput {
    * *What it still legitimately carries is the narrator's own output*, and an
    * entrance that fired is finished prose sitting in it. That remainder is a
    * refusal with a reason rather than a filter — [P8.5]'s, not this field's.
+   *
+   * ***The story's turns, not the path's*** (2026-09-27): a turn nothing was
+   * said in — a channel write, an undo, a backdrop choice — is on the path and
+   * not in this list, which is the list the host's history window counts too.
    */
   transcript?: readonly TranscriptTurn[];
   /** Present only when `reads` includes `output`. */

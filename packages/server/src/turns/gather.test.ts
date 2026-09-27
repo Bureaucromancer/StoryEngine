@@ -11,7 +11,13 @@ import { uuidv7 } from '@storyengine/shared';
 import { Accounts } from '../auth/accounts.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 
-import { appendTurnToSession, createSession, type SessionContext } from '../sessions/store.js';
+import {
+  appendTurnToSession,
+  createSession,
+  readSession,
+  writeChannel,
+  type SessionContext,
+} from '../sessions/store.js';
 import type { ChannelEffect, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
 import { installBuiltIns } from '../mode-loader.js';
@@ -96,6 +102,8 @@ async function aSessionOf(
       parentTurnId: parent,
       createdAt: new Date(Date.UTC(2026, 7, 16, hour)).toISOString(),
       status: 'complete',
+      // A turn of the story: the window counts those (`sessions/depth.ts`).
+      output: { text: `Hour ${String(hour)} passed in the rain.` },
       effects: [clockEffect(id, hour)],
       tape: [],
     };
@@ -126,6 +134,30 @@ describe('the history the collector is given', () => {
     expect(inputs.windowed).toHaveLength(20);
     // The window is the *newest* twenty, not the oldest.
     expect(inputs.windowed.at(-1)?.id).toBe(head);
+    expect(inputs.windowed[0]?.id).toBe(inputs.history[5]?.id);
+  });
+
+  /**
+   * ***Twenty turns of the story, however many edits sit among them***
+   * (2026-09-27). The window was the path's last twenty, and a channel write
+   * or a backdrop choice is on the path with nothing said in it: each one
+   * pushed a turn somebody read out of the prompt.
+   */
+  it('holds the last turns of the story, not the last turns of the path', async () => {
+    const { sessionId } = await aSessionOf(25);
+    for (let edit = 0; edit < 5; edit += 1) {
+      await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
+    }
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: head },
+    );
+
+    expect(inputs.history).toHaveLength(30);
+    expect(inputs.windowed).toHaveLength(20);
+    expect(inputs.windowed.every((turn) => turn.output !== undefined)).toBe(true);
     expect(inputs.windowed[0]?.id).toBe(inputs.history[5]?.id);
   });
 });

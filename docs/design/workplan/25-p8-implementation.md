@@ -97,6 +97,19 @@ The step could not tell, because a call's result carried no word of how it
 ended. It does now (`StepCallResult.outcome`), and a cut-off, refused or empty
 reply is not kept, so the next turn asks again.
 
+*Corrected again, the same day.* ~~since each link covers everything before
+it~~ — it did, and it was not meant to. The collector puts every link in the
+prompt as its own block, one stretch each (`SummaryLink.from` and `to`, and
+the budgeter giving up the distant past first), and the prompt asked each link
+for the whole story so far, so the prompt carried the story once per link and a
+model that grew its links met the reply's limit a couple of hundred turns in,
+after which none was ever written again. A link now summarises its own turns,
+with the one before it handed over as context only; a link that cannot be
+written leaves the held ones in the prompt instead of taking the chain with it;
+the chain and the history window count the same story turns, so a channel write
+takes a place in neither; and the preview reads the held chain. The prompt is in
+the summariser's key, so every chain is derived once more in the new shape.
+
 **CI this phase establishes:** the [testing §1](03-testing.md) invariant that has
 been waiting for a producer — *summaries shared across a fork are byte-identical
 to the parent's* — which is the chain constraint above expressed as a property

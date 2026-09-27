@@ -254,3 +254,42 @@ describe('a long session assembles with the chain in place', () => {
     expect(summary.every((block) => block.included)).toBe(true);
   });
 });
+
+/**
+ * ***The preview carries the chain the session holds*** (2026-09-27).
+ *
+ * The preview assembled with no summary at all, so on a long session the meter
+ * under-read by the whole story above the window and the workbench showed a
+ * prompt without the block the turn would send. It reads what is held and
+ * derives nothing: after the turn above, the chain's first link is on disk and
+ * the in-progress one has re-keyed by a turn, so the held prefix is one link.
+ */
+describe('a preview of a long session', () => {
+  it('shows the links the session holds, and asks for none', async () => {
+    const head = await aPast();
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'p8-gate-3', headTurnId: head, input: { text: 'And then?' } },
+    });
+    await eventually(async () => {
+      const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+      return read.body.activeJob === null;
+    });
+    const before = (await listSummaries(server.services.layout, 'ned', sessionId)).size;
+
+    const previewed = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/preview`,
+      payload: { input: { text: 'And after that?' } },
+    });
+    const blocks = (previewed.body.preview as { blocks?: RecordedBlock[] }).blocks ?? [];
+    const summary = blocks.filter((block) => block.source.kind === 'summary');
+
+    expect(summary.map((block) => block.source.range)).toEqual([[0, SPAN - 1]]);
+    const held = await listSummaries(server.services.layout, 'ned', sessionId);
+    expect(held.has(summary[0]?.source.linkKey ?? '')).toBe(true);
+    // Nothing was derived to answer it.
+    expect(held.size).toBe(before);
+  });
+});

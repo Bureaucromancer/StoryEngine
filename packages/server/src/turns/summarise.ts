@@ -9,14 +9,19 @@ import type {
   StepInput,
 } from '@storyengine/sdk';
 
+import { storyDepth } from '../sessions/depth.js';
 import { ensureChain, type Summariser } from '../sessions/summaries.js';
-import type {
-  SummarisableTurn,
-  SummaryLink,
-  SummaryPolicy,
-  SummaryUnit,
+import {
+  DEFAULT_SUMMARY_POLICY,
+  summariserKey,
+  type SummarisableTurn,
+  type SummaryLink,
+  type SummaryPolicy,
+  type SummaryUnit,
 } from '../sessions/summary-chain.js';
 import type { Layout } from '../storage/layout.js';
+import { resolveStepRole } from './calls.js';
+import { roleLayersOf, type AssemblyInputs } from './gather.js';
 
 /**
  * The summariser — [07 §5.1](../../../../docs/design/07-branching.md),
@@ -125,31 +130,48 @@ export interface SummariseContext {
 }
 
 /**
- * ***What it asks for, and the two things it is told not to do.***
+ * ***What it asks for, and the things it is told not to do.***
  *
- * A link is `f(previous link, the turns since)`, so the prompt hands over both
- * and asks for their union. **Continuity is the whole job**: a link that
- * restarts the story from its own window would make the chain a list of
- * disconnected paragraphs, which is exactly the blob
- * [08 §2.1](../../../../docs/design/08-cross-session-memory.md) argues against
- * for memories and is no better here.
+ * ~~A link is `f(previous link, the turns since)`, so the prompt hands over both
+ * and asks for their union.~~ **Each link is its own stretch** (2026-09-27).
+ * The collector puts every link in the prompt, oldest first, as its own block
+ * — one stretch of story each, which is what [P8] designed, what `SummaryLink`
+ * records (`from` and `to`), and what lets the budgeter give up the distant
+ * past before the recent — and this prompt asked for the union, so each link
+ * retold everything before it. The prompt carried the story over and over:
+ * twenty turns past the window it was twice, a hundred and twenty past it six
+ * times. And a model that followed *one short paragraph per twenty turns* grew
+ * each link until one reached the reply's length limit, some two hundred turns
+ * in; a cut-off link is not kept, so from there no link was ever written again
+ * and every turn paid a summariser call for nothing.
+ *
+ * So a link summarises **its own turns**, and the link before it comes along
+ * as context only — so names, places and open threads carry across the seam —
+ * with an instruction not to repeat it. *Continuity is still the job*, and it
+ * is kept by what is handed over rather than by retelling. [08 §2.1]'s appeal,
+ * which this used to cite, is about memories being discrete; it argued for
+ * stretches all along.
  *
  * *Do not invent* is worth stating to a model asked to compress: a summariser
  * that smooths over a gap produces a prompt that asserts something that never
- * happened, and — because the chain is a chain — every later link inherits it.
+ * happened, and every link after it reads it as context.
  *
  * *Do not address anyone*, because this text lands in a prompt as context and
  * not as narration. A summary written in the second person reads as a turn.
+ *
+ * **The prompt is in the summariser's key** (`summariserKey`), so changing it
+ * re-keys every chain once and each is derived again in the new shape; a held
+ * link from the old prompt is never read as one of the new.
  */
 export const SUMMARISE_PROMPT = [
-  'Summarise what has happened in this story so far.',
+  'Summarise what happened in the turns below, in the past tense.',
   '',
-  'You are given the summary of everything before this point, then the turns since.',
-  'Write a single continuous summary covering both, in the past tense.',
+  'If a summary of the story before them comes first, it is there so that names,',
+  'places and threads stay consistent: do not repeat it, restate it or summarise it again.',
   'Keep every fact, name, place and decision that a later scene might depend on.',
   'Drop description, atmosphere and anything already implied by what you keep.',
   'Do not invent anything that is not in the material, and do not address the reader.',
-  'Aim for one short paragraph per twenty turns covered.',
+  'One short paragraph.',
 ].join('\n');
 
 /**
@@ -225,7 +247,24 @@ export function summarise(context: SummariseContext): {
         summariser,
         context.policy,
       );
-      context.report({ links: chain.links, derived: chain.derived });
+      /**
+       * ***The held links reach the prompt when the next one fails***
+       * (2026-09-27). One link that could not be written took the chain with
+       * it. Reported first and then raised: the step is still `failed`, with
+       * its class, and the story above the window is still there. *Not when
+       * nothing is held*, because an empty report would read as a chain with
+       * nothing in it rather than as a summariser that has not managed one.
+       */
+      if (chain.failure === undefined || chain.links.length > 0) {
+        context.report({ links: chain.links, derived: chain.derived });
+      }
+      if (chain.failure !== undefined) {
+        // As it was thrown, so the runner classifies it: a `CallFailed` keeps
+        // its class and remedy, a stop is still a stop.
+        throw chain.failure instanceof Error
+          ? chain.failure
+          : new Error('The summariser failed without saying why.');
+      }
       return {};
     },
   };
@@ -267,5 +306,42 @@ function block(id: string, role: 'system' | 'user', text: string): Candidate {
     role,
     text,
     required: true,
+  };
+}
+
+/**
+ * ***Whether this turn has a chain, and whose*** — the three questions the
+ * runner asked inline, shared with the preview (2026-09-27).
+ *
+ * The pack positions a summary slot; the story is longer than the window, in
+ * story turns as the window counts them; and the summariser's role resolves,
+ * with the session's own overrides, because its *resolved* binding is in every
+ * key ([P8 §1.9]). Null is *no chain*: a preview then carries no summary and a
+ * turn runs no summariser. A preview that asked these differently from the
+ * turn would read a chain the turn does not use, or miss the one it does.
+ */
+export function summaryPlanFor(
+  inputs: AssemblyInputs,
+): { key: string; policy: SummaryPolicy } | null {
+  const window = inputs.mode.definition.assembly.historyWindow;
+  const slotted = inputs.preset.blocks.some(
+    (block) => block.enabled && block.kind === 'slot' && block.source.of === 'summary',
+  );
+  if (!slotted || storyDepth(inputs.history) <= window) return null;
+
+  const role = resolveStepRole(
+    roleLayersOf(inputs),
+    SUMMARISE_STEP,
+    SUMMARISE_STEP.role ?? 'prose',
+    undefined,
+  );
+  if (!role.ok) return null;
+  return {
+    key: summariserKey(
+      { connectionId: role.connection.id, modelId: role.modelId },
+      SUMMARISE_PROMPT,
+      inputs.preset.params,
+    ),
+    policy: { ...DEFAULT_SUMMARY_POLICY, window },
   };
 }

@@ -29,6 +29,16 @@ export function isStoryTurn(turn: Turn): boolean {
   return turn.input !== undefined || turn.output !== undefined || turn.steps !== undefined;
 }
 
+/**
+ * The story turns of a path, in order — what the history window takes the
+ * last of and what the summary chain covers the rest of (2026-09-27). One
+ * predicate for both, because a window counted one way and a chain counted
+ * another would leave a turn in neither or in both.
+ */
+export function storyTurns(path: readonly Turn[]): Turn[] {
+  return path.filter(isStoryTurn);
+}
+
 /** The story turns on a path. */
 export function storyDepth(path: readonly Turn[]): number {
   let depth = 0;
