@@ -9,8 +9,8 @@ import {
   type SlotSource,
 } from '@storyengine/shared';
 
-import { convertMacros } from '../macros.js';
-import { parsed, refused, type ParseOutcome } from '../parse.js';
+import { convertMacros, macroNoteBudget, type MacroNoteBudget } from '../macros.js';
+import { ownEntry, parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * Marinara prompt presets → `Preset`
@@ -105,11 +105,16 @@ export function convertPreset(
   const order = strings(presetRow['sectionOrder']);
   const ordered = order.length > 0 ? order.map((id) => byId.get(id)).filter(isRecord) : rows;
 
+  // One budget for every section's macros (`macros.ts`).
+  const budget = macroNoteBudget();
   preset.blocks = ordered
-    .map((row) => blockFor(row, presetRow, notes))
+    .map((row) => blockFor(row, presetRow, notes, budget))
     .filter((block): block is PresetBlock => block !== null);
 
-  applyConversationPrompt(presetRow, preset, notes);
+  applyConversationPrompt(presetRow, preset, notes, budget);
+  if (budget.unlisted > 0) {
+    notes.push(note('import.macro.unlisted', { count: budget.unlisted }, 'warn'));
+  }
   applyVariables(presetRow, choiceBlocks, preset, notes);
 
   // [04 §2]'s preservation rule. `parameters`, `groupOrder`, `wrapFormat` and
@@ -127,6 +132,7 @@ function blockFor(
   row: Record<string, unknown>,
   presetRow: Readonly<Record<string, unknown>>,
   notes: ImportNote[],
+  budget: MacroNoteBudget,
 ): PresetBlock | null {
   const label = str(row['name']) || str(row['identifier']) || 'Block';
 
@@ -150,13 +156,13 @@ function blockFor(
   if (isMarker) {
     const config = row['markerConfig'];
     const type = isRecord(config) ? str(config['type']) : '';
-    const source = MARKERS[type];
+    const source = ownEntry(MARKERS, type);
     if (source !== undefined) {
       const wrapper = wrapperFor(row, presetRow);
       return { ...common, kind: 'slot', source, ...(wrapper === null ? {} : { wrapper }) };
     }
 
-    const when = DEFERRED_MARKERS[type];
+    const when = ownEntry(DEFERRED_MARKERS, type);
     notes.push(
       when === undefined
         ? note('import.preset.unknownMarker', { identifier: type || label }, 'warn')
@@ -165,7 +171,7 @@ function blockFor(
     return null;
   }
 
-  const { template, seen } = convertMacros(str(row['content']));
+  const { template, seen } = convertMacros(str(row['content']), budget);
   for (const [macro, outcome] of seen) {
     if (outcome.kind === 'unknown') {
       notes.push(note('import.macro.unrecognised', { macro, block: label }, 'warn'));
@@ -175,7 +181,10 @@ function blockFor(
   return {
     ...common,
     kind: 'text',
-    template: wrapper === null ? template : wrapper.replace('{{content}}', template),
+    // A function, so the section's own `$&`, `$$` or `$'` are text rather than
+    // replacement patterns — the defect `collect.ts` was fixed for, one module
+    // over (2026-09-27).
+    template: wrapper === null ? template : wrapper.replaceAll('{{content}}', () => template),
   };
 }
 
@@ -221,11 +230,12 @@ function applyConversationPrompt(
   presetRow: Readonly<Record<string, unknown>>,
   preset: Preset,
   notes: ImportNote[],
+  budget: MacroNoteBudget,
 ): void {
   const prompt = str(presetRow['conversationPrompt']);
   if (prompt.length === 0) return;
 
-  const { template } = convertMacros(prompt);
+  const { template } = convertMacros(prompt, budget);
   preset.blocks.unshift({
     id: 'mari.conversationPrompt',
     label: 'Conversation prompt',

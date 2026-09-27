@@ -4,6 +4,7 @@
 import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { marinaraPreflight } from '../detect.js';
+import { ownEntry } from '../parse.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
 import type {
   FileSource,
@@ -91,7 +92,9 @@ export class MarinaraReader implements SourceReader {
         // file they came out of — otherwise `characters.json` would appear as
         // one row beside the four characters it yielded.
         if (converted.has(table)) continue;
-        yield observed(path, MARINARA_DISPOSITIONS[table] ?? 'unrecognised');
+        // Own entries: `tables/constructor.json` found `Object`, which travelled
+        // into the report and its counts as a disposition (2026-09-27).
+        yield observed(path, ownEntry(MARINARA_DISPOSITIONS, table) ?? 'unrecognised');
         continue;
       }
 

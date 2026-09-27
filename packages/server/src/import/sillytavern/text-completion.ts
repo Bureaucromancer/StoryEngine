@@ -106,7 +106,8 @@ export function convertTextCompletionPreset(
   }
 
   preset.compat = Object.fromEntries(
-    Object.entries(kept).filter(([key]) => PARAM_FIELDS[key] === undefined),
+    // Own entries: a field called `constructor` found `Object` and was dropped.
+    Object.entries(kept).filter(([key]) => !Object.hasOwn(PARAM_FIELDS, key)),
   );
 
   /**

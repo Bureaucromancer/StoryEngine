@@ -10,7 +10,7 @@ import {
 } from '@storyengine/shared';
 
 import { distinctIds, stableId } from '../identity.js';
-import { parsed, refused, type ParseOutcome } from '../parse.js';
+import { ownEntry, parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * Marinara lorebooks → `Lorebook`
@@ -126,7 +126,9 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
   }
 
   const rawLogic = str(row['selectiveLogic']) || 'and';
-  const logic = SELECTIVE_LOGIC[rawLogic];
+  // Own entries: a logic of `constructor` found `Object`, and a function in
+  // the entry cost the whole lorebook its validation (2026-09-27).
+  const logic = ownEntry(SELECTIVE_LOGIC, rawLogic);
   if (logic === undefined) {
     notes.push(note('import.lore.logicNarrowed', { entry: name, original: rawLogic }, 'warn'));
   }

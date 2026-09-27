@@ -795,7 +795,11 @@ pressure:
   unknown storage format is a correct refusal, not a fault.
 - **One poisoned file never aborts a sweep**, and one poisoned row never aborts
   a table. F22's original sin was one bad folder aborting a whole scan; that was
-  paid for once and is not repeated on the import side.
+  paid for once and is not repeated on the import side. *(2026-09-27: it was, by
+  a SillyTavern chat preset whose prompt had a `content` that was not a string,
+  which threw out of the converter and out of the sweep. The converters are now
+  held to it at the table the sweep and the preview reach them through, and a
+  prompt's fields are read as the types they have to be.)*
 
 ### 4.2 What a reload does, including when it cannot
 

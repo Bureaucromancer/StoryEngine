@@ -9,8 +9,13 @@ import {
   type SlotSource,
 } from '@storyengine/shared';
 
-import { convertMacros, type MacroOutcome } from '../macros.js';
-import { parsed, refused, type ParseOutcome } from '../parse.js';
+import {
+  convertMacros,
+  macroNoteBudget,
+  type MacroNoteBudget,
+  type MacroOutcome,
+} from '../macros.js';
+import { ownEntry, parsed, refused, type ParseOutcome } from '../parse.js';
 import { stripSensitiveFields } from './sensitive-fields.js';
 
 /**
@@ -183,18 +188,24 @@ export function convertChatCompletionPreset(
   const prompts = new Map<string, StPrompt>();
   for (const entry of input['prompts']) {
     if (isRecord(entry) && typeof entry['identifier'] === 'string') {
-      prompts.set(entry['identifier'], entry as unknown as StPrompt);
+      prompts.set(entry['identifier'], readPrompt(entry, entry['identifier'], notes));
     }
   }
 
   const { order, orderNote } = resolveOrder(kept['prompt_order'], prompts);
   if (orderNote) notes.push(orderNote);
 
+  // One budget for every block's macros: a limit per block is beaten by having
+  // many blocks (`macros.ts`).
+  const budget = macroNoteBudget();
   preset.blocks = order
-    .map((entry) => blockFor(entry, prompts, kept, notes))
+    .map((entry) => blockFor(entry, prompts, kept, notes, budget))
     .filter((block): block is PresetBlock => block !== null);
 
-  preset.blocks.push(...callKindBlocks(kept, notes));
+  preset.blocks.push(...callKindBlocks(kept, notes, budget));
+  if (budget.unlisted > 0) {
+    notes.push(note('import.macro.unlisted', { count: budget.unlisted }, 'warn'));
+  }
   applyParams(kept, preset, notes);
   applyBudget(kept, preset, notes);
   applyModelHint(kept, preset);
@@ -205,6 +216,63 @@ export function convertChatCompletionPreset(
   preset.compat = compatOf(kept);
 
   return parsed({ preset, notes });
+}
+
+/**
+ * ***A prompt's fields as the types they have to be*** (2026-09-27).
+ *
+ * The prompt was stored as whatever the file said, behind `as StPrompt`, and
+ * its fields were then used as the types the interface claims. SillyTavern
+ * never writes anything else, and a file is not SillyTavern: a `content` of
+ * `5` reached `String.prototype.replace` as a number and threw — out of the
+ * converter, out of the sweep, and out of the folder import, after the files
+ * before it were written and with no job row to say so. A `name` of `5`, a
+ * trigger that is a string, or a negative depth made a block the schema
+ * refuses, and the whole preset went with it. A field of the wrong type is now
+ * treated as absent, and the review names it.
+ */
+function readPrompt(
+  entry: Readonly<Record<string, unknown>>,
+  identifier: string,
+  notes: ImportNote[],
+): StPrompt {
+  const ignored: string[] = [];
+  const typed = <T>(field: string, accept: (value: unknown) => value is T): T | undefined => {
+    const value = entry[field];
+    if (value === undefined || value === null) return undefined;
+    if (accept(value)) return value;
+    ignored.push(field);
+    return undefined;
+  };
+  const isString = (value: unknown): value is string => typeof value === 'string';
+  const isNumber = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value);
+  const isDepth = (value: unknown): value is number => isNumber(value) && value >= 0;
+  const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+  const isTriggers = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every(isString);
+
+  const prompt: StPrompt = {
+    identifier,
+    ...optional('name', typed('name', isString)),
+    ...optional('content', typed('content', isString)),
+    ...optional('role', typed('role', isString)),
+    ...optional('marker', typed('marker', isBoolean)),
+    ...optional('injection_position', typed('injection_position', isNumber)),
+    ...optional('injection_depth', typed('injection_depth', isDepth)),
+    ...optional('injection_order', typed('injection_order', isNumber)),
+    ...optional('injection_trigger', typed('injection_trigger', isTriggers)),
+  };
+  if (ignored.length > 0) {
+    notes.push(
+      note('import.preset.promptFieldsIgnored', { identifier, fields: ignored.join(', ') }, 'warn'),
+    );
+  }
+  return prompt;
+}
+
+function optional<K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> {
+  return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 }
 
 interface OrderEntry {
@@ -283,6 +351,7 @@ function blockFor(
   prompts: ReadonlyMap<string, StPrompt>,
   body: Readonly<Record<string, unknown>>,
   notes: ImportNote[],
+  budget: MacroNoteBudget,
 ): PresetBlock | null {
   const prompt = prompts.get(entry.identifier);
   if (prompt === undefined) return null;
@@ -305,7 +374,7 @@ function blockFor(
     omitWhenEmpty: true,
   };
 
-  const source = MARKERS[entry.identifier];
+  const source = ownEntry(MARKERS, entry.identifier);
   if (source !== undefined) {
     const wrapper = wrapperFor(entry.identifier, source, body);
     return { ...common, kind: 'slot', source, ...(wrapper === null ? {} : { wrapper }) };
@@ -318,7 +387,7 @@ function blockFor(
     return null;
   }
 
-  const { template, seen } = convertMacros(prompt.content ?? '');
+  const { template, seen } = convertMacros(prompt.content ?? '', budget);
   reportMacros(entry.identifier, seen, notes);
   return { ...common, kind: 'text', template };
 }
@@ -345,13 +414,14 @@ function wrapperFor(
 function callKindBlocks(
   body: Readonly<Record<string, unknown>>,
   notes: ImportNote[],
+  budget: MacroNoteBudget,
 ): PresetBlock[] {
   const blocks: PresetBlock[] = [];
   for (const [field, callKind] of Object.entries(CALL_KIND_FIELDS)) {
     const content = body[field];
     if (typeof content !== 'string' || content.length === 0) continue;
 
-    const { template, seen } = convertMacros(content);
+    const { template, seen } = convertMacros(content, budget);
     reportMacros(field, seen, notes);
     blocks.push({
       id: `st.${field}`,

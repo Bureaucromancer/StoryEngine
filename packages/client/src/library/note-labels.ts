@@ -161,10 +161,14 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.lore.characterLinksDangle':
     'Was linked to {count} characters that were not imported with it.',
   'import.macro.refused': 'The macro {macro} in “{block}” was left as written — {because}.',
+  'import.macro.unlisted':
+    '{count} more uses of macros were converted the same way and are not listed one by one.',
   'import.preset.paramsCarried': '{count} sampler settings carried over.',
   'import.preset.groupOrderUsed': 'Prompt order taken from the preset’s own group.',
   'import.preset.groupOrderDropped': 'The preset’s group ordering could not be used.',
   'import.preset.unknownMarker': 'The “{identifier}” block is not one this understands.',
+  'import.preset.promptFieldsIgnored':
+    'The “{identifier}” block had {fields} of a kind this cannot read, and they were left out.',
   'import.preset.modePromptConverted': 'Its {field} became a block.',
   'import.preset.variablesInert': '{count} variables were kept but do nothing yet.',
   'import.preset.noBlocksInSamplerPreset': 'A sampler panel only — it carries no prompt blocks.',

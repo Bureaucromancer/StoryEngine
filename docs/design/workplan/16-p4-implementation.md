@@ -918,6 +918,15 @@ next turn or preview, and V8 aborted the process for every account. The engine
 now runs with a memory budget, a per-render time limit, and an empty template
 map, so `include` finds nothing on disk (`assembly/template.ts`).
 
+*Added 2026-09-27, the same day.* The macro table's own pattern was the other
+unbounded piece of work at this boundary. It was quadratic on crafted text: a
+quarter of a megabyte of `{{a::` and spaces took 26 seconds of synchronous
+conversion, reachable by any signed-in account through an upload. The review's
+one note per distinct macro had no limit either, so a file of made-up macros
+built notes past what one string can hold. The pattern is linear now and still
+takes a macro inside an argument whole, and one converted object names at most
+a hundred macros and counts the rest in one note (`import/macros.ts`).
+
 ### 1.7 The slot literal: `'setting'` becomes `'treatment'` before any file fossilises it
 
 The Setting→Treatment rename was made deliberately ([04 §6]; the kind is named

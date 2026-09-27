@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isKnownSchema, schemaIdOf, validate } from '@storyengine/shared';
 
+import { MACRO_NOTE_LIMIT } from '../macros.js';
 import { malformedInputs } from '../parse.js';
 import { convertChatCompletionPreset } from './preset.js';
 import { SILLYTAVERN_SENSITIVE_FIELDS } from './sensitive-fields.js';
@@ -271,6 +272,114 @@ describe('conversions this build makes and the source did not', () => {
     // [04 §2]'s preservation rule: unrecognised fields survive in `compat`, so
     // nothing is lost even where nothing reads it.
     expect(preset.compat?.['chat_completion_source']).toBe('openai');
+  });
+});
+
+/**
+ * ***A prompt's fields are read as the types they have to be*** (2026-09-27).
+ *
+ * The table below tries the preset's own shape; these try one prompt inside
+ * it. A `content` that was not a string reached `String.prototype.replace` and
+ * threw out of the sweep, and a `name`, trigger or depth of the wrong kind made
+ * a block the schema refused, which lost the whole preset.
+ */
+describe('one prompt of the wrong shape', () => {
+  function withPrompt(prompt: Record<string, unknown>) {
+    return convert({
+      prompts: [{ identifier: 'main', name: 'Main', content: 'You are here.' }, prompt],
+      prompt_order: [
+        {
+          character_id: 100000,
+          order: [
+            { identifier: 'main', enabled: true },
+            { identifier: String(prompt['identifier']), enabled: true },
+          ],
+        },
+      ],
+    });
+  }
+
+  for (const content of [5, {}, [], true]) {
+    it(`answers, and keeps the rest of the preset, for content ${JSON.stringify(content)}`, () => {
+      const { preset, notes } = withPrompt({ identifier: 'odd', name: 'Odd', content });
+
+      expect(validate(preset).valid).toBe(true);
+      // The two the order lists; the nudge fields add their own after them.
+      expect(preset.blocks.slice(0, 2).map((block) => block.id)).toEqual(['st.main', 'st.odd']);
+      expect(notes).toContainEqual({
+        key: 'import.preset.promptFieldsIgnored',
+        params: { identifier: 'odd', fields: 'content' },
+        level: 'warn',
+      });
+    });
+  }
+
+  it('reads a name, a trigger and a depth of the wrong kind as absent', () => {
+    const { preset, notes } = withPrompt({
+      identifier: 'odd',
+      name: 5,
+      content: 'Mind the tide.',
+      injection_trigger: 'normal',
+      injection_position: 1,
+      injection_depth: -1,
+    });
+
+    expect(validate(preset).valid).toBe(true);
+    expect(notes).toContainEqual({
+      key: 'import.preset.promptFieldsIgnored',
+      params: { identifier: 'odd', fields: 'name, injection_depth, injection_trigger' },
+      level: 'warn',
+    });
+  });
+
+  it('takes a prompt called `constructor` as the text it is', () => {
+    // A plain lookup of the marker table found `Object` for it, and a block
+    // whose source was a function lost the whole preset its validation.
+    const { preset } = withPrompt({ identifier: 'constructor', content: 'Built to last.' });
+
+    expect(validate(preset).valid).toBe(true);
+    expect(preset.blocks.find((block) => block.id === 'st.constructor')).toMatchObject({
+      kind: 'text',
+      template: 'Built to last.',
+    });
+  });
+});
+
+/**
+ * ***The review names a bounded number of macros*** (2026-09-27). One note per
+ * distinct macro per block had no limit, and a limit per block is beaten by
+ * having many blocks — two thousand prompts of twenty made-up macros each was
+ * forty thousand notes, and a file at the upload limit made more than one
+ * string can hold.
+ */
+describe('a preset with more macros than a review can name', () => {
+  it('names up to the limit and counts the rest in one note', () => {
+    const prompts = Array.from({ length: 2000 }, (_, at) => ({
+      identifier: `p${String(at)}`,
+      content: Array.from(
+        { length: 20 },
+        (__, one) => `{{made_up_${String(at)}_${String(one)}}}`,
+      ).join(' '),
+    }));
+    const { notes } = convert({
+      prompts,
+      prompt_order: [
+        {
+          character_id: 100000,
+          order: prompts.map((prompt) => ({ identifier: prompt.identifier, enabled: true })),
+        },
+      ],
+    });
+
+    const named = notes.filter((one) => one.key === 'import.macro.unrecognised');
+    expect(named).toHaveLength(MACRO_NOTE_LIMIT);
+    expect(notes.filter((one) => one.key === 'import.macro.unlisted')).toEqual([
+      {
+        key: 'import.macro.unlisted',
+        params: { count: 2000 * 20 - MACRO_NOTE_LIMIT },
+        level: 'warn',
+      },
+    ]);
   });
 });
 

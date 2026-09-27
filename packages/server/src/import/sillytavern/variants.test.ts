@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { validate } from '@storyengine/shared';
 
+import { MACRO_NOTE_LIMIT } from '../macros.js';
 import { malformedInputs } from '../parse.js';
 import { convertSyspromptPreset } from './sysprompt.js';
 import { convertTextCompletionPreset } from './text-completion.js';
@@ -74,6 +75,23 @@ describe('a sysprompt preset', () => {
     expect(notes.map((n) => n.key)).toContain('import.preset.postHistoryIsAfterNotAtDepth');
   });
 
+  it('names a bounded number of macros across both of its fields', () => {
+    const many = (prefix: string) =>
+      Array.from({ length: MACRO_NOTE_LIMIT }, (_, at) => `{{${prefix}_${String(at)}}}`).join(' ');
+    const result = convertSyspromptPreset(
+      { name: 'Harbour', content: many('first'), post_history: many('second') },
+      'Harbour',
+    );
+    if (!result.ok) throw new Error('refused');
+
+    expect(result.value.notes.filter((n) => n.key === 'import.macro.unrecognised')).toHaveLength(
+      MACRO_NOTE_LIMIT,
+    );
+    expect(result.value.notes.find((n) => n.key === 'import.macro.unlisted')?.params).toEqual({
+      count: MACRO_NOTE_LIMIT,
+    });
+  });
+
   it('converts the macros in it', () => {
     const content = preset.blocks[0];
 
@@ -98,6 +116,24 @@ describe('a text-completion preset', () => {
     expect(validate(preset).valid).toBe(true);
     expect(preset.params.temperature).toBe(0.85);
     expect(preset.params.maxTokens).toBe(400);
+  });
+
+  it('keeps a field named like a property of every object in compat', () => {
+    // A plain index found `Object` for `constructor` and `Object.prototype`'s
+    // method for `toString`, read them as fields of ours, and so dropped them
+    // from `compat` without a word (2026-09-27).
+    const odd = convertTextCompletionPreset(
+      { ...TEXT_COMPLETION, constructor: 'kept', toString: 'kept too' },
+      'Local',
+    );
+    if (!odd.ok) throw new Error('refused');
+    const kept = (key: string): unknown =>
+      Object.hasOwn(odd.value.preset.compat ?? {}, key)
+        ? odd.value.preset.compat?.[key]
+        : undefined;
+
+    expect(kept('constructor')).toBe('kept');
+    expect(kept('toString')).toBe('kept too');
   });
 
   it('keeps the backend-specific samplers in compat rather than dropping them', () => {

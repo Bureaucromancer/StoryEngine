@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { ownEntry } from './parse.js';
+
 /**
  * SillyTavern's macros, converted to Liquid at import
  * ([04 §8.4.2](../../../../docs/design/04-schemas.md),
@@ -116,11 +118,41 @@ const MACROS: Readonly<Record<string, MacroOutcome>> = {
 /** Every macro the table knows, for the coverage test and for the review's copy. */
 export const KNOWN_MACROS = Object.keys(MACROS);
 
+const UNKNOWN: MacroOutcome = { kind: 'unknown' };
+
 export interface MacroConversion {
   /** The template, with mapped macros rewritten and refused ones removed. */
   template: string;
-  /** Macro name to what became of it — one entry per *distinct* macro seen. */
+  /**
+   * Macro name to what became of it — one entry per *distinct* macro seen,
+   * until the budget it was given is spent.
+   */
   seen: Map<string, MacroOutcome>;
+}
+
+/**
+ * ***How many macros one converted object names in its review*** (2026-09-27).
+ *
+ * A note per distinct macro, per block, is what makes a review readable — and
+ * with no limit it was a way to spend the server's memory: a million distinct
+ * `{{mN}}` in a ten-megabyte file became a million notes, and at the upload
+ * limit the notes no longer fitted in one string, so the reply and the ledger
+ * row threw after the work was done. The limit is per converted object, shared
+ * by all its blocks, because a limit per block is beaten by having many blocks.
+ * Past it, uses are **counted** into one note rather than named — every one is
+ * still converted exactly as before; only the telling stops.
+ */
+export const MACRO_NOTE_LIMIT = 100;
+
+export interface MacroNoteBudget {
+  /** Distinct macros still to name. */
+  left: number;
+  /** Uses of macros past the limit: counted, not named. */
+  unlisted: number;
+}
+
+export function macroNoteBudget(): MacroNoteBudget {
+  return { left: MACRO_NOTE_LIMIT, unlisted: 0 };
 }
 
 /**
@@ -130,8 +162,23 @@ export interface MacroConversion {
  * `::`-separated arguments — `{{random::a::b}}` — and anything more structured
  * than that is something this table does not claim to understand, which is what
  * `unknown` is for.
+ *
+ * ***Linear, and a macro inside an argument is taken whole*** (2026-09-27).
+ * The pattern this replaces, `\{\{\s*(name)((?:::[^}]*)?)\s*\}\}`, was
+ * quadratic twice over: the argument's `[^}]*` and the trailing `\s*` could
+ * both take the same spaces, and `[^}]*` ran on past every later `{{` to the
+ * next `}`, so every start scanned to the same distant brace. `{{a::` and a
+ * quarter of a megabyte of spaces cost 25.5 seconds of synchronous work, on
+ * the thread every account shares, and a file at the upload limit would have
+ * taken weeks. An argument now stops at any brace, and may carry up to eight macros
+ * of its own: `{{random::{{char}} smiles::{{user}} frowns}}` is ordinary
+ * SillyTavern text, and the obvious linear pattern stopped at the inner `{{`,
+ * missed `random` altogether, and left `{{random::` for the model to read.
+ * Bounded at eight rather than unbounded because a repetition of a group is
+ * what overflows V8's backtracking stack on a file of this size.
  */
-const MACRO_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:::[^}]*)?)\s*\}\}/g;
+const MACRO_PATTERN =
+  /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)(?:(::[^{}]*(?:\{\{[^{}]*\}\}[^{}]*){0,8})|\s*)\}\}/g;
 
 /**
  * Rewrites one template's macros.
@@ -141,13 +188,28 @@ const MACRO_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:::[^}]*)?)\s*\}\}/g;
  * prompt that looks fine is worse than one that visibly needs a look.* The
  * review carries the flag; the file carries the evidence.
  */
-export function convertMacros(template: string): MacroConversion {
+export function convertMacros(
+  template: string,
+  budget: MacroNoteBudget = macroNoteBudget(),
+): MacroConversion {
   const seen = new Map<string, MacroOutcome>();
 
   const converted = template.replace(MACRO_PATTERN, (whole, rawName: string) => {
     const name = rawName.toLowerCase();
-    const outcome = MACROS[name] ?? { kind: 'unknown' as const };
-    seen.set(name, outcome);
+    // Own entries only: `{{constructor}}` looked up `Object`, and came out as
+    // the text `undefined` with no note (2026-09-27).
+    const outcome = ownEntry(MACROS, name) ?? UNKNOWN;
+    if (!seen.has(name)) {
+      if (outcome.kind === 'mapped') {
+        // Never a note, and there are five of them.
+        seen.set(name, outcome);
+      } else if (budget.left > 0) {
+        seen.set(name, outcome);
+        budget.left -= 1;
+      } else {
+        budget.unlisted += 1;
+      }
+    }
 
     switch (outcome.kind) {
       case 'mapped':

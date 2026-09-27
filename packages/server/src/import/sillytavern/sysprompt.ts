@@ -3,7 +3,7 @@
 
 import { newPreset, type ImportNote, type PresetBlock } from '@storyengine/shared';
 
-import { convertMacros } from '../macros.js';
+import { convertMacros, macroNoteBudget } from '../macros.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 import type { ConvertedPreset } from './preset.js';
 import { stripSensitiveFields } from './sensitive-fields.js';
@@ -55,9 +55,11 @@ export function convertSyspromptPreset(
   const notes: ImportNote[] = [];
   const preset = newPreset(name);
   const blocks: PresetBlock[] = [];
+  // One budget for both fields' macros (`macros.ts`).
+  const budget = macroNoteBudget();
 
   if (typeof content === 'string' && content.length > 0) {
-    const converted = convertMacros(content);
+    const converted = convertMacros(content, budget);
     blocks.push(block('st.sysprompt.content', 'System prompt', converted.template));
     reportMacros('st.sysprompt.content', converted.seen, notes);
   }
@@ -80,7 +82,7 @@ export function convertSyspromptPreset(
   });
 
   if (typeof postHistory === 'string' && postHistory.length > 0) {
-    const converted = convertMacros(postHistory);
+    const converted = convertMacros(postHistory, budget);
     blocks.push(block('st.sysprompt.postHistory', 'Post-history instructions', converted.template));
     reportMacros('st.sysprompt.postHistory', converted.seen, notes);
     notes.push({
@@ -91,6 +93,9 @@ export function convertSyspromptPreset(
   }
 
   preset.blocks = blocks;
+  if (budget.unlisted > 0) {
+    notes.push({ key: 'import.macro.unlisted', params: { count: budget.unlisted }, level: 'warn' });
+  }
 
   /**
    * **The credential rule applies here too, and did not.** See the long note in

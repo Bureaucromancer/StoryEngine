@@ -91,6 +91,34 @@ describe('the two places the lorebook is not a rename', () => {
   });
 });
 
+describe('a value named like a property of every object', () => {
+  it('is a logic this does not know, narrowed with a note, and the book validates', () => {
+    // A plain index found `Object` for `constructor`, and a function in the
+    // entry cost the whole lorebook its validation (2026-09-27).
+    const { lorebook, notes } = book({ selectiveLogic: 'constructor' });
+
+    expect(lorebook.entries[0]?.selectiveLogic).toBe('and_any');
+    expect(notes.find((n) => n.key === 'import.lore.logicNarrowed')?.params).toMatchObject({
+      original: 'constructor',
+    });
+    expect(validate(lorebook).valid).toBe(true);
+  });
+
+  it('is a marker this does not know, and the preset validates', () => {
+    const result = convertPreset({ ...PRESET, sectionOrder: ['a'] }, [
+      { ...SECTIONS[1], id: 'a', markerConfig: { type: 'constructor' } },
+    ]);
+    if (!result.ok) throw new Error('refused');
+
+    expect(result.value.notes.find((n) => n.key === 'import.preset.unknownMarker')?.params).toEqual(
+      {
+        identifier: 'constructor',
+      },
+    );
+    expect(validate(result.value.preset).valid).toBe(true);
+  });
+});
+
 describe('what the lorebook carries across', () => {
   it('validates, and turns the mode-plus-list filters into ours', () => {
     const { lorebook } = book();
@@ -213,6 +241,18 @@ describe('the Marinara preset is our block model with different field names', ()
     expect(main?.kind === 'text' ? main.template : '').toBe(
       '<role>\nWrite the scene as {{ char }}.\n</role>',
     );
+  });
+
+  it('keeps a section’s dollar signs as text when it wraps it', () => {
+    // `String.prototype.replace` reads `$&`, `$$`, `` $` `` and `$'` in its
+    // replacement as patterns, so a section's own text was rewritten the moment
+    // it was wrapped (2026-09-27).
+    const text = "Costs $$5, which is $& and $` and $' too.";
+    const main = preset([{ ...SECTIONS[0], content: text }]).preset.blocks.find(
+      (b) => b.id === 'mari.main',
+    );
+
+    expect(main?.kind === 'text' ? main.template : '').toBe(`<role>\n${text}\n</role>`);
   });
 
   /**
@@ -380,6 +420,22 @@ describe('sweeping a Marinara data root', () => {
       outcome.report.items.find((item) => item.source === source)?.disposition;
     expect(disposition('storage/tables/prompt_groups.json')).toBe('recorded');
     expect(disposition('sprites/char_vera/happy.png')).toBe('recorded');
+  });
+
+  it('names a table called `constructor` as one it does not recognise', async () => {
+    // A plain index into the registry found `Object`, which travelled into the
+    // report as a disposition and into the counts as a key (2026-09-27).
+    const outcome = await run({ 'storage/tables/constructor.json': '[]' });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    expect(
+      outcome.report.items.find((item) => item.source === 'storage/tables/constructor.json')
+        ?.disposition,
+    ).toBe('unrecognised');
+    expect(Object.values(outcome.report.counts).every((count) => Number.isInteger(count))).toBe(
+      true,
+    );
   });
 
   it('refuses a live install before writing anything', async () => {
