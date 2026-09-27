@@ -140,6 +140,15 @@ export function startBackupSchedule(
   const keyOf = (owner: BackupOwner): string =>
     owner.kind === 'install' ? 'install' : `account:${owner.handle}`;
 
+  /**
+   * ***The scopes whose last attempt failed, so a person is told once.*** A
+   * backup that fails stays due, so it is tried again at the next hourly tick,
+   * and each failure used to be a notification: a disk that stayed full for a
+   * weekend was forty-eight of them. Now the first failure is announced and the
+   * rest are logged, and a success clears it, so the next failure is news again.
+   */
+  const failing = new Set<string>();
+
   async function consider(
     owner: BackupOwner,
     settings: { frequency: BackupFrequency; onStart: boolean; contents: BackupContents },
@@ -177,6 +186,7 @@ export function startBackupSchedule(
     try {
       const record = await consider(owner, settings, pass, now);
       if (record !== null) {
+        failing.delete(keyOf(owner));
         taken.push(record);
         context.log(
           { event: 'backup.taken', scope: record.scope, reason: pass, bytes: record.bytes },
@@ -192,6 +202,8 @@ export function startBackupSchedule(
         },
         'A scheduled backup failed',
       );
+      if (failing.has(keyOf(owner))) return;
+      failing.add(keyOf(owner));
       await announceBackupFailed(context.notices, owner).catch(() => undefined);
     }
   }

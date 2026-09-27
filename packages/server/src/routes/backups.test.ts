@@ -4,8 +4,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RestorePlan } from '../backup/restore.js';
-import { fileExists, readFileBytes } from '../storage/files.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { ensureDirectory, fileExists, readFileBytes, writeFileBytes } from '../storage/files.js';
+import { Layout } from '../storage/layout.js';
+import { makeTestServer, setUpAdmin, tempRoot, type TestServer } from '../test-server.js';
 
 /**
  * The backup surface, through HTTP —
@@ -115,6 +119,46 @@ describe('the listing', () => {
     await asUser();
     const theirs = await server.request({ method: 'GET', url: '/api/me/backups' });
     expect((theirs.body as { backups: unknown[] }).backups).toEqual([]);
+  });
+});
+
+/**
+ * ***A disk with no room for a backup*** (2026-09-27). The take route had no
+ * answer for it but the error handler's 500, so the panel's *not enough room*
+ * sentence, which looks for the word *space*, could never be shown.
+ */
+/** The boot's half: `buildApp` sweeps before the backup timer can start. */
+describe('starting after a backup was cut short', () => {
+  it('has nothing of the interrupted backup left once it is up', async () => {
+    const dir = await tempRoot('se-abandoned-');
+    const layout = new Layout(dir);
+    await ensureDirectory(layout.backupsRoot);
+    const partial = join(layout.backupsRoot, 'install-full-2026-09-27-x.tar.gz.part');
+    await writeFileBytes(partial, new TextEncoder().encode('half an archive'));
+
+    const after = await makeTestServer({ dataDir: dir });
+    try {
+      expect(await fileExists(partial)).toBe(false);
+    } finally {
+      await after.dispose();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('taking one on a full disk', () => {
+  it('answers 507 no-space, and says so in the words the panel looks for', async () => {
+    server.services.freeBytes = () => Promise.resolve(1024 * 1024);
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/backups',
+      payload: { contents: 'full' },
+    });
+
+    expect(response.status).toBe(507);
+    expect((response.body as { error: string }).error).toBe('no-space');
+    expect((response.body as { message: string }).message).toContain('space');
   });
 });
 

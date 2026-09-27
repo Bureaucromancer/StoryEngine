@@ -90,6 +90,9 @@ const EXCLUDED = [
   /^index\.sqlite(-wal|-shm)?$/,
   /^backups$/,
   /^users\/[^/]+\/(trash|backups)$/,
+  // And a removed account's, which went to `removed/` with its directory. The
+  // server's archive leaves them out too: see `alwaysSkipped` there.
+  /^removed\/[^/]+\/(trash|backups)$/,
   // A restore's own directory, which holds the whole install it replaced, and
   // a restore asked for and not yet done: the server's archive leaves both out
   // (`backup/archive.ts`), and an archive that carried the second would ask for

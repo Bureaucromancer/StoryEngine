@@ -9,6 +9,7 @@ import type { BackupSettings } from '@storyengine/shared';
 import { requireAccount, type AppServices } from '../app.js';
 import { announceRestartPending } from '../notifications/notices.js';
 import {
+  BackupSpaceError,
   backupContextOf,
   findBackup,
   listBackups,
@@ -365,12 +366,32 @@ function register(
      * archive at all. `takeBackup` skips it and names it in the manifest's
      * `omitted` instead, so the file exists and says what it could not carry.
      */
-    const backup = await takeBackup(backupContextOf(services), {
-      owner,
-      contents,
-      reason: 'manual',
-    });
-    return reply.code(201).send({ backup });
+    try {
+      const backup = await takeBackup(backupContextOf(services), {
+        owner,
+        contents,
+        reason: 'manual',
+      });
+      return await reply.code(201).send({ backup });
+    } catch (error) {
+      /**
+       * ***No room is a state of the disk, not a server fault*** — `507`, and a
+       * code the surface can say something useful about. It used to be the
+       * error handler's bare 500, so the panel's *not enough room on the disk*
+       * sentence could never be reached. `ENOSPC` is the same answer arrived at
+       * late: something else filled the disk while the archive was written.
+       */
+      if (error instanceof BackupSpaceError || (error as NodeJS.ErrnoException).code === 'ENOSPC') {
+        return await reply.code(507).send({
+          error: 'no-space',
+          message:
+            error instanceof BackupSpaceError
+              ? error.message
+              : 'There is not enough free space on the disk for this backup.',
+        });
+      }
+      throw error;
+    }
   });
 
   app.get(prefix, async (request, reply) => {

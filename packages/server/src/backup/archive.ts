@@ -19,7 +19,15 @@ import {
 
 import type { AppServices } from '../app.js';
 import type { BuildInfo } from '../build-info.js';
-import { listTreeFiles, statFile, unlinkFile, type TreeFile } from '../storage/files.js';
+import {
+  freeBytes,
+  listDirectoryNames,
+  listEntryNames,
+  listTreeFiles,
+  statFile,
+  unlinkFile,
+  type TreeFile,
+} from '../storage/files.js';
 import { assertValidHandle, type Layout } from '../storage/layout.js';
 import { TarNameError, splitName } from '../storage/tar.js';
 import { readTarGz, writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
@@ -49,6 +57,12 @@ export interface BackupContext {
   /** The operational store. Snapshotted with `VACUUM INTO`, never copied. */
   state: DatabaseSync;
   build: BuildInfo | null;
+  /**
+   * How much the disk has free, or null when it will not say — the storage
+   * layer's `freeBytes` unless a test says otherwise, because no test can fill
+   * a disk to find out what a backup does when it is full.
+   */
+  freeBytes?: (path: string) => Promise<number | null>;
 }
 
 export type BackupOwner = { kind: 'install' } | { kind: 'account'; handle: string };
@@ -62,7 +76,12 @@ export type BackupOwner = { kind: 'install' } | { kind: 'account'; handle: strin
  * module still pulls nothing of the app in at runtime.
  */
 export function backupContextOf(services: AppServices): BackupContext {
-  return { layout: services.layout, state: services.state.db, build: services.build };
+  return {
+    layout: services.layout,
+    state: services.state.db,
+    build: services.build,
+    freeBytes: services.freeBytes,
+  };
 }
 
 export interface BackupRequest {
@@ -183,6 +202,17 @@ const note = (key: string, params: ImportNote['params'] = {}): ImportNote => ({
 function alwaysSkipped(context: BackupContext, name: string): boolean {
   if (name === 'index' || name === BACKUP_MANIFEST_MEMBER) return true;
   if (/^users\/[^/]+\/trash$/.test(name)) return true;
+  /**
+   * ***A removed account's archives and trash, for the reasons its live ones
+   * are left out*** (2026-09-27). Removing an account moves its whole directory
+   * to `removed/<handle>-<uuid>`, backups and trash with it, and those were
+   * still archived from there. Every install backup carried every removed
+   * account's own full archives, **provider keys included**, and a `redacted`
+   * one, which exists to be safe to store elsewhere, carried them too: the
+   * redaction removes `connections/`, and an archive inside an archive is not
+   * one.
+   */
+  if (/^removed\/[^/]+\/(backups|trash)$/.test(name)) return true;
   if (/^state\/.*\.sqlite(-wal|-shm)$/.test(name)) return true;
   if (/^state\/state\.snapshot-.*\.sqlite$/.test(name)) return true;
   /**
@@ -274,6 +304,7 @@ export async function takeBackup(
   if (contents === 'redacted') omitted.push(note('backup.omitted.credentials'));
 
   const files: TreeFile[] = await listTreeFiles(context.layout.dataRoot, skip);
+  await assertRoom(context, owner, files);
   const members: ArchiveMember[] = [];
   let unpackedBytes = 0;
 
@@ -377,6 +408,111 @@ export async function takeBackup(
   } finally {
     if (snapshot !== null) await unlinkFile(snapshot).catch(() => undefined);
   }
+}
+
+/**
+ * What the server keeps free for its own writes when it decides whether a
+ * backup fits: a turn, a session, the index. A backup that left the disk with
+ * less would have the next turn fail to save.
+ */
+export const BACKUP_FREE_RESERVE_BYTES = 64 * 1024 * 1024;
+
+/** A tar header and its worst-case padding, per member. */
+const TAR_OVERHEAD_BYTES = 1024;
+
+/**
+ * ***Not enough room to take this backup without filling the disk***, found
+ * before a byte of it was written. `routes/backups.ts` answers it `507
+ * no-space`.
+ */
+export class BackupSpaceError extends Error {
+  readonly needed: number;
+  readonly free: number;
+
+  constructor(needed: number, free: number) {
+    super(
+      `There is not enough free space on the disk for this backup: it could need ${megabytes(needed)} and ${megabytes(free)} is free.`,
+    );
+    this.name = 'BackupSpaceError';
+    this.needed = needed;
+    this.free = free;
+  }
+}
+
+function megabytes(bytes: number): string {
+  return `${String(Math.ceil(bytes / (1024 * 1024)))} MB`;
+}
+
+/**
+ * ***Room first, and before the snapshot*** (2026-09-27).
+ *
+ * A backup used to find out it did not fit by filling the disk: the archive
+ * grew as a `.part` until `ENOSPC`, and was then unlinked. A full disk is what
+ * stops the server saving turns, so for that moment the feature meant to
+ * protect somebody's writing was what broke it. And a scheduled backup that
+ * failed was due again at the next hourly tick, so it did this every hour.
+ *
+ * **The bound is the uncompressed size, which no archive can exceed** (gzip
+ * adds a few bytes a block at worst), plus a tar header for each member, plus
+ * the `VACUUM INTO` snapshot, which sits beside the archive until it is done,
+ * plus `BACKUP_FREE_RESERVE_BYTES`. That refuses some backups that would have
+ * compressed into the room there was, and that is the safe way round: a
+ * refused backup can be taken later, and a turn lost to a full disk cannot.
+ *
+ * **A filesystem that will not say how much is free is not a refusal**, which
+ * is `freeBytes`' rule and `prepareRestore`'s.
+ */
+async function assertRoom(
+  context: BackupContext,
+  owner: BackupOwner,
+  files: readonly TreeFile[],
+): Promise<void> {
+  const free = await (context.freeBytes ?? freeBytes)(context.layout.dataRoot);
+  if (free === null) return;
+  const snapshot =
+    owner.kind === 'install' ? ((await statFile(context.layout.stateFile))?.size ?? 0) : 0;
+  let needed = BACKUP_FREE_RESERVE_BYTES + 2 * snapshot;
+  for (const file of files) needed += file.size + TAR_OVERHEAD_BYTES;
+  if (free < needed) throw new BackupSpaceError(needed, free);
+}
+
+/**
+ * What a backup that died part way left behind, removed — at boot, before the
+ * timer starts, when no backup can be running (2026-09-27).
+ *
+ * ***Two kinds, and both used to stay for good.*** `writeTarGz` unlinks its
+ * `.part` in a `finally`, and `takeBackup` its `state.snapshot-*.sqlite`, but a
+ * process killed during a backup runs neither. The `.part` is a partial archive
+ * the listing never shows, and the snapshot a full copy of the operational
+ * store: invisible, and as big as what they copied, every time it happened.
+ *
+ * **Only those names**, matched whole: this deletes nothing a backup did not
+ * make. Answers how many it removed, for the log.
+ */
+export async function sweepAbandonedBackups(layout: Layout): Promise<number> {
+  let removed = 0;
+  const sweep = async (directory: string, abandoned: RegExp): Promise<void> => {
+    for (const name of await listEntryNames(directory)) {
+      if (!abandoned.test(name)) continue;
+      await unlinkFile(join(directory, name));
+      removed += 1;
+    }
+  };
+
+  const partial = /\.tar\.gz\.part$/;
+  await sweep(layout.backupsRoot, partial);
+  for (const handle of await listDirectoryNames(layout.usersRoot)) {
+    let theirs: string;
+    try {
+      theirs = layout.userBackupsRoot(handle);
+    } catch {
+      // Not a handle (a stray folder under `users/`), so nothing of ours.
+      continue;
+    }
+    await sweep(theirs, partial);
+  }
+  await sweep(layout.stateRoot, /^state\.snapshot-[^/]+\.sqlite$/);
+  return removed;
 }
 
 /** The handles an archive holds, so an install import can plan without a pass. */

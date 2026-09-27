@@ -32,7 +32,7 @@ import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
-import { backupContextOf } from './backup/archive.js';
+import { backupContextOf, sweepAbandonedBackups } from './backup/archive.js';
 import { startBackupSchedule, type BackupSchedule } from './backup/schedule.js';
 import { BackupSettingsStore } from './backup/settings.js';
 import { startTrashSweep, type TrashSweep } from './storage/trash.js';
@@ -82,7 +82,7 @@ import { route as routeNotification, type Occurrence } from './notifications/rou
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
-import { listDirectoryNames, readFileBytes } from './storage/files.js';
+import { freeBytes, listDirectoryNames, readFileBytes } from './storage/files.js';
 import { stampDataDirectory } from './storage/stamp.js';
 import { UNSUPERVISED, type Supervision } from './supervision.js';
 import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
@@ -345,6 +345,12 @@ export interface AppServices {
    * is set only at the end.
    */
   restoring: boolean;
+  /**
+   * How much the disk has free: `storage/files.ts`'s `freeBytes`, on the
+   * services so a test can answer *full*, which no test can make a real disk
+   * be. Read by the backup's room check.
+   */
+  freeBytes: (path: string) => Promise<number | null>;
   /**
    * What the last update check found — [09 §6.5], [P10.3].
    *
@@ -855,6 +861,7 @@ async function assembleWithState(
     exit: null,
     draining: false,
     restoring: false,
+    freeBytes,
     updates: UNCHECKED,
     // Replaced by `startUpdateCheck`, which `buildApp` runs once a logger
     // exists. A build that never starts one disposes cleanly.
@@ -1173,6 +1180,17 @@ export async function buildApp(
    * that quietly started writing gigabyte archives into somebody's data
    * directory would be a surprising thing for `--reset-password` to do.
    */
+  /**
+   * What a backup the last process was killed during left behind, gone before
+   * the timer can start another. See `sweepAbandonedBackups`.
+   */
+  const abandoned = await sweepAbandonedBackups(services.layout).catch(() => 0);
+  if (abandoned > 0) {
+    app.log.info(
+      { event: 'backup.abandoned-swept', files: abandoned },
+      'Removed what an interrupted backup left behind',
+    );
+  }
   services.backupSchedule = startBackupSchedule({
     backups: backupContextOf(services),
     notices: { accounts: services.accounts, notify: services.notify },

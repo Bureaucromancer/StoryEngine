@@ -7,16 +7,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { readBackupManifest, BACKUP_MANIFEST_MEMBER } from '@storyengine/shared';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ensureDirectory, writeFileBytes } from '../storage/files.js';
+import { ensureDirectory, listTreeFiles, writeFileBytes } from '../storage/files.js';
 import { Layout } from '../storage/layout.js';
 import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import {
+  BackupSpaceError,
   findBackup,
   listBackups,
   readArchiveManifest,
   removeBackup,
+  sweepAbandonedBackups,
   takeBackup,
   type BackupContext,
 } from './archive.js';
@@ -79,6 +81,12 @@ async function populate(): Promise<void> {
   await put('state/setup.token', 'the first-run token');
   await put('state/build.json', '{"version":"1.0.0-alpha.4"}');
   await put('removed/old-0199/connections/theirs.json', '{"apiKey":"sk-a-removed-key"}');
+  // What a removed account took with it: its own archives, and its trash.
+  await put(
+    'removed/old-0199/backups/account-old-full-2026-09-01-x.tar.gz',
+    'sk-inside-an-archive',
+  );
+  await put('removed/old-0199/trash/actors/gone-0199/card.png', 'discarded before removal');
 
   // The derived half, **at the depth it actually has**.
   await put('index/index.sqlite', 'a stale belief about a newer tree');
@@ -154,6 +162,89 @@ describe('an install backup', () => {
     const members = await membersOf(found!.path);
 
     expect([...members.keys()].filter((name) => name.includes('/trash/'))).toEqual([]);
+  });
+
+  /**
+   * ***A removed account's archives and trash stay behind too.*** Removal moves
+   * the directory whole to `removed/`, so they used to be archived from there:
+   * every install archive, `redacted` ones included, carried the removed
+   * account's own full archives with their provider keys in them.
+   *
+   * Catches: dropping the `removed/` rule from `alwaysSkipped`.
+   */
+  it('leaves a removed account’s archives and trash behind, redacted or not', async () => {
+    for (const contents of ['full', 'redacted'] as const) {
+      const record = await takeBackup(context, { owner: INSTALL, contents, reason: 'manual' });
+      const found = await findBackup(context, INSTALL, record.id);
+      const names = [...(await membersOf(found!.path)).keys()];
+
+      expect(names.filter((name) => name.startsWith('removed/old-0199/backups'))).toEqual([]);
+      expect(names.filter((name) => name.startsWith('removed/old-0199/trash'))).toEqual([]);
+    }
+  });
+
+  /**
+   * ***No room, found before anything is written*** (2026-09-27). A backup used
+   * to learn it did not fit by filling the disk, as a `.part` grown until
+   * `ENOSPC` and then unlinked: for that moment the server could not save a
+   * turn. Nor may the snapshot be written first, because it is a full copy of
+   * the operational store.
+   *
+   * Catches: a room check after the snapshot, or none.
+   */
+  it('refuses a backup there is no room for, and writes nothing to find out', async () => {
+    const full = { ...context, freeBytes: () => Promise.resolve(1024 * 1024) };
+    const before = await listTreeFiles(layout.backupsRoot);
+    // The snapshot would be unlinked again afterwards, so it is caught asking.
+    const exec = vi.spyOn(state, 'exec');
+
+    await expect(
+      takeBackup(full, { owner: INSTALL, contents: 'full', reason: 'manual' }),
+    ).rejects.toBeInstanceOf(BackupSpaceError);
+
+    expect(await listTreeFiles(layout.backupsRoot)).toEqual(before);
+    expect(exec.mock.calls.filter(([sql]) => sql.includes('VACUUM INTO'))).toEqual([]);
+  });
+
+  /** A disk that will not say how much is free is not a full one. */
+  it('takes one when the disk will not say how much room there is', async () => {
+    const unknown = { ...context, freeBytes: () => Promise.resolve(null) };
+
+    const record = await takeBackup(unknown, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+
+    expect(record.bytes).toBeGreaterThan(0);
+  });
+
+  /**
+   * ***What a killed backup leaves, and only that.*** The `finally`s that
+   * remove a `.part` and a snapshot do not run in a process that was killed,
+   * so both used to stay for good: invisible to the listing, and as large as
+   * what they copied.
+   *
+   * Catches: a sweep that misses a home, and one that takes anything else.
+   */
+  it('sweeps what an interrupted backup left, and nothing else', async () => {
+    await put('backups/install-full-2026-09-27-x.tar.gz.part', 'half an archive');
+    await put('users/ned/backups/account-ned-full-2026-09-27-x.tar.gz.part', 'half of theirs');
+    await put('state/state.snapshot-0199aaaa.sqlite', 'a copy of the store');
+    await put('users/@eaDir/backups/thumbs.part', 'a NAS indexer’s, not ours');
+
+    expect(await sweepAbandonedBackups(layout)).toBe(3);
+
+    const left = [
+      ...(await listTreeFiles(layout.backupsRoot)),
+      ...(await listTreeFiles(layout.userBackupsRoot('ned'))),
+      ...(await listTreeFiles(layout.stateRoot)),
+    ].map((file) => file.name);
+    expect(left.filter((name) => name.endsWith('.part') || name.includes('snapshot'))).toEqual([]);
+    // The finished archives and the live store stay.
+    expect(left).toContain('install-full-2026-09-01-x.tar.gz');
+    expect(left).toContain('account-ned-full-2026-09-01-x.tar.gz');
+    expect(left).toContain('state.sqlite');
   });
 
   /** An archive of the archives makes every generation carry every one before it. */

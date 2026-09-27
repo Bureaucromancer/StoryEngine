@@ -60,6 +60,20 @@ From the inside, three of the four consistency questions are already answered:
   the one file a crash can leave half-written."* A restored install drops the
   partial turn and keeps the story.
 
+*Corrected 2026-09-27, by the audit that fixed it.* **The second bullet was true
+of a reader that opens a file once, and the archive writer was not one.** It
+took each file's size from the walk and opened the file later, by path, so a
+save in between put a *different file* under a header describing the old one:
+cut off, or padded with NULs, which is JSON that will not parse, in a backup
+that reported success. Each member is now sized from the handle it is read
+through (`writeTarGz`), which pins the file a rename would otherwise swap. Three
+smaller things went with it. A backup that did not fit found out by filling the
+disk, and a scheduled one did so hourly: it now checks for room before the
+snapshot (`507 no-space` from the route), and a failing scope is announced once.
+A removed account's archives and trash were archived from `removed/`, keys and
+all, `redacted` or not, and are now left out like the live ones'. And what a
+killed backup left, a `.part` and a copy of the store, is swept at the next boot.
+
 So the in-process backup is **strictly more consistent** than
 `pnpm backup create`, not less. E6's sentence was true of the thing E6 was
 describing and does not generalise to this.

@@ -3,7 +3,7 @@
 
 import { once } from 'node:events';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { rename } from 'node:fs/promises';
+import { open, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -36,7 +36,13 @@ import {
  * one file's chunk plus gzip's window, whatever the archive weighs.
  */
 
-/** A member: bytes we hold, or a file we will stream. */
+/**
+ * A member: bytes we hold, or a file we will stream.
+ *
+ * *A file's `size` is the walk's*, and only an estimate: it goes into the
+ * manifest's `unpackedBytes`. The header takes the size of the file actually
+ * opened. See `writeTarGz`.
+ */
 export type ArchiveMember =
   { name: string; bytes: Uint8Array } | { name: string; path: string; size: number };
 
@@ -78,45 +84,61 @@ export async function writeTarGz(
   let bytes = 0;
   try {
     for (const member of members) {
-      const size = 'bytes' in member ? member.bytes.length : member.size;
-      await push(gzip, tarHeader(member.name, size, { mtime: mtimeSeconds }));
-
       if ('bytes' in member) {
+        const size = member.bytes.length;
+        await push(gzip, tarHeader(member.name, size, { mtime: mtimeSeconds }));
         await push(gzip, member.bytes);
-      } else if (size > 0) {
-        /**
-         * ***Exactly `size` bytes, whatever the file turns out to hold.***
-         *
-         * The length was declared in the header a moment ago and the file is
-         * live: a turn segment may have grown between the `stat` and this read,
-         * and an archive whose member is longer than its header says is not a
-         * slightly-wrong archive but an unreadable one — every later member
-         * lands at the wrong offset.
-         *
-         * **Growing is the realistic case and truncating is the right answer to
-         * it.** Segments are append-only, so a prefix is a whole number of
-         * complete turns plus possibly a partial last line, and
-         * `sessions/segments.ts` already drops a line that does not parse
-         * *"because a segment is the one file a crash can leave half-written."*
-         * Shrinking should not happen — library writes are temp-and-rename, so
-         * the inode we opened does not change under us — and the padding below
-         * is there because *should not* is not a guarantee to build a file
-         * format on.
-         */
-        let written = 0;
-        for await (const chunk of createReadStream(member.path, { end: size - 1 })) {
-          const slice = (chunk as Uint8Array).subarray(0, size - written);
-          if (slice.length === 0) break;
-          await push(gzip, slice);
-          written += slice.length;
-        }
-        if (written < size) await push(gzip, new Uint8Array(size - written));
+        const pad = padding(size);
+        if (pad > 0) await push(gzip, new Uint8Array(pad));
+        files += 1;
+        bytes += size;
+        continue;
       }
 
-      const pad = padding(size);
-      if (pad > 0) await push(gzip, new Uint8Array(pad));
-      files += 1;
-      bytes += size;
+      /**
+       * ***Sized from the handle that is read, not from the walk*** (corrected
+       * 2026-09-27).
+       *
+       * The header used to take the size the walk saw, and the file was opened
+       * by path afterwards. Every library and session JSON is written by temp
+       * and rename, so a save between the walk and the read put a *different
+       * file* at the path: longer, and the archive carried it cut off mid-token;
+       * shorter, and it carried it padded with NULs. Either is JSON that will
+       * not parse, in a backup that reported success. The old note here said
+       * *"the inode we opened does not change under us"*, which was true of
+       * nothing, because nothing was open when the size was chosen.
+       *
+       * **Opened first, then sized, then read**, and the handle pins the inode:
+       * a rename after the open replaces the name and not what this is reading.
+       * What can still change is an append (a turn segment), so exactly `size`
+       * bytes are read, which is a whole number of turns plus at most a partial
+       * last line that `sessions/segments.ts` already drops. Shrinking needs a
+       * truncate in place, which nothing here does, and is padded rather than
+       * trusted not to happen, because a member shorter than its header shifts
+       * every member after it.
+       */
+      const handle = await open(member.path, 'r');
+      try {
+        const { size } = await handle.stat();
+        await push(gzip, tarHeader(member.name, size, { mtime: mtimeSeconds }));
+        let written = 0;
+        if (size > 0) {
+          const reader = handle.createReadStream({ start: 0, end: size - 1, autoClose: false });
+          for await (const chunk of reader) {
+            const slice = (chunk as Uint8Array).subarray(0, size - written);
+            if (slice.length === 0) break;
+            await push(gzip, slice);
+            written += slice.length;
+          }
+        }
+        if (written < size) await push(gzip, new Uint8Array(size - written));
+        const pad = padding(size);
+        if (pad > 0) await push(gzip, new Uint8Array(pad));
+        files += 1;
+        bytes += size;
+      } finally {
+        await handle.close();
+      }
     }
 
     gzip.end(trailer());
@@ -193,7 +215,16 @@ export interface ReadMember {
  * fortnight. `pipe` does not propagate a destroy, so both ends are named.
  */
 export async function* readTarGz(path: string): AsyncGenerator<ReadMember> {
-  let held = new Uint8Array(0);
+  /**
+   * ***The inflated bytes not yet taken, as the chunks they arrived in.***
+   * This used to be one array, reallocated and copied whole on every chunk, so
+   * a member arriving in 64 KiB chunks was copied once per chunk, in full each
+   * time: quadratic, and a large rendition in an archive took seconds of
+   * copying to read. Now each chunk is kept as it came and copied once, into
+   * the member that takes it.
+   */
+  const pending: Uint8Array[] = [];
+  let buffered = 0;
   let done = false;
 
   const file = createReadStream(path);
@@ -211,30 +242,44 @@ export async function* readTarGz(path: string): AsyncGenerator<ReadMember> {
   });
   const chunks = source[Symbol.asyncIterator]();
 
-  /** Fills `held` to at least `want` bytes, or gives up at the end of the stream. */
+  /** Buffers at least `want` bytes, or gives up at the end of the stream. */
   const fill = async (want: number): Promise<boolean> => {
-    while (held.length < want && !done) {
+    while (buffered < want && !done) {
       const next = await chunks.next();
       if (next.done === true) {
         done = true;
         break;
       }
       const chunk = next.value as Uint8Array;
-      const grown = new Uint8Array(held.length + chunk.length);
-      grown.set(held, 0);
-      grown.set(chunk, held.length);
-      held = grown;
+      pending.push(chunk);
+      buffered += chunk.length;
     }
-    return held.length >= want;
+    return buffered >= want;
   };
 
+  /**
+   * The next `count` bytes, as a copy of their own: a member handed out as a
+   * view onto a chunk this loop keeps would change under its reader.
+   */
   const take = (count: number): Uint8Array => {
-    const slice = held.subarray(0, count);
-    held = held.subarray(count);
-    // Copied, because `subarray` is a view onto a buffer this loop keeps
-    // replacing — a member handed out by reference would change under its
-    // reader.
-    return new Uint8Array(slice);
+    const out = new Uint8Array(count);
+    let at = 0;
+    while (at < count) {
+      const head = pending[0];
+      if (head === undefined) break;
+      const want = count - at;
+      if (head.length <= want) {
+        out.set(head, at);
+        at += head.length;
+        pending.shift();
+      } else {
+        out.set(head.subarray(0, want), at);
+        pending[0] = head.subarray(want);
+        at += want;
+      }
+    }
+    buffered -= at;
+    return out;
   };
 
   try {
