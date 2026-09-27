@@ -117,22 +117,80 @@ describe('what a session is prompted with', () => {
     renderPanel();
     const user = await open();
 
-    // One character, deliberately. The control is fed from the session query
-    // and the fixture never changes, so the value does not round-trip here the
-    // way it does against a real server — typing two digits would send `1` and
-    // then `0`, which is an artefact of the stub rather than of the panel.
-    await user.type(screen.getByLabelText(/Maximum reply length/), '9');
+    // Three characters and one write, on Enter. ~~One character, deliberately~~:
+    // the control used to write on every keystroke, so typing `400` sent `4`,
+    // `40` and `400`, and a test typing one character was working around the
+    // bug rather than an artefact of the stub (2026-09-27).
+    await user.type(screen.getByLabelText(/Maximum reply length/), '400{Enter}');
 
-    expect(setSessionPreset).toHaveBeenCalled();
+    expect(setSessionPreset).toHaveBeenCalledTimes(1);
     const [, body] = setSessionPreset.mock.calls.at(-1) as [
       string,
       { preset: Record<string, unknown> },
     ];
-    expect((body.preset['params'] as Record<string, unknown>)['maxTokens']).toBe(9);
+    expect((body.preset['params'] as Record<string, unknown>)['maxTokens']).toBe(400);
     // Untouched fields ride through: the route takes the whole pack, so a panel
     // that rebuilt it from its own two controls would silently drop the rest.
     expect((body.preset['params'] as Record<string, unknown>)['temperature']).toBe(0.8);
     expect(body.preset['name']).toBe('Scene');
+  });
+
+  /**
+   * ***A decimal, typed*** (2026-09-27). `0.75` passes through `0` and `0.` on
+   * the way, and writing each of those sent a zero and then a string that is not
+   * a number.
+   */
+  it('sends the temperature typed, once, when the box is left', async () => {
+    renderPanel();
+    const user = await open();
+
+    const temperature = screen.getByLabelText(/Temperature/);
+    await user.clear(temperature);
+    await user.type(temperature, '0.75');
+    expect(setSessionPreset).not.toHaveBeenCalled();
+    await user.tab();
+
+    expect(setSessionPreset).toHaveBeenCalledTimes(1);
+    const [, body] = setSessionPreset.mock.calls[0] as [
+      string,
+      { preset: Record<string, unknown> },
+    ];
+    expect(body.preset['params']).toEqual({ temperature: 0.75 });
+  });
+
+  it('says what a reply length has to be, and sends nothing until it is one', async () => {
+    renderPanel();
+    const user = await open();
+
+    await user.type(screen.getByLabelText(/Maximum reply length/), '0.5{Enter}');
+
+    expect(await screen.findByText('A whole number of tokens, 1 or more.')).toBeTruthy();
+    expect(setSessionPreset).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ***The second write builds on the first*** (2026-09-27). Every write sends
+   * the whole pack from the session in the cache, and the cache caught up only
+   * when the refetch after a write landed — so a second write made while the
+   * first was on its way put the first back.
+   */
+  it('builds a second setting on the first while the first is still on its way', async () => {
+    setSessionPreset.mockImplementationOnce(() => new Promise(() => undefined));
+    renderPanel();
+    const user = await open();
+
+    const temperature = screen.getByLabelText(/Temperature/);
+    await user.clear(temperature);
+    await user.type(temperature, '0.75{Enter}');
+    await user.type(screen.getByLabelText(/Maximum reply length/), '400{Enter}');
+
+    const sent = setSessionPreset.mock.calls.map(
+      (call) => (call[1] as { preset: { params: Record<string, unknown> } }).preset.params,
+    );
+    expect(sent.find((params) => params['maxTokens'] === 400)).toEqual({
+      temperature: 0.75,
+      maxTokens: 400,
+    });
   });
 
   it('archives through the field the client was already able to send', async () => {

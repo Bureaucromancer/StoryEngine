@@ -638,13 +638,42 @@ export function useSetSessionPreset(
 ): UseMutationResult<
   { session: SessionSummary },
   Error,
-  { presetId: string } | { preset: Record<string, unknown> }
+  { presetId: string } | { preset: Record<string, unknown> },
+  { previous: { session: SessionSummary } | undefined }
 > {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: { presetId: string } | { preset: Record<string, unknown> }) =>
       setSessionPreset(sessionId, body),
-    onSuccess: () => {
+    /**
+     * ***The pack as written, at once*** (2026-09-27) — `usePatchPrefs`' pattern.
+     *
+     * Every write here sends the whole pack, built from the session in this
+     * cache. The cache used to catch up only when the refetch after the write
+     * landed, so a second write made before then — the maximum length changed
+     * just after the temperature, or a block saved just after either — was
+     * built from the pack as it was before the first, and put the first back.
+     * The pack the person sent is the cache's until the server's answer
+     * replaces it, and a write that fails puts the old one back.
+     *
+     * *Only for a pack sent whole.* Switching to a library preset is the
+     * server's copy to make, and there is nothing to show until it has.
+     */
+    onMutate: async (body) => {
+      if (!('preset' in body)) return { previous: undefined };
+      await client.cancelQueries({ queryKey: ['session', sessionId] });
+      const previous = client.getQueryData<{ session: SessionSummary }>(['session', sessionId]);
+      client.setQueryData<{ session: SessionSummary }>(['session', sessionId], (held) =>
+        held === undefined ? held : { ...held, session: { ...held.session, preset: body.preset } },
+      );
+      return { previous };
+    },
+    onError: (_failure, _body, context) => {
+      if (context?.previous !== undefined) {
+        client.setQueryData(['session', sessionId], context.previous);
+      }
+    },
+    onSettled: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       // The pack decides what the next turn assembles from, so a composed
       // preview built over the old one is stale the moment this lands.
@@ -785,7 +814,33 @@ export function useSetMemoryConfig(
   const client = useQueryClient();
   return useMutation({
     mutationFn: (config: MemoryConfig) => setMemoryConfig(sessionId, config),
-    onSuccess: () => {
+    onSuccess: (answer) => {
+      /**
+       * ***The switches read the answer before they are live again***
+       * (2026-09-27). This settles, and the switches re-enable, as soon as the
+       * write lands — and the next write is built whole from this cache entry,
+       * so while it still held the config from before, a second switch sent the
+       * first one straight back: *Share memories* turned on and then, one click
+       * later, off again with nothing on screen saying so.
+       *
+       * The config and each row's association come from the answer. `effective`
+       * and the books are left for the refetch: they are derived on the server,
+       * and deriving them here is what `panel.ts` warns against. An entry this
+       * cache does not hold stays absent, which covers *Start isolated*, whose
+       * page has no panel.
+       */
+      client.setQueryData<MemoryPanel>(['session-memory', sessionId], (held) =>
+        held === undefined
+          ? held
+          : {
+              ...held,
+              config: answer.memory,
+              others: held.others.map((row) => ({
+                ...row,
+                association: answer.memory.associations[row.sessionId] ?? 'auto',
+              })),
+            },
+      );
       // The panel, because `effective` is derived from what just changed; and
       // the session, because the file did.
       void client.invalidateQueries({ queryKey: ['session-memory', sessionId] });
