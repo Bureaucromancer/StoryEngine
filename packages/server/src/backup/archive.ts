@@ -12,8 +12,8 @@ import {
   type BackupManifest,
   type BackupReason,
   type BackupScope,
+  createUuidv7,
   type ImportNote,
-  uuidv7,
   uuidv7Timestamp,
 } from '@storyengine/shared';
 
@@ -28,6 +28,7 @@ import {
   unlinkFile,
   type TreeFile,
 } from '../storage/files.js';
+import { KeyedQueue } from '../storage/keyed-queue.js';
 import { assertValidHandle, INSTANCE_LOCK_NAME, type Layout } from '../storage/layout.js';
 import { TarNameError, splitName } from '../storage/tar.js';
 import { readTarGz, writeTarGz, type ArchiveMember } from '../storage/tar-archive.js';
@@ -272,6 +273,20 @@ function credentialPath(name: string): boolean {
 }
 
 /**
+ * ***One backup at a time on a data directory*** (2026-09-27).
+ *
+ * The route's header said *the queue serialises them*, and the only queue was
+ * the schedule's, keyed per scope and never reached by the route. So a person
+ * pressing *Back up now* while the hourly pass was writing, or two people
+ * pressing it, wrote two archives at once. Each measured the room it needed as
+ * if it were the only one ([`assertRoom`]), and each snapshot of the
+ * operational store is the size of the store. Keyed by the data root, so every
+ * caller in this process waits its turn, and the route waits rather than
+ * refusing: a person asking for a copy of their work gets one.
+ */
+const backups = new KeyedQueue();
+
+/**
  * Takes one backup and answers what it wrote.
  *
  * The sequence is **metadata, then manifest, then bytes**, and the order is
@@ -283,10 +298,27 @@ export async function takeBackup(
   context: BackupContext,
   request: BackupRequest,
 ): Promise<BackupRecord> {
+  return backups.run(context.layout.dataRoot, () => takeBackupNow(context, request));
+}
+
+async function takeBackupNow(
+  context: BackupContext,
+  request: BackupRequest,
+): Promise<BackupRecord> {
   const { owner, contents } = request;
   if (owner.kind === 'account') assertValidHandle(owner.handle);
 
-  const id = uuidv7();
+  /**
+   * ***Stamped with the time it was taken, whatever came before*** (2026-09-27).
+   * The shared generator is monotonic: after the clock steps back it goes on
+   * minting at the last millisecond it used, so every archive after a clock
+   * that was once ahead carried that time. The newest archive then stood in
+   * the future, the schedule measured *due* from it, and nothing was due until
+   * the clock caught up, weeks or years later. A generator of its own starts
+   * from the clock each time; two archives in one millisecond still differ in
+   * their random bits.
+   */
+  const id = createUuidv7()(Date.now());
   const takenAt = uuidv7Timestamp(id) ?? Date.now();
   const omitted: ImportNote[] = [
     note('backup.omitted.index'),

@@ -125,6 +125,14 @@ export function backupDue(
   return null;
 }
 
+/**
+ * ***How far ahead of the clock an archive's own time may be and still count as
+ * the newest*** (2026-09-27). A little, for a clock NTP has just nudged back;
+ * no more, because an archive stamped in the future made nothing due until the
+ * clock reached it (see {@link startBackupSchedule}'s `consider`).
+ */
+export const FUTURE_SKEW_MS = 10 * 60 * 1000;
+
 export function startBackupSchedule(
   context: ScheduleContext,
   intervalMs: number = BACKUP_TICK_MS,
@@ -132,10 +140,16 @@ export function startBackupSchedule(
 ): BackupSchedule {
   let stopped = false;
   /**
-   * Keyed by scope, so two passes overlapping cannot write one scope twice and
-   * a slow install archive does not hold up anybody's own.
+   * Keyed by scope, so two passes overlapping cannot write one scope twice.
+   * ~~and a slow install archive does not hold up anybody's own~~ *Corrected
+   * 2026-09-27:* a pass takes the install's archive before anybody's own, and
+   * `takeBackup` now writes one archive at a time on a data directory, so a
+   * slow one does hold the rest up, which is what keeps two from sizing the
+   * disk for themselves alone.
    */
   const queue = new KeyedQueue();
+  /** Scopes whose newest archive was stamped in the future, said once each. */
+  const skewed = new Set<string>();
 
   const keyOf = (owner: BackupOwner): string =>
     owner.kind === 'install' ? 'install' : `account:${owner.handle}`;
@@ -157,7 +171,24 @@ export function startBackupSchedule(
   ): Promise<BackupRecord | null> {
     return queue.run(keyOf(owner), async () => {
       if (stopped) return null;
-      const newest = (await listBackups(context.backups, owner))[0] ?? null;
+      /**
+       * ***The newest archive that is not from the future*** (2026-09-27). An
+       * archive's time is read from its id, and one taken while the clock was
+       * ahead stays ahead once it is put right. Measured from it, `now` minus
+       * the newest was negative, so no frequency was ever due and no boot
+       * either: backups stopped, silently, until the clock caught up. Such an
+       * archive is passed over for the decision and said once in the log; it
+       * is still listed, and still somebody's to download.
+       */
+      const listed = await listBackups(context.backups, owner);
+      const newest = listed.find((one) => one.takenAt <= now + FUTURE_SKEW_MS) ?? null;
+      if (newest !== listed[0] && !skewed.has(keyOf(owner))) {
+        skewed.add(keyOf(owner));
+        context.log(
+          { event: 'backup.futureStamped', scope: owner.kind },
+          'The newest backup is dated in the future, so the schedule measures from the one before it',
+        );
+      }
       const reason = backupDue(settings, newest?.takenAt ?? null, now, pass);
       if (reason === null) return null;
 

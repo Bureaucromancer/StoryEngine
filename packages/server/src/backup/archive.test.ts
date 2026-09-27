@@ -226,6 +226,38 @@ describe('an install backup', () => {
     expect(exec.mock.calls.filter(([sql]) => sql.includes('VACUUM INTO'))).toEqual([]);
   });
 
+  /**
+   * ***One at a time*** (2026-09-27). The route said *the queue serialises
+   * them*, and the only queue was the schedule's, per scope, which the route
+   * never reached. Two archives written at once each measured the room for
+   * itself alone. The room check is the first thing a backup asks, so it is
+   * held open here, and the second must not ask until the first is done.
+   */
+  it('writes two asked for at once one after the other', async () => {
+    let asked = 0;
+    let letTheFirstGo: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      letTheFirstGo = resolve;
+    });
+    const slow = {
+      ...context,
+      freeBytes: async () => {
+        asked += 1;
+        if (asked === 1) await held;
+        return null;
+      },
+    };
+
+    const first = takeBackup(slow, { owner: INSTALL, contents: 'full', reason: 'manual' });
+    const second = takeBackup(slow, { owner: NED, contents: 'full', reason: 'manual' });
+    await new Promise((tick) => setTimeout(tick, 50));
+    expect(asked).toBe(1);
+
+    letTheFirstGo();
+    await Promise.all([first, second]);
+    expect(asked).toBe(2);
+  });
+
   /** A disk that will not say how much is free is not a full one. */
   it('takes one when the disk will not say how much room there is', async () => {
     const unknown = { ...context, freeBytes: () => Promise.resolve(null) };

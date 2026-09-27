@@ -198,6 +198,19 @@ parses filenames rather than reading a table: **the directory is the record.**
 an hour and a machine that is up for a month want different halves and a machine
 that is usually up wants both.
 
+*Added 2026-09-27:* **the directory is the record only while its dates are
+true.** An archive's time is read from its id, and the shared id generator is
+monotonic, so after a clock that had been ahead was put right, every archive
+went on carrying the time it had reached. The newest stood in the future,
+*older than the frequency* was never true, and scheduled backups stopped
+without a word until the clock caught up. Each archive now takes its id from a
+generator of its own, so it carries the time it was taken; and the schedule
+measures from the newest archive that is not more than ten minutes ahead of
+the clock, and logs `backup.futureStamped` once when that is not the newest
+listed. And the route's *the queue serialises them* had no queue behind it:
+`takeBackup` now writes one archive at a time on a data directory, whoever
+asked.
+
 ### 1.5 A feature in its own document, and a branch that is not `p12`
 
 [P11 §1.1](28-p11-implementation.md)'s rule ejects features from a hardening

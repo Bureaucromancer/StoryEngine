@@ -87,6 +87,9 @@ function restartMessage(refusal: RestartRefusal): string {
  * how a data directory fills up while nobody is looking. A person pressing a
  * button is not that: they are asking for their own work, the queue serialises
  * them, and refusing would be refusing somebody a copy of what they wrote.
+ * *(Corrected 2026-09-27: the only queue was the schedule's, per scope, and
+ * this route never reached it. `takeBackup` now writes one archive at a time
+ * on a data directory, whoever asked, and a press waits its turn.)*
  */
 
 /**
