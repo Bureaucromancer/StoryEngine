@@ -5,6 +5,7 @@ import type { Preset } from '@storyengine/shared';
 
 import type { Rng } from '../rng/rng.js';
 import { channelKey, keyBelongsTo, scopeKeyOf, SE_LORE_TIMING } from '../sessions/channels.js';
+import { storyDepth } from '../sessions/depth.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
 import type { EffectProposal } from '../turns/effects.js';
 import type { CastMember } from '../turns/cast.js';
@@ -79,8 +80,12 @@ export function retrieve(context: RetrieveContext): Retrieved {
      * while *how far into this story are we* is a fact about the whole path.
      * An entry set to wait twenty messages must not fire on turn three of a
      * session whose window happens to be twenty.
+     *
+     * *Story turns of it* (`depth.ts`, 2026-09-27): a HUD edit or a backdrop
+     * choice is a turn on the path and not a message anybody wrote, and
+     * counting them let an entry out early.
      */
-    messagesSoFar: context.history.length,
+    messagesSoFar: storyDepth(context.history),
     timing: timingFrom(context.channels),
     filters: {
       actorIds: castIds(context),

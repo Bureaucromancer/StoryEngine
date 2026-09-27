@@ -3393,10 +3393,13 @@ relaxed: the value arrived the day something could produce it.*
   without the first.
 - ***Patience is bounded and the deadline is a lapse.*** Three turns, a constant
   rather than a setting because *"a number nobody has played against is a guess,
-  not a tunable"*. The count is written out as `chances = path.length - made`
-  with the off-by-one argued in place: the commitment's own turn is the channel
-  write, which runs no selector, so the first chance is the turn after it. A
-  fourth would be due at `chances > 3`, and that is where it lapses — *"one that
+  not a tunable"*. The count is written out as ~~`chances = path.length - made`~~
+  `chances = storyDepth(path.slice(made + 1)) + 1` (2026-09-27: the path's
+  length counted every channel write after the commitment as a chance, and none
+  of them ran the selector — [06 §6.1]'s dated note) with the off-by-one argued
+  in place: the commitment's own turn is the channel write, which runs no
+  selector, so the first chance is the turn after it. A fourth would be due at
+  `chances > 3`, and that is where it lapses — *"one that
   fires anyway at the deadline delivers the twist at the exact moment the
   selector has already rejected three times"*.
 - ***Counted on the path.*** `committedAt` walks the path for the effect rather

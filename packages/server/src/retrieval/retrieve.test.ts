@@ -55,6 +55,17 @@ function turnOf(input: string, output: string): Turn {
   } as unknown as Turn;
 }
 
+/** A turn nothing narrated — a channel write, an undo, a backdrop choice. */
+function editOf(): Turn {
+  return {
+    id: uuidv7(),
+    parentTurnId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'complete',
+    effects: [],
+  } as unknown as Turn;
+}
+
 function run(
   books: LoreSource[],
   edits: Partial<RetrieveContext> = {},
@@ -145,6 +156,26 @@ describe('retrieve', () => {
 
     expect(result.blocks).toEqual([]);
     expect(result.scan.skipped.find((one) => one.entry.name === 'Later')?.reason).toBe('delayed');
+  });
+
+  /**
+   * ***The story's length, not the path's*** (2026-09-27) — `sessions/depth.ts`.
+   * A HUD edit or a backdrop choice is a turn on the path and no message anybody
+   * wrote, and counting them let an entry out early.
+   */
+  it('counts only the turns of the story towards a delay', () => {
+    const entry = entryOf('Later', { keys: ['ferryman'], content: 'Found.', delay: 3 });
+    const history = [turnOf('a', 'b'), editOf(), turnOf('c', 'd'), editOf()];
+
+    const early = run([bookOf([entry])], { history, input: { text: 'the ferryman' } });
+    expect(early.scan.skipped.find((one) => one.entry.name === 'Later')?.reason).toBe('delayed');
+
+    const due = run([bookOf([entry])], {
+      history: [...history, turnOf('e', 'f')],
+      input: { text: 'the ferryman' },
+    });
+    expect(due.scan.skipped.find((one) => one.entry.name === 'Later')).toBeUndefined();
+    expect(due.blocks).toHaveLength(1);
   });
 
   describe('the gating filters', () => {

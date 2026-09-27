@@ -8,6 +8,7 @@ import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
+import { storyDepth } from '../sessions/depth.js';
 import type { SessionContext } from '../sessions/store.js';
 import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
@@ -144,7 +145,7 @@ export async function previewAssembly(
    * turn that is not happening would have activated.
    */
   const gate = evaluateCondition(step.when, {
-    turnsOnPath: inputs.history.length,
+    turnsOnPath: storyDepth(inputs.history),
     stages: new Set<string>(),
     armed: new Set<string>(),
   });

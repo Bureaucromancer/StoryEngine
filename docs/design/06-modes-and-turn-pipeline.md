@@ -806,6 +806,22 @@ Three rules keep it honest.
   with one turn already spent — which only holds if the count is derived from the
   path rather than stored.
 
+  *(2026-09-27)* **The turns every count here reads are turns of the story** — a
+  turn somebody took, which has an input, an output, or the steps a job ran. The
+  path also holds turns nothing narrated: a channel write (a HUD edit, this
+  dial, a commitment), an undo, a divergence, a *Remember this*, a backdrop
+  choice, each a change to the record that has to branch like one. Until this
+  date every count read the path's length and so counted those too: a hook
+  authored `notBefore: { turn: 12 }` came in at the ninth turn of a session with
+  a few HUD edits, turning the dial moved the cadence it was turning, and two
+  edits after a commitment spent two of its three chances. The counts are still
+  derived from the path (`sessions/depth.ts`), which keeps the rewind argument
+  above true, and skip what nobody narrated. The same reading now holds for a
+  step's `everyNTurns` (§6), `list`'s speaker rotation and a lore entry's
+  `delay`. *Not yet for the history window*, which still takes the last N turns
+  of the path: it has to move with the summary chain's boundary, or the two
+  overlap or leave a gap between them.
+
 **Force-fire** is the authoring affordance above, and it stays what it sounds
 like: the hook is delivered on the next turn with no judgement call at all. *The
 alternative was considered and declined.* A scratch preview that generates

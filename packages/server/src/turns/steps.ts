@@ -50,7 +50,11 @@ export type {
 
 /** What the runner knows about the turn when it evaluates a condition. */
 export interface ConditionContext {
-  /** How many turns are on the path to the head, before this one. */
+  /**
+   * How many story turns are on the path to the head, before this one — a
+   * channel write or a backdrop choice is on the path and is not one
+   * (`sessions/depth.ts`).
+   */
   turnsOnPath: number;
   /** Stage flags the mode has raised. Empty until P2.6 supplies a mode. */
   stages: ReadonlySet<string>;

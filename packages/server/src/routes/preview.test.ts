@@ -5,8 +5,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import type { Mode } from '@storyengine/sdk';
+
+import { registerMode } from '../mode-registry.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
+import { TEST_MODE, TEST_MODE_DEFINITION, TEST_STEP } from '../test-mode.js';
 import {
   newLorebook,
   newLoreEntry,
@@ -207,6 +211,55 @@ describe('a preview with nothing bound', () => {
       reason: string;
     };
     expect(answer.reason).toBe('role-dangling');
+  });
+});
+
+/**
+ * ***A preview asks the turn's question about cadence, in the turn's count***
+ * (2026-09-27) — `sessions/depth.ts`.
+ *
+ * The preview evaluates the prose step's condition so it can say *not this
+ * turn* instead of measuring a call that will not happen, and it counted the
+ * path's length the way the runner did. A channel write is a turn on the path
+ * and not one of the story, so a mode narrating every other turn was measured
+ * as narrating the first one.
+ */
+describe('a preview of a step that does not run every turn', () => {
+  const EVERY_OTHER_ID = 'storyengine.test.every-other';
+  const EVERY_OTHER: Mode = {
+    definition: {
+      ...TEST_MODE_DEFINITION,
+      id: EVERY_OTHER_ID,
+      displayName: 'Engine test fixture — every other turn',
+      steps: [{ ...TEST_STEP, when: { when: 'cadence', everyNTurns: 2 } }],
+    },
+    run: TEST_MODE.run,
+  };
+
+  it('counts the turns of the story, not a channel write before them', async () => {
+    registerMode(EVERY_OTHER);
+    await bindProse();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Alternate', mode: EVERY_OTHER_ID },
+    });
+    expect(created.status).toBe(201);
+    sessionId = created.body.session.id as string;
+
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.hook.pacing`,
+      payload: { value: 'sparse' },
+    });
+    expect(written.status).toBe(200);
+
+    // The first turn of the story, with a dial change before it: not the second.
+    const answer = (await preview({ input: { text: 'Look.' } })).body.preview as {
+      state: string;
+      reason?: string;
+    };
+    expect(answer).toMatchObject({ state: 'unmeasurable', reason: 'not-this-turn' });
   });
 });
 

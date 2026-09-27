@@ -13,6 +13,7 @@ import type {
 
 import { introducedOn, isTerminal, readParty, readStatus } from './cast.js';
 import { channelKey, initialValue } from './channels.js';
+import { storyDepth } from './depth.js';
 import { levelFragments } from './dials.js';
 import { isHookSource } from './pool-shape.js';
 import type { PooledHook, Turn } from './types.js';
@@ -215,7 +216,10 @@ export interface HookVerdict {
 export interface FilterContext {
   /** Channel state at the node being judged. */
   channels: Readonly<Record<string, { value: unknown }>>;
-  /** The path to that node — `notBefore.turn` and *introduced* are both counted on it. */
+  /**
+   * The path to that node — `notBefore.turn` and *introduced* are both read
+   * from it, the first in story turns (`depth.ts`).
+   */
   path: readonly Turn[];
   /** Lorebook ids the session currently has in play. */
   activeBooks: ReadonlySet<string>;
@@ -312,7 +316,11 @@ function refuse(
 
   const notBefore = hook.notBefore;
   if (notBefore !== undefined) {
-    if (notBefore.turn !== undefined && context.path.length < notBefore.turn) return 'too-early';
+    // Story turns, not the path's length: a HUD edit or a backdrop choice is a
+    // turn on the path and not a turn of the story (`depth.ts`, 2026-09-27).
+    if (notBefore.turn !== undefined && storyDepth(context.path) < notBefore.turn) {
+      return 'too-early';
+    }
     if (notBefore.afterHook !== undefined && !fired.has(notBefore.afterHook)) return 'too-early';
   }
 
@@ -555,9 +563,12 @@ export type GateVerdict = 'held' | 'cooling' | 'nothing-eligible' | 'judged';
  */
 export function gate(options: {
   pacing: HookPacing;
-  /** Turns on the path to the node being judged. */
+  /** Story turns on the path to the node being judged (`depth.ts`). */
   depth: number;
-  /** How deep the most recent firing sits on that path, or null for none. */
+  /**
+   * How many story turns came before the most recent firing, on the same
+   * scale, or null for none.
+   */
   firedAt: number | null;
   /** Whether stage one left anything to judge. */
   eligible: number;

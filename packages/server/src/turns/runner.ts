@@ -74,6 +74,7 @@ import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
+import { storyDepth } from '../sessions/depth.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
@@ -730,7 +731,9 @@ export class TurnRunner {
           actors: cast.actors,
           persona: cast.persona?.actor.id ?? null,
           channels: running,
-          depth: history.length,
+          // Story turns: a rotation that counted a HUD edit as a turn skipped
+          // whoever's turn it was (`depth.ts`, 2026-09-27).
+          depth: storyDepth(history),
           draw: rng.at('se.participants', 'speaker'),
           ...(payload.input === undefined
             ? {}
@@ -1246,9 +1249,16 @@ export class TurnRunner {
           }
         : withMemory;
 
+    /**
+     * **Story turns, once for the loop** (`depth.ts`, 2026-09-27). The path's
+     * length counted channel writes, undos and backdrop choices, so memory
+     * extraction *every eight turns* ran at whatever story turn the bookkeeping
+     * had shifted the modulus to, and could skip a whole stretch.
+     */
+    const turnsOnPath = storyDepth(history);
     for (const { definition, run } of withRender.steps) {
       const decision = evaluateCondition(definition.when, {
-        turnsOnPath: history.length,
+        turnsOnPath,
         stages: new Set<string>(),
         armed: new Set<string>(),
       });

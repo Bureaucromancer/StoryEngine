@@ -768,6 +768,47 @@ describe('the three failure modes are three', () => {
   });
 });
 
+/**
+ * ***A cadence counts the turns of the story*** (2026-09-27) —
+ * `sessions/depth.ts`.
+ *
+ * `turnsOnPath` was the path's length, and a path holds turns nobody narrated:
+ * the channel write a HUD edit or a dial change is, an undo, a backdrop choice.
+ * So memory extraction *every eight turns* ran at whatever turn the bookkeeping
+ * had shifted the modulus to, and a session that edited often could go a long
+ * stretch without it.
+ */
+describe('a cadence counts the turns of the story', () => {
+  const EVERY_OTHER: StepDefinition = {
+    ...TEST_STEP,
+    id: 'se.every-other',
+    when: { when: 'cadence', everyNTurns: 2 },
+  };
+
+  it('is not moved by a channel write between two turns', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          { definition: EVERY_OTHER, run: () => Promise.resolve({}) },
+          {
+            definition: TEST_STEP,
+            run: async (_i, host) => ({ message: { text: (await host.call({})).text } }),
+          },
+        ],
+      },
+    });
+
+    const first = await runNextTurn();
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
+    const second = await runNextTurn();
+
+    // The first turn of the story and the second: every other turn is the second,
+    // with the dial change between them counted as nothing.
+    expect(first.steps?.[0]).toMatchObject({ stepId: EVERY_OTHER.id, skipReason: 'cadence' });
+    expect(second.steps?.[0]).toMatchObject({ stepId: EVERY_OTHER.id, state: 'ok' });
+  });
+});
+
 describe('what the provider did, and what it cost', () => {
   it('retries a retryable failure once and says so on the call', async () => {
     makeRunner({
@@ -2693,7 +2734,7 @@ describe('a mode that selects speakers', () => {
     // Present, because eligibility is presence and status — which is the half of
     // the taxonomy that could not have been built before [P7.2]. Each write is a
     // bookkeeping turn, which is also what makes the depth arithmetic below
-    // worth pinning.
+    // worth pinning: they are on the path, and the rotation does not count them.
     for (const id of present) {
       await writeChannel(sessions, ACCOUNT, session.id, `${SE_PRESENCE}#${id}`, true);
     }
@@ -2730,11 +2771,15 @@ describe('a mode that selects speakers', () => {
    * the *other* one, and which one each is.
    *
    * The arithmetic is worth spelling out because it is also the branching claim:
-   * `list` rotates on the path's **depth**, the two presence writes above are
+   * `list` rotates on the path's **depth**, ~~the two presence writes above are
    * two turns on that path, so the first prose turn is depth 2 and takes
    * `pool[0]`, and the second is depth 3 and takes `pool[1]`. Nothing counts
-   * prose turns, and nothing remembers who spoke — the node determines it, which
-   * is what makes two branches rotate independently for free ([07 §3]).
+   * prose turns~~ counted in turns of the story (2026-09-27), so the two presence
+   * writes above count for nothing and the first prose turn is depth 0 and takes
+   * `pool[0]`, the second depth 1 and `pool[1]`. Two writes hid the mistake,
+   * being even; the test below has an odd one. Nothing remembers who spoke —
+   * the node determines it, which is what makes two branches rotate
+   * independently for free ([07 §3]).
    */
   it('rotates through the cast, a turn each, and commits', async () => {
     makeRunner();
@@ -2751,6 +2796,28 @@ describe('a mode that selects speakers', () => {
 
     const second = await spoke(sessionId, 'ensemble-2');
     expect(second.turn.status).toBe('complete');
+    expect(second.chosen).toBe(lund.id);
+  });
+
+  /**
+   * ***A turn nobody narrated is nobody's turn*** (2026-09-27). The rotation
+   * read the path's length, so one HUD edit between two turns handed the next
+   * line back to whoever had just spoken.
+   */
+  it('skips nobody for a channel write between two turns', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id]);
+
+    const first = await spoke(sessionId, 'ensemble-edit-1');
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
+    const second = await spoke(sessionId, 'ensemble-edit-2');
+
+    expect(first.chosen).toBe(vera.id);
     expect(second.chosen).toBe(lund.id);
   });
 
