@@ -338,6 +338,69 @@ describe('a 412 on a connection', () => {
   });
 });
 
+/**
+ * ***After a refusal, and before a choice*** (2026-09-27). Save sent the
+ * refusal's hash as soon as there was one, so pressing it again overwrote the
+ * file on disk with no offer taken; and *Load what is on disk* loaded three of
+ * the fields, so the next save put back the disk's capabilities and picture
+ * models from the page as it loaded.
+ */
+describe('a 412 on a connection, before either offer is taken', () => {
+  async function refuse(onDisk: Record<string, unknown>): Promise<void> {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    updateConnection.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'That connection has changed on disk.',
+        connection({ contentHash: 'sha256:what-is-there-now', ...onDisk }),
+        'sha256:what-is-there-now',
+      ),
+    );
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+  }
+
+  it('sends the hash it was opened with, so a plain Save is refused again', async () => {
+    await refuse({ label: 'Changed on disk' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection.mock.calls.length).toBe(2);
+    });
+    expect(updateConnection.mock.calls[1]?.[1]).toMatchObject({
+      contentHash: 'sha256:as-the-page-read-it',
+    });
+  });
+
+  it('loads every field from disk, and saves them with the hash it acknowledged', async () => {
+    await refuse({
+      label: 'Changed on disk',
+      // The third is one this form has no control for, written by hand: the save
+      // merges over the record it last read, so it has to arrive intact.
+      capabilities: { maxContextTokens: 32768, reportsUsage: true, supportsStructuredOutput: true },
+      imageModels: ['gpt-hi'],
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load what is on disk' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection.mock.calls.length).toBe(2);
+    });
+    expect(updateConnection.mock.calls[1]?.[1]).toMatchObject({
+      label: 'Changed on disk',
+      contentHash: 'sha256:what-is-there-now',
+      capabilities: { maxContextTokens: 32768, reportsUsage: true, supportsStructuredOutput: true },
+      imageModels: ['gpt-hi'],
+    });
+  });
+});
+
 describe('a duplicated id', () => {
   /**
    * **Both are listed and nothing is blocked** — [P1 §1.2]'s posture — but the

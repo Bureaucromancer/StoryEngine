@@ -219,9 +219,15 @@ export function patchHook(hooks: PlotHook[], id: string, fields: HookPatch): Plo
   });
 }
 
-/** The list without that hook. */
+/**
+ * The list without that hook — the first with the id, for `patchHook`'s reason
+ * (2026-09-27): a pasted hook keeps its id, so two can share one, and removing
+ * by every match took both.
+ */
 export function removeHook(hooks: PlotHook[], id: string): PlotHook[] {
-  return hooks.filter((hook) => hook.id !== id);
+  const at = hooks.findIndex((hook) => hook.id === id);
+  if (at === -1) return hooks;
+  return [...hooks.slice(0, at), ...hooks.slice(at + 1)];
 }
 
 /**

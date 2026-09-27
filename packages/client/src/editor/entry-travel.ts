@@ -257,7 +257,12 @@ export function mergeEntries(
 
   for (const incoming of from.entries) {
     const clash = into.entries.find((entry) => entry.id === incoming.id);
-    const id = clash === undefined ? incoming.id : uuidv7();
+    // Against every id the book holds by now, the ones this merge has just
+    // added included (2026-09-27): `heldIds` was kept up to date and never
+    // read, so a file carrying two entries with one id brought both in on it.
+    // `clash` is still only the destination's, because that is what the
+    // review reports as a collision.
+    const id = heldIds.has(incoming.id) ? uuidv7() : incoming.id;
     const name = freeName(heldNames, incoming.name);
     const entry: LoreEntry = { ...incoming, id, name };
 

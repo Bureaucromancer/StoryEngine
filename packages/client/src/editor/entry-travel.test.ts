@@ -233,6 +233,27 @@ describe('what a merge does on the way in', () => {
     expect(report.entries[0]?.collidesWith?.id).toBe(mine.id);
   });
 
+  /**
+   * *Twins in the file* (2026-09-27): the clash was looked for only among the
+   * destination's entries, never among the ones this merge had just added, so
+   * a file carrying two entries with one id brought both in on it.
+   */
+  it('gives each of two entries sharing an id in the file an id of its own', () => {
+    const from: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [
+        { ...newLoreEntry('The lock keeper'), id: 'twin' },
+        { ...newLoreEntry('The lock keeper’s daughter'), id: 'twin' },
+      ],
+    };
+
+    const { book: after } = mergeEntries(book(), from, NOBODY);
+    const arrived = after.entries.slice(-2).map((one) => one.id);
+
+    expect(new Set(arrived).size).toBe(2);
+    expect(arrived[0]).toBe('twin');
+  });
+
   it('suffixes a name that is taken, and reports what it was called', () => {
     const into = book();
     const from: Lorebook = {

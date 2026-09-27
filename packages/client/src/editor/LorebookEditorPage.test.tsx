@@ -428,6 +428,47 @@ describe('an entry created, edited and deleted through the real write path', () 
     expect(saved.entries.find((each) => each.id === HARBOUR)?.content).toBe('Cranes.');
     expect(saved.entries.find((each) => each.id === BRIDGE)?.content).toBe('Iron.');
   });
+
+  /**
+   * ***Both sides' provenance survives the merge*** (2026-09-27). The reapply
+   * merged the fields and kept this tab's `generated` map whole, so the other
+   * writer's record that *their* field was model-written was erased by the save
+   * that followed — the one thing the map is kept for.
+   */
+  it('keeps the other writer’s provenance through reload-and-reapply, and mine', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    const theirs = makeBook();
+    theirs.entries[1] = { ...theirs.entries[1]!, content: 'Iron, by a model.' };
+    server.handEdit({
+      ...theirs,
+      generated: {
+        [`entries.${BRIDGE}.content`]: {
+          original: 'Iron, by a model.',
+          at: '2026-09-01T00:00:00.000Z',
+          model: 'their-model',
+          seed: 'their prompt',
+          unreviewed: true,
+        },
+      },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alertdialog');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Load the newer version and reapply my edits' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+
+    const saved = server.stored() as unknown as { generated: Record<string, unknown> | null };
+    expect(Object.keys(saved.generated ?? {}).sort()).toEqual(
+      [`entries.${BRIDGE}.content`, `entries.${HARBOUR}.content`].sort(),
+    );
+  });
 });
 
 describe('the closed-section invariant', () => {
@@ -1550,6 +1591,65 @@ describe('entries travelling on their own', () => {
     expect(
       await screen.findByText(/StoryEngine file of another kind, not a lorebook/),
     ).toBeTruthy();
+  });
+
+  /**
+   * ***A restore takes the import with it*** (2026-09-27). The import a save is
+   * recorded as is held until that save; a version restored in between carries
+   * none of the imported entries, and its next save still said *imported from
+   * gift.json*.
+   */
+  it('forgets the import when a version without it is restored', async () => {
+    vi.spyOn(api, 'history').mockResolvedValue({
+      versions: [
+        {
+          id: 'version-1',
+          digest: 'sha256:then',
+          revision: 1,
+          authoredAt: '2026-09-01T00:00:00.000Z',
+          recordedAt: '2026-09-01T00:00:00.000Z',
+          source: { kind: 'user' },
+          reason: '',
+          authorVersion: null,
+          pinned: false,
+        },
+      ],
+    });
+    vi.spyOn(api, 'restoreVersion').mockImplementation(() => {
+      server.handEdit(makeBook());
+      return Promise.resolve({
+        contentHash: server.envelope().contentHash,
+        object: structuredClone(makeBook()),
+      });
+    });
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [entry('01a008de-7e08-70d0-899c-00000000000c', 'The lock keeper')],
+    };
+    await act(async () => {
+      fireEvent.change(filePicker(), {
+        target: {
+          files: [new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' })],
+        },
+      });
+      await Promise.resolve();
+    });
+    await screen.findByRole('region', { name: 'What arrived' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'History' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+    await screen.findByText(/^Version restored\./);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Isles');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().name).toBe('Ardent Isles');
+    expect(server.importedFrom).toBeUndefined();
   });
 
   it('leaves the next save alone — an import is one save, not a mode', async () => {
