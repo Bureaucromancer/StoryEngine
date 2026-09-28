@@ -262,6 +262,7 @@ async function importSessions(
 
   let imported = 0;
   let skipped = 0;
+  let picturesLost = 0;
   for (const id of [...ids].sort()) {
     if (trashed.has(id) || (await isSessionHere(context, request.handle, id))) {
       skipped += 1;
@@ -330,12 +331,31 @@ async function importSessions(
         if (!path.startsWith(`${prefix}${id}/attachments/`)) continue;
         const bytes = await request.files.read(path);
         if (bytes === null) continue;
-        await storeAttachment(context.sessions.layout, request.handle, result.sessionId, bytes);
+        /**
+         * ***One picture that cannot be written is one picture, not the
+         * import*** — `carryPixels`' rule for a rendition's pixels, and the
+         * same reason: the session is already written, a retry would find it
+         * here and skip it, so a throw from here would lose every session after
+         * this one and still not bring this picture. It goes as its caption,
+         * which the record already has, and the review says how many.
+         */
+        try {
+          await storeAttachment(context.sessions.layout, request.handle, result.sessionId, bytes);
+        } catch {
+          picturesLost += 1;
+        }
       }
     } else skipped += 1;
   }
 
   notes.push({ key: 'import.backup.sessions', params: { imported, skipped }, level: 'info' });
+  if (picturesLost > 0) {
+    notes.push({
+      key: 'import.backup.picturesNotStored',
+      params: { count: picturesLost },
+      level: 'warn',
+    });
+  }
   return { imported, skipped };
 }
 

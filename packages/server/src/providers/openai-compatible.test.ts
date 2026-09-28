@@ -1283,4 +1283,157 @@ describe('a picture on the wire', () => {
     expect(parts[0]).toMatchObject({ type: 'text', text: 'You are a narrator.\n\n' });
     expect(parts.some((part) => part['type'] === 'image_url')).toBe(true);
   });
+
+  /**
+   * Freeform's shape with a picture on the move, as `render` hands it over: the
+   * player's words and the picture's merged into one user message whose parts
+   * put the picture after the words that introduce it.
+   */
+  const MOVE = 'I step outside.\n\n[Picture: the harbour at dusk]';
+  const freeform: RenderedMessage[] = [
+    { role: 'system', content: 'You are a narrator.', fromBlocks: ['b1'] },
+    { role: 'user', content: 'I open the door.', fromBlocks: ['b2'] },
+    { role: 'assistant', content: 'Rain comes in.', fromBlocks: ['b3'] },
+    { role: 'system', content: 'Guidance: keep it quiet.', fromBlocks: ['b4'] },
+    {
+      role: 'user',
+      content: MOVE,
+      fromBlocks: ['b5', 'b6'],
+      parts: [
+        { kind: 'text', text: MOVE },
+        { kind: 'image', blockId: 'b6', digest: DIGEST, mime: 'image/png' },
+      ],
+    },
+    { role: 'system', content: 'The player acts.', fromBlocks: ['b7'] },
+  ];
+  const IMAGE = {
+    type: 'image_url',
+    image_url: { url: `data:image/png;base64,${Buffer.from(PIXELS).toString('base64')}` },
+  };
+
+  async function wireFor(
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ role: string; content: unknown }[]> {
+    let sent: { messages: { role: string; content: unknown }[] } | undefined;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as typeof sent;
+        return completion('The harbour, quiet.');
+      },
+    });
+    await provider.generate({
+      modelId: 'llama-local',
+      messages: freeform,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+    return sent?.messages ?? [];
+  }
+
+  /**
+   * ***Freeform's shape, with a picture on the move*** — the leading system
+   * prompt, a turn of history, the guidance box before the player's line, the
+   * player's line with its picture, and a system instruction after it. Every
+   * one of `splitForSdk`'s joins lands on the picture message at once: the
+   * guidance is carried in front of it (`before`) and the trailing instruction
+   * appended after it (`after`).
+   *
+   * **Parts, never a string join.** A message carrying a picture is an array
+   * whose order is the order the picture was placed in; concatenating system
+   * text onto it would have nowhere to put the picture, and either the text or
+   * the picture would go. So each join is a text part of its own, with the
+   * separator on the side that faces the move — which is also what makes the
+   * text parts, read in order, the same string a text-only model would have
+   * been sent.
+   *
+   * Falsified by: `before`/`after` concatenating (the array is lost or the
+   * content becomes `[object Object]`); either join dropping its text; the
+   * trailing system text going out as a `system` message mid-conversation; or
+   * the image part moving from after the words that introduce it.
+   */
+  it('joins the guidance before a picture move and the instruction after it as parts', async () => {
+    const sent = await wireFor();
+
+    // Only the leading run is the system prompt.
+    expect(sent.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(sent.slice(0, 3)).toEqual([
+      { role: 'system', content: 'You are a narrator.' },
+      { role: 'user', content: 'I open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+    ]);
+    expect(sent.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Guidance: keep it quiet.\n\n' },
+        { type: 'text', text: MOVE },
+        IMAGE,
+        { type: 'text', text: '\n\nThe player acts.' },
+      ],
+    });
+  });
+
+  /**
+   * The same conversation for an endpoint that wants consecutive user messages
+   * kept apart (`mergeSameRole: 'never'`). Nothing joins: each system text is a
+   * plain-string user message in its place, and the picture message keeps its
+   * array. Pinned separately because this branch never reaches `before` or
+   * `after`, so the test above says nothing about it — and a system text that
+   * went out as an array, or a picture message that went out as its string, is
+   * the kind of shape a strict endpoint rejects or a vision one silently
+   * answers without the picture.
+   *
+   * Falsified by: joining under `never` (the texts appear inside the array); a
+   * system text built as an array; or the picture message flattened to its
+   * string `content`.
+   */
+  it('keeps the system texts apart from a picture move when the endpoint merges nothing', async () => {
+    const sent = await wireFor({ mergeSameRole: 'never' });
+
+    expect(sent).toEqual([
+      { role: 'system', content: 'You are a narrator.' },
+      { role: 'user', content: 'I open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+      { role: 'user', content: 'Guidance: keep it quiet.' },
+      { role: 'user', content: [{ type: 'text', text: MOVE }, IMAGE] },
+      { role: 'user', content: 'The player acts.' },
+    ]);
+  });
+
+  /**
+   * ***No deprecation on the way out.*** The adapter builds a `file` part with
+   * an image media type rather than the SDK's `image` part, because this SDK
+   * version deprecated `image` and warned through `process.emitWarning` on
+   * every call that used one — a line per picture in the server's stderr, and
+   * nowhere in its log. Both reach the wire as the same `image_url`, so the wire
+   * test above cannot tell them apart; the SDK's own warning hook can.
+   *
+   * `AI_SDK_LOG_WARNINGS` is the SDK's documented seam: a function there
+   * receives every warning in place of `process.emitWarning`. Restored in a
+   * `finally`, because it is a global and a test that leaked it would silence
+   * the SDK's warnings for the rest of the file.
+   *
+   * Falsified by: building `{ type: 'image', image, mediaType }` in
+   * `contentFor`, which the SDK then reports as `deprecated`.
+   */
+  it('builds the picture without a part the SDK warns is deprecated', async () => {
+    const warnings: { type: string }[] = [];
+    const global = globalThis as { AI_SDK_LOG_WARNINGS?: unknown };
+    const had = Object.prototype.hasOwnProperty.call(global, 'AI_SDK_LOG_WARNINGS');
+    const previous = global.AI_SDK_LOG_WARNINGS;
+    global.AI_SDK_LOG_WARNINGS = (options: { warnings: { type: string }[] }) => {
+      warnings.push(...options.warnings);
+    };
+    try {
+      const sent = await wireFor();
+      // The picture went through the SDK's conversion, so an empty list below
+      // is an absence rather than a path this call never took.
+      expect(sent.at(-1)?.content).toContainEqual(IMAGE);
+    } finally {
+      if (had) global.AI_SDK_LOG_WARNINGS = previous;
+      else delete global.AI_SDK_LOG_WARNINGS;
+    }
+
+    expect(warnings.filter((warning) => warning.type === 'deprecated')).toEqual([]);
+  });
 });

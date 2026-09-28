@@ -4,7 +4,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { TurnLocation } from '../sessions/segments.js';
-import { moveText } from '../assembly/pictures.js';
+import { scanText } from '../assembly/pictures.js';
 import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
 import { clearLinks, writeLinks } from './links.js';
@@ -73,10 +73,19 @@ export interface TurnHit {
  * in the session the moment a lorebook entry mentioned the word.
  */
 export function turnText(turn: Turn): string {
-  // The move with its pictures' stand-ins ([25 E15]), so searching for what a
-  // caption said finds the turn — and a move with no pictures indexes exactly
-  // as it always did.
-  return [turn.input === undefined ? undefined : moveText(turn.input), turn.output?.text]
+  /**
+   * The move with its pictures' **captions** ([25 E15]), so searching for what a
+   * caption said finds the turn — and a move with no pictures indexes exactly
+   * as it always did.
+   *
+   * ***Captions, not the stand-ins a model reads*** (2026-09-27, index version
+   * 11). This indexed `moveText`, and search is a surface a person reads: its
+   * snippets showed the engine's English for a model — *[Picture, not
+   * described]* — past the client's catalogue, and a search for *picture*
+   * matched every undescribed one. The caption is the person's own words, which
+   * is what a person searches for.
+   */
+  return [turn.input === undefined ? undefined : scanText(turn.input), turn.output?.text]
     .filter((text) => Boolean(text))
     .join('\n');
 }

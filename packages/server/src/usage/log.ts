@@ -26,12 +26,14 @@ import type { Layout } from '../storage/layout.js';
  * The index is out by [21 §5.1](../../../../docs/design/21-internal-contracts.md)'s
  * own test — *"if losing it would surprise a user, it is not derived"* — and
  * this is not derived from anything. `state.sqlite` is authoritative but
- * install-level: an account archive deliberately holds none of it, so a
- * person who took their own backup and moved it would leave their spend
- * behind. A file under `users/<handle>/` travels with that archive, with the
- * account's removal, and with a restore, and a person can read it — which is
- * the same reason a rendition's record is a file beside its session rather than
- * a row.
+ * install-level: an account archive deliberately holds none of it. A file
+ * under `users/<handle>/` is inside that archive, comes back with an install
+ * restore and with an account archive unpacked in place, goes with the
+ * account's removal, and a person can read it — which is the same reason a
+ * rendition's record is a file beside its session rather than a row. *Not*
+ * with a backup's merge import, whose scope is the library, sessions and tags
+ * (per-turn spend comes with the sessions); what calls outside a turn cost
+ * stays with the install that made them.
  *
  * ***Not the assist's field provenance, which §11.4 once named.*** Provenance
  * ([10 §11.2](../../../../docs/design/10-ui-surfaces.md)) is written by the

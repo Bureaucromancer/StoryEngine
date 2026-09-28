@@ -288,6 +288,11 @@ is below; this is the afternoon.*
    cheaper after K and duplicated work before it — and K1 discharges F0 outright.
 8. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
    machine (R5) is; **H1 and H2** when there is an ubuntu box (R6).
+9. **T** — added 2026-09-27, [25 E15](../25-open-questions.md)'s pictures on a
+   move. **T1 needs only a phone and the running app**, and it is the claim the
+   feature's privacy rests on; T2–T4 want [R12](#3-standing-prerequisites). Not
+   a phase's gate: a roadmap feature's, which is why it drains with the
+   standing list rather than holding anything open.
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
 sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
@@ -355,6 +360,7 @@ not of the steps.
 | **R9** | **A session two hundred turns deep**, against a book of a few hundred entries. | J | **Only G has ever produced one.** Walk J in the same sitting as G, while one exists — recreating one on purpose is an afternoon, noticing you still have one is free. |
 | **R11** | **A supervised install** — the image under `compose.yaml`'s `restart: unless-stopped`, ~~an unraid container with autostart~~ an unraid container whose Extra Parameters carry `--restart=unless-stopped`, or a systemd unit. *R8 is close and is not this*: a Docker daemon is what runs a container, and what this needs is a container something will start **again**. | [P10 §3](27-p10-implementation.md) step 6, and sitting P's C2 | **Partly to hand** — R8's first install ran 2026-09-07 under unraid, ~~which is supervised, so what is missing is a walk rather than a machine~~. Added 2026-09-17 by [P10 §3.1](27-p10-implementation.md). *The thing it blocks is narrow and is exactly the half a test cannot reach*: `restart.test.ts` proves the refusal, the 503 and the drain in-process, and **nobody has watched the process come back**. **Corrected 2026-09-27**: that unraid container was *not* supervised. Autostart restarts nothing that exits, and the template set no restart policy, so a walk there would have watched it stay stopped. The shipped unit did the same thing a different way: `Restart=on-failure` against a restart that exited 0. And on every deployment the process never exited at all, because the tab pressing the button held the listener's close open. All three are fixed underneath this row (the stream closer in `preClose`, the template's `--restart=unless-stopped`, an exit status of 75 and `RestartForceExitStatus=75`; [09 §6.4](../09-server-multiuser-deployment.md)). R8's container predates the template change, so add the parameter to it by hand before walking this. `main.test.ts` now proves the status and that a process with a tab open exits at all. **Watching it come back is still nobody's yet** |
 | **R10** | **An endpoint that serves the `image` role**, with a key — hosted or local. **R2 is a chat endpoint and does not answer this**; no prerequisite here ever has. | [P9](26-p9-implementation.md)'s whole gate: twelve of its fifteen steps want pixels, and **both of its criticals are blocked on this and nothing else** ([P9 §3.1](26-p9-implementation.md)) | **Not to hand**, added 2026-09-15 by [P9 §0.2](26-p9-implementation.md)'s readiness audit and **the row that made this table ten** — which is why that document's own *"nine standing prerequisites"* is struck in two places rather than left to read as though the audit had not happened ([P9 §0.3](26-p9-implementation.md), 2026-09-16). *Second-longest lead item after R1 and the only one a whole phase's critical list waits on.* ***And it is its own errand***: K, L, M and N — the four sittings that hold a phase open — all queue on a **chat** endpoint, and none of them produces this one. ~~It is also what settles [P9 §1.2](26-p9-implementation.md) — whether image providers go behind the same `Connection` vocabulary or beside it — which that document deliberately leaves open rather than deciding at a desk.~~ ***That half was decided at a desk after all*** (2026-09-16, [P9 §1.2](26-p9-implementation.md)): the pinned SDK already exports `imageModel` and `generateImage`, so the fork had no second client on the other side of it and `Provider` grew a second **verb** rather than a second **kind**, with the reversal condition written down — an endpoint whose request is not prompt-plus-scalars. **What R10 still blocks is the gate**, which is the larger half: [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start) cannot start without it, and P9 is built and open behind it |
+| **R12** | **A chat endpoint serving one model that sees pictures and one that does not** — Ollama with `llava` beside a text model is the cheap form; a hosted key whose provider offers both works too. *Neither R2 nor R10 answers it*: R2 is a chat endpoint that may or may not see, and R10 makes pictures rather than reading them. | T2–T4, and `pnpm test:live`'s picture case (`STORYENGINE_LIVE_VISION_MODEL`) | **Unconfirmed**, added 2026-09-27 with [25 E15](../25-open-questions.md) R1 |
 
 ---
 
@@ -1154,6 +1160,26 @@ machine, or a process restarting.**
 genuinely large library is quick enough to be pleasant, and whether the
 `content-length` on a download survives a reverse proxy. Both extend the
 standing list below rather than gating the phase.
+
+### T — Pictures on a move — *half an hour, a phone, and R12*
+
+**A standing sitting rather than a critical list**, added 2026-09-27 with
+[25 E15](../25-open-questions.md) R1, which is a roadmap feature and closes no
+phase. Its rows are here for the reason every row in this file is: **the thing
+checked is a browser's canvas, a real endpoint, or a phone**, and a test can
+reach none of the three — `preparePicture.test.ts` says outright that the redraw
+is not exercised there, and the wire test's endpoint is a fake.
+
+| # | What | Why a person |
+|---|---|---|
+| T1 | From a **phone**, attach a photo taken with location on. Fetch it back from `GET /api/sessions/:id/attachments/:digest` and read it with an EXIF tool: **no GPS, no EXIF at all**, and the long edge at most 1568 px | The feature's privacy claim is that the browser redraws the picture and fails closed rather than sending the original. jsdom has no canvas; only a real browser on a real phone can show the redraw happened |
+| T2 | With the model that sees marked *can see pictures*, attach a captioned picture: the composer says **the model will see this picture**; send it; the workbench badge reads *Picture sent* and the reply is about the picture | The one question no fake answers: whether an endpoint takes the `image_url` data URL this build writes, and does something with it |
+| T3 | Rebind `prose` to the text model **on the same connection**; the composer's line changes to *the caption instead*; redo the picture turn and take one more. Both complete | The lock-in property against a real text endpoint, some of which refuse array content outright — the reason the adapter sends a string whenever no picture goes |
+| T4 | Export the session, import it on another install (or account): the transcript and the reading view show each picture's caption with *not on this server*, and a redo goes as words | What an imported session looks like to a person, which is a judgement about the placeholder rather than a count |
+
+*What it deliberately does not reach*: whether pictures make narration better,
+which E15 says only real sessions will answer — that is G's kind of sitting, with
+a model that sees, and extends the standing list when somebody has one.
 
 ## 5. Already discharged, and by what
 

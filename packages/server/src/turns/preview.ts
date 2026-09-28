@@ -103,6 +103,12 @@ export function previewStepFor(mode: Mode): StepDefinition | null {
   return mode.definition.steps.find((step) => step.role === 'prose') ?? null;
 }
 
+/**
+ * The kind a move is when it does not say — the one default a submission and
+ * its preview share, so they cannot drift apart.
+ */
+export const DEFAULT_INPUT_KIND = 'do';
+
 export async function previewAssembly(
   context: PreviewContext,
   request: PreviewRequest,
@@ -253,7 +259,14 @@ export async function previewAssembly(
 
   const collected = collectFor(inputs, {
     callKind: step.callKind,
-    ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
+    /**
+     * ***The kind a submission would get*** (2026-09-27). Absent, this left the
+     * collector with no kind at all, and a pack whose input slots are all
+     * per-kind — Freeform's are — then previewed a prompt with neither the
+     * draft's words nor its pictures, while the turn defaulted to `do` and
+     * sent both.
+     */
+    ...(request.input === undefined ? {} : { inputKind: request.input.kind ?? DEFAULT_INPUT_KIND }),
     lore: lore.blocks,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),

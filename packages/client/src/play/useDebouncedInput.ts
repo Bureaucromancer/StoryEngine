@@ -32,19 +32,27 @@ export function useDebouncedInput(
   text: string,
   guidance: string,
   ms: number,
-): { text: string; guidance: string } {
-  const [settled, setSettled] = useState({ text, guidance });
+  /**
+   * ***The move's pictures, as one key*** (2026-09-27) — each picture's digest
+   * and caption. A caption is typed like the text, and until it settled like
+   * the text each keystroke in one was a preview request of its own.
+   */
+  pictures = '',
+): { text: string; guidance: string; pictures: string } {
+  const [settled, setSettled] = useState({ text, guidance, pictures });
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setSettled((current) =>
-        current.text === text && current.guidance === guidance ? current : { text, guidance },
+        current.text === text && current.guidance === guidance && current.pictures === pictures
+          ? current
+          : { text, guidance, pictures },
       );
     }, ms);
     return () => {
       clearTimeout(timer);
     };
-  }, [text, guidance, ms]);
+  }, [text, guidance, pictures, ms]);
 
   return settled;
 }

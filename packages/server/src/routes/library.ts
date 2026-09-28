@@ -596,7 +596,9 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * unsaved fields included, and the size of that is the cost of the sentence
    * being true.
    *
-   * ***It writes nothing.*** No provenance, no object, no history entry — the
+   * ***It writes nothing but a usage line*** (`usage/log.ts`: what the call
+   * cost, which a person cannot recover later). No provenance, no object, no
+   * history entry — the
    * answer goes back to a form, and whether it is kept is the person's next
    * decision. That is §11.1's *"nothing may require a model call to proceed,
    * ever"* on the server's side of the line: a route that recorded the

@@ -78,10 +78,28 @@ export function changeOf(
   if (
     aligned.before.text !== aligned.after.text ||
     aligned.before.included !== aligned.after.included ||
-    aligned.before.tokens !== aligned.after.tokens
+    aligned.before.tokens !== aligned.after.tokens ||
+    pictureChanged(aligned.before.image, aligned.after.image)
   ) {
     return 'changed';
   }
 
   return beforeRule === afterRule ? 'same' : 'ruling';
+}
+
+/**
+ * ***A different picture is a change, whatever the words say*** — [25 E15].
+ * Two uncaptioned pictures read the same (*[Picture]*), cost the same, and are
+ * different pixels; and one picture held for two different reasons is two
+ * different answers to *did the model see it*.
+ */
+function pictureChanged(
+  before: AssembledBlock['image'] | undefined,
+  after: AssembledBlock['image'] | undefined,
+): boolean {
+  return (
+    (before?.digest ?? null) !== (after?.digest ?? null) ||
+    before?.sent !== after?.sent ||
+    before?.withheld !== after?.withheld
+  );
 }

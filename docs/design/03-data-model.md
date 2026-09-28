@@ -1259,10 +1259,16 @@ axis the paragraph above draws:
 - **Written atomically**, the library's posture rather than the renditions',
   because a torn upload cannot be made again.
 - **Swept, never evicted.** A file goes only when no turn in the session names
-  it — every turn in every segment, siblings and tombstones included — *and* it
-  is a day old, which is the composer's grace: an upload waits in the composer,
-  unnamed, while the session goes on committing. Walking the head path would be
-  the obvious reachability function and would delete a swipe's pictures.
+  it — every turn a reader sees, siblings included — *and* nobody has wanted it
+  for a day, which is the composer's grace: an upload waits in the composer,
+  unnamed, while the session goes on committing. *Wanted* is an upload or a
+  submitted move naming it, either of which renews the file. Walking the head
+  path would be the obvious reachability function and would delete a swipe's
+  pictures. *A tombstoned turn is not a reference*: the reader skips it, and
+  whether a pruned branch keeps its pictures is for whoever designs pruning.
+- **Contained where it lands.** Every path is resolved against the real session
+  folder, as the library's asset paths are (§5.3), so an
+  `attachments` that is a link leads nowhere.
 - **The turn names it; the turn is not changed by it.** The record is
   `input.attachments` (§8), and the pixels are never copied into it.
 
@@ -1542,12 +1548,12 @@ interface Turn {
   createdAt: string
   input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string
            /** Pictures on the move — 2026-09-27, [25 E15] R1. Each has an id,
-            *  an open `kind`, the digest, type and size the server read from its
-            *  own store (optional, so a record whose bytes never arrived can
-            *  still say a picture was there), and the player's caption. An
-            *  annotation: `text` stays the player's words, never an `[image]`
-            *  marker. */
-           attachments?: { id; kind; digest?; mime?; bytes?; caption? }[] }
+            *  an open `kind`, the digest, and the type, size and pixel
+            *  dimensions the server read from its own store (optional, so a
+            *  record whose bytes never arrived can still say a picture was
+            *  there), and the player's caption. An annotation: `text` stays the
+            *  player's words, never an `[image]` marker. */
+           attachments?: { id; kind; digest?; mime?; bytes?; width?; height?; caption? }[] }
 
   /** One entry per model call, each carrying its own `blocks` and `budget`
    *  (P3.0) — "one per model call" made shape rather than promise. Blocks are
@@ -1663,9 +1669,12 @@ interface AssembledBlock {
   /** A picture on a player's move, and whether its pixels went — 2026-09-27,
    *  [25 E15] R1. Decided per call: `{ attachmentId, digest, mime, sent,
    *  withheld? }`, where `withheld` says why the block's text went instead —
-   *  `model-text-only`, `outside-window`, `missing-bytes`, `not-user-role`,
-   *  `unknown-kind`. A disclosure rather than a not-filled slot, because the
-   *  picture *did* emit something: its words, which are `text`. */
+   *  `unknown-kind`, `outside-window`, `not-user-role`, `missing-bytes`,
+   *  `model-text-only` (the model last when several hold) — or `budget`, when
+   *  the budgeter dropped the block (a picture in history, or a step's own)
+   *  and neither went. A disclosure
+   *  rather than a not-filled slot, because the picture *did* emit something:
+   *  its words, which are `text`. */
   image?: BlockImage
 }
 ```

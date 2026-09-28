@@ -9,6 +9,7 @@ import type {
   StepInput,
 } from '@storyengine/sdk';
 
+import { quoted } from '../assembly/pictures.js';
 import { storyDepth } from '../sessions/depth.js';
 import { ensureChain, type Summariser } from '../sessions/summaries.js';
 import {
@@ -288,15 +289,12 @@ export function summarise(context: SummariseContext): {
  * able to invalidate a chain, and it cannot when the two do not share a field.
  *
  * The player's line is quoted and the reply is not, so a model can tell an
- * instruction from narration without being told which is which.
+ * instruction from narration without being told which is which — **every line
+ * of it** ({@link quoted}), or a picture's stand-in reads as the reply.
  */
 function renderUnits(units: readonly SummaryUnit[]): string {
   return units
-    .map((unit) =>
-      [unit.said === '' ? '' : `> ${unit.said}`, unit.replied]
-        .filter((line) => line !== '')
-        .join('\n'),
-    )
+    .map((unit) => [quoted(unit.said), unit.replied].filter((line) => line !== '').join('\n'))
     .filter((turn) => turn !== '')
     .join('\n\n');
 }

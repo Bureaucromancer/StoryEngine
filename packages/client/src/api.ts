@@ -1965,6 +1965,13 @@ export interface SubmitTurn {
    */
   attachments?: readonly { digest: string; caption?: string }[];
   /**
+   * A redo's pictures: **the turn whose pictures this move carries**, copied by
+   * the server exactly as that turn recorded them — every id, kind and caption,
+   * and a picture whose bytes never reached this server. Never with
+   * `attachments`, which is for pictures just uploaded.
+   */
+  attachmentsOf?: string;
+  /**
    * Attach this turn to a node other than the head — [P6.0c].
    *
    * **Absent and `null` are different requests.** Absent means *the head*, and
@@ -2005,6 +2012,9 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
       ...(submission.attachments === undefined || submission.attachments.length === 0
         ? {}
         : { attachments: submission.attachments }),
+      ...(submission.attachmentsOf === undefined
+        ? {}
+        : { attachmentsOf: submission.attachmentsOf }),
     },
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
@@ -2065,6 +2075,12 @@ export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: s
 export interface PendingInput {
   text: string;
   guidance: string;
+  /**
+   * The kind the selector chose, so a pack whose input slots are per-kind
+   * previews the block the turn will send. Absent is the server's default, as
+   * it is for a submission.
+   */
+  kind?: string;
   /** The move's pictures, so the preview assembles the blocks the turn will. */
   attachments?: readonly { digest: string; caption?: string }[];
 }
@@ -2089,6 +2105,7 @@ export function previewTurn(
       : {
           input: {
             text: pending.text,
+            ...(pending.kind === undefined ? {} : { kind: pending.kind }),
             ...(pictures.length === 0 ? {} : { attachments: pictures }),
           },
         }),
