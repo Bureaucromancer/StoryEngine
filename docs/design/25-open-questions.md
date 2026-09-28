@@ -1205,6 +1205,11 @@ reader for a format with no writer, which
 export format has to do if it is to be the target E4 describes, rather than a
 serialisation of our own records that happens to be written down.
 
+*Revisited 2026-09-28, at [18 §7](18-session-import.md).* The condition is met:
+P11.10 shipped the format with a writer and a reader, so a converter aimed at it
+is no longer a reader for a format with no writer. Still not a commitment — §7
+prices what is left and proposes an order, and schedules nothing.
+
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
 formats that barely move. Session history is neither.
