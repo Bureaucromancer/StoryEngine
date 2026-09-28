@@ -428,6 +428,53 @@ describe('moving an entry', () => {
   });
 });
 
+/**
+ * ***Two entries sharing an id, and nothing lost to either*** —
+ * [P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * `withEntry` already acts on the first match, and its comment says why: ids
+ * are not unique in practice. Removing and moving did not, and both run on save
+ * — removing one twin removed every entry with its id, and dragging one filtered
+ * both out and put back one. The twins here differ in content, which is what an
+ * Aventuras book imported before `claimId` holds: two entries named alike, and
+ * saying different things.
+ */
+describe('twins, removed and moved', () => {
+  function twins(): { draft: Draft; id: string } {
+    const first = { ...newLoreEntry('The Harbour'), content: 'The old quay.' };
+    return {
+      id: first.id,
+      draft: {
+        entries: [
+          first,
+          { ...newLoreEntry('Bridge'), id: 'b' },
+          { ...newLoreEntry('The Harbour'), id: first.id, content: 'The new quay.' },
+        ],
+        folders: [],
+      },
+    };
+  }
+  const contents = (book: Draft): string[] => entryList(book).map((entry) => entry.content);
+
+  it('removes the first, which is the one the form shows, and keeps the other', () => {
+    const { draft, id } = twins();
+    expect(entryOf(draft, id)?.content).toBe('The old quay.');
+    expect(contents(withoutEntry(draft, id))).toEqual(['', 'The new quay.']);
+  });
+
+  it('moves one and keeps both', () => {
+    const { draft, id } = twins();
+    const moved = moveEntryBefore(draft, id, null);
+    expect(contents(moved).sort()).toEqual(['', 'The new quay.', 'The old quay.']);
+    expect(contents(moved).at(-1)).toBe('The old quay.');
+  });
+
+  it('still returns the same book for a move that changes nothing', () => {
+    const { draft, id } = twins();
+    expect(moveEntryBefore(draft, id, 'b')).toBe(draft);
+  });
+});
+
 describe('the merge, when I reordered', () => {
   function book(ids: string[]): Draft {
     return {
