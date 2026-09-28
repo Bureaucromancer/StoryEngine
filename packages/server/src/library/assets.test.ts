@@ -8,7 +8,16 @@ import { basename, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLorebook, newLoreEntry, type Lorebook } from '@storyengine/shared';
+import {
+  ACTOR_SCHEMA,
+  newActor,
+  newLorebook,
+  newLoreEntry,
+  uuidv7,
+  type Lorebook,
+} from '@storyengine/shared';
+
+import { create, readCardPixels } from '../library.js';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 import { mediaRowsIn, SWEEP_GRACE_MS } from './assets.js';
@@ -433,6 +442,89 @@ describe('bytes beside a folder-backed object', () => {
  * sweep deleted there, which with `assets` pointing at the data root would
  * have been `accounts.json`'s neighbours.
  */
+/**
+ * ***A copy brings its pictures*** (2026-09-27).
+ *
+ * *Save my version as a copy* and *Copy to my library* write an object's JSON
+ * under a new id, and a picture is bytes beside the object that JSON only
+ * names — so every picture on a copy was broken from the moment it was made.
+ * `copyOf` names the source, and the create puts the source's file for each
+ * row the copy names beside the copy.
+ */
+describe('a copy made with copyOf', () => {
+  it('brings the pictures it names, on the book and on its entries', async () => {
+    const asset = await store(PNG, 'quay.png');
+    const { object, contentHash } = await readBook();
+    const quay = {
+      ...newLoreEntry('Quay'),
+      media: [{ id: 'e1', role: 'gallery' as const, tags: [], ...asset }],
+    };
+    await save(
+      { ...object, media: [{ id: 'm1', role: 'map', tags: [], ...asset }], entries: [quay] },
+      contentHash,
+    );
+    const source = (await readBook()).object;
+    const copyId = uuidv7();
+
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: { object: { ...source, id: copyId, name: 'Rain City, a copy' }, copyOf: bookId },
+    });
+    expect(made.status).toBe(201);
+
+    for (const mediaId of ['m1', 'e1']) {
+      const served = await server.request({
+        method: 'GET',
+        url: `/api/library/lorebooks/${copyId}/media/${mediaId}`,
+      });
+      expect(served.status, mediaId).toBe(200);
+    }
+  });
+
+  /**
+   * An actor's pictures are its card: the portrait is the image and its
+   * expressions ride inside it, so a copy written without it was a blank
+   * square with none of them. A 2×2 source against the 1×1 a bare create
+   * makes is what tells the two apart.
+   */
+  it('writes an actor copy into the source’s card', async () => {
+    const card = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const vera = newActor('Vera');
+    await create(server.services.library, 'ned', vera, ACTOR_SCHEMA, { cardPixels: card });
+    const copyId = uuidv7();
+
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: { object: { ...vera, id: copyId, name: 'Vera, a copy' }, copyOf: vera.id },
+    });
+    expect(made.status).toBe(201);
+
+    const { bytes } = await readCardPixels(server.services.library, 'ned', copyId);
+    // IHDR width, the four bytes after the signature, length and chunk type.
+    expect(Buffer.from(bytes).readUInt32BE(16)).toBe(2);
+  });
+
+  it('refuses a copy of something this account cannot read, and writes nothing', async () => {
+    const { object } = await readBook();
+    const copyId = uuidv7();
+
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: { object: { ...object, id: copyId, name: 'Stray' }, copyOf: uuidv7() },
+    });
+    expect(made.status).toBe(404);
+
+    const after = await server.request({ method: 'GET', url: `/api/library/lorebooks/${copyId}` });
+    expect(after.status).toBe(404);
+  });
+});
+
 describe('an assets folder that is a link', () => {
   let outside: string;
 

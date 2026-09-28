@@ -5,7 +5,7 @@ import { useRef, useState, type JSX } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { ApiError, importSessionDocument } from '../api.js';
+import { errorCode, importSessionDocument } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
 import { Fine } from '../ui/Text.js';
@@ -109,8 +109,13 @@ export function ImportSession(): JSX.Element {
                  * `failure.body.error`, which `ApiError` has never had, so every
                  * refusal showed the fallback and none of these sentences had
                  * ever rendered.
+                 *
+                 * *And a file that is not JSON is `unreadable` too*, though no
+                 * server said so: it fails in `JSON.parse` above, before any
+                 * request is made — the commonest way to pick the wrong file,
+                 * and the one the class read alone still sent to the fallback.
                  */
-                const code = failure instanceof ApiError ? failure.code : undefined;
+                const code = failure instanceof SyntaxError ? 'unreadable' : errorCode(failure);
                 setError(
                   code === 'wrong-schema'
                     ? WORDS.wrongSchema

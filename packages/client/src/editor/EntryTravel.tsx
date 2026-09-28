@@ -13,6 +13,7 @@ import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 import {
   mergeEntries,
   readableAsEntries,
+  picturesLeftBehind,
   selectionAsLorebook,
   type MergeReport,
 } from './entry-travel.js';
@@ -51,6 +52,24 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.entry-travel', {
   hint: 'An export is a lorebook, so it opens anywhere a lorebook does — and anything that reads one can be imported here.',
   dismiss: 'Dismiss',
 });
+
+/**
+ * ***What the export leaves behind, said beside the button*** (2026-09-27).
+ *
+ * A lorebook file carries a picture's row and never its bytes, so an export
+ * leaves the pictures where they are rather than sending rows that name
+ * nothing — and says so before the click rather than after the download.
+ */
+function PicturesStay(props: { count: number }): JSX.Element | null {
+  if (props.count === 0) return null;
+  return <Fine>{picturesStayLine(props.count)}</Fine>;
+}
+
+function picturesStayLine(count: number): string {
+  return count === 1
+    ? '1 picture stays behind: an export carries the entries’ text, not their pictures.'
+    : `${String(count)} pictures stay behind: an export carries the entries’ text, not their pictures.`;
+}
 
 /**
  * The name the downloaded file takes.
@@ -183,6 +202,7 @@ export function EntryTravel(props: {
             >
               {WORDS['export']}
             </Button>
+            <PicturesStay count={picturesLeftBehind(props.book, props.chosen)} />
           </>
         ) : null}
 
@@ -271,6 +291,7 @@ const REVIEW: Readonly<Record<string, string>> = labels('editor.import-review', 
   collided:
     'These share an id with an entry already here, which usually means one was copied from the other. Both are kept — nothing was replaced.',
   dangling: 'These name an actor this install does not have:',
+  pictures: 'These arrived without their pictures, which a lorebook file names and cannot carry:',
   differences:
     'This book reads these settings differently from the one they came from, so an entry tuned there can go quiet here:',
   unsaved: 'Nothing is written until you save. Until then this is a change you can walk away from.',
@@ -338,6 +359,17 @@ function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JS
           <ul className="list-inside list-disc text-ink">
             {props.report.dangling.map((one) => (
               <li key={one.entry.id}>{`${one.entry.name} — ${one.actorIds.join(', ')}`}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {props.report.withoutPictures.length === 0 ? null : (
+        <div>
+          <Note>{REVIEW['pictures']}</Note>
+          <ul className="list-inside list-disc text-ink">
+            {props.report.withoutPictures.map((one) => (
+              <li key={one.entry.id}>{one.entry.name}</li>
             ))}
           </ul>
         </div>

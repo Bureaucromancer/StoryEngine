@@ -74,7 +74,7 @@ export function splitLines(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-export function joinLines(values: string[]): string {
+export function joinLines(values: readonly string[]): string {
   return values.join('\n');
 }
 

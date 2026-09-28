@@ -129,18 +129,43 @@ export function withValueAt(
   return out;
 }
 
+/**
+ * The latest proposal in a session, if there is one nobody has answered.
+ *
+ * ***Two components, so the object is read only while there is an offer***
+ * (2026-09-27). This was one, and the read ran whether or not there was
+ * anything to read: `useLibraryObject('actors', '')` whenever the panel was
+ * open with no proposal, so `GET /api/library/actors/` answered 404 and the
+ * poll asked again every two seconds; and a dismissed or applied proposal's
+ * object went on being polled behind a panel that showed nothing. The offer
+ * now mounts for one proposal, keyed by it, so a failure notice from the last
+ * one does not carry over to the next either.
+ */
 export function Proposal(props: { sessionId: string }): JSX.Element | null {
   const transcript = useTranscript(props.sessionId);
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const save = useSaveObject();
 
   const change = transcript.data ? latestProposal(transcript.data.turns) : null;
-  const key =
-    change === null ? null : `${change.kind}:${change.id}:${Object.keys(change.changes).join(',')}`;
-  const object = useLibraryObject(change?.kind ?? 'actors', change?.id ?? '');
+  if (change === null) return null;
+  const key = `${change.kind}:${change.id}:${Object.keys(change.changes).join(',')}`;
+  if (key === dismissed) return null;
+  return (
+    <Offer
+      key={key}
+      change={change}
+      onDone={() => {
+        setDismissed(key);
+      }}
+    />
+  );
+}
 
-  if (change === null || key === dismissed) return null;
+function Offer(props: { change: Change; onDone: () => void }): JSX.Element | null {
+  const { change, onDone } = props;
+  const [notice, setNotice] = useState<string | null>(null);
+  const save = useSaveObject();
+  const object = useLibraryObject(change.kind, change.id);
+
   if (object.isError) return <Note>{WORDS.gone}</Note>;
   if (!object.data) return null;
   const held = object.data;
@@ -212,7 +237,7 @@ export function Proposal(props: { sessionId: string }): JSX.Element | null {
               {
                 onSuccess: () => {
                   setNotice(WORDS.applied);
-                  setDismissed(key);
+                  onDone();
                 },
                 onError: () => {
                   setNotice(WORDS.failed);
@@ -223,13 +248,7 @@ export function Proposal(props: { sessionId: string }): JSX.Element | null {
         >
           {save.isPending ? WORDS.applying : WORDS.apply}
         </Button>
-        <Button
-          type="button"
-          size="compact"
-          onClick={() => {
-            setDismissed(key);
-          }}
-        >
+        <Button type="button" size="compact" onClick={onDone}>
           {WORDS.dismiss}
         </Button>
       </div>

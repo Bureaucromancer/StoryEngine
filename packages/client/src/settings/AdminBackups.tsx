@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
-import { backupApi, type BackupManifest, type BackupRecord } from '../api.js';
+import { backupApi, errorCode, type BackupManifest, type BackupRecord } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { useNotices } from '../queries.js';
 import { Button } from '../ui/Button.js';
@@ -12,7 +12,7 @@ import { Dialog } from '../ui/Dialog.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import { Fine, Note } from '../ui/Text.js';
-import { megabytes } from './Backups.js';
+import { megabytes, takeFailure } from './Backups.js';
 import { ImportBackup } from './ImportBackup.js';
 
 /**
@@ -121,9 +121,12 @@ export function AdminBackups(): JSX.Element {
         lose its last, incomplete turn.
       </Fine>
 
+      {/* The same line as the account half, full disk included (2026-09-27):
+          the admin take reaches the same route code and had no sentence for
+          it at all. */}
       {take.isError ? (
         <p role="alert" className="text-danger-ink">
-          That backup could not be taken.
+          {takeFailure(take.error)}
         </p>
       ) : null}
       {remove.isError ? (
@@ -474,16 +477,23 @@ function replacesLine(manifest: BackupManifest): string {
   return `Everything on this server is replaced by ${String(manifest.files)} files belonging to ${people}, taken ${formatTimestamp(manifest.takenBy.at)}.`;
 }
 
+/**
+ * Why a restore did not start.
+ *
+ * ***By class*** (2026-09-27). This searched the server's English for
+ * `free space`, `end to end` and `start this server again`: right today, and
+ * wrong the first time any of those sentences is reworded, with nothing to say
+ * so. The classes are `RestoreRefusal`'s and `RestartRefusal`'s.
+ */
 function restoreFailure(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  if (message.includes('free space')) {
-    return 'There is not enough free space to unpack that archive. Delete some archives and try again.';
+  switch (errorCode(error)) {
+    case 'no-space':
+      return 'There is not enough free space to unpack that archive. Delete some archives and try again.';
+    case 'unreadable':
+      return 'That archive could not be read from end to end, so nothing was changed.';
+    case 'unsupervised':
+      return 'Nothing would start this server again, so it will not stop itself.';
+    default:
+      return 'That restore could not be started, and nothing was changed.';
   }
-  if (message.includes('end to end')) {
-    return 'That archive could not be read from end to end, so nothing was changed.';
-  }
-  if (message.includes('start this server again')) {
-    return 'Nothing would start this server again, so it will not stop itself.';
-  }
-  return 'That restore could not be started, and nothing was changed.';
 }

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useReducer, useRef } from 'react';
+
+import { markSessionEnded } from '../auth/session-ended.js';
 
 import { INITIAL, reduce, type PlayAction, type PlayState } from './reducer.js';
 import { openTurnStream } from './stream.js';
@@ -20,6 +23,7 @@ export function useTurnStream(sessionId: string): {
   dispatch: (action: PlayAction) => void;
 } {
   const [state, dispatch] = useReducer(reduce, INITIAL);
+  const client = useQueryClient();
   // Held in a ref so the effect below does not re-run when the dispatch
   // identity changes — reopening the socket on every render would be a
   // reconnect loop that looks like a slow server.
@@ -38,13 +42,14 @@ export function useTurnStream(sessionId: string): {
       // reached the screen as the same sentence whatever had happened.
       onFatal: (error) => {
         sink.current({ kind: 'status', status: 'failed', error });
+        if (error === 'unauthenticated') markSessionEnded(client);
       },
     });
 
     return () => {
       handle.close();
     };
-  }, [sessionId]);
+  }, [sessionId, client]);
 
   return { state, dispatch };
 }

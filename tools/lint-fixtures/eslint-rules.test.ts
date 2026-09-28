@@ -308,6 +308,20 @@ describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.
 
   it('catches a comparison against displayed text', async () => {
     const fired = await syntaxReportsMatching('packages/client/src/assembled-prose.tsx', DISPLAYED);
+    // Two: `label === 'All kinds'`, and `message.includes('already there')` —
+    // the same mistake through a string method, which four settings panels had
+    // made where the comparison selector could not see it (2026-09-27).
+    expect(fired).toHaveLength(2);
+  });
+
+  it('lets a test search what was rendered, and still not compare to it', async () => {
+    // The string-method half is for code that decides something by a sentence;
+    // a test that finds a row by its label is doing what a test is for. The
+    // comparison half keeps applying, which is what proves the file was linted.
+    const fired = await syntaxReportsMatching(
+      'packages/client/src/reads-the-screen.test.tsx',
+      DISPLAYED,
+    );
     expect(fired).toHaveLength(1);
   });
 

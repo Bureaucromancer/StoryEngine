@@ -194,27 +194,45 @@ function ConnectionsPanel({
                   <p className="font-medium">{row.label}</p>
                   <Fine>{row.provider}</Fine>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="compact"
-                    onClick={() => {
-                      setEditing(row);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="dangerOutline"
-                    size="compact"
-                    onClick={() => {
-                      setConfirming(row);
-                    }}
-                  >
-                    {removeLabel(row.label)}
-                  </Button>
-                </div>
+                {/*
+                 * ***No controls on the copy that loses*** (2026-09-27).
+                 *
+                 * Both buttons act on an *id*, and both reached the other file.
+                 * Edit writes to whichever copy resolution picks
+                 * (`editTarget`) and checks that copy's hash, so a form opened
+                 * on this copy either saved over the winner — when the two
+                 * files were byte-identical, as a straight copy is — or was
+                 * refused as changed on disk when nothing had changed. Remove
+                 * unlinks *every* file with the id (`findConnectionFiles`,
+                 * deliberately — a leaked key must not survive in a second
+                 * file), so an admin tidying the dead copy deleted the working
+                 * key with it. Nothing the server offers acts on one file of
+                 * two, and it should not: a duplicated id is a hand edit, and
+                 * the sentence below says where to undo it.
+                 */}
+                {row.shadowed ? null : (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="compact"
+                      onClick={() => {
+                        setEditing(row);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="dangerOutline"
+                      size="compact"
+                      onClick={() => {
+                        setConfirming(row);
+                      }}
+                    >
+                      {removeLabel(row.label)}
+                    </Button>
+                  </div>
+                )}
               </div>
               <p className="mt-2 text-xs text-ink-faint">{keyState(row)}</p>
               {row.shadowed ? (
@@ -224,11 +242,12 @@ function ConnectionsPanel({
                  * one id is what a hand-edited directory does, and an admin
                  * editing the copy nothing resolves to would otherwise watch
                  * their change do nothing at all.
+                 *
+                 * ~~*Remove one of them.*~~ It pointed at a button that
+                 * removed both (2026-09-27), so the remedy it names now is the
+                 * only one that touches this copy alone.
                  */
-                <p className="mt-2 text-sm text-warn-ink">
-                  Another connection file on disk already uses this id, so nothing will ever resolve
-                  to this one. Remove one of them.
-                </p>
+                <p className="mt-2 text-sm text-warn-ink">{shadowedNote()}</p>
               ) : null}
             </li>
           ))}
@@ -263,6 +282,7 @@ function ConnectionsPanel({
         <RemoveConnectionDialog
           scope={scope}
           connection={confirming}
+          duplicated={rows.filter((row) => row.id === confirming.id).length > 1}
           onDone={() => {
             setConfirming(null);
           }}
@@ -307,11 +327,7 @@ function ConnectionForm({
    * because an empty box has to mean *whatever the default is* and a number
    * input cannot say that.
    */
-  const [contextText, setContextText] = useState(
-    connection?.capabilities?.maxContextTokens === undefined
-      ? ''
-      : String(connection.capabilities.maxContextTokens),
-  );
+  const [contextText, setContextText] = useState(() => contextTextOf(connection));
   const [reportsUsage, setReportsUsage] = useState<boolean | null>(
     connection?.capabilities?.reportsUsage ?? null,
   );
@@ -324,6 +340,17 @@ function ConnectionForm({
   const [imageModels, setImageModels] = useState<readonly string[]>(connection?.imageModels ?? []);
   /** What a refusal handed back, so both ways out of a 412 are reachable. */
   const [conflict, setConflict] = useState<AdminConnection | null>(null);
+  /**
+   * ***The hash a choice acknowledged, once one has been made*** (2026-09-27).
+   *
+   * Save sent the refusal's own hash as soon as there was a refusal, so pressing
+   * Save straight after a 412 — neither offer chosen — overwrote the file on
+   * disk: exactly the silent overwrite the refusal is there to stop. Now a plain
+   * Save carries the hash this form was opened with, and is refused again until
+   * one of the offers is taken; *Load what is on disk* sets this, and *Overwrite
+   * with mine* sends the refusal's hash itself.
+   */
+  const [acknowledged, setAcknowledged] = useState<string | null>(null);
   const [saved, setSaved] = useState<AdminConnection | null>(null);
 
   const offered = models.data?.models ?? [];
@@ -348,54 +375,74 @@ function ConnectionForm({
     );
   }
 
+  /**
+   * The save, carrying the hash it acknowledges.
+   *
+   * *A function rather than the form's submit handler*, because *Overwrite with
+   * mine* has to send the refusal's hash in the same click: state set in a
+   * click handler does not reach that same event's submit.
+   */
+  function submit(contentHash: string | undefined): void {
+    save.mutate(
+      {
+        label,
+        provider,
+        baseUrl,
+        models: modelText
+          .split(',')
+          .map((model) => model.trim())
+          .filter((model) => model.length > 0),
+        // Blank keeps what is stored, which is the whole reason `hasKey` is
+        // on the wire — an empty box cannot say *no key* and *unchanged*
+        // apart, so the form says nothing and the server preserves.
+        ...(apiKey.length === 0 ? {} : { apiKey }),
+        // Narrowed to the models being saved: one removed from the list
+        // cannot stay marked as one that sees.
+        imageModels: imageModels.filter((model) => chosen.includes(model)),
+        /**
+         * **Merged over what is stored, never replacing it.** A capability
+         * this form does not know about was written by hand by somebody who
+         * did know, and a save that sent only these two would delete it —
+         * which is the bug the key already taught this file once.
+         *
+         * *Over the latest record this form has read* (2026-09-27): after a
+         * refusal that is the one on disk, so an override written by hand
+         * since the page loaded is kept rather than put back to the old one.
+         */
+        ...capabilitiesFrom(conflict ?? connection, contextText, reportsUsage),
+        ...(connection === null
+          ? {}
+          : {
+              id: connection.id,
+              contentHash: contentHash ?? connection.contentHash,
+            }),
+      },
+      {
+        onSuccess: (result) => {
+          setConflict(null);
+          setAcknowledged(null);
+          if (offerDefaults) setSaved(result.connection);
+          else onDone();
+        },
+        onError: (error) => {
+          const carried = staleConnection(error);
+          if (carried !== null) {
+            // A new refusal is answered afresh.
+            setAcknowledged(null);
+            setConflict(carried);
+          }
+        },
+      },
+    );
+  }
+
   return (
     <form
       className="flex max-w-md flex-col gap-4 rounded-md border border-line p-4"
       aria-labelledby="connection-form"
       onSubmit={(event) => {
         event.preventDefault();
-        save.mutate(
-          {
-            label,
-            provider,
-            baseUrl,
-            models: modelText
-              .split(',')
-              .map((model) => model.trim())
-              .filter((model) => model.length > 0),
-            // Blank keeps what is stored, which is the whole reason `hasKey` is
-            // on the wire — an empty box cannot say *no key* and *unchanged*
-            // apart, so the form says nothing and the server preserves.
-            ...(apiKey.length === 0 ? {} : { apiKey }),
-            // Narrowed to the models being saved: one removed from the list
-            // cannot stay marked as one that sees.
-            imageModels: imageModels.filter((model) => chosen.includes(model)),
-            /**
-             * **Merged over what is stored, never replacing it.** A capability
-             * this form does not know about was written by hand by somebody who
-             * did know, and a save that sent only these two would delete it —
-             * which is the bug the key already taught this file once.
-             */
-            ...capabilitiesFrom(connection, contextText, reportsUsage),
-            ...(connection === null
-              ? {}
-              : {
-                  id: connection.id,
-                  contentHash: conflict?.contentHash ?? connection.contentHash,
-                }),
-          },
-          {
-            onSuccess: (result) => {
-              setConflict(null);
-              if (offerDefaults) setSaved(result.connection);
-              else onDone();
-            },
-            onError: (error) => {
-              const carried = staleConnection(error);
-              if (carried !== null) setConflict(carried);
-            },
-          },
-        );
+        submit(acknowledged ?? undefined);
       }}
     >
       <h4 id="connection-form" className="text-subsection text-ink">
@@ -411,7 +458,12 @@ function ConnectionForm({
         placeholder="https://api.openai.com/v1"
         hint="Leave this blank for OpenAI itself. For a model running on your own machine it is usually something like http://localhost:11434/v1."
       />
-      <SecretField label="Key" value={apiKey} onChange={setApiKey} keptNote={keyNote(connection)} />
+      <SecretField
+        label="Key"
+        value={apiKey}
+        onChange={setApiKey}
+        keptNote={keyNote(conflict ?? connection)}
+      />
 
       <div className="flex flex-col gap-2">
         <Field
@@ -598,15 +650,30 @@ function ConnectionForm({
               <Button
                 type="button"
                 size="compact"
+                aria-pressed={acknowledged === conflict.contentHash}
                 onClick={() => {
+                  // Every field this form holds, not the three it used to: a
+                  // capability or a picture-model list left as it was before
+                  // the load is one the next save puts back over the disk.
                   setLabel(conflict.label);
+                  setProvider(conflict.provider);
                   setBaseUrl(conflict.baseUrl ?? '');
                   setModelText(conflict.models.join(', '));
+                  setContextText(contextTextOf(conflict));
+                  setReportsUsage(conflict.capabilities?.reportsUsage ?? null);
+                  setImageModels(conflict.imageModels ?? []);
+                  setAcknowledged(conflict.contentHash);
                 }}
               >
                 Load what is on disk
               </Button>
-              <Button type="submit" size="compact">
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  submit(conflict.contentHash);
+                }}
+              >
                 Overwrite with mine
               </Button>
             </div>
@@ -732,10 +799,24 @@ function FirstRunDefaults({
 function RemoveConnectionDialog({
   scope,
   connection,
+  duplicated,
   onDone,
 }: {
   scope: ConnectionScope;
   connection: AdminConnection;
+  /**
+   * Whether the list holds a second file with this id (2026-09-27).
+   *
+   * Remove reaches the winner's row only now, but it still unlinks every file
+   * claiming the id — which is right, for the leaked key [P2B §2.8] is about —
+   * so the dialog says so before, not after. The list the panel already holds
+   * is the evidence: the server presented both files in it.
+   *
+   * *Counted by id, never by identity with the row the dialog opened on*: a
+   * refetch while it is open hands the panel new row objects whenever a file
+   * changed, and the winner's own new row would then read as a second file.
+   */
+  duplicated: boolean;
   onDone: () => void;
 }): JSX.Element {
   /**
@@ -764,6 +845,7 @@ function RemoveConnectionDialog({
         The key stops working here straight away. Nothing revokes it at the provider — do that there
         as well if it has leaked.
       </p>
+      {duplicated ? <p className="text-sm text-warn-ink">{duplicateRemoved()}</p> : null}
       {remove.isError ? (
         <p role="alert" className="text-sm text-danger-ink">
           {remove.error.message}
@@ -1144,6 +1226,14 @@ function removeTitle(label: string): string {
   return `Remove ${label}?`;
 }
 
+function shadowedNote(): string {
+  return "Another connection file on disk already uses this id, so nothing will ever resolve to this one. Delete this copy's file by hand: removing the connection here removes every file with this id, including the one in use.";
+}
+
+function duplicateRemoved(): string {
+  return 'Another file on disk claims this id as well, and it is removed too.';
+}
+
 function editTitle(label: string): string {
   return `Edit ${label}`;
 }
@@ -1197,6 +1287,12 @@ const USAGE_OPTIONS: [string, string][] = [
  * A blank context box removes the override rather than setting zero, which is
  * what *leave blank to use the default* has to mean.
  */
+/** The context window box's text for a connection — blank for *use the default*. */
+function contextTextOf(connection: AdminConnection | null): string {
+  const tokens = connection?.capabilities?.maxContextTokens;
+  return tokens === undefined ? '' : String(tokens);
+}
+
 function capabilitiesFrom(
   connection: AdminConnection | null,
   contextText: string,

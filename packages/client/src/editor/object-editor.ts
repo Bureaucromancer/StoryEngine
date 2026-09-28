@@ -135,6 +135,11 @@ export interface ObjectEditor<F> {
    * when the body carried `current`, so a 412 without one vanished entirely.
    * Computed here rather than in the frame so the frame cannot get it wrong for
    * five kinds.
+   *
+   * ***On a draft, the create's*** (2026-09-27). A page that has never been
+   * saved writes with a create, not an update, and this read only the update:
+   * a first Save the server refused — a name it would not take, a field it
+   * could not validate — left the page as it was and said nothing at all.
    */
   saveError: string | null;
   /** The 412's first offer: take theirs, reapply mine. */
@@ -233,8 +238,12 @@ export function useObjectEditor<F>(
   const [refusal, setRefusal] = useState<string | null>(null);
   /**
    * The provenance map as the form has it — seeded from the loaded object and
-   * re-seeded wherever `base` is, so a restore and a reload-and-reapply both
-   * carry the right one rather than the one from before.
+   * ~~re-seeded wherever `base` is, so a restore and a reload-and-reapply both
+   * carry the right one rather than the one from before~~ ***replaced by a
+   * restore, and merged path by path by a reload-and-reapply*** (2026-09-27).
+   * The reapply kept this map untouched, so the other writer's provenance — the
+   * record that *their* field was model-written — was erased by the next save,
+   * which is the one thing the map exists to keep. See `mergeGenerated`.
    */
   const [generated, setGenerated] = useState<Record<string, GeneratedFieldProvenance>>(() =>
     generatedOf(initial.object),
@@ -282,6 +291,10 @@ export function useObjectEditor<F>(
     // map would attribute this form's fields to generations that produced
     // different words.
     setGenerated(generatedOf(object));
+    // And the import the next save was going to be recorded as is gone with
+    // the form it was merged into: a save after a restore would otherwise
+    // write *imported from gift.json* on a version that carries none of it.
+    importedFrom.current = null;
     setNotice(message);
   }
 
@@ -390,6 +403,11 @@ export function useObjectEditor<F>(
     // the click is one of *my* edits, and the reapply's whole job is to keep
     // those.
     setForm((current) => descriptor.reapply(pristineForm, current, fresh));
+    // `base.object` is the version this form was opened on, which is what the
+    // map is measured against: the server stores `generated` exactly as sent.
+    setGenerated((current) =>
+      mergeGenerated(generatedOf(base.object), current, generatedOf(conflict.object)),
+    );
     setPristineForm(fresh);
     setBase(conflict);
     setConflict(null);
@@ -412,7 +430,9 @@ export function useObjectEditor<F>(
     object['id'] = uuidv7();
     object['name'] = `${descriptor.nameOf(form)} (copy)`;
     create.mutate(
-      { kind: descriptor.kind, object },
+      // Naming the original, so the copy is made with its pictures rather than
+      // rows naming files its own folder does not have (2026-09-27).
+      { kind: descriptor.kind, object, copyOf: base.id },
       {
         onSuccess: (result) => {
           setConflict(null);
@@ -491,13 +511,16 @@ export function useObjectEditor<F>(
       });
     },
     savePending: saveMutation.isPending,
-    saveError:
-      saveMutation.isError &&
-      !(
-        saveMutation.error instanceof ApiError &&
-        saveMutation.error.status === 412 &&
-        saveMutation.error.current
-      )
+    saveError: unsaved
+      ? create.isError
+        ? create.error.message
+        : null
+      : saveMutation.isError &&
+          !(
+            saveMutation.error instanceof ApiError &&
+            saveMutation.error.status === 412 &&
+            saveMutation.error.current
+          )
         ? saveMutation.error.message
         : null,
     reloadAndReapply,
@@ -519,6 +542,36 @@ export function useObjectEditor<F>(
  * array of nothing in particular, and a form that threw on one would make a
  * typo in a file somebody else edited into a page that will not open.
  */
+/**
+ * ***Provenance merged the way the 412 merges fields*** (2026-09-27) — path by
+ * path, against the map this form was opened with.
+ *
+ * A path whose record I changed — an assist I accepted, a hand edit that marked
+ * one reviewed — keeps mine; every other path takes theirs, so their accepted
+ * assists arrive with the fields they wrote. *Not theirs wholesale*, which
+ * would drop the assists this tab accepted before losing the race; and not mine
+ * wholesale, which is what the reapply did and what erased theirs. The records
+ * are built with one key order by `generatedOf`, `useAssistFor` and
+ * `markReviewed` alike, so comparing them as strings is stable.
+ */
+function mergeGenerated(
+  pristine: Record<string, GeneratedFieldProvenance>,
+  mine: Record<string, GeneratedFieldProvenance>,
+  theirs: Record<string, GeneratedFieldProvenance>,
+): Record<string, GeneratedFieldProvenance> {
+  const out: Record<string, GeneratedFieldProvenance> = {};
+  for (const path of new Set([
+    ...Object.keys(pristine),
+    ...Object.keys(mine),
+    ...Object.keys(theirs),
+  ])) {
+    const kept =
+      JSON.stringify(mine[path]) !== JSON.stringify(pristine[path]) ? mine[path] : theirs[path];
+    if (kept !== undefined) out[path] = kept;
+  }
+  return out;
+}
+
 function generatedOf(object: Record<string, unknown>): Record<string, GeneratedFieldProvenance> {
   const held = object['generated'];
   if (typeof held !== 'object' || held === null || Array.isArray(held)) return {};

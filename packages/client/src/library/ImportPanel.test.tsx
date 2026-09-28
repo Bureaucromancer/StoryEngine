@@ -9,7 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ImportPreview } from '@storyengine/shared';
 
-import { api } from '../api.js';
+import { api, type LibraryObject } from '../api.js';
+import { useLibrary } from '../queries.js';
 import { ImportPanel } from './ImportPanel.js';
 
 /**
@@ -157,6 +158,64 @@ describe('after a sweep', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('inside this install');
     });
+  });
+});
+
+/**
+ * ***An import leaves the shelf on screen*** — 2026-09-27.
+ *
+ * The refresh after an import was a `resetQueries`, which puts every library
+ * entry back to *pending* before refetching it; `useLibrary` keeps no
+ * placeholder, so the list beside this panel unmounted its table — and the sort,
+ * filters and search set on it — to show *Loading…* for a list about to gain a
+ * row. The refetch here is held open, so what the shelf shows *while* it runs is
+ * what is asserted. Reddened by putting the reset back.
+ */
+describe('what an import leaves on screen', () => {
+  function Shelf(): JSX.Element {
+    const library = useLibrary();
+    return (
+      <p data-testid="shelf">
+        {library.data === undefined
+          ? 'Nothing to show'
+          : library.data.objects.map((object) => object.name).join(', ')}
+      </p>
+    );
+  }
+
+  it('import refreshes the shelf without emptying it', async () => {
+    const listLibrary = vi
+      .spyOn(api, 'listLibrary')
+      // Only the name is read, by the shelf above.
+      .mockResolvedValueOnce({ objects: [{ name: 'Harbour' } as LibraryObject] })
+      .mockReturnValue(new Promise(() => undefined));
+    vi.spyOn(api, 'importSweep').mockResolvedValue({
+      suggestions: [],
+      report: { jobId: 'job-1', source: 'sillytavern', counts: { converted: 1 }, items: [] },
+    });
+    vi.spyOn(api, 'importJobs').mockResolvedValue({ jobs: [] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Shelf />
+        <ImportPanel />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('shelf').textContent).toBe('Harbour');
+    });
+
+    await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/data');
+    await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Imported')).toBeTruthy();
+    });
+
+    // The refetch was asked for, and the shelf kept what it had while it runs.
+    await waitFor(() => {
+      expect(listLibrary).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByTestId('shelf').textContent).toBe('Harbour');
   });
 });
 

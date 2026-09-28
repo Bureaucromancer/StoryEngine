@@ -96,7 +96,8 @@ const ACCOUNT: Account = {
 function makeLibrary() {
   let stored: Record<string, unknown> = structuredClone(makeBook());
   let revision = 0;
-  const creates: { kind: unknown; object: Record<string, unknown> }[] = [];
+  const creates: { kind: unknown; object: Record<string, unknown>; copyOf?: string | undefined }[] =
+    [];
 
   const hash = (): string => `sha256:revision-${String(revision)}`;
   const envelope = (): LibraryObject => ({
@@ -131,8 +132,9 @@ function makeLibrary() {
     createObject: (
       kind: unknown,
       object: Record<string, unknown>,
+      copyOf?: string,
     ): Promise<{ id: string; slug: string; contentHash: string }> => {
-      creates.push({ kind, object: structuredClone(object) });
+      creates.push({ kind, object: structuredClone(object), copyOf });
       return Promise.resolve({
         id: object['id'] as string,
         slug: 'ardent-copy',
@@ -212,8 +214,8 @@ vi.mock('../api.js', async (importOriginal) => {
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       readObject: () => server.readObject(),
-      createObject: (kind: unknown, object: Record<string, unknown>) =>
-        server.createObject(kind, object),
+      createObject: (kind: unknown, object: Record<string, unknown>, copyOf?: string) =>
+        server.createObject(kind, object, copyOf),
       updateObject: (
         kind: unknown,
         id: unknown,
@@ -427,6 +429,47 @@ describe('an entry created, edited and deleted through the real write path', () 
     const saved = server.stored();
     expect(saved.entries.find((each) => each.id === HARBOUR)?.content).toBe('Cranes.');
     expect(saved.entries.find((each) => each.id === BRIDGE)?.content).toBe('Iron.');
+  });
+
+  /**
+   * ***Both sides' provenance survives the merge*** (2026-09-27). The reapply
+   * merged the fields and kept this tab's `generated` map whole, so the other
+   * writer's record that *their* field was model-written was erased by the save
+   * that followed — the one thing the map is kept for.
+   */
+  it('keeps the other writer’s provenance through reload-and-reapply, and mine', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    const theirs = makeBook();
+    theirs.entries[1] = { ...theirs.entries[1]!, content: 'Iron, by a model.' };
+    server.handEdit({
+      ...theirs,
+      generated: {
+        [`entries.${BRIDGE}.content`]: {
+          original: 'Iron, by a model.',
+          at: '2026-09-01T00:00:00.000Z',
+          model: 'their-model',
+          seed: 'their prompt',
+          unreviewed: true,
+        },
+      },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alertdialog');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Load the newer version and reapply my edits' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+
+    const saved = server.stored() as unknown as { generated: Record<string, unknown> | null };
+    expect(Object.keys(saved.generated ?? {}).sort()).toEqual(
+      [`entries.${BRIDGE}.content`, `entries.${HARBOUR}.content`].sort(),
+    );
   });
 });
 
@@ -1170,6 +1213,9 @@ describe('leaving an editor with unsaved changes', () => {
       expect(router.state.location.pathname).not.toBe(wasAt);
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    // And it named what it copies, so the copy is made with its pictures
+    // rather than rows naming files its folder does not have (2026-09-27).
+    expect(server.creates[0]?.copyOf).toBe(BOOK_ID);
   });
 
   it('does not ask when the address changes but the editor does not', async () => {
@@ -1310,6 +1356,26 @@ describe('a new lorebook', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
   });
 
+  /**
+   * ***A picture needs a saved book to sit beside*** (2026-09-27). An upload is
+   * stored in the object's folder, and a draft has none: every picture added
+   * to a new book was refused. The mocked upload succeeds for any id, so what
+   * is asserted is the control's absence — nothing here can prove a refusal the
+   * real server would make.
+   */
+  it('says to save before adding pictures, on the book and on a new entry', async () => {
+    renderApp();
+    await openNew();
+    const sentence = 'Pictures are stored beside the saved book. Save it once, then add them here.';
+
+    expect(screen.queryByRole('button', { name: 'Add a picture' })).toBeNull();
+    expect(screen.getByText(sentence)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'New entry' }));
+    expect(screen.queryByRole('button', { name: 'Add a picture' })).toBeNull();
+    expect(screen.getAllByText(sentence)).toHaveLength(2);
+  });
+
   it('refuses a nameless book rather than filing one', async () => {
     renderApp();
     await openNew();
@@ -1417,6 +1483,37 @@ describe('entries travelling on their own', () => {
     expect(written.folders.map((one) => one.id)).toEqual(['places']);
   });
 
+  /**
+   * ***What the export leaves behind is said before the click*** (2026-09-27):
+   * a lorebook file cannot carry a picture's bytes, so the export leaves the
+   * entry's pictures where they are and counts them beside the button.
+   */
+  it('says how many pictures an export of the ticked entries leaves behind', async () => {
+    const book = makeBook();
+    const row = (id: string) => ({
+      id,
+      role: 'gallery' as const,
+      tags: [],
+      ref: `assets/${id}.png`,
+      digest: `sha256:${id}`,
+      bytes: 4,
+      mime: 'image/png',
+    });
+    book.entries[0] = { ...book.entries[0]!, media: [row('p1'), row('p2')] };
+    server.handEdit(book);
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Harbour' }));
+
+    expect(
+      screen.getByText(
+        '2 pictures stay behind: an export carries the entries’ text, not their pictures.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('will not export nothing', async () => {
     renderApp();
     await openEditor();
@@ -1477,6 +1574,45 @@ describe('entries travelling on their own', () => {
     const saved = server.stored();
     expect(saved.name).toBe('Ardent Isles');
     expect(saved.entries.map((one) => one.name)).toContain('The lock keeper');
+  });
+
+  /**
+   * ***An entry that arrives without its pictures is named*** (2026-09-27): a
+   * lorebook file carries a picture's row and never its bytes, so the rows are
+   * dropped on the way in, and the review says whose.
+   */
+  it('names the entries that arrived without their pictures', async () => {
+    renderApp();
+    await openEditor();
+    const pictured = {
+      ...entry('01a008de-7e08-70d0-899c-00000000000b', 'The lighthouse'),
+      media: [
+        {
+          id: 'm1',
+          role: 'gallery' as const,
+          tags: [],
+          ref: 'assets/m1.png',
+          digest: 'sha256:m1',
+          bytes: 4,
+          mime: 'image/png',
+        },
+      ],
+    };
+    const incoming: Lorebook = { ...newLorebook('A gift'), entries: [pictured] };
+    const file = new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' });
+
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+
+    const review = await screen.findByRole('region', { name: 'What arrived' });
+    expect(
+      within(review).getByText(
+        'These arrived without their pictures, which a lorebook file names and cannot carry:',
+      ),
+    ).toBeTruthy();
+    expect(within(review).getByText('The lighthouse')).toBeTruthy();
   });
 
   it('merges a file into the open book, reviews it, and saves it as an import', async () => {
@@ -1550,6 +1686,65 @@ describe('entries travelling on their own', () => {
     expect(
       await screen.findByText(/StoryEngine file of another kind, not a lorebook/),
     ).toBeTruthy();
+  });
+
+  /**
+   * ***A restore takes the import with it*** (2026-09-27). The import a save is
+   * recorded as is held until that save; a version restored in between carries
+   * none of the imported entries, and its next save still said *imported from
+   * gift.json*.
+   */
+  it('forgets the import when a version without it is restored', async () => {
+    vi.spyOn(api, 'history').mockResolvedValue({
+      versions: [
+        {
+          id: 'version-1',
+          digest: 'sha256:then',
+          revision: 1,
+          authoredAt: '2026-09-01T00:00:00.000Z',
+          recordedAt: '2026-09-01T00:00:00.000Z',
+          source: { kind: 'user' },
+          reason: '',
+          authorVersion: null,
+          pinned: false,
+        },
+      ],
+    });
+    vi.spyOn(api, 'restoreVersion').mockImplementation(() => {
+      server.handEdit(makeBook());
+      return Promise.resolve({
+        contentHash: server.envelope().contentHash,
+        object: structuredClone(makeBook()),
+      });
+    });
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [entry('01a008de-7e08-70d0-899c-00000000000c', 'The lock keeper')],
+    };
+    await act(async () => {
+      fireEvent.change(filePicker(), {
+        target: {
+          files: [new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' })],
+        },
+      });
+      await Promise.resolve();
+    });
+    await screen.findByRole('region', { name: 'What arrived' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'History' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+    await screen.findByText(/^Version restored\./);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Isles');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().name).toBe('Ardent Isles');
+    expect(server.importedFrom).toBeUndefined();
   });
 
   it('leaves the next save alone — an import is one save, not a mode', async () => {
@@ -1656,6 +1851,40 @@ describe('image slots on a book and its entries', () => {
     expect(saved.primaryMediaId).toBe(saved.media[0]?.id);
   });
 
+  /**
+   * ***A refusal says which one*** (2026-09-27). The strip read the class from
+   * `failure.body.error`, which `ApiError` has never had, so a PDF picked by
+   * mistake was only a picture that *could not be added*. And the class is
+   * checked against the two the strip has words for, not looked up in its
+   * label table: `remove` is a class no server sends and a label this strip
+   * has, and would have come back as the reason.
+   */
+  it('says why the server refused a picture, and only in its own words', async () => {
+    const refuse = vi.spyOn(api, 'uploadAsset');
+    renderApp();
+    await openEditor();
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    const pick = async (): Promise<void> => {
+      await act(async () => {
+        fireEvent.change(pickerIn(gallery), {
+          target: { files: [new File(['%PDF'], 'notes.pdf', { type: 'image/png' })] },
+        });
+        await Promise.resolve();
+      });
+    };
+
+    refuse.mockRejectedValue(new ApiError(415, 'not-an-image', 'That is not an image.'));
+    await pick();
+    expect(
+      await within(gallery).findByText('That file is not a PNG, JPEG or WebP image.'),
+    ).toBeTruthy();
+
+    refuse.mockRejectedValue(new ApiError(422, 'remove', 'A class this strip has a label for.'));
+    await pick();
+    expect(await within(gallery).findByText('That picture could not be added.')).toBeTruthy();
+  });
+
   it('puts a strip on the entry rather than on the book', async () => {
     uploads();
     const client = renderApp();
@@ -1704,6 +1933,35 @@ describe('image slots on a book and its entries', () => {
     // tag soup in the role field."*
     expect(await within(gallery).findByRole('combobox', { name: 'Role' })).toBeTruthy();
     expect(within(gallery).getByRole('textbox', { name: 'Tags' })).toBeTruthy();
+  });
+
+  /**
+   * ***A comma survives being typed*** (2026-09-27). The box split and
+   * re-joined itself on every keystroke, so the comma went the moment it was
+   * typed — and with it any second tag, and the space after it.
+   */
+  it('takes tags typed with commas and spaces between them', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor();
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.type(
+      await within(gallery).findByRole('textbox', { name: 'Tags' }),
+      'winter, aerial view',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().media[0]?.tags).toEqual(['winter', 'aerial view']);
   });
 
   it('says the pictures are never sent', async () => {

@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  adminApi,
   api,
   ApiError,
   cookieValue,
@@ -257,6 +258,83 @@ describe('the session write bodies', () => {
     // Both, always: the route replaces rather than merges, so a caller that
     // sent one field would silently clear the other.
     expect(seen[0]?.body).toEqual({ treatment: null, lore: ['book-rain'] });
+  });
+
+  /**
+   * ***A cast given whole goes on the wire whole*** (2026-09-27). The assistant
+   * panel passes the shipped card as its session's one actor, and the field
+   * was declared on the input and read by nothing — every assistant session was
+   * made with nobody in it.
+   */
+  it('sends a cast given whole, actors and all', async () => {
+    const seen = capture();
+
+    await createSession({
+      mode: 'storyengine.assistant',
+      cast: { persona: null, actors: ['the-card'] },
+    });
+
+    expect(seen[0]?.body).toEqual({
+      mode: 'storyengine.assistant',
+      cast: { persona: null, actors: ['the-card'] },
+    });
+  });
+});
+
+/**
+ * ***An id is escaped wherever it is a path segment*** (2026-09-27). The admin
+ * connection calls put it in raw, where their personal twins encoded it; an id
+ * is whatever a hand-written file says, and `lab/gpu` reached a different
+ * route. The three import and asset calls beside them had the same omission.
+ */
+describe('ids in addresses', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function urls(): string[] {
+    const seen: string[] = [];
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (url: string) => {
+      seen.push(url);
+      return Promise.resolve(
+        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      );
+    });
+    return seen;
+  }
+
+  it('escapes a system connection id in every call that names one', async () => {
+    const seen = urls();
+
+    await adminApi.updateConnection('lab/gpu', {
+      label: 'GPU',
+      provider: 'openai-compatible',
+      models: [],
+      contentHash: 'sha256:x',
+    });
+    await adminApi.deleteConnection('../escape');
+    await adminApi.connectionBindings('house#2');
+
+    expect(seen).toEqual([
+      '/api/admin/connections/lab%2Fgpu',
+      '/api/admin/connections/..%2Fescape',
+      '/api/admin/connections/house%232/bindings',
+    ]);
+  });
+
+  it('escapes the ids in the import and picture calls', async () => {
+    const seen = urls();
+
+    await api.importJob('a/b');
+    await api.objectImportNotes('c#d');
+    await api.uploadAsset('lorebooks', 'e?f', new Blob(['x']), 'x.png');
+
+    expect(seen).toEqual([
+      '/api/import/jobs/a%2Fb',
+      '/api/import/objects/c%23d/notes',
+      '/api/library/lorebooks/e%3Ff/assets',
+    ]);
   });
 });
 

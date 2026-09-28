@@ -89,6 +89,12 @@ describe('step 16 — one object, both kinds of edit, told apart', () => {
     // one signal means the consequences below are readable — which is also why
     // the old comment about winning a race against the snapshot no longer needs
     // to be true of anything.
+    //
+    // ***And it timed out now and then, with "It emitted: (nothing)"***
+    // (2026-09-27). Named rather than retried: chokidar read
+    // `users/ned/library` before watching it, the POST made `lorebooks/` in
+    // between, and nothing under it was ever watched. The watcher's own suite
+    // forces that gap; this step no longer depends on missing it.
     const onDisk = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
     const indexed = watchedIndex(server, file);
     await writeFile(

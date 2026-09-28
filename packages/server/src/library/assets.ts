@@ -231,6 +231,48 @@ export async function readAsset(
   return readFileBytes(await assetFile(context, handle, row, ref));
 }
 
+/**
+ * ***A copy brings its pictures*** (2026-09-27).
+ *
+ * A copy of an object is its JSON written under a new id — *Save my version
+ * as a copy*, *Copy to my library* — and a picture is bytes beside the object
+ * that JSON names by `ref`. So the copy arrived naming files its own folder did
+ * not have, and every picture on it was broken from the moment it was made.
+ * This puts the source's file for each row the copy names at the same `ref`
+ * beside the copy. `ref`s are content-addressed, so the bytes are the file.
+ *
+ * *Only rows the copy names, and only files the source has.* A row whose file
+ * was already missing is missing in both, which is the same disagreement the
+ * read side reports as not-found; nothing is invented.
+ *
+ * Both paths go through {@link assetFile}, so a folder whose `assets` is a link
+ * elsewhere is refused on either side rather than read or written through.
+ */
+export async function copyAssets(
+  context: LibraryContext,
+  handle: string,
+  fromId: string,
+  toId: string,
+  inKind?: PortableSchemaId,
+): Promise<number> {
+  const source = read(context, handle, fromId, inKind);
+  const target = read(context, handle, toId, inKind);
+  if (target.owner === 'system') {
+    throw new LibraryError('read-only', 'System library objects cannot be edited.');
+  }
+  let copied = 0;
+  for (const row of mediaRowsIn(target.body)) {
+    if (['', '.', '..'].includes(basename(row.ref))) continue;
+    const bytes = await readFileBytes(await assetFile(context, handle, source, row.ref));
+    if (bytes === null) continue;
+    const landing = await assetFile(context, handle, target, row.ref);
+    await ensureDirectory(dirname(landing));
+    await writeFileBytes(landing, bytes);
+    copied += 1;
+  }
+  return copied;
+}
+
 /** What an upload becomes: a file on disk, and the row a manifest should carry. */
 export interface StoredAsset {
   ref: string;

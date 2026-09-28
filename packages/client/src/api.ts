@@ -245,6 +245,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * ***The class a refusal carries, or `null`*** (2026-09-27).
+ *
+ * The one spelling of the read every refusal sentence starts from. Two others
+ * were in use and both were wrong: a cast to `{ body: { error } }` — the shape
+ * a *server* test reads off an injected response, which `ApiError` has never
+ * had, so three components' sentences had never rendered — and matching the
+ * English of `message`, which four settings panels did, so rewording a server
+ * sentence would quietly change which one of theirs a person saw. The class is
+ * the contract ([21 §1.4]); the prose is the server's own fallback.
+ */
+export function errorCode(failure: unknown): string | null {
+  return failure instanceof ApiError ? failure.code : null;
+}
+
 export const CSRF_COOKIE = 'se_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 
@@ -641,7 +656,7 @@ export const api = {
   ): Promise<{ asset: { ref: string; digest: string; bytes: number; mime: string } }> => {
     const form = new FormData();
     form.append('file', blob, filename);
-    return requestForm(`/api/library/${kind}/${id}/assets`, form);
+    return requestForm(`${objectUrl(kind, id)}/assets`, form);
   },
 
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
@@ -687,11 +702,16 @@ export const api = {
   indexRows: (kind: LibraryKind, id: string): Promise<{ rows: IndexRow[] }> =>
     request('GET', `${objectUrl(kind, id)}/rows`),
 
+  /**
+   * `copyOf` names the object this is a copy of, so the create brings its
+   * pictures — an actor's card, any other kind's files (2026-09-27).
+   */
   createObject: (
     kind: LibraryKind,
     object: Record<string, unknown>,
+    copyOf?: string,
   ): Promise<{ id: string; slug: string; contentHash: string }> =>
-    request('POST', `/api/library/${kind}`, { object }),
+    request('POST', `/api/library/${kind}`, copyOf === undefined ? { object } : { object, copyOf }),
 
   /** The hash rides in the body — the second spelling docs/api.md allows. */
   /**
@@ -793,11 +813,11 @@ export const api = {
   importJobs: (): Promise<{ jobs: ImportJob[] }> => request('GET', '/api/import/jobs'),
 
   importJob: (id: string): Promise<{ report: ImportReport }> =>
-    request('GET', `/api/import/jobs/${id}`),
+    request('GET', `/api/import/jobs/${encodeURIComponent(id)}`),
 
   /** What the imports said about one object, for its own page ([P5 §1.8]). */
   objectImportNotes: (objectId: string): Promise<{ notes: ObjectImportNotes[] }> =>
-    request('GET', `/api/import/objects/${objectId}/notes`),
+    request('GET', `/api/import/objects/${encodeURIComponent(objectId)}/notes`),
 
   /**
    * What a folder is, without importing from it — the check behind the path box.
@@ -1175,10 +1195,18 @@ export function createSession(input: NewSession): Promise<{
      * because an empty cast is being asserted — and the two are the same value
      * here, since a session created in a browser has never had actors and the
      * surface that gives it one is [P7.2]'s.
+     *
+     * ***A cast given whole is sent whole*** (2026-09-27). `cast` was declared
+     * on the input for the assistant panel, which passes the shipped card as
+     * its one actor, and never read here — so every assistant session was made
+     * with nobody in it, and the card that says what the assistant is never
+     * reached a prompt.
      */
-    ...(input.persona === undefined || input.persona === ''
-      ? {}
-      : { cast: { persona: input.persona, actors: [] } }),
+    ...(input.cast !== undefined
+      ? { cast: input.cast }
+      : input.persona === undefined || input.persona === ''
+        ? {}
+        : { cast: { persona: input.persona, actors: [] } }),
     ...(input.mode === undefined || input.mode === '' ? {} : { mode: input.mode }),
     /**
      * **Omitted when empty**, like every other field here: a mode with no
@@ -2312,18 +2340,21 @@ export const adminApi = {
    * behaviour the check exists to stop, which is silently reverting whatever
    * somebody changed in the file since the page loaded.
    */
+  // The id is encoded here and in the two below, as the personal twins' always
+  // was (2026-09-27): it is whatever a hand-written file says, and `lab/gpu`
+  // reached another route, or `house#2` a cut-short address, without it.
   updateConnection: (
     id: string,
     input: ConnectionInput & { contentHash: string },
   ): Promise<{ connection: AdminConnection }> =>
-    request('PUT', `/api/admin/connections/${id}`, input),
+    request('PUT', `/api/admin/connections/${encodeURIComponent(id)}`, input),
 
   deleteConnection: (id: string): Promise<undefined> =>
-    request('DELETE', `/api/admin/connections/${id}`),
+    request('DELETE', `/api/admin/connections/${encodeURIComponent(id)}`),
 
   /** How many bindings point at a connection. Counts, never contents ([09 §4.5]). */
   connectionBindings: (id: string): Promise<{ bindings: number }> =>
-    request('GET', `/api/admin/connections/${id}/bindings`),
+    request('GET', `/api/admin/connections/${encodeURIComponent(id)}/bindings`),
 
   /**
    * Asks an endpoint what it offers — an assist, never the path ([P2B §2.6]).

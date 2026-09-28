@@ -169,6 +169,12 @@ export class LibraryWatcher {
   async start(): Promise<void> {
     // A watcher stopped and started again is watching again.
     this.#stopped = false;
+    // ***chokidar is patched*** (2026-09-27, `patches/chokidar@5.0.0.patch`).
+    // It met a new directory by reading it and only then watching it, so a
+    // folder made inside one in between was never watched, and nothing written
+    // under it was seen until a restart — gate step 16's intermittent timeout,
+    // and `cp -r` into the library for real. The patch watches first; the test
+    // `a folder made while its parent is still being read` holds it there.
     const watcher = watch(this.#layout.dataRoot, {
       ignoreInitial: true,
       // A rebuild is the startup path ([03 §5.1]); the watcher is for what

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -338,6 +338,69 @@ describe('a 412 on a connection', () => {
   });
 });
 
+/**
+ * ***After a refusal, and before a choice*** (2026-09-27). Save sent the
+ * refusal's hash as soon as there was one, so pressing it again overwrote the
+ * file on disk with no offer taken; and *Load what is on disk* loaded three of
+ * the fields, so the next save put back the disk's capabilities and picture
+ * models from the page as it loaded.
+ */
+describe('a 412 on a connection, before either offer is taken', () => {
+  async function refuse(onDisk: Record<string, unknown>): Promise<void> {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    updateConnection.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'That connection has changed on disk.',
+        connection({ contentHash: 'sha256:what-is-there-now', ...onDisk }),
+        'sha256:what-is-there-now',
+      ),
+    );
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+  }
+
+  it('sends the hash it was opened with, so a plain Save is refused again', async () => {
+    await refuse({ label: 'Changed on disk' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection.mock.calls.length).toBe(2);
+    });
+    expect(updateConnection.mock.calls[1]?.[1]).toMatchObject({
+      contentHash: 'sha256:as-the-page-read-it',
+    });
+  });
+
+  it('loads every field from disk, and saves them with the hash it acknowledged', async () => {
+    await refuse({
+      label: 'Changed on disk',
+      // The third is one this form has no control for, written by hand: the save
+      // merges over the record it last read, so it has to arrive intact.
+      capabilities: { maxContextTokens: 32768, reportsUsage: true, supportsStructuredOutput: true },
+      imageModels: ['gpt-hi'],
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load what is on disk' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection.mock.calls.length).toBe(2);
+    });
+    expect(updateConnection.mock.calls[1]?.[1]).toMatchObject({
+      label: 'Changed on disk',
+      contentHash: 'sha256:what-is-there-now',
+      capabilities: { maxContextTokens: 32768, reportsUsage: true, supportsStructuredOutput: true },
+      imageModels: ['gpt-hi'],
+    });
+  });
+});
+
 describe('a duplicated id', () => {
   /**
    * **Both are listed and nothing is blocked** — [P1 §1.2]'s posture — but the
@@ -355,13 +418,98 @@ describe('a duplicated id', () => {
 
     expect(
       await screen.findByText(
-        'Another connection file on disk already uses this id, so nothing will ever resolve to this one. Remove one of them.',
+        "Another connection file on disk already uses this id, so nothing will ever resolve to this one. Delete this copy's file by hand: removing the connection here removes every file with this id, including the one in use.",
       ),
     ).toBeTruthy();
     // One warning, not two — the winner is not warned about.
     expect(screen.getAllByText(/Another connection file on disk already uses this id/).length).toBe(
       1,
     );
+  });
+
+  /**
+   * ***The copy that loses has no controls*** (2026-09-27).
+   *
+   * Both buttons act on the id, and the id reaches the other file: Edit saves
+   * over whichever copy resolution picks, and Remove unlinks every file that
+   * claims it. Offered on the dead copy, Remove was the way an admin tidying a
+   * hand edit deleted the key everything was using.
+   */
+  it('offers Edit and Remove on the copy in use, and on nothing else', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection({ label: 'A first by label' }),
+        connection({ label: 'Z last by label', shadowed: true }),
+      ],
+    });
+    renderSurface();
+
+    expect(await screen.findByRole('button', { name: 'Remove A first by label…' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Remove Z last by label…' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBe(1);
+  });
+
+  /**
+   * **And removing the one in use says what else goes.** The server unlinks
+   * every claimant — right for a leaked key, which must not survive in a
+   * second file — so the dialog says it before the button is pressed.
+   */
+  it('says, before removing, that the other file with this id goes too', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection({ label: 'A first by label' }),
+        connection({ label: 'Z last by label', shadowed: true }),
+        connection({ id: 'elsewhere', label: 'Somewhere else' }),
+      ],
+    });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove A first by label…' }));
+    expect(
+      screen.getByText('Another file on disk claims this id as well, and it is removed too.'),
+    ).toBeTruthy();
+
+    // Not said of a connection whose id nothing else claims.
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Somewhere else…' }));
+    expect(await screen.findByRole('heading', { name: 'Remove Somewhere else?' })).toBeTruthy();
+    expect(
+      screen.queryByText('Another file on disk claims this id as well, and it is removed too.'),
+    ).toBeNull();
+  });
+
+  /**
+   * **Counted by id, not by which row object the dialog opened on.** A refetch
+   * while it is open replaces a row whose file changed, and the new object for
+   * the same one file is not a second file. Reddened by comparing rows by
+   * identity.
+   */
+  it('does not count the same file twice when the list is read again underneath', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AdminConnections />
+      </QueryClientProvider>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove The house key…' }));
+
+    // Edited on disk meanwhile: the key taken out, which the row says, so the
+    // refetch can be seen to have landed before anything is concluded.
+    listConnections.mockResolvedValue({
+      connections: [connection({ hasKey: false, contentHash: 'sha256:edited-on-disk-meanwhile' })],
+    });
+    await act(() => client.invalidateQueries());
+    expect(
+      await screen.findByText(
+        'No key is stored, so this must be an endpoint that does not need one.',
+      ),
+    ).toBeTruthy();
+
+    expect(screen.getByRole('heading', { name: 'Remove The house key?' })).toBeTruthy();
+    expect(
+      screen.queryByText('Another file on disk claims this id as well, and it is removed too.'),
+    ).toBeNull();
   });
 });
 

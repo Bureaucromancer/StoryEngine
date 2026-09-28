@@ -313,6 +313,16 @@ describe('removing and reordering', () => {
     expect(bytes(after, keep.id)).toBe(bytes(before, keep.id));
   });
 
+  /**
+   * *Twins* (2026-09-27): a pasted hook keeps its id, and removing by every
+   * match took both hooks for one press.
+   */
+  it('removes the first of two hooks sharing an id, never both', () => {
+    const hooks = [hook('The war', { id: 'twin' }), hook('The war, pasted', { id: 'twin' })];
+
+    expect(removeHook(hooks, 'twin').map((each) => each.title)).toEqual(['The war, pasted']);
+  });
+
   it('moves a hook to the position asked for', () => {
     const hooks = [hook('one'), hook('two'), hook('three')];
 

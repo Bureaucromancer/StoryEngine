@@ -172,21 +172,22 @@ export function SessionPanel(props: {
 
         {pack === undefined ? null : (
           <>
-            <NumberField
+            <ParamField
               label="Temperature"
-              value={typeof params['temperature'] === 'number' ? String(params['temperature']) : ''}
-              onChange={(next) => {
-                setParam('temperature', next.trim() === '' ? undefined : Number(next));
+              value={typeof params['temperature'] === 'number' ? params['temperature'] : undefined}
+              whole={false}
+              onCommit={(next) => {
+                setParam('temperature', next);
               }}
               hint="Blank leaves it to the provider."
             />
-            <NumberField
+            <ParamField
               label="Maximum reply length"
-              value={typeof params['maxTokens'] === 'number' ? String(params['maxTokens']) : ''}
-              onChange={(next) => {
-                setParam('maxTokens', next.trim() === '' ? undefined : Number(next));
+              value={typeof params['maxTokens'] === 'number' ? params['maxTokens'] : undefined}
+              whole
+              onCommit={(next) => {
+                setParam('maxTokens', next);
               }}
-              min={1}
               hint="In tokens. Blank leaves it to the provider."
             />
           </>
@@ -342,6 +343,68 @@ export function SessionPanel(props: {
  * prose of its own to edit — the workbench's link is already withheld for one,
  * and this says so for anybody who reaches the address another way.
  */
+/**
+ * ***A sampler setting, written when the person is done with it*** (2026-09-27).
+ *
+ * These wrote the whole pack on every keystroke, from a value the session query
+ * fed back: `0.75` went out as `0`, then as `0.` — which is not a number — and
+ * `512` as `5` and `51`, and a refetch arriving between two keystrokes reset
+ * the box under the typing, so what landed could be neither what was typed nor
+ * anything asked for. The walk sheet's own test typed one character on purpose
+ * because two did not work.
+ *
+ * So the text is this control's while it is being typed, and one write goes out
+ * on leaving the box or on Enter: blank clears the setting, a number that fits
+ * is sent, and one that does not is said beside the box rather than sent. The
+ * text is re-seeded when the setting changes from elsewhere — another tab, a
+ * pack switch — for `NumberRow`'s reason in the lorebook editor.
+ */
+function ParamField(props: {
+  label: string;
+  value: number | undefined;
+  /** A whole number of one or more, as `maxTokens` must be; otherwise any number. */
+  whole: boolean;
+  onCommit: (value: number | undefined) => void;
+  hint: string;
+}): JSX.Element {
+  const shown = props.value === undefined ? '' : String(props.value);
+  const [held, setHeld] = useState({ text: shown, from: shown });
+  const [problem, setProblem] = useState<string | null>(null);
+  if (shown !== held.from) setHeld({ text: shown, from: shown });
+
+  function commit(): void {
+    const text = held.text.trim();
+    if (text === '') {
+      setProblem(null);
+      if (props.value !== undefined) props.onCommit(undefined);
+      return;
+    }
+    const parsed = Number(text);
+    const fits =
+      Number.isFinite(parsed) && (!props.whole || (Number.isInteger(parsed) && parsed >= 1));
+    if (!fits) {
+      setProblem(props.whole ? 'A whole number of tokens, 1 or more.' : 'A number, or blank.');
+      return;
+    }
+    setProblem(null);
+    if (parsed !== props.value) props.onCommit(parsed);
+  }
+
+  return (
+    <NumberField
+      label={props.label}
+      value={held.text}
+      onChange={(text) => {
+        setHeld((was) => ({ ...was, text }));
+      }}
+      onCommit={commit}
+      error={problem}
+      hint={props.hint}
+      {...(props.whole ? { min: 1 } : {})}
+    />
+  );
+}
+
 function BlockEditor(props: {
   pack: Record<string, unknown>;
   blockId: string;

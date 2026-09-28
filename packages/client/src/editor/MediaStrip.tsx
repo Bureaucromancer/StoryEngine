@@ -5,11 +5,12 @@ import { useRef, useState, type JSX } from 'react';
 
 import { uuidv7, type EmbeddedMedia, type MediaRole } from '@storyengine/shared';
 
-import { api, type LibraryKind } from '../api.js';
+import { api, errorCode, type LibraryKind } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { CommaField } from './ListField.js';
 
 /**
  * ***Image slots, uploaded, cropped and replaced*** —
@@ -52,6 +53,7 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
   'not-an-image': 'That file is not a PNG, JPEG or WebP image.',
   'too-large': 'That file is larger than this install allows.',
   failed: 'That picture could not be added.',
+  'save-first': 'Pictures are stored beside the saved book. Save it once, then add them here.',
   /**
    * §11.2b's own sentence, and the reason it is here rather than in a tooltip:
    * a reader who does not see it will assume the opposite, which the schema
@@ -163,6 +165,17 @@ export function MediaStrip(props: {
   onCover?: (mediaId: string | null) => void;
   /** Whether a fresh picture should be cropped square before it is sent. */
   crop?: boolean;
+  /**
+   * ***A book that has never been saved has nowhere to put the bytes***
+   * (2026-09-27). An upload is stored beside the object on disk, and a draft
+   * has no folder yet — every picture added to a new book was refused, as a
+   * 404 read as *could not be added*. Creating the object on upload is ruled
+   * out ([polish §10]: the folder's name is frozen when it is made), so the
+   * strip says to save first, and offers neither Add nor Replace until then.
+   * The rows themselves stay editable: an entry imported into a new book
+   * still carries its own.
+   */
+  unsaved?: boolean;
 }): JSX.Element {
   const picker = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -194,8 +207,21 @@ export function MediaStrip(props: {
         patch(target, asset);
       }
     } catch (failure: unknown) {
-      const code = (failure as { body?: { error?: string } }).body?.error;
-      setProblem(WORDS[code ?? ''] ?? WORDS['failed'] ?? '');
+      /**
+       * ***Read from the class, and only the two this strip has words for***
+       * (2026-09-27). This read `failure.body.error`, which `ApiError` has
+       * never had, so every refusal said the picture *could not be added*.
+       * And it is an allow-list rather than a lookup in `WORDS`, because that
+       * table also holds this strip's own labels: a class the server sent
+       * that shared a name with one of them would have shown the label as the
+       * reason.
+       */
+      const code = errorCode(failure);
+      setProblem(
+        code === 'not-an-image' || code === 'too-large'
+          ? (WORDS[code] ?? '')
+          : (WORDS['failed'] ?? ''),
+      );
     } finally {
       setBusy(false);
       setReplacing(null);
@@ -253,30 +279,30 @@ export function MediaStrip(props: {
                   ))}
                 </select>
               </label>
-              <Field
+              {/* Buffered (2026-09-27): split and re-joined on every
+                  keystroke, a comma was deleted the moment it was typed, so no
+                  picture could be given a second tag. */}
+              <CommaField
                 label={WORDS['tags'] ?? 'Tags'}
-                value={one.tags.join(', ')}
+                value={one.tags}
                 hint={WORDS['tags-hint'] ?? ''}
-                onChange={(text) => {
-                  patch(one.id, {
-                    tags: text
-                      .split(',')
-                      .map((tag) => tag.trim())
-                      .filter((tag) => tag !== ''),
-                  });
+                onChange={(tags) => {
+                  patch(one.id, { tags });
                 }}
               />
               <div className="flex flex-wrap gap-1">
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setReplacing(one.id);
-                    picker.current?.click();
-                  }}
-                >
-                  {WORDS['replace']}
-                </Button>
+                {props.unsaved === true ? null : (
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setReplacing(one.id);
+                      picker.current?.click();
+                    }}
+                  >
+                    {WORDS['replace']}
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="quiet"
@@ -311,16 +337,20 @@ export function MediaStrip(props: {
       )}
 
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setReplacing(null);
-            picker.current?.click();
-          }}
-        >
-          {busy ? WORDS['adding'] : WORDS['add']}
-        </Button>
+        {props.unsaved === true ? (
+          <Note>{WORDS['save-first']}</Note>
+        ) : (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setReplacing(null);
+              picker.current?.click();
+            }}
+          >
+            {busy ? WORDS['adding'] : WORDS['add']}
+          </Button>
+        )}
         {problem === null ? (
           <Fine>{WORDS['unused']}</Fine>
         ) : (

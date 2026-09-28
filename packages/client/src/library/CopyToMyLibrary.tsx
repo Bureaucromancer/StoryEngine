@@ -68,6 +68,9 @@ export function CopyToMyLibrary(props: {
       const made = await create.mutateAsync({
         kind: props.kind,
         object: { ...props.object, id: uuidv7() },
+        // The shipped object, so the copy is written with its pictures — an
+        // actor into its card, anything else with its files (2026-09-27).
+        ...(typeof props.object['id'] === 'string' ? { copyOf: props.object['id'] } : {}),
       });
       // To the copy, not back to the list: the whole point of the action is
       // that the user now has one they can open, and leaving them on the

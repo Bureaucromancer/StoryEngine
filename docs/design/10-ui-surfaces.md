@@ -2036,6 +2036,15 @@ the world's art and `writingSamples` is how the world reads, and neither is a
 fact about twelve entries. `hooks` go the same way for a second reason — nothing
 links a hook to an entry, so *which hooks came with these* has no answer to give.
 
+*Corrected 2026-09-27:* ~~has nothing to carry yet~~ — §11.2b was built the same
+day, and from then an export sent each entry's picture **rows** in a plain JSON
+file that cannot hold their bytes, so every picture arrived naming a file the
+receiving book did not have. The zip form ([03 §5.2.3](03-data-model.md)) is still
+not built, so the rows now stay behind with their pictures, the export says how
+many beside its button, and an import drops the rows of any file that names
+pictures and says whose. The clause above is owed the zip container, not
+withdrawn.
+
 *The export is built in the page, not fetched from a route.* What is being
 exported is a selection of the **draft**, edits and all; a route would only ever
 see what is on disk, so somebody who fixed a typo and exported would get the typo

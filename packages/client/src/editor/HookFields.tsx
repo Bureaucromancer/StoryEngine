@@ -485,6 +485,19 @@ function NotBefore(props: {
           options={[
             ['', 'No hook first'],
             ...props.siblings.map((hook) => [hook.id, nameOfHook(hook)] as const),
+            /**
+             * ***A gate naming a hook this object does not carry is shown***
+             * (2026-09-27). Removed here, promoted without its sibling, or
+             * imported — the value named no option, so the select fell back to
+             * its first and read *No hook first* while the engine held the hook
+             * back; and choosing that option fired no change, so the gate
+             * could not be cleared. Not *removed*: the id may resolve to a hook
+             * on another carrier in play.
+             */
+            ...(gate.afterHook !== undefined &&
+            !props.siblings.some((hook) => hook.id === gate.afterHook)
+              ? [[gate.afterHook, 'A hook not on this object'] as const]
+              : []),
           ]}
           onChange={(id) => {
             set({
