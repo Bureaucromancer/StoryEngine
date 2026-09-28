@@ -33,6 +33,13 @@ export interface RebuildResult {
   /** Sessions found, with their turns. Counted separately; they are a different kind. */
   sessions: number;
   turns: number;
+  /**
+   * Turns found in a session's folder that name a different session, and so
+   * were not indexed — [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Nothing this build writes produces one; a copy made by the P11.10 importer,
+   * or a session folder copied by hand, does.
+   */
+  misfiled: number;
 }
 
 /**
@@ -63,7 +70,14 @@ export async function rebuild(
   // below, because this scan re-reads every object.
   db.exec('delete from file_error');
 
-  const result: RebuildResult = { scanned: 0, indexed: 0, skipped: 0, sessions: 0, turns: 0 };
+  const result: RebuildResult = {
+    scanned: 0,
+    indexed: 0,
+    skipped: 0,
+    sessions: 0,
+    turns: 0,
+    misfiled: 0,
+  };
 
   for (const owner of await owners(layout)) {
     for (const schemaId of Object.keys(LIBRARY_DIRECTORIES) as PortableSchemaId[]) {
@@ -108,6 +122,7 @@ export async function rebuild(
       const found = await rebuildSessions(db, layout, owner.handle);
       result.sessions += found.sessions;
       result.turns += found.turns;
+      result.misfiled += found.misfiled;
     }
   }
 
@@ -127,12 +142,18 @@ async function rebuildSessions(
   db: DatabaseSync,
   layout: Layout,
   handle: string,
-): Promise<{ sessions: number; turns: number }> {
+): Promise<{ sessions: number; turns: number; misfiled: number }> {
   const context: SessionContext = { layout, index: db };
   let sessions = 0;
   let turns = 0;
+  let misfiled = 0;
 
-  for (const sessionId of await listSessions(context, handle)) {
+  /**
+   * *Sorted*, because `listSessions` is a `readdir` and a rebuild has to reach
+   * the same answer every time it runs — the module's own rule about duplicate
+   * ids, applied to sessions.
+   */
+  for (const sessionId of (await listSessions(context, handle)).sort()) {
     const session = await readSession(context, handle, sessionId);
     if (session === null) continue;
 
@@ -144,12 +165,23 @@ async function rebuildSessions(
     for (const { turn, location } of await readAllTurns(
       resolveWithin(layout.sessionRoot(handle, sessionId), 'turns'),
     )) {
+      /**
+       * ***Indexed where it lives only if it says it lives there*** —
+       * [P13.0]. `indexTurn` files a row under `turn.sessionId`, and a turn in
+       * the wrong folder would file a location in *this* folder's segments
+       * under *another* session — overwriting that session's own row for the
+       * same id. The owner keeps its rows; the stray is counted, not guessed at.
+       */
+      if (turn.sessionId !== sessionId) {
+        misfiled += 1;
+        continue;
+      }
       indexTurn(db, turn, location);
       turns += 1;
     }
   }
 
-  return { sessions, turns };
+  return { sessions, turns, misfiled };
 }
 
 /**

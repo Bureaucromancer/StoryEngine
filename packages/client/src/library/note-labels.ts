@@ -241,6 +241,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.aventuras.lorebookEntries': 'Read as an Aventuras lorebook: {count} entries.',
   'import.aventuras.entryStateRecorded':
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
+  'import.aventuras.repeatedEntryNames':
+    '{count} entries shared a name with an earlier entry in the same book. Each was kept as its own entry.',
 
   /**
    * **The other direction, and it is new at this stage.**

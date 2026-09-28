@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { uuidv7, SESSION_EXPORT_SCHEMA, type SessionExport, type Turn } from '@storyengine/shared';
+import { uuidv7, SESSION_EXPORT_SCHEMA, type SessionExport } from '@storyengine/shared';
 
-import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory } from '../storage/files.js';
-import { appendTurnOnly, sessionFilePath, sessionRoot, type SessionContext } from './store.js';
+import { remint } from './remint.js';
+import { appendTurnOnly, writeNewSession, type SessionContext } from './store.js';
 import type { SessionFile } from './types.js';
 
 /**
@@ -28,20 +27,26 @@ import type { SessionFile } from './types.js';
  * is a **new** session with new local identity, and the thing it came from
  * travels as provenance rather than as an identity claim.
  *
- * ***The turn ids are kept, and that is the decision most likely to be
- * re-argued.*** Every turn names its parent by id, so re-minting them means
- * rewriting every parent link, every `headTurnId`, every effect's turn
- * reference and every rendition's — a graph rewrite over the one structure this
- * project spends the most care on. Keeping them costs a collision **only**
- * between two installs importing each other's sessions of the same session,
- * which is `uuidv7` on two machines and is the collision the id scheme is chosen
- * to make negligible. *The session's own id is re-minted*, because that one is
- * an address on this install and two installs with the same session id is a
- * real and immediate confusion rather than a theoretical one.
+ * ~~***The turn ids are kept, and that is the decision most likely to be
+ * re-argued.***~~ ***The turn ids are re-minted*** —
+ * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * 2026-09-28, reversing the decision this paragraph used to record. It argued
+ * that keeping them cost a collision *only between two installs importing each
+ * other's sessions*. It cost one on **one** install, every time: an export
+ * imported back onto the install that wrote it, and every backup imported into
+ * its own account, put two sessions' turns under one set of ids — and the
+ * index, the rendition jobs and the notification dedupe all key a turn by its
+ * id alone. The copy's turns were filed under the original, and an Illustrate
+ * on the copy re-rendered the original's picture. The graph rewrite the old
+ * paragraph declined is `remint.ts`, and it is done by value rather than by a
+ * list of paths, so fields this build does not know are rewritten too. *The
+ * session's own id is re-minted* for the reason it always was.
  *
  * ***Every turn is marked foreign.*** `Turn.foreign` exists for this — [18 §3]'s
  * second consequence, *"a foreign identifier has somewhere to go"* — and marking
- * is what keeps *this install made this* answerable afterwards. A turn that
+ * is what keeps *this install made this* answerable afterwards. With the ids
+ * re-minted it is also where the old id lives: `foreign.id` is the identity
+ * that travels, and `turn.id` is an address on this install. A turn that
  * arrived with its own `foreign` keeps it: the first install it came from is the
  * one that matters, and overwriting it would make a session that had travelled
  * twice claim it came from the middle.
@@ -52,7 +57,17 @@ export interface ImportContext {
 }
 
 export type SessionImport =
-  | { ok: true; sessionId: string; turns: number; renditions: number }
+  | {
+      ok: true;
+      sessionId: string;
+      turns: number;
+      renditions: number;
+      /**
+       * Old turn id to new — not for the wire (a route sends the counts), for a
+       * caller that has to place something by turn id afterwards.
+       */
+      turnIds: ReadonlyMap<string, string>;
+    }
   | { ok: false; reason: 'unreadable' | 'wrong-schema' | 'no-turns' };
 
 /**
@@ -102,9 +117,17 @@ export async function importSession(
 
   const now = new Date().toISOString();
   const id = uuidv7();
-  const { id: was, ...document_ } = read.session;
+  const was = typeof read.session.id === 'string' ? read.session.id : '';
+  /**
+   * ***New ids before anything is written***, so nothing on disk ever holds a
+   * turn under an id another session already uses — [P13.0]. `remint` also
+   * puts every parent before its children: the format's turns are *"in no
+   * particular order"*, and a backup's envelope is in archive order, so the
+   * order is established here rather than assumed of the file.
+   */
+  const reminted = remint(read, { sessionId: id, was });
   const session = {
-    ...document_,
+    ...reminted.session,
     schema: 'storyengine.session/1',
     id,
     createdAt: now,
@@ -128,36 +151,19 @@ export async function importSession(
     },
   } as unknown as SessionFile;
 
-  const root = sessionRoot(context.sessions.layout, handle, id);
-  await ensureDirectory(root);
-  await context.sessions.layout.assertReal(root);
-  await writeJsonAtomic(sessionFilePath(context.sessions.layout, handle, id), session);
+  await writeNewSession(context.sessions, handle, session);
 
-  /**
-   * ***In the order the exporter wrote them, which is creation order.*** The
-   * tree is the parent links and the file order is not the tree — but appending
-   * a child before its parent would make every reader that walks forward see a
-   * turn with a dangling parent for the length of the import, and creation order
-   * is a total order in which that cannot happen.
-   */
-  let written = 0;
-  // `unknown[]` rather than `Turn[]`, for `readSessionExport`'s reason: the
-  // declared element type is the claim the file makes about itself, and a
-  // malformed member is exactly what a hand-edited export has.
-  for (const candidate of read.turns as unknown[]) {
-    if (typeof candidate !== 'object' || candidate === null) continue;
-    const turn = candidate as Turn;
-    if (typeof turn.id !== 'string') continue;
-    await appendTurnOnly(context.sessions, handle, id, foreignise(turn, was));
-    written += 1;
+  for (const turn of reminted.turns) {
+    await appendTurnOnly(context.sessions, handle, id, turn);
   }
 
   const renditions = read.renditions as unknown;
   return {
     ok: true,
     sessionId: id,
-    turns: written,
+    turns: reminted.turns.length,
     renditions: Array.isArray(renditions) ? renditions.length : 0,
+    turnIds: reminted.turnIds,
   };
 }
 
@@ -167,17 +173,4 @@ function exportedBy(read: SessionExport): string | null {
   if (typeof said !== 'object' || said === null) return null;
   const version = (said as Record<string, unknown>)['version'];
   return typeof version === 'string' ? version : null;
-}
-
-/**
- * Marks a turn as having come from somewhere else, once.
- *
- * *A turn that already carries `foreign` keeps it*, because the first install it
- * came from is the one that matters — a session that had travelled twice and
- * claimed it came from the middle would be a provenance record that gets less
- * true the more it is used.
- */
-function foreignise(turn: Turn, source: string): Turn {
-  if (turn.foreign !== undefined) return turn;
-  return { ...turn, foreign: { source, id: turn.id } };
 }

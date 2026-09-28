@@ -157,6 +157,41 @@ export function stableId(namespace: string, ...parts: readonly string[]): string
 }
 
 /**
+ * ***A derived id that nothing in `taken` already has*** —
+ * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * A derived id is only as unique as what it is derived from, and an Aventuras
+ * entry's name is not unique within its book: two entries called *The Harbour*
+ * got one id, and the editor — which resolves an id to its first match — could
+ * then never open the second, and deleted both when either was removed.
+ *
+ * *The first claimant keeps the id it always had*, so a book with no repeats
+ * converts to exactly the bytes it did before and re-imports as `unchanged`
+ * ([P4 §1.3]). A later claimant is derived again under `repeat`, with its
+ * occurrence number, until the id is free. **A namespace of its own rather than
+ * a suffix**, because `stableId` joins its parts with a space: `('The Harbour',
+ * '2')` and `('The Harbour 2')` hash the same string, and a suffix in the same
+ * namespace would take the id of an entry really called *The Harbour 2*.
+ *
+ * Returns whether the preferred id was already taken, so the caller can say so
+ * in the review.
+ */
+export function claimId(
+  taken: Set<string>,
+  preferred: string,
+  repeat: string,
+  ...parts: readonly string[]
+): { id: string; repeated: boolean } {
+  let id = preferred;
+  const repeated = taken.has(id);
+  for (let occurrence = 2; taken.has(id); occurrence += 1) {
+    id = stableId(repeat, ...parts, String(occurrence));
+  }
+  taken.add(id);
+  return { id, repeated };
+}
+
+/**
  * ***The same question, asked of an object that has an id*** —
  * [P12.8](../../../../docs/design/workplan/29-p12-implementation.md).
  *

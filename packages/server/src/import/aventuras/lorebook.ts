@@ -9,7 +9,7 @@ import {
   type Lorebook,
 } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { claimId, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 import { isAventurasLorebook, isRecord, note, strings, text } from './shapes.js';
@@ -73,13 +73,25 @@ export function convertAventurasLorebook(
   const lorebook = newLorebook(fallbackName);
 
   let carriedState = 0;
+  let repeated = 0;
+  const taken = new Set<string>();
   lorebook.entries = input.map((row) => {
     const entry = convertEntry(row, fallbackName);
+    /**
+     * *Unique here, because nothing downstream checks* — validation does not
+     * walk the array, and the index keys entries by position. See `claimId`.
+     */
+    const claimed = claimId(taken, entry.id, 'aventuras-entry-repeat', fallbackName, entry.name);
+    entry.id = claimed.id;
+    if (claimed.repeated) repeated += 1;
     if (SESSION_STATE.some((key) => row[key] !== undefined && row[key] !== null)) carriedState += 1;
     return entry;
   });
 
   notes.push(note('import.aventuras.lorebookEntries', { count: lorebook.entries.length }));
+  if (repeated > 0) {
+    notes.push(note('import.aventuras.repeatedEntryNames', { count: repeated }, 'warn'));
+  }
   if (carriedState > 0) {
     notes.push(note('import.aventuras.entryStateRecorded', { count: carriedState }, 'warn'));
   }

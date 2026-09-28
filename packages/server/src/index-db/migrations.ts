@@ -66,8 +66,19 @@ import type { DatabaseSync } from 'node:sqlite';
  * — as **zero** for an actor a hook names, indefinitely, until somebody happened
  * to save the object for an unrelated reason. The index is derived and
  * disposable by design, so one rescan is the whole cost.
+ *
+ * **10 is the same kind of bump, for the turn rows** —
+ * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md). A rebuild
+ * used to file each turn under the session named *inside* it, so a copy made by
+ * the P11.10 importer — the original's turns, ids and `sessionId` and all, in a
+ * second folder — overwrote the original's rows with locations in the wrong
+ * file, in whatever order `readdir` returned the two. The rule is now the
+ * folder's: a turn is indexed where it lives only if it says it lives there
+ * (`rebuild.ts`). No table changed; the bump is what makes an install that
+ * already holds such a copy rebuild once under the new rule rather than keep
+ * the rows the old one wrote.
  */
-export const INDEX_SCHEMA_VERSION = 9;
+export const INDEX_SCHEMA_VERSION = 10;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for

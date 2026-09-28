@@ -218,13 +218,32 @@ export async function createSession(
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
 
+  await writeNewSession(context, handle, session);
+  return session;
+}
+
+/**
+ * ***Writes a session that did not exist, and indexes it*** — the one path for
+ * both ways a session begins.
+ *
+ * Factored out of `createSession` at
+ * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md) because
+ * `importSession` had copied its three write steps and not the fourth: it
+ * wrote `session.json` and never the session's index row, and search joins that
+ * row — so every imported session was unsearchable, from any install, until it
+ * played a turn. Two copies of *write a new session* is the shape that drifts,
+ * and it had.
+ */
+export async function writeNewSession(
+  context: SessionContext,
+  handle: string,
+  session: SessionFile,
+): Promise<void> {
   const root = sessionRoot(context.layout, handle, session.id);
   await ensureDirectory(root);
   await context.layout.assertReal(root);
   await writeJsonAtomic(sessionFilePath(context.layout, handle, session.id), session);
   indexSession(context.index, scopeOf(context, handle), session);
-
-  return session;
 }
 
 export async function readSession(
@@ -522,6 +541,18 @@ export async function appendTurnOnly(
   sessionId: string,
   turn: Turn,
 ): Promise<TurnLocation> {
+  /**
+   * ***A turn says which session it is in, and the index believes it*** —
+   * `indexTurn` files the row under `turn.sessionId`. [P11.10]'s importer
+   * appended turns into a new session still naming the one they came from,
+   * which filed the copy's turns under the original
+   * ([P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md)).
+   * Refused here, where it is one comparison, rather than tolerated in the
+   * index, where it is a wrong row nobody sees until a search misses.
+   */
+  if (turn.sessionId !== sessionId) {
+    throw new Error(`turn ${turn.id} names session ${turn.sessionId}, not ${sessionId}`);
+  }
   const root = turnsRoot(context.layout, handle, sessionId);
   await context.layout.assertReal(root);
   const location = await appendTurn(root, turn, context.limits);

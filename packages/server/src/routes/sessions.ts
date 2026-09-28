@@ -2430,7 +2430,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // A class, for the client to word — [21 §1.4], as everywhere else.
       return reply.code(422).send({ error: result.reason });
     }
-    return reply.code(201).send(result);
+    // Named rather than spread: `turnIds` is for a caller in this process, and
+    // a `Map` would arrive at the client as `{}` anyway.
+    const { ok, sessionId, turns, renditions } = result;
+    return reply.code(201).send({ ok, sessionId, turns, renditions });
   });
 
   app.get(

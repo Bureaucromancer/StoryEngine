@@ -553,11 +553,12 @@ way: `403 {"error":"no-file-access"}`, and every `422` listed above. A cheaper
 gate here would be a way to ask questions about the filesystem that the route
 which actually reads it refuses to answer.
 
-`verdict` is what the probes decided: `sillytavern`, `marinara`, or
-`loose-files` for a folder that matches nothing. Those are the only three a
-directory can produce — `marinara-archive` and `marinara-envelope` are members of
-the same vocabulary but are reached on the upload path, never by pointing at a
-folder.
+`verdict` is what the probes decided: `sillytavern`, `marinara`, `charx` (an
+unpacked CHARX card), `storyengine-backup` (an unpacked backup, whose library is
+imported and whose sessions, tags and settings are listed and left), or
+`loose-files` for a folder that matches nothing. Those are the five a directory
+can produce — `marinara-archive` and `marinara-envelope` are members of the same
+vocabulary but are never produced by pointing at a folder.
 
 **It never lists a directory.** Every answer is a yes/no probe at a path this
 build already names in its own source. [10 §4.2.2](design/10-ui-surfaces.md)

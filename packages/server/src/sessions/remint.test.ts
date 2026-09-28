@@ -109,7 +109,7 @@ describe('remint', () => {
       expect(outsideProse, old).not.toContain(old);
     }
     expect(out.session.id).toBe(NEW_SESSION);
-    expect(out.session.someFutureField).toEqual({
+    expect(out.session['someFutureField']).toEqual({
       pointsAt: out.turnIds.get(T1),
       andTheSession: NEW_SESSION,
     });
@@ -117,15 +117,15 @@ describe('remint', () => {
 
   it('rewrites rendition ids, block ids and object keys, not only whole values', () => {
     const out = remint(document(), { sessionId: NEW_SESSION, was: WAS }, minted());
-    const id = (old: string): string => out.turnIds.get(old) as string;
+    const id = (old: string): string => out.turnIds.get(old)!;
 
     expect(out.session.headTurnId).toBe(id(T3));
-    expect(out.session.branchRefs).toEqual([
+    expect(out.session['branchRefs']).toEqual([
       { id: 'b1', name: 'The other tide', headTurnId: id(T4) },
     ]);
-    expect(out.session.lastSelectedChild).toEqual({ [id(T2)]: id(T3) });
-    expect(out.session.renditionSelection).toEqual({ [id(T3)]: `${id(T3)}.1` });
-    expect(out.session.channels).toEqual({
+    expect(out.session['lastSelectedChild']).toEqual({ [id(T2)]: id(T3) });
+    expect(out.session['renditionSelection']).toEqual({ [id(T3)]: `${id(T3)}.1` });
+    expect(out.session['channels']).toEqual({
       'se.backdrop': { value: { from: 'rendition', renditionId: `${id(T2)}.0` } },
     });
 
@@ -190,6 +190,35 @@ describe('remint', () => {
       if (original === T4) expect(each.foreign).toEqual({ source: 'aventuras', id: 'entry-77' });
       else expect(each.foreign).toEqual({ source: WAS, id: original });
     }
+  });
+
+  /**
+   * ***An id that is not a uuid moves only where the tree names it.*** The
+   * format does not say what a turn id looks like, so a producer may use `"1"`
+   * — and rewriting every `"1"` in the document by value would be corruption.
+   */
+  it('rewrites a short id in the tree and nowhere else', () => {
+    const short = document();
+    short.session.headTurnId = '2';
+    short.session['lastSelectedChild'] = { '1': '2' };
+    short.session['counter'] = '1';
+    short.turns = [
+      { ...turn('1', null), output: { text: 'one' } },
+      { ...turn('2', '1'), output: { text: 'two' }, dial: '1' },
+    ] as unknown as SessionExport['turns'];
+    const out = remint(short, { sessionId: NEW_SESSION, was: WAS }, minted());
+    const one = out.turnIds.get('1')!;
+    const two = out.turnIds.get('2')!;
+
+    expect(out.turns.map((each) => [each.id, each.parentTurnId])).toEqual([
+      [one, null],
+      [two, one],
+    ]);
+    expect(out.session.headTurnId).toBe(two);
+    expect(out.session['lastSelectedChild']).toEqual({ [one]: two });
+    // Values that merely equal a short id are not references to it.
+    expect(out.session['counter']).toBe('1');
+    expect((out.turns[1] as unknown as { dial: string }).dial).toBe('1');
   });
 
   it('keeps a turn whose parent is not in the document, as a root', () => {

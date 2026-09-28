@@ -275,7 +275,7 @@ describe('an Aventuras lorebook', () => {
 
 /**
  * ***A name said twice*** —
- * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * [P13.0](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
  *
  * Aventuras keys an entry by its uuid and never by its name, so a book can hold
  * two entries called *The Harbour* — and an id derived from the book and the

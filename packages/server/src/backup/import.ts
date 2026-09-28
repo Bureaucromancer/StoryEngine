@@ -191,13 +191,23 @@ async function mergeTags(
  * `turns/*.jsonl`, one file per rendition — and `sessions/import.ts` reads the
  * **export envelope**. Building one here rather than teaching the importer
  * about directories is the cheaper half by a long way, and it means every
- * property that path already has comes free: a re-minted session id, the turn
- * ids kept, every turn marked foreign, and `origin` recorded.
+ * property that path already has comes free: a re-minted session id, ~~the turn
+ * ids kept~~ re-minted turn ids with the old ones kept in `foreign.id`
+ * ([P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md)), every
+ * turn marked foreign, and `origin` recorded.
  *
- * ***A session already here is skipped and never replaced.*** A session is an
- * append-only log, so *replace* would be a delete plus an import — two
- * decisions wearing one word — and the one it would throw away is the one
- * somebody has been playing.
+ * ~~***A session already here is skipped and never replaced.***~~ ***Every
+ * archived session arrives as a new session, under every policy*** — corrected
+ * 2026-09-28 at [P13.0], where this paragraph was found promising a skip the
+ * code below has never made. The policy decides library objects; a session has
+ * no conflict to resolve. It is an append-only log, so *replace* would be a
+ * delete plus an import — two decisions wearing one word — and the one it would
+ * throw away is the one somebody has been playing; and *skip* would need an
+ * answer to *is this the same session*, which an archive of your own account
+ * answers yes and an archive of somebody else's cannot answer at all. So an
+ * import of your own backup puts a copy beside each session, which is what
+ * re-minting the turn ids made safe: before it, the copy and the original
+ * shared every turn id, and the index held only one of them.
  */
 async function importSessions(
   context: BackupImportContext,
@@ -222,8 +232,13 @@ async function importSessions(
     }
 
     const turns: unknown[] = [];
+    // Segments are numbered and the envelope is read in creation order, so the
+    // list is sorted: an archive lists its members in whatever order it holds them.
+    const segments: string[] = [];
     for await (const path of request.files.list()) {
-      if (!path.startsWith(`${prefix}${id}/turns/`)) continue;
+      if (path.startsWith(`${prefix}${id}/turns/`)) segments.push(path);
+    }
+    for (const path of segments.sort()) {
       const bytes = await request.files.read(path);
       if (bytes === null) continue;
       for (const line of new TextDecoder().decode(bytes).split('\n')) {

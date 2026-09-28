@@ -151,6 +151,30 @@ export function dispatchRenditions(
       turnId,
       purpose: record.purpose,
     });
+    /**
+     * ***A held job that is somebody else's is never run from here*** —
+     * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+     *
+     * `enqueueRendition` is idempotent by its unique `rendition_id`, and a
+     * rendition id is `${turnId}.${n}` — so while two sessions shared turn ids,
+     * an Illustrate on a copy found the *original's* job and ran it: a paid
+     * render, the original's picture overwritten, and for a backdrop a turn
+     * appended to the original's session, possibly another account's. Import
+     * re-mints ids now, so a new copy cannot collide; a copy made before that,
+     * or a session folder copied by hand, still can, and this is where it is
+     * stopped. The request's own record is failed `terminal` — the job it would
+     * have run belongs to the other session and is not touched.
+     */
+    if (job.sessionId !== sessionId || job.account !== account) {
+      const refused: Rendition = { ...record, state: 'failed', asset: null, error: 'terminal' };
+      track(
+        context,
+        writeRendition(context.layout, account, sessionId, refused).then(() => {
+          context.changed?.(sessionId, refused);
+        }),
+      );
+      continue;
+    }
     dispatched += 1;
     /**
      * **Detached, and the promise is deliberately not returned.** `TurnRunner`
@@ -164,21 +188,26 @@ export function dispatchRenditions(
      * is what lets **shutdown** wait for it, and the two are different waits.
      * See that field for what the absence cost.
      */
-    const work = runRendition(context, job).catch(() => undefined);
-    const live = context.inFlight;
-    if (live === undefined) {
-      void work;
-    } else {
-      // Removed by the same promise that added it, so the set holds only what is
-      // genuinely still running — a set that only grew would make `drain` a wait
-      // on every picture the process ever made.
-      const tracked = work.finally(() => {
-        live.delete(tracked);
-      });
-      live.add(tracked);
-    }
+    track(context, runRendition(context, job));
   }
   return { dispatched, reused: 0 };
+}
+
+/** Detached work that shutdown can still wait for — see `inFlight`. */
+function track(context: RenditionWorkerContext, promise: Promise<void>): void {
+  const work = promise.catch(() => undefined);
+  const live = context.inFlight;
+  if (live === undefined) {
+    void work;
+    return;
+  }
+  // Removed by the same promise that added it, so the set holds only what is
+  // genuinely still running — a set that only grew would make `drain` a wait
+  // on every picture the process ever made.
+  const tracked = work.finally(() => {
+    live.delete(tracked);
+  });
+  live.add(tracked);
 }
 
 /**

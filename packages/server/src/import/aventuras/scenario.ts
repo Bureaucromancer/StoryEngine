@@ -14,7 +14,7 @@ import {
   type Treatment,
 } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { claimId, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 import { isRecord, isVaultScenario, note, strings, text } from './shapes.js';
@@ -229,8 +229,17 @@ function asLorebook(
    * applies and a character who comes up when named — and it is what a person
    * would have typed. It is still the argument for Treatment being the default.
    */
+  // One `taken` for the whole book, the setting first: an npc called *setting*
+  // derived the setting's own id, and two npcs of one name derived each other's.
+  const taken = new Set<string>();
   const setting = newLoreEntry(name);
-  setting.id = stableId('aventuras-entry', name, 'setting');
+  setting.id = claimId(
+    taken,
+    stableId('aventuras-entry', name, 'setting'),
+    'aventuras-entry-repeat',
+    name,
+    'setting',
+  ).id;
   setting.content = settingSeed;
   setting.description = text(scenario['description']);
   setting.constant = true;
@@ -241,7 +250,13 @@ function asLorebook(
     setting,
     ...npcs.map((npc) => {
       const entry = newLoreEntry(npc.name);
-      entry.id = stableId('aventuras-entry', name, npc.name);
+      entry.id = claimId(
+        taken,
+        stableId('aventuras-entry', name, npc.name),
+        'aventuras-entry-repeat',
+        name,
+        npc.name,
+      ).id;
       entry.content = entryBody(npc);
       entry.keys = [npc.name];
       entry.selective = false;
