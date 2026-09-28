@@ -702,11 +702,16 @@ export const api = {
   indexRows: (kind: LibraryKind, id: string): Promise<{ rows: IndexRow[] }> =>
     request('GET', `${objectUrl(kind, id)}/rows`),
 
+  /**
+   * `copyOf` names the object this is a copy of, so the create brings its
+   * pictures — an actor's card, any other kind's files (2026-09-27).
+   */
   createObject: (
     kind: LibraryKind,
     object: Record<string, unknown>,
+    copyOf?: string,
   ): Promise<{ id: string; slug: string; contentHash: string }> =>
-    request('POST', `/api/library/${kind}`, { object }),
+    request('POST', `/api/library/${kind}`, copyOf === undefined ? { object } : { object, copyOf }),
 
   /** The hash rides in the body — the second spelling docs/api.md allows. */
   /**

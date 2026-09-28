@@ -96,7 +96,8 @@ const ACCOUNT: Account = {
 function makeLibrary() {
   let stored: Record<string, unknown> = structuredClone(makeBook());
   let revision = 0;
-  const creates: { kind: unknown; object: Record<string, unknown> }[] = [];
+  const creates: { kind: unknown; object: Record<string, unknown>; copyOf?: string | undefined }[] =
+    [];
 
   const hash = (): string => `sha256:revision-${String(revision)}`;
   const envelope = (): LibraryObject => ({
@@ -131,8 +132,9 @@ function makeLibrary() {
     createObject: (
       kind: unknown,
       object: Record<string, unknown>,
+      copyOf?: string,
     ): Promise<{ id: string; slug: string; contentHash: string }> => {
-      creates.push({ kind, object: structuredClone(object) });
+      creates.push({ kind, object: structuredClone(object), copyOf });
       return Promise.resolve({
         id: object['id'] as string,
         slug: 'ardent-copy',
@@ -212,8 +214,8 @@ vi.mock('../api.js', async (importOriginal) => {
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       readObject: () => server.readObject(),
-      createObject: (kind: unknown, object: Record<string, unknown>) =>
-        server.createObject(kind, object),
+      createObject: (kind: unknown, object: Record<string, unknown>, copyOf?: string) =>
+        server.createObject(kind, object, copyOf),
       updateObject: (
         kind: unknown,
         id: unknown,
@@ -1211,6 +1213,9 @@ describe('leaving an editor with unsaved changes', () => {
       expect(router.state.location.pathname).not.toBe(wasAt);
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    // And it named what it copies, so the copy is made with its pictures
+    // rather than rows naming files its folder does not have (2026-09-27).
+    expect(server.creates[0]?.copyOf).toBe(BOOK_ID);
   });
 
   it('does not ask when the address changes but the editor does not', async () => {

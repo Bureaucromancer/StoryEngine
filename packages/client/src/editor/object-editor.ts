@@ -430,7 +430,9 @@ export function useObjectEditor<F>(
     object['id'] = uuidv7();
     object['name'] = `${descriptor.nameOf(form)} (copy)`;
     create.mutate(
-      { kind: descriptor.kind, object },
+      // Naming the original, so the copy is made with its pictures rather than
+      // rows naming files its own folder does not have (2026-09-27).
+      { kind: descriptor.kind, object, copyOf: base.id },
       {
         onSuccess: (result) => {
           setConflict(null);

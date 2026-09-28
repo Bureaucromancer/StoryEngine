@@ -645,6 +645,9 @@ describe('copying a system object into your own library', () => {
     expect(written['somethingLater']).toEqual({ kept: true });
     expect(written['id']).not.toBe(ACTOR_ID);
     expect(typeof written['id']).toBe('string');
+    // Naming the shipped actor, so the copy is written into its card — the
+    // portrait and expressions a JSON copy left behind (2026-09-27).
+    expect(createObject.mock.calls[0]?.[2]).toBe(ACTOR_ID);
   });
 
   it('goes to the copy rather than leaving the reader on the original', async () => {

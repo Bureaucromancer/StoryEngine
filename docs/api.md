@@ -318,6 +318,14 @@ Body is the portable object, or `{ object }`. → `201 { id, slug, contentHash, 
 The slug is derived from `name` here, once, and then frozen. Duplicates get a
 numeric suffix from `-2`.
 
+**`{ object, copyOf }` makes a copy that brings its pictures** (2026-09-27).
+`copyOf` is the id of the object this one copies — readable by the account and
+of the same kind, or the create is `404` and nothing is written. A picture is
+bytes the JSON only names, so without it a copy's every picture was broken:
+with it, an actor is written into the source's card, which carries its portrait
+and its expressions, and any other kind gets the source's file for each picture
+row the copy names. Honoured only in the envelope, never on a bare object.
+
 **Read-after-write is guaranteed**: a `GET` immediately after this reflects it.
 The server indexes its own writes synchronously; the watcher is only for foreign
 ones ([03 §5.1.1](design/03-data-model.md)). If it ever needs a retry, something

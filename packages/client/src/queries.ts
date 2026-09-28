@@ -267,12 +267,16 @@ export function useSaveObject(): UseMutationResult<
 export function useCreateObject(): UseMutationResult<
   { id: string; slug: string; contentHash: string },
   Error,
-  { kind: LibraryKind; object: Record<string, unknown> }
+  { kind: LibraryKind; object: Record<string, unknown>; copyOf?: string }
 > {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: { kind: LibraryKind; object: Record<string, unknown> }) =>
-      api.createObject(input.kind, input.object),
+    // Passed only when there is one, so a plain create is called exactly as it
+    // always was.
+    mutationFn: (input: { kind: LibraryKind; object: Record<string, unknown>; copyOf?: string }) =>
+      input.copyOf === undefined
+        ? api.createObject(input.kind, input.object)
+        : api.createObject(input.kind, input.object, input.copyOf),
     onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
   });
 }

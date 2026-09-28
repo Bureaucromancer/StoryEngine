@@ -5,6 +5,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
+  ACTOR_SCHEMA,
   exportFormat,
   isKnownSchema,
   LIBRARY_DIRECTORIES,
@@ -20,7 +21,7 @@ import { exportPackage } from '../packaging/export.js';
 import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
 import { disconnectSignal } from './disconnect.js';
-import { storeAsset, sweep } from '../library/assets.js';
+import { copyAssets, storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
 import { readOnePart } from './import.js';
 import type { IndexedObject } from '../index-db/query.js';
@@ -178,6 +179,19 @@ const WriteBody = Type.Object(
      * history line as free text, beside `reason`, and nothing branches on it.
      */
     importedFrom: Type.Optional(Type.String({ maxLength: 200 })),
+    /**
+     * ***Which object this create is a copy of*** (2026-09-27) — create only,
+     * and only in the envelope.
+     *
+     * A copy is JSON under a new id, and its pictures are not JSON: bytes
+     * beside the object, or inside an actor's card. So *Save my version as a
+     * copy* and *Copy to my library* made objects whose every picture was
+     * broken, and an actor whose portrait was a blank square. Naming the source
+     * lets the create bring them: an actor is written into the source's card,
+     * which carries its portrait and its expressions, and any other kind gets
+     * the source's file for each picture the copy names.
+     */
+    copyOf: Type.Optional(Type.String({ minLength: 1 })),
   },
   { additionalProperties: true },
 );
@@ -293,7 +307,32 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       }
 
       try {
-        const stored = await create(services.library, account.handle, object, schemaId);
+        const copyOf = copyOfFrom(request.body);
+        // Read before anything is written, so a copy of something this account
+        // cannot see, or of another kind, is refused rather than half made.
+        if (copyOf !== null) read(services.library, account.handle, copyOf, schemaId);
+        const stored = await create(
+          services.library,
+          account.handle,
+          object,
+          schemaId,
+          copyOf !== null && schemaId === ACTOR_SCHEMA
+            ? {
+                cardPixels: (
+                  await readCardPixels(services.library, account.handle, copyOf, schemaId)
+                ).bytes,
+              }
+            : undefined,
+        );
+        if (copyOf !== null && schemaId !== ACTOR_SCHEMA) {
+          await copyAssets(
+            services.library,
+            account.handle,
+            copyOf,
+            (object as { id: string }).id,
+            schemaId,
+          );
+        }
         // 201 with the object as stored, so the client has the content hash it
         // will need for the first edit without a second round trip.
         return await reply
@@ -1169,6 +1208,12 @@ function schemaFor(params: { kind: string }, reply: FastifyReply): PortableSchem
  * malformed request deserves a 400 that says so. (Full body schemas are the
  * P2.0 validation item; this is only the guard.)
  */
+/** The `copyOf` of an envelope, or null — never read off a bare object. */
+function copyOfFrom(body: unknown): string | null {
+  const held = body as { object?: unknown; copyOf?: unknown };
+  return held.object !== undefined && typeof held.copyOf === 'string' ? held.copyOf : null;
+}
+
 function objectFromBody(body: unknown): unknown {
   if (typeof body !== 'object' || body === null) return null;
   const inner: unknown = (body as { object?: unknown }).object;
