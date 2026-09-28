@@ -194,9 +194,15 @@ when the kind exists.
 ### 0.5 Found in passing, and not fixed here
 
 The investigation behind P13.0 read widely, and found these. None is P13's, and
-each is recorded so it is not rediscovered.
+each is recorded so it is not rediscovered. ***The three that lose data are
+fixed*** — `4625232` red, `25cb412` green, 2026-09-28, at the person's ask;
+***the rest do not***, which is why they stay: lore timing is behaviour, and
+the trash, folder-name and `foreign.source` items are index rows or words,
+which a rebuild or a correction recovers without anything having been lost.
 
-- **Twin npc actors overwrite each other.** A scenario imported as a treatment
+- ~~**Twin npc actors overwrite each other.**~~ *Fixed at `25cb412`: a repeated
+  name is keyed `#npc-repeat:<n>:<name>`, the first keeps its old key, and the
+  review says so.* **Twin npc actors overwrite each other.** A scenario imported as a treatment
   stamps each npc `${source}#npc:${name}` (`import/sweep.ts:721`); the second of
   two npcs with one name `identify()`s as the first, replaces it, and the cast
   names one actor twice.
@@ -205,10 +211,15 @@ each is recorded so it is not rediscovered.
   id alone, while [04 §5.2](../04-schemas.md) says the same id in two books is
   not the same entry; `retrieval/blocks.ts:200-206` namespaces block ids by book
   for this reason and timing was never given the same.
-- **The client's `withoutEntry` and `moveEntryBefore`** (`editor/book-form.ts:110`,
+- ~~**The client's `withoutEntry` and `moveEntryBefore`**~~ *Fixed at
+  `25cb412`: both now act on the first match, as `withEntry` did.* **The
+  client's `withoutEntry` and `moveEntryBefore`** (`editor/book-form.ts:110`,
   `:162`) act on every entry sharing an id, where `withEntry` acts on the first —
   so a byte-identical twin from any converter is deleted with its sibling.
-- **A backup swept from the import panel defaults to `replace`**, where
+- ~~**A backup swept from the import panel defaults to `replace`**~~ *Fixed at
+  `25cb412`: the sweep applies `DEFAULT_BACKUP_CONFLICT` to a backup root when
+  no policy is given.* **A backup swept from the import panel defaulted to
+  `replace`**, where
   [P12.8](29-p12-implementation.md) decided `skip` for a backup meeting a live
   account: the panel sends no `onConflict` and the sweep's default is `replace`.
 - **A session restored from the trash is never re-indexed.** `routes/me.ts`
