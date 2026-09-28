@@ -192,3 +192,41 @@ describe('the review vocabulary', () => {
     expect(orphaned, 'these labels name a note no converter emits any more').toEqual([]);
   });
 });
+
+/**
+ * ***Every kind of root a folder can be named as has a sentence*** —
+ * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * The same drift as the notes, one table over. `ImportPanel`'s verdict labels
+ * fall back to the raw kind, so a CHARX folder was announced as `charx` and an
+ * unpacked backup as `storyengine-backup` — both kinds the server's probe table
+ * learned after the labels were written, and nothing noticed, because the
+ * fallback is exactly what a version skew should do.
+ *
+ * *One direction only.* The other would fail on two Marinara labels whose kinds
+ * the server declares and no route sends; whether they go is a question about
+ * the server's union, and not this test's to answer.
+ */
+describe('the import panel’s verdicts', () => {
+  const DETECT = join(SERVER_IMPORT, 'detect.ts');
+  const PANEL = join(HERE, 'ImportPanel.tsx');
+
+  it('has a sentence for every kind the probe table can classify', () => {
+    const probed = [...readFileSync(DETECT, 'utf8').matchAll(/\{ kind: '([a-z-]+)', requires:/g)]
+      .map((match) => match[1]!)
+      // The walker's plain mode — what every folder is that no probe matched.
+      .concat('loose-files');
+    expect(
+      probed.length,
+      'the probe pattern matched nothing, so it checked nothing',
+    ).toBeGreaterThan(3);
+
+    const panel = readFileSync(PANEL, 'utf8');
+    const start = panel.indexOf("labels('import.verdict', {");
+    const table = panel.slice(start, panel.indexOf('});', start));
+    const labelled = new Set([...table.matchAll(/^\s*'?([a-z-]+)'?:/gm)].map((match) => match[1]!));
+
+    const missing = probed.filter((kind) => !labelled.has(kind)).sort();
+    expect(missing, 'these kinds are announced to a person as their raw name').toEqual([]);
+  });
+});

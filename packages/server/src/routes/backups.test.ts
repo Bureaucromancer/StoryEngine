@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fileExists } from '../storage/files.js';
+import { spokenEnvelope } from '../sessions/test-envelope.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -466,6 +467,45 @@ describe('importing one', () => {
     expect(keys).toContain('import.backup.connectionsNotTaken');
     expect(keys).toContain('import.backup.prefsNotTaken');
   });
+
+  /**
+   * ***Every session findable under its own id, whatever the policy*** —
+   * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * An account importing its own archive is the backup import's ordinary case,
+   * and every session in it arrives as a new session beside the one it was
+   * taken from. With the turn ids kept, the two shared every one, and the index
+   * — keyed by turn id — could hold only one of them: the copy's turns were
+   * filed under the original's id, and the copy had no session row to find them
+   * by. The policy does not decide this; a session is never replaced.
+   */
+  it.each(['skip', 'replace', 'keep-both'] as const)(
+    'leaves every session findable under its own id, under %s',
+    async (onConflict) => {
+      const seeded = await server.request({
+        method: 'POST',
+        url: '/api/sessions/import',
+        payload: spokenEnvelope('obelisk').document,
+      });
+      expect(seeded.status).toBe(201);
+      const id = await take();
+
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/me/backups/import',
+        payload: { id, onConflict },
+      });
+      expect(response.status).toBe(200);
+
+      const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+      const sessions = (listed.body.sessions as { id: string }[]).map((row) => row.id).sort();
+      expect(sessions).toHaveLength(2);
+
+      const found = await server.request({ method: 'GET', url: '/api/search?q=obelisk' });
+      const hits = found.body.turns as { sessionId: string }[];
+      expect([...new Set(hits.map((hit) => hit.sessionId))].sort()).toEqual(sessions);
+    },
+  );
 
   it('will not be pointed at somebody else’s part of an archive', async () => {
     const id = await take();

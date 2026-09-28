@@ -6,12 +6,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { uuidv7 } from '@storyengine/shared';
+import { SESSION_EXPORT_SCHEMA, uuidv7 } from '@storyengine/shared';
 
+import { importSession } from '../sessions/import.js';
+import { appendTurn } from '../sessions/segments.js';
 import {
   appendTurnToSession,
   createSession,
   deleteSession,
+  readSession,
+  readTurns,
   setArchived,
   setName,
   type SessionContext,
@@ -200,6 +204,81 @@ describe('rebuild-from-disk equals the incremental index, for sessions too', () 
       .get(gone) as { c: number };
     expect(turns.c).toBe(0);
     expect(searchTurns(index.db, [`user:${ACCOUNT}`], 'two')).toEqual([]);
+  });
+
+  /**
+   * ***Two sessions from one file*** —
+   * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * An import of a session onto the install that holds it is the ordinary way
+   * to get a copy, and it put two sessions' turns under one set of ids. The
+   * index keys a turn by its id, so one of the two held no rows at all — and a
+   * rebuild agreed with the incremental index while both were wrong, because
+   * both kept whichever session wrote last. Asserted per session, which is the
+   * count the defect changes, as well as by snapshot.
+   */
+  it('indexes every turn of an imported copy under the copy', async () => {
+    const original = await aSessionWith('Rain City', ['The obelisk stood.', 'Nobody said.']);
+    const session = await readSession(context, ACCOUNT, original);
+    const document = {
+      schema: SESSION_EXPORT_SCHEMA,
+      exportedBy: { version: null, at: new Date(0).toISOString() },
+      session,
+      turns: [...(await readTurns(context, ACCOUNT, original)).values()],
+      renditions: [],
+    };
+    const imported = await importSession({ sessions: context }, ACCOUNT, document);
+    expect(imported.ok).toBe(true);
+    const copy = imported.ok ? imported.sessionId : '';
+
+    const rowsFor = (sessionId: string): number =>
+      (
+        index.db.prepare('select count(*) c from turn where session_id = ?').get(sessionId) as {
+          c: number;
+        }
+      ).c;
+    expect([rowsFor(original), rowsFor(copy)]).toEqual([2, 2]);
+
+    const incremental = sessionSnapshot(index.db);
+    await rebuild(index.db, context.layout);
+    expect([rowsFor(original), rowsFor(copy)]).toEqual([2, 2]);
+    expect(sessionSnapshot(index.db)).toEqual(incremental);
+  });
+
+  /**
+   * ***A copy made before the fix*** — the original's turns, ids and
+   * `sessionId` and all, appended into a second session's folder behind one
+   * turn of its own, which is what the P11.10 importer wrote.
+   *
+   * A rebuild used to index each such turn under the session named *inside* it,
+   * so the copy's lines overwrote the original's rows with offsets into the
+   * wrong file, in whatever order `readdir` returned the folders. The rule now
+   * is the folder's: a turn is indexed where it lives only if it says it lives
+   * there, and the rest are counted rather than guessed at.
+   */
+  it('keeps the owner of a turn id when a copy on disk repeats it', async () => {
+    const original = await aSessionWith('Rain City', ['The obelisk stood.', 'Nobody said.']);
+    const before = index.db
+      .prepare('select turn_id, segment, offset from turn where session_id = ? order by turn_id')
+      .all(original);
+
+    const misfiled = await aSessionWith('Copied By Hand', ['A line of its own.']);
+    const turnsRoot = join(dataDir, 'users', ACCOUNT, 'sessions', misfiled, 'turns');
+    for (const turn of (await readTurns(context, ACCOUNT, original)).values()) {
+      await appendTurn(turnsRoot, turn, context.limits);
+    }
+
+    const result = await rebuild(index.db, context.layout);
+
+    expect(
+      index.db
+        .prepare('select turn_id, segment, offset from turn where session_id = ? order by turn_id')
+        .all(original),
+    ).toEqual(before);
+    expect(result).toMatchObject({ sessions: 2, turns: 3, misfiled: 2 });
+    expect(searchTurns(index.db, [`user:${ACCOUNT}`], 'obelisk')).toMatchObject([
+      { sessionId: original },
+    ]);
   });
 
   it('counts what it found', async () => {
