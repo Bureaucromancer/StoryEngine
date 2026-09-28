@@ -1671,7 +1671,8 @@ interface AssembledBlock {
    *  withheld? }`, where `withheld` says why the block's text went instead —
    *  `unknown-kind`, `outside-window`, `not-user-role`, `missing-bytes`,
    *  `model-text-only` (the model last when several hold) — or `budget`, when
-   *  the budgeter dropped a step's own picture and neither went. A disclosure
+   *  the budgeter dropped the block (a picture in history, or a step's own)
+   *  and neither went. A disclosure
    *  rather than a not-filled slot, because the picture *did* emit something:
    *  its words, which are `text`. */
   image?: BlockImage

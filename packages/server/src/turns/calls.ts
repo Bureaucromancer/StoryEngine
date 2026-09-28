@@ -495,15 +495,17 @@ export function planCall(
       : {}),
   });
   /**
-   * ***A picture the budget dropped was not sent*** — decided before the budget
-   * ran, so said again after it. The collector's pictures on the move being made
-   * are required and cannot be dropped; a step's own candidate can be, and the
-   * record would otherwise say *Picture sent* over a block that never left.
+   * ***A picture the budget dropped went neither way*** — decided before the
+   * budget ran, so said again after it, whatever it said before. The
+   * collector's pictures on the move being made are required and cannot be
+   * dropped; a step's own candidate can be, and so can a picture in history.
+   * Left as it was, the record said *Picture sent* over a block that never left,
+   * or *as words* over one whose words did not go either.
    */
   const assembled = {
     ...packed,
     blocks: packed.blocks.map((block) =>
-      block.image?.sent === true && !block.included
+      block.image !== undefined && !block.included
         ? { ...block, image: { ...block.image, sent: false, withheld: 'budget' as const } }
         : block,
     ),

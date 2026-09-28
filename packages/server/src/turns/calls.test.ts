@@ -871,4 +871,33 @@ describe('a picture on the move, sent or held', () => {
       image: { sent: true },
     });
   });
+
+  /**
+   * ***Dropped is `budget` whatever it would have been*** — a picture from an
+   * earlier turn (`outside-window`) or one on a text-only model
+   * (`model-text-only`) that the budgeter leaves out sent neither its pixels
+   * nor its words, and a record that kept the earlier reason showed *Picture as
+   * words* on a row where no words went. The mutation is rewriting only the
+   * blocks that would have been sent.
+   */
+  it.each([
+    ['from an earlier turn', 'fake-hi', { current: false }],
+    ['on a model that does not see', 'fake-text', {}],
+  ] as const)('says budget for a dropped picture %s', (_, model, image) => {
+    const cramped = {
+      preset: {
+        params: {},
+        budget: { contextShare: 1, maxContextTokens: 801, reserveOutputTokens: 800 },
+      },
+    };
+    const plan = planCall(
+      seeing(model, cramped),
+      { candidates: [...CANDIDATES, picture({ required: false }, image)] },
+      [],
+    );
+    expect(blockOf(plan.call.blocks)).toMatchObject({
+      included: false,
+      image: { sent: false, withheld: 'budget' },
+    });
+  });
 });

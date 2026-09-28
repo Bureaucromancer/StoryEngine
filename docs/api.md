@@ -1787,7 +1787,8 @@ goes, or an honest placeholder when there is none — and the assembled block's
 `image` says which and why (`unknown-kind`, `outside-window`, `not-user-role`,
 `missing-bytes`, `model-text-only`, in the order the record prefers when several
 hold: the model last, since it is the one reason another binding fixes; and
-`budget` when the budgeter dropped a step's own picture). Nothing records a session as
+`budget` when the budgeter dropped the block — a picture in history, or a
+step's own — so neither went). Nothing records a session as
 able to see pictures, which is what keeps one used with a model that sees
 continuable on a model that does not.
 

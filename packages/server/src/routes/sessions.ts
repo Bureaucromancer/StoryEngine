@@ -3212,7 +3212,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * the **request** rather than about scheduling.
        */
       const kind = body.input.kind;
-      if (kind !== undefined) {
+      /**
+       * *The default kind is never refused*: a move sent without one is
+       * recorded as `do` whatever the mode declares (`payloadOf`), so its redo —
+       * which now repeats the recorded kind — sends `do`, and refusing that
+       * would make a turn this server wrote impossible to redo.
+       */
+      if (kind !== undefined && kind !== DEFAULT_INPUT_KIND) {
         const submitting = await readSession(services.sessions, account.handle, sessionId);
         const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
         if (submitting !== null && accepted !== undefined && !accepted.includes(kind)) {

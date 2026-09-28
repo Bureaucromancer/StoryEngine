@@ -16,7 +16,7 @@ import {
 import type { Layout } from '../storage/layout.js';
 import { PathEscapeError, resolveWithinReal } from '../storage/paths.js';
 import { pictureSize } from './picture-size.js';
-import { sessionRoot } from './store.js';
+import { sessionRoot, withSessionLock } from './store.js';
 
 /**
  * ***Pictures a player attached to a move*** — [25 E15](../../../../docs/design/25-open-questions.md),
@@ -310,22 +310,28 @@ export async function sweepAttachments(
   for (const { path, digest } of old) {
     if (named.has(digest)) continue;
     /**
-     * ***Asked again, a moment before it goes.*** Reading the turns is the slow
-     * part, and it is not under the session's lock: a re-upload of this
-     * picture, or a move naming it, can renew it while the read runs — and was
-     * told it succeeded. Deleting from the list made before the read would take
-     * the picture that move is about to send. The window left is a stat and an
-     * unlink wide.
+     * ***Asked again, a moment before it goes, under the session's lock.***
+     * Reading the turns is the slow part and holds no lock, so a re-upload of
+     * this picture, or a move naming it, can renew it while the read runs — and
+     * be told it succeeded. Deleting from the list made before the read took
+     * the picture that move was about to send. Every renewal takes the same
+     * lock ({@link storeAttachment}'s route, {@link attachmentsFor},
+     * {@link attachmentsAgain}), so a renewal and this second look cannot
+     * interleave: either the picture is renewed first and kept, or it is gone
+     * first and the renewal finds nothing and says so.
      */
-    const facts = await statFile(path);
-    if (facts === null || now - facts.mtimeMs < UNSENT_GRACE_MS) continue;
-    try {
-      await unlinkFile(path);
-      removed += 1;
-    } catch {
-      // Something with a stored name that will not unlink — a directory put
-      // there by hand — is not this store's, and not a reason to stop.
-    }
+    removed += await withSessionLock(sessionId, async () => {
+      const facts = await statFile(path);
+      if (facts === null || now - facts.mtimeMs < UNSENT_GRACE_MS) return 0;
+      try {
+        await unlinkFile(path);
+        return 1;
+      } catch {
+        // Something with a stored name that will not unlink — a directory put
+        // there by hand — is not this store's, and not a reason to stop.
+        return 0;
+      }
+    });
   }
   return removed;
 }
@@ -365,6 +371,8 @@ export async function attachmentsFor(
   const attachments: TurnAttachment[] = [];
   for (const [index, one] of named.entries()) {
     const caption = one.caption?.trim() ?? '';
+    // Renewed *before* it is read, so the sweep cannot take it in between.
+    if (purpose === 'submit') await renew(layout, handle, sessionId, one.digest);
     const stored = await describeAttachment(
       layout,
       handle,
@@ -376,7 +384,6 @@ export async function attachmentsFor(
       if (purpose === 'submit') return { ok: false, digest: one.digest };
       continue;
     }
-    if (purpose === 'submit') await renew(layout, handle, sessionId, one.digest);
     attachments.push({
       id: String(index),
       kind: 'image',
@@ -398,10 +405,14 @@ function factsOf(stored: StoredAttachment): Omit<TurnAttachment, 'id' | 'kind' |
   };
 }
 
+/** Marks a stored picture as wanted today — under the lock the sweep deletes under. */
 async function renew(layout: Layout, handle: string, sessionId: string, digest: string) {
-  for (const candidate of await candidatesFor(layout, handle, sessionId, digest)) {
-    if (await touchFile(candidate.path)) return;
-  }
+  const candidates = await candidatesFor(layout, handle, sessionId, digest);
+  await withSessionLock(sessionId, async () => {
+    for (const candidate of candidates) {
+      if (await touchFile(candidate.path)) return;
+    }
+  });
 }
 
 /**
@@ -430,13 +441,11 @@ export async function attachmentsAgain(
 ): Promise<TurnAttachment[]> {
   const again: TurnAttachment[] = [];
   for (const one of recorded) {
+    if (one.digest !== undefined) await renew(layout, handle, sessionId, one.digest);
     const stored =
       one.digest === undefined
         ? null
         : await describeAttachment(layout, handle, sessionId, one.digest);
-    if (stored !== null && one.digest !== undefined) {
-      await renew(layout, handle, sessionId, one.digest);
-    }
     again.push(stored === null ? { ...one } : { ...one, ...factsOf(stored) });
   }
   return again;

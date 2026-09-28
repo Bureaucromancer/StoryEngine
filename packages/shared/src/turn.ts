@@ -509,8 +509,9 @@ export interface AssembledBlock {
  *   cannot carry a picture;
  * - `unknown-kind` — an attachment kind this build does not send;
  * - `budget` — the budget dropped the block, so neither the pixels nor the
- *   words went. The collector's pictures on the move being made are required
- *   and never meet this; a step's own picture candidate can.
+ *   words went, whatever else would have held it back. The collector's
+ *   pictures on the move being made are required and never meet this; a
+ *   picture in history, or a step's own picture candidate, can.
  *
  * ***When several apply, the one recorded is the one choosing another model
  * cannot fix***: kind, then window, then role, then bytes, and the model last

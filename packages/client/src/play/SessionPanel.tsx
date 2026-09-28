@@ -64,7 +64,10 @@ export function SessionPanel(props: {
   /**
    * ***Whether the story has pictures on its moves*** — [25 E15]: *"an export
    * containing attachments should say so"*. The transcript Play already holds,
-   * read from the same cache entry, so asking costs nothing.
+   * read from the same cache entry, so asking costs nothing. *The path shown,
+   * not every branch*: a picture only on a branch nobody is looking at goes
+   * unmentioned. The note is a courtesy — the export carries every branch and
+   * every caption either way.
    */
   const transcript = useTranscript(props.sessionId);
   const hasPictures =
