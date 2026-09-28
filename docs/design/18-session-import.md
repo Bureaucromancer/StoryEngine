@@ -440,6 +440,9 @@ untouched, and whether to build one is a person's decision.
 re-checked for this pass — the container it was written in could not reach it —
 and one claim below (§7.3's SillyTavern branches) is from knowledge of the
 product rather than from the pinned tree, and is marked where it appears.
+*(Later the same day, both pins were fetched and read for
+[P13 §0](workplan/30-p13-session-import.md); the corrections are made below, struck through where they
+replace what this section first said.)*
 
 ### 7.1 What moved since the survey
 
@@ -502,8 +505,10 @@ so each lands in the prompt in the role it had. *The record allows the last
 two; how the play surface draws an input-only turn has not been walked.*
 
 **SillyTavern.** Swipes become sibling turns under the same parent, carrying
-the same `input` and one `swipes[i]` each — §2.1's warning stands, `mes` is the
-active swipe's copy and is dropped. `swipe_id` sets `lastSelectedChild` at that
+the same `input` and one `swipes[i]` each — ~~§2.1's warning stands, `mes` is the
+active swipe's copy and is dropped~~ *(corrected: `mes` is authoritative and
+`swipes[swipe_id]` is the copy that goes stale after an edit, so the active
+sibling takes `mes` — [P13 §0](workplan/30-p13-session-import.md), §0.3)*. `swipe_id` sets `lastSelectedChild` at that
 parent and the head follows the active path, so the imported session opens where
 the chat was. `extra.reasoning` lands in `output.reasoning` rather than nowhere.
 Hidden messages (`is_system` on a character or user line) and narrator lines
@@ -511,8 +516,12 @@ have no exact home: reported, and imported as story text only if a person says
 so. **Group chats** are the real loss: `Turn.output` has no speaker, so a
 character's `name` survives only as text in the output — acceptable for a
 narrator-mode session, lossy for anything that later wants attribution.
+*P13 §1.8 answers this with an additive `Turn.output.speaker`.*
 
-*From knowledge of the product, not verified against the pin:* SillyTavern's
+~~*From knowledge of the product, not verified against the pin:*~~
+*Verified at the pin* (`bookmarks.js:186`, `:253`), and with one addition: the
+branch copies the parent's whole `chat_metadata`, so `integrity` is shared by a
+family rather than owned by a chat (P13 §0.2). SillyTavern's
 **branches and checkpoints are copied chats too** — a new file whose
 `chat_metadata.main_chat` names the chat it forked from, with the fork message
 marked in the parent. If that holds at the pin, §2.2's family reconstruction
@@ -560,7 +569,9 @@ rather than let the 409 say it.
   imported actors' `provenance.originalFilename`, which the card import already
   stamps) or the session arrives with an empty cast and the session-settings
   panel fills it. The second is free and honest; the first is what people will
-  expect. Mode: `freeform` for one character, `scene` for a group.
+  expect. Mode: ~~`freeform` for one character, `scene` for a group~~
+  *(corrected: Scene is `maxActors: 1`, so the reverse — Scene for one
+  character, Freeform, `maxActors: 6`, for a group; P13 §1.7)*.
 - **The summary chain's first turn is a cliff.** `ensureChain` is lazy and
   sequential by design (link *n* is `f(link(n-1), units)`), and nothing is
   derived until somebody asks. An imported 2,000-turn chat at the default
