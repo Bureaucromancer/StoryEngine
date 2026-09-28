@@ -441,7 +441,7 @@ re-checked for this pass — the container it was written in could not reach it 
 and one claim below (§7.3's SillyTavern branches) is from knowledge of the
 product rather than from the pinned tree, and is marked where it appears.
 *(Later the same day, both pins were fetched and read for
-[P13 §0](workplan/30-p13-session-import.md); the corrections are made below, struck through where they
+[P13 §0](workplan/30-p13-scene-and-session-import.md); the corrections are made below, struck through where they
 replace what this section first said.)*
 
 ### 7.1 What moved since the survey
@@ -508,7 +508,7 @@ two; how the play surface draws an input-only turn has not been walked.*
 the same `input` and one `swipes[i]` each — ~~§2.1's warning stands, `mes` is the
 active swipe's copy and is dropped~~ *(corrected: `mes` is authoritative and
 `swipes[swipe_id]` is the copy that goes stale after an edit, so the active
-sibling takes `mes` — [P13 §0](workplan/30-p13-session-import.md), §0.3)*. `swipe_id` sets `lastSelectedChild` at that
+sibling takes `mes` — [P13 §0](workplan/30-p13-scene-and-session-import.md), §0.3)*. `swipe_id` sets `lastSelectedChild` at that
 parent and the head follows the active path, so the imported session opens where
 the chat was. `extra.reasoning` lands in `output.reasoning` rather than nowhere.
 Hidden messages (`is_system` on a character or user line) and narrator lines
@@ -516,7 +516,7 @@ have no exact home: reported, and imported as story text only if a person says
 so. **Group chats** are the real loss: `Turn.output` has no speaker, so a
 character's `name` survives only as text in the output — acceptable for a
 narrator-mode session, lossy for anything that later wants attribution.
-*P13 §1.8 answers this with an additive `Turn.output.speaker`.*
+*P13 §1.1 answers this with an additive `Turn.output.messages`, one attributed message each — [25 C11](25-open-questions.md)'s one node, several messages.*
 
 ~~*From knowledge of the product, not verified against the pin:*~~
 *Verified at the pin* (`bookmarks.js:186`, `:253`), and with one addition: the
@@ -570,8 +570,13 @@ rather than let the 409 say it.
   stamps) or the session arrives with an empty cast and the session-settings
   panel fills it. The second is free and honest; the first is what people will
   expect. Mode: ~~`freeform` for one character, `scene` for a group~~
-  *(corrected: Scene is `maxActors: 1`, so the reverse — Scene for one
-  character, Freeform, `maxActors: 6`, for a group; P13 §1.7)*.
+  ~~*(corrected: Scene is `maxActors: 1`, so the reverse — Scene for one
+  character, Freeform, `maxActors: 6`, for a group; P13 §1.7)*~~
+  *(re-corrected the same day: **Scene for both.** The cap was P2's minimum, not
+  the design — [06 §7.2](06-modes-and-turn-pipeline.md) specifies Scene as the
+  SillyTavern/Marinara shape with "one or more actors present" — and P13's
+  Part A builds Scene out to it, so an import lands in a mode that plays the
+  way the chat did; [P13 §0.6](workplan/30-p13-scene-and-session-import.md))*.
 - **The summary chain's first turn is a cliff.** `ensureChain` is lazy and
   sequential by design (link *n* is `f(link(n-1), units)`), and nothing is
   derived until somebody asks. An imported 2,000-turn chat at the default
