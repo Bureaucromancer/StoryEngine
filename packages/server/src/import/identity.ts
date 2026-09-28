@@ -40,6 +40,25 @@ export type ConflictPolicy =
   /** Leave what is stored alone and report the difference. */
   | 'skip';
 
+/**
+ * ***`skip` rather than `sweep`'s `replace`, and the disagreement is the
+ * point.***
+ *
+ * A re-imported foreign file **is** the object that file produced, so replacing
+ * is safe and history catches the edit. A backup meeting a live account is the
+ * **past meeting the present**, and the present is usually what somebody wants
+ * to keep — *bring in what I do not have* is what people mean when they reach
+ * for this. All three policies are offered and each is named in the review.
+ *
+ * ***Applied by the sweep as well as by the backups route*** —
+ * [P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md). An
+ * unpacked backup handed to the import panel is swept like any other folder,
+ * and the panel sends no policy — so it took the sweep's `replace` and reverted
+ * every object edited since the archive was taken. Moved here from
+ * `backup/import.ts` so the sweep can apply it without importing its caller.
+ */
+export const DEFAULT_BACKUP_CONFLICT: ConflictPolicy = 'skip';
+
 export type ImportIdentity =
   /** Nothing here came from this file before. */
   | { kind: 'new' }

@@ -106,9 +106,22 @@ export function withNewEntry(book: Draft, name: string): { book: Draft; id: stri
   return { book: { ...book, entries: [...entriesOf(book), entry] }, id: entry.id };
 }
 
-/** The book without that entry. */
+/**
+ * The book without that entry — **the first with that id, and only it**.
+ *
+ * `withEntry`'s defence, extended to the two writes that lacked it
+ * ([P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md)).
+ * Ids are not unique in practice, and this used to remove every entry with the
+ * id: deleting one of two twins deleted both, on save, and the second had never
+ * been on screen — the selection resolves an id to its first match, so the form
+ * the person confirmed the removal from was showing the first. Removing the
+ * first removes exactly what they were looking at.
+ */
 export function withoutEntry(book: Draft, id: string): Draft {
-  return { ...book, entries: entriesOf(book).filter((entry) => entry.id !== id) };
+  const entries = entriesOf(book);
+  const at = entries.findIndex((entry) => entry.id === id);
+  if (at < 0) return book;
+  return { ...book, entries: [...entries.slice(0, at), ...entries.slice(at + 1)] };
 }
 
 /**
@@ -160,10 +173,16 @@ export function bookChanges(base: Draft, draft: Draft): boolean {
  */
 export function moveEntryBefore(book: Draft, id: string, beforeId: string | null): Draft {
   const entries = entriesOf(book);
-  const moving = entries.find((entry) => entry.id === id);
+  const from = entries.findIndex((entry) => entry.id === id);
+  const moving = entries[from];
   if (moving === undefined) return book;
 
-  const rest = entries.filter((entry) => entry.id !== id);
+  /**
+   * ***Only the first entry with the id comes out*** — [P13 §0.5]. Filtering by
+   * id took every twin out and put one back, so dragging one of two entries
+   * sharing an id silently deleted the other on save.
+   */
+  const rest = [...entries.slice(0, from), ...entries.slice(from + 1)];
   const at = beforeId === null ? rest.length : rest.findIndex((entry) => entry.id === beforeId);
   /**
    * A target that does not resolve leaves the book alone rather than appending.
@@ -172,9 +191,12 @@ export function moveEntryBefore(book: Draft, id: string, beforeId: string | null
    * end of a two-hundred-entry book.
    */
   if (at < 0) return book;
-  if (entries[at] === moving) return book;
 
-  return { ...book, entries: [...rest.slice(0, at), moving, ...rest.slice(at)] };
+  const moved = [...rest.slice(0, at), moving, ...rest.slice(at)];
+  // Judged on the whole order: with twins, the entry at the landing index is no
+  // longer enough to say the book did not change.
+  if (moved.every((entry, index) => entry === entries[index])) return book;
+  return { ...book, entries: moved };
 }
 
 /**

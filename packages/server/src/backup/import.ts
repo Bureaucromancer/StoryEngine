@@ -12,7 +12,7 @@ import {
 import type { PrefsStore } from '../auth/prefs.js';
 import { BackupFileSource } from '../import/backup-source.js';
 import { sweep } from '../import/sweep.js';
-import type { ConflictPolicy } from '../import/identity.js';
+import { DEFAULT_BACKUP_CONFLICT, type ConflictPolicy } from '../import/identity.js';
 import type { LibraryContext } from '../library.js';
 import { importSession } from '../sessions/import.js';
 import type { SessionContext } from '../sessions/store.js';
@@ -77,16 +77,11 @@ export type BackupImportOutcome =
   { ok: true; result: BackupImportResult } | { ok: false; refusal: string };
 
 /**
- * ***`skip` rather than `sweep`'s `replace`, and the disagreement is the
- * point.***
- *
- * A re-imported foreign file **is** the object that file produced, so replacing
- * is safe and history catches the edit. A backup meeting a live account is the
- * **past meeting the present**, and the present is usually what somebody wants
- * to keep — *bring in what I do not have* is what people mean when they reach
- * for this. All three policies are offered and each is named in the review.
+ * `skip` for a backup — the reasoning, and the constant, live beside
+ * `ConflictPolicy` in `import/identity.ts`, where the sweep can reach them too
+ * ([P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md)).
  */
-export const DEFAULT_BACKUP_CONFLICT: ConflictPolicy = 'skip';
+export { DEFAULT_BACKUP_CONFLICT };
 
 export async function importBackup(
   context: BackupImportContext,
