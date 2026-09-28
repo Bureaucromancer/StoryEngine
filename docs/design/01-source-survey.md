@@ -350,7 +350,14 @@ export into Rust: the WebView ran out of heap on Android.
   plus `metadata.json` — `{ version: 1, createdAt, appVersion, storyCount,
   hasDatabaseSnapshot, databaseSizeBytes }` — written by
   `src-tauri/src/backup.rs`. Older backups also carry `stories/*.avt`, which
-  Aventuras' own restore ignores;
+  Aventuras' own restore ignores. *The archive itself*, for a reader that has to
+  open one without holding it in memory
+  ([P13.8](workplan/30-p13-aventuras-import.md)): the `zip` crate v8 with only
+  its `deflate` feature, `aventura.db` deflated at level 1 and `metadata.json`
+  stored, through `ZipWriter::new` over a seekable file — so sizes are written
+  back into each local header rather than into data descriptors — and without
+  `large_file`, so there is no zip64 below 4 GiB (the crate refuses a larger
+  entry outright). To be confirmed on a real backup's bytes at the gate;
 - **`.avt`**, one story as versioned JSON, now at 1.10.0
   (`services/import/types.ts`), which is `gatherStoryData()` — every row the
   story owns, all branches, images inlined — through the row mappers;

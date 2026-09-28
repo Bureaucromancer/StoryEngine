@@ -1,11 +1,13 @@
 # 30 — P13 implementation plan
 
-**Status: design only — no stage started.** Written 2026-09-26 on
+**Status: P13.0 done — `34b3174` (the failing tests), `75c56ca` (the fix),
+2026-09-28; the rest of Part 1 is design only.** Written 2026-09-26 on
 `claude/epic-hypatia-p1h6my`, from a survey of Aventuras at `c43da108`
 (2026-09-25). Part 1 is planned to the stage; **Part 2 is headed and not
-scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives. Nothing
-here has been built, and [§0.4](#04-what-the-survey-found-in-our-own-tree)'s
-three findings against shipped code are findings, not fixes.
+scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives.
+[§0.4](#04-what-the-survey-found-in-our-own-tree)'s findings against shipped
+code are fixed, and [§0.5](#05-found-in-passing-and-not-fixed-here) records what
+the work that fixed them found and left.
 
 **P13 is the whole of an Aventuras install, in one import: the library now, the
 stories after.** Today a person leaving Aventuras hands us one vault record per
@@ -68,7 +70,7 @@ one format, not N importers"* — and Part 2 keeps it by construction:
 
 - **The Aventuras story converter is a producer of the format, not a reader of
   its own.** It emits a `SessionExport` and hands it to `importSession`, the one
-  reader. [P12.8](29-p12-implementation.md)'s `backup/import.ts:251` already
+  reader. [P12.8](29-p12-implementation.md)'s `backup/import.ts:275` already
   does exactly this for our own archives, so the shape has a working instance.
 - **Deleting it deletes nothing else.** If Aventuras moves and nobody follows,
   the producer is removed and the reader, the format and every other import are
@@ -84,10 +86,14 @@ scheduled; 18 §6 records the reading.
 
 ### 0.4 What the survey found in our own tree
 
-Three findings, each against code that has shipped, and each a stage of its own
-before anything is built on top.
+~~Three findings~~ *Four*, each against code that has shipped, and together
+[P13.0](#p130--the-findings-against-shipped-code-done) — **fixed at `75c56ca`**.
+The first was reproduced on 2026-09-28 and turned out to be larger than this
+section first said, by a different mechanism; the text it replaced is kept
+struck, because a finding that was wrong about its own mechanism is worth being
+able to read.
 
-**`importSession` may re-point another session's turns** — suspected, not yet
+~~**`importSession` may re-point another session's turns** — suspected, not yet
 reproduced. `sessions/import.ts:151` appends each turn with the `sessionId` it
 arrived with (`foreignise` adds `foreign` and nothing else), and
 `appendTurnOnly` hands that turn to `indexTurn`
@@ -100,7 +106,58 @@ original's rows for the same ids would be overwritten to point there.
 case, but reads the new session back and never re-reads the original, which is
 where it would show. [P12.8]'s `backup/import.ts` shares the path. **P13.0
 writes the failing test first**, because a finding against a shipped reader that
-is not reproduced is a guess.
+is not reproduced is a guess.~~
+
+**An imported session shared its turn ids with the one it came from, and
+everything that keys a turn by its id alone held only one of them** —
+reproduced and fixed. [P11.10](28-p11-implementation.md) kept an imported
+session's turn ids on the argument that a collision needed two installs
+importing each other's sessions. It needed one: an export imported back onto the
+install that wrote it, and every backup imported into its own account
+([P12.8](29-p12-implementation.md)), is two sessions with one set of ids. Four
+things key a turn by its id alone and were each wrong in their own way:
+
+- **The index** — `turn` is keyed on `turn_id` (`index-db/migrations.ts:239`).
+  The copy's turns were filed under the *original's* session id, because the
+  importer never rewrote `turn.sessionId`, and the copy held no rows at all.
+- **Search**, separately and even across installs: the importer copied
+  `createSession`'s write steps and not the fourth, `indexSession`, so an
+  imported session had no session row and search — which joins it — never found
+  a word in it until the session played a turn.
+- **The rendition jobs**, which were the worst of it. A job is unique by
+  `rendition_id` (`state/migrations.ts:336`) and a rendition id is
+  `${turnId}.${n}` (`renditions/store.ts:114`), so an **Illustrate** on the copy
+  found the original's job and ran it: a paid render, the original's picture
+  overwritten, and for a backdrop a turn appended to the original's session —
+  possibly another account's.
+- **The notification dedupe**, `artifact:${turnId}`, folded two sessions'
+  notices into one.
+
+The test this section planned could not have failed. `readTurns` walks the
+segments and `readTurnById` checks the id on the line it read back and falls
+back to the walk, so re-reading the original after importing its copy passed
+against the defect and would have passed against the wrong fix. The defect
+showed through **search, delete and rebuild**, and that is where `34b3174`
+asserts it.
+
+**The fix re-mints the turn ids** (`sessions/remint.ts`), by the person's
+decision over the alternative — keying the index and the rendition jobs by
+`(session, turn)`, which kept P11.10's decision and amended the id rule instead.
+Re-minting keeps the rule every consumer above already assumes, so none of them
+changed. It is **a rewrite by value, not by path**: any dot-separated segment of
+any string or key that is one of the document's uuid-shaped turn ids, or its
+session id, is replaced — so rendition ids, block ids, effect payloads, channel
+values and fields this build does not know move with the tree — while a
+non-uuid id is rewritten only in the tree's own fields, because rewriting every
+`"1"` in a document would be corruption. The ids a turn had travel as
+`foreign.id`. Alongside it: `store.writeNewSession`, one path for writing and
+indexing a new session; `appendTurnOnly` refusing a turn that names another
+session; an index rebuild that files a turn only under the folder it lives in
+(`INDEX_SCHEMA_VERSION` 10, so existing installs rebuild once); and a rendition
+dispatch that never runs a job held by another session. The backup importer's
+docstring promised to skip a session already here and the code never did; by
+decision it is the docstring that was corrected — every archived session
+arrives as a new session, which re-minting made safe.
 
 **Vault lorebooks are not stored as `Entry[]`.** `lorebook_vault.entries` holds
 `VaultLorebookEntry[]` — `{ name, type, description, keywords, aliases,
@@ -110,14 +167,61 @@ produces from it, through `vaultEntryToEntryLike`
 (`lorebookImportExport/export/vault.ts:18`). `isAventurasLorebook` requires
 `injection.mode`, so a vault row handed over as-is is `wrong-shape` every time.
 The reader ports that one function. [P4 §1.5](16-p4-implementation.md)'s mapping
-line — *"`Entry`'s static half → lorebook entries"* — is corrected there.
+line — *"`Entry`'s static half → lorebook entries"* — is corrected there. *Not a
+defect in shipped code but in the plan's reading of it; it is P13.4's.*
 
-**Aventuras entry ids collide on a repeated name, possibly.**
-`aventuras/lorebook.ts:103` derives an entry's id as
+~~**Aventuras entry ids collide on a repeated name, possibly.**~~ **Aventuras
+entry ids collided on a repeated name** — confirmed and fixed.
+`aventuras/lorebook.ts:103` derived an entry's id as
 `stableId('aventuras-entry', book, name)`, and nothing in Aventuras makes an
-entry name unique within a book. Two entries both called *The Harbour* would
-share an id. **To verify before fixing** — the converter may dedupe downstream,
-and the file path has had this key since P4.3 without a report.
+entry name unique within a book. Nothing downstream caught it either:
+validation does not walk the array, the index keys entries by position, and the
+editor resolves an id to its first match — so the second twin could not be
+opened, and deleting or dragging either deleted both. The scenario-as-lorebook
+path had the same defect twice over: twin npcs, and an npc literally named
+`setting`, which derived the setting entry's own id. `claimId`
+(`import/identity.ts`) keeps the first claimant's id — a book with no repeats
+converts to the same bytes and re-imports `unchanged` — and re-derives a repeat
+under a namespace of its own, with `import.aventuras.repeatedEntryNames` in the
+review.
+
+**`VERDICT_LABELS` lacked `charx` and `storyengine-backup`**, so a person
+pointing the panel at either folder was told its raw kind. Both now have a
+sentence, a test reads the probe table so the next kind cannot be missed, and
+`docs/api.md` lists the five directory verdicts. `aventuras` joins at P13.2,
+when the kind exists.
+
+### 0.5 Found in passing, and not fixed here
+
+The investigation behind P13.0 read widely, and found these. None is P13's, and
+each is recorded so it is not rediscovered.
+
+- **Twin npc actors overwrite each other.** A scenario imported as a treatment
+  stamps each npc `${source}#npc:${name}` (`import/sweep.ts:721`); the second of
+  two npcs with one name `identify()`s as the first, replaces it, and the cast
+  names one actor twice.
+- **Lore timing is keyed by entry id across books.** `se.lore.timing`
+  (`sessions/channels.ts:58-87`, `retrieval/retrieve.ts:196-232`) takes an entry
+  id alone, while [04 §5.2](../04-schemas.md) says the same id in two books is
+  not the same entry; `retrieval/blocks.ts:200-206` namespaces block ids by book
+  for this reason and timing was never given the same.
+- **The client's `withoutEntry` and `moveEntryBefore`** (`editor/book-form.ts:110`,
+  `:162`) act on every entry sharing an id, where `withEntry` acts on the first —
+  so a byte-identical twin from any converter is deleted with its sibling.
+- **A backup swept from the import panel defaults to `replace`**, where
+  [P12.8](29-p12-implementation.md) decided `skip` for a backup meeting a live
+  account: the panel sends no `onConflict` and the sweep's default is `replace`.
+- **A session restored from the trash is never re-indexed.** `routes/me.ts`
+  says the watcher does it; the watcher parses library paths only.
+- **`readSession` never checks a folder's name against the id inside it**, so a
+  session folder copied by hand without editing its id overwrites the original's
+  `session` row on rebuild.
+- **`foreign.source` means two things.** `turn.ts:962-970` describes the source
+  application; the importer writes the source *session's* id.
+- **Copies made before `75c56ca` keep their old turn ids on disk.** The rebuild
+  now files their turns where they live only if they say they live there, so
+  such a copy is readable and unsearchable; the repair is export, import, delete.
+  No release carried session import, so this is development data.
 
 ---
 
@@ -164,6 +268,13 @@ routes to the copy:
   read-only open itself fails — write `aventura.db` and any `aventura.db-wal`
   into scratch, open the copy so SQLite replays the log, and run
   `PRAGMA quick_check`.
+
+***Both run in a worker thread*** — *added 2026-09-28, from the P13.8 review.*
+`node:sqlite` is synchronous, and the server has no worker threads today, so a
+`VACUUM INTO` or a `quick_check` over a database of hundreds of megabytes on the
+main thread would stall **every** request for as long as it ran, other people's
+live turns included. A worker is the whole remedy: the snapshot is a function of
+two paths and returns a path, so nothing crosses the boundary but strings.
 
 **A `-wal` file alone is not a refusal.** Marinara refuses a live install
 because it marks one — `.writer-lease` — and reading around a lease produces a
@@ -313,10 +424,19 @@ and stay `recorded`.
 Aventuras keeps images as base64 in the database, so an install with a gallery
 is hundreds of megabytes, and **the upload paths will turn those away until
 [P13.8](#p138--streaming-large-uploads)**. The server-path sweep will not, which
-is why Part 1 is useful without P13.8: an operator mounts the Aventuras config
-directory and sweeps it. Whether P13.8 belongs in Part 1 is
-[§4](#4--open-questions)'s first question, because it decides whether a person
-on a Docker install with no shell can import a large library at all.
+~~is why Part 1 is useful without P13.8~~ is why P13.8 comes after the reader
+rather than before it: an operator mounts the Aventuras config directory and
+sweeps it.
+
+***P13.8 is in Part 1*** — [§4](#4--open-questions)'s first question, answered
+2026-09-28. The case for it is narrower than *operators have no shell*: a
+compose user has edited a YAML file, and unraid's data share is visible over
+SMB. The people with **no other route** are a person on a phone — an Android
+backup exists only as a file — and every account without `fileAccess`, which is
+the default, and which the server-path sweep refuses. Building the upload arms
+once, streamed, is also cheaper than building them in memory at P13.7 and again
+here. It is not forced by the gate: critical row 2 holds for any backup under
+64 MB.
 
 ---
 
@@ -328,23 +448,33 @@ on a Docker install with no shell can import a large library at all.
 
 ### Part 1 — the library
 
-### P13.0 — The findings against shipped code
+### ~~P13.0 — The findings against shipped code~~ Done
 
-[§0.4](#04-what-the-survey-found-in-our-own-tree)'s three. The `importSession`
-index re-point, as a failing test that re-reads the **original** session after
-importing its own export, then the fix — the turns take the new session's id,
-and `foreign` keeps the old one — then the same assertion over
-`backup/import.ts`. The entry-id collision, verified before it is fixed. And
-`VERDICT_LABELS` in `ImportPanel.tsx`, which lacks `charx` and
-`storyengine-backup` and will need `aventuras`.
-*Ends at:* the re-point test is green, and 28's P11.10 record names the defect.
+*Done — `34b3174` (the tests, red), `75c56ca` (the fix), 2026-09-28.*
+[§0.4](#04-what-the-survey-found-in-our-own-tree)'s findings. ~~The
+`importSession` index re-point, as a failing test that re-reads the **original**
+session after importing its own export, then the fix — the turns take the new
+session's id, and `foreign` keeps the old one — then the same assertion over
+`backup/import.ts`.~~ The turn-id collision, as failing tests through **search,
+delete and rebuild** — the turn routes cannot show it — then the fix: turn ids
+re-minted on import by value (`sessions/remint.ts`), the session indexed when it
+lands, a rebuild that files turns by folder, and a rendition dispatch that
+never runs another session's job; the same assertions over `backup/import.ts`
+under all three policies. The entry-id collision, verified, then fixed with
+`claimId`. And `VERDICT_LABELS`, which lacked `charx` and `storyengine-backup`.
+~~*Ends at:* the re-point test is green, and 28's P11.10 record names the defect.~~
+*Ended at:* fifteen tests red for their stated reasons at `34b3174`, green at
+`75c56ca` with the rest of the suite, and 28's P11.10 record corrected.
 
 ### P13.1 — Scratch and the snapshot
 
 `Layout.importScratchRoot`, `LocalSource.realPath`, `storage/sqlite-snapshot.ts`
 ([§1.2](#12-the-snapshot-and-why-a--wal-file-never-refuses),
-[§1.3](#13-scratch-lives-under-state-through-the-layout)), the backup exclusion
-and the boot cleanup.
+[§1.3](#13-scratch-lives-under-state-through-the-layout)), run **in a worker
+thread**, the backup exclusion and the boot cleanup. P13.8 lands its uploads in
+the same scratch root, so it also needs a way to hand the reader a file it
+already owns — recorded here as an amendment to §1.3's `realPath`, which only
+covers a server-path source.
 *Proof obligation:* a WAL-mode database with committed, un-checkpointed frames
 snapshots with those frames present, by both routes.
 
@@ -400,12 +530,53 @@ library, and the second sweep of any of them is all `unchanged`.
 
 ### P13.8 — Streaming large uploads
 
-A multipart part streamed to scratch rather than buffered, and one zip entry
+~~A multipart part streamed to scratch rather than buffered, and one zip entry
 stream-inflated to scratch with its bounds still checked from the central
 directory first. Probably a limit key of its own rather than a larger
 `maxUploadMb` — which is the five-place config edit, and
 `config.test.ts` will say so if one is missed. **Deferrable**; see
-[§1.11](#111-size-and-the-one-transport-with-no-ceiling).
+[§1.11](#111-size-and-the-one-transport-with-no-ceiling).~~
+
+**In Part 1, after P13.1 and before P13.7**, keeping its number
+([§1.11](#111-size-and-the-one-transport-with-no-ceiling)). Nothing in
+[P12](29-p12-implementation.md) streams an upload — backup import and restore
+take an id, not a file — the zip reader holds the whole archive in memory, and
+the multipart buffer peaks near twice the file. Two halves, the second only
+because the first cannot carry a zip:
+
+1. **A streamed landing on `/import/file`.** The part is piped into the scratch
+   root with `fileSize` passed on every call — the plugin's default is the
+   startup `bodyLimit` and does not follow Settings — and `truncated` checked
+   after, because busboy's limit does not throw. Free space of at least 1.1×
+   the upload, one large upload in flight, an idle timeout, and
+   `Connection: close` on an early refusal so the browser sees the refusal
+   rather than a reset. The magic is sniffed from at least sixteen accumulated
+   bytes (SQLite's header is sixteen; a first chunk can be shorter).
+2. **A file-backed zip reader.** The central directory from the file's tail —
+   a window of 22 + 65535 + 20 bytes, so a maximum-length comment still leaves
+   the zip64 locator in view — with the limits split: a per-entry cap at parse
+   time, 64 MB inside an ordinary `read()`, and only extracted bytes counted
+   toward the total (old backups also carry `stories/*.avt`). The one
+   `aventura.db` entry is inflated to scratch. [01 §2](../01-source-survey.md)'s
+   format check permits this: Aventuras writes deflate at level 1 through a
+   seekable writer, with no zip64 below 4 GiB.
+
+**A config key of its own**, `limits.maxImportUploadMb`, default 1024, tier
+`live` — a separate cap that can be *lowered*, not `max()` against
+`maxUploadMb`, which would leave no way to tighten an ungated upload. That is a
+seven-place edit: the five [CLAUDE.md] names, the live-key count in
+[21 §4](../21-internal-contracts.md), and `routes/live-config.test.ts`, whose
+full `limits` literal stops typechecking otherwise. No `SE_*` variable. A line
+in `docs/deploy.md` on a reverse proxy's body size and read timeout, which will
+refuse the upload before the server sees it.
+
+**The client** sniffs the file and shows *imports as a folder* locally rather
+than uploading a large archive for a preview — an amendment to
+[P4](16-p4-implementation.md)'s *a look, then a word*, recorded as one — shows
+progress, and maps a dropped connection or a proxy's 413 to a sentence.
+
+*Not in it:* streamed folder uploads, zip64, resumable uploads, and uploading a
+StoryEngine backup, which has its own 256 MB cap.
 
 ### P13.9 — Packs into presets
 
@@ -426,9 +597,15 @@ is scheduled.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
 What the one reader lacks for a second caller. An optional
 `origin.originalFilename`, which becomes the idempotence key
 (`aventura.db/stories/<id>`), and a lookup for a prior session carrying it;
-renditions written, not counted (`sessions/import.ts:155` counts them today);
-parents validated to precede children, which the reader's own comment assumes
-and nothing checks; `cast` and `lore` ids that must exist.
+renditions written, not counted (`importSession` counts them today — and until
+it writes them, a copy's `nextOrdinal` restarts at 0, so a rewritten selection
+naming `T.0` can attach to a later, different Illustrate on `T`); ~~parents
+validated to precede children, which the reader's own comment assumes and
+nothing checks~~ *parents before children is done — `remint` orders them, at
+[P13.0](#p130--the-findings-against-shipped-code-done)*; `cast` and `lore` ids that
+must exist. The producer places rendition assets by the `turnIds` map
+`importSession` now returns, since the ids it wrote are not the ids the stored
+records carry.
 
 ### P13.11 — The tree, and the pairing
 
@@ -436,7 +613,10 @@ and nothing checks; `cast` and `lore` ids that must exist.
 `branches.fork_entry_id` and per-branch positions, never from `parent_id`, which
 is always null — and its pairing table: an action and its narration are one
 `Turn`; an opening narration is a turn with no `input`; an action nobody
-answered is `failed`; a second narration in a row is a turn of its own. A fork
+answered is `failed`; a second narration in a row is a turn of its own; **a
+`system` entry is a turn with no `input`** and its text as output — decided
+2026-09-28 ([§4](#4--open-questions)), because a turn that never ran a model is
+honest here and dropping the entry is not. A fork
 that splits a pair re-pairs from the forked action, with
 `import.aventuras.forkSplitPair`. Fields: `foreign = { source: 'aventuras', id }`,
 set before the reader sees it so `foreignise` keeps it; metadata into `cost`,
@@ -450,8 +630,12 @@ set before the reader sees it so `foreignise` keeps it; metadata into `cost`,
 Copy-on-write resolution for the head branch — `overrides_id` shadows,
 `deleted` hides — then characters into cast actors and the story's `entries`
 into one per-story lorebook in `session.lore`. What another branch holds
-differently is recorded. Locations, items and story beats per
-[§4](#4--open-questions).
+differently is recorded. ~~Locations, items and story beats per
+[§4](#4--open-questions).~~ **Locations, items and story beats become entries in
+that lorebook, tagged by kind** — decided 2026-09-28. For story beats this is an
+interim home and recorded as one: they are a feature StoryEngine means to grow
+in its own right, and when it does, a beat imported as lore is what that
+feature's own import will read from, not something it has to reverse.
 
 ### P13.13 — Images as renditions
 
@@ -510,6 +694,11 @@ until it is scheduled.
 | 6 | A Docker install with the Aventuras config directory mounted read-only | [manual testing](05-manual-testing.md) |
 | 7 | A backup exported from Aventuras on Android | [manual testing](05-manual-testing.md) |
 | 8 | Imported tag colours look like the ones in Aventuras | [manual testing](05-manual-testing.md) |
+| 9 | A backup over 64 MB uploaded from a browser — one of them from a phone — imports, shows progress, and a proxy's refusal reads as a sentence | [manual testing](05-manual-testing.md) |
+
+*Row 9 was added 2026-09-28 when P13.8 joined Part 1*, before anything was
+walked — extending the remainder, which is what [manual testing §0] allows, and
+not editing the critical list.
 
 **Test obligations, for the stage commits.** A fixture database is built in the
 test from **hand-written DDL** — only the columns the reader selects, taken from
@@ -526,14 +715,18 @@ refuse); WAL with un-checkpointed frames; and zipped through
 
 ## 4 — Open questions
 
-1. **Is [P13.8](#p138--streaming-large-uploads) in Part 1?** Without it, a large
+1. ~~**Is [P13.8](#p138--streaming-large-uploads) in Part 1?** Without it, a large
    library reaches us only by server path, and a person with no shell on their
-   server cannot hand one over.
-2. **Part 2: are `system` entries turns?** They are rare, and a turn with no
-   input and system text is honest; so is `recorded`.
-3. **Part 2: locations, items, story beats** — lore entries tagged by kind now,
+   server cannot hand one over.~~ **Yes** — 2026-09-28, on
+   [§1.11](#111-size-and-the-one-transport-with-no-ceiling)'s narrower grounds.
+2. ~~**Part 2: are `system` entries turns?** They are rare, and a turn with no
+   input and system text is honest; so is `recorded`.~~ **Yes**, turns with no
+   input — [P13.11](#p1311--the-tree-and-the-pairing).
+3. ~~**Part 2: locations, items, story beats** — lore entries tagged by kind now,
    or `recorded` until a channel wants them? The first imports something usable
-   and the second imports nothing wrong.
+   and the second imports nothing wrong.~~ **Lore entries, tagged by kind**, story
+   beats included and marked as their interim home —
+   [P13.12](#p1312--world-state).
 
 ---
 

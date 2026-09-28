@@ -2813,21 +2813,40 @@ different documents; `sessions/import.ts` is what makes that claim checkable.
 
 *Three decisions in it are worth having here rather than only in the file.* It
 always makes a **new** session, because merging two trees means deciding what a
-turn with an unknown parent is and every answer loses something. It **keeps the
+turn with an unknown parent is and every answer loses something. ~~It **keeps the
 turn ids and re-mints the session's**: the turn ids are the tree's own structure
 and re-minting them is a graph rewrite over the one structure this project spends
 the most care on, while a session id is an address on *this* install and two
-sessions sharing one is an immediate confusion. And a turn that already carries
+sessions sharing one is an immediate confusion.~~ It **re-mints both** —
+*reversed 2026-09-28 at [P13.0](30-p13-aventuras-import.md), by decision.* The
+kept turn ids were argued to collide only between two installs importing each
+other's sessions; they collided on one, every time — an export imported back onto
+the install that wrote it, and every backup imported into its own account — and
+the index, the rendition jobs and the notification dedupe all key a turn by its
+id alone. The graph rewrite this paragraph declined is `sessions/remint.ts`, done
+by value rather than by a list of paths, and the old ids travel as `foreign.id`.
+And a turn that already carries
 `foreign` **keeps it**, because the first install it came from is the one that
 matters — a session that had travelled twice and claimed it came from the middle
 would be a provenance record that gets less true the more it is used.
 
-*A suspected defect in it, found 2026-09-26 and not yet reproduced —
+~~*A suspected defect in it, found 2026-09-26 and not yet reproduced —
 [P13 §0.4](30-p13-aventuras-import.md).* The kept turn ids keep their old
 `sessionId` too, and the turn index is written by that field: an import onto the
 install that exported it would point the original session's index rows at the
 copy. The test here imports onto the same install and never re-reads the
-original. [P13.0](30-p13-aventuras-import.md) writes the failing test first.
+original. [P13.0](30-p13-aventuras-import.md) writes the failing test first.~~
+***The defect, reproduced and fixed*** — [P13.0](30-p13-aventuras-import.md),
+`34b3174` red and `75c56ca` green, 2026-09-28. Larger than suspected and by a
+different mechanism: the copy's turns were filed under the *original's* session
+id, so the copy held no index rows; the importer never wrote the session's own
+index row, so **no imported session was searchable, from any install**, until it
+played a turn; and an **Illustrate** on the copy found the original's rendition
+job — unique by `${turnId}.${n}` — and re-rendered the original's picture. The
+test this paragraph proposed could not have failed: the turn routes walk the
+segments or verify the id they read, so the defect showed only through search,
+delete and rebuild, which is where it is now asserted. [P13 §0.4] has the whole
+account.
 
 ### P11.11 — Backup and restore
 
@@ -3214,7 +3233,7 @@ and the whole reason there are two.*
 | **7** Restorable within the window, gone after it | `storage/trash.test.ts`, `settings/Trash.tsx`'s route tests | ✅ **in part** — the suffix reader, the sweep and the restore. *Gone after the window* is a clock, which the standing list holds |
 | **8** Playwright journeys on CI | `e2e/journeys.spec.ts`, `ci.yml`'s `journeys` job | ✅ — **built after this table first said ❌**, which is the one row here whose entry changed by the work being done rather than by the wording being fixed. One test, the seven journeys in [testing §3.5](03-testing.md)'s order, against a built server serving a built client and an OpenAI-compatible double over HTTP. **Three of the seven were read wrong until walked** — §3.5 records which and why |
 | **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
-| **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
+| **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that ~~shares no state with the writer~~ *shares the index with the writer, which is where [P13.0](30-p13-aventuras-import.md) found it failing*: every turn, a new session id, ~~the old ids kept~~ new turn ids with the old ones in `foreign.id`, each turn marked foreign, `origin` recorded, and — since 2026-09-28 — searchable in both the original and the copy. *Another **build** reading them* is the half a second install would prove |
 | **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it. ***True since `aaf7345`, and not when this row was written*** — [P12 §0.5](29-p12-implementation.md): the exclusion never fired and the fixture agreed with it; see [P11.11](#p1111--backup-and-restore)'s note |
 | **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded |
 | **13** The extractor is owned, or 1.0 ships manual capture deliberately | [P11.12](#p1112--the-automatic-extractor) | ✅ — **taken.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took it rather than carrying it a third time, and `repo-shape.test.ts` holds the clause that makes [P8](25-p8-implementation.md)'s C2 answerable |
