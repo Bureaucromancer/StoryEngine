@@ -1,6 +1,8 @@
 # 30 — P13 implementation plan
 
-**Status: P13.0 done — `34b3174` (the failing tests), `75c56ca` (the fix),
+**Status: merged to `main` 2026-09-29 at `7565265`, from
+`claude/epic-hypatia-p1h6my`; the phase is open — Part 1's gate is unwalked and
+most of its stages unbuilt. P13.0 done — `34b3174` (the failing tests), `75c56ca` (the fix),
 2026-09-28, and the fix set aside for main's own at the merge of 2026-09-29
 ([§0.4](#04-what-the-survey-found-in-our-own-tree)); the rest of Part 1 is
 design only.** Written 2026-09-26 on
