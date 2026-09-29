@@ -28,6 +28,7 @@ import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook } from './aventuras/lorebook.js';
 import { convertScenario } from './aventuras/scenario.js';
 import {
+  DEFAULT_BACKUP_CONFLICT,
   identify,
   identifyNative,
   priorImportId,
@@ -152,7 +153,17 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
   if (!survey.ok) return { ok: false, refusal: survey.refusal };
 
   const items: ImportItemReport[] = [];
-  const writer = new Writer(request);
+  /**
+   * ***A backup nobody chose a policy for is `skip`***, whichever door it came
+   * through — `DEFAULT_BACKUP_CONFLICT`'s reasoning. The backups route has
+   * always said so; a folder upload or a server path reaches here with no
+   * policy, and `replace` reverted a live account's edits to the archive's.
+   */
+  const writer = new Writer(
+    classification.kind === 'storyengine-backup' && request.onConflict === undefined
+      ? { ...request, onConflict: DEFAULT_BACKUP_CONFLICT }
+      : request,
+  );
 
   for await (const item of reader.items()) {
     if (item.outcome === 'observed') {
@@ -881,6 +892,8 @@ class Writer {
     if (treatment === null) return refusedItem(candidate, 'wrong-shape');
 
     const alsoProduced: string[] = [];
+    const seen = new Map<string, number>();
+    let repeated = 0;
     for (const member of cast) {
       /**
        * **Each actor's identity is the scenario file plus their name.**
@@ -892,9 +905,34 @@ class Writer {
        * `#character_book` suffix from `#card`, which is the closer precedent
        * because the object really did travel inside the file.
        */
-      stampImported(member.actor, `${candidate.source}#npc:${member.actor.name}`);
+      /**
+       * ***A repeated name gets a key of its own*** —
+       * [P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+       * Keyed on the name alone, the second of two npcs named alike `identify`d
+       * as the first and replaced it, and the cast named one actor twice. The
+       * first keeps the key it always had, so an existing import re-imports
+       * `unchanged`; a repeat takes `#npc-repeat:`, a key space no name can
+       * reach — `distinctIds`' reasoning, for a provenance key.
+       */
+      const occurrence = (seen.get(member.actor.name) ?? 0) + 1;
+      seen.set(member.actor.name, occurrence);
+      if (occurrence > 1) repeated += 1;
+      stampImported(
+        member.actor,
+        occurrence === 1
+          ? `${candidate.source}#npc:${member.actor.name}`
+          : `${candidate.source}#npc-repeat:${String(occurrence)}:${member.actor.name}`,
+      );
       const outcome = await this.store(member.actor, ACTOR_SCHEMA, notes);
       if (outcome !== 'failed') alsoProduced.push(member.actor.id);
+    }
+
+    if (repeated > 0) {
+      notes.push({
+        key: 'import.aventuras.repeatedNpcNames',
+        params: { count: repeated },
+        level: 'warn',
+      });
     }
 
     treatment.cast = cast

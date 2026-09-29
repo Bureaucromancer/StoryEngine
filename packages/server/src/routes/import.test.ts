@@ -13,6 +13,7 @@ import {
   tempRoot,
   type TestServer,
 } from '../test-server.js';
+import { read } from '../library.js';
 import { makeZip } from '../storage/test-zip.js';
 import {
   aventurasCharacter,
@@ -1294,6 +1295,51 @@ describe('uploading one Aventuras scenario', () => {
     const response = await send('/api/import/file', 'nonsense');
     expect(response.status).toBe(201);
     expect((await ownObjects(server, 'treatments')).objects).toHaveLength(1);
+  });
+
+  /**
+   * ***Two npcs of one name are two actors*** —
+   * [P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Each npc's re-import identity was the scenario file plus its name, so the
+   * second of two named alike `identify`d as the first, replaced it, and the
+   * cast named one actor twice — one imported character gone, and nothing in
+   * the review said so.
+   */
+  it('keeps two npcs who share a name as two actors, and re-imports them unchanged', async () => {
+    const npc = (description: string): Record<string, unknown> => ({
+      name: 'Ines Vaur',
+      role: 'harbourmaster',
+      description,
+      relationship: '',
+      traits: [],
+    });
+    const scenario = {
+      ...aventurasScenario(),
+      npcs: [npc('The elder, who keeps the ledgers.'), npc('Her niece, who does not.')],
+    };
+    const upload = (): ReturnType<typeof withDestination> =>
+      withDestination(JSON.stringify(scenario, null, 2));
+
+    const first = await server.request({ method: 'POST', url: '/api/import/file', ...upload() });
+    expect(first.status).toBe(201);
+    expect(first.body.item.notes.map((note: { key: string }) => note.key)).toContain(
+      'import.aventuras.repeatedNpcNames',
+    );
+
+    const actors = await ownObjects(server, 'actors');
+    expect(actors.objects).toHaveLength(2);
+    const [treatment] = (await ownObjects(server, 'treatments')).objects;
+    const cast = (
+      read(server.services.library, 'ned', treatment!.id).body as {
+        cast: { ref: { id: string } }[];
+      }
+    ).cast.map((member) => member.ref.id);
+    expect(new Set(cast).size).toBe(2);
+
+    const again = await server.request({ method: 'POST', url: '/api/import/file', ...upload() });
+    expect(again.body.item.disposition).toBe('unchanged');
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(2);
   });
 
   it('takes an Aventuras character and its native lorebook too', async () => {
