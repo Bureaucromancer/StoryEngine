@@ -306,8 +306,21 @@ which a rebuild or a correction recovers without anything having been lost.
 - **A story's own narrator prompt lives in `stories`, not the pack** — found
   at P13.9, for Part 2. `settings.customSystemPrompt` overrides the pack per
   story, so the narrator prompt somebody actually edited may be there;
-  [P13.10](#p1310--importsession-for-a-producer) should record it rather than
+  [P13.11](#p1311--the-tree-and-the-pairing) should record it rather than
   drop it.
+- **The trash defeats both `already-here` checks** — found at P13.10. A
+  trashed session has no index rows, so the same export or source imports
+  again, and restoring the trashed one then leaves two sessions with one set of
+  turn ids — [§0.4](#04-what-the-survey-found-in-our-own-tree)'s problem by
+  another road. `backup/import.ts` guards by session id; `/sessions/import` and
+  a producer cannot. Recorded in `sessions/import.ts`'s header.
+- **The exporter's id sort is not creation order across installs** — found at
+  P13.10. Clock skew between two installs that played one session lets a child
+  sort first; the importer no longer depends on it, and export files can still
+  list children first.
+- **`POST /sessions/import` drops `prior`** — found at P13.10: a key-based
+  `already-here` cannot tell the person which session it matched, where the
+  client could offer a link to it.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -901,9 +914,35 @@ is scheduled.*~~ *Scheduled by the person on 2026-09-29
 ([§0.3](#03-how-this-sits-with-25-e4)); every stage is built in order.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
 [18 §2.3.1](../18-session-import.md) is the survey these stages would build on.
 
-### P13.10 — `importSession` for a producer
+### ~~P13.10 — `importSession` for a producer~~ Done
 
-What the one reader lacks for a second caller. An optional
+*Done — `6fb33b0`, 2026-09-29.* `importSession` takes `originalFilename` and
+stores it as `origin.originalFilename`, keeping a key an export's own `origin`
+already carries, as `foreign` is kept — **the format does not change**, since
+`origin` was always part of the session document. The key is indexed as
+`session.origin_filename` — a column, not `findPriorImport`'s `json_extract`,
+because a session row keeps no copy of its file — and a key this account
+already holds, archived sessions included, is refused `already-here` naming the
+prior session. **The search index rebuilds once, at version 12**, which the
+next tag's changelog line owes an existing install. Turns are appended parents
+first; a dangling parent, a cycle or a head not in the file is refused
+`broken-tree` (422) before anything is written. ~~Parents validated to
+precede children~~ — **out-of-order turns are mended, not refused**, because
+our own exporter sorts by id, and a child minted on a slower clock sorts before
+its parent: refusing would reject our own exports. Cast, lore and treatment
+links are checked as `library.read` resolves them — reported in `missing` by
+default, since an export loaded on another install almost always names a cast
+that lives elsewhere and P11's round trip must survive that, and refused as
+`missing-links` under `requireLinks`, which a producer that writes those
+objects itself first should pass. `sessions/producer.ts`'s `producedTurnId`
+derives a version-8 UUID from the handle, the origin and the source id, the
+source's time in its first 48 bits so ids still sort by when they were made;
+the handle is in it because turn ids are unique across the install while the
+key is per account. *Ended at:* an in-test producer's second import of a
+derived-id story is refused without its key, a minted-id one is copied unless
+it passes its key, and a second account can import the same story;
+`backup/import.ts` is unchanged and its tests pass as they were; `pnpm
+test:gate` and `test:fixture-pair` pass at this boundary. ~~What the one reader lacks for a second caller. An optional
 `origin.originalFilename`, which becomes the idempotence key
 (`aventura.db/stories/<id>`), and a lookup for a prior session carrying it;
 ~~renditions written, not counted~~ *renditions written — done on main,
@@ -913,7 +952,7 @@ aside with it at the merge*); `cast` and `lore` ids that must exist. **And one
 consequence of main's `already-here` for a producer**: an Aventuras story
 imported twice is refused the second time only if its turn ids are the same —
 so the producer should derive turn ids stably from the Aventuras entry ids,
-which makes a re-import of the same story a refusal rather than a copy.
+which makes a re-import of the same story a refusal rather than a copy.~~
 
 ### P13.11 — The tree, and the pairing
 
