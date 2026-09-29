@@ -613,14 +613,23 @@ rather than losing the report of rows already written. ~~The
 and `isVaultCharacter` wants a record — then the existing `#aventurasCharacter`.
 Portraits per [§1.6](#16-portraits-are-carried).~~
 
-### P13.4 — Vault lorebooks
+### ~~P13.4 — Vault lorebooks~~ Done
 
-`vaultEntryToEntryLike` ported without its `state` and timestamps, so
-`entryStateRecorded` does not fire on state the vault never had;
+*Done — `b7651c7`, 2026-09-29.* `import/aventuras/vault-lorebook.ts`: each
+`lorebook_vault` row mapped, its `VaultLorebookEntry[]` ported to the `Entry`
+shape without invented state, and converted through the converter's core,
+`convertAventurasEntries`, so an empty book imports empty while the file
+path's guard stands. **An `entries` column that will not read refuses the row
+and writes nothing** — first built as *import an empty book with a warning*,
+and reversed before commit, because under the default `replace` a re-sweep
+would then have emptied a good book already here. Lorebooks are emitted before
+characters, for §1.7's links. *Recorded rather than fixed:* two vault books
+with one name derive the same entry ids, which is harmless in a book and not
+in a session, since lore timing is keyed by entry id alone — §0.5's timing
+item, made likelier. ~~`vaultEntryToEntryLike` ported without its `state` and
+timestamps, so `entryStateRecorded` does not fire on state the vault never had;
 `convertVaultLorebook(row)` wrapping `convertAventurasLorebook` and setting the
-book's own description and tags. **An empty book imports as an empty book** —
-`isAventurasLorebook([])` is false today, which is right for a file and wrong
-for a row that exists.
+book's own description and tags.~~
 
 ### P13.5 — Scenarios, and the links
 
