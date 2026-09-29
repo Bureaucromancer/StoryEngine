@@ -241,6 +241,12 @@ which a rebuild or a correction recovers without anything having been lost.
   inside a swept folder could read a file outside it, including the data
   directory's own `accounts.json`, against `FileSource`'s documented contract.
   Both now go through `#reach`, which checks the link's target.
+- **`sweep()` drops a reader's survey notes on success** — found at P13.2. A
+  `SourceSurvey` carries notes, and on a successful survey nothing puts them in
+  the report: the Aventuras reader carries its own on the database's row as a
+  workaround, and the backup reader's `import.backup.noSuchAccount` has never
+  reached a person. A report-level notes field is the fix, and it touches the
+  shared type and the ledger.
 - **`foreign.source` means two things.** `turn.ts:962-970` describes the source
   application; the importer writes the source *session's* id.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
@@ -273,10 +279,16 @@ enough to carry only `stories/*.avt` and no database classifies as
 `loose-files`, which is correct: it is a folder of `.avt` files, and those are
 Part 2's.
 
-An `aventurasPreflight` sits beside `marinaraPreflight` and is called from both
+~~An `aventurasPreflight` sits beside `marinaraPreflight` and is called from both
 `classifyRoot` and the reader's `survey()`, the pairing
 [P4 §1.3](16-p4-implementation.md) requires so a preview and a sweep cannot
-disagree.
+disagree.~~ *As built, P13.2:* the probe is **name-only**, and the gate runs
+once, in the reader's `survey()`, on the snapshot. `classifyRoot` also answers
+a folder plan — names and no bytes — and a preview, and a `FileSource.read` is
+capped at 64 MB while a real database is often larger; a gate that needs SQLite
+on a copy cannot run there. A preview can therefore say *an Aventuras library*
+of a database the sweep then refuses, which is the one disagreement the pairing
+existed to prevent, and the price of a probe that stays a probe.
 
 ### 1.2 The snapshot, and why a `-wal` file never refuses
 
@@ -387,6 +399,15 @@ refuse every install that updated after this survey.
 Old versions are the more common case, and the reason for the rule rather than
 an edge of it: **a restored backup is not migrated until Aventuras next
 starts**, so backups in the wild carry whatever version wrote them.
+
+*As built, P13.2 — two refinements the letter above would have got wrong.* A
+table the database's **own recorded version predates** — `preset_packs` before
+migration 030 — is read as empty, not refused; only a table missing from a
+database at or past the migration that made it is `unknown-format`. Without
+that, every backup older than the packs would be refused with a message saying
+it was too new. And `pack_variables.description` and `sort_order`, added one
+migration after their table, are optional beside the two late columns named
+above (`import/aventuras/schema.ts`).
 
 ### 1.5 Identity is the row, not the file
 
@@ -551,20 +572,28 @@ file with its log; a control shows the main file alone lacks them. Two tests
 hold a main-thread lock that only a main-thread timer releases, so the snapshot
 completing proves the SQLite work ran elsewhere.
 
-### P13.2 — The kind, the probe, and a reader that converts nothing yet
+### ~~P13.2 — The kind, the probe, and a reader that converts nothing yet~~ Done
 
-The `'aventuras'` arm; the probe; `aventurasPreflight` with the column gate
-([§1.4](#14-gate-on-the-columns-not-on-the-version-number)); a
-`SourceReader.close?()` that `sweep()` calls in a `finally` — the first reader
-to hold a resource; `readerFor` receiving the layout. A vendored
-`import/registries/aventuras.ts` — every table at the pin, a disposition for
-each, the provenance comment `registries/marinara.ts` carries — with
-`registries.test.ts` extended so no table lacks one, and a table found in
-`sqlite_master` and not in the list reported `unrecognised`. Per-story tables
-are `recorded` **with counts per story**, so the review says what Part 2 would
-bring rather than only that something exists.
-*Ends at:* a sweep of a real database produces a complete review and writes
-nothing.
+*Done — `0de1454`, 2026-09-29.* The `'aventuras'` kind and a name-only probe
+(§1.1, as built); `import/aventuras/reader.ts` taking the snapshot by path,
+from bytes, or from an owned landing, and `import/aventuras/schema.ts`'s column
+gate (§1.4, as built); `SourceReader.close?()`, called by `sweep()` in a
+`finally`; the vendored registry, `registries/aventuras.ts` — 28 tables, one
+disposition each, `settings` counted and never selected; observed rows for the
+database, each table, each story (what Part 2 would bring) and every other file
+in the root; the 507 `no-space` answer on the sweep, folder and file routes,
+brought forward from P13.8 because a server-path sweep can already need it; a
+folder upload of an Aventuras folder carrying only the database, its log and
+`metadata.json`, and refusing — rather than silently describing an older
+database — when it names a log it does not send; and
+`fixtures/test-aventuras-db.ts`, hand-written DDL with every column tagged by
+the migration that added it. ~~The `'aventuras'` arm; the probe;
+`aventurasPreflight` with the column gate; a `SourceReader.close?()` that
+`sweep()` calls in a `finally` — the first reader to hold a resource; `readerFor`
+receiving the layout.~~ *Ended at:* a sweep of a database produces a complete
+review and writes nothing — every registry table accounted for, per-story
+counts right, and a fake provider key in `settings` appearing nowhere in the
+report or the ledger.
 
 ### P13.3 — Characters and their portraits
 
