@@ -260,6 +260,15 @@ which a rebuild or a correction recovers without anything having been lost.
   `…/scenario_vault/<id>#npc:<name>`, so a cast member who is also a vault
   character arrives twice. As written, and worth a later dedupe or a review
   sentence.
+- **`tagColourDiffers` will be common, and rarely about a choice** — found at
+  P13.6. Aventuras draws a tag's colour at random per name and kind, so a name
+  used by two kinds usually differs, and the colour the note reports is seldom
+  one a person picked. A quieter note, or none when neither colour was ever
+  edited, would need Aventuras to record that, and it does not.
+- **A tag name with no `vault_tags` row gets no colour** — found at P13.6.
+  Aventuras seeds the table from its objects' tags only while it is empty
+  (`ensureTagsMigrated`), so an object can carry a name the table never had;
+  tags are open, so it renders neutral, and nothing is lost.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -466,9 +475,11 @@ that is not there.
 ### 1.8 Tags merge and are never adopted
 
 `vault_tags` joins the tag registry by `sameTag`: a new name is minted, an
-existing one is left alone, **and nothing is recoloured**. Aventuras' free hex
-colours map to the nearest of the eight `TAG_SWATCHES`
-(`shared/src/tags.ts:51`), low saturation to `stone`. Their `type` column
+existing one is left alone, **and nothing is recoloured**. ~~Aventuras' free hex
+colours~~ Aventuras' colours — *as built at P13.6*, a Tailwind token such as
+`indigo-500` drawn at random from seventeen, with hex read as well — map to the
+nearest of the eight `TAG_SWATCHES` (`shared/src/tags.ts:51`) by hue, low
+saturation to `stone`, and a colour that will not read to no swatch at all. Their `type` column
 (character, lorebook, scenario) has nowhere to go — our registry is not scoped
 by kind — so one name used by two kinds becomes one tag, and a colour that
 differed between them is a note.
@@ -667,9 +678,29 @@ the lorebook-id map, `treatment.lore` and `actor.lore`
 ([§1.7](#17-links-resolve-inside-the-database)). `starting_time` rides in
 `treatment.metadata`, which it already would.~~
 
-### P13.6 — Tags
+### ~~P13.6 — Tags~~ Done
 
-[§1.8](#18-tags-merge-and-are-never-adopted). `SweepRequest` gains the tag store.
+*Done — `a0ef8b4`, 2026-09-29.* `import/aventuras/vault-tag.ts` reads each
+`vault_tags` row as a candidate, emitted ahead of the books, and the Writer
+hands it to `VaultTagMerge`, which joins it to the account's registry by
+`sameTag`: a new name is minted, last in order, on the swatch nearest its
+colour by hue, greys on `stone`; a name already here is left exactly as it
+was, and `onConflict` is not asked, since a merge that never overwrites has
+nothing for it to decide — `replace` recolouring would be the adoption §1.8
+forbids by another road. **The colours were not hex**, as §1.8 expected: the
+pin stores a Tailwind token (`indigo-500`) drawn at random from seventeen, so
+tokens are read first and hex as well, and the whole palette's mapping is
+pinned in a test (green lands on teal, the one close call). A colour that does
+not read mints the tag without a swatch — the registry's own *no colour
+chosen* — rather than as `stone`, which would claim a grey nobody picked. One
+name from two kinds is one tag, in the first row's colour;
+`import.aventuras.tagColourDiffers` fires when another row, or a tag already
+here, lands on a different swatch. Rows report `converted` when their tag is
+new to the sweep and `unchanged` otherwise, with no `objectId`. No imported
+object carries `tagIds`. `SweepRequest.tags` is required, and every door that
+sweeps passes it. *Ended at:* a second sweep is all `unchanged`, mints nothing
+and writes nothing. ~~[§1.8](#18-tags-merge-and-are-never-adopted).
+`SweepRequest` gains the tag store.~~
 
 ### P13.7 — The other transports
 
