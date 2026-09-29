@@ -13,6 +13,7 @@ import type {
   SourceSurvey,
 } from '../source.js';
 import { SILLYTAVERN_DISPOSITIONS } from '../registries/sillytavern.js';
+import { SILLYTAVERN_CHAT_FORMAT, SILLYTAVERN_GROUP_FORMAT } from './chat.js';
 
 /**
  * The SillyTavern tree, read as candidates
@@ -135,6 +136,18 @@ export class SillyTavernReader implements SourceReader {
         return await this.#json(path, 'sillytavern.preset.sysprompt');
       case 'User Avatars':
         return this.#persona(path, personas);
+      /**
+       * ***Chats, for the session pass*** — [P13.8]. Handed on unread, as a
+       * candidate the sweep sets aside until every card is written, so a chat
+       * resolves against the cards that came in beside it; the pass reads the
+       * file when it reaches it. *Unread here too*, because the tree reader
+       * reads what it converts and chats are most of a tree's bytes.
+       */
+      case 'chats':
+      case 'group chats':
+        return this.#chat(path);
+      case 'groups':
+        return this.#group(path);
       default: {
         /**
          * **`Object.hasOwn`, not a lookup**, and the difference is not
@@ -179,6 +192,18 @@ export class SillyTavernReader implements SourceReader {
   async #probe(path: string): Promise<SourceItem> {
     const bytes = await this.#files.read(path);
     if (bytes === null) {
+      /**
+       * ***A `.jsonl` with no bytes goes to the session pass anyway*** —
+       * [P13.8]. The browser upload holds a loose folder's `.jsonl` files back
+       * until the person chooses chats (`directory-upload.ts`), so an unsent
+       * one is most often a choice, not a failure; the pass is what knows
+       * which (`chat-sessions.ts`), and says *not chosen*, *over the limit*,
+       * or *could not be read* accordingly. Answered here it could only ever
+       * say the last.
+       */
+      if (/\.jsonl$/i.test(path)) {
+        return candidate({ source: path, format: SILLYTAVERN_CHAT_FORMAT, payload: null });
+      }
       // **With a note.** A noteless `unrecognised` is the exact defect §7.8
       // exists to remove, and it came straight back for anything the source
       // would not hand over — a file past `maxFileBytes`, or one that vanished
@@ -249,6 +274,31 @@ export class SillyTavernReader implements SourceReader {
     }
   }
 
+  /**
+   * A chat file where SillyTavern files them — `chats/<card>/<name>.jsonl`, or
+   * `group chats/<id>.jsonl` (`endpoints/chats.js:554`, `:803`) — or, anywhere
+   * else under those folders, a file SillyTavern never writes there, which is
+   * counted and said rather than guessed at.
+   */
+  #chat(path: string): SourceItem {
+    if (CHAT_FILE.test(path)) {
+      return candidate({ source: path, format: SILLYTAVERN_CHAT_FORMAT, payload: null });
+    }
+    return observed(path, 'unrecognised', [
+      { key: 'import.file.unrecognised', params: { file: path }, level: 'warn' },
+    ]);
+  }
+
+  /** A group's own file, `groups/<id>.json`, on the same terms as a chat. */
+  #group(path: string): SourceItem {
+    if (GROUP_FILE.test(path)) {
+      return candidate({ source: path, format: SILLYTAVERN_GROUP_FORMAT, payload: null });
+    }
+    return observed(path, 'unrecognised', [
+      { key: 'import.file.unrecognised', params: { file: path }, level: 'warn' },
+    ]);
+  }
+
   async #json(path: string, format: string): Promise<SourceItem> {
     const bytes = await this.#files.read(path);
     if (bytes === null) return observed(path, 'unrecognised');
@@ -282,6 +332,11 @@ export class SillyTavernReader implements SourceReader {
     });
   }
 }
+
+/** Where SillyTavern writes a chat: one level under `chats/<card>/`, or directly in `group chats/`. */
+const CHAT_FILE = /^(?:chats\/[^/]+|group chats)\/[^/]+\.jsonl$/i;
+/** `groups/<id>.json` (`endpoints/groups.js`). */
+const GROUP_FILE = /^groups\/[^/]+\.json$/i;
 
 /**
  * A JSON character card, or nothing.

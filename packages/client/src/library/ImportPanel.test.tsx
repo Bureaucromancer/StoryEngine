@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { JSX } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -721,5 +721,163 @@ describe('answers that arrive after the question changed', () => {
     await userEvent.click(await screen.findByRole('button', { name: '/imports/last-week' }));
 
     expect(await screen.findByText('That import is no longer on record.')).toBeTruthy();
+  });
+});
+
+/**
+ * ***A folder with chats in it asks first*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * Chats are most of a SillyTavern tree's bytes, so the browser upload leaves
+ * them out unless the person says otherwise — and says what saying otherwise
+ * would send. Off by default; the size is on the question.
+ */
+describe('a folder with chats in it', () => {
+  /** A picked file, as the browser hands it over: its path leads with the folder's name. */
+  function picked(path: string, bytes = 3): File {
+    const file = new File([new Uint8Array(bytes)], path.split('/').pop() ?? path);
+    Object.defineProperty(file, 'webkitRelativePath', { value: `default-user/${path}` });
+    return file;
+  }
+
+  const FILES = (): File[] => [
+    picked('settings.json'),
+    picked('characters/Vera.png'),
+    picked('chats/Vera/2026-01-01.jsonl'),
+  ];
+
+  /** A plan whose chats all fit, unless `fit` says otherwise. */
+  function plan(
+    chats: { count: number; bytes: number },
+    wanted: string[],
+    fit: { count: number; bytes: number } = chats,
+  ) {
+    return {
+      verdict: 'sillytavern',
+      suggestions: [],
+      wanted,
+      declared: [],
+      wantedBytes: 0,
+      limitBytes: 64 * 1024 * 1024,
+      chats: { ...chats, fit },
+    };
+  }
+
+  const REPORT = { report: { jobId: 'job-1', source: 'sillytavern', items: [], counts: {} } };
+
+  async function chooseFolder(files: File[]): Promise<void> {
+    const input = document.querySelector<HTMLInputElement>('#import-folder');
+    if (input === null) throw new Error('no folder input');
+    await act(async () => {
+      fireEvent.change(input, { target: { files } });
+      await Promise.resolve();
+    });
+  }
+
+  it('sends nothing until asked, and says how large the chats are', async () => {
+    vi.spyOn(api, 'importDirectoryPlan').mockResolvedValue(
+      plan({ count: 1, bytes: 2_500_000 }, ['settings.json', 'characters/Vera.png']),
+    );
+    const upload = vi.spyOn(api, 'importDirectory').mockResolvedValue(REPORT);
+    render(mount());
+
+    await chooseFolder(FILES());
+
+    expect(await screen.findByText(/This folder holds one chat, 2\.4 MB/)).toBeTruthy();
+    const box = screen.getByRole('checkbox', { name: 'Also import the chats (2.4 MB)' });
+    expect(box).toHaveProperty('checked', false);
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('leaves the chats out when the box is left alone, and says so to the server', async () => {
+    vi.spyOn(api, 'importDirectoryPlan').mockResolvedValue(
+      plan({ count: 1, bytes: 400 }, ['settings.json', 'characters/Vera.png']),
+    );
+    const upload = vi.spyOn(api, 'importDirectory').mockResolvedValue(REPORT);
+    render(mount());
+
+    await chooseFolder(FILES());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
+    const [manifest, carried, , chats] = upload.mock.calls[0] ?? [];
+    expect(manifest).toEqual([
+      'settings.json',
+      'characters/Vera.png',
+      'chats/Vera/2026-01-01.jsonl',
+    ]);
+    expect(carried?.map((entry) => entry.path)).toEqual(['settings.json', 'characters/Vera.png']);
+    expect(chats).toBe('skip');
+  });
+
+  it('asks the server to plan them in when chosen, and sends them', async () => {
+    const planned = vi
+      .spyOn(api, 'importDirectoryPlan')
+      .mockResolvedValueOnce(
+        plan({ count: 1, bytes: 400 }, ['settings.json', 'characters/Vera.png']),
+      )
+      .mockResolvedValueOnce(
+        plan({ count: 1, bytes: 400 }, [
+          'settings.json',
+          'characters/Vera.png',
+          'chats/Vera/2026-01-01.jsonl',
+        ]),
+      );
+    const upload = vi.spyOn(api, 'importDirectory').mockResolvedValue(REPORT);
+    render(mount());
+
+    await chooseFolder(FILES());
+    await userEvent.click(await screen.findByRole('checkbox', { name: /also import the chats/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
+    expect(planned.mock.calls[1]?.[1]).toBe(true);
+    const [, carried, , chats] = upload.mock.calls[0] ?? [];
+    expect(carried?.map((entry) => entry.path)).toContain('chats/Vera/2026-01-01.jsonl');
+    expect(chats).toBe('include');
+  });
+
+  it('asks nothing of a folder with no chats, and sends it straight away', async () => {
+    vi.spyOn(api, 'importDirectoryPlan').mockResolvedValue(
+      plan({ count: 0, bytes: 0 }, ['settings.json', 'characters/Vera.png']),
+    );
+    const upload = vi.spyOn(api, 'importDirectory').mockResolvedValue(REPORT);
+    render(mount());
+
+    await chooseFolder([picked('settings.json'), picked('characters/Vera.png')]);
+
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole('checkbox', { name: /also import the chats/i })).toBeNull();
+  });
+
+  it('says, before the choice, how many chats the upload limit will carry', async () => {
+    vi.spyOn(api, 'importDirectoryPlan').mockResolvedValue(
+      plan({ count: 3, bytes: 3_000_000 }, ['settings.json', 'characters/Vera.png'], {
+        count: 1,
+        bytes: 1_048_576,
+      }),
+    );
+    vi.spyOn(api, 'importDirectory').mockResolvedValue(REPORT);
+    render(mount());
+
+    await chooseFolder(FILES());
+
+    expect(
+      await screen.findByText(/1 of these 3 chats fit under this server’s 64 MB upload limit/),
+    ).toBeTruthy();
+    // The size on the choice is what the choice will send, not the total.
+    expect(screen.getByRole('checkbox', { name: 'Also import the chats (1.0 MB)' })).toBeTruthy();
+  });
+
+  it('says once how a re-import behaves until sync', () => {
+    render(mount());
+
+    expect(screen.getAllByText(/comes later/)).toHaveLength(1);
   });
 });

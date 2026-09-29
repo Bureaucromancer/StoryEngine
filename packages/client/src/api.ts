@@ -837,13 +837,25 @@ export const api = {
    */
   importDirectoryPlan: (
     entries: { path: string; bytes: number }[],
+    /**
+     * Plan the chats in too — [P13.8]'s opt-in. The first plan leaves them out
+     * and says in `chats` what they would add; the panel asks again with this
+     * set once the person has chosen them, so the server spends the budget.
+     */
+    chats?: boolean,
   ): Promise<{
     verdict: string;
     suggestions: NearMissOffer[];
     wanted: string[];
     declared: string[];
     wantedBytes: number;
-  }> => request('POST', '/api/import/directory/plan', { entries }),
+    limitBytes: number;
+    chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+  }> =>
+    request('POST', '/api/import/directory/plan', {
+      entries,
+      ...(chats === true ? { chats } : {}),
+    }),
 
   /**
    * The folder itself: every name, and the bytes of the files the plan asked
@@ -857,10 +869,18 @@ export const api = {
     manifest: string[],
     carried: { path: string; file: File }[],
     onConflict?: 'replace' | 'keep-both' | 'skip',
+    /**
+     * *Whether the person chose chats*, when the plan offered the choice —
+     * [P13.8]. `skip` makes each chat left out a `skipped` row rather than one
+     * that *could not be read*; absent is a folder the choice was never
+     * offered for, and takes whatever was carried.
+     */
+    chats?: 'include' | 'skip',
   ): Promise<{ report: ImportReport }> => {
     const body = new FormData();
     body.append('manifest', JSON.stringify(manifest));
     if (onConflict !== undefined) body.append('onConflict', onConflict);
+    if (chats !== undefined) body.append('chats', chats);
     for (const { path, file } of carried) body.append(path, file, file.name);
     return requestForm('/api/import/directory', body);
   },
@@ -2701,4 +2721,30 @@ export function importSessionDocument(document: unknown): Promise<{
   renditions: number;
 }> {
   return request('POST', '/api/sessions/import', document);
+}
+
+/**
+ * ***A chat somebody else's app wrote*** — a SillyTavern `.jsonl`, or
+ * Marinara's per-chat export of the same format —
+ * [P13.8](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * **Through the library's one-file door rather than beside the export**, and
+ * the difference is what each is. An export is our own document and loads as
+ * it stands; a chat is a foreign file that has to be read, resolved against
+ * this account's library and built into a session first — which is the import
+ * pipeline's work, so it goes where the pipeline is. The answer is one review
+ * row: `converted` with the session's id as `objectId`, `unchanged` when a
+ * session here already holds the chat, `recorded` when one holds it and the
+ * chat has grown since, `unrecognised` with the reason otherwise.
+ *
+ * ***`kind: chat`, so the door takes a chat and nothing else.*** The library's
+ * one-file import reads whatever it is given, and a `.jsonl` that is really a
+ * card would otherwise land in the library from a control that promised a
+ * session. Appended before the file, for `importFile`'s ordering rule.
+ */
+export function importChatFile(file: File): Promise<ImportFileResult> {
+  const body = new FormData();
+  body.append('kind', 'chat');
+  body.append('file', file);
+  return requestForm('/api/import/file', body);
 }

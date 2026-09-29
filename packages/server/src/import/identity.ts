@@ -83,15 +83,33 @@ export function priorImportId(
   schemaId: PortableSchemaId,
   filename: string,
 ): string | null {
+  return priorImportRef(context, handle, schemaId, filename)?.id ?? null;
+}
+
+/**
+ * ***The same lookup, answering with the name as well*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * A chat names its speakers by the card file they came from, and the session
+ * the import writes names them back as `{ id, name }` — so the resolver needs
+ * the name the library holds now, not the one the chat line was written under.
+ * One query rather than {@link priorImportId} and a second read by id, and one
+ * rule: this *is* that function's lookup, which now delegates here.
+ */
+export function priorImportRef(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  filename: string,
+): { id: string; name: string } | null {
   const owner = userOwner(handle);
-  return (
-    findPriorImport(
-      context.db,
-      owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
-      schemaId,
-      filename,
-    )?.id ?? null
+  const prior = findPriorImport(
+    context.db,
+    owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
+    schemaId,
+    filename,
   );
+  return prior === null ? null : { id: prior.id, name: prior.name };
 }
 
 /**

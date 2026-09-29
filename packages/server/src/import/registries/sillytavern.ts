@@ -86,32 +86,39 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
    */
   'User Avatars': 'converted',
 
-  // ── Recorded, not converted: needs machinery a later phase brings ──────────
-  groups: 'recorded',
-  'group chats': 'recorded',
   /**
-   * ~~Chat import is closed rather than deferred ([25 E4]), and the review says
-   * so.~~
+   * ***Chats, converted — into sessions, not into the library*** —
+   * [P13 §2.1](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
    *
-   * *Corrected 2026-09-01.* **Conditional, not closed** — and this comment
-   * outlived the decision it cites by a day. [25 E4] was rewritten on
-   * 2026-08-31 to *"conditional on an interchange format… no longer a flat
-   * refusal. The condition is the shape, not the appetite"*; what stood here
-   * quoted the version it replaced. The condition is a format that begins at
-   * P11's session export ([25 B12]).
+   * These three were `recorded`, with a comment that tracked [25 E4] from
+   * *closed* to *conditional on an interchange format*. The condition was met:
+   * P11 wrote the session export, and [P13 §2.1] makes every foreign chat a
+   * `SessionExport` that the export's own reader, `importSession`, loads. So a
+   * chat file becomes a session in Play, through the sweep's session pass,
+   * which runs after the library objects are written so a chat resolves
+   * against the cards that came in beside it (`sweep.ts`).
    *
-   * **The disposition does not move, and is now the right arm rather than an
-   * approximate one.** `recorded` means *the machinery belongs to a later phase,
-   * and the review says when* — which is what a condition with a named phase is,
-   * and is what sat badly against a decision described as closed. The comment
-   * was the only wrong part.
+   * *What 18's survey found bears on this row still, and is answered rather than
+   * waived*: an ST message carries no id, and a turn's id is therefore a hash of
+   * its account, its family, its parent and its content ([P13 §2.4]) rather
+   * than anything the file says. The same chat imported twice is the same
+   * turns, which is how a second import knows it is one.
    *
-   * [18](../../../../../docs/design/18-session-import.md) surveys what such an
-   * import would meet, including the finding that bears on this row directly: an
-   * ST message carries no id, so a re-import has nothing better to key on than
-   * its index in the file.
+   * - **`chats`**: one folder per character, one `.jsonl` per chat.
+   * - **`group chats`**: one `.jsonl` per group chat.
+   * - **`groups`**: a group's members and settings. Read by the session pass
+   *   and, until [P13.9] maps its strategy and muted members onto the
+   *   session, recorded there with a note saying so; `converted` here because
+   *   the directory is one the importer now opens.
+   *
+   * ***Opt-in in the browser folder upload*** ({@link CHAT_DIRECTORIES}), since
+   * chats are most of a tree's bytes and a person importing their cards has
+   * not necessarily asked to send years of conversation.
    */
-  chats: 'recorded',
+  groups: 'converted',
+  'group chats': 'converted',
+  chats: 'converted',
 
   // ── Not converted, by position: nothing chat-shaped to become ─────────────
   instruct: 'by-position',
@@ -140,3 +147,18 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
   'user/files': 'skipped',
   'user/workflows': 'skipped',
 };
+
+/**
+ * ***The directories whose files become sessions rather than library
+ * objects*** —
+ * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * A list rather than a fourth disposition, because the disposition is the
+ * same — `converted` — and what differs is only who asks for them. The browser
+ * folder upload carries these only when the person chose to
+ * (`directory-upload.ts`), and counts them apart so the choice can say what
+ * it costs; the tree reader routes them to the sweep's session pass
+ * (`sillytavern/reader.ts`). Held here, beside the dispositions, so the two
+ * cannot disagree about which folders hold chats.
+ */
+export const CHAT_DIRECTORIES: readonly string[] = ['chats', 'group chats', 'groups'];

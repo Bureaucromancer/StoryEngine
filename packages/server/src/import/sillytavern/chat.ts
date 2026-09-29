@@ -132,6 +132,31 @@ export interface SillyTavernChat {
 export const SPEAKER_BY_NAME = 'name:';
 
 /**
+ * ***A chat file, as a reader hands it on*** — the `ImportCandidate.format` of
+ * a SillyTavern (or Marinara-exported) `.jsonl`,
+ * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * Named here, beside the parser the candidate ends at, because three places
+ * spell it and must agree: the tree reader routing `chats/` and `group chats/`
+ * (`reader.ts`), the one-file probe that recognises a chat by its lines
+ * (`upload.ts`), and the sweep that sets such candidates aside for its session
+ * pass rather than handing them to the library writer (`sweep.ts`). *A
+ * candidate carries no payload*: the pass reads the file when it gets to it,
+ * so a tree whose chats are most of its bytes is not held in memory while its
+ * cards are written.
+ */
+export const SILLYTAVERN_CHAT_FORMAT = 'sillytavern.chat';
+
+/**
+ * ***A group's own file*** — `groups/<id>.json`, its members, its reply
+ * strategy and who is muted. Routed to the session pass with the chats, because
+ * that is where [P13.9] reads it: a group chat's roster and settings come from
+ * here, and the chats it names are in `group chats/`. *Recorded and not yet
+ * read* until then, and the review says so.
+ */
+export const SILLYTAVERN_GROUP_FORMAT = 'sillytavern.group';
+
+/**
  * ***A group's greetings share one batch***, so they become one opening turn —
  * [P13 §1.7]'s *"each member's primary opening, as one message each"*.
  *

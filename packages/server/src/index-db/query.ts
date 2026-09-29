@@ -221,6 +221,52 @@ export function findByName(
   return hit ? findByPath(db, hit.path) : null;
 }
 
+/**
+ * ***Every live object of one kind in one library called exactly this*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * name fallback, where a chat names a speaker the library has no import stamp
+ * for.
+ *
+ * **Every match, not the first**, and that is the difference from
+ * {@link findByName} rather than a variation on it. That function answers a
+ * `Ref` whose id went stale, where the reference was already made and the
+ * question is only which copy to follow — so the unshadowed winner is right.
+ * Here nothing has been referenced yet, and [P13 §2.5] asks for a **unique**
+ * match: two characters called *Vera* is no match at all, because choosing one
+ * would be the import inventing an answer. So the caller counts, and this has
+ * to hand it everything to count.
+ *
+ * ***Exact, and so case-sensitive***, where `findByName` folds case. §2.5 says
+ * *exact*, and a fallback that attributes a whole transcript to somebody
+ * deserves the stricter reading: *vera* and *Vera* in one library are more
+ * likely two people than one person typed twice.
+ *
+ * *One row per id*: a shadowed duplicate is the same object held twice
+ * ([P1 §1.2]), not a second candidate, and counting it would turn every copied
+ * folder into an ambiguity.
+ */
+export function objectsNamed(
+  db: DatabaseSync,
+  owner: string,
+  schemaId: string,
+  name: string,
+): { id: string; name: string }[] {
+  const rows = db
+    .prepare(
+      `select id, name from object
+        where owner = ? and schema_id = ? and tombstoned_at is null and name = ?
+        order by shadowed, path`,
+    )
+    .all(owner, schemaId, name) as { id: string; name: string }[];
+
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+}
+
 export function findByIdAt(
   db: DatabaseSync,
   id: string,

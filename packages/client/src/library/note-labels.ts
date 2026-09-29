@@ -328,6 +328,46 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'The author’s note in “{chat}” was sent as the {role}’s message in SillyTavern. Here it is placed the way the Scene pack places notes.',
 
   /**
+   * **A chat, found against the library and loaded as a session** —
+   * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * resolver and the doors that share it.
+   *
+   * `imported` is the row's first sentence because the disposition beside it
+   * says *Imported* and its help says *now in your library*, and a session is
+   * not in the library — so the row says where it went. The unresolved and
+   * ambiguous ones warn, since each is a character, a persona or a book the
+   * model will not be given. `alreadyHere` is only information: it is said
+   * only when a session holds every turn the chat has, so nothing was lost by
+   * not writing it twice. A chat that has grown since is `grownSince`
+   * instead, and warns, because what it gained was left out — updating a
+   * session from its source is [P13.10a]'s. The four that are not a session at
+   * all — not chosen, over the upload limit, not taken by this kind of import,
+   * a group's own file — say why in the terms of the choice or the stage that
+   * decides it.
+   */
+  'import.chat.imported':
+    'Imported as the session “{name}”, {turns} turns long. It is in Play, with your other sessions.',
+  'import.chat.alreadyHere':
+    'Already here: a session on this account holds this chat, so it was not imported a second time.',
+  'import.chat.grownSince':
+    '“{chat}” has grown since it was imported: {count} of its turns are not in the session made from it. They were not added, because updating a session from its source comes later; nothing already here was changed.',
+  'import.chat.sessionRefused': '“{chat}” could not be loaded as a session ({reason}).',
+  'import.chat.nameAmbiguous':
+    '{count} things in this library are called “{name}”, so the chat was linked to none of them rather than to a guess.',
+  'import.chat.personaUnresolved':
+    'The persona this chat was played as, {persona}, is not in this library, so the session has none. Your messages keep their words.',
+  'import.chat.loreUnresolved':
+    'The chat’s lorebook “{book}” is not in this library, so it is not linked to the session.',
+  'import.chat.notChosen':
+    'Chats were not chosen for this upload, so this one was named and not sent.',
+  'import.chat.overLimit':
+    'This chat did not fit under the {limit} MB upload limit with the rest of the folder, so it was named and not sent. Import it on its own, or sweep the folder from the server.',
+  'import.chat.notImportedHere':
+    'This import brings in library objects only, so the chat was read and not turned into a session.',
+  'import.chat.groupNotRead':
+    'A group’s members and settings. Its chats come in with each message’s own speaker; the group’s reply order and muted members are not read yet.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by

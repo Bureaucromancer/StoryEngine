@@ -231,3 +231,80 @@ describe('the probe is not over-eager', () => {
     expect(result.report.disposition).toBe('unrecognised');
   });
 });
+
+/**
+ * ***A chat file, known by its lines*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * SillyTavern's chat is JSON Lines, so it fails the document parse this file
+ * starts with, and until this stage it came back *nothing here recognised
+ * this*. Recognised by content, never by `.jsonl` — the name below is
+ * deliberately wrong to prove it.
+ */
+describe('a chat file', () => {
+  const HEADER = {
+    user_name: 'unused',
+    character_name: 'unused',
+    chat_metadata: { tainted: true },
+  };
+  const LINE = { name: 'Vera', is_user: false, mes: 'Hm.', send_date: '2026-01-01T10:00:00Z' };
+  const lines = (...rows: unknown[]): Uint8Array =>
+    new TextEncoder().encode(rows.map((row) => JSON.stringify(row)).join('\n'));
+  const format = (item: ReturnType<typeof readUpload>): string | null =>
+    item.outcome === 'candidate' ? item.candidate.format : null;
+
+  it('is two objects on two lines, and becomes a chat candidate for the session pass', () => {
+    const item = readUpload('notes.txt', lines(HEADER, LINE));
+
+    expect(format(item)).toBe('sillytavern.chat');
+  });
+
+  it('is a header alone, which is one JSON document, and still a chat', () => {
+    // The parser then refuses it for having no messages, which is the true
+    // thing to say about it; the probe's job is only to know what it is.
+    expect(format(readUpload('Vera.jsonl', lines(HEADER)))).toBe('sillytavern.chat');
+  });
+
+  it('is a chat whose second line a crashed write left half-finished', () => {
+    const bytes = new TextEncoder().encode(`${JSON.stringify(HEADER)}\n{"name":"Vera","mes":"H`);
+
+    expect(format(readUpload('Vera.jsonl', bytes))).toBe('sillytavern.chat');
+  });
+
+  it('is one message and no header, which an old group chat with only its greeting is', () => {
+    // Headerless, as a group chat written before `chat_metadata` reached
+    // groups is, and one line long, so one JSON document. The parser reads
+    // it as a group; refusing it here refused it at this door only.
+    const greeting = { ...LINE, original_avatar: 'Vera.png' };
+
+    expect(format(readUpload('Vera.jsonl', lines(greeting)))).toBe('sillytavern.chat');
+    // A folder sweep does not take one object with a text field on its word.
+    expect(readUpload('Vera.jsonl', lines(greeting), 'high').outcome).toBe('observed');
+  });
+
+  it('is a chat whose first line a crashed write left half-finished', () => {
+    // The parser reads from the first line that parses, so it costs one line.
+    const bytes = new TextEncoder().encode(
+      `{"chat_metadata":{"tai\n${JSON.stringify(LINE)}\n${JSON.stringify(LINE)}`,
+    );
+
+    expect(format(readUpload('Vera.jsonl', bytes))).toBe('sillytavern.chat');
+    expect(format(readUpload('Vera.jsonl', bytes, 'high'))).toBe('sillytavern.chat');
+  });
+
+  it('is not a first line that is not an object', () => {
+    const bytes = new TextEncoder().encode(`[1, 2]\n${JSON.stringify(LINE)}`);
+
+    expect(readUpload('Vera.jsonl', bytes).outcome).toBe('observed');
+  });
+
+  it('asks a folder sweep for a chat’s own marks, not just the shape of JSON Lines', () => {
+    // A log file is JSON Lines too. Across a folder nobody vetted, two objects
+    // in a row is a shape and not a claim.
+    const log = lines({ level: 'info', msg: 'started' }, { level: 'info', msg: 'ready' });
+
+    expect(readUpload('server.log', log, 'any').outcome).toBe('candidate');
+    expect(readUpload('server.log', log, 'high').outcome).toBe('observed');
+    expect(format(readUpload('Vera.jsonl', lines(LINE, LINE), 'high'))).toBe('sillytavern.chat');
+  });
+});

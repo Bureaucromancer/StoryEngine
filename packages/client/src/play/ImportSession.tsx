@@ -5,8 +5,15 @@ import { useRef, useState, type JSX } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { errorCode, importSessionDocument } from '../api.js';
+import {
+  errorCode,
+  importChatFile,
+  importSessionDocument,
+  type ImportFileResult,
+  type ImportItem,
+} from '../api.js';
 import { labels } from '../i18n/catalogue.js';
+import { sentence } from '../library/note-labels.js';
 import { Button } from '../ui/Button.js';
 import { Fine } from '../ui/Text.js';
 
@@ -31,24 +38,119 @@ import { Fine } from '../ui/Text.js';
  * *A file input rather than a drop zone*, which is the smaller thing that works
  * everywhere including a phone, and which the library's own panel can be read
  * as the argument for when a second consumer wants one.
+ *
+ * ***And a chat from SillyTavern or Marinara*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * *"one file"* door. A `.jsonl` is somebody else's chat rather than our own
+ * export, so it does not go where an export goes: it is uploaded to the
+ * library's import, which reads it, finds its characters in this account's
+ * library and builds the session ([P13 §2.1]), and answers with the new
+ * session's id. **Told apart by the name's extension, here and only here** —
+ * the server decides what the bytes are by their content either way; this
+ * only picks which of two doors to knock on, and a `.jsonl` sent to the
+ * export's door would be refused as not JSON.
+ *
+ * ***The hint says once what an import is — for now, and not yet what
+ * [P13.8] asked.*** The stage asks the surface to say what an update from
+ * source does and does not do ([P13 §2.7]), and that cannot be said truthfully
+ * before there is an update to describe: sync is [P13.10a]'s. So **the §2.7
+ * sentence has not shipped**, and this is an interim one that is true of this
+ * build — a new session; updating it from its source comes later; the same
+ * file loaded again changes nothing; a chat already imported with its folder
+ * was keyed by its place in the folder, not by this bare file name, so it
+ * arrives a second time. The departure is recorded in the stage's report and
+ * proposed as a note under P13.8 in the phase document, which is where it is
+ * settled — along with whether the §2.7 sentence moves to P13.10a with sync.
+ *
+ * ***What the chat import could not do is said here, before the session
+ * opens*** — a character not in the library, a persona or lorebook not found,
+ * a line that would not read. The door answers with one review row and keeps
+ * no record of it elsewhere, so a row's warnings shown nowhere are warnings
+ * nobody is ever told; a chat that came back clean opens straight away.
  */
 
 const WORDS = labels('sessions.import', {
-  open: 'Load an exported session',
+  open: 'Load a session or a chat',
   reading: 'Reading…',
-  hint: 'A `.json` a StoryEngine install exported. It arrives as a new session, with every branch.',
+  hint: 'A `.json` a StoryEngine install exported, or a `.jsonl` chat from SillyTavern or Marinara. Either arrives as a new session, with every branch. Updating an imported chat from its source comes later; loading the same file again changes nothing, and a chat already imported with its folder arrives as a second session.',
   unreadable: 'That file is not a session export this build can read.',
   wrongSchema: 'That is a StoryEngine file of another kind.',
   noTurns: 'That export has no turns in it.',
   alreadyHere:
     'That session is already here. A copy of it would share its turns, so it is not loaded twice.',
+  chatUnreadable: 'That file is not a chat this build can read.',
+  chatAlreadyHere:
+    'That chat is already here as a session. It was imported before, and a second copy would share its turns, so it is not loaded twice.',
+  chatGrown:
+    'That chat was imported before and has changed since. The session made from it keeps the chat as it was then; updating it from the source comes later, so nothing was loaded and no second copy was made.',
+  chatNotLoaded: 'That chat could not be loaded as a session:',
+  importedWithNotes: 'The chat is a session now. The import could not do all of it:',
+  openImported: 'Open the session',
   failed: 'The session could not be loaded.',
 });
+
+type Note = ImportItem['notes'][number];
+
+/**
+ * ***Which door a picked file goes through*** — a chat by its `.jsonl`, and
+ * everything else as an export, which is what this control loaded before chats
+ * could come in by it.
+ */
+function isChat(file: File): boolean {
+  return /\.jsonl$/i.test(file.name);
+}
+
+/**
+ * A chat upload's one row, as the session it made or the refusal it is.
+ *
+ * *Thrown as a class, like the export's refusals*, so the one handler below
+ * turns every failure into a sentence by the same read.
+ *
+ * ***Read by the chat pass's own notes, not by the disposition alone.*** The
+ * library's import answers `converted` with an `objectId` for anything it
+ * wrote, and an id that is not a session's opens a page for nothing. So a
+ * session is a row that says `import.chat.imported`; *already here* is one
+ * that says `import.chat.alreadyHere`, and *grown since* one that says
+ * `import.chat.grownSince`. Anything else made no session, and its warnings
+ * are the only account of why.
+ */
+function sessionOf(result: ImportFileResult): { sessionId: string; notes: Note[] } {
+  const { item } = result;
+  const said = (key: string): boolean => item.notes.some((note) => note.key === key);
+  const warnings = item.notes.filter((note) => note.level === 'warn');
+  if (
+    item.disposition === 'converted' &&
+    item.objectId !== undefined &&
+    said('import.chat.imported')
+  ) {
+    return { sessionId: item.objectId, notes: warnings };
+  }
+  if (item.disposition === 'unchanged' && said('import.chat.alreadyHere')) {
+    throw new ChatRefused('chat-already-here', []);
+  }
+  if (item.disposition === 'recorded' && said('import.chat.grownSince')) {
+    throw new ChatRefused('chat-grown', []);
+  }
+  throw new ChatRefused('chat', warnings);
+}
+
+class ChatRefused extends Error {
+  readonly code: 'chat' | 'chat-already-here' | 'chat-grown';
+  readonly notes: Note[];
+  constructor(code: 'chat' | 'chat-already-here' | 'chat-grown', notes: Note[]) {
+    super(code);
+    this.name = 'ChatRefused';
+    this.code = code;
+    this.notes = notes;
+  }
+}
 
 export function ImportSession(): JSX.Element {
   const picker = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; notes: Note[] } | null>(null);
+  /** A chat that became a session with something to say first. */
+  const [imported, setImported] = useState<{ sessionId: string; notes: Note[] } | null>(null);
   const navigate = useNavigate();
   const client = useQueryClient();
 
@@ -57,7 +159,7 @@ export function ImportSession(): JSX.Element {
       <input
         ref={picker}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,.json,.jsonl"
         /**
          * ***Hidden from everyone, not just from sight.*** This was `sr-only`,
          * which hides a thing visually and leaves it in the accessibility tree
@@ -84,39 +186,64 @@ export function ImportSession(): JSX.Element {
 
           setBusy(true);
           setError(null);
-          void file
-            .text()
-            .then((text) => importSessionDocument(JSON.parse(text) as unknown))
-            .then(
-              (result) => {
-                setBusy(false);
-                void client.invalidateQueries({ queryKey: ['sessions'] });
-                void navigate({
-                  to: '/play/$sessionId',
-                  params: { sessionId: result.sessionId },
-                });
-              },
-              (failure: unknown) => {
-                setBusy(false);
-                /**
-                 * **A class into a sentence, here** — [21 §1.4]. The server
-                 * sends `unreadable`, `wrong-schema`, `no-turns` or
-                 * `already-here`, and each has its own remedy: a broken file,
-                 * the wrong file, a file that is right and empty, and a
-                 * session this install already holds.
-                 *
-                 * ***Read from `ApiError.code`*** (2026-09-27). This read
-                 * `failure.body.error`, which `ApiError` has never had, so every
-                 * refusal showed the fallback and none of these sentences had
-                 * ever rendered.
-                 *
-                 * *And a file that is not JSON is `unreadable` too*, though no
-                 * server said so: it fails in `JSON.parse` above, before any
-                 * request is made — the commonest way to pick the wrong file,
-                 * and the one the class read alone still sent to the fallback.
-                 */
-                const code = failure instanceof SyntaxError ? 'unreadable' : errorCode(failure);
-                setError(
+          setImported(null);
+          const loaded: Promise<{ sessionId: string; notes?: Note[] }> = isChat(file)
+            ? importChatFile(file).then(sessionOf)
+            : file.text().then((text) => importSessionDocument(JSON.parse(text) as unknown));
+          void loaded.then(
+            (result) => {
+              setBusy(false);
+              // Now, whether or not the session opens now: it exists either way.
+              void client.invalidateQueries({ queryKey: ['sessions'] });
+              if (result.notes !== undefined && result.notes.length > 0) {
+                setImported({ sessionId: result.sessionId, notes: result.notes });
+                return;
+              }
+              void navigate({
+                to: '/play/$sessionId',
+                params: { sessionId: result.sessionId },
+              });
+            },
+            (failure: unknown) => {
+              setBusy(false);
+              /**
+               * **A class into a sentence, here** — [21 §1.4]. The server
+               * sends `unreadable`, `wrong-schema`, `no-turns` or
+               * `already-here`, and each has its own remedy: a broken file,
+               * the wrong file, a file that is right and empty, and a
+               * session this install already holds.
+               *
+               * ***Read from `ApiError.code`*** (2026-09-27). This read
+               * `failure.body.error`, which `ApiError` has never had, so every
+               * refusal showed the fallback and none of these sentences had
+               * ever rendered.
+               *
+               * *And a file that is not JSON is `unreadable` too*, though no
+               * server said so: it fails in `JSON.parse` above, before any
+               * request is made — the commonest way to pick the wrong file,
+               * and the one the class read alone still sent to the fallback.
+               *
+               * ***A chat's refusal is a row, not a status*** ([P13.8]):
+               * the library's import answers `200` with the file's
+               * disposition, so `sessionOf` turns a row that made no
+               * session into a `ChatRefused`, and it is read here with the
+               * rest.
+               */
+              const code =
+                failure instanceof SyntaxError
+                  ? 'unreadable'
+                  : failure instanceof ChatRefused
+                    ? failure.code
+                    : errorCode(failure);
+              /**
+               * *A chat refused with warnings says them*, under a line that
+               * does not claim the file is not a chat — a session the store
+               * would not write, or a file the parser refused by name, is a
+               * chat with a reason, and the reason is in its notes.
+               */
+              const notes = failure instanceof ChatRefused ? failure.notes : [];
+              setError({
+                message:
                   code === 'wrong-schema'
                     ? WORDS.wrongSchema
                     : code === 'no-turns'
@@ -125,10 +252,19 @@ export function ImportSession(): JSX.Element {
                         ? WORDS.unreadable
                         : code === 'already-here'
                           ? WORDS.alreadyHere
-                          : WORDS.failed,
-                );
-              },
-            );
+                          : code === 'chat'
+                            ? notes.length > 0
+                              ? WORDS.chatNotLoaded
+                              : WORDS.chatUnreadable
+                            : code === 'chat-already-here'
+                              ? WORDS.chatAlreadyHere
+                              : code === 'chat-grown'
+                                ? WORDS.chatGrown
+                                : WORDS.failed,
+                notes,
+              });
+            },
+          );
         }}
       />
       <Button
@@ -140,13 +276,45 @@ export function ImportSession(): JSX.Element {
       >
         {busy ? WORDS.reading : WORDS.open}
       </Button>
-      {error === null ? (
+      {imported !== null ? (
+        <div role="status" className="flex flex-col gap-1">
+          <p className="text-sm text-ink">{WORDS.importedWithNotes}</p>
+          <Sentences notes={imported.notes} />
+          <div>
+            <Button
+              type="button"
+              size="compact"
+              onClick={() => {
+                void navigate({
+                  to: '/play/$sessionId',
+                  params: { sessionId: imported.sessionId },
+                });
+              }}
+            >
+              {WORDS.openImported}
+            </Button>
+          </div>
+        </div>
+      ) : error === null ? (
         <Fine>{WORDS.hint}</Fine>
       ) : (
-        <p role="alert" className="text-sm text-danger-ink">
-          {error}
-        </p>
+        <div role="alert" className="flex flex-col gap-1">
+          <p className="text-sm text-danger-ink">{error.message}</p>
+          <Sentences notes={error.notes} />
+        </div>
       )}
     </div>
+  );
+}
+
+/** A row's notes as the review words them, or nothing when there are none. */
+function Sentences(props: { notes: Note[] }): JSX.Element | null {
+  if (props.notes.length === 0) return null;
+  return (
+    <ul className="flex flex-col gap-1 text-sm text-ink-muted">
+      {props.notes.map((note, index) => (
+        <li key={`${note.key}:${String(index)}`}>{sentence(note)}</li>
+      ))}
+    </ul>
   );
 }

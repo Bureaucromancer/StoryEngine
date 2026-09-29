@@ -14,9 +14,11 @@ import type {
 
 import { api, type ImportReport } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
+import { megabytes } from '../settings/Backups.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, disclosure } from '../ui/classes.js';
+import { CheckboxField } from '../ui/Field.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 import { sentence } from './note-labels.js';
 import { labels } from '../i18n/catalogue.js';
@@ -94,6 +96,44 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
     'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
 });
 
+/**
+ * ***What chats brought to this panel*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * - **`intro`** replaces the panel's opening line, which named cards, lorebooks
+ *   and presets and would otherwise go on describing an import that now also
+ *   makes sessions.
+ * - **`copy`** stands where the stage's one sentence goes, and **is not that
+ *   sentence yet**. [P13.8] asks the surface to say once what an update from
+ *   source does and does not do ([P13 §2.7]); there is no update to describe
+ *   until [P13.10a]'s sync, and a sentence about one would be false today. So
+ *   this says what is true of this build instead: a chat is a new session;
+ *   updating it comes later; the same chat imported again the same way changes
+ *   nothing, and the review says so when it has grown since; and the same chat
+ *   by two doors is two sessions, because a folder keys a chat by its place in
+ *   the folder and a lone upload by its bare file name. The departure is
+ *   recorded in the stage's report and proposed as a note under P13.8 in the
+ *   phase document, which is where it is settled. Once, and here, rather than
+ *   on every row — each row that meets it already says so in its own note.
+ * - The rest are the folder upload's one question — *also send the chats?* —
+ *   with the size on it, since the size is the whole reason it is a question;
+ *   and, when the upload limit will not carry them all, how many it will.
+ */
+const CHAT_WORDS = labels('import.chats', {
+  intro:
+    'Cards, lorebooks, presets and chats from SillyTavern or Marinara. Nothing is staged: what imports lands in your library, a chat as a session in Play, and everything that did not is listed below.',
+  copy: 'A chat arrives as a new session. Updating a session from its source comes later: until then, importing the same chat again the same way changes nothing, and says so if the chat has grown since. The same chat brought in on its own and with its folder becomes two sessions.',
+  title: 'Before it is sent',
+  found: 'This folder holds {count} chats, {size} in all. They are sent only if you ask for them.',
+  foundOne: 'This folder holds one chat, {size}. It is sent only if you ask for it.',
+  partial:
+    '{fit} of these {count} chats fit under this server’s {limit} MB upload limit beside the rest of the folder; the others will be listed as not sent. A folder swept from the server has no such limit.',
+  choose: 'Also import the chats ({size})',
+  chooseHint: 'Each becomes a session in Play, with its characters found in your library.',
+  send: 'Import',
+  cancel: 'Cancel',
+});
+
 export const IMPORT_OPEN_KEY = 'ui.import-open';
 
 /**
@@ -156,6 +196,23 @@ type Outcome =
       destination: ImportDestination | null;
     }
   | { kind: 'report'; report: ImportReport }
+  /**
+   * ***A picked folder with chats in it, waiting for the one question*** —
+   * [P13.8]. The plan came back without them and said what they would add;
+   * nothing has been sent, and nothing is until the person answers.
+   *
+   * `wanted` is that first plan's list, which is exactly what goes if chats
+   * are left out; choosing them asks the server again, so it is the server
+   * that decides what the budget allows.
+   */
+  | {
+      kind: 'folder';
+      inside: { file: File; path: string }[];
+      wanted: string[];
+      chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+      limitBytes: number;
+      withChats: boolean;
+    }
   | null;
 
 export function ImportPanel(): JSX.Element {
@@ -276,7 +333,7 @@ export function ImportPanel(): JSX.Element {
    * stops is a second import starting on top of an unanswered one, which would
    * leave the preview on screen describing a file nobody is looking at.
    */
-  const pending = busy || outcome?.kind === 'preview';
+  const pending = busy || outcome?.kind === 'preview' || outcome?.kind === 'folder';
 
   /**
    * Everything the library shows is now different, and which queries is not
@@ -450,12 +507,73 @@ export function ImportPanel(): JSX.Element {
       );
       setChecked({ ok: true, verdict: plan.verdict, suggestions: plan.suggestions });
 
+      /**
+       * ***Chats wait for a word*** — [P13.8]. They are most of a SillyTavern
+       * tree's bytes, and a person who picked their data folder to bring in
+       * their cards has not thereby asked to send years of conversation. So a
+       * folder with chats in it stops here and asks, with the size on the
+       * question; a folder without any goes straight on, as every folder did.
+       */
+      if (plan.chats.count > 0) {
+        if (asked.current === mine) {
+          setOutcome({
+            kind: 'folder',
+            inside,
+            wanted: plan.wanted,
+            chats: plan.chats,
+            limitBytes: plan.limitBytes,
+            withChats: false,
+          });
+        }
+        return;
+      }
+
       const wanted = new Set(plan.wanted);
       const result = await api.importDirectory(
         inside.map(({ path }) => path),
         inside.filter(({ path }) => wanted.has(path)),
       );
       if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The import failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * The folder, sent with the question answered.
+   *
+   * *With chats*, the server plans again — the one function that spends the
+   * upload budget spends it, library first, and the browser does not guess at
+   * what fits. *Without*, the first plan stands, and the chats go out as
+   * `skip`, so each is a `skipped` row in the review rather than a file that
+   * *could not be read*.
+   */
+  const sendFolder = async (): Promise<void> => {
+    if (outcome?.kind !== 'folder') return;
+    const { inside, withChats } = outcome;
+    setBusy(true);
+    setError(null);
+    try {
+      const wanted = new Set(
+        withChats
+          ? (
+              await api.importDirectoryPlan(
+                inside.map(({ file, path }) => ({ path, bytes: file.size })),
+                true,
+              )
+            ).wanted
+          : outcome.wanted,
+      );
+      const result = await api.importDirectory(
+        inside.map(({ path }) => path),
+        inside.filter(({ path }) => wanted.has(path)),
+        undefined,
+        withChats ? 'include' : 'skip',
+      );
+      setOutcome({ kind: 'report', report: result.report });
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
@@ -491,10 +609,8 @@ export function ImportPanel(): JSX.Element {
     // region, and two nested `Import` regions would make the panel harder to
     // navigate by assistive technology rather than easier.
     <div className="flex flex-col gap-3">
-      <Note>
-        Cards, lorebooks and presets from SillyTavern or Marinara. Nothing is staged: what imports
-        lands in your library, and everything that did not is listed below.
-      </Note>
+      <Note>{CHAT_WORDS.intro}</Note>
+      <Note>{CHAT_WORDS.copy}</Note>
 
       {/*
         **The controls fold; the review does not.** Collapsing is worth having
@@ -715,6 +831,22 @@ export function ImportPanel(): JSX.Element {
         />
       ) : null}
 
+      {outcome?.kind === 'folder' ? (
+        <FolderChoice
+          chats={outcome.chats}
+          limitBytes={outcome.limitBytes}
+          withChats={outcome.withChats}
+          busy={busy}
+          onChats={(withChats) => {
+            setOutcome({ ...outcome, withChats });
+          }}
+          onSend={() => void sendFolder()}
+          onCancel={() => {
+            setOutcome(null);
+          }}
+        />
+      ) : null}
+
       {outcome?.kind === 'report' ? <Report report={outcome.report} /> : null}
       <PastImports
         disabled={pending}
@@ -723,6 +855,74 @@ export function ImportPanel(): JSX.Element {
         }}
       />
     </div>
+  );
+}
+
+/** `limits.maxUploadMb`'s megabyte, as the server multiplies it out. */
+const MEGABYTE = 1024 * 1024;
+
+/**
+ * ***The folder upload's one question*** — [P13.8].
+ *
+ * **In the flow, like the preview, and for the preview's reasons**: a pending
+ * decision is a block below the controls rather than a dialog over them, and it
+ * holds the pickers disabled until it is answered or put away. *Off by
+ * default*, because the question is whether to send more than was asked for,
+ * and the size is on both the sentence and the choice so the person is never
+ * asked to agree to a number they have not been shown.
+ *
+ * ***The size on the choice is what will go.*** Chats spend what the library
+ * leaves of the upload limit, so when they do not all fit, the choice sends
+ * `fit` and not the total — and says so before it is made, in numbers, with
+ * the server-path sweep named as the way to bring the rest.
+ */
+function FolderChoice(props: {
+  chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+  limitBytes: number;
+  withChats: boolean;
+  busy: boolean;
+  onChats: (withChats: boolean) => void;
+  onSend: () => void;
+  onCancel: () => void;
+}): JSX.Element {
+  const size = megabytes(props.chats.bytes);
+  const found = props.chats.count === 1 ? CHAT_WORDS.foundOne : CHAT_WORDS.found;
+  const short = props.chats.fit.count < props.chats.count;
+
+  return (
+    <section aria-label={CHAT_WORDS.title} className="flex flex-col gap-3">
+      <SubsectionTitle as="h4">{CHAT_WORDS.title}</SubsectionTitle>
+      <Note>{found.replace('{count}', String(props.chats.count)).replace('{size}', size)}</Note>
+      {short ? (
+        <Note>
+          {CHAT_WORDS.partial
+            .replace('{fit}', String(props.chats.fit.count))
+            .replace('{count}', String(props.chats.count))
+            .replace('{limit}', String(Math.round(props.limitBytes / MEGABYTE)))}
+        </Note>
+      ) : null}
+      <CheckboxField
+        label={CHAT_WORDS.choose.replace('{size}', megabytes(props.chats.fit.bytes))}
+        hint={CHAT_WORDS.chooseHint}
+        checked={props.withChats}
+        disabled={props.busy}
+        onChange={props.onChats}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="compact" onClick={props.onSend} disabled={props.busy}>
+          {CHAT_WORDS.send}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={props.onCancel}
+          disabled={props.busy}
+        >
+          {CHAT_WORDS.cancel}
+        </Button>
+      </div>
+    </section>
   );
 }
 

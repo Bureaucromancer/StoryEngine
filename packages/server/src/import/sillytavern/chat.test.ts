@@ -26,8 +26,10 @@ import {
  * `getFirstMessage`, the slash commands — because the parser's rules are
  * readings of those writers, and a fixture shaped by guesswork would test the
  * guess. The fixtures live here rather than in `fixtures/test-sillytavern.ts`,
- * whose one chat file is a sweep-counting prop that other tests depend on being
- * exactly one line.
+ * ~~whose one chat file is a sweep-counting prop that other tests depend on
+ * being exactly one line~~ — whose one chat is, since [P13.8], a small whole
+ * chat that the sweep turns into a session end to end; the cases here are each
+ * one writer's shape, which a single swept chat could not hold.
  *
  * The last `describe` is the stage's point: a parsed chat fed through the P13.6
  * builder comes out as the tree [P13 §2.3] describes.

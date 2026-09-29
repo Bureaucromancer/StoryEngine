@@ -146,6 +146,9 @@ export function indexTurn(
   location: TurnLocation,
 ): void {
   inTransaction(db, () => {
+    // Asked before the upsert below answers it for good — see the delete.
+    const reindex = db.prepare('select 1 from turn where turn_id = ?').get(turn.id) !== undefined;
+
     db.prepare(
       `insert into turn (turn_id, session_id, segment, offset)
          values (?, ?, ?, ?)
@@ -155,10 +158,19 @@ export function indexTurn(
     ).run(turn.id, sessionId, location.segment, location.offset);
 
     // FTS5 has no upsert, so a reindex of the same turn is a delete and an
-    // insert. Cheap, and it keeps a re-run of the same append — which the commit
+    // insert. It keeps a re-run of the same append — which the commit
     // protocol's idempotency makes an ordinary event — from leaving two rows
     // that both match.
-    db.prepare('delete from turn_fts where turn_id = ?').run(turn.id);
+    //
+    // ***Only for a reindex*** ([P13.8]). This said the delete was cheap, and
+    // it is not: `turn_id` is an unindexed FTS column, so the delete reads
+    // every turn's text on the install, and a chat import appends thousands of
+    // turns in one request — quadratic in the chat's length, 16 s for 4,000
+    // lines when a review measured it. A turn with no `turn` row cannot have an
+    // FTS row: the two are written in this one transaction and removed together
+    // (`removeSessionRows`, the rebuild), so for a new turn the scan could only
+    // ever find nothing.
+    if (reindex) db.prepare('delete from turn_fts where turn_id = ?').run(turn.id);
 
     const text = turnText(turn);
     if (text.length > 0) {
@@ -372,6 +384,24 @@ export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>)
     if (row !== undefined) return row.session_id;
   }
   return null;
+}
+
+/**
+ * How many of these turns the index does not hold.
+ *
+ * ***The rest of the question `sessionHoldingTurns` stops asking at its first
+ * yes*** — [P13.8]. A chat import refused as `already-here` knows that *some*
+ * of its turns are on this install; whether *all* of them are is the
+ * difference between a chat imported before and unchanged since, and one that
+ * has grown in its source since, whose new turns the refusal leaves out
+ * (`import/chat-sessions.ts`). Asked of the `turn` table alone, for the reason
+ * the function above gives.
+ */
+export function turnsNotHeld(db: DatabaseSync, turnIds: Iterable<string>): number {
+  const find = db.prepare('select 1 from turn where turn_id = ?');
+  let missing = 0;
+  for (const turnId of turnIds) if (find.get(turnId) === undefined) missing += 1;
+  return missing;
 }
 
 /**

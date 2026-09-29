@@ -11,6 +11,7 @@ import {
 import { codecFor } from '../storage/card/index.js';
 
 import { isAventurasLorebook, isVaultCharacter, isVaultScenario } from './aventuras/shapes.js';
+import { SILLYTAVERN_CHAT_FORMAT } from './sillytavern/chat.js';
 import type { ImportCandidate, SourceItem } from './source.js';
 
 /**
@@ -171,10 +172,19 @@ export function readUpload(
   const codec = codecFor(bytes);
   if (codec !== null) return readCard(filename, bytes, codec);
 
+  const text = new TextDecoder().decode(bytes);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(bytes));
+    parsed = JSON.parse(text);
   } catch {
+    /**
+     * ***Not one JSON document — and possibly one per line*** — [P13.8].
+     * SillyTavern's chat file, and Marinara's per-chat export of the same
+     * format, is JSON Lines: `JSON.parse` refuses the whole and every line
+     * parses on its own. Asked here, below the document parse, because a
+     * one-line chat *is* a JSON document and is answered below instead.
+     */
+    if (looksLikeChat(text, confidence)) return chat(filename);
     // Not a card container and not JSON. `unrecognised` is the honest class:
     // this build did not identify it, which is different from *this build is
     // unfinished* — the note it used to get, and which stopped being true when
@@ -208,6 +218,30 @@ export function readUpload(
     return observed(filename, 'unrecognised', [
       { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
     ]);
+  }
+
+  /**
+   * *A chat that is only its header* — one line, so one JSON document. It
+   * says what it is (`chat_metadata` is `getGroupChat`'s own test for a
+   * header, `group-chats.js:268`), and the parser then refuses it for having
+   * no messages, which is the true thing to say about it.
+   */
+  if (isRecord(parsed['chat_metadata'])) return chat(filename);
+
+  /**
+   * *A chat that is only one message* — also one JSON document, and with no
+   * header to say so. A group chat written before `chat_metadata` reached
+   * groups has none, so one holding nothing but its greeting is a single line
+   * of `mes` and `is_user`, which the parser reads as a group. Taken at `any`
+   * only: a person picked this file, and across a folder nobody vetted, one
+   * object with a text field is a shape rather than a claim.
+   */
+  if (
+    confidence === 'any' &&
+    typeof parsed['mes'] === 'string' &&
+    typeof parsed['is_user'] === 'boolean'
+  ) {
+    return chat(filename);
   }
 
   const format = probe(parsed, confidence);
@@ -405,6 +439,62 @@ function probe(body: Record<string, unknown>, confidence: ProbeConfidence): stri
     return 'sillytavern.preset.text';
   }
   return null;
+}
+
+/**
+ * ***Whether text is a chat file*** — [P13.8], by content and never by the
+ * `.jsonl` on its name, which is this file's rule for everything.
+ *
+ * **Two lines that are each a JSON object**, or one that is a header carrying
+ * `chat_metadata` — among the first three non-blank lines, since a chat is
+ * judged by how it opens and a long one should not be parsed twice to be
+ * recognised.
+ * That is the whole of JSON Lines' shape, and at `any` confidence it is enough:
+ * a person picked this file, and the parser that reads it next refuses a file
+ * with no messages in it, by name, rather than importing nothing quietly.
+ *
+ * ***A folder sweep asks for more***, on the reasoning {@link ProbeConfidence}
+ * gives for the preset guesses: JSON Lines is what half the log files on a disk
+ * are written in, so across a folder nobody vetted, two objects in a row is a
+ * shape and not a claim. There the opening must say *chat* — a header with
+ * `chat_metadata`, or a line with SillyTavern's `mes` text — which a log file
+ * does not.
+ */
+function looksLikeChat(text: string, confidence: ProbeConfidence): boolean {
+  const lines: Record<string, unknown>[] = [];
+  let read = 0;
+  for (const raw of text.split('\n')) {
+    if (raw.trim() === '') continue;
+    read += 1;
+    let value: unknown;
+    let parses = true;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      parses = false;
+    }
+    /**
+     * *A line that will not parse costs itself, the first one included.* The
+     * parser reads a chat from the first line that parses, so a header a
+     * crashed write left half-finished is one lost line and a chat after it;
+     * refusing the file for it here refused, at this door only, a chat that
+     * imports from a swept tree. A first line that parses to something other
+     * than an object is still a no: that is JSON, and not a chat's.
+     */
+    if (isRecord(value)) lines.push(value);
+    else if (read === 1 && parses) return false;
+    if (lines.length === 2 || read === 3) break;
+  }
+  const first = lines[0];
+  if (first === undefined) return false;
+  const header = isRecord(first['chat_metadata']);
+  if (!header && lines.length < 2) return false;
+  if (confidence === 'any') return true;
+  return header || lines.some((line) => typeof line['mes'] === 'string');
+}
+
+function chat(filename: string): SourceItem {
+  return candidate({ source: filename, format: SILLYTAVERN_CHAT_FORMAT, payload: null });
 }
 
 /**

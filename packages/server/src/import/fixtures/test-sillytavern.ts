@@ -178,6 +178,99 @@ const RAIN_CITY_BOOK = {
 const json = (value: unknown): string => JSON.stringify(value, null, 2);
 
 /**
+ * ***Vera's chat, small and whole*** —
+ * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * It was a one-line prop for three phases — a file for the sweep to count as
+ * `recorded` — and it is a real chat now because the sweep converts chats, and
+ * a corpus whose only chat has no header, no greeting and no reply cannot say
+ * whether a swept tree comes out as a session anybody could play. Each line is
+ * the shape SillyTavern's own writer leaves (`sillytavern/chat.test.ts` names
+ * the writer of each), and each is here for a reason:
+ *
+ * 1. **The header**, carrying the persona the chat was locked to and the
+ *    world it binds — so resolution has both of its non-line references to
+ *    find, and both are in this tree.
+ * 2. **The greeting, with the card's alternate as a swipe** — no generation
+ *    record, which is how the parser knows a greeting ([P13 §1.7]), and one
+ *    alternative, which [P13 §2.3] makes a sibling opening turn.
+ * 3. **The player's line**, locked to the persona by its thumbnail — the key
+ *    that meets `User Avatars/inspector.png` as the sweep stamped it.
+ * 4. **A reply with a swipe**, the second one showing: a generated line
+ *    (`gen_started`, `extra.api`), and an active swipe that is not the first.
+ *
+ * *No `original_avatar` on Vera's lines*, because a single chat's own character
+ * writes none: the chat's folder is who spoke, which is the key that meets
+ * `characters/Vera Solano.png`.
+ */
+const VERA_CHAT = [
+  {
+    user_name: 'unused',
+    character_name: 'unused',
+    create_date: '2026-01-01@10h00m00s',
+    chat_metadata: {
+      integrity: '0f6d3c2e-7a41-4c1b-9e57-2b8a1d4f6c90',
+      persona: 'inspector.png',
+      world_info: 'Rain City',
+    },
+  },
+  {
+    name: 'Vera Solano',
+    is_user: false,
+    is_system: false,
+    send_date: '2026-01-01T10:00:00.000Z',
+    mes: 'You again. Third time this week.',
+    extra: {},
+    swipe_id: 0,
+    swipes: [
+      'You again. Third time this week.',
+      'The gate is closed. Come back when the tide turns.',
+    ],
+    swipe_info: [
+      { send_date: '2026-01-01T10:00:00.000Z', extra: {} },
+      { send_date: '2026-01-01T10:00:00.000Z', extra: {} },
+    ],
+  },
+  {
+    name: 'The Inspector',
+    is_user: true,
+    is_system: false,
+    send_date: '2026-01-01T10:01:00.000Z',
+    mes: 'Anything unusual on the manifests?',
+    extra: { isSmallSys: false },
+    force_avatar: '/thumbnail?type=persona&file=inspector.png',
+  },
+  {
+    name: 'Vera Solano',
+    is_user: false,
+    is_system: false,
+    send_date: '2026-01-01T10:01:30.000Z',
+    mes: 'Define unusual.',
+    gen_started: '2026-01-01T10:01:26.000Z',
+    gen_finished: '2026-01-01T10:01:30.000Z',
+    extra: { api: 'openai', model: 'gpt-4' },
+    swipe_id: 1,
+    swipes: ['Nothing you would sign for.', 'Define unusual.'],
+    swipe_info: [
+      {
+        send_date: '2026-01-01T10:01:20.000Z',
+        gen_started: '2026-01-01T10:01:16.000Z',
+        gen_finished: '2026-01-01T10:01:20.000Z',
+        extra: {},
+      },
+      {
+        send_date: '2026-01-01T10:01:30.000Z',
+        gen_started: '2026-01-01T10:01:26.000Z',
+        gen_finished: '2026-01-01T10:01:30.000Z',
+        extra: {},
+      },
+    ],
+  },
+]
+  .map((line) => JSON.stringify(line))
+  .join('\n');
+
+/**
  * The tree, as paths to bytes.
  *
  * Directory names are SillyTavern's own, from the vendored registry — including
@@ -213,11 +306,14 @@ export function sillyTavernFixture(): Record<string, Uint8Array | string> {
     // Personas: the image here, the text in `settings.json` ([survey §3]).
     'User Avatars/inspector.png': makePng(),
 
+    // A chat, which the sweep's session pass turns into a session after the
+    // cards and the persona above are in ([P13.8]). See `VERA_CHAT`.
+    'chats/Vera Solano/2026-01-01.jsonl': `${VERA_CHAT}\n`,
+
     // One file per remaining disposition class, so the review's counts are
     // exercised rather than assumed.
     'backgrounds/harbour.png': makePng(),
     'instruct/Alpaca.json': json({ name: 'Alpaca', wrap: true }),
-    'chats/Vera Solano/2026-01-01.jsonl': '{"name":"You","mes":"hello"}\n',
     'QuickReplies/greetings.json': json({ name: 'greetings', qrList: [] }),
     'vectors/rain-city/index.json': json({ vectors: [] }),
   };

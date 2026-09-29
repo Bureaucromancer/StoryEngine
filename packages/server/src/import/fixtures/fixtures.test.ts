@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { classifyRoot } from '../detect.js';
 import { MemoryFileSource } from '../memory-source.js';
+import { parseSillyTavernChat } from '../sillytavern/chat.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
 import { SILLYTAVERN_DISPOSITIONS } from '../registries/sillytavern.js';
 import { marinaraFixture } from './test-marinara.js';
@@ -59,6 +60,32 @@ describe('the SillyTavern fixture', () => {
     expect(paths).toContain('User Avatars/inspector.png');
     // One poisoned file, so gate step 8 has something to survive.
     expect(paths).toContain('characters/broken.png');
+  });
+
+  it('holds a chat that reads as one, with a greeting, a swipe and both sides speaking', () => {
+    // [P13.8]: the sweep turns this into a session, and a session test is only
+    // as good as the chat under it. A prop that no longer parsed — or that lost
+    // its player's line, or its swipes — would leave the end-to-end sweep test
+    // passing over a session with nothing in it worth checking.
+    const path = 'chats/Vera Solano/2026-01-01.jsonl';
+    const bytes = tree[path];
+    const outcome = parseSillyTavernChat(
+      typeof bytes === 'string' ? bytes : (bytes ?? new Uint8Array()),
+      path,
+    );
+    if (!outcome.ok) throw new Error(`the fixture chat is refused: ${outcome.refusal}`);
+
+    const { chat, meta } = outcome.value;
+    expect(chat.messages.map((message) => message.role)).toEqual([
+      'character',
+      'user',
+      'character',
+    ]);
+    expect(chat.messages.every((message) => message.role !== 'character' || message.swipes)).toBe(
+      true,
+    );
+    expect(meta.persona).toBe('User Avatars/inspector.png');
+    expect(meta.worldInfo).toBe('Rain City');
   });
 
   it('contains a credential, because the gate tests for its absence afterwards', () => {

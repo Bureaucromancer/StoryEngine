@@ -98,6 +98,40 @@ export function registerMode(mode: Mode): void {
  */
 export const DEFAULT_MODE_ID = 'storyengine.scene';
 
+/**
+ * ***The mode a foreign chat is imported into*** —
+ * [P13.8](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * by [06 §1](../../../docs/design/06-modes-and-turn-pipeline.md)'s
+ * *"SillyTavern/Marinara RP"* row, which is Scene.
+ *
+ * **The same string as {@link DEFAULT_MODE_ID} today, and a different fact.**
+ * The default is what a session plays when it names no mode, or names one this
+ * build has never heard of — a fallback, chosen for being the safest thing to
+ * open an unknown session in. This is a *mapping*: a SillyTavern or Marinara
+ * chat is a roleplay among embodied characters, and [P13]'s revision rebuilt
+ * Scene as exactly that chat so an import lands somewhere that plays the way
+ * the chat did. ***If the default ever moved — to a mode that suits a new
+ * install better, say — imported chats should not move with it***, because
+ * nothing about a SillyTavern chat would have changed. Two constants make that a
+ * one-line edit to the right one; one constant would make it a quiet change to
+ * both.
+ *
+ * *It lives here and not beside the importer* because the importer is engine
+ * code, and engine code spells no mode id (`tools/repo-shape.test.ts`, *"the
+ * engine names no mode"*): a mode id written into `import/` would be the engine
+ * knowing which modes exist, which is the bet
+ * [19 §10](../../../docs/design/19-tech-stack.md) calls the design's central
+ * one. This file is one of the two that may, with a reason beside each literal.
+ * The chat builder takes the id as `BuildContext.modeId`
+ * (`import/chat/types.ts`), and every door that calls it passes this.
+ *
+ * ***Proved at startup*** by {@link assertModesRunnable}, the way the steps are:
+ * a build that does not register it would otherwise write sessions naming a
+ * mode nothing can play, and each would open under the default with a logged
+ * substitution — the first imported chat would be where somebody found out.
+ */
+export const CHAT_IMPORT_MODE_ID = 'storyengine.scene';
+
 export function modeById(id: string): Mode | null {
   return registered.get(id) ?? null;
 }
@@ -256,6 +290,16 @@ export function assertModesRunnable(): void {
     // implementation is a session that creates itself and silently produces
     // nothing, which reads as a bad model rather than as a broken build.
     setupPlanFor(mode);
+  }
+  /**
+   * ***And the mode chats are imported into*** — [P13.8]. After the loop, so a
+   * build whose modes cannot run says that first: it is the deeper fault, and a
+   * build that registered nothing has already been refused above.
+   */
+  if (!registered.has(CHAT_IMPORT_MODE_ID)) {
+    throw new Error(
+      `Chats are imported into ${CHAT_IMPORT_MODE_ID}, which is not registered. Call installBuiltIns() before serving.`,
+    );
   }
 }
 
