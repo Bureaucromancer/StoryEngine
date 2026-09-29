@@ -321,7 +321,46 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.aventuras.settingsDropped':
     '{rows} settings were dropped without being read. They may include provider keys, which are never imported.',
   'import.aventuras.storyRecorded':
-    '“{story}”, across all its branches: {entries} entries, {branches} branches, {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. Stories are not imported yet.',
+    '“{story}”, across all its branches: {entries} entries, {branches} branches, {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. Stories become sessions only when an import asks for them.',
+
+  /**
+   * ***A story, brought across as a session*** — [P13.11]. The import that
+   * asks for stories makes each one a session of its own: an action and its
+   * answer are one turn, Aventuras' branches are named branches, and the
+   * session opens where the person left the story. These say what came, what
+   * was re-read to make it a tree, and what stayed in Aventuras — the world,
+   * the chapters and the pictures, which later stages bring, and a narrator
+   * prompt of the story's own, which is written for Aventuras' prompt layout
+   * the way its prompt packs are (`packRecorded` says why those stay).
+   *
+   * *"Plays here in this server's default mode"*: the importer names no mode
+   * (a mode is the registry's knowledge, not the engine's), so an imported
+   * story plays in whichever mode this install starts sessions in.
+   */
+  'import.aventuras.storyImported':
+    '“{story}” is now a session of {turns} turns, with {branches} named branches besides the main line, opening where the story was left. It was an Aventuras {mode} story, and plays here in this server’s default mode.',
+  'import.aventuras.storyWorldRecorded':
+    'Not brought across yet from “{story}”: {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. They are still in Aventuras.',
+  'import.aventuras.storyAlreadyHere':
+    '“{story}” was brought across before and is already a session here, so it was not imported again. Anything written in it in Aventuras since then is not brought across.',
+  'import.aventuras.storyEmpty':
+    '“{story}” has nothing in it yet, so there was no session to make.',
+  'import.aventuras.storyRefused':
+    '“{story}” could not be made into a session ({reason}), and nothing was written for it.',
+  'import.aventuras.forkSplitPair':
+    'In “{story}”, the branch “{branch}” begins between an action and its answer, so here the action is repeated at the start of the branch with the branch’s own answer — beside the main line’s answer rather than after it.',
+  'import.aventuras.forkEntryMissing':
+    'In “{story}”, the place the branch “{branch}” started from is missing from the database, so its turns start the session over as a line of their own.',
+  'import.aventuras.headBranchMissing':
+    '“{story}” was left on a branch the database no longer has, so the session opens at the end of the main line.',
+  'import.aventuras.entryTypeUnknown':
+    'In “{story}”, {count} entries of a kind this build does not know (“{type}”) were left out.',
+  'import.aventuras.entriesUnplaced':
+    'In “{story}”, {count} entries belong to a branch the database no longer has, so Aventuras could not show them either; they were left out.',
+  'import.aventuras.entryFieldsUnreadable':
+    'In “{story}”, {count} saved details — generation settings, or the story’s own settings — could not be read and were left out. The text of every entry was brought across.',
+  'import.aventuras.customNarratorPrompt':
+    '“{story}” has a narrator prompt of its own ({length} characters). It is written for Aventuras’ prompt layout and variables, so it was not brought across; it is still in Aventuras, to copy into a preset by hand.',
   /**
    * ***A prompt pack, recorded*** — [P13.9]. Packs are not imported: their
    * templates are written against Aventuras' own variables and its own prompt

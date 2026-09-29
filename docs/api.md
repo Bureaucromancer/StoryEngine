@@ -524,6 +524,12 @@ upload over a spelling is the worse answer.
 source with a genuine choice becomes. It follows the same before-the-file rule
 and the same unknown-is-absent rule, for the same reasons.
 
+**An optional `stories` field** — the word `true` — brings an Aventuras
+database's or backup's stories across as sessions, as the sweep's `stories`
+does ([P13.11](design/workplan/30-p13-aventuras-import.md)); anything else,
+or no field, is the default, which writes none. The same before-the-file rule
+applies. Every other kind of upload ignores it.
+
 Exactly one format reads it, and that is the point rather than a limitation. A
 character card is an Actor and a world file is a Lorebook; neither poses a
 question, and a control over either would be a control with one answer.
@@ -596,7 +602,7 @@ and move the credential rule from the server to the client.
 
 ### `POST /api/import/sweep`
 
-`{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its
+`{ root, onConflict?, stories? }` → `200 { report }`. Points the server at a folder on its
 own filesystem and imports what it finds.
 
 **Gated on `fileAccess`**, as [10 §4.2.2](design/10-ui-surfaces.md) widened it —
@@ -682,7 +688,36 @@ differ from the text Aventuras ships (hashed as Aventuras hashes them: trimmed,
 CRLF made LF, SHA-256), its custom variables and its tracked variables; when
 any differ, `import.aventuras.packTemplatesDiffer` at `warn` names them — up to
 81 ids of at most 64 characters, and `import.aventuras.packTemplatesUnlisted`
-counts the rest. No preset is written. Every other
+counts the rest. No preset is written. **Since
+[P13.11](design/workplan/30-p13-aventuras-import.md) its stories become sessions
+— when the request says `stories: true`, and only then.** Each story is one
+row, `aventura.db/stories/<id>`, which is also the session's
+`origin.originalFilename`; `stories`, `story_entries` and `branches` have no
+rows of their own. Asked, a story is `converted` with the new session as its
+`objectId` — its tree rebuilt from Aventuras' branches and positions (an action
+and its answer are one turn; an opening, a second narration in a row or a
+`system` entry is a turn with no input; an action nobody answered is a
+`failed` turn; a branch that begins between an action and its answer repeats
+the action with the branch's own answer, and
+`import.aventuras.forkSplitPair` says so), its branches as named `branchRefs`
+beside *Main*, and its head on the branch the person was on. Every turn has
+`foreign: { source: "aventuras", id }` and ids derived from the account, the
+story and its entries; generation metadata goes to `cost` (model, wall-clock
+time, Aventuras' own token count of the answer) and never to `request`;
+reasoning to `output.reasoning`; saved suggestions to `suggestions`. The
+session names no mode, cast or lore, and plays in the server's default mode;
+`import.aventuras.storyImported` says which mode it had in Aventuras, and
+`import.aventuras.storyWorldRecorded` counts the characters, places, items,
+beats, lore entries, chapters, checkpoints and pictures that stayed behind. A
+story's own narrator prompt (`settings.customSystemPrompt`) is not carried,
+for the reason packs are not: `import.aventuras.customNarratorPrompt` at
+`warn` names its length. A story with no entries is `skipped`
+(`import.aventuras.storyEmpty`). **A story brought across before is
+`unchanged`**, whatever `onConflict` says, with the session it became as its
+`objectId` and `import.aventuras.storyAlreadyHere`: a session is never
+replaced or doubled by an import, so what was written in Aventuras since is
+not brought across. Not asked, each story is `recorded`, and its
+`import.aventuras.storyRecorded` note counts what it holds. Every other
 table is `recorded`,
 `skipped` or, for `settings`, `credential` — counted and never read, since it
 holds provider keys. A database missing a column this build reads, or with no
@@ -803,7 +838,9 @@ classification refusals as the sweep.
 Each file's **relative path travels as its field name** — a multipart filename
 cannot carry a directory and survive sanitising — and is rebuilt segment-wise
 with `.` and `..` dropped. A `manifest` field carries the full path list as JSON;
-an `onConflict` field is optional and means what it does on the sweep.
+an `onConflict` field is optional and means what it does on the sweep, and so
+is a `stories` field — `true` brings an Aventuras folder's stories across as
+sessions, exactly as the sweep's `stories` does.
 
 **Named and not sent is not the same as absent.** Paths in the manifest without
 bytes are *declared*: listed, reported, and never read. That is what keeps

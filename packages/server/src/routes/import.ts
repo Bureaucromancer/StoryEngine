@@ -196,6 +196,23 @@ function destination(value: string | null): ImportDestination | undefined {
 }
 
 /**
+ * ***Whether the sweep brings an Aventuras install's stories as sessions*** —
+ * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md), and
+ * `SweepRequest.stories` for why it is asked rather than assumed.
+ *
+ * **Only the word `true` asks**, off a multipart field as off a JSON body: a
+ * sweep that writes sessions is the one kind a person has to take back one at
+ * a time, so anything else — a missing field, `1`, `on` — is the default,
+ * which writes none. The answer is the context the Writer needs, or nothing.
+ */
+function storiesFor(
+  services: AppServices,
+  asked: string | boolean | null | undefined,
+): SweepRequest['stories'] {
+  return asked === true || asked === 'true' ? { sessions: services.sessions } : undefined;
+}
+
+/**
  * One file part, the limit, and the three refusals both upload doors share.
  *
  * **Extracted when the preview arrived, before the second copy existed rather
@@ -331,6 +348,13 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     const into = destination(part.field('destination'));
 
+    /**
+     * ***And whether to bring stories*** — [P13.11]. Before the file for the
+     * same reason again; read by an Aventuras database or backup and by
+     * nothing else, which is every archive this door lands.
+     */
+    const stories = storiesFor(services, part.field('stories'));
+
     let result: UploadResult | null = null;
     let failure: { error: unknown } | null = null;
     try {
@@ -338,7 +362,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       // sweep may need room for a copy of it.
       result =
         part.kind === 'landed'
-          ? await importLanded(services, account.handle, part, onConflict, request.log)
+          ? await importLanded(services, account.handle, part, onConflict, request.log, stories)
           : await importOneFile(
               services,
               account.handle,
@@ -440,7 +464,8 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       });
     }
 
-    const body = request.body as { root: string; onConflict?: ConflictPolicy };
+    const body = request.body as { root: string; onConflict?: ConflictPolicy; stories?: boolean };
+    const stories = storiesFor(services, body.stories);
     const opened = await openLocalSource(body.root, services.layout.dataRoot);
     if (!opened.ok) {
       // Recorded here as well as below, because **there are two places a root can
@@ -471,6 +496,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         freeBytes: services.freeBytes,
         log: request.log,
         ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
+        ...(stories === undefined ? {} : { stories }),
       });
     } catch (error) {
       // Not recorded as a refusal: nothing was wrong with the folder, and the
@@ -643,6 +669,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const carried: Record<string, Uint8Array> = {};
     let manifest: string[] = [];
     let onConflict: ConflictPolicy | undefined;
+    let stories: SweepRequest['stories'];
 
     let carriedBytes = 0;
 
@@ -675,6 +702,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         }
         if (part.fieldname === 'manifest') manifest = parseManifest(String(part.value));
         if (part.fieldname === 'onConflict') onConflict = String(part.value) as ConflictPolicy;
+        if (part.fieldname === 'stories') stories = storiesFor(services, String(part.value));
       }
     } catch (error) {
       // Either half: busboy refusing one oversized part, or the running total
@@ -707,6 +735,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         freeBytes: services.freeBytes,
         log: request.log,
         ...(onConflict === undefined ? {} : { onConflict }),
+        ...(stories === undefined ? {} : { stories }),
       });
     } catch (error) {
       if (answeredNoRoom(error, reply)) return reply;
@@ -862,6 +891,8 @@ const SweepBody = Type.Object(
     onConflict: Type.Optional(
       Type.Union([Type.Literal('replace'), Type.Literal('keep-both'), Type.Literal('skip')]),
     ),
+    /** Bring an Aventuras install's stories as sessions — [P13.11]. Absent is no. */
+    stories: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -1214,6 +1245,8 @@ async function importLanded(
   onConflict?: ConflictPolicy,
   /** The request's logger, for the one thing a sweep cannot put in its report ({@link SweepRequest.log}). */
   log?: SweepRequest['log'],
+  /** Whether an Aventuras root's stories become sessions ({@link SweepRequest.stories}). */
+  stories?: SweepRequest['stories'],
 ): Promise<UploadResult> {
   const { filename } = part;
   const unrecognised = (note: ImportNote): UploadResult => ({
@@ -1254,6 +1287,7 @@ async function importLanded(
       freeBytes: services.freeBytes,
       ...(log === undefined ? {} : { log }),
       ...(onConflict === undefined ? {} : { onConflict }),
+      ...(stories === undefined ? {} : { stories }),
     });
     if (!outcome.ok) {
       return unrecognised({

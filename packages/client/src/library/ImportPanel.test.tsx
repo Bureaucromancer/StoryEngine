@@ -848,3 +848,45 @@ describe('answers that arrive after the question changed', () => {
     expect(await screen.findByText('That import is no longer on record.')).toBeTruthy();
   });
 });
+
+/**
+ * ***Stories are asked for, each time*** —
+ * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * The server writes no session unless the request says `stories`
+ * (`SweepRequest.stories` has why), so what the panel owes is that the
+ * question reaches the request when it is ticked, and only then.
+ */
+describe('bringing Aventuras stories across', () => {
+  const empty = {
+    suggestions: [],
+    report: { jobId: 'job-s', source: 'aventuras', counts: {}, items: [] },
+  };
+
+  it('does not ask unless the box is ticked', async () => {
+    const sweep = vi.spyOn(api, 'importSweep').mockResolvedValue(empty);
+
+    render(mount());
+    const box = screen.getByRole('checkbox', { name: /aventuras stories/i });
+    expect((box as HTMLInputElement).checked).toBe(false);
+    await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/aventura');
+    await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
+
+    await waitFor(() => {
+      expect(sweep).toHaveBeenCalledWith('/somewhere/aventura', undefined, false);
+    });
+  });
+
+  it('asks when it is', async () => {
+    const sweep = vi.spyOn(api, 'importSweep').mockResolvedValue(empty);
+
+    render(mount());
+    await userEvent.click(screen.getByRole('checkbox', { name: /aventuras stories/i }));
+    await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/aventura');
+    await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
+
+    await waitFor(() => {
+      expect(sweep).toHaveBeenCalledWith('/somewhere/aventura', undefined, true);
+    });
+  });
+});

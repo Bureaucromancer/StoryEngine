@@ -29,6 +29,8 @@ import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook, type ConvertedAventurasLorebook } from './aventuras/lorebook.js';
 import { AVENTURAS_DATABASE, AventurasReader } from './aventuras/reader.js';
 import { convertScenario, type ConvertedScenario } from './aventuras/scenario.js';
+import { produceStory, STORY_FORMAT } from './aventuras/story.js';
+import type { AventurasStoryRows } from './aventuras/story-rows.js';
 import { isRecord, linkedLorebookId } from './aventuras/shapes.js';
 import { VAULT_CHARACTER_FORMAT } from './aventuras/vault-character.js';
 import {
@@ -58,6 +60,8 @@ import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
 import { sniff } from '../auth/avatars.js';
 import type { Logger } from '../state/commit.js';
+import { importSession } from '../sessions/import.js';
+import type { SessionContext } from '../sessions/store.js';
 import type { TagStore } from '../tags/store.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
@@ -187,6 +191,42 @@ export interface SweepRequest {
    * what it left.
    */
   log?: Pick<Logger, 'warn'>;
+  /**
+   * ***Bring the stories across as sessions, into these*** —
+   * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Only one source reads it**, an Aventuras database, whose every story
+   * becomes a session (`aventuras/story.ts`, handed to `importSession`) when
+   * this is present, and stays the `recorded` row it was at P13.2 when it is
+   * absent.
+   *
+   * ***Absent is the default, and a person asks.*** Nothing in [P13] or
+   * [18] says whether a library sweep brings stories, so the choice is this
+   * stage's, and it takes the conservative one on three counts:
+   *
+   * - **Scale, and where it lands.** A person pointing the panel at their
+   *   Aventuras folder to bring their characters across would find two
+   *   hundred sessions in their session list beside the three they play —
+   *   the library is a list they curate, and a session list is where they
+   *   work. A sweep that writes into the second should be one they chose.
+   * - **No undo that matches the gesture.** Every library object a sweep
+   *   writes is versioned and replaced in place by the next sweep; a session
+   *   is never replaced ([P12.8]'s rule, `backup/import.ts`), so a sweep that
+   *   made two hundred sessions by accident is two hundred deletions to take
+   *   back, one at a time.
+   * - **Part 1 stays what it was.** Every sweep before P13.11 wrote no
+   *   session, and every client, test and API caller that sweeps without
+   *   asking still gets that — including a re-sweep for a library's new
+   *   characters, which is the commonest reason to sweep again.
+   *
+   * **The context rather than a flag**, which is `tags`' argument made
+   * optional: a flag that said *yes* with no session store to write into
+   * would have to report stories as imported while writing nothing, so the
+   * one field is both the question and what answering it needs, and the type
+   * checker keeps them together. Every door that sweeps passes it when its
+   * request says `stories`.
+   */
+  stories?: { sessions: SessionContext };
 }
 
 export type SweepOutcome =
@@ -349,11 +389,12 @@ function readerFor(kind: string, request: SweepRequest): SourceReader | null {
   // the services' free-space seam, because that copy is what needs the room.
   if (kind === 'aventuras') {
     const { freeBytes } = request;
-    return new AventurasReader(
-      files,
-      request.library.layout,
-      freeBytes === undefined ? {} : { seams: { freeBytes } },
-    );
+    return new AventurasReader(files, request.library.layout, {
+      ...(freeBytes === undefined ? {} : { seams: { freeBytes } }),
+      // Told whether it was asked for stories, and nothing else about them:
+      // the sessions are the Writer's to write.
+      stories: request.stories !== undefined,
+    });
   }
   return null;
 }
@@ -484,6 +525,14 @@ class Writer {
        */
       case VAULT_TAG_FORMAT:
         return this.#vaultTags.write(candidate);
+      /**
+       * ***An Aventuras story (P13.11), and the one arm that ends in a
+       * session rather than a library object.*** The producer makes a
+       * document and `importSession` writes it, so this arm is the hand-over
+       * and the review row and nothing more — see `#aventurasStory`.
+       */
+      case STORY_FORMAT:
+        return this.#aventurasStory(candidate);
 
       /**
        * ***One of ours, which needs no conversion and therefore needs a
@@ -497,6 +546,96 @@ class Writer {
       default:
         return { source: candidate.source, disposition: 'unrecognised', notes: [] };
     }
+  }
+
+  /**
+   * ***A story, into a session*** —
+   * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **The producer makes the document and the reader writes it**
+   * (`aventuras/story.ts`, `sessions/import.ts`): this arm writes nothing
+   * itself, which is [P13 §0.3]'s whole promise about Part 2's shape. It
+   * passes the story's key as `originalFilename`, so a second sweep is
+   * refused `already-here` naming the session the first made; and
+   * `requireLinks`, because a producer writes whatever its session links to
+   * before it writes the session — none yet, and P13.12's cast and lore will
+   * be written by this same sweep before the story is — so a link that
+   * resolves to nothing is the producer's own defect.
+   *
+   * ***Already here is `unchanged`, whatever `onConflict` says*** — the
+   * backup's rule for a session, for the backup's reason: a session is an
+   * append-only log somebody may have played on since, so *replace* would be
+   * a delete and an import wearing one word, and *keep both* would be a
+   * second session holding the same turn ids, which the reader refuses. A
+   * story changed in Aventuras since it was brought across is therefore not
+   * brought across again, and the note says so.
+   */
+  async #aventurasStory(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const { source } = candidate;
+    const stories = this.#request.stories;
+    // The reader emits a story as a candidate only when the sweep asked, so
+    // this is a caller that built a candidate by hand: say what it is, and
+    // write nothing, as the reader would have.
+    if (stories === undefined) return { source, disposition: 'recorded', notes: [] };
+
+    const rows = candidate.payload as AventurasStoryRows;
+    const story = rows.story.title;
+    const produced = produceStory(rows, { handle: this.#request.handle, origin: source });
+    if (!produced.ok) {
+      return {
+        source,
+        disposition: 'skipped',
+        notes: [
+          { key: 'import.aventuras.storyEmpty', params: { story }, level: 'info' },
+          ...produced.notes,
+        ],
+      };
+    }
+
+    const result = await importSession(stories, this.#request.handle, produced.document, {
+      originalFilename: source,
+      requireLinks: true,
+    });
+    if (result.ok) {
+      // Aventuras' word on its way into the ledger, so clamped; at the pin it
+      // is one of two short ones.
+      const mode = produced.mode.slice(0, 64);
+      return {
+        source,
+        disposition: 'converted',
+        objectId: result.sessionId,
+        notes: [
+          {
+            key: 'import.aventuras.storyImported',
+            params: { story, turns: result.turns, branches: produced.branches, mode },
+            level: 'info',
+          },
+          ...produced.notes,
+        ],
+      };
+    }
+    if (result.reason === 'already-here') {
+      return {
+        source,
+        disposition: 'unchanged',
+        // The session an earlier sweep made, when the key found it — which is
+        // the answer a person can act on: it is here, and this is where.
+        ...('prior' in result ? { objectId: result.prior.sessionId } : {}),
+        notes: [{ key: 'import.aventuras.storyAlreadyHere', params: { story }, level: 'info' }],
+      };
+    }
+    return {
+      source,
+      disposition: 'unrecognised',
+      notes: [
+        {
+          key: 'import.aventuras.storyRefused',
+          params: { story, reason: result.reason },
+          level: 'warn',
+        },
+        ...produced.notes,
+      ],
+    };
   }
 
   /**

@@ -43,6 +43,8 @@ import {
 import { LOREBOOK_TABLE, vaultLorebookItems } from './vault-lorebook.js';
 import { SCENARIO_TABLE, vaultScenarioItems } from './vault-scenario.js';
 import { TAG_TABLE, vaultTagItems } from './vault-tag.js';
+import { STORY_FORMAT } from './story.js';
+import { readStoryRows } from './story-rows.js';
 
 /**
  * ***A whole Aventuras install, read as a review*** —
@@ -95,6 +97,14 @@ import { TAG_TABLE, vaultTagItems } from './vault-tag.js';
  * somebody wrote, and what this import leaves in Aventuras. After the vault's
  * candidates and before the stories, since a pack is the library's and not a
  * story's.
+ *
+ * ***P13.11: the stories, when asked.*** A sweep that asks for them
+ * (`SweepRequest.stories`) gets one candidate per story — its row, its
+ * entries and its branches (`story-rows.ts`) — which the Writer hands to the
+ * story producer (`story.ts`), and the producer's document to `importSession`.
+ * A sweep that does not ask gets the `recorded` row per story it always had.
+ * Last of everything, after the packs: a story is the largest thing in the
+ * database, and P13.12's cast will link to what the vault already wrote.
  *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
@@ -174,6 +184,17 @@ export const AVENTURAS_DATABASE_FILES = [AVENTURAS_DATABASE, AVENTURAS_WAL] as c
 export const AVENTURAS_READS = [...AVENTURAS_DATABASE_FILES, AVENTURAS_METADATA] as const;
 
 /**
+ * ***The three tables a story's tree is made of*** — [P13.11]. A story is one
+ * candidate, and its entries and its branches are the turns and the names
+ * inside it, so none of the three has a row of its own in the review: each
+ * story is a row, and what it held is said on it. **Converted when a sweep
+ * asks for stories** (`AventurasReaderOptions.stories`); when it does not,
+ * each story's row is `recorded` and says what it holds, which is still a row
+ * per story and not per table — see the registry's comment on these three.
+ */
+export const STORY_TREE_TABLES = ['stories', 'story_entries', 'branches'] as const;
+
+/**
  * ***The tables whose rows this reader turns into candidates***, in the order
  * it emits them — P13.6's tags, then P13.4's lorebooks, then P13.3's
  * characters, then P13.5's scenarios: §1.7's order, complete. The order is
@@ -191,6 +212,7 @@ export const CONVERTED_TABLES = [
   LOREBOOK_TABLE,
   CHARACTER_TABLE,
   SCENARIO_TABLE,
+  ...STORY_TREE_TABLES,
 ] as const;
 
 /**
@@ -223,6 +245,15 @@ export interface AventurasReaderOptions {
    * its condition happen for real.
    */
   seams?: SnapshotSeams;
+  /**
+   * ***Whether each story becomes a candidate*** — [P13.11]. Absent or false,
+   * a story is the `recorded` row it has been since P13.2, saying what it
+   * holds; true, it is a candidate the Writer hands to the story producer.
+   * **The sweep decides, from whether it was asked** (`SweepRequest.stories`),
+   * and the reader is told rather than deciding, because the answer is about
+   * the request and not the database.
+   */
+  stories?: boolean;
   /**
    * The largest portrait carried, decoded — `DEFAULT_MAX_PORTRAIT_BYTES`,
    * sixty-four megabytes, unless a test needs to meet the bound without
@@ -294,6 +325,7 @@ export class AventurasReader implements SourceReader {
   readonly #layout: Layout;
   readonly #seams: SnapshotSeams;
   readonly #maxPortraitBytes: number;
+  readonly #stories: boolean;
   #owned: OwnedDatabase | null;
   #surveyed: Promise<SourceSurvey> | null = null;
   #held: Held | null = null;
@@ -307,6 +339,7 @@ export class AventurasReader implements SourceReader {
     this.#layout = layout;
     this.#seams = options.seams ?? {};
     this.#maxPortraitBytes = options.maxPortraitBytes ?? DEFAULT_MAX_PORTRAIT_BYTES;
+    this.#stories = options.stories === true;
     this.#owned = options.owned ?? null;
   }
 
@@ -368,7 +401,7 @@ export class AventurasReader implements SourceReader {
       yield* vaultScenarioItems(held.db, { database: AVENTURAS_DATABASE });
     }
     yield* packRows(held.db, { database: AVENTURAS_DATABASE, tables: held.tables });
-    yield* storyRows(held);
+    yield* storyRows(held, this.#stories);
   }
 
   /**
@@ -556,20 +589,30 @@ function* tableRows(held: Held): Iterable<SourceItem> {
 }
 
 /**
- * ***One row per story, saying what Part 2 would bring from it*** — the stage
- * text's *"counts per story, so the review says what Part 2 would bring rather
- * than only that something exists"*.
+ * ***One row per story*** — named `aventura.db/stories/<id>`, which is
+ * [§1.5]'s row identity and the key [P13.10] makes a story's re-import turn
+ * on. Ordered by title, so a review of a library with forty stories reads as
+ * one.
  *
- * Named `aventura.db/stories/<id>`, which is [§1.5]'s row identity and the key
- * [P13.10] makes a story's re-import turn on. Ordered by title, so a review of a
- * library with forty stories reads as one.
+ * ***Asked for, each story is a candidate*** (P13.11): its rows, read one
+ * story at a time so a library of two hundred stories is never in memory at
+ * once, for the Writer to hand to the story producer (`story.ts`). What the
+ * story holds that this stage does not bring — its world, its chapters, its
+ * pictures — rides on the candidate as `storyWorldRecorded`, so the row that
+ * says *imported* also says what stayed behind. A story the database lists
+ * but cannot give back — gone between the list and the read — is left out,
+ * which it would also be from Aventuras.
+ *
+ * ***Not asked, each is the `recorded` row it was at P13.2***, saying what it
+ * holds — the stage text's *"counts per story, so the review says what Part 2
+ * would bring rather than only that something exists"*.
  *
  * ***What a story holds, across all its branches*** — which is what the
  * sentence says, because it is not what any one of Aventuras' own views shows.
  * See {@link entitiesOnly} for the rows left out, and for the rows that are
  * still counted once per branch.
  */
-function* storyRows(held: Held): Iterable<SourceItem> {
+function* storyRows(held: Held, asked: boolean): Iterable<SourceItem> {
   if (!held.tables.has('stories')) return;
 
   const tallies = new Map<string, Record<StoryCount, number>>();
@@ -598,6 +641,32 @@ function* storyRows(held: Held): Iterable<SourceItem> {
   for (const row of stories) {
     const id = String(row['id']);
     const story = typeof row['title'] === 'string' ? row['title'] : '';
+    const source = `${AVENTURAS_DATABASE}/stories/${id}`;
+    const tally = tallies.get(id) ?? emptyTally();
+
+    if (asked) {
+      const rows = readStoryRows(held.db, id, held.tables);
+      if (rows === null) continue;
+      const { characters, locations, items, beats, lore, chapters, checkpoints, images } = tally;
+      const world: ImportNote = {
+        key: 'import.aventuras.storyWorldRecorded',
+        params: { story, characters, locations, items, beats, lore, chapters, checkpoints, images },
+        level: 'info',
+      };
+      const behind =
+        characters + locations + items + beats + lore + chapters + checkpoints + images;
+      yield {
+        outcome: 'candidate',
+        candidate: {
+          source,
+          format: STORY_FORMAT,
+          payload: rows,
+          ...(behind === 0 ? {} : { notes: [world] }),
+        },
+      };
+      continue;
+    }
+
     const {
       entries,
       branches,
@@ -609,8 +678,8 @@ function* storyRows(held: Held): Iterable<SourceItem> {
       chapters,
       checkpoints,
       images,
-    } = tallies.get(id) ?? emptyTally();
-    yield observed(`${AVENTURAS_DATABASE}/stories/${id}`, 'recorded', [
+    } = tally;
+    yield observed(source, 'recorded', [
       {
         key: 'import.aventuras.storyRecorded',
         params: {

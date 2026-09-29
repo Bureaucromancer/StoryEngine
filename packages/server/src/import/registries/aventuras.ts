@@ -32,10 +32,10 @@ import type { ImportDisposition } from '@storyengine/shared';
  *
  * ***Fifteen of the twenty-eight are the stories*** — `stories` itself, and
  * fourteen tables whose every row carries a `story_id`. That is Part 2 of P13,
- * headed and not scheduled, and it is why the reader counts eleven of those
- * per story rather than only per table (the other three are derived from the
- * rest): the review says what the stories would bring, so nobody has to guess
- * what Part 1 left behind.
+ * scheduled 2026-09-29 and built a stage at a time from P13.11, and it is why
+ * the reader counts eleven of those per story rather than only per table (the
+ * other three are derived from the rest): the review says what each story
+ * holds, so nobody has to guess what an import left behind.
  */
 
 /** Every table at the pin, in the order `sqlite_master` lists them by name. */
@@ -189,16 +189,36 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
    */
   templates: 'skipped',
 
-  // ── The stories: Part 2, headed and not scheduled ─────────────────────────
+  // ── The stories: Part 2, scheduled 2026-09-29 ────────────────────────────
   //
-  // Recorded, and counted per story in the review (see the reader). The
-  // derived ones — checkpoints, snapshots, time anchors, `kept_separate` — are
+  // ***P13.11: the tree.*** A story, its entries and its branches become one
+  // session each — the producer's document handed to `importSession` — and so
+  // are `converted`, and have no row of their own: each story is a row, keyed
+  // `aventura.db/stories/<id>`, with the session as its `objectId`, and its
+  // entries and branches are the turns and the names inside it.
+  //
+  // **Converted when a sweep asks for stories, and only then** (the reader's
+  // `stories` option, and `SweepRequest.stories` for why it is asked). A
+  // sweep that does not ask still gives each story its own row, `recorded`,
+  // saying what it holds — so the registry says what this build does with the
+  // table, and the row says what this sweep did with the story, which is the
+  // split every other converted table already has between its disposition
+  // and a row that failed. `registries.test.ts` holds these three to the
+  // reader's `CONVERTED_TABLES`.
+  /** P13.11: one session per story, its head from `current_branch_id`. */
+  stories: 'converted',
+  /** P13.11: paired into turns — an action and its answer are one. */
+  story_entries: 'converted',
+  /** P13.11: the tree's shape, rebuilt from `fork_entry_id`; each a named ref on the session. */
+  branches: 'converted',
+  //
+  // The rest are the world, and wait on its stage — P13.12 characters,
+  // locations, items, beats and lore entries; P13.13 the pictures; P13.14 the
+  // chapters. Recorded, and counted per story on each story's row. The derived
+  // ones — checkpoints, snapshots, time anchors, `kept_separate` — are
   // "recorded or skipped, with a count" in the phase's own words; recorded
-  // here until Part 2 decides which, since `skipped` says *deliberately not
-  // taken* about a decision nobody has made yet.
-  stories: 'recorded',
-  story_entries: 'recorded',
-  branches: 'recorded',
+  // here until their stage decides which, since `skipped` says *deliberately
+  // not taken* about a decision nobody has made yet.
   characters: 'recorded',
   locations: 'recorded',
   items: 'recorded',

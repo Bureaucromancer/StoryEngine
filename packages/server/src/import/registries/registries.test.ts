@@ -135,11 +135,17 @@ describe('the Aventuras registry', () => {
       .map(([table]) => table);
 
     expect(new Set(converted)).toEqual(new Set(CONVERTED_TABLES));
+    // *Since P13.11* the three a story's tree is made of, converted into one
+    // session per story when a sweep asks for stories — and each story still
+    // a row of its own when it does not, so none has a table row either way.
     expect(converted).toEqual([
       'character_vault',
       'lorebook_vault',
       'scenario_vault',
       'vault_tags',
+      'stories',
+      'story_entries',
+      'branches',
     ]);
   });
 

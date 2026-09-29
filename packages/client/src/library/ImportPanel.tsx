@@ -17,6 +17,7 @@ import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, disclosure } from '../ui/classes.js';
+import { CheckboxField } from '../ui/Field.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 import { landedPreview, sniffImportFile } from './import-sniff.js';
 import { sentence } from './note-labels.js';
@@ -95,7 +96,7 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   'storyengine-backup':
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
   aventuras:
-    'An Aventuras library. Its characters, lorebooks and scenarios are imported; everything else in it is listed and left behind for now.',
+    'An Aventuras library. Its characters, lorebooks and scenarios are imported, and its stories too when that is ticked; everything else in it is listed and left behind for now.',
   'loose-files':
     'Not a SillyTavern, Marinara or Aventuras folder. Anything importable in it will be taken one file at a time.',
 });
@@ -204,6 +205,16 @@ export function ImportPanel(): JSX.Element {
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [root, setRoot] = useState('');
+  /**
+   * ***Whether an Aventuras import brings its stories*** — [P13.11]. **Off
+   * until ticked, and not remembered**: a library import that also made a
+   * session of every story somebody ever started would fill the session list
+   * with hundreds they did not ask for, and a session, unlike a library
+   * object, is never replaced by importing again — each would be taken back by
+   * hand. So it is asked each time, of the import it is ticked for, and every
+   * other kind of import ignores it (`SweepRequest.stories` on the server).
+   */
+  const [stories, setStories] = useState(false);
 
   /**
    * What the server said about the folder in the box, if it has been asked.
@@ -310,6 +321,8 @@ export function ImportPanel(): JSX.Element {
   const refresh = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: ['library'] });
     await queryClient.invalidateQueries({ queryKey: ['import-jobs'] });
+    // An import that brought stories wrote sessions ([P13.11]).
+    await queryClient.invalidateQueries({ queryKey: ['sessions'] });
   };
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -419,6 +432,7 @@ export function ImportPanel(): JSX.Element {
         outcome.onConflict,
         outcome.destination ?? undefined,
         setProgress,
+        stories,
       );
       // An archive or a database is a root, and since [P13.7] its answer
       // carries the root's whole review — every row, so a second upload of the
@@ -482,6 +496,8 @@ export function ImportPanel(): JSX.Element {
       const result = await api.importDirectory(
         inside.map(({ path }) => path),
         inside.filter(({ path }) => wanted.has(path)),
+        undefined,
+        stories,
       );
       if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
       await refresh();
@@ -500,7 +516,7 @@ export function ImportPanel(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.importSweep(root.trim());
+      const result = await api.importSweep(root.trim(), undefined, stories);
       if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
       // A sweep of the wrong folder succeeds, so the advice matters *more* after
       // one than before: nothing in the report itself says the wrong folder was
@@ -690,6 +706,20 @@ export function ImportPanel(): JSX.Element {
               {busy ? 'Reading…' : 'Import folder'}
             </Button>
           </div>
+
+          {/*
+            **One question for all three ways in**, because an Aventuras
+            library arrives by any of them — its folder by path or from this
+            browser, or its backup as a file — and the answer is about what
+            to bring, not how it travels.
+          */}
+          <CheckboxField
+            label="Also bring Aventuras stories across as sessions"
+            hint="Each story becomes a session of its own, opening where it was left. Importing the same library again never makes a second copy, and never replaces one. Other kinds of library ignore this."
+            checked={stories}
+            disabled={pending}
+            onChange={setStories}
+          />
         </div>
       </details>
 

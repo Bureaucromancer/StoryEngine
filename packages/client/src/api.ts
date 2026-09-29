@@ -889,11 +889,17 @@ export const api = {
      * {@link requestFormWithProgress}; an Aventuras backup can be a gigabyte.
      */
     onProgress?: (progress: UploadProgress) => void,
+    /**
+     * Bring an Aventuras database's stories across as sessions — [P13.11].
+     * Only an Aventuras database or backup reads it; absent is no.
+     */
+    stories?: boolean,
   ): Promise<ImportFileResult> => {
     const body = new FormData();
     if (onConflict !== undefined) body.append('onConflict', onConflict);
     // Same rule, same reason: appended before the file so the route sees it.
     if (destination !== undefined) body.append('destination', destination);
+    if (stories === true) body.append('stories', 'true');
     body.append('file', file);
     return onProgress === undefined
       ? requestForm('/api/import/file', body)
@@ -910,8 +916,14 @@ export const api = {
   importSweep: (
     root: string,
     onConflict?: 'replace' | 'keep-both' | 'skip',
+    /** An Aventuras install's stories, as sessions — [P13.11]. Absent is no. */
+    stories?: boolean,
   ): Promise<{ report: ImportReport; suggestions: NearMissOffer[] }> =>
-    request('POST', '/api/import/sweep', { root, ...(onConflict ? { onConflict } : {}) }),
+    request('POST', '/api/import/sweep', {
+      root,
+      ...(onConflict ? { onConflict } : {}),
+      ...(stories === true ? { stories } : {}),
+    }),
 
   /**
    * Past imports, and one of them in full ([P4 §7.4]).
@@ -967,10 +979,13 @@ export const api = {
     manifest: string[],
     carried: { path: string; file: File }[],
     onConflict?: 'replace' | 'keep-both' | 'skip',
+    /** An Aventuras folder's stories, as sessions — [P13.11]. Absent is no. */
+    stories?: boolean,
   ): Promise<{ report: ImportReport }> => {
     const body = new FormData();
     body.append('manifest', JSON.stringify(manifest));
     if (onConflict !== undefined) body.append('onConflict', onConflict);
+    if (stories === true) body.append('stories', 'true');
     for (const { path, file } of carried) body.append(path, file, file.name);
     return requestForm('/api/import/directory', body);
   },

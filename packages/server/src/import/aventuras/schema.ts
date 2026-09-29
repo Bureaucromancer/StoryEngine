@@ -69,6 +69,23 @@ export interface TableRequirement {
   columns: readonly string[];
   /** Columns added after the table, read when present and never required. */
   optional?: readonly string[];
+  /**
+   * ***Columns added after the table, by the migration that added each*** —
+   * [P13.11](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Required from their migration on, and absent before it**, which is
+   * stricter than {@link TableRequirement.optional} and deliberately. The
+   * optional columns are ones whose absence costs a field: a scenario without
+   * `starting_time`, a pack without a baseline. The story columns are not:
+   * a database at migration 13 or later with no `story_entries.branch_id`
+   * would put every branch's entries on the main line, and the story would
+   * import as one long, plausible, wrong chain — the *torn* reading §1.4's
+   * gate exists to refuse. So a column listed here is `unknown-format` when
+   * the database claims to be past the migration that made it and does not
+   * have it, and is read as `null` on a database older than that, which is
+   * exactly what the database holds.
+   */
+  late?: Readonly<Record<string, number>>;
 }
 
 /**
@@ -81,8 +98,9 @@ export interface TableRequirement {
  * `mapPack`, `mapPackTemplate`, `mapPackVariable` in
  * `src/lib/services/database.ts`), because P13.3–P13.9 port those mappers and
  * hand the converters exactly what they already take (§0.1). The story tables
- * need only what counting them per story needs — P13.2 reads nothing else of
- * a story, and Part 2 will add its own columns here when it is scheduled.
+ * needed only what counting them per story needs until P13.11, which reads a
+ * story's own row, its entries and its branches to rebuild the tree; the
+ * world's tables are still only counted, until P13.12 reads them.
  *
  * **A table only counted as a whole is not here at all** — `settings`,
  * `templates`, and the three story tables the reader counts per table and not
@@ -200,9 +218,25 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
    */
   pack_runtime_variables: { since: 32, columns: ['pack_id'] },
 
-  // ── The stories, as far as counting them per story needs ──────────────────
-  stories: { since: 1, columns: ['id', 'title'] },
-  story_entries: { since: 1, columns: ['story_id'] },
+  // ── The stories ───────────────────────────────────────────────────────────
+  //
+  // Counted per story since P13.2; ***since P13.11 the three that make a
+  // story's tree are read in full*** — the columns Aventuras' own row mappers
+  // read (`mapStory`, `mapStoryEntry` and the branch row, `database.ts`), and
+  // not one more: `parent_id` is never selected, because nothing Aventuras
+  // writes ever sets it ([18 §2.3.1]), and the translation, world-state and
+  // retry columns are not read by this stage. Each column added after its
+  // table is gated on the migration that added it (`late`, above).
+  stories: {
+    since: 1,
+    columns: ['id', 'title', 'created_at', 'updated_at', 'settings'],
+    late: { mode: 2, current_branch_id: 13 },
+  },
+  story_entries: {
+    since: 1,
+    columns: ['id', 'story_id', 'type', 'content', 'position', 'created_at', 'metadata'],
+    late: { branch_id: 13, reasoning: 19, original_input: 21, suggested_actions: 27 },
+  },
   characters: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
   locations: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
   items: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
@@ -211,7 +245,10 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
   checkpoints: { since: 2, columns: ['story_id'] },
   entries: { since: 3, columns: ['story_id'], optional: COPY_ON_WRITE },
   embedded_images: { since: 11, columns: ['story_id'] },
-  branches: { since: 13, columns: ['story_id'] },
+  branches: {
+    since: 13,
+    columns: ['id', 'story_id', 'name', 'parent_branch_id', 'fork_entry_id', 'created_at'],
+  },
   background_images: { since: 24, columns: ['story_id'] },
 };
 
@@ -271,6 +308,9 @@ export function aventurasPreflight(db: DatabaseSync): SchemaVerdict {
     const have = columnsOf(db, table);
     for (const column of need.columns) {
       if (!have.has(column)) return refuse(`${table}.${column}`);
+    }
+    for (const [column, since] of Object.entries(need.late ?? {})) {
+      if (version >= since && !have.has(column)) return refuse(`${table}.${column}`);
     }
   }
 
