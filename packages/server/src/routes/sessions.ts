@@ -1379,7 +1379,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * from.
        */
       surfaces: modeSurfaces(session.channels, modeId),
-      cast: castRows(session.cast, session.channels, path),
+      // Presence read as the mode reads it — [P13.3]: under `castIsPresent` a
+      // member nobody has muted is present, and the panel says so.
+      cast: castRows(
+        session.cast,
+        session.channels,
+        path,
+        packMode?.definition.participants.castIsPresent === true,
+      ),
       hooks,
       goals,
       dials,

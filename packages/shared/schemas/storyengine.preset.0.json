@@ -189,7 +189,7 @@
                       },
                       "scope": {
                         "title": "ActorScope",
-                        "description": "Whose cards the block takes on a speaking call: the speaker's only, or everyone but the speaker. Absent is everyone.",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, everyone but the speaker, or whoever the call writes as (the speaker under per-actor dispatch, everyone present under merged). Absent is everyone.",
                         "anyOf": [
                           {
                             "const": "speaker",
@@ -197,6 +197,10 @@
                           },
                           {
                             "const": "others",
+                            "type": "string"
+                          },
+                          {
+                            "const": "voiced",
                             "type": "string"
                           }
                         ]
@@ -228,7 +232,7 @@
                       },
                       "scope": {
                         "title": "ActorScope",
-                        "description": "Whose cards the block takes on a speaking call: the speaker's only, or everyone but the speaker. Absent is everyone.",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, everyone but the speaker, or whoever the call writes as (the speaker under per-actor dispatch, everyone present under merged). Absent is everyone.",
                         "anyOf": [
                           {
                             "const": "speaker",
@@ -236,6 +240,10 @@
                           },
                           {
                             "const": "others",
+                            "type": "string"
+                          },
+                          {
+                            "const": "voiced",
                             "type": "string"
                           }
                         ]
@@ -310,7 +318,7 @@
                       },
                       "scope": {
                         "title": "ActorScope",
-                        "description": "Whose cards the block takes on a speaking call: the speaker's only, or everyone but the speaker. Absent is everyone.",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, everyone but the speaker, or whoever the call writes as (the speaker under per-actor dispatch, everyone present under merged). Absent is everyone.",
                         "anyOf": [
                           {
                             "const": "speaker",
@@ -318,6 +326,10 @@
                           },
                           {
                             "const": "others",
+                            "type": "string"
+                          },
+                          {
+                            "const": "voiced",
                             "type": "string"
                           }
                         ]

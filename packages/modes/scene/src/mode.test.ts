@@ -134,20 +134,60 @@ describe('the default preset is a real portable object', () => {
     expect(priorityOf('attempt')).toBeLessThan(priorityOf('guidance') ?? 0);
   });
 
-  it('positions the player action, and nothing else is a user-role block', () => {
+  /**
+   * ~~*Nothing else is a user-role block*~~ — *and the card's post-history
+   * instructions* since [P13.3], which [P13 §1.5] places *"after the last
+   * message, user role"*. They follow the input in sequence, so they are the
+   * last thing a speaking call sends.
+   */
+  it('positions the player action, and after it only the card’s post-history instructions', () => {
     const user = SCENE_PRESET.blocks.filter((block) => block.role === 'user');
-    expect(user).toHaveLength(1);
+    expect(user.map((block) => block.id)).toEqual(['se.input', 'se.card.post-history']);
     expect(user[0]?.kind === 'slot' && user[0].source.of).toBe('input');
+    const ids = SCENE_PRESET.blocks.map((block) => block.id);
+    expect(ids.at(-1)).toBe('se.card.post-history');
   });
 
   /**
    * ***The narrator's instruction is a narration's*** (2026-09-27). It applied
    * to every kind of call, and an impersonation asks for exactly what it
    * forbids — the player's own words.
+   *
+   * ***Keyed to the voice since [P13.3]***, ~~`['narrate']`~~: `narrate` is the
+   * call kind of the embodied reply too. Neither voice is ever set on an
+   * impersonation, so the 2026-09-27 narrowing holds.
    */
-  it('keeps the narrator instruction to narration', () => {
-    const instruction = SCENE_PRESET.blocks.find((block) => block.id === 'se.instruction');
-    expect(instruction?.appliesTo).toEqual(['narrate']);
+  it('keeps the narrator instruction to narration, and the embodied one to the chat', () => {
+    const appliesTo = (id: string) =>
+      SCENE_PRESET.blocks.find((block) => block.id === id)?.appliesTo;
+    expect(appliesTo('se.instruction')).toEqual(['narrator']);
+    expect(appliesTo('se.instruction.embodied')).toEqual(['embodied']);
+    for (const id of ['se.card.system', 'se.card.depth', 'se.card.post-history']) {
+      expect(appliesTo(id), id).toEqual(['embodied']);
+    }
+  });
+
+  /**
+   * ***The card's own prompts, placed as [P13 §1.5]'s table says*** — [P13.3].
+   * The system prompt directly after the instruction, the depth prompt in the
+   * history, the post-history instructions after the move; all three `voiced`,
+   * so a per-actor call carries its speaker's and a merged call everyone's.
+   */
+  it('stacks the card’s system prompt directly after the instruction', () => {
+    const ids = SCENE_PRESET.blocks.map((block) => block.id);
+    expect(ids.indexOf('se.card.system')).toBe(ids.indexOf('se.instruction.embodied') + 1);
+    const card = (id: string) => SCENE_PRESET.blocks.find((block) => block.id === id);
+    for (const id of ['se.card.system', 'se.card.depth', 'se.card.post-history']) {
+      const block = card(id);
+      expect(block?.kind === 'slot' && block.source.of === 'actor' && block.source.scope, id).toBe(
+        'voiced',
+      );
+    }
+    expect(card('se.card.depth')?.placement).toEqual({ at: 'in-history', fromEnd: 4 });
+    const samples = card('se.samples');
+    expect(
+      samples?.kind === 'slot' && samples.source.of === 'samples' && samples.source.scope,
+    ).toBe('voiced');
   });
 
   /**
@@ -157,9 +197,13 @@ describe('the default preset is a real portable object', () => {
    * content goes in.
    */
   it('names who each persona and actor block is about', () => {
+    // The card's own prompts are the card's words, bare, and are not among
+    // these ([P13.3]): a wrapper round *"You are Vera"* would be ours.
     const named = SCENE_PRESET.blocks.filter(
       (block) =>
-        block.kind === 'slot' && (block.source.of === 'persona' || block.source.of === 'actor'),
+        block.kind === 'slot' &&
+        (block.source.of === 'persona' || block.source.of === 'actor') &&
+        !block.id.startsWith('se.card.'),
     );
 
     expect(named.map((block) => block.id)).toEqual([
@@ -405,10 +449,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     // **[P7] is where they arrive**, so two of these moved and the rest did not:
     // the line was never *stay at one* but *do not grow before the contract is
     // tested by two modes*. `presets`, `setup`, `participants` and `inputs` are
-    // still what §5 left them.
+    // still what §5 left them. ~~`participants` too~~ — [P13.3] declared Scene's
+    // group chat, and the pin on it is the declared-values test below.
     expect(SCENE.presets).toEqual([]);
     expect(SCENE.setup).toEqual({ kind: 'none' });
-    expect(SCENE.participants).toEqual({ select: 'fixed', maxActors: 1 });
     expect(SCENE.inputs).toEqual(['do']);
   });
 
@@ -467,18 +511,39 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(SCENE.steps.map((step) => step.stage)).toEqual(['generate', 'post']);
   });
 
-  it('says narrator and merged, and the instruction block agrees', () => {
-    // `voice` and `dispatch` have no engine consumer at P2.6, so what keeps
-    // them from being decoration is that the prose they describe is checkable.
-    expect(SCENE.voice).toBe('narrator');
-    expect(SCENE.dispatch).toBe('merged');
+  /**
+   * ~~*Says narrator and merged, and the instruction block agrees*~~ — ***the
+   * declared values and the pack agreeing with them***, [P13.3]
+   * ([P13 §1.2]: *"Scene's declared values become `embodied`, `per-actor`,
+   * `natural`"*). The pin was always the pair, not the values: a declaration the
+   * pack contradicts is decoration. So it pins what a new session is created
+   * with, and that the pack has an instruction for that voice **and** for the
+   * narrated one a person may switch to.
+   */
+  it('declares an embodied, per-actor, natural chat, and the pack speaks both voices', () => {
+    expect(SCENE.voice).toBe('embodied');
+    expect(SCENE.dispatch).toBe('per-actor');
+    expect(SCENE.participants).toEqual({ select: 'natural', castIsPresent: true, maxActors: 32 });
 
-    const instruction = SCENE_PRESET.blocks.find((block) => block.kind === 'text');
-    const text = instruction?.kind === 'text' ? instruction.template : '';
-    // narrator: it describes rather than speaks as anybody.
-    expect(text).toContain('narrator');
-    // merged: one reply, so it must not be told to answer as one actor.
-    expect(text).not.toContain('in character');
+    const template = (id: string): string => {
+      const block = SCENE_PRESET.blocks.find((one) => one.id === id);
+      return block?.kind === 'text' ? block.template : '';
+    };
+    const embodied = template('se.instruction.embodied');
+    // Embodied: it names the speaker as the one to write — ST's main prompt in
+    // sense (`openai.js:101`) — and in a group says to write only as them
+    // (`openai.js:114`), which only a group sees.
+    expect(embodied).toContain("Write {{ char }}'s next reply");
+    expect(embodied).toContain('{{ charIfNotGroup }}');
+    expect(embodied).toMatch(/\{% if charIfNotGroup != char %\}.*write only as \{\{ char \}\}/);
+    // Narrated: it describes rather than speaks as anybody, and is the narrator
+    // instruction every earlier session was created with, word for word.
+    const narrator = template('se.instruction');
+    expect(narrator).toContain('narrator');
+    expect(narrator).not.toContain('in character');
+    expect(narrator).toBe(
+      "You are the narrator of a scene. Write what happens next in third person, past tense. Describe only what the player could perceive. Never write the player's own dialogue, thoughts or decisions, and never end by asking what they do.",
+    );
   });
 
   /**

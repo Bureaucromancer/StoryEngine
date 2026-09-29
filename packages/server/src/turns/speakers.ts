@@ -5,8 +5,7 @@ import type { ParticipantPolicy } from '@storyengine/sdk';
 import { outputMessagesOf, type Actor, type Turn } from '@storyengine/shared';
 
 import { moveText, scanText } from '../assembly/pictures.js';
-import { isTerminal, readStatus, SE_PRESENCE } from '../sessions/cast.js';
-import { channelKey } from '../sessions/channels.js';
+import { isTerminal, readPresence, readStatus } from '../sessions/cast.js';
 import type { ChatSettings } from '../sessions/chat-settings.js';
 import type { SiteRng } from '../rng/rng.js';
 
@@ -242,8 +241,8 @@ function isPresent(
   actorId: string,
   castIsPresent: boolean,
 ): boolean {
-  const held = channels[channelKey(SE_PRESENCE, actorId)]?.value;
-  return castIsPresent ? held !== false : held === true;
+  // The one reader since [P13.3], shared with the cast panel and the collector.
+  return readPresence(channels, actorId, castIsPresent);
 }
 
 /**
@@ -409,6 +408,8 @@ function pooledOrder(inputs: SpeakerInputs, pool: readonly string[]): string[] {
  * what will — so declaring `natural` sooner would only put draws on the tape
  * that decide nothing. The design note is not edited here: CLAUDE.md asks for
  * the disagreement to be named, not settled silently in either direction.
+ * *Done at [P13.3], 2026-09-29*: Scene declares `natural`, `castIsPresent` and
+ * 32 seats, with `per-actor` dispatch reading the selection.
  *
  * ~~Whoever the scene just addressed — the last prose and the input scanned
  * for names, and nobody found is nobody.~~ *Corrected 2026-09-29, at
@@ -764,4 +765,80 @@ export function activationText(
  */
 export function lastSpeakerOf(soFar: ChatSoFar): string | null {
   return soFar.last === null || soFar.last.byPlayer ? null : soFar.last.speaker;
+}
+
+/**
+ * ***Each member's talkativeness, by id, as this mode reads it*** — [P13.3],
+ * lifted out of the runner so the preview reads the same numbers.
+ *
+ * *Read through the mode's id*, never a literal: talkativeness is how a mode
+ * plays a card, and the engine naming one mode's key would be that mode's
+ * behaviour living where no other mode could have it (`tools/repo-shape.test.ts`).
+ */
+export function talkativenessMap(
+  actors: readonly CastMember[],
+  modeId: string,
+): Record<string, number> {
+  return Object.fromEntries(
+    actors.map((member) => [member.actor.id, talkativenessOf(member.actor, modeId)]),
+  );
+}
+
+/**
+ * ***Who speaks this turn, or no selection at all*** — the runner's question,
+ * asked in one place since [P13.3] so that the preview (`turns/preview.ts`)
+ * asks it the same way ([P13 §1.4]: a preview under `per-actor` shows what the
+ * first speaker's call would see, and it cannot unless it knows who that is).
+ *
+ * **`undefined` is no selection, and there are now two ways to have none.**
+ *
+ * - *The session's policy selects nobody by construction* — `fixed`, which is
+ *   what a pre-P13 Scene session reads as — and nobody forced anybody.
+ * - ***The room has nobody in it to select***: no cast member but the
+ *   persona, and nobody forced. Added at [P13.3] with Scene's flip to an
+ *   embodied chat, because an empty `speakers` in an embodied voice is
+ *   *nobody replies* — right for `manual` after an input, and for a room whose
+ *   every member is muted, which is ST's behaviour — and wrong for a scene
+ *   nobody has cast yet, which before the flip was narrated and after it would
+ *   have answered every input with silence. With no selection the step makes
+ *   the one merged call nobody in particular speaks (`modes/scene/src/mode.ts`),
+ *   and the pack reads that call as the narrator's (`CollectContext.voice`).
+ *   So a scene with no characters is narrated, as it always was.
+ *
+ * `castIsPresent` stays the mode's, because it is a statement about how the mode
+ * reads presence rather than a choice a chat makes.
+ */
+export function turnSelection(args: {
+  policy: ChatSettings['speakers'];
+  castIsPresent: boolean;
+  cast: { persona: CastMember | null; actors: readonly CastMember[] };
+  channels: Readonly<Record<string, { value: unknown }>>;
+  history: readonly Turn[];
+  hidden: ChatSettings['hidden'];
+  input: (Parameters<typeof moveText>[0] & Parameters<typeof scanText>[0]) | undefined;
+  forced: readonly string[] | undefined;
+  talkativeness: Readonly<Record<string, number>>;
+  draw: (purpose: string) => SpeakerDraws;
+}): SpeakerSelection | undefined {
+  const persona = args.cast.persona?.actor.id ?? null;
+  const room = args.cast.actors.some((member) => member.actor.id !== persona);
+  if (args.forced === undefined && !(selectsSpeakers(args.policy.policy) && room)) {
+    return undefined;
+  }
+  const soFar = chatSoFar(args.history, args.hidden);
+  return selectSpeakers({
+    policy: args.policy.policy,
+    castIsPresent: args.castIsPresent,
+    allowSelfResponses: args.policy.allowSelfResponses,
+    actors: args.cast.actors,
+    persona,
+    channels: args.channels,
+    forced: args.forced,
+    hasInput: saysSomething(args.input),
+    activation: activationText(args.input, soFar),
+    lastSpeaker: lastSpeakerOf(soFar),
+    spokenSinceInput: soFar.spokenSinceInput,
+    talkativeness: args.talkativeness,
+    draw: args.draw,
+  });
 }

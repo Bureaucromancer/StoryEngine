@@ -20,7 +20,7 @@ import { DIALS_PRESET, TEST_PRESET } from '../test-mode.js';
 import { resolveLevel } from '../sessions/dials.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { modeById } from '../mode-registry.js';
-import { registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
+import { channelKey, registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
 import type { SummaryLink } from '../sessions/summary-chain.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
@@ -2340,6 +2340,11 @@ describe('a call that speaks for somebody', () => {
    * calls, over the stock Scene pack with a persona, three cast members, a
    * sample and a turn of history, so every slot that pack positions has
    * something to say. Actor ids are replaced by names so the record reads.
+   *
+   * *A narrator's call, said since [P13.3]*: the stock pack keys its two
+   * instructions to the call's voice, and a call that writes the turn and
+   * names nobody is the narrator's (`CollectContext.voice`). The snapshot did
+   * not move — which is the claim: the narrated setting is byte-identical.
    */
   it('collects, for a call that names nobody, what it collected before', () => {
     const { candidates } = collectCandidates(
@@ -2349,6 +2354,7 @@ describe('a call that speaks for somebody', () => {
         actors: [vera, marlow, lund],
         history: [past],
         input: { text: 'I wait.' },
+        voice: 'narrator',
       }),
     );
     const named = (text: string): string =>
@@ -2697,8 +2703,10 @@ describe('a call that speaks for somebody', () => {
         ['se.history.turn-1.input', 'user', 'I knock.'],
         ['se.history.turn-1.output', 'assistant', 'The door gave.'],
         ['se.input', 'user', 'Well?'],
-        ['se.round.0', 'assistant', '"You came."'],
-        ['se.round.1', 'assistant', '"I owe you nothing."'],
+        // Named since [P13.3]: two speakers are in the window with the round,
+        // so `groups` names each line ([P13 §1.5]).
+        ['se.round.0', 'assistant', 'Vera: "You came."'],
+        ['se.round.1', 'assistant', 'Marlow: "I owe you nothing."'],
         ['se.after', 'system', 'Stay in the scene.'],
       ]);
       // Its own source, saying which message and whose, and priced as the
@@ -2858,6 +2866,366 @@ describe('a call that speaks for somebody', () => {
         context({ preset: preset([INPUT, AFTER]), input: { text: 'Well?' }, round: [] }),
       );
       expect(candidates.map((one) => one.id)).toEqual(['se.input', 'se.after']);
+    });
+  });
+});
+
+/**
+ * ***A chat, as [P13.3] assembles it*** — [P13 §1.5]'s pack, the card's own
+ * prompts, names in history, the author's note and the hidden filter, over the
+ * Scene pack that ships (read through the registry, so it is the pack a real
+ * session copies).
+ */
+describe('a chat, assembled', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  function scene(): Preset {
+    const pack = modeById('storyengine.scene')?.definition.assembly.defaultPreset;
+    if (pack === undefined) throw new Error('Scene is a built-in');
+    return pack;
+  }
+
+  function carded(
+    name: string,
+    prompts: { system?: string; post?: string; depth?: [string, number, 'system' | 'user'] },
+  ): { actor: Actor; contentHash: string } {
+    const actor = actorWith(name, `${name} is in the room.`);
+    const extra = [
+      ...(prompts.system === undefined
+        ? []
+        : [
+            {
+              id: 'se.card.system',
+              title: 's',
+              body: prompts.system,
+              disposition: 'always' as const,
+            },
+          ]),
+      ...(prompts.post === undefined
+        ? []
+        : [
+            {
+              id: 'se.card.post-history',
+              title: 'p',
+              body: prompts.post,
+              disposition: 'always' as const,
+            },
+          ]),
+      ...(prompts.depth === undefined
+        ? []
+        : [
+            {
+              id: 'se.card.depth',
+              title: 'd',
+              body: prompts.depth[0],
+              disposition: 'always' as const,
+              placement: { fromEnd: prompts.depth[1], role: prompts.depth[2] },
+            },
+          ]),
+    ];
+    return {
+      actor: {
+        ...actor,
+        profile: { ...actor.profile, sections: [...actor.profile.sections, ...extra] },
+      },
+      contentHash: `sha256:${name}`,
+    };
+  }
+
+  const persona = { actor: actorWith('Ned', 'Ned is the player.'), contentHash: 'sha256:ned' };
+  const vera = carded('Vera', {
+    system: 'You are Vera. Answer in short sentences.',
+    post: 'Vera never apologises.',
+    depth: ['Vera is tired.', 1, 'user'],
+  });
+  const lund = carded('Lund', { system: 'You are Lund.', post: 'Lund speaks slowly.' });
+
+  const CHAT = {
+    dispatch: 'per-actor',
+    castIsPresent: true,
+    namesInHistory: 'groups',
+    hidden: {},
+    prompts: { instruction: true, cards: {} },
+    note: null,
+  } satisfies NonNullable<CollectContext['chat']>;
+
+  const turn = (id: string, input: string, messages?: OutputMessage[], text?: string): Turn =>
+    ({
+      id,
+      input: { actorId: null, kind: 'do', text: input, raw: input },
+      output:
+        messages === undefined
+          ? { text: text ?? '' }
+          : { text: messages.map((m) => m.text).join('\n\n'), messages },
+    }) as Turn;
+  const line = (who: { actor: Actor } | null, text: string): OutputMessage => ({
+    speaker: who === null ? null : { id: who.actor.id, name: who.actor.name },
+    text,
+  });
+
+  /** `nobody` drops the speaker and the voice, for a call that names neither. */
+  function speaking(
+    over: Partial<CollectContext> = {},
+    nobody = false,
+  ): { id: string; role: string; text: string }[] {
+    return collectCandidates(
+      context({
+        preset: scene(),
+        persona,
+        actors: [vera, lund],
+        input: { text: 'Well?' },
+        ...(nobody ? {} : { speaker: lund.actor.id, voice: 'embodied' as const }),
+        chat: CHAT,
+        ...over,
+      }),
+    ).candidates.map((one) => ({
+      id: one.id.replaceAll(vera.actor.id, 'vera').replaceAll(lund.actor.id, 'lund'),
+      role: one.role,
+      text: one.text,
+    }));
+  }
+  const ids = (rows: { id: string }[]) => rows.map((row) => row.id);
+
+  describe('the pack, by voice', () => {
+    it('names the speaker as the one to write, with the group nudge in a group', () => {
+      const rows = speaking();
+      const instruction = rows.find((row) => row.id === 'se.instruction.embodied')?.text;
+
+      expect(instruction).toContain(
+        "Write Lund's next reply in a fictional chat between Vera, Lund and Ned.",
+      );
+      expect(instruction).toContain(
+        'write only as Lund, and leave Ned, Vera to speak for themselves.',
+      );
+      // The narrator's instruction is the other voice's.
+      expect(ids(rows)).not.toContain('se.instruction');
+    });
+
+    it('leaves the group nudge out of a chat with one character', () => {
+      const rows = speaking({ actors: [lund] });
+      const instruction = rows.find((row) => row.id === 'se.instruction.embodied')?.text;
+
+      expect(instruction).toContain('between Lund and Ned.');
+      expect(instruction).not.toContain('group');
+    });
+
+    it('narrates a call that speaks for nobody, with no card prompt in it', () => {
+      const rows = speaking({ voice: 'narrator' }, true);
+
+      expect(ids(rows)).toContain('se.instruction');
+      expect(
+        ids(rows).some((id) => id.startsWith('se.card.') || id === 'se.instruction.embodied'),
+      ).toBe(false);
+    });
+
+    it('sends neither instruction to a call that does not write the turn', () => {
+      const rows = speaking({ callKind: 'impersonate' }, true);
+
+      expect(ids(rows).filter((id) => id.startsWith('se.instruction'))).toEqual([]);
+    });
+  });
+
+  describe('the card’s own prompts', () => {
+    it('stacks the speaker’s system prompt after the instruction, and its post-history last', () => {
+      const rows = speaking({
+        round: [line(vera, 'Vera speaks first.')],
+      });
+      const at = (id: string) => ids(rows).indexOf(id);
+
+      expect(at('se.card.system.lund')).toBe(at('se.instruction.embodied') + 1);
+      expect(rows[at('se.card.system.lund')]?.text).toBe('You are Lund.');
+      // After the move and the round so far, as the user: the last thing sent.
+      expect(rows.at(-1)).toEqual({
+        id: 'se.card.post-history.lund',
+        role: 'user',
+        text: 'Lund speaks slowly.',
+      });
+      expect(at('se.round.0')).toBeGreaterThan(at('se.input'));
+      expect(at('se.card.post-history.lund')).toBeGreaterThan(at('se.round.0'));
+      // Per-actor: only the speaker's — another member's system prompt would
+      // tell the model to be two people.
+      expect(ids(rows)).not.toContain('se.card.system.vera');
+      expect(ids(rows)).not.toContain('se.card.post-history.vera');
+    });
+
+    it('stacks every present card’s prompts under merged dispatch, each its own block', () => {
+      const rows = speaking({ chat: { ...CHAT, dispatch: 'merged' } });
+
+      expect(ids(rows).filter((id) => id.startsWith('se.card.system.'))).toEqual([
+        'se.card.system.lund',
+        'se.card.system.vera',
+      ]);
+      expect(ids(rows).filter((id) => id.startsWith('se.card.post-history.'))).toEqual([
+        'se.card.post-history.lund',
+        'se.card.post-history.vera',
+      ]);
+    });
+
+    it('places a depth prompt at its own depth and in its own role', () => {
+      const rows = speaking({
+        speaker: vera.actor.id,
+        history: [
+          turn('t1', 'One.', undefined, 'First.'),
+          turn('t2', 'Two.', undefined, 'Second.'),
+        ],
+      });
+
+      // Depth 1: before the newest history entry, as the user it asked to be.
+      expect(
+        ids(rows).slice(ids(rows).indexOf('se.history.t2.input'), ids(rows).indexOf('se.input')),
+      ).toEqual(['se.history.t2.input', 'se.card.depth.vera', 'se.history.t2.output']);
+      expect(rows.find((row) => row.id === 'se.card.depth.vera')?.role).toBe('user');
+    });
+
+    it('sends only the card’s prompt when the chat switches the instruction off', () => {
+      const rows = speaking({ chat: { ...CHAT, prompts: { instruction: false, cards: {} } } });
+
+      expect(ids(rows)).not.toContain('se.instruction.embodied');
+      expect(ids(rows)).toContain('se.card.system.lund');
+    });
+
+    it('skips a card’s prompts the chat switched off, all of them or the parts named', () => {
+      const off = speaking({
+        chat: { ...CHAT, prompts: { instruction: true, cards: { [lund.actor.id]: false } } },
+      });
+      expect(ids(off).filter((id) => id.startsWith('se.card.'))).toEqual([]);
+
+      const part = speaking({
+        chat: {
+          ...CHAT,
+          prompts: { instruction: true, cards: { [lund.actor.id]: ['post-history'] } },
+        },
+      });
+      expect(ids(part)).toContain('se.card.system.lund');
+      expect(ids(part)).not.toContain('se.card.post-history.lund');
+
+      const notFilled = collectCandidates(
+        context({
+          preset: scene(),
+          actors: [vera, lund],
+          speaker: lund.actor.id,
+          voice: 'embodied',
+          chat: { ...CHAT, prompts: { instruction: true, cards: { [lund.actor.id]: false } } },
+        }),
+      ).notFilled;
+      expect(notFilled.find((row) => row.blockId === 'se.card.system')?.reason).toBe('disabled');
+    });
+  });
+
+  describe('a muted member', () => {
+    const muted = {
+      [channelKey('se.presence', vera.actor.id)]: { value: false },
+    } as CollectContext['channels'];
+
+    it('leaves every call they are not speaking on, under castIsPresent', () => {
+      const rows = speaking({ channels: muted });
+
+      expect(ids(rows).some((id) => id.endsWith('.vera'))).toBe(false);
+      expect(ids(rows)).toContain('se.actor.summary.lund');
+    });
+
+    it('keeps their card on their own call, as force-talk reaches them', () => {
+      const rows = speaking({ channels: muted, speaker: vera.actor.id });
+
+      expect(ids(rows)).toContain('se.actor.summary.vera');
+    });
+
+    it('stays in the prompt of a mode that does not read presence that way', () => {
+      const rows = speaking({ channels: muted, chat: { ...CHAT, castIsPresent: false } });
+
+      expect(ids(rows)).toContain('se.actor.summary.vera');
+    });
+  });
+
+  describe('names in history', () => {
+    const history = [
+      turn('t1', 'Hello.', [
+        line(vera, 'Evening.'),
+        line(null, 'Rain on the glass.'),
+        line(lund, 'Aye.'),
+      ]),
+    ];
+    const shown = (over: Partial<CollectContext> = {}) =>
+      speaking({ history, ...over }).filter((row) => row.id.startsWith('se.history.'));
+
+    it('names each attributed line once two speakers are in the window, and never the player’s', () => {
+      expect(shown()).toEqual([
+        { id: 'se.history.t1.input', role: 'user', text: 'Hello.' },
+        { id: 'se.history.t1.output.0', role: 'assistant', text: 'Vera: Evening.' },
+        // The narrator's line is the system's, with no name (ST `openai.js:581`).
+        { id: 'se.history.t1.output.1', role: 'system', text: 'Rain on the glass.' },
+        { id: 'se.history.t1.output.2', role: 'assistant', text: 'Lund: Aye.' },
+      ]);
+    });
+
+    it('names nobody while one speaker is all the window holds, unless told to always', () => {
+      const solo = [turn('t1', 'Hello.', [line(lund, 'Aye.')])];
+
+      expect(
+        speaking({ history: solo }).find((row) => row.id === 'se.history.t1.output.0')?.text,
+      ).toBe('Aye.');
+      expect(
+        speaking({ history: solo, chat: { ...CHAT, namesInHistory: 'always' } }).find(
+          (row) => row.id === 'se.history.t1.output.0',
+        )?.text,
+      ).toBe('Lund: Aye.');
+      expect(
+        shown({ chat: { ...CHAT, namesInHistory: 'never' } }).find(
+          (row) => row.id === 'se.history.t1.output.0',
+        )?.text,
+      ).toBe('Evening.');
+    });
+
+    it('names the round as it names the past', () => {
+      const rows = speaking({ history, round: [line(vera, 'Well then.')] });
+
+      expect(rows.find((row) => row.id === 'se.round.0')?.text).toBe('Vera: Well then.');
+    });
+
+    it('keeps a turn with only text one unnamed reply, as it always was', () => {
+      const rows = speaking({ history: [turn('t0', 'Hi.', undefined, 'The door gave.')] });
+
+      expect(rows.find((row) => row.id === 'se.history.t0.output')).toEqual({
+        id: 'se.history.t0.output',
+        role: 'assistant',
+        text: 'The door gave.',
+      });
+    });
+  });
+
+  describe('the hidden filter', () => {
+    const history = [
+      turn('t1', 'Hidden move.', [line(vera, 'Hidden reply.')]),
+      turn('t2', 'Kept move.', [line(vera, 'Kept.'), line(lund, 'Hidden line.')]),
+    ];
+
+    it('skips a hidden turn whole, and a hidden message by its index', () => {
+      const rows = speaking({ history, chat: { ...CHAT, hidden: { t1: true, t2: [1] } } });
+      const texts = rows.filter((row) => row.id.startsWith('se.history.')).map((row) => row.text);
+
+      expect(texts).toEqual(['Kept move.', 'Kept.']);
+    });
+  });
+
+  describe('the author’s note', () => {
+    it('sits at its depth in the history, as the system', () => {
+      const rows = speaking({
+        history: [
+          turn('t1', 'One.', undefined, 'First.'),
+          turn('t2', 'Two.', undefined, 'Second.'),
+        ],
+        chat: { ...CHAT, note: { text: 'Keep it tense.', depth: 2 } },
+      });
+      const at = ids(rows).indexOf('se.note');
+
+      expect(rows[at]).toEqual({ id: 'se.note', role: 'system', text: 'Keep it tense.' });
+      expect(ids(rows)[at + 1]).toBe('se.history.t2.input');
+    });
+
+    it('is absent when this call was not due one', () => {
+      expect(ids(speaking())).not.toContain('se.note');
     });
   });
 });

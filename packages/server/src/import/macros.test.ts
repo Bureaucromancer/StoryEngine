@@ -180,11 +180,37 @@ describe('what SillyTavern means by a name', () => {
       angles: true,
     });
 
+    // `<GROUP>` maps since [P13.3]; the two-name context renders it empty, as
+    // a name the caller did not pass renders.
     expect(renderTemplate(template, CONTEXT)).toEqual({
       ok: true,
       text: 'Vera Solano greets The Inspector for .',
     });
-    expect(seen.get('group')).toEqual({ kind: 'refused', because: 'no-equivalent' });
+    expect(seen.get('group')).toEqual({ kind: 'mapped', liquid: '{{ group }}' });
+  });
+
+  it('maps the three group names onto the namespace P13.2 gave them', () => {
+    // [P13.3]: `{{group}}` was refused, `{{charIfNotGroup}}` approximated as
+    // the character alone, and `{{notChar}}` left as braces. Rendered against
+    // a group's names, each says what it said in SillyTavern.
+    const { template, seen } = convertMacros(
+      'Write as {{char}} in a chat with {{charIfNotGroup}}; not for {{notChar}}. Cast: {{group}}.',
+    );
+    const group = {
+      char: 'Vera Solano',
+      user: 'The Inspector',
+      group: 'Vera Solano, Lund',
+      charIfNotGroup: 'Vera Solano, Lund',
+      notChar: 'The Inspector, Lund',
+    };
+
+    expect(renderTemplate(template, group)).toEqual({
+      ok: true,
+      text: 'Write as Vera Solano in a chat with Vera Solano, Lund; not for The Inspector, Lund. Cast: Vera Solano, Lund.',
+    });
+    for (const macro of ['group', 'charifnotgroup', 'notchar']) {
+      expect(seen.get(macro)?.kind, macro).toBe('mapped');
+    }
   });
 
   it('leaves angle brackets alone for everyone else, where they may be markup', () => {

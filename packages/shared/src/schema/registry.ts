@@ -16,7 +16,13 @@ import { Ajv, type ValidateFunction } from 'ajv';
  */
 export type { Ajv, ValidateFunction };
 
-import { Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, RESERVED_SECTION_PREFIX } from './actor.js';
+import {
+  Actor,
+  ACTOR_SCHEMA,
+  CARD_PROMPT_SECTION_IDS,
+  CONVENTIONAL_SECTION_IDS,
+  RESERVED_SECTION_PREFIX,
+} from './actor.js';
 import { Lorebook, LOREBOOK_SCHEMA } from './lorebook.js';
 import { Package, PACKAGE_SCHEMA } from './package.js';
 import { Preset, PRESET_SCHEMA } from './preset.js';
@@ -218,7 +224,12 @@ function reservedNamespaceIssues(value: unknown): ValidationIssue[] {
   const sections = (value as { profile?: { sections?: unknown } }).profile?.sections;
   if (!Array.isArray(sections)) return [];
 
-  const conventional = new Set<string>(Object.values(CONVENTIONAL_SECTION_IDS));
+  // The card's own prompt sections are the engine's too ([P13.3]): the
+  // SillyTavern importer writes them and the Scene pack places them.
+  const conventional = new Set<string>([
+    ...Object.values(CONVENTIONAL_SECTION_IDS),
+    ...Object.values(CARD_PROMPT_SECTION_IDS),
+  ]);
 
   return sections.flatMap((section, index) => {
     const id = (section as { id?: unknown }).id;

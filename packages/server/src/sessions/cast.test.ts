@@ -347,6 +347,34 @@ describe('the party', () => {
   });
 });
 
+/**
+ * ***Presence as the mode reads it*** — [P13.3], closing what [P13.1] flagged:
+ * the panel read presence as `true`-only while the speaker policy read it
+ * through `castIsPresent`, so a Scene member nobody had muted spoke every turn
+ * and showed on the panel as absent.
+ */
+describe('the cast panel under castIsPresent', () => {
+  const muted = { [channelKey(SE_PRESENCE, 'lund')]: { value: false } };
+
+  it('shows a member nobody has said anything about as present, and a muted one as not', () => {
+    const rows = castRows({ persona: null, actors: ['vera', 'lund'] }, muted, [], true);
+
+    expect(rows.map((row) => [row.actorId, row.presence])).toEqual([
+      ['lund', false],
+      ['vera', true],
+    ]);
+  });
+
+  it('reads presence as it always did for a mode that does not declare it', () => {
+    const rows = castRows({ persona: null, actors: ['vera', 'lund'] }, muted, []);
+
+    expect(rows.map((row) => [row.actorId, row.presence])).toEqual([
+      ['lund', false],
+      ['vera', false],
+    ]);
+  });
+});
+
 describe('the party deferral', () => {
   beforeEach(async () => {
     await installBuiltIns();

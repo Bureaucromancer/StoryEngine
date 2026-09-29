@@ -21,6 +21,7 @@ import {
   selectsSpeakers,
   talkativenessOf,
   TALKATIVENESS_DEFAULT,
+  turnSelection,
   wordsOf,
   type SpeakerDraws,
   type SpeakerInputs,
@@ -953,3 +954,52 @@ function onTape(policy: ParticipantPolicy['select'], rng: Rng, scene: Scene = {}
     draw: (purpose) => rng.at('se.participants', purpose),
   }).speakers.map(nameOf);
 }
+
+/**
+ * ***No selection, or a selection*** — `turnSelection`, [P13.3]: the runner's
+ * question asked in one place so the preview asks it the same way, and the
+ * rule that a room nobody has been cast in is narrated rather than silent.
+ */
+describe('whether a turn selects at all', () => {
+  const policy = (select: ParticipantPolicy['select']) => ({
+    policy: select,
+    allowSelfResponses: false,
+    namesInHistory: 'groups' as const,
+    maxPerRound: 3,
+  });
+  const ask = (
+    select: ParticipantPolicy['select'],
+    actors: CastMember[],
+    forced?: readonly string[],
+  ) => {
+    const rng = new Rng();
+    return turnSelection({
+      policy: policy(select),
+      castIsPresent: true,
+      cast: { persona: PLAYER, actors },
+      channels: {},
+      history: [],
+      hidden: {},
+      input: { text: 'Hello, Vera.' },
+      forced,
+      talkativeness: {},
+      draw: (purpose) => rng.at('se.participants', purpose),
+    });
+  };
+
+  it('selects over a cast with somebody in it', () => {
+    expect(ask('natural', [actorCalled('Vera'), actorCalled('Lund')])?.speakers[0]).toBe(
+      idOf('Vera'),
+    );
+  });
+
+  it('makes no selection in a room nobody but the persona is in', () => {
+    expect(ask('natural', [])).toBeUndefined();
+    expect(ask('natural', [PLAYER])).toBeUndefined();
+  });
+
+  it('makes no selection under fixed, and one when somebody is forced', () => {
+    expect(ask('fixed', [actorCalled('Vera')])).toBeUndefined();
+    expect(ask('fixed', [actorCalled('Vera')], [idOf('Vera')])?.speakers).toEqual([idOf('Vera')]);
+  });
+});

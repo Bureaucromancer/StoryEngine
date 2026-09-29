@@ -298,12 +298,30 @@ export function readStatus(
   return typeof held === 'string' ? held : 'alive';
 }
 
-/** Whether an actor is in the scene at a node. Absent is absent. */
+/**
+ * Whether an actor is in the scene at a node. ~~Absent is absent.~~
+ *
+ * ***Under the mode's reading of presence since [P13.3]*** —
+ * `ParticipantPolicy.castIsPresent`, [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * Without it, absent is absent: the channel's own `init: false`, and what a
+ * story whose cast walks in and out of rooms wants. With it, **only an explicit
+ * `false` is not present**, and it means *muted* — a cast nobody has said
+ * anything about is a cast that is all here, which is what a group chat is.
+ *
+ * *One reader for the three places that ask* — the speaker policy, the
+ * collector's cards and the cast panel. [P13.1] flagged that the panel read
+ * presence as `true`-only while the selector read it through the mode, so a
+ * Scene member nobody had muted spoke every turn and showed on the panel as
+ * absent. The default stays the old reading, so a caller that says nothing
+ * about the mode reads what it always read.
+ */
 export function readPresence(
   channels: Readonly<Record<string, { value: unknown }>>,
   actorId: string,
+  castIsPresent = false,
 ): boolean {
-  return channels[channelKey(SE_PRESENCE, actorId)]?.value === true;
+  const held = channels[channelKey(SE_PRESENCE, actorId)]?.value;
+  return castIsPresent ? held !== false : held === true;
 }
 
 /**
@@ -434,6 +452,12 @@ export function castRows(
   cast: { persona?: string | null; actors?: string[] } | undefined,
   channels: Readonly<Record<string, { value: unknown }>>,
   path: readonly Turn[],
+  /**
+   * The mode's `participants.castIsPresent` — [P13.3]. See {@link readPresence}:
+   * under it a declared member with no presence value is present, so the panel
+   * shows present who the speaker policy treats as present.
+   */
+  castIsPresent = false,
 ): CastRow[] {
   const introduced = introducedOn(path);
   const pending = pendingStatuses(path);
@@ -446,7 +470,7 @@ export function castRows(
 
   return [...ids].sort().map((actorId) => ({
     actorId,
-    presence: readPresence(channels, actorId),
+    presence: readPresence(channels, actorId, castIsPresent),
     status: readStatus(channels, actorId),
     pending: pending.get(actorId) ?? null,
     introduced: introduced.has(actorId),

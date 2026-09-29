@@ -1366,19 +1366,24 @@ interface SlotBlock extends BlockCommon {
 
 type SlotSource =
   | { of: "persona" }
-  | { of: "actor"; sectionId: string; scope?: "speaker" | "others" }     // "se.summary", "se.appearance", …
+  | { of: "actor"; sectionId: string; scope?: "speaker" | "others" | "voiced" }     // "se.summary", "se.appearance", …
   /** Non-prose actor fields. `traits` is a real field rather than a Section
    *  ([§4](#4-actor)), so a slot cannot reach it through `sectionId` — and
    *  card import puts a legacy `personality` here ([03 §2.7](03-data-model.md)),
    *  which makes this the slot ST's `charPersonality` converts to. §8.4.1. */
-  | { of: "actor"; field: "traits" | "visual"; scope?: "speaker" | "others" }
+  | { of: "actor"; field: "traits" | "visual"; scope?: "speaker" | "others" | "voiced" }
   /** `scope` on both actor arms and on `samples` — *added 2026-09-29, at
    *  [P13.2](workplan/30-p13-scene-and-session-import.md)*: on a call that
    *  speaks as a member, `speaker` narrows to them and `others` to the rest;
    *  the two partition the cast on every call, so on a call that speaks for
    *  nobody `speaker` is nobody and `others` everyone. A scope that matches
    *  nobody is recorded as `not-applicable`. On `samples` it narrows the actor
-   *  carrier only — a Treatment or a Lorebook has no cast to scope. */
+   *  carrier only — a Treatment or a Lorebook has no cast to scope.
+   *  *`voiced` added 2026-09-29, at [P13.3](workplan/30-p13-scene-and-session-import.md)*:
+   *  whoever the call writes as — the speaker under `per-actor` dispatch,
+   *  everyone present under `merged` or on a narrator's call. It is what a
+   *  card's own prompts and example dialogue need ([P13 §1.5]), and it is not
+   *  a partition with the other two. */
   | { of: "lore"; phase: "before" | "after" }
   | { of: "history" }
   /** Writing samples — §3.1, [14 §4](14-writing-samples.md). **Renamed from
@@ -1386,7 +1391,7 @@ type SlotSource =
    *  fills; free to rename because this schema is `/0` and no shipped preset
    *  positioned the old arm. `from` absent = every carrier, in the order
    *  treatment → lore → actor. */
-  | { of: "samples"; from?: "actor" | "treatment" | "lore"; scope?: "speaker" | "others" }
+  | { of: "samples"; from?: "actor" | "treatment" | "lore"; scope?: "speaker" | "others" | "voiced" }
   | { of: "channel"; channelId: ChannelId }
   | { of: "treatment"; part: "framing" | "tone" }
   | { of: "goal" }                          // [06 §7.3.3]

@@ -83,12 +83,23 @@ const MACROS: Readonly<Record<string, MacroOutcome>> = {
 
   /**
    * `{{charIfNotGroup}}` is the one §8.4.2 names specifically, and it becomes a
-   * Liquid *conditional* rather than being dropped. There are no groups here
+   * Liquid *conditional* rather than being dropped. ~~There are no groups here
    * yet — party arrives at P7 — so it renders as the character's name today and
-   * the shape is already right for when it does not.
+   * the shape is already right for when it does not.~~
+   *
+   * ***The three group names map onto their own since [P13.3]*** — [P13.2]
+   * put `group`, `charIfNotGroup` and `notChar` in the template's closed
+   * namespace with SillyTavern's meanings (`assembly/template.ts`), and this
+   * table was left refusing `{{group}}`, approximating `{{charIfNotGroup}}` as
+   * `{{ char }}` (wrong in any group of two or more) and leaving `{{notChar}}`
+   * as braces. Each now names what it named in ST: the whole cast, the
+   * character or the cast, and everyone but the speaker. *Not a conditional
+   * after all*: the namespace computes the alias, so a template needs no
+   * `{% if %}` to say it.
    */
-  charifnotgroup: { kind: 'mapped', liquid: '{{ char }}' },
-  group: { kind: 'refused', because: 'no-equivalent' },
+  charifnotgroup: { kind: 'mapped', liquid: '{{ charIfNotGroup }}' },
+  group: { kind: 'mapped', liquid: '{{ group }}' },
+  notchar: { kind: 'mapped', liquid: '{{ notChar }}' },
 
   // ── Refused: bodies, which are slots ──────────────────────────────────────
   description: { kind: 'refused', because: 'body-comes-from-a-slot' },
@@ -212,7 +223,7 @@ export function convertMacros(
     const outcome = ownEntry(MACROS, name) ?? UNKNOWN;
     if (!seen.has(name)) {
       if (outcome.kind === 'mapped') {
-        // Never a note, and there are five of them.
+        // Never a note, and there are ~~five~~ six of them ([P13.3]).
         seen.set(name, outcome);
       } else if (budget.left > 0) {
         seen.set(name, outcome);

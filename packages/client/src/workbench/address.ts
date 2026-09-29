@@ -114,6 +114,12 @@ const SOURCE_LABELS: Record<string, string> = labels('workbench.source', {
    * looking at.
    */
   round: 'Earlier this round',
+  /**
+   * ***The session's author's note*** — [P13.3]: placed by the engine at its
+   * own depth on every `every`-th input, never by a pack, so it is a source of
+   * its own.
+   */
+  note: 'Author’s note',
 });
 
 export function blockSourceAddress(source: BlockSource): SourceAddress {

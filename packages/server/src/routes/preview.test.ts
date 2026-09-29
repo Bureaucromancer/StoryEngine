@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Mode } from '@storyengine/sdk';
 
+import { convertCard } from '../import/sillytavern/card.js';
+import { create } from '../library.js';
 import { registerMode } from '../mode-registry.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
@@ -508,5 +510,101 @@ describe('writing samples on the preview', () => {
       'The rain never lets up.',
       'Nobody hurries here.',
     ]);
+  });
+});
+
+/**
+ * ***A chat's preview, and [P13.3]'s *Ends at**** — a preview of an imported
+ * SillyTavern card's session shows the card's system prompt stacked after the
+ * pack's instruction and its post-history instructions last, and a second
+ * preview with that card's prompts switched off shows neither. Through the
+ * card converter and the route, so the section ids the importer writes are the
+ * ones the Scene pack places.
+ */
+describe('a chat’s preview', () => {
+  async function imported(card: Record<string, unknown>): Promise<string> {
+    const converted = convertCard({ spec: 'chara_card_v2', data: card }, 'fallback');
+    if (!converted.ok) throw new Error(`refused: ${converted.refusal}`);
+    await create(server.services.library, 'ned', converted.value.actor);
+    return converted.value.actor.id;
+  }
+
+  async function chatWith(actors: string[]): Promise<void> {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'A chat', cast: { persona: null, actors } },
+    });
+    expect(created.status).toBe(201);
+    sessionId = created.body.session.id as string;
+  }
+
+  async function blocksOf(input: string): Promise<{ id: string; role: string; text: string }[]> {
+    const response = await preview({ input: { text: input } });
+    const answer = response.body.preview as AssembledPreview;
+    expect(answer.state).toBe('assembled');
+    return answer.blocks;
+  }
+
+  it('stacks an imported card’s system prompt after the instruction, and its post-history last', async () => {
+    await bindProse();
+    const vera = await imported({
+      name: 'Vera',
+      description: 'A fence with a long memory.',
+      system_prompt: 'You are {{char}}. Answer in short sentences.',
+      post_history_instructions: 'Stay as {{char}}.',
+    });
+    await chatWith([vera]);
+
+    const blocks = await blocksOf('Evening.');
+    const ids = blocks.map((block) => block.id);
+    const system = ids.indexOf(`se.card.system.${vera}`);
+
+    expect(ids[system - 1]).toBe('se.instruction.embodied');
+    expect(blocks[system]?.text).toBe('You are Vera. Answer in short sentences.');
+    expect(blocks.at(-1)).toMatchObject({
+      id: `se.card.post-history.${vera}`,
+      role: 'user',
+      text: 'Stay as Vera.',
+    });
+
+    // Switched off for this card — the session field P13.5's panel will write.
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, prompts: { cards: { [vera]: false } } }));
+
+    const off = (await blocksOf('Evening.')).map((block) => block.id);
+    expect(off).not.toContain(`se.card.system.${vera}`);
+    expect(off).not.toContain(`se.card.post-history.${vera}`);
+    expect(off).toContain('se.instruction.embodied');
+  });
+
+  it('previews the first speaker’s call under per-actor dispatch, not one merged call', async () => {
+    // [P13.2] left the preview assembling one merged call. The mention decides
+    // `natural`'s first speaker, so the preview can say whose call it shows.
+    await bindProse();
+    const vera = await imported({ name: 'Vera', description: 'A fence.' });
+    const lund = await imported({ name: 'Lund', description: 'The harbourmaster.' });
+    await chatWith([vera, lund]);
+
+    const blocks = await blocksOf('Lund, is the gate shut?');
+    const instruction = blocks.find((block) => block.id === 'se.instruction.embodied')?.text;
+
+    expect(instruction).toContain("Write Lund's next reply");
+    // The speaker's card first.
+    const ids = blocks.map((block) => block.id);
+    expect(ids.indexOf(`se.actor.summary.${lund}`)).toBeLessThan(
+      ids.indexOf(`se.actor.summary.${vera}`),
+    );
+  });
+
+  it('previews a scene nobody has been cast in as the narrator’s call', async () => {
+    // The session made in `beforeEach` has no cast: no selection, so the one
+    // call nobody speaks, in the narrator's voice (`turnSelection`).
+    await bindProse();
+
+    const ids = (await blocksOf('I wait.')).map((block) => block.id);
+    expect(ids).toContain('se.instruction');
+    expect(ids).not.toContain('se.instruction.embodied');
   });
 });

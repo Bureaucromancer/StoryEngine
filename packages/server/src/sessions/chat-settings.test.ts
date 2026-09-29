@@ -8,7 +8,12 @@ import type { ModeDefinition } from '@storyengine/sdk';
 import { installBuiltIns } from '../mode-loader.js';
 import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import { TEST_MODE_DEFINITION } from '../test-mode.js';
-import { chatSettingsAtCreation, chatSettingsOf, SPEAKER_DEFAULTS } from './chat-settings.js';
+import {
+  chatSettingsAtCreation,
+  chatSettingsOf,
+  noteDue,
+  SPEAKER_DEFAULTS,
+} from './chat-settings.js';
 
 /**
  * ***What a session plays as, and what a session from before P13.0 still
@@ -120,6 +125,63 @@ describe('which values a session reads', () => {
         'fixed',
       ]);
     });
+
+    /**
+     * ***Now that the values moved*** — [P13.3] flipped Scene to an embodied,
+     * per-actor, natural chat, and this is the flip's whole safety argument
+     * run against the mode that ships: an old file is still narrated, a file
+     * made between P13.0 and the flip keeps the narrator values creation wrote
+     * into it, and only a session made from now on is a chat.
+     */
+    it('keeps every earlier session narrated after Scene became a chat', () => {
+      const scene = modeById(DEFAULT_MODE_ID);
+      if (scene === null) throw new Error('Scene is not registered');
+      expect(scene.definition.voice).toBe('embodied');
+
+      const between = {
+        id: 's-2',
+        voice: 'narrator',
+        dispatch: 'merged',
+        speakers: { policy: 'fixed', ...DEFAULT_SPEAKERS },
+      };
+      const now = { id: 's-3', ...chatSettingsAtCreation(scene.definition) };
+      const read = (file: unknown) => {
+        const settings = chatSettingsOf(file, scene.definition);
+        return [settings.voice, settings.dispatch, settings.speakers.policy];
+      };
+
+      expect(read({ id: 's-1' })).toEqual(['narrator', 'merged', 'fixed']);
+      expect(read(between)).toEqual(['narrator', 'merged', 'fixed']);
+      expect(read(now)).toEqual(['embodied', 'per-actor', 'natural']);
+    });
+  });
+});
+
+/**
+ * ***When the author's note is placed*** — `noteDue`, [P13.3], transcribed
+ * from SillyTavern's `setFloatingPrompt` (`authors-note.js:324-392`): the count
+ * is the player's messages including the one being answered.
+ */
+describe('the author’s note, by interval', () => {
+  const note = (every: number) => ({ text: 'Keep it tense.', depth: 2, every });
+
+  it('places an interval of 1 on every input, the first included', () => {
+    for (const inputs of [0, 1, 2, 7]) {
+      expect(noteDue(note(1), inputs), String(inputs)).toEqual({
+        text: 'Keep it tense.',
+        depth: 2,
+      });
+    }
+  });
+
+  it('places an interval of 3 on the 3rd, 6th and 9th input only', () => {
+    const placed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => noteDue(note(3), n) !== null);
+    expect(placed).toEqual([3, 6, 9]);
+  });
+
+  it('places nothing for a note switched off, or for no note', () => {
+    expect(noteDue(note(0), 3)).toBeNull();
+    expect(noteDue(null, 3)).toBeNull();
   });
 });
 

@@ -55,7 +55,7 @@ type BlockSource =
    *  the turn, and `attachment` (2026-09-27, [25 E15]) is one picture on its
    *  input, named by `attachmentId`. */
   | { kind: "history"; turnId: TurnId; range: [number, number];
-      part: "input" | "output" | "attachment"; attachmentId?: string }
+      part: "input" | "output" | "attachment"; attachmentId?: string; message?: number }
   /** One writing sample, from whichever kind carried it — [04 §3.1],
    *  [14](14-writing-samples.md). `owner` rather than a bare `actorId` because
    *  the slot outgrew the actor; `contentHash` for the reason the `actor` arm
@@ -78,7 +78,7 @@ type BlockSource =
    *  and this is the one that is happening. With `part: "attachment"`, one
    *  picture on it ([25 E15]); absent is the words. */
   | { kind: "input"; part?: "attachment"; attachmentId?: string }
-  // ── ~~The two~~ The three a slot can never name, because no preset positions them ──
+  // ── ~~The two~~ ~~The three~~ The four a slot can never name, because no preset positions them ──
   | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
   /** ([P13.2](workplan/30-p13-scene-and-session-import.md), corrected
@@ -87,6 +87,10 @@ type BlockSource =
    *  input and never by a pack. `message` is its index into the turn's
    *  `output.messages`; `actorId` who said it, null for a narrator's. */
   | { kind: "round"; message: number; actorId: ActorId | null }
+  /** ([P13.3](workplan/30-p13-scene-and-session-import.md), 2026-09-29.) The
+   *  session's author's note, placed by the collector at its own depth on
+   *  every `every`-th input — never by a pack. */
+  | { kind: "note" }
 ```
 
 **`preset` and `step` are the asymmetry**, and naming it is the point. A slot
@@ -100,6 +104,11 @@ is the third, and cannot be slot-named for the reason a step's contribution
 cannot — the replies do not exist when the pack is authored — and for one more:
 every pack written before P13.2 positions no such slot, and a round a pack had
 to opt into would be a round in which each member answered the player alone.
+*And again at [P13.3](workplan/30-p13-scene-and-session-import.md), 2026-09-29*:
+`note`, the author's note, is the fourth, for the round's second reason — a
+note a pack had to position would be a setting that did nothing in every pack
+written before it. The `history` arm gained an optional `message` index at the
+same stage, for a turn's `output.messages` entries.
 
 **`guidance` and `input` were added at P2.5, and their absence was a real
 gap rather than an omission.** [06 §5.1](06-modes-and-turn-pipeline.md) says the guidance

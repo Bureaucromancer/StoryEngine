@@ -485,19 +485,34 @@ export const SCENE: ModeDefinition = {
   id: SCENE_ID,
   version: '1.0.0',
   displayName: 'Scene',
-  voice: 'narrator',
-  dispatch: 'merged',
+  /**
+   * ***A chat among embodied characters, since [P13.3]*** —
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+   * *"Scene's declared values become `embodied`, `per-actor`, `natural`."*
+   * ~~`voice: 'narrator'`, `dispatch: 'merged'`~~ until then.
+   *
+   * **What a new session is created with, and nothing more.** Creation writes
+   * these into the session (`chatSettingsAtCreation`), a session's own values
+   * win over them, and a session written before [P13.0] reads `legacy` below —
+   * so the flip re-voices nobody's saved game. *Narrated is one control away*
+   * (`voice: 'narrator'` on the session), and the pack serves both voices
+   * (`preset.ts`). In a single-character chat `per-actor` and `merged` are the
+   * same single call.
+   */
+  voice: 'embodied',
+  dispatch: 'per-actor',
   /**
    * ***What a Scene session written before [P13.0] was played as*** —
    * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
    *
-   * **The same three values declared above, and written down before they
-   * move.** P13 changes Scene's declared values to `embodied`, `per-actor` and
-   * `natural`; every Scene session made before P13.0 carries none of the three
-   * fields, and absence meant these. Declared now, while it changes nothing, so
-   * that the stage flipping the values above cannot forget it — a deferral
-   * routed to *the stage that needs it* is the kind [P7 §0.1a] found does not
-   * survive.
+   * ~~**The same three values declared above, and written down before they
+   * move.**~~ *They moved at [P13.3]*, and this is what keeps them from moving
+   * anybody: every Scene session made before P13.0 carries none of the three
+   * fields, absence meant these, and `chatSettingsOf` reads such a session
+   * through this rather than through the values above (pinned against the real
+   * Scene in `sessions/chat-settings.test.ts`). Such a session also holds its
+   * own copy of the pack it was created with, narrator instruction and all
+   * (`SessionFile.preset`).
    */
   legacy: { voice: 'narrator', dispatch: 'merged', select: 'fixed' },
   /**
@@ -506,7 +521,22 @@ export const SCENE: ModeDefinition = {
    * create a permanent content identifier for a distinction nothing makes.
    */
   presets: [],
-  participants: { select: 'fixed', maxActors: 1 },
+  /**
+   * ***Who replies: SillyTavern's natural order over a cast that is all here***
+   * — [P13 §1.2], [P13 §1.3], declared at [P13.3] (~~`{ select: 'fixed',
+   * maxActors: 1 }`~~ until then).
+   *
+   * - `natural` — mentions, then talkativeness rolls, then somebody: ST's
+   *   default group strategy, and the session's to change.
+   * - `castIsPresent` — a declared member nobody has said anything about is in
+   *   the scene, and presence `false` is **muted**: ST's `disabled_members`,
+   *   the cast panel's checkbox. A muted member is not picked, and their cards
+   *   leave every call they are not speaking on.
+   * - `maxActors: 32` — the cast route's own ceiling (`CastBody.actors`), a
+   *   bound on a request body rather than a claim about groups; neither source
+   *   caps a group.
+   */
+  participants: { select: 'natural', castIsPresent: true, maxActors: 32 },
   assembly: { defaultPreset: SCENE_PRESET, historyWindow: 20 },
   /**
    * **Two, and the second is [06 §7.2]'s** — [P7.12]. `NARRATE` first because

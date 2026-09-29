@@ -272,3 +272,30 @@ function isCount(value: unknown, least: number): value is number {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+/**
+ * ***Whether the author's note is placed on this input*** — [P13 §1.5],
+ * [P13.3]: SillyTavern's `setFloatingPrompt` (`authors-note.js:324-392`), to
+ * its letter.
+ *
+ * `inputs` is how many of the player's messages the chat holds **counting the
+ * one being answered** — ST counts `is_user` messages after the new one is in
+ * the chat, and counts hidden ones too (hiding sets `is_system`, not
+ * `is_user`). Then:
+ *
+ * - an interval of 0 or less is a note switched off (`:351`), text kept;
+ * - an interval of 1 is every input, *even the first turn of a chat the player
+ *   has not spoken in* — ST forces its count to 1 (`:347-349`);
+ * - otherwise the note goes in when the count is a multiple of the interval
+ *   (`:358-361`), so an interval of 3 places it on the 3rd, 6th, 9th input,
+ *   and never before the 3rd.
+ */
+export function noteDue(
+  note: ChatSettings['note'],
+  inputs: number,
+): { text: string; depth: number } | null {
+  if (note === null || note.every <= 0) return null;
+  const count = note.every === 1 ? 1 : inputs;
+  if (count <= 0 || count < note.every || count % note.every !== 0) return null;
+  return { text: note.text, depth: note.depth };
+}

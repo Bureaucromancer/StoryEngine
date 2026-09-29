@@ -272,6 +272,14 @@ export type BlockSource =
       part: 'input' | 'output' | 'attachment';
       /** Which picture, when `part` is `attachment`. */
       attachmentId?: string;
+      /**
+       * ***Which of the turn's `output.messages`***, when `part` is `output` and
+       * the turn has them — [P13.3]. Each message is its own entry since then:
+       * an assistant line named for its speaker, or a system line for the
+       * narrator ([P13 §1.5]'s *names in history*). Absent on a turn that has
+       * only `text`, which is still one entry.
+       */
+      message?: number;
     }
   /**
    * One writing sample, from whichever kind carried it — [04 §3.1].
@@ -394,6 +402,18 @@ export type BlockSource =
    * word itself rather than failing.
    */
   | { kind: 'round'; message: number; actorId: string | null }
+  /**
+   * ***The session's author's note*** — `session.note`,
+   * [P13 §1.5](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.3]. SillyTavern's `note_prompt` at `note_depth`, on every
+   * `note_interval`-th input (`authors-note.js:324-392`).
+   *
+   * *A fourth source no preset can position*, for the round's reason: every
+   * pack written before this — every imported one — places no such thing, and
+   * a note a pack had to opt into would be a setting that silently did nothing
+   * in most sessions. The engine places it at its own depth in the history.
+   */
+  | { kind: 'note' }
   /**
    * A block the preset authored, rather than a slot it positioned.
    *

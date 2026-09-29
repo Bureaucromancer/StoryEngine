@@ -1279,6 +1279,104 @@ map to.
 prompt stacked after the pack's instruction and its post-history instructions last,
 and a second preview with that card's prompts switched off shows neither.
 
+*As built, 2026-09-29.* The *Ends at* is `routes/preview.test.ts`'s *"a chat's
+preview"*, through the card converter and the route. What §1.5 left to the
+stage, and where the build parts from the letter of this document, each where
+the code carries its argument:
+
+- **Scene flipped** to `embodied`, `per-actor` and
+  `{ select: 'natural', castIsPresent: true, maxActors: 32 }`
+  (`modes/scene/src/mode.ts`); `legacy` stays narrator/merged/fixed, and
+  `chat-settings.test.ts` now pins, against the Scene that ships, that a
+  pre-P13.0 file, a file P13.0 created narrated, and a file made today read
+  as they were made. `mode.test.ts`'s narrator pin is a pin on the declared
+  values and on the pack having an instruction for each voice — the
+  narrator's word for word as every earlier session has it.
+- **One pack, two voices, through `appliesTo`.** The collector matches a
+  block against the call's **voice** beside its call kind and input kind
+  (`CollectContext.voice`): `embodied` on a speaking call, `narrator` on a call
+  that speaks for nobody, and unset on every call that does not write the
+  turn's messages. `se.instruction` is keyed `narrator` (~~`narrate`~~, the
+  call kind of both), `se.instruction.embodied` and the three card blocks
+  `embodied`; the rest are both voices'. A new session set to `narrator`
+  assembles byte-identically to before — `collect.test.ts`'s pre-P13.2
+  snapshot did not move. *Pre-P13 sessions hold their own copy* of the pack
+  (`SessionFile.preset`), whose instruction still says `narrate`; `presetOf`
+  adds the new blocks, all embodied-only. One such session switched to
+  embodied by hand would get both instructions, and *Switch to the mode's
+  own* is the repair (said in `preset.ts`).
+- **A room nobody is cast in is narrated** — a rule this document does not
+  have. With `natural` declared, a Scene session with no characters selected
+  nobody and every input got silence. `turnSelection` (`turns/speakers.ts`,
+  now shared by the runner and the preview) makes no selection when nobody
+  but the persona is cast and nobody was forced, so the step makes the one
+  call nobody speaks, and that call is the narrator's. An all-muted room
+  still selects nobody, as ST does.
+- **The card's prompt fields** are sections `se.card.system`,
+  `se.card.post-history` and `se.card.depth` (`CARD_PROMPT_SECTION_IDS`,
+  admitted to the reserved namespace), and a depth prompt's depth and role
+  ride on a new optional `Section.placement`, honoured by the collector for any
+  actor block the way a lore entry's own position is. `{{char}}` in them is
+  written as the card's name at import, as its description's is — which is
+  *"rendered with its own `{{char}}"*. The pack scopes all three with a new
+  `ActorScope`, **`voiced`**: the speaker under `per-actor`, everyone present
+  under `merged` (and to a narrator, where the blocks do not apply anyway);
+  `se.samples` takes it too. **Card prompts are embodied-only**, which §1.5
+  does not say: a narrated scene is never told *"you are Vera"*.
+  `talkativeness` lands in `modeData[CHAT_IMPORT_MODE_ID]` — the importer
+  spells no mode id — from V1's top level or V2's `extensions`, strings read
+  as numbers. `import.card.wantsPromptOverride` now fires only for `{{original}}`,
+  the one request a stack cannot honour; the placeholder is taken out.
+  *Existing imports pick this up on re-import.* **Not placed by an imported
+  SillyTavern preset**: its converter maps no marker to these sections, so a
+  session on an imported pack sends no card prompts — a converter change, left
+  for P13.9.
+- **Post-history instructions follow the input in sequence**, not
+  `in-history` depth 0 as the table says: this build's history run ends where
+  the input slot begins, so depth 0 would sit *before* the move the reply
+  answers. After the input they are also after the round, which is ST's
+  order. The same fact moves every depth by one against ST's — a depth-*n*
+  block here sits *n* entries before the input, where ST counts the player's
+  new message as depth 0 — and that holds for the author's note and the
+  depth prompt too.
+- **`prompts.instruction: false`** skips the blocks `isInstructionBlock`
+  names — `se.instruction`, `se.instruction.*`, and an imported ST preset's
+  `st.main` — an id convention rather than a schema field.
+- **Muted cards leave**, deciding [P13.2]'s open question the first way: under
+  `castIsPresent` a non-speaker whose presence is `false` has no card on the
+  call (ST's `collectField`, Marinara's `resolveActiveCharacterIds`), and a
+  muted speaker keeps theirs. Without `castIsPresent` nothing changes.
+  `readPresence` takes the mode's reading and is the one reader for the
+  selector, the collector and the cast panel, whose rows now show a Scene
+  member nobody muted as present.
+- **Names in history**: a turn with `output.messages` is one entry per
+  message — `assistant`, named `Name: ` when names are on, or `system` and
+  unnamed for a narrator's line — and the round is named by the same count.
+  `groups` counts distinct speakers across the window's visible messages and
+  the round, as §1.5 says, which is not ST's test (`selected_group`). A turn
+  with only `text` stays one unnamed `assistant` entry, so narrated history is
+  unchanged. `BlockSource`'s `history` arm gained `message`.
+- **The author's note** is engine-placed, like the round — a fourth
+  `BlockSource` arm, `note` — at its depth as `system`, priced as the round is.
+  `noteDue` transcribes `setFloatingPrompt`: the count is the player's inputs
+  on the whole path including the one being answered, interval 1 always, and a
+  multiple of the interval otherwise. It reaches only calls that write the
+  turn's messages; ST also sends it to an impersonation, and this does not.
+- **Hidden**: a turn hidden whole contributes nothing, its input included, and
+  a hidden index drops that message. The window is cut before the filter, so
+  hidden turns shorten it rather than letting older turns in — ST keeps filling
+  the context past them. The retriever still scans hidden lines, and still
+  reads a card's prompt sections as part of what the card says.
+- **The importer's macro table** maps `{{group}}`, `{{charIfNotGroup}}` and
+  `{{notChar}}` (and `<GROUP>`) onto the namespace P13.2 gave them.
+- **The preview is the first speaker's call** under an embodied voice,
+  whatever the dispatch, and passes the dispatch so the speaker's model hint
+  applies under `per-actor` only. It draws the selection on a fresh tape, as
+  its lore scan does, so an unaddressed `natural` draft shows *a* first
+  speaker rather than the one the turn will roll; `smart` shows its fallback;
+  a selection of nobody reads `not-this-turn`. Later speakers are not
+  previewed: their prompts hold replies not yet written.
+
 #### P13.4 — The gestures
 
 - `input` optional on `POST /turns`, plus `speakers`, `fromMessage`,

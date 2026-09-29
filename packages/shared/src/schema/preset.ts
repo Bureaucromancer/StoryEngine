@@ -103,16 +103,34 @@ export type Placement = Static<typeof Placement>;
  * session is voiced. The alternative considered — a scope that is inert on a
  * call with no speaker — would send such a pack's cards twice to a narrator.
  *
+ * ***A third, `voiced`, at [P13.3] — whoever this call writes as***
+ * ([P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+ * Under `per-actor` dispatch that is the speaker; under `merged` — one call
+ * writing for the whole room, embodied or narrated — it is everyone present.
+ * §1.5 asks exactly this of a card's own prompts (*"each call carries the
+ * speaker's card prompts only"* under `per-actor`, *"every present card's
+ * prompts are stacked"* under `merged`), and of example dialogue, and neither
+ * `speaker` nor unscoped says it: `speaker` would give a merged call one card's
+ * system prompt and a narrator's call none of anybody's samples, and unscoped
+ * would hand a per-actor call every other member's *"You are…"*. *It is not a
+ * partition with the other two*, and does not claim to be: it answers a
+ * different question — *whose voice is this call* — rather than *who is not the
+ * speaker*.
+ *
  * **Optional and additive, so the file format does not move**: a preset
  * without it is the preset it was, and an older build ignores the field as the
  * unknown-field rule says it must.
  */
-export const ActorScope = Type.Union([Type.Literal('speaker'), Type.Literal('others')], {
-  title: 'ActorScope',
-  description:
-    "Whose cards the block takes on a speaking call: the speaker's only, or everyone but " +
-    'the speaker. Absent is everyone.',
-});
+export const ActorScope = Type.Union(
+  [Type.Literal('speaker'), Type.Literal('others'), Type.Literal('voiced')],
+  {
+    title: 'ActorScope',
+    description:
+      "Whose cards the block takes on a speaking call: the speaker's only, everyone but " +
+      'the speaker, or whoever the call writes as (the speaker under per-actor dispatch, ' +
+      'everyone present under merged). Absent is everyone.',
+  },
+);
 export type ActorScope = Static<typeof ActorScope>;
 
 /**
@@ -405,6 +423,33 @@ export const TextBlock = Type.Object(
 export type TextBlock = Static<typeof TextBlock>;
 
 export const PresetBlock = Type.Union([SlotBlock, TextBlock], { title: 'PresetBlock' });
+
+/**
+ * ***Whether a block is the pack's own instruction*** —
+ * [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * `prompts.instruction: false`, read at [P13.3].
+ *
+ * A chat may switch the pack's instruction off and send a card's system prompt
+ * alone, which is SillyTavern's `prefer_character_prompt` one toggle away. So
+ * *the instruction* has to be something the engine can find in any pack, and a
+ * block carries no flag for it. **It is found by id**: the shipped packs name
+ * theirs `se.instruction` or `se.instruction.<kind>` (Scene's narrator and
+ * embodied pair, Freeform's per-kind blocks), and SillyTavern's `main` prompt —
+ * the block `prefer_character_prompt` replaces — imports as `st.main`.
+ *
+ * *An id convention rather than a schema field*, because a field would be a
+ * format change for a switch one stage uses, and the ids are already stable
+ * content: a block id is what [04 §8] promises modes and the workbench can
+ * address. A hand-made pack whose instruction is called something else is not
+ * switched off by this toggle, and its author can rename the block.
+ */
+export function isInstructionBlock(block: { id: string }): boolean {
+  return (
+    block.id === 'se.instruction' ||
+    block.id.startsWith('se.instruction.') ||
+    block.id === 'st.main'
+  );
+}
 export type PresetBlock = Static<typeof PresetBlock>;
 
 /**

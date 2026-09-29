@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type {
-  Actor,
-  ActorScope,
-  DifficultyLevel,
-  Lorebook,
-  OutputMessage,
-  Preset,
-  PresetBlock,
-  Treatment,
-  WritingSample,
+import {
+  CARD_PROMPT_SECTION_IDS,
+  isInstructionBlock,
+  outputMessagesOf,
+  type Actor,
+  type ActorScope,
+  type DifficultyLevel,
+  type Lorebook,
+  type OutputMessage,
+  type Preset,
+  type PresetBlock,
+  type Treatment,
+  type WritingSample,
 } from '@storyengine/shared';
 
 import { estimateTokens } from './assemble.js';
+import { readPresence } from '../sessions/cast.js';
 import { channelDefinition, initialValue } from '../sessions/channels.js';
+import type { ChatSettings } from '../sessions/chat-settings.js';
+import type { CardPromptPart } from '../sessions/types.js';
 import { levelFragments } from '../sessions/dials.js';
 import type { SummaryLink } from '../sessions/summary-chain.js';
 import type { ChannelState, Turn, TurnAttachment } from '../sessions/types.js';
@@ -181,8 +187,9 @@ export interface CollectContext {
    * `{{char}}` becomes the speaker, and the three group names are counted from
    * them ({@link namesAbout}); the speaker's card comes first in every actor
    * block, and a block's `scope` narrows to them or away from them
-   * ({@link castFor}). Every other ~~present~~ card stays, muted ones too until
-   * [P13.3] reads presence (*corrected 2026-09-29*; see {@link castFor}) —
+   * ({@link castFor}). Every other present card stays — ~~muted ones too until
+   * [P13.3] reads presence~~ and since [P13.3] a muted one does not, under a
+   * mode that declares `castIsPresent` (see {@link present}) —
    * [00 §2.10]'s *"the assembler is multi-actor from the start"*, which is
    * exactly what SillyTavern's card-swapping is the opposite of.
    *
@@ -205,6 +212,64 @@ export interface CollectContext {
    * *Absent or empty is a call that is first, or alone*, and changes nothing.
    */
   round?: readonly OutputMessage[];
+  /**
+   * ***The voice this call writes the turn in*** — a third thing `appliesTo`
+   * matches, beside the call kind and the input kind, [P13.3].
+   *
+   * **Set only on a call that writes the turn's messages**, by the caller that
+   * knows it is one (the runner, for a step that `contributes: 'messages'`;
+   * the preview, for the prose step it previews), and there it is
+   * **`embodied` on a speaking call and `narrator` on one that speaks for
+   * nobody.** That is the P13.2 as-built rule read from the other side:
+   * *everything a speaking call does is an embodied reply's*, and a call with
+   * no speaker speaks for the scene — a narrator session's one merged call, and
+   * an embodied session's when nobody was selected (a `fixed` policy, or a
+   * scene nobody has been cast in yet), which is narrated rather than
+   * answered in the voice of *"the character"*.
+   *
+   * ***Why a match key rather than a template variable.*** Scene's pack serves
+   * both voices ([P13 §1.2]'s *"narrator stays one control away"*): the
+   * narrator's instruction applies to `narrator`, the embodied instruction and
+   * the card's own prompts to `embodied`, and everything else to both. That is
+   * [13 §8.3]'s *"a different instruction block per kind with no new
+   * machinery"*, one axis over; a `voice` in the template namespace would have
+   * let the instruction branch but not the card blocks, which are slots.
+   * *Absent on every other call* — a judge, a stager, an impersonation — so a
+   * block keyed to a voice never reaches one.
+   */
+  voice?: 'narrator' | 'embodied';
+  /**
+   * ***How this session plays as a chat, for assembly*** — the collector's
+   * slice of `chatSettingsOf`, [P13.3]. Filled by `collectFor` for every
+   * caller. *Absent* is a caller outside a session (a test, a tool), which
+   * assembles as every pack did before P13.3 except that a turn carrying
+   * `output.messages` is still one entry per message, named under the
+   * `groups` default.
+   */
+  chat?: CollectChat;
+}
+
+/**
+ * ***What the collector reads of a session's chat settings*** — [P13.3].
+ *
+ * - `dispatch` decides the `voiced` scope: the speaker under `per-actor`, the
+ *   room under `merged`.
+ * - `castIsPresent` is the mode's reading of presence: under it a member whose
+ *   presence is `false` is **muted**, and a muted member's cards leave every
+ *   call they are not speaking on (see {@link castFor}).
+ * - `namesInHistory`, `hidden` and `prompts` are the session's own.
+ * - `note` is the author's note **already decided for this call** — `null` when
+ *   the session has none, it is switched off, or this is not an every-th input.
+ *   Deciding needs the whole path's input count, which the gather has and the
+ *   window does not.
+ */
+export interface CollectChat {
+  dispatch: ChatSettings['dispatch'];
+  castIsPresent: boolean;
+  namesInHistory: ChatSettings['speakers']['namesInHistory'];
+  hidden: ChatSettings['hidden'];
+  prompts: ChatSettings['prompts'];
+  note: { text: string; depth: number } | null;
 }
 
 export interface SampleCarriers {
@@ -241,7 +306,9 @@ export function collectCandidates(context: CollectContext): Collected {
   const applies = (block: PresetBlock): boolean =>
     block.appliesTo.length === 0 ||
     block.appliesTo.includes(context.callKind) ||
-    (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind));
+    (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind)) ||
+    // The voice, a third match key since [P13.3] — see `CollectContext.voice`.
+    (context.voice !== undefined && block.appliesTo.includes(context.voice));
   /**
    * ***The round so far, placed once*** — see {@link roundCandidates}.
    * ~~Placed at the first input slot the pack declares, whatever became of
@@ -283,6 +350,17 @@ export function collectCandidates(context: CollectContext): Collected {
       skipped(block, 'not-applicable');
       continue;
     }
+    /**
+     * ***The pack's instruction, switched off by the chat*** — [P13 §1.5]'s
+     * `prompts.instruction: false`, which sends a card's system prompt alone:
+     * SillyTavern's `prefer_character_prompt`, one toggle away.
+     * `isInstructionBlock` says which blocks are the instruction. Reported as
+     * `disabled`, because a person turned it off.
+     */
+    if (context.chat?.prompts.instruction === false && isInstructionBlock(block)) {
+      skipped(block, 'disabled');
+      continue;
+    }
 
     const filled = fill(block, context);
     if (filled.length === 0) {
@@ -290,13 +368,32 @@ export function collectCandidates(context: CollectContext): Collected {
       continue;
     }
 
+    /**
+     * ***A section that carries its own depth goes there*** — [P13.3], for a
+     * card's `extensions.depth_prompt` (`se.card.depth`), whose depth and role
+     * are the card author's. Lore's precedent below, for lore's reason: two
+     * cards in one scene can ask for two depths and one block places both.
+     * Split first, so it holds whether the block itself sits in the sequence
+     * or in the history — the shipped pack's sits at depth 4, as a default.
+     */
+    let placeable = filled;
+    if (block.kind === 'slot' && block.source.of === 'actor') {
+      const { positioned, byDepth } = splitBySection(filled, context);
+      for (const [fromEnd, candidates] of byDepth) {
+        injected.push({ fromEnd, tiebreak: 0, order, candidates });
+      }
+      placeable = positioned;
+    }
+
     if (block.placement.at === 'in-history') {
-      injected.push({
-        fromEnd: block.placement.fromEnd,
-        tiebreak: block.placement.tiebreak ?? 0,
-        order,
-        candidates: filled,
-      });
+      if (placeable.length > 0) {
+        injected.push({
+          fromEnd: block.placement.fromEnd,
+          tiebreak: block.placement.tiebreak ?? 0,
+          order,
+          candidates: placeable,
+        });
+      }
       continue;
     }
 
@@ -326,6 +423,11 @@ export function collectCandidates(context: CollectContext): Collected {
       continue;
     }
 
+    if (block.kind === 'slot' && block.source.of === 'actor') {
+      sequence.push(...placeable);
+      continue;
+    }
+
     if (block.kind === 'slot' && block.source.of === 'history') {
       historyStart = sequence.length;
       historyCount = filled.length;
@@ -343,7 +445,173 @@ export function collectCandidates(context: CollectContext): Collected {
    */
   if (!roundPlaced) sequence.push(...round);
 
+  const note = noteCandidate(context);
+  if (note !== null) {
+    // After every pack block at the same depth, so a pack's own depth-4 block
+    // and the note do not trade places with the declaration order.
+    injected.push({
+      fromEnd: note.depth,
+      tiebreak: 0,
+      order: blocks.length,
+      candidates: [note.candidate],
+    });
+  }
+
   return { candidates: splice(sequence, injected, historyStart, historyCount), notFilled };
+}
+
+/**
+ * ***The author's note*** — `session.note`, [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * placed at [P13.3]: SillyTavern's `note_prompt` at `note_depth`
+ * (`authors-note.js:324-392`), in the system role that is its default.
+ *
+ * **Engine-placed, like the round**, and the record says so with its own
+ * `BlockSource` arm: a pack does not position it, because every pack written
+ * before this would then have silently dropped every note. Whether *this*
+ * call gets it — the every-th-input rule — was decided by the caller, which
+ * holds the whole path ({@link CollectChat.note}).
+ *
+ * **Priced as the newest turn of the window**, the round's arithmetic: a note
+ * is standing configuration, worth more than the oldest chat and less than the
+ * instruction, and trimmed as chat is rather than kept at any cost. A pack
+ * with no history slot prices it from its input slot, then {@link ROUND_PRIORITY}.
+ */
+function noteCandidate(context: CollectContext): { depth: number; candidate: Candidate } | null {
+  const note = context.chat?.note;
+  if (note === undefined || note === null || note.text.length === 0) return null;
+  return {
+    depth: note.depth,
+    candidate: {
+      id: 'se.note',
+      source: { kind: 'note' },
+      reason: NOTE_REASON,
+      role: 'system',
+      text: note.text,
+      priority: chatPriority(context),
+    },
+  };
+}
+
+/** The workbench's words for the note — author-facing English, as `reason` is. */
+const NOTE_REASON = "author's note";
+
+/**
+ * Where chat that is not a past turn sits in the budgeter's order: just above
+ * the window's newest turn — see {@link roundCandidates} for the argument.
+ */
+function chatPriority(context: CollectContext): number {
+  const history = context.preset.blocks.find(
+    (block) => block.kind === 'slot' && block.source.of === 'history' && block.enabled,
+  );
+  const input = context.preset.blocks.find(isInputSlot);
+  return history !== undefined
+    ? history.priority + context.history.length
+    : (input?.priority ?? ROUND_PRIORITY);
+}
+
+/**
+ * ***Whether an attributed line carries its speaker's name*** —
+ * `speakers.namesInHistory`, [P13 §1.5], SillyTavern's `names_behavior`
+ * (`openai.js:586-606`).
+ *
+ * `always` and `never` say what they mean. **`groups`**, the default, names
+ * every attributed line once **the window holds two or more speakers** — the
+ * past turns' visible messages and the round so far, counted by id. ST's own
+ * test is *"this is a group chat"* (`selected_group`); ours is the design's,
+ * which reads the same in a group once two members have spoken and does not
+ * name a solo chat's lines even when a card is in a group of one. The player's
+ * line is never named here and a narrator's line never has a name to give.
+ */
+function namesOn(context: CollectContext): boolean {
+  const setting = context.chat?.namesInHistory ?? 'groups';
+  if (setting !== 'groups') return setting === 'always';
+  const speakers = new Set<string>();
+  for (const turn of context.history) {
+    for (const [, message] of visibleMessages(turn, context)) {
+      if (message.speaker !== null && message.text.length > 0) speakers.add(message.speaker.id);
+    }
+  }
+  for (const message of context.round ?? []) {
+    if (message.speaker !== null && message.text.length > 0) speakers.add(message.speaker.id);
+  }
+  return speakers.size >= 2;
+}
+
+/**
+ * ***A turn's messages that history may show*** — [P13.3]'s hidden filter,
+ * `session.hidden` ([P13 §1.6]): a turn hidden whole shows nothing, and a
+ * hidden index hides that message. *By `outputMessagesOf`'s numbering*, so a
+ * turn with only `text` is one message at index 0, which is how
+ * `turns/speakers.ts`' `chatSoFar` reads the same map.
+ */
+function visibleMessages(
+  turn: Turn,
+  context: CollectContext,
+): (readonly [number, OutputMessage])[] {
+  const held = context.chat?.hidden[turn.id];
+  if (held === true) return [];
+  const indices: readonly number[] = held ?? [];
+  return [...outputMessagesOf(turn.output).entries()].filter(([index]) => !indices.includes(index));
+}
+
+/** A message as a line of chat: its speaker's name before it, when names are on. */
+function asLine(message: OutputMessage, named: boolean): string {
+  return named && message.speaker !== null
+    ? `${message.speaker.name}: ${message.text}`
+    : message.text;
+}
+
+/**
+ * ***Which card prompt part a section is***, or `undefined` for every other
+ * section — the key `prompts.cards` switches by.
+ */
+function cardPartOf(sectionId: string | undefined): CardPromptPart | undefined {
+  if (sectionId === undefined) return undefined;
+  const parts = Object.entries(CARD_PROMPT_SECTION_IDS) as [CardPromptPart, string][];
+  return parts.find(([, id]) => id === sectionId)?.[0];
+}
+
+/**
+ * Whether the chat switched this card's `part` off — [P13 §1.5]'s
+ * `prompts.cards[actorId]`: `false` is every part, a list is those parts.
+ */
+function cardPartOff(context: CollectContext, actorId: string, part: CardPromptPart): boolean {
+  const entry = context.chat?.prompts.cards[actorId];
+  if (entry === undefined) return false;
+  return entry === false || entry.includes(part);
+}
+
+/**
+ * Separates the actor candidates whose section carries its own placement from
+ * the ones that sit where the block does — {@link splitByDepth}'s shape, for a
+ * card's depth prompt.
+ */
+function splitBySection(
+  filled: readonly Candidate[],
+  context: CollectContext,
+): { positioned: Candidate[]; byDepth: Map<number, Candidate[]> } {
+  const positioned: Candidate[] = [];
+  const byDepth = new Map<number, Candidate[]>();
+  for (const candidate of filled) {
+    const placement = sectionPlacementOf(candidate, context);
+    if (placement === undefined) {
+      positioned.push(candidate);
+      continue;
+    }
+    byDepth.set(placement.fromEnd, [...(byDepth.get(placement.fromEnd) ?? []), candidate]);
+  }
+  return { positioned, byDepth };
+}
+
+/** The placement the section behind an actor candidate asks for, if any. */
+function sectionPlacementOf(
+  candidate: Candidate,
+  context: CollectContext,
+): { fromEnd: number; role: Candidate['role'] } | undefined {
+  const source = candidate.source;
+  if (source.kind !== 'actor' || source.sectionId === undefined) return undefined;
+  const actor = context.actors.find((member) => member.actor.id === source.actorId)?.actor;
+  return actor?.profile.sections.find((section) => section.id === source.sectionId)?.placement;
 }
 
 /** Whether a declared block is the slot the player's move goes in. */
@@ -373,12 +641,13 @@ function isInputSlot(block: PresetBlock | undefined): boolean {
  *
  * **`assistant`, each its own entry**, because each is a reply the model gave.
  * The renderer may still merge two adjacent ones for an endpoint that asks it
- * to; the block table keeps them apart either way. *Unnamed for now*:
- * [P13.3]'s names-in-history (`speakers.namesInHistory`, ST's `openai.js:586`)
- * prefixes `Name: ` on attributed lines once two or more speakers are in the
- * window, and it will prefix these exactly as it prefixes a past turn's — which
- * is why they are handed in as `OutputMessage`s, speaker and all, rather than as
- * bare text.
+ * to; the block table keeps them apart either way. ~~*Unnamed for now*~~
+ * ***Named since [P13.3]***: names-in-history (`speakers.namesInHistory`,
+ * ST's `openai.js:586`) prefixes `Name: ` on attributed lines once two or more
+ * speakers are in the window, and it prefixes these exactly as it prefixes a
+ * past turn's — which is why they are handed in as `OutputMessage`s, speaker
+ * and all, rather than as bare text. A narrator's line in a round is `system`,
+ * as in the history.
  *
  * **Priced as the history is — its ramp continued**, oldest cheapest: the
  * history slot's priority plus the window's length plus the message's position,
@@ -398,14 +667,10 @@ function isInputSlot(block: PresetBlock | undefined): boolean {
 function roundCandidates(context: CollectContext): Candidate[] {
   const round = context.round ?? [];
   if (round.length === 0) return [];
-  const history = context.preset.blocks.find(
-    (block) => block.kind === 'slot' && block.source.of === 'history' && block.enabled,
-  );
-  const input = context.preset.blocks.find(isInputSlot);
-  const base =
-    history !== undefined
-      ? history.priority + context.history.length
-      : (input?.priority ?? ROUND_PRIORITY);
+  const base = chatPriority(context);
+  // Named as the past turns are, and by the same count ([P13.3]) — the round
+  // is the newest chat, so a window that names its speakers names these too.
+  const named = namesOn(context);
   return round.flatMap((message, index) =>
     message.text.length === 0
       ? []
@@ -414,8 +679,9 @@ function roundCandidates(context: CollectContext): Candidate[] {
             id: `se.round.${String(index)}`,
             source: { kind: 'round', message: index, actorId: message.speaker?.id ?? null },
             reason: ROUND_REASON,
-            role: 'assistant',
-            text: message.text,
+            // A narrator's line is the system's, as in the history arm.
+            role: message.speaker === null ? 'system' : 'assistant',
+            text: asLine(message, named),
             priority: base + index,
           },
         ],
@@ -535,11 +801,23 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      * Checked only where a scope was written, so an unscoped block over an
      * empty cast still says what it always said.
      */
-    case 'actor':
+    case 'actor': {
       if (block.source.scope !== undefined && outOfScope(block.source.scope, context)) {
         return 'not-applicable';
       }
+      // A card prompt every in-scope member's chat switched off ([P13.3]) was
+      // turned off by a person, which is `disabled`'s sentence.
+      const part = 'sectionId' in block.source ? cardPartOf(block.source.sectionId) : undefined;
+      const scoped = castFor(block.source.scope, context);
+      if (
+        part !== undefined &&
+        scoped.length > 0 &&
+        scoped.every((member) => cardPartOff(context, member.actor.id, part))
+      ) {
+        return 'disabled';
+      }
       return 'empty-source';
+    }
     /**
      * ~~**The one source kind whose reason depends on which carrier it names**,
      * because the carriers landed at different times. A slot naming the
@@ -741,7 +1019,9 @@ function speakerOf(context: CollectContext): CollectContext['actors'][number] | 
  * card"*, from ST's `collectField` (`group-chats.js:549-554`) and from
  * Marinara's `resolveActiveCharacterIds` (`generate-route-utils.ts:1029-1043`),
  * all of which leave a muted member out; [00 §2.10] is the reason for keeping
- * the *other* members' cards, not the muted ones. Open for [P13.3].
+ * the *other* members' cards, not the muted ones. ~~Open for [P13.3].~~
+ * *Decided at [P13.3], 2026-09-29*: Scene declares `castIsPresent`, and a muted
+ * member's cards leave every call but their own — see {@link present}.
  *
  * `scope` narrows it, and {@link ActorScope} states the rule: the two scopes
  * partition the cast on every call — `speaker` is the speaker or nobody,
@@ -749,10 +1029,43 @@ function speakerOf(context: CollectContext): CollectContext['actors'][number] | 
  */
 function castFor(scope: ActorScope | undefined, context: CollectContext): CollectContext['actors'] {
   const speaking = speakerOf(context);
-  const rest = context.actors.filter((member) => member !== speaking);
+  const rest = present(context).filter((member) => member !== speaking);
   if (scope === 'speaker') return speaking === undefined ? [] : [speaking];
   if (scope === 'others') return rest;
-  return speaking === undefined ? context.actors : [speaking, ...rest];
+  // Whoever this call writes as ([P13.3]): the speaker alone under per-actor
+  // dispatch, the room otherwise — see `ActorScope`.
+  if (scope === 'voiced' && speaking !== undefined && context.chat?.dispatch === 'per-actor') {
+    return [speaking];
+  }
+  return speaking === undefined ? rest : [speaking, ...rest];
+}
+
+/**
+ * ***The cast whose cards a call carries: everyone but the muted*** — the
+ * decision [P13.2]'s review left open, taken at [P13.3].
+ *
+ * Under the mode's `castIsPresent` a member whose presence is `false` is
+ * **muted** ([P13 §1.3]), and a muted member's cards leave the prompt — as
+ * SillyTavern's `collectField` leaves out a disabled member
+ * (`group-chats.js:549-554`) and Marinara's `resolveActiveCharacterIds` an
+ * inactive one (`generate-route-utils.ts:1029-1043`). That is [P13 §1.4]'s
+ * *"every **present** card"* as written; [00 §2.10]'s multi-actor argument is
+ * about the room, and a muted member is somebody the player took out of it.
+ *
+ * *The speaker stays even when muted*, which is ST's `characterId !== index`
+ * exemption: force-talk reaches a muted member ([P13 §1.3]), and a call that
+ * speaks as somebody without their card would be writing a stranger.
+ *
+ * *Without `castIsPresent` nothing is filtered*, because there `false` means
+ * *not in the room* and [P7.3] decided that such a member's card still rides —
+ * the mode that reads presence that way keeps the prompt it had.
+ */
+function present(context: CollectContext): CollectContext['actors'] {
+  if (context.chat?.castIsPresent !== true) return context.actors;
+  const speaker = context.speaker;
+  return context.actors.filter(
+    ({ actor }) => actor.id === speaker || readPresence(context.channels, actor.id, true),
+  );
 }
 
 function fill(block: PresetBlock, context: CollectContext): Candidate[] {
@@ -816,15 +1129,29 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       // One candidate per actor, so the budgeter can drop one and keep another.
       // Each named for the actor it is about, so a wrapper can say whose it is.
       // Whose, and in what order, is `castFor`'s — the speaker's first ([P13.2]).
-      return castFor(source.scope, context).flatMap((member) =>
-        emit(
+      //
+      // ***A card's own prompt, when the chat has not switched it off***
+      // ([P13.3], `prompts.cards`), and ***in the role its section asks for***
+      // when it asks — a depth prompt's author picks `system`, `user` or
+      // `assistant`, and the collector's loop moves it to its depth.
+      return castFor(source.scope, context).flatMap((member) => {
+        const part = 'sectionId' in source ? cardPartOf(source.sectionId) : undefined;
+        if (part !== undefined && cardPartOff(context, member.actor.id, part)) return [];
+        const placed =
+          'sectionId' in source
+            ? member.actor.profile.sections.find((section) => section.id === source.sectionId)
+                ?.placement
+            : undefined;
+        return emit(
           block,
           actorText(member.actor, source),
           actorSource(member.actor.id, member.contentHash, source),
           `${block.id}.${member.actor.id}`,
           namesAbout(context, member),
-        ),
-      );
+        ).map((candidate) =>
+          placed === undefined ? candidate : { ...candidate, role: placed.role },
+        );
+      });
 
     case 'history': {
       /**
@@ -861,11 +1188,59 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         { of: 'output' as const, role: 'assistant' as const },
       ];
 
+      /**
+       * ***A turn speaks in messages since [P13.0], and history says so since
+       * [P13.3]*** — [P13 §1.5]'s names in history and [P13 §1.6]'s hide.
+       *
+       * - A turn **hidden whole** gives nothing, its input included; a hidden
+       *   index drops that message ({@link visibleMessages}).
+       * - A turn with `output.messages` is **one entry per message**: an
+       *   attributed one as `assistant`, named `Name: ` when names are on
+       *   ({@link namesOn}), and a narrator's as `system` with no name —
+       *   SillyTavern's *"100% legal way to send a message as system"*
+       *   (`openai.js:581-584`). Each is a line somebody said, and one
+       *   assistant block holding three speakers' lines joined is the
+       *   monologue F36 took apart below, one level down.
+       * - A turn with only `text` is one `assistant` entry, as it always was:
+       *   the narrator of a narrated scene is the model, and its past replies
+       *   are its own lines. *Only a narrator message inside `messages` is
+       *   system*, because there the record distinguishes it from the
+       *   characters' lines around it.
+       *
+       * All of one turn's messages share the turn's priority, so the tie-break
+       * trims a turn's last line before its first.
+       */
+      const named = namesOn(context);
       return context.history.flatMap((turn, index) =>
         halves.flatMap(({ of, role }) => {
+          if (context.chat?.hidden[turn.id] === true) return [];
           const turnBlock = { ...block, priority: block.priority + index, role };
+          if (of === 'output' && turn.output?.messages !== undefined) {
+            return visibleMessages(turn, context).flatMap(([at, message]) =>
+              message.text.length === 0
+                ? []
+                : emit(
+                    { ...turnBlock, role: message.speaker === null ? 'system' : 'assistant' },
+                    asLine(message, named),
+                    {
+                      kind: 'history',
+                      turnId: turn.id,
+                      range: [index, index],
+                      part: 'output',
+                      message: at,
+                    },
+                    `${block.id}.${turn.id}.output.${String(at)}`,
+                    names,
+                  ),
+            );
+          }
+          const hiddenReply = of === 'output' && visibleMessages(turn, context).length === 0;
           const text =
-            of === 'input' ? asItWasSaid(turn, context.preset, names) : turn.output?.text;
+            of === 'input'
+              ? asItWasSaid(turn, context.preset, names)
+              : hiddenReply
+                ? undefined
+                : turn.output?.text;
           const words =
             text === undefined || text.length === 0
               ? []

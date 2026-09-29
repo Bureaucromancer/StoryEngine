@@ -97,16 +97,7 @@ import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
-import {
-  activationText,
-  chatSoFar,
-  lastSpeakerOf,
-  saysSomething,
-  selectSpeakers,
-  selectsSpeakers,
-  TALKATIVENESS_DEFAULT,
-  talkativenessOf,
-} from './speakers.js';
+import { TALKATIVENESS_DEFAULT, talkativenessMap, turnSelection } from './speakers.js';
 import { chatSettingsOf } from '../sessions/chat-settings.js';
 
 /**
@@ -879,7 +870,6 @@ export class TurnRunner {
      * `fixed`, which is the one way such a turn can have one.
      */
     const chat = chatSettingsOf(inputs.session, mode.definition);
-    const soFar = chatSoFar(history, chat.hidden);
     /**
      * The wizard's answers, narrowed once — [P7.4]. `mode.config` is `unknown`
      * because [06 §1] keeps it opaque to the host, and a hand-edited session can
@@ -898,30 +888,24 @@ export class TurnRunner {
      * rolls and the smart order's roster, which must not disagree about how
      * chatty somebody is.
      */
-    const talkativeness: Record<string, number> = Object.fromEntries(
-      cast.actors.map((member) => [
-        member.actor.id,
-        talkativenessOf(member.actor, mode.definition.id),
-      ]),
-    );
-    const selection =
-      payload.speakers !== undefined || selectsSpeakers(chat.speakers.policy)
-        ? selectSpeakers({
-            policy: chat.speakers.policy,
-            castIsPresent: mode.definition.participants.castIsPresent === true,
-            allowSelfResponses: chat.speakers.allowSelfResponses,
-            actors: cast.actors,
-            persona: cast.persona?.actor.id ?? null,
-            channels: running,
-            forced: payload.speakers,
-            hasInput: saysSomething(payload.input),
-            activation: activationText(payload.input, soFar),
-            lastSpeaker: lastSpeakerOf(soFar),
-            spokenSinceInput: soFar.spokenSinceInput,
-            talkativeness,
-            draw: (purpose) => rng.at('se.participants', purpose),
-          })
-        : undefined;
+    const talkativeness = talkativenessMap(cast.actors, mode.definition.id);
+    /**
+     * *Through `turnSelection` since [P13.3]*, the one place the preview asks
+     * the same question — and the place that says a room with nobody cast in it
+     * is no selection rather than an empty one (see there).
+     */
+    const selection = turnSelection({
+      policy: chat.speakers,
+      castIsPresent: mode.definition.participants.castIsPresent === true,
+      cast,
+      channels: running,
+      history,
+      hidden: chat.hidden,
+      input: payload.input,
+      forced: payload.speakers,
+      talkativeness,
+      draw: (purpose) => rng.at('se.participants', purpose),
+    });
     /**
      * ***Who speaks, as the steps are handed it — and the one door by which
      * that can change mid-turn.*** For `smart` with no rule deciding,
@@ -1712,6 +1696,15 @@ export class TurnRunner {
                       ...(voice === null
                         ? {}
                         : { speaker: voice.ref.id, round: [...round.messages] }),
+                      /**
+                       * ***The voice this call writes the turn in*** — [P13.3],
+                       * the pack's third match key (`CollectContext.voice`). Only
+                       * for a step that writes the turn's messages: `embodied` when
+                       * it speaks as a member, `narrator` when it speaks for nobody.
+                       */
+                      ...(definition.contributes === 'messages'
+                        ? { voice: voice === null ? ('narrator' as const) : ('embodied' as const) }
+                        : {}),
                     });
 
                 const outcome = await performCall(

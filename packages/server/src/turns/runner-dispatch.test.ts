@@ -335,8 +335,9 @@ describe('a per-actor round', () => {
     expect(afterInput(0, 'Well?')).toBe('');
     // The second is shown the first reply after the input, as the model's own.
     expect(afterInput(1, 'Well?')).toBe(`assistant: ${REPLIES[0]}`);
-    // The third is shown both, in order.
-    expect(afterInput(2, 'Well?')).toBe(`assistant: ${REPLIES[0]}\n\n${REPLIES[1]}`);
+    // The third is shown both, in order — each named since [P13.3], because
+    // with two speakers in the window `namesInHistory: 'groups'` names them.
+    expect(afterInput(2, 'Well?')).toBe(`assistant: Vera: ${REPLIES[0]}\n\nMarlow: ${REPLIES[1]}`);
     // And the record names each as a round block, which message and whose.
     const third = callOnRecord(turn, 2).blocks ?? [];
     expect(third.filter((block) => block.source.kind === 'round').map((b) => b.source)).toEqual([
@@ -463,7 +464,10 @@ describe('a per-actor round', () => {
     ]);
     // The next speaker is shown what the transcript shows, never the words
     // cleanup took out — Lund is not shown a line written for him.
-    expect(afterInput(2, 'Well?')).toBe('assistant: "You came."\n\n"I owe you nothing."');
+    // Named, as the round is once two have spoken ([P13.3]).
+    expect(afterInput(2, 'Well?')).toBe(
+      'assistant: Vera: "You came."\n\nMarlow: "I owe you nothing."',
+    );
     expect(turn.output?.text).toBe('"You came."\n\n"I owe you nothing."\n\n"Aye."');
   });
 
