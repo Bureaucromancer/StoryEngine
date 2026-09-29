@@ -249,6 +249,17 @@ which a rebuild or a correction recovers without anything having been lost.
   shared type and the ledger.
 - **`foreign.source` means two things.** `turn.ts:962-970` describes the source
   application; the importer writes the source *session's* id.
+- **A vault character's unreadable `metadata` still imports around it** —
+  found at P13.5. Since P13.5 that column carries the character's
+  `linkedLorebookId`, so under `replace` a re-sweep drops `actor.lore` from a
+  good copy; history keeps the old version. P13.3's behaviour is kept because an
+  actor is far more than its link, where a treatment largely is its links — but
+  it is the class of loss P13.4 and P13.5 refuse rows over.
+- **A scenario's npcs duplicate vault characters of the same name** — found at
+  P13.5. [§1.5](#15-identity-is-the-row-not-the-file)'s keying makes each npc its own actor,
+  `…/scenario_vault/<id>#npc:<name>`, so a cast member who is also a vault
+  character arrives twice. As written, and worth a later dedupe or a review
+  sentence.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -631,11 +642,30 @@ timestamps, so `entryStateRecorded` does not fire on state the vault never had;
 `convertVaultLorebook(row)` wrapping `convertAventurasLorebook` and setting the
 book's own description and tags.~~
 
-### P13.5 — Scenarios, and the links
+### ~~P13.5 — Scenarios, and the links~~ Done
 
-Candidate order, the lorebook-id map, `treatment.lore` and `actor.lore`
+*Done — `804f026`, 2026-09-29.* `import/aventuras/vault-scenario.ts` maps each
+`scenario_vault` row as Aventuras' own mapper would and converts it through the
+existing `convertScenario` — no second converter. An unreadable `npcs`,
+`alternate_greetings` or `metadata` refuses the row, for P13.4's reason: a
+treatment largely *is* its cast, its openings and its link, and under `replace`
+a degraded one would overwrite a good one; a bad `tags` or `starting_time`
+costs only itself. Candidates run lorebooks, characters, scenarios, and the
+Writer maps each Aventuras lorebook id to the book stored for it — written,
+unchanged, skipped or kept-both alike, so a re-sweep and a `skip` still
+resolve. **Beyond §1.7:** a link whose book this sweep refused falls back to the
+book an earlier sweep stored for that row (`identity.ts`'s `priorImport`),
+since otherwise one corrupt book would, under `replace`, unlink everything
+pointing at the good copy P13.4 deliberately left; a consequence is that a link
+to a row since deleted in Aventuras still resolves to the book in the library.
+`linkedLorebookMissing` fires for a row only when nothing resolves; the file
+path, which cannot resolve, still says it always. Vault characters take their
+own format, `aventuras.vault-character`, because rows resolve links and files
+do not. *Ended at:* a database with linked books imports with `treatment.lore`
+and `actor.lore` set, and a second sweep is all `unchanged`. ~~Candidate order,
+the lorebook-id map, `treatment.lore` and `actor.lore`
 ([§1.7](#17-links-resolve-inside-the-database)). `starting_time` rides in
-`treatment.metadata`, which it already would.
+`treatment.metadata`, which it already would.~~
 
 ### P13.6 — Tags
 
