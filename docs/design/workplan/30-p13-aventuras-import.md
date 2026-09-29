@@ -282,6 +282,15 @@ which a rebuild or a correction recovers without anything having been lost.
   at P13.7. Pointed at `~/.config` or a home folder, the sweep loose-walks it
   within `DEFAULT_LOCAL_LIMITS` before the near miss is shown; the client asks
   `inspect` first, which softens it, and a direct API sweep does not.
+- **Aventuras' Liquid is `jsTruthy`, and ours is not** — found at P13.9. An
+  empty string is falsy there and truthy here, so any later pack converter, or
+  a person pasting a template across by hand, gets a branch that fires where
+  it did not.
+- **A story's own narrator prompt lives in `stories`, not the pack** — found
+  at P13.9, for Part 2. `settings.customSystemPrompt` overrides the pack per
+  story, so the narrator prompt somebody actually edited may be there;
+  [P13.10](#p1310--importsession-for-a-producer) should record it rather than
+  drop it.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -514,16 +523,24 @@ again under other names.
 
 `pack_variables` carry across one for one — `PresetVariable` was adopted from
 `CustomVariable` ([P4 §1.5](16-p4-implementation.md)). The templates do not. A
-pack holds up to forty-three template ids, each with a `-user` half; two are
-narrator prompts, one is P8-shaped, and the rest — classifier, wizard, image,
-translation — have no counterpart here. Their Liquid resolves against
+pack holds up to forty-three template ids, ~~each with a `-user` half; two are
+narrator prompts, one is P8-shaped~~ *thirty-eight of them with a `-user` half,
+eighty-one rows in all; two are narrator prompts and nine the memory and
+retrieval pipeline* (counted at P13.9), and the rest — classifier, wizard,
+image, translation — have no counterpart here. Their Liquid resolves against
 Aventuras' flat context and needs [P4 §1.6](16-p4-implementation.md)'s mapping
-table. And most of them are not the person's: only a pack that is not the
+table. And most of them are not the person's: ~~only a pack that is not the
 default, and only a template whose `content_hash` differs from its
-`baseline_hash`, is something somebody wrote.
+`baseline_hash`, is something somebody wrote~~ *as built at P13.9, a template
+is somebody's when it differs from the text the pin ships, by Aventuras' own
+hash — the default pack's edits are real ones, which is what migration 036 was
+for; Aventuras' pack import writes content as its baseline, so a shared pack
+reads as untouched by the older test; and a database before 036 has no
+baseline at all*.
 
 So Part 1 records packs with counts, and
-[P13.9](#p139--packs-into-presets) converts the ones that are worth it.
+[P13.9](#p139--packs-into-presets-done-recorded) ~~converts the ones that are
+worth it~~ *found none worth it, and names what stays behind*.
 `pack_runtime_variables` are per-entity tracked state — channel-shaped, P7's —
 and stay `recorded`.
 
@@ -828,13 +845,37 @@ progress, and maps a dropped connection or a proxy's 413 to a sentence.
 *Not in it:* streamed folder uploads, zip64, resumable uploads, and uploading a
 StoryEngine backup, which has its own 256 MB cap.
 
-### P13.9 — Packs into presets
+### ~~P13.9 — Packs into presets~~ Done, recorded
 
-[§1.10](#110-packs-are-their-own-stage). A table from template id to what it
-becomes here, [P4 §1.6](16-p4-implementation.md)'s namespace table for the
-Liquid, variables one for one, and only modified templates. *This stage may
-close as `recorded`* if the mapping table shows too little survives to be worth
-a preset — that is a finding, not a failure.
+*Done — `6451804`, 2026-09-29, and closed `recorded`, which the stage allowed.*
+The mapping table came first (`import/aventuras/packs.ts`, one comment per
+group). Of the pin's eighty-one template rows only the narrator's four have a
+counterpart here, and in those four one variable of eighteen translates:
+`protagonistName` is `user`. The story's `genre`, `tone`, `themes`,
+`settingDescription`, `chapterSummaries`, `tieredContextBlock` and `storyTime`
+are bodies that slots supply here; `lengthInstruction`, `styleGuidance` and the
+image modes have no equivalent. **The rest are the ones the templates branch
+on** — `pov`, `tense` and `narratorReinforcement` have no name in
+[P4 §1.6](16-p4-implementation.md)'s namespace — so both `-user` halves would
+render nothing, and the system half's voice rules would say *second person,
+present* to a story whose own treatment says otherwise: the mangled prompt that
+looks fine, made by the importer. Aventuras also renders its context into the
+system prompt through those variables, where ours positions it with slots, so a
+preset "from" a pack would be ours around a foreign prompt; and `pack_variables`
+would carry one for one and stay inert, read as empty. **What was built
+instead:** each pack is a `recorded` row, `aventura.db/preset_packs/<id>`,
+counting its templates, its custom and tracked variables, and the templates
+that differ from the text Aventuras ships — those named at `warn`
+(`import.aventuras.packTemplatesDiffer`), because they are what somebody wrote
+and what this import leaves in Aventuras. The test for *somebody's* is
+[§1.10](#110-packs-are-their-own-stage)'s, as built. *What would reopen this* is
+growing the render namespace — `pov` and `tense` from the treatment — which is
+a renderer's decision and not an importer's. `pack_runtime_variables` stays
+P7's, gated on `pack_id` since migration 32. ~~A table from template id to what
+it becomes here, P4 §1.6's namespace table for the Liquid, variables one for
+one, and only modified templates. *This stage may close as `recorded`* if the
+mapping table shows too little survives to be worth a preset — that is a
+finding, not a failure.~~
 
 ### Part 2 — the stories, not scheduled
 
