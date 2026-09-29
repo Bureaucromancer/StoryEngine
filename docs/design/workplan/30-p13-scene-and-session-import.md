@@ -579,15 +579,224 @@ picks one or more characters and each member's opening.
 submits *let them talk* turns, and typing stops it. It is client-side in both
 sources and stays client-side here.
 
-### 1.9 What is not in Part A
+### 1.9 Marinara's agents, as steps and channels
 
-- **Marinara's agents.** Trackers, the narrative director and post-processing
-  writers are Marinara's product, not the chat. Scene's staging step is the
-  closest thing here and is unchanged.
+*Moved into the phase 2026-09-29, by instruction; the first draft listed them
+as not in Part A.* Read at the pin for this section:
+`services/agents/agent-{pipeline,executor}.ts`, `routes/generate.routes.ts`'s
+phases (`:4281-8150`), `services/generation/committed-tracker-context.ts`,
+`db/schema/{game-state,agents}.ts`, and the catalogue in
+`services/professor-mari/official-agent-knowledge.ts`. **The agents' own
+manifests and default prompts are not in Marinara's repository.** They ship as
+downloadable packages (`agent-registry.ts:36` starts empty,
+`agent-prompts.ts:123` says so), so what is taken here is each agent's
+*contract* (its input, its output shape as the code that applies it reads it,
+and where its result goes), never its prompt.
+
+**The design already said how.** [06 §6](../06-modes-and-turn-pipeline.md) is
+explicit: *"This unifies 'agent' and 'pipeline stage'. Marinara's agents —
+Narrative Director, Prose Guardian, Echo Chamber, tracker agents, Music DJ —
+are all steps under this definition, differing only in stage and cadence."*
+[06 §4](../06-modes-and-turn-pipeline.md) makes channels *"the generalisation of
+Marinara's HUD widgets / trackers / game state"*.
+[triage](02-triage.md) marks agent execution **REBUILD — "unify agent and
+pipeline step"**, and the Secret Plot **PORT as a channel**. So every agent
+below is a step, every piece of state it keeps is a channel, and the tree does
+the rest: **a tracker value is an effect on the turn that produced it**, which
+makes Marinara's whole `(chatId, messageId, swipeIndex)` snapshot keying, its
+commit flag and its branch-copy of every snapshot (`chats.routes.ts:3904`)
+something this build gets by construction.
+
+#### 1.9.1 What already has an equivalent here
+
+Half of Marinara's roleplay catalogue exists in this build under another name.
+They are named so nobody builds them twice:
+
+| Marinara agent | Here |
+|---|---|
+| expression (sprite per character) | `se.scene.stage` → `se.expression`, per actor ([P7.12](23-p7-implementation.md)) |
+| background | the backdrop rendition and `se.location` ([P9.4](26-p9-implementation.md)) |
+| illustrator | renditions ([P9](26-p9-implementation.md)) |
+| knowledge retrieval, knowledge router | lore activation and retrieval ([P5](17-p5-implementation.md)) |
+| lorebook keeper, long-term memory | the memory extractor writing the memory book ([P8](25-p8-implementation.md)) |
+| chat summary | the summary chain ([P8](25-p8-implementation.md)) |
+| CYOA choices | the suggester, `se.suggest` ([P7](23-p7-implementation.md)) |
+
+#### 1.9.2 Trackers: model-proposed channels, one batched call
+
+**Six trackers, as Scene channels**, each off until switched on, with value
+shapes taken from the code that applies Marinara's results
+(`generate.routes.ts:8243-8930`):
+
+| Channel | Scope | Value | Marinara |
+|---|---|---|---|
+| `se.track.world` | session | `{ date, time, location, weather, temperature, fields: [{name, value}], recent: string[] }` | world-state |
+| `se.track.character` | **actor** | `{ mood, appearance, outfit, thoughts, fields: [{name, value}], stats: [{name, value, max?}] }` | character-tracker |
+| `se.track.persona` | session | `{ status, stats: [{name, value, max?}] }` | persona-stats |
+| `se.track.quests` | session | `[{ name, description?, objectives: [{text, done}], notes? }]` | quest |
+| `se.track.inventory` | session | `{ currencies: [{name, qty}], equipped: [{name}], carried: [{name, qty}] }` | inventory-tracker (and persona-stats' inventory) |
+| `se.track.custom` | session | `[{ name, value }]` whose names a person defines | custom-tracker |
+
+- **`update: 'model-proposed'`, and that is the line between this and
+  Campaign.** [work plan §0](01-work-plan.md) puts *"the RPG channel library:
+  HP and pools, attributes, inventory, quests…"* at **5.0**, and §0.4 says what
+  that library is: `engine-computed` state, *"combat round maths, HP pools,
+  inventory arithmetic, quest counters: Campaign's own TypeScript"*. These are
+  the other thing: **what the story has established, as a model reading it
+  reports**, with no arithmetic and no rules. A sword in `se.track.inventory` is
+  there because the prose said the player picked it up. Nothing is pulled
+  forward from 5.0, and 5.0 can still build the engine-computed library beside
+  these without either knowing the other exists.
+  [00 §4](../00-stance.md)'s *"RPG systems are opt-in channels"* holds: all six
+  are off by default.
+- **One post step, one call, every enabled tracker.** `se.scene.track` (post,
+  `failure: 'warn'`, role `prose`, `stepRoles`-bindable) sends one structured
+  call whose schema is the enabled channels' schemas side by side. This is
+  Marinara's batching (`agent-pipeline.ts:76-142`: agents sharing a model share
+  a call) and it is the answer to [25 C18](../25-open-questions.md)'s *"three
+  `post` steps make three calls over the same prose"* for this case: six
+  trackers are one call, not six. Its candidates are its own: the enabled
+  channels' current values, the last few messages and the turn's output, never
+  the scene prompt.
+- **Whole-value `set`, which is all the effect path accepts**
+  (`turns/effects.ts:67`). Each channel's new value replaces the old one, which
+  is also what Marinara does (`custom-tracker` replaces its array; the inventory
+  replaces each group it names). A group the model omits keeps its old value:
+  *absent is not empty*, Marinara's rule (`generate-route-utils.ts:205`).
+- **Locks.** A person can lock a field so the model cannot change it. Locks are
+  a user-only channel, `se.track.locks` (a set of field paths), and the step
+  writes a locked field's current value back into its proposal before
+  proposing. Marinara restores locked values the same way
+  (`applyTrackerFieldLocksToGameStatePatch`, `tracker-field-locks.ts:1043`).
+  **Hidden fields** (a character's thoughts, say) are the channel's
+  `visibility`, extended to a field list the same way.
+- **In the prompt, as established state, once.** A new preset source,
+  `{ of: 'state' }`, renders every enabled tracker, scoped values included, as
+  one block: *"what the story has established as of the last message"*, placed
+  before the history's last message. That is Marinara's placement and its
+  wording's intent (`committed-tracker-context.ts:299`). The existing
+  `{ of: 'channel' }` slot reads only unscoped keys (`collect.ts:1203`), which is
+  why a new source rather than six channel slots: per-character state is scoped.
+- **Cadence and manual mode.** Each session sets the step's `everyNTurns`
+  (Marinara's `runInterval`), or switches trackers to **manual**: they then run
+  only on *Update trackers*, which is the one on-demand step in this phase. It
+  writes an **engine turn** carrying the step's call and its effects, exactly as
+  a person's channel edit already writes one (`store.ts:1207`), so an on-demand
+  update is branch-correct and undoable for free.
+- **Editing.** A person edits any tracker value in the tracker panel; the edit
+  is the existing `PUT /sessions/:id/channels/:key`, an engine turn with a
+  `user` effect. What Marinara calls a *manual override* is simply the latest
+  effect.
+- **The surface.** A tracker panel: world, each present character, the
+  persona, quests with checkable objectives, inventory, custom fields, with lock
+  and hide per field. It needs two widget arms the build has deferred until a
+  channel needed them: **`meter`** (a stat bar, [10 §8.0](../10-ui-surfaces.md)'s
+  *"a `meter` arrives with the first numeric channel"*: this is it) and
+  **`record`** (a structured value edited field by field). Both are
+  `WidgetSpec` arms, so the rule that there is never an `html` field holds.
+
+#### 1.9.3 The narrative director: a push, and a secret plot
+
+**Push story.** Marinara's director runs only when the player arms it for one
+turn, *natural* or *random* (`generate.routes.ts:3785-3827`). Here that is a
+submission flag, `push: 'natural' | 'random'`, which arms an engine-owned `pre`
+step, `se.scene.direct`. It makes one small call over its own candidates (the
+recent messages, the secret plot if there is one) and writes a short direction.
+**The direction reaches the prompt through the guidance slot**, which is where
+[06 §5.1](../06-modes-and-turn-pipeline.md) already put it: *"one slot, several
+producers… or a step such as a Narrative Director push"*. It goes through an
+engine-only report cell, as the hook selector's guidance does
+(`hook-selector.ts:117`), because a mode's step cannot write advisory text.
+If the call fails, the pack's own fixed push text for that flavour stands in:
+Marinara's individual group mode uses exactly such a fixed directive
+(`generate.routes.ts:5754`). This is also **the first producer for
+`StepCondition.armed`**, which [25 C17](../25-open-questions.md) records as
+having none. The flag on the submission is the producer.
+
+**Secret plot.** [06 §7.3](../06-modes-and-turn-pipeline.md): *"Hidden GM state
+(… the Narrative Director's Secret Plot) is a channel with `visibility:
+"hidden"` and a reveal affordance."* So: `se.plot.secret`, a hidden session
+channel, `{ arc, protagonistArc, characterArc?, completed }` (Marinara's
+`overarchingArc`, `director-secret-plot-runtime.ts`). A cadence step keeps it
+(default every 8 story turns, Marinara's default), writing a fresh arc when
+there is none or the last one completed. It reaches the narrator through a
+channel slot placed with the system blocks. The reveal affordance is a panel
+toggle that shows it to the player; off by default, since a plot the player can
+read is not secret.
+
+*The tension, stated rather than hidden.* [06 §7.3.2](../06-modes-and-turn-pipeline.md)
+calls hooks *"the honest form of directedness, authored and selected in the
+open"*, against *"a narrator improvising a pull"*, which is what a secret plot
+is. It is opt-in, labelled as a model-kept hidden arc, and its every revision is
+an effect a person can read in the workbench. That is as open as a secret can
+be, and the triage verdict (PORT as a channel) already accepted the trade.
+
+#### 1.9.4 The editor: style applies, continuity reports
+
+Marinara merges prose guardian, continuity and immersive HTML into **one
+combined editor call** after generation (`prose-guardian-settings.ts:135-220`),
+which rewrites the message and keeps the original in the message's extras.
+
+- **Style (prose guardian)** is built: a `post` step, `se.scene.edit`, run
+  before the turn commits, with the session's banned words, avoid-instructions
+  and style instructions. Its answer is Marinara's shape,
+  `{ editNeeded, editedText, changes }`. When an edit is needed it replaces the
+  message's text **before the turn is written**, so the turn's authored bytes
+  are the edited ones. The unedited text stays where every raw model response
+  already lives, the generate call's record, and the step outcome carries the
+  `changes`. The transcript marks an edited message and offers the original.
+  Under `per-actor` dispatch it edits each message on its own. *Hold for
+  rewrite* (Marinara's default) is ours too: a round being edited streams to
+  the transcript only once the edit is in.
+- **Continuity** is built as **notices, not rewrites, by default.**
+  [24 §2c.2](../24-roadmap.md) decided this for continuity in so many words:
+  *"Emits notices, never effects… a checker confident enough to rewrite the
+  story would be worse than the problem."* So continuity rides the same call and
+  its findings appear as a checklist on the message, which is Marinara's own
+  continuity UI (`ContinuityIssueChecklist.tsx`). Applying a finding is the edit
+  gesture (§1.6), a sibling authored with the fix. A session setting
+  `continuity: 'apply'` lets the editor apply its own findings, which is
+  Marinara's behaviour, opt-in and labelled.
+- **Immersive HTML is not built, and this one is a refusal.** It asks a model
+  to emit markup that the client renders. [10 §8.0](../10-ui-surfaces.md)'s
+  *"what must never happen is an `html: string` field"* and
+  [06 §10.4a](../06-modes-and-turn-pipeline.md)'s *"annotate, never rewrite…
+  no markup injected"* both rule it out, and the reason under both is that
+  rendering model-authored HTML from this server's origin is a script-injection
+  surface. Recorded so it is not re-proposed as a missing feature.
+
+#### 1.9.5 The rest of the catalogue
+
+- **Echo chamber** (side reactions from other characters, shown beside the
+  chat): built as a panel fed by a cadence step, since it never touches the
+  story. Off by default.
+- **Beholder** (per-character body slots): folded into `se.track.character`'s
+  custom fields rather than a seventh channel, which is what Marinara's own
+  character tracker does for anything it has no field for.
+- **Card-evolution auditor** (proposes edits to a character card): not built.
+  A card is a library object with its own history and review flow
+  ([03 §11](../03-data-model.md)); an agent proposing library edits from inside
+  a session is the spoiler path [08 §6](../08-cross-session-memory.md) exists to
+  close, and the memory extractor is this build's reviewed version of the idea.
+- **Combat, Spotify, haptics**: combat is Campaign's (5.0);
+  the others are [triage](02-triage.md)'s *"DISCARD from core"*.
+
+#### 1.9.6 Agent configuration is session configuration
+
+Marinara keeps `enableAgents`, `activeAgentIds` and per-agent connections in the
+chat's metadata. Here: each tracker, the director, the secret plot, the editor
+and the echo chamber are switches in the session's settings, grouped under
+*Agents* because that is what a Marinara user will look for; their models are
+the session's `stepRoles` at each step's id, which already exists
+(`PUT /sessions/:id/roles`).
+
+### 1.9a What is still not in Part A
+
 - **Mixed voice within a turn** (C2). The record now holds it and nothing
   produces it.
 - **Per-character hide** (`hiddenFromAICharacterIds`). It needs per-speaker
   history, which per-actor dispatch makes possible and this phase does not use.
+- **Immersive HTML** and the **card-evolution auditor** (§1.9.4, §1.9.5).
 
 ### 1.10 Where equivalence stops short of parity
 
@@ -731,9 +940,18 @@ A resolved speaker becomes `speaker: { id, name }`. An unresolved one keeps
 | ST `is_system` lines, Marinara `hiddenFromAI` | **imported, and hidden** (`session.hidden`), no longer dropped |
 | ST `/comment` lines | a hidden narrator message |
 
+**Marinara's agent state comes too** (§1.9):
+
+| Marinara | Here |
+|---|---|
+| `game_state_snapshots` row for a message's swipe | effects on the turn holding that message, one per enabled tracker channel, `proposedBy: engine`; the snapshot keying *is* the tree's |
+| `activeAgentIds`, `manualTrackers`, `narrativeDirectorSecretPlotEnabled`, prose-guardian settings | the session's agent switches (§1.9.6) |
+| `agent_memory` `overarchingArc` | `se.plot.secret` on the root chat's head turn |
+| field locks, hidden tracker fields | `se.track.locks` and the channels' hidden fields |
+| `extra.proseGuardianOriginalText` | nothing to carry: the imported text is the edited one, and the original is noted |
+
 Everything else is a note, never silence:
-- ST chat variables, Marinara rolling summaries, tracker and game state,
-  reactions;
+- ST chat variables, Marinara rolling summaries, reactions;
 - attachments without bytes;
 - `extra.api`/`model`/`token_count`. A `TurnRequest` built from three of its
   fields is a fabrication of the other twenty.
@@ -885,6 +1103,42 @@ on its greeting with the alternates as siblings.
 
 ### Part B
 
+#### P13.5a — Trackers
+
+- The six `se.track.*` channels and `se.track.locks` (§1.9.2).
+- `se.scene.track`: one batched structured call, locks written back, absent
+  groups kept, cadence and manual mode.
+- The `{ of: 'state' }` preset source and its place in the Scene pack.
+- *Update trackers*: the on-demand engine turn.
+- The `meter` and `record` widget arms and the tracker panel.
+
+*Ends at:* with world, character and inventory switched on, a turn whose prose
+moves a character to the docks and hands the player a key proposes all three;
+a locked location stays put; a swipe of that turn has its own tracker state;
+the next prompt shows the established state once.
+
+#### P13.5b — The director and the secret plot
+
+- `push` on submission, `se.scene.direct` armed by it, guidance through the
+  engine-only cell, the pack's fixed push text as the fallback.
+- `se.plot.secret`, its cadence step, its slot, the reveal toggle.
+
+*Ends at:* a pushed turn's record shows the direction it was given; a failed
+direction call falls back to the fixed text and says so; the secret plot is in
+the prompt and not in the transcript until revealed.
+
+#### P13.5c — The editor and the echo chamber
+
+- `se.scene.edit`: style edits applied before commit, per message, with the
+  original in the call record and the transcript's *show original*.
+- Continuity findings as a checklist, applied through the edit gesture;
+  `continuity: 'apply'` opt-in.
+- The echo chamber panel and its cadence step.
+
+*Ends at:* a banned word in a reply is edited out before the turn is written,
+and the message offers the original; a continuity finding applied from the
+checklist is a sibling.
+
 #### P13.6 — The chat tree builder
 
 `import/chat/` is source-neutral and pure. It holds `ChatMessage`,
@@ -940,6 +1194,8 @@ three-member group imports with each round's messages attributed.
 - `message_swipes` by `messageId`/`index`, with §0.3's rule for the active one.
 - `characterId` as speaker.
 - `hiddenFromAI`, families, and the group settings onto §2.6.
+- `game_state_snapshots` onto tracker effects, `agent_memory`'s secret plot,
+  and the agent switches (§2.6).
 
 The profile archive, data root and v1 profile come in through the sweep. The
 per-chat JSONL export comes in through P13.7.
@@ -974,7 +1230,7 @@ include text, so a duplicate derivation costs one call and changes no key.
 
 ### What is deliberately not in this phase
 
-- **Marinara's agents** (§1.9).
+- **Immersive HTML and the card-evolution auditor** (§1.9.4, §1.9.5).
 - **Mixed voice** (C2), and per-character hide.
 - **`LoreScope`'s chat arm** ([18 §4.4](../18-session-import.md)).
 - **Aventuras `.avt`.**
@@ -1000,7 +1256,13 @@ criterion:
    speaker, and nobody writes another member's lines.
 3. **A real SillyTavern data folder imported**, then played one turn. A branched
    chat is one session. A group keeps its members, strategy and muted members.
-4. **A real Marinara profile imported**, then played one turn.
+4. **A real Marinara profile imported**, then played one turn, with its
+   trackers: the imported state is what Marinara showed, and the next turn
+   updates it.
+5. **Trackers, a push and the editor on a Scene played from scratch.** A person
+   judges whether the tracked state is right often enough to be worth its call,
+   whether a push moves the story, and whether an edited message reads better
+   than its original.
 
 ### 4.2 The remainder — extends the standing list
 
