@@ -192,6 +192,13 @@ export interface PublicMode {
   presetIds: readonly string[];
   setup: ModeDefinition['setup'];
   surfaces: ModeDefinition['surfaces'];
+  /**
+   * ***Whether a new session opens on its cast's greetings*** —
+   * `ModeDefinition.openingTurn`, [P13 §1.7], sent at [P13.5] because the
+   * creation form offers each member's opening only for a mode that writes
+   * one. A choice the mode would never read is a control that does nothing.
+   */
+  openingTurn: boolean;
 }
 
 export function presentMode(mode: Mode): PublicMode {
@@ -220,6 +227,7 @@ export function presentMode(mode: Mode): PublicMode {
      */
     setup: withoutParts(definition.setup),
     surfaces: definition.surfaces,
+    openingTurn: definition.openingTurn === true,
   };
 }
 

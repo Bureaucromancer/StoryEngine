@@ -51,6 +51,7 @@ import {
   callStarted,
   callStreaming,
   effectApplied,
+  speakersPicked,
   stepFailed,
   stepFinished,
   stepSkipped,
@@ -1059,6 +1060,40 @@ export class TurnRunner {
     const spoken: { speakers: readonly string[] | undefined } = {
       speakers: selection?.speakers,
     };
+    /**
+     * ***The order, said as soon as it is settled*** — [P13 §1.3a] point 8,
+     * [P13.5]: the play surface's *who speaks next* control shows it while the
+     * round streams. Here when the rules settled the turn; from the smart
+     * step's report below when a model was asked. *Embodied only*: a narrator
+     * speaks for nobody, whatever the selector drew.
+     */
+    const pickedNames = (ids: readonly string[]): { id: string; name: string }[] =>
+      ids.map((id) => ({
+        id,
+        name: cast.actors.find((one) => one.actor.id === id)?.actor.name ?? id,
+      }));
+    if (
+      payload.setup !== true &&
+      selection?.ask === undefined &&
+      chat.voice === 'embodied' &&
+      (selection?.speakers.length ?? 0) > 0
+    ) {
+      /**
+       * ***`by` names what decided the order***, because the composer turns it
+       * into a sentence and *"the rules chose"* about a member somebody pressed
+       * *Speak* on is a sentence that lies. A swipe or a continue speaks as the
+       * carried message's speaker and a rewrite keeps the redone turn's list —
+       * both `rewrite`; a submission that named somebody is `forced`; anything
+       * else the policy drew.
+       */
+      const by =
+        payload.carry !== undefined || payload.replay !== undefined
+          ? 'rewrite'
+          : payload.speakers !== undefined && payload.speakers.length > 0
+            ? 'forced'
+            : 'rules';
+      write([speakersPicked(pickedNames(selection?.speakers ?? []), by)]);
+    }
 
     /**
      * ***Who a speaking call speaks as, checked before anything is assembled***
@@ -1654,6 +1689,9 @@ export class TurnRunner {
                 report: (pick) => {
                   smart.pick = pick;
                   spoken.speakers = pick.picked.map((one) => one.id);
+                  if (chat.voice === 'embodied' && pick.picked.length > 0) {
+                    write([speakersPicked(pick.picked, pick.by)]);
+                  }
                 },
               }),
               ...withRender.steps,
@@ -1957,6 +1995,7 @@ export class TurnRunner {
                             definition.role ?? 'prose',
                             event.model,
                             voice?.index,
+                            voice?.ref,
                           ),
                         ]);
                         return;

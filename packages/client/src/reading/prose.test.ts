@@ -166,3 +166,45 @@ describe('the three formats agree', () => {
     }
   });
 });
+
+/**
+ * ***The reading view names speakers from the same field*** — [P13 §1.8],
+ * [P13.5]. A chat turn's messages carry who said each one, and all three
+ * renderings must name them alike; a turn with no attributed message reads as
+ * it always did.
+ */
+describe('a chat turn, by who said what', () => {
+  const round = turn({
+    id: 't1',
+    output: {
+      text: 'Rain on the glass.\n\n"You came."',
+      messages: [
+        { speaker: null, text: 'Rain on the glass.' },
+        { speaker: { id: 'actor-vera', name: 'Vera' }, text: '"You came."' },
+        { speaker: { id: 'actor-lund', name: 'Lund' }, text: '' },
+      ],
+    },
+  });
+
+  it('keeps one line per message said, the narrator’s unnamed', () => {
+    expect(passages([round], nameOf)[0]?.lines).toEqual([
+      { who: null, text: 'Rain on the glass.' },
+      { who: 'Vera', text: '"You came."' },
+    ]);
+  });
+
+  it('names the speaker in both text copies', () => {
+    const read = passages([round], nameOf);
+    expect(toMarkdown(read, { title: 'T' })).toContain('**Vera:** "You came."');
+    expect(toPlainText(read, { title: 'T' })).toContain('Vera: "You came."');
+    expect(toPlainText(read, { title: 'T' })).toContain('\nRain on the glass.\n');
+  });
+
+  it('leaves a narrated turn as prose', () => {
+    const narrated = turn({
+      id: 't2',
+      output: { text: 'Rain.', messages: [{ speaker: null, text: 'Rain.' }] },
+    });
+    expect(passages([narrated], nameOf)[0]?.lines).toBeNull();
+  });
+});

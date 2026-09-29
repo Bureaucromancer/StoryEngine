@@ -131,7 +131,28 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
                 <MovePictures sessionId={props.sessionId} pictures={passage.said.pictures} />
               </blockquote>
             )}
-            {passage.prose === null ? null : (
+            {/* ***Named lines, when the record names them*** — [P13.5]. The
+                speaker's name above each message, as a script sets it; the
+                pictures then fall to the end of the turn, §10.4a's rule for an
+                anchor that does not resolve. */}
+            {passage.lines === null
+              ? null
+              : passage.lines.map((line, index) => (
+                  <div key={index} className="flex flex-col gap-1">
+                    {line.who === null ? null : (
+                      <p className="text-sm uppercase tracking-wide text-ink-muted">{line.who}</p>
+                    )}
+                    <p className="whitespace-pre-wrap">{line.text}</p>
+                  </div>
+                ))}
+            {passage.lines !== null ? (
+              <Illustrated
+                sessionId={props.sessionId}
+                turnId={passage.turnId}
+                text=""
+                renditions={renditions.data}
+              />
+            ) : passage.prose === null ? null : (
               <Illustrated
                 sessionId={props.sessionId}
                 turnId={passage.turnId}
@@ -182,7 +203,11 @@ function Illustrated(props: {
   const chosenId = props.renditions?.selection[props.turnId];
   const shown = all.find((one) => one.id === chosenId) ?? all[all.length - 1];
 
-  if (shown === undefined) return <p className="whitespace-pre-wrap">{props.text}</p>;
+  // No words is a named chat turn's pictures alone ([P13.5]): nothing to set
+  // an empty paragraph for.
+  if (shown === undefined) {
+    return props.text === '' ? <></> : <p className="whitespace-pre-wrap">{props.text}</p>;
+  }
 
   const picture = (
     <img
@@ -199,6 +224,7 @@ function Illustrated(props: {
     />
   );
 
+  if (props.text === '') return picture;
   const at = anchorOffset(props.text, shown.scope?.anchor);
   if (at === null) {
     return (

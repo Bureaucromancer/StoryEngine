@@ -58,6 +58,18 @@ export interface Passage {
   /** The story's own words, absent on a turn that never produced any. */
   prose: string | null;
   /**
+   * ***The same words, by who said them*** — [P13 §1.8]'s *"the reading view
+   * names speakers from the same field"*, added at [P13.5].
+   *
+   * One line per message of `output.messages`, each with its speaker's name as
+   * the record holds it (the `Ref` carries it, so a card since deleted is still
+   * named) and null for a narrator's line. **Null for a turn with no
+   * attributed message** — one written before P13, or narrated — which reads
+   * as `prose` did, because giving a paragraph by nobody a speaker would be
+   * inventing one. An empty message is left out, as `output.text` leaves it.
+   */
+  lines: { who: string | null; text: string }[] | null;
+  /**
    * ***A turn on the record that produced nothing*** — [§12.1]'s *any node*
    * includes the ones that failed.
    *
@@ -96,9 +108,37 @@ export function passages(
               pictures: input.attachments ?? [],
             },
       prose: text.trim() === '' ? null : text,
+      lines: linesOf(turn),
       unfinished: turn.status === 'failed',
     };
   });
+}
+
+function linesOf(turn: TurnRecord): Passage['lines'] {
+  const messages = turn.output?.messages;
+  if (messages === undefined || messages.every((message) => message.speaker === null)) return null;
+  return messages
+    .filter((message) => message.text.trim() !== '')
+    .map((message) => ({ who: message.speaker?.name ?? null, text: message.text }));
+}
+
+/**
+ * ***One attributed line, in a copy that cannot set a name apart*** — the name
+ * and the words, joined as a script would. A narrator's line is its words
+ * alone. Through the catalogue, because *"Vera: …"* is a sentence shape a
+ * language may want differently.
+ */
+const LINE_WORDS: Record<string, string> = labels('reading.line', {
+  said: '{who}: {text}',
+  saidMarkdown: '**{who}:** {text}',
+});
+
+export function lineText(line: { who: string | null; text: string }, markdown = false): string {
+  if (line.who === null) return line.text;
+  const who = line.who;
+  return (LINE_WORDS[markdown ? 'saidMarkdown' : 'said'] ?? '')
+    .replace('{who}', () => who)
+    .replace('{text}', () => line.text);
 }
 
 /**
@@ -179,7 +219,8 @@ export function toMarkdown(read: readonly Passage[], options: RenderOptions): st
     if (passage.said !== null) {
       parts.push(`> **${attribution(passage.said)}**\n>\n${quote(saidText(passage.said))}`);
     }
-    if (passage.prose !== null) parts.push(passage.prose);
+    if (passage.lines !== null) parts.push(...passage.lines.map((line) => lineText(line, true)));
+    else if (passage.prose !== null) parts.push(passage.prose);
     if (passage.unfinished) parts.push('*This turn did not finish.*');
   }
   return `${parts.join('\n\n')}\n`;
@@ -206,7 +247,8 @@ export function toPlainText(read: readonly Passage[], options: RenderOptions): s
   for (const passage of read) {
     if (passage.said !== null)
       parts.push(`${attribution(passage.said)}:\n${saidText(passage.said)}`);
-    if (passage.prose !== null) parts.push(passage.prose);
+    if (passage.lines !== null) parts.push(...passage.lines.map((line) => lineText(line)));
+    else if (passage.prose !== null) parts.push(passage.prose);
     if (passage.unfinished) parts.push('(This turn did not finish.)');
   }
   return `${parts.join('\n\n')}\n`;

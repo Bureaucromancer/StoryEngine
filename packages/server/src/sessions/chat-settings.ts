@@ -181,6 +181,23 @@ export function castIsPresentFor(chat: Pick<ChatSettings, 'voice'>, mode: ModeDe
 }
 
 /**
+ * ***Whether a mode plays its cast as a chat*** — the test the session read
+ * route uses to send the chat settings and the settings route uses to accept
+ * them ([P13.5]).
+ *
+ * **`castIsPresent`, not the voice**, because the voice is a setting the chat
+ * owns: a Scene session switched to the narrator is still a chat that can be
+ * switched back, and *"narrator stays one control away"* ([P13 §1.2]) needs
+ * the control to survive being used. The assistant is embodied and not a chat
+ * — one card, `fixed`, nobody to choose between — and Freeform narrates a
+ * cast it never seats as speakers; neither declares that an untouched member is
+ * in the room, which is the one declaration only a chat makes.
+ */
+export function isChatMode(mode: ModeDefinition): boolean {
+  return mode.participants.castIsPresent === true;
+}
+
+/**
  * The speaker policy, **member by member**: a partial object — one somebody
  * wrote by hand with only the policy they wanted — keeps what it says and
  * takes the rest from the defaults, rather than being thrown away whole for

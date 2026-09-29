@@ -55,8 +55,10 @@ import {
   castIsPresentFor,
   chatSettingsAtCreation,
   chatSettingsOf,
+  isChatMode,
 } from '../sessions/chat-settings.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
+import { swipeGroups, type SwipeGroups } from '../sessions/swipes.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
 import type { HookSource } from '../sessions/types.js';
 import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
@@ -1551,6 +1553,21 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         packMode !== null &&
           castIsPresentFor(chatSettingsOf(session, packMode.definition), packMode.definition),
       ),
+      /**
+       * ***How this session plays as a chat*** — [P13 §1.2], [P13 §1.5],
+       * [P13.5]: the effective voice, dispatch, speaker policy, author's note,
+       * hide map and prompt switches, read through `chatSettingsOf` — the one
+       * reader, so a settings panel shows what the next turn will do rather
+       * than what the file happens to spell. *A pre-P13 session shows its
+       * legacy values*, which is the reading its turns get.
+       *
+       * **Absent for a mode that does not play as a chat** (`isChatMode`),
+       * which is `dials`' rule: nothing to render rather than a panel of
+       * controls that change nothing.
+       */
+      ...(packMode !== null && isChatMode(packMode.definition)
+        ? { chat: chatSettingsOf(session, packMode.definition) }
+        : {}),
       hooks,
       goals,
       dials,
@@ -2760,12 +2777,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       const children = childrenByParent(byId);
       const siblings: Record<string, string[]> = {};
+      /**
+       * ***And which message each one is a swipe of*** — [P13 §1.6], [P13.5]:
+       * the counter is drawn on the message a swipe redid, not on the turn.
+       * `swipeGroups` says how the siblings are grouped; only nodes with
+       * siblings appear, by the rule above.
+       */
+      const swipes: Record<string, SwipeGroups> = {};
       for (const turn of path.slice(-limit)) {
-        const here = (children.get(turn.parentTurnId) ?? []).map((child) => child.id);
-        if (here.length > 1) siblings[turn.id] = here;
+        const family = children.get(turn.parentTurnId) ?? [];
+        if (family.length > 1) {
+          siblings[turn.id] = family.map((child) => child.id);
+          swipes[turn.id] = swipeGroups(turn, family);
+        }
       }
 
-      return reply.send({ turns: path.slice(-limit), siblings });
+      return reply.send({ turns: path.slice(-limit), siblings, swipes });
     },
   );
 

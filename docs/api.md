@@ -1148,12 +1148,18 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
       "inputs": ["do"],
       "presetIds": [],
       "setup": { "kind": "none" },
-      "surfaces": []
+      "surfaces": [],
+      "openingTurn": false
     }
   ],
   "defaultModeId": "storyengine.scene"
 }
 ```
+
+`openingTurn` (added at [P13.5](design/workplan/30-p13-scene-and-session-import.md))
+says whether a new session opens on its cast's written greetings, so a creation
+form offers each member's opening only for a mode that writes one — the
+creation body's `openings` is read by no other.
 
 **What this install can play.** Added at P7.4, and until then nothing could tell
 a client which modes exist — the session form offered *the mode's own preset* and
@@ -1596,8 +1602,8 @@ decision and a selector able to widen its own gate is not a dial.
 
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null, health, hud, surfaces, cast, hooks, goals, dials,
-inputs, suggesting }`. The job travels with the
+`{ session, activeJob | null, health, hud, surfaces, cast, chat?, hooks, goals,
+dials, inputs, suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
 
@@ -1683,6 +1689,16 @@ prompt is assembled around. All three are reconstructed at the
 session's head, so they are the state a panel should be showing rather than a
 summary of the file.
 
+`chat` is how the session plays as a chat
+([P13 §1.2](design/workplan/30-p13-scene-and-session-import.md), added at
+[P13.5]): `{ voice, dispatch, speakers: { policy, allowSelfResponses,
+namesInHistory, maxPerRound }, note | null, hidden, prompts: { instruction,
+cards } }`, **the effective settings** as the server's one reader resolves them
+— so a Scene session written before P13 shows the narrated, merged, `fixed`
+values its turns actually get, not Scene's declared ones. **Absent for a mode
+that does not play as a chat** (one that does not declare `castIsPresent`),
+which is `dials`' rule.
+
 A session that is not there and one that is not yours are the **same 404**. The
 path is the owner ([09 §4.3](design/09-server-multiuser-deployment.md)), and
 confirming an id exists elsewhere would leak the one fact that separation keeps.
@@ -1722,9 +1738,42 @@ logged*** (2026-09-27): every failure used to be *not an address in the trash*,
 including a rename the disk refused. The second of two restores of one entry at
 once is the `404` or `409` a moment's later look would give.
 
+### `PUT /api/sessions/:sessionId/chat`
+
+`{ voice?, dispatch?, speakers?: { policy?, allowSelfResponses?, namesInHistory?,
+maxPerRound? }, note?: { text, depth, every } | null, prompts?: { instruction?,
+cards?: { [actorId]: boolean | parts[] } } }` → `200 { session, chat }`, the
+second being the effective settings after the write. Added at
+[P13.5](design/workplan/30-p13-scene-and-session-import.md); at least one member
+is required, and the vocabularies are closed (`400` otherwise).
+
+***Writing any of voice, dispatch and speakers writes all three.*** A session
+carrying none of them was written before P13 and reads as its mode's legacy
+values; writing `dispatch` alone would make it modern and let its absent
+`voice` fall to the mode's declared one, re-voicing a saved game. So the route
+reads the effective three first and puts all of them on the file, the request
+laid over. `speakers` merges member by member. `note: null` — or a note with no
+text — removes it, and `every: 0` switches it off with its text kept.
+`prompts.cards` merges per card: `true` or `[]` is *send everything* (no entry),
+`false` skips every part, and a list of `system`, `post-history`, `depth` skips
+those. `instruction: true` sends the pack's instruction (no entry).
+
+`422 not-a-chat` for a session whose mode does not play as one — the same test
+the read uses to send `chat`. Not refused while a turn runs, as a hide is not:
+the running turn read its settings before it started.
+
+### `PUT /api/sessions/:sessionId/turns/:turnId/hidden`
+
+`{ hidden: true | false | number[] }` → `200 { session }` —
+[P13 §1.6](design/workplan/30-p13-scene-and-session-import.md)'s hide, built at
+[P13.4]. **A set, not a toggle**: `true` hides the turn whole, input included;
+a list hides those message indices; `false` or `[]` unhides. `404 no-such-turn`
+for a turn this session does not have, `422 no-such-message` for an index past
+its messages. History skips what is hidden, and the transcript ghosts it.
+
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
-`{ turns, siblings }` — the path from the head, **oldest first**, not every turn
+`{ turns, siblings, swipes }` — the path from the head, **oldest first**, not every turn
 in the file. A session is a tree, and a transcript is one walk of it.
 
 `siblings` maps a turn on that path to every child of its parent, in creation
@@ -1733,6 +1782,20 @@ selected path only ([07 §6](design/07-branching.md)), so this is how an
 alternative is reachable at all — a swipe is a sibling nobody named, and without
 this it would be on disk and invisible. A map of every turn to its lone self
 would grow with the transcript and say nothing.
+
+`swipes` (added at [P13.5](design/workplan/30-p13-scene-and-session-import.md))
+says, for each of those nodes, **where its siblings are drawn**:
+`{ messages, turn }`. `messages[k]` is the ordered alternatives on message *k*'s
+counter — [P13 §1.6]'s *"swipes surface on the message, not the turn"* — the
+turn itself among them, or `[]` when there is only one. The counter is built
+from the siblings that answer the same move and say the same messages `0..k-1`,
+one alternative per distinct message *k* (by speaker and text), ordered by the
+first-created sibling saying it and named by the viewing turn where it says that
+line, so it reads the same from whichever member is on screen. `messages` has
+one more entry than the turn has messages: the alternatives that say everything
+this turn says and then go on, drawn on its last message. `turn` is the turn and
+the siblings that answer a different move (an edited input, another thing typed
+from the same place), which a client keeps on the turn; `[]` when there are none.
 
 ### `POST /api/sessions/:sessionId/attachments` · `GET /api/sessions/:sessionId/attachments/:digest`
 
@@ -2189,7 +2252,7 @@ bad `Last-Event-ID` cannot brick a reconnect.
 `progress` keys are [09 §3.3](design/09-server-multiuser-deployment.md)'s vocabulary:
 `turn.started`, `step.started`, `step.skipped`, `step.failed`, `step.finished`,
 `call.started`, `call.streaming`, `call.finished`, `effect.applied`,
-`turn.finished`. They are **structural** — the client renders them — and carry a
+`speakers.picked`, `turn.finished`. They are **structural** — the client renders them — and carry a
 failure *class*, never a provider's words.
 
 `effect.applied` carries `{ channelId, accepted, reason }`, where `reason` names
@@ -2206,7 +2269,9 @@ states as the trade; the snapshot's `text` is what makes that lossless.
 [P13.2](design/workplan/30-p13-scene-and-session-import.md), for a round under
 `per-actor` dispatch, where each speaker's call streams into a message of its
 own. It is the index into the turn's `output.messages`, and `call.started` and
-`call.streaming` carry the same `message` in their `params`. It is **absent**
+`call.streaming` carry the same `message` in their `params` — and since
+[P13.5], `call.started` carries the message's `speaker` too, `{ id, name }`, so
+a client can name the bubble as it opens. It is **absent**
 on a narrator's text and on the blank line the server sends between two
 speakers, so a client that appends every delta's `text` to one string — every
 client written before it — still ends with the turn's `output.text`, and a
@@ -2214,6 +2279,16 @@ client that paints messages separately skips the deltas without one while a
 round is streaming. A reply is cleaned when its call completes, so the
 committed message can be shorter than what streamed; the draft and the turn
 say what was kept.
+
+**`speakers.picked` is the round's order** — `{ speakers: [{ id, name }], by }`,
+added at [P13.5] for [P13 §1.3a](design/workplan/30-p13-scene-and-session-import.md)'s
+*"while a round streams, the who-speaks-next control shows the picked order"*
+(Marinara's `response_queue`). Sent once per turn, when the selection is final:
+`by` is `rules` when the policy drew it, `forced` when the submission named
+the speaker (force-talk), `rewrite` for a swipe, a continue or a rewrite that
+kept the redone turn's speakers, and `model`, `fallback` or `rewrite` from the
+smart order's step. Not sent for a narrator's
+turn or a room nobody is cast in, because an empty queue is not an order.
 
 The stream authenticates by cookie and requires no CSRF header, because that is
 what `EventSource` can do — it sends cookies and cannot set headers. Nothing may

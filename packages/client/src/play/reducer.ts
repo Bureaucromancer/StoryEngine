@@ -121,9 +121,48 @@ export interface PlayState {
    * holds everything the surface renders.
    */
   renditions: Readonly<Record<string, Rendition>>;
+  /**
+   * ***The round, message by message, as it streams*** — [P13 §1.8], [P13.5].
+   *
+   * Under `per-actor` dispatch each speaker's call streams into a message of
+   * its own: `call.started` says which message and whose (`message`,
+   * `speaker`), and each `delta` carries the index it belongs to. So a round
+   * can be painted as the chat it will be — a bubble per speaker, named as it
+   * opens — rather than as one paragraph by nobody that becomes a chat only
+   * when the turn lands. `text` above is still appended by every delta, which
+   * is the old reader's view and the fallback.
+   *
+   * ***`whole` is whether this client saw every piece.*** Deltas are not
+   * durable: a reattach mid-round gets the joined text in the snapshot and
+   * then only the pieces after it — and `seen` is seeded from the snapshot's
+   * cursor, so the `call.started` frames before it do not replay either. The
+   * messages here would hold the round's tail with none of its start, so a
+   * snapshot that already had text sets `whole` false and a surface paints
+   * `text` instead: less shape, nothing lost.
+   */
+  round: {
+    messages: Readonly<Record<number, LiveMessage>>;
+    whole: boolean;
+  };
+  /**
+   * ***Who this round is for, in order*** — `speakers.picked`, [P13 §1.3a]
+   * point 8: the *who speaks next* control shows it while the round streams.
+   * `by` says whether a model chose (`model`), the rules did (`rules`), a
+   * smart call fell back to them (`fallback`), or a rewrite kept the pick
+   * (`rewrite`). Null until the server says, and for a narrator's turn.
+   */
+  order: { speakers: { id: string; name: string }[]; by: string } | null;
   /** A failure class, never a message: the server sends classes ([01 §2]). */
   error: string | null;
 }
+
+/** One message of the round being written — its author, and what has streamed. */
+export interface LiveMessage {
+  speaker: { id: string; name: string } | null;
+  text: string;
+}
+
+const FRESH_ROUND: PlayState['round'] = { messages: {}, whole: true };
 
 export const INITIAL: PlayState = {
   jobId: null,
@@ -133,6 +172,8 @@ export const INITIAL: PlayState = {
   status: 'idle',
   live: null,
   renditions: {},
+  round: FRESH_ROUND,
+  order: null,
   error: null,
 };
 
@@ -177,7 +218,23 @@ export function reduce(state: PlayState, action: PlayAction): PlayState {
     if (state.jobId === action.jobId && state.status === 'finished') return state;
     // Otherwise a fresh turn, and its text clears the previous one's so the
     // reader does not watch the last answer while waiting for this one.
-    return { ...state, jobId: action.jobId, text: '', status: 'running', error: null };
+    //
+    // *The round is kept when this job's frames beat its POST here* — the case
+    // above, one step earlier: `call.started` for this job may already have
+    // opened a message, and clearing it would paint the round from its second
+    // piece on. A new job is a new round. Keeping is safe because a frame of a
+    // new job already cleared the last one's text and round (`forJob`), so
+    // whatever `same` keeps is this job's.
+    const same = state.jobId === action.jobId;
+    return {
+      ...state,
+      jobId: action.jobId,
+      text: same ? state.text : '',
+      round: same ? state.round : FRESH_ROUND,
+      order: same ? state.order : null,
+      status: 'running',
+      error: null,
+    };
   }
 
   const { frame } = action;
@@ -234,6 +291,12 @@ function applySnapshot(state: PlayState, data: unknown): PlayState {
      * The draft comes back when something can use it whole: P3.7's dry run.
      */
     live: state.live,
+    // The pieces before this moment are in `text` and nowhere else, so a
+    // snapshot that holds any means this client cannot paint the round whole.
+    round: {
+      messages: {},
+      whole: typeof data['text'] !== 'string' || data['text'] === '',
+    },
     status: job === null ? 'idle' : statusOf(job['status']),
     error: null,
   };
@@ -256,14 +319,74 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
 
   const key = keyOf(frame.data);
   const finished = key === 'turn.finished';
+  const params = paramsOf(frame.data);
+  const current = forJob(state, jobId);
   return {
-    ...state,
+    ...current,
     jobId,
     seen: { ...state.seen, [jobId]: seq },
     cursor: frame.id ?? state.cursor,
     status: finished ? 'finished' : state.status === 'idle' ? 'running' : state.status,
-    live: applyToLive(state.live, key, paramsOf(frame.data)),
+    live: applyToLive(state.live, key, params),
+    round: key === 'call.started' ? openMessage(current.round, params) : current.round,
+    order: key === 'speakers.picked' ? (orderOf(params) ?? current.order) : current.order,
   };
+}
+
+/**
+ * ***A frame of another job starts a fresh turn*** — its text, round and order.
+ *
+ * A new job's frames can reach the reducer before its POST's response does
+ * (`submitted`'s docstring), and until this they were applied on top of the
+ * previous job's state: the old reply's words showed inside the new live turn,
+ * legacy and narrated turns included, where `submitted` used to be the thing
+ * that always cleared the text. `applyDelta` needs no such check — it carries
+ * no job id, and a new job's progress frames reach here ahead of its first
+ * delta.
+ */
+function forJob(state: PlayState, jobId: string): PlayState {
+  if (jobId === state.jobId) return state;
+  return { ...state, text: '', round: FRESH_ROUND, order: null };
+}
+
+/**
+ * A speaking call opening its message — [P13.5]. *Opened, not overwritten*: a
+ * continue's call writes into a message that already has text, and a retried
+ * call re-announces the one it is retrying.
+ */
+function openMessage(
+  round: PlayState['round'],
+  params: Record<string, unknown>,
+): PlayState['round'] {
+  const index = params['message'];
+  if (typeof index !== 'number') return round;
+  const held = round.messages[index];
+  return {
+    ...round,
+    messages: {
+      ...round.messages,
+      [index]: {
+        speaker: refOf(params['speaker']) ?? held?.speaker ?? null,
+        text: held?.text ?? '',
+      },
+    },
+  };
+}
+
+function orderOf(params: Record<string, unknown>): PlayState['order'] {
+  const listed = params['speakers'];
+  if (!Array.isArray(listed)) return null;
+  const speakers = listed.flatMap((one: unknown) => {
+    const ref = refOf(one);
+    return ref === null ? [] : [ref];
+  });
+  return { speakers, by: stringOr(params['by'], 'rules') };
+}
+
+function refOf(value: unknown): { id: string; name: string } | null {
+  if (!isRecord(value)) return null;
+  const { id, name } = value;
+  return typeof id === 'string' && typeof name === 'string' ? { id, name } : null;
 }
 
 /**
@@ -465,7 +588,44 @@ function applyDelta(state: PlayState, data: unknown): PlayState {
    * durable). What makes that safe is the snapshot — a reattach replaces the
    * text wholesale rather than continuing to append to a stale buffer.
    */
-  return { ...state, text: state.text + data['text'], status: 'running' };
+  const index = data['message'];
+  /**
+   * ***A piece with an index is also that message's*** — [P13.2]'s `message`
+   * on the frame. The blank line between two speakers comes without one, so it
+   * lands in `text` alone, which is exactly where it belongs.
+   */
+  const round =
+    typeof index === 'number'
+      ? {
+          ...state.round,
+          messages: {
+            ...state.round.messages,
+            [index]: {
+              speaker: state.round.messages[index]?.speaker ?? null,
+              text: (state.round.messages[index]?.text ?? '') + data['text'],
+            },
+          },
+        }
+      : state.round;
+  return { ...state, text: state.text + data['text'], round, status: 'running' };
+}
+
+/**
+ * ***The round as bubbles, when this client can draw it so*** — in message
+ * order, or null when it cannot: nothing indexed has arrived (a narrator's
+ * turn, a server older than [P13.2]) or a reattach cost it the round's start
+ * (`round.whole`). Null means *paint `text`*.
+ */
+export function liveMessages(state: PlayState): LiveMessage[] | null {
+  if (!state.round.whole) return null;
+  const indices = Object.keys(state.round.messages)
+    .map(Number)
+    .sort((a, b) => a - b);
+  if (indices.length === 0) return null;
+  return indices.flatMap((index) => {
+    const message = state.round.messages[index];
+    return message === undefined ? [] : [message];
+  });
 }
 
 function statusOf(value: unknown): PlayState['status'] {

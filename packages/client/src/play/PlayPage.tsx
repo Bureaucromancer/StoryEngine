@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { control, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { remedyFor, uuidv7 } from '@storyengine/shared';
+import { outputMessagesOf, remedyFor, uuidv7 } from '@storyengine/shared';
 import type { StepFailureReason, TextSpan } from '@storyengine/shared';
 
 import {
@@ -21,6 +21,10 @@ import {
   uploadPicture,
   type ModeSurface,
   type RenditionRecord,
+  type ChatSettings,
+  type LibraryObject,
+  type SubmitTurn,
+  type SwipeGroups,
   type TurnRecord,
 } from '../api.js';
 import {
@@ -35,6 +39,8 @@ import {
   useSelectRendition,
   useSession,
   type RenditionSet,
+  useLibrary,
+  useSetHidden,
   useTranscript,
 } from '../queries.js';
 import { AlertNote } from '../ui/Alert.js';
@@ -45,6 +51,19 @@ import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
+import {
+  AutoMode,
+  autoDelayMs,
+  letThemTalkLabel,
+  NobodyWouldReply,
+  WhoSpeaksNext,
+} from './ChatComposer.js';
+import { ChatMessages, type ChatGestures } from './ChatMessages.js';
+import { ChatSettingsPanel } from './ChatSettingsPanel.js';
+import { anyoneWouldReply, canSpeak, hiddenEntry, hideSent, turnSiblings } from './chat.js';
+import { Portrait } from './Portrait.js';
+import { liveMessages } from './reducer.js';
+import { AUTO_MODE_DEFAULT_SECONDS, useAutoMode } from './useAutoMode.js';
 import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
@@ -241,6 +260,66 @@ export function PlayPage({
   const running = state.status === 'running';
 
   /**
+   * ***The chat, when this session is one*** — [P13 §1.8], [P13.5]. `chat` is
+   * the server's effective reading and is absent for a mode that does not play
+   * as a chat, which is what every chat-only control below keys on: a Freeform
+   * session's page is the page it was.
+   */
+  const chat = session.data?.chat;
+  const roster = session.data?.session.cast;
+  const library = useLibrary('actors');
+  const actorObjects = library.data?.objects ?? [];
+  /** Who speaks next — force-talk from the composer, one-shot (see `WhoSpeaksNext`). */
+  const [forced, setForced] = useState('');
+  /**
+   * ***Whether the characters speak for themselves*** — the one voice under
+   * which naming a speaker changes anything. A narrator speaks for nobody, so
+   * *who speaks next*, the cast's *Speak* and talkativeness would each be a
+   * control that changes nothing there — the settings panel's reason for
+   * hiding dispatch under the narrator.
+   */
+  const embodied = chat?.voice === 'embodied';
+  /**
+   * A pick made before the chat was switched to the narrator is dropped rather
+   * than sent: the control that made it is gone, and a forced list on a
+   * narrated turn would be a choice nobody can see or undo.
+   */
+  useEffect(() => {
+    if (!embodied) setForced('');
+  }, [embodied]);
+  /**
+   * ***Edit boxes open in the transcript*** — counted, because each line has
+   * its own. Opening one is taking the turn back, as typing in the composer is,
+   * so it stops auto-mode; and the page is not idle while any is open.
+   * `useCallback` because each line reports from an effect that depends on it.
+   */
+  const [editing, setEditing] = useState(0);
+  const onEditing = useCallback((open: boolean) => {
+    setEditing((count) => Math.max(count + (open ? 1 : -1), 0));
+    if (open) setAuto(false);
+  }, []);
+  /** Auto-mode — on, and after how many quiet seconds (see `useAutoMode`). */
+  const [auto, setAuto] = useState(false);
+  const [autoSeconds, setAutoSeconds] = useState(String(AUTO_MODE_DEFAULT_SECONDS));
+  /** An empty send nobody could answer was refused here, and says why. */
+  const [nobody, setNobody] = useState(false);
+  const speakable = (session.data?.cast ?? [])
+    .filter((row) => canSpeak(row, roster))
+    .map((row) => ({
+      id: row.actorId,
+      name: actorObjects.find((one) => one.id === row.actorId)?.name ?? row.actorId,
+    }));
+  /**
+   * ***Whether an empty send would get a reply*** — [P13.4]'s note: under an
+   * embodied voice a turn with no input and nobody named is answered by the
+   * policy's pick from the eligible, and with nobody eligible it is a turn
+   * with no reply at all. A narrator always answers, so the check is the
+   * embodied voice's alone.
+   */
+  const wouldReply =
+    chat?.voice !== 'embodied' || anyoneWouldReply(session.data?.cast ?? [], roster);
+
+  /**
    * ***The composer, held so focus can be given back to it*** — see the effect
    * below. A textarea rather than the `<input>` it was for its first nine
    * phases: a turn of a story is prose, and prose in a one-line box scrolls
@@ -270,7 +349,13 @@ export function PlayPage({
   const composer = useRef<HTMLTextAreaElement | null>(null);
 
   const send = useMutation({
-    mutationFn: () =>
+    /**
+     * `empty` is *let them talk* — [P13 §1.6]: a turn with **no input**, not
+     * one with empty words, so the policy answers the last message rather than
+     * a blank move (ST's empty send). Pictures and a kind belong to a move, so
+     * an empty send carries neither; guidance and a named speaker it may.
+     */
+    mutationFn: (empty: boolean) =>
       submitTurn({
         sessionId,
         // A key the client owns, so a retry of *this* submission is recognised
@@ -281,17 +366,24 @@ export function PlayPage({
         // say what `ids.ts` already says.
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
-        text: draft,
-        // Absent unless the player chose, so the route applies the mode's
-        // default rather than the client guessing `do` for a mode without one.
-        ...(kind === undefined ? {} : { kind }),
+        ...(empty
+          ? {}
+          : {
+              text: draft,
+              // Absent unless the player chose, so the route applies the mode's
+              // default rather than the client guessing `do` for a mode without one.
+              ...(kind === undefined ? {} : { kind }),
+              ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
+            }),
         guidance,
-        ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
+        ...(forced === '' || !embodied ? {} : { speakers: [forced] }),
       }),
     onSuccess: (accepted) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
       clearPictures();
+      setForced('');
+      setNobody(false);
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([06 §5.1]).
       setGuidance('');
@@ -326,8 +418,123 @@ export function PlayPage({
     if (send.isPending || running || attaching) return;
     // A move may be only a picture — its words are the picture's caption, and
     // the record keeps the move either way ([25 E15]).
-    if (draft.trim().length === 0 && pictures.length === 0) return;
-    send.mutate();
+    if (draft.trim().length === 0 && pictures.length === 0) {
+      /**
+       * ***An empty box is *let them talk*, in a chat*** — [P13 §1.8]. Under
+       * `manual` with nobody named it still sends: the policy picks one
+       * eligible member at random, which is SillyTavern's and what [P13.4]
+       * kept. It is refused here only when nobody at all could answer, and
+       * then it says so rather than committing a turn with no reply.
+       */
+      if (chat === undefined) return;
+      if (forced === '' && !wouldReply) {
+        setNobody(true);
+        return;
+      }
+      send.mutate(true);
+      return;
+    }
+    send.mutate(false);
+  };
+
+  /**
+   * ***The chat's gestures, each a turn*** — [P13 §1.6]. One mutation for every
+   * gesture that submits: a swipe, a continue, an edit, a branch at a message,
+   * and the cast panel's *speak*. They share the redo's posture — the composer
+   * is left alone, because none of them used what is in it — and differ only
+   * in the body, which `routes/gestures.ts` on the server reads.
+   */
+  const gesture = useMutation({
+    mutationFn: (body: Omit<SubmitTurn, 'sessionId' | 'idempotencyKey' | 'headTurnId'>) =>
+      submitTurn({
+        sessionId,
+        idempotencyKey: uuidv7(),
+        headTurnId: session.data?.session.headTurnId ?? null,
+        ...body,
+      }),
+    onSuccess: (accepted) => {
+      dispatch({ kind: 'submitted', jobId: accepted.jobId });
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+  const hide = useSetHidden(sessionId);
+
+  /**
+   * ***What each message's actions send*** — [P13 §1.6]'s table, row by row.
+   *
+   * - **Swipe** regenerates message *k* by the same speaker: `rewriteOf`, so
+   *   the tape's draws hold and only the words change — the Redo button's
+   *   default, for its reason (swiping past a failed check must not be
+   *   save-scumming by accident).
+   * - **Edit** is a sibling written by hand that names the turn it edits
+   *   (`editOf`), so every line left as it was is carried whole.
+   * - **Branch** at a message keeps the round up to it and stops there: an
+   *   edit whose lines are that prefix, which the server carries whole. At the
+   *   last message there is nothing to cut, and branching is *continue from
+   *   here* — the head moves and nothing is written.
+   * - **Hide** sends the turn's whole entry (`hideSent`).
+   * - **Delete** moves the head to the turn's parent — `null` for the first
+   *   turn, the root — and writes nothing: the turn stays as a sibling nobody
+   *   is on.
+   */
+  const chatGestures: ChatGestures = {
+    onGo: (turnId) => {
+      goToSibling.mutate(turnId);
+    },
+    onSwipe: (turn, index) => {
+      gesture.mutate({ rewriteOf: turn.id, fromMessage: index, parentTurnId: turn.parentTurnId });
+    },
+    onContinue: (turn) => {
+      gesture.mutate({ continueOf: turn.id, parentTurnId: turn.parentTurnId });
+    },
+    onEditMessage: (turn, index, text) => {
+      // `outputMessagesOf`, so a turn with no `messages` — pre-P13 or narrated
+      // — is edited as the one narrator line it is drawn as.
+      const messages = outputMessagesOf(turn.output).map((message, at) => ({
+        speaker: message.speaker?.id ?? null,
+        text: at === index ? text : message.text,
+      }));
+      gesture.mutate({
+        editOf: turn.id,
+        parentTurnId: turn.parentTurnId,
+        authored: { messages },
+      });
+    },
+    onEditInput: (turn, text) => {
+      gesture.mutate({
+        editOf: turn.id,
+        parentTurnId: turn.parentTurnId,
+        authored: { input: { text } },
+      });
+    },
+    onHide: (turn, hidden, index) => {
+      const count = outputMessagesOf(turn.output).length;
+      hide.mutate({
+        turnId: turn.id,
+        hidden:
+          index === null ? hidden : hideSent(hiddenEntry(chat, turn.id), index, count, hidden),
+      });
+    },
+    onBranch: (turn, index) => {
+      const messages = outputMessagesOf(turn.output);
+      if (index >= messages.length - 1) {
+        continueFrom.mutate(turn);
+        return;
+      }
+      gesture.mutate({
+        editOf: turn.id,
+        parentTurnId: turn.parentTurnId,
+        authored: {
+          messages: messages
+            .slice(0, index + 1)
+            .map((message) => ({ speaker: message.speaker?.id ?? null, text: message.text })),
+        },
+      });
+    },
+    onDelete: (turn) => {
+      remove.mutate(turn);
+    },
+    onEditing,
   };
 
   /**
@@ -386,7 +593,9 @@ export function PlayPage({
         sessionId,
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
-        text: turn.input?.text ?? '',
+        // A turn that answered no move — *let them talk* — is redone as one:
+        // sending `''` would turn it into a blank move by the player.
+        ...(turn.input === undefined ? {} : { text: turn.input.text }),
         /**
          * **The turn's pictures come with it**, for the reason its words do:
          * this is *that turn again*. Named by digest, as the record names them —
@@ -490,6 +699,76 @@ export function PlayPage({
   });
 
   /**
+   * ***Delete*** — [P13 §1.6]: *"the head moves to the parent. The turn
+   * remains as a sibling nobody is on."* A head move and nothing else, so it
+   * refreshes what one does; the first turn's parent is the root, `null`,
+   * which [P13.4] made `PUT /head` accept for exactly this.
+   */
+  const remove = useMutation({
+    mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.parentTurnId ?? null),
+    onSuccess: (result) => {
+      setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
+      refreshSession();
+    },
+  });
+
+  /** Whether any of the transcript's own gestures is in flight — its controls' `busy`. */
+  const transcriptBusy =
+    running ||
+    redo.isPending ||
+    continueFrom.isPending ||
+    undo.isPending ||
+    name.isPending ||
+    goToSibling.isPending ||
+    gesture.isPending ||
+    hide.isPending ||
+    remove.isPending;
+
+  /**
+   * ***Auto-mode*** — [P13 §1.8]: a *let them talk* turn whenever the page has
+   * been idle for the delay. Idle is the stream settled, nothing being sent or
+   * moved, nothing in the box and no line being edited; the clock and its
+   * re-arming are `useAutoMode`'s.
+   *
+   * ***`reconnecting` is not settled.*** The server is still running the round
+   * the socket lost sight of, and a slow reconnect would otherwise have a new
+   * turn submitted on top of it. `failed` switches auto-mode off below.
+   * *The transcript's own gestures count*, the same list its `busy` reads: an
+   * undo, a redo or a head move in flight is the turn being taken elsewhere.
+   */
+  const streamSettled = state.status === 'idle' || state.status === 'finished';
+  const idle =
+    streamSettled &&
+    !transcriptBusy &&
+    !send.isPending &&
+    editing === 0 &&
+    draft.length === 0 &&
+    pictures.length === 0;
+  useAutoMode({
+    on: auto && chat !== undefined,
+    idle,
+    delayMs: autoDelayMs(autoSeconds, AUTO_MODE_DEFAULT_SECONDS),
+    fire: () => {
+      // Nobody left who could answer is a reason to stop, not to keep asking.
+      if (!wouldReply) {
+        setAuto(false);
+        setNobody(true);
+        return;
+      }
+      send.mutate(true);
+    },
+  });
+  /**
+   * *A failure stops it.* A model that is not answering would otherwise be
+   * asked again every few seconds for as long as the tab is open — a loop the
+   * person would come back to as a page of failed turns.
+   */
+  const failedNow = state.status === 'failed' || send.isError || gesture.isError;
+  useEffect(() => {
+    if (failedNow) setAuto(false);
+  }, [failedNow]);
+
+  /**
    * The most recent failure among this page's controls — [P6B.0].
    *
    * `submittedAt` rather than declaration order, because the one worth showing
@@ -497,7 +776,7 @@ export function PlayPage({
    * outrank the send that failed a second ago. A mutation clears its own error
    * on its next attempt, so this empties by being used.
    */
-  const failure = [send, redo, continueFrom, undo, name, goToSibling, stop]
+  const failure = [send, redo, continueFrom, undo, name, goToSibling, stop, gesture, hide, remove]
     .filter((one) => one.isError)
     .sort((a, b) => b.submittedAt - a.submittedAt)[0]?.error;
 
@@ -673,7 +952,20 @@ export function PlayPage({
           [10 §13.2], [P7.2]. Below the HUD because a cast is a list and the HUD
           is a line, and above the transcript for the reason both are: state
           rather than narration. Renders nothing for a session with no cast. */}
-      <CastPanel sessionId={sessionId} />
+      <CastPanel
+        sessionId={sessionId}
+        busy={running || gesture.isPending || send.isPending}
+        onSpeak={(actorId) => {
+          // *Speak* is force-talk with no input — let them talk, aimed.
+          gesture.mutate({ speakers: [actorId] });
+        }}
+      />
+
+      {/* **How this chat plays** — [P13 §1.8]'s session settings, [P13.5].
+          Beside the cast because the two are the chat's configuration: who is
+          in it, and how they are asked to speak. Renders nothing for a mode
+          that does not play as a chat. */}
+      <ChatSettingsPanel sessionId={sessionId} />
 
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about
@@ -784,13 +1076,13 @@ export function PlayPage({
             }}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
-            busy={
-              running ||
-              redo.isPending ||
-              continueFrom.isPending ||
-              undo.isPending ||
-              name.isPending
-            }
+            swipes={transcript.data?.swipes?.[turn.id]}
+            head={turn.id === session.data?.session.headTurnId}
+            chat={chat}
+            actors={actorObjects}
+            personaId={roster?.persona ?? null}
+            gestures={chatGestures}
+            busy={transcriptBusy}
             onRedo={(subject, rewrite, guidance) => {
               // Spread, not passed: `exactOptionalPropertyTypes` refuses an
               // explicit `undefined` where the field may simply be absent.
@@ -818,17 +1110,15 @@ export function PlayPage({
         {/* The turn being written. A live region, because its text arrives
             without the reader doing anything — the accessible-markup habit
             [work plan §2.1] calls day-one, applied where it actually matters. */}
-        {state.text.length > 0 && running ? (
-          <li aria-live="polite" aria-busy="true">
-            <p className="whitespace-pre-wrap text-story text-ink">{state.text}</p>
-          </li>
+        {running ? (
+          <LiveTurn text={state.text} messages={liveMessages(state)} actors={actorObjects} />
         ) : null}
       </ol>
 
       <StreamStatus
         status={state.status}
         error={state.error}
-        waiting={send.isPending || (running && state.text.length === 0)}
+        waiting={send.isPending || gesture.isPending || (running && state.text.length === 0)}
       />
 
       {/* **A refused action says so** — [P6B.0].
@@ -884,6 +1174,22 @@ export function PlayPage({
           disabled={running}
           onChange={setKind}
         />
+        {/* **Who speaks next** — [P13 §1.8], and while a round streams, who is
+            speaking ([P13 §1.3a] point 8). Beside the kind selector because it
+            is the same sort of choice: made before the words, about them. */}
+        {!embodied ? null : (
+          <WhoSpeaksNext
+            members={speakable}
+            value={forced}
+            onChange={(actorId) => {
+              setForced(actorId);
+              setNobody(false);
+            }}
+            disabled={running || send.isPending}
+            order={state.order}
+            running={running}
+          />
+        )}
         <div className="flex gap-2">
           <label className="flex-1">
             <span className="sr-only">{promptFor(kind)}</span>
@@ -896,6 +1202,11 @@ export function PlayPage({
               placeholder={promptFor(kind)}
               onChange={(event) => {
                 setDraft(event.target.value);
+                setNobody(false);
+                // Typing stops auto-mode — [P13 §1.8]. Somebody writing has
+                // taken the turn back, and a timer firing under them would
+                // send the scene on without the move they are composing.
+                if (event.target.value !== '') setAuto(false);
               }}
               /**
                * **Enter still sends; Shift+Enter is the paragraph break.**
@@ -925,6 +1236,9 @@ export function PlayPage({
               type="button"
               disabled={stop.isPending}
               onClick={() => {
+                // Stop stops auto-mode too: pressing it is somebody saying
+                // *not that*, and the next tick would be more of the same.
+                setAuto(false);
                 stop.mutate(state.jobId ?? '');
               }}
             >
@@ -935,7 +1249,11 @@ export function PlayPage({
                [10 §11.1a] asks of any control that disables: a button reading
                *Sending…* has already said why it cannot be pressed again. */
             <Button type="submit" variant="primary" disabled={send.isPending}>
-              {send.isPending ? SENDING : 'Send'}
+              {send.isPending
+                ? SENDING
+                : chat !== undefined && draft.trim() === '' && pictures.length === 0
+                  ? letThemTalkLabel()
+                  : 'Send'}
             </Button>
           )}
         </div>
@@ -971,6 +1289,7 @@ export function PlayPage({
             });
           }}
         />
+        {nobody ? <NobodyWouldReply /> : null}
         <Impersonate
           sessionId={sessionId}
           disabled={running}
@@ -978,6 +1297,9 @@ export function PlayPage({
             setDraft(text);
           }}
         />
+        {chat === undefined ? null : (
+          <AutoMode on={auto} seconds={autoSeconds} onToggle={setAuto} onSeconds={setAutoSeconds} />
+        )}
         {/* **Below the composer and above the guidance box** — [R11], [P7.9].
             The offers fill the box rather than taking a turn, so they belong
             beside the thing they fill; the toggle rides with them because it is
@@ -1067,17 +1389,26 @@ function IllustratedProse({
   onRetry,
   onSelect,
   busy,
+  picturesOnly = false,
 }: {
   sessionId: string;
   text: string;
   spans: readonly TextSpan[];
+  /**
+   * ***The pictures and none of the prose*** — [P13.5]: a chat turn draws its
+   * words message by message (`ChatMessages`), and its pictures fall to the
+   * end of the turn, which is §10.4a's rule for an anchor that does not
+   * resolve. Anchoring one inside a message is a later refinement; losing the
+   * picture would not be.
+   */
+  picturesOnly?: boolean;
   renditions: readonly RenditionRecord[];
   /** Which sibling this turn shows, when a person has chosen one — [06 §10.7]. */
   selectedId: string | undefined;
   onRetry: (renditionId: string) => void;
   onSelect: (renditionId: string) => void;
   busy: boolean;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   /**
    * **Illustrations only.** A backdrop belongs behind the reading column
    * ([10 §2.3]) and reaches it through the `stage` region, not through the
@@ -1086,6 +1417,7 @@ function IllustratedProse({
    */
   const pictures = renditions.filter((one) => one.purpose === 'illustration');
   if (pictures.length === 0) {
+    if (picturesOnly) return null;
     return (
       <MentionOverlay
         text={text}
@@ -1110,6 +1442,7 @@ function IllustratedProse({
   const chosen = pictures.find((one) => one.id === selectedId);
   const shown = chosen ?? pictures[pictures.length - 1];
   if (shown === undefined) {
+    if (picturesOnly) return null;
     return (
       <MentionOverlay
         text={text}
@@ -1125,6 +1458,15 @@ function IllustratedProse({
   const picture = (
     <RenditionView sessionId={sessionId} rendition={shown} onRetry={onRetry} busy={busy} />
   );
+
+  if (picturesOnly) {
+    return (
+      <>
+        {picture}
+        {chooser}
+      </>
+    );
+  }
 
   const at = anchorOffset(text, shown.scope?.anchor);
   if (at === null) {
@@ -1223,6 +1565,12 @@ function renditionsByTurn(
 function TurnView({
   turn,
   siblings,
+  swipes,
+  head,
+  chat,
+  actors,
+  personaId,
+  gestures,
   busy,
   onRedo,
   onContinueFrom,
@@ -1241,6 +1589,16 @@ function TurnView({
 }: {
   turn: TurnRecord;
   siblings: string[];
+  /** Where this turn's siblings are drawn — [P13.5], from the transcript. */
+  swipes: SwipeGroups | undefined;
+  /** Whether this is the session's head turn. */
+  head: boolean;
+  /** The chat's effective settings, absent for a mode that is not one. */
+  chat: ChatSettings | undefined;
+  /** The library's actors, read once by the page — for names and portraits. */
+  actors: readonly LibraryObject[];
+  personaId: string | null;
+  gestures: ChatGestures;
   sessionId: string;
   /** Whose memory a capture could be — read once by the page, per `surfaces`. */
   cast: readonly CastRow[];
@@ -1264,8 +1622,22 @@ function TurnView({
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
   // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
-  // attempt again.
-  const rerunnable = turn.input !== undefined;
+  // attempt again. ***Unless it made a call*** ([P13.5]): a chat's *let them
+  // talk* answers no move and is still a reply a person may want again.
+  // A greeting made none, and its alternates are its siblings already.
+  const rerunnable = turn.input !== undefined || turn.request !== undefined;
+  /**
+   * ***Every turn of a chat is drawn as one*** — [P13.5]. A turn whose output
+   * names no speakers — written before P13, narrated, or embodied under
+   * `fixed` — is one narrator line (`outputMessagesOf`), drawn as narration;
+   * drawing it as prose instead would leave hide, edit, branch and delete
+   * unreachable on every turn of a narrator-voice chat. Outside a chat a turn
+   * is prose unless its record says who spoke, as before.
+   */
+  const named = turn.output?.messages;
+  const chatShaped =
+    turn.output !== undefined && (chat !== undefined || (named !== undefined && named.length > 0));
+  const messages = outputMessagesOf(turn.output);
   const rolled = turn.tape.length > 0;
 
   // The instruction for a guided redo, and whether its field is open. Local to
@@ -1287,17 +1659,44 @@ function TurnView({
 
   return (
     <li className="group/turn flex flex-col gap-1">
-      {turn.input === undefined || turn.input.text === '' ? null : (
+      {chatShaped || turn.input === undefined || turn.input.text === '' ? null : (
         <p className="text-story text-ink-subtle">{turn.input.text}</p>
       )}
       {turn.input?.attachments === undefined ? null : (
         <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
       )}
+      {chatShaped ? (
+        <>
+          <ChatMessages
+            turn={turn}
+            messages={messages}
+            hidden={hiddenEntry(chat, turn.id)}
+            actors={actors}
+            personaId={personaId}
+            swipes={swipes}
+            voice={chat?.voice}
+            head={head}
+            busy={busy}
+            {...gestures}
+          />
+          <IllustratedProse
+            sessionId={sessionId}
+            text=""
+            spans={[]}
+            renditions={renditions}
+            selectedId={selectedRenditionId}
+            onRetry={onRetryRendition}
+            onSelect={onSelectRendition}
+            busy={busy}
+            picturesOnly
+          />
+        </>
+      ) : null}
       {/* **What the engine understood, drawn over the prose** — [10 §13.1],
           [P7.7]. An overlay and never a rewrite: with no spans this renders the
           same characters the model wrote, which is what makes the marks
           subtractable rather than baked in. */}
-      {turn.output === undefined ? null : (
+      {chatShaped || turn.output === undefined ? null : (
         <IllustratedProse
           sessionId={sessionId}
           text={turn.output.text}
@@ -1467,7 +1866,13 @@ function TurnView({
 
       <SiblingStrip
         turn={turn}
-        siblings={siblings}
+        siblings={turnSiblings(siblings, swipes, chatShaped)}
+        // Naming is about the node, so it is offered whenever there is a choice
+        // at all — including a chat turn whose alternatives are all message
+        // swipes, whose counters are on the messages and leave this strip
+        // empty. Promoting a swipe ([07 §6]) would otherwise be unreachable on
+        // most chat turns.
+        nameable={siblings.length >= 2}
         busy={busy}
         onGo={onGoToSibling}
         onName={onName}
@@ -1492,12 +1897,15 @@ function TurnView({
 function SiblingStrip({
   turn,
   siblings,
+  nameable,
   busy,
   onGo,
   onName,
 }: {
   turn: TurnRecord;
   siblings: string[];
+  /** Whether the node has alternatives anywhere — the name control's condition. */
+  nameable: boolean;
   busy: boolean;
   onGo: (turnId: string) => void;
   onName: (turnId: string, name: string) => void;
@@ -1506,36 +1914,41 @@ function SiblingStrip({
   const [name, setName] = useState('');
 
   const at = siblings.indexOf(turn.id);
-  if (siblings.length < 2 || at < 0) return null;
+  const stepping = siblings.length >= 2 && at >= 0;
+  if (!stepping && !nameable) return null;
 
   const previous = siblings[at - 1];
   const next = siblings[at + 1];
 
   return (
     <div className="flex items-center gap-2 text-sm text-ink-subtle">
-      <Button
-        type="button"
-        disabled={busy || previous === undefined}
-        onClick={() => {
-          if (previous !== undefined) onGo(previous);
-        }}
-        aria-label="Previous version"
-      >
-        ‹
-      </Button>
-      {/* A count, not a list: which of these you are on is the fact, and the
+      {stepping ? (
+        <>
+          <Button
+            type="button"
+            disabled={busy || previous === undefined}
+            onClick={() => {
+              if (previous !== undefined) onGo(previous);
+            }}
+            aria-label="Previous version"
+          >
+            ‹
+          </Button>
+          {/* A count, not a list: which of these you are on is the fact, and the
           others are addressed by stepping rather than by being enumerated. */}
-      <span aria-live="polite">{`${String(at + 1)} of ${String(siblings.length)}`}</span>
-      <Button
-        type="button"
-        disabled={busy || next === undefined}
-        onClick={() => {
-          if (next !== undefined) onGo(next);
-        }}
-        aria-label="Next version"
-      >
-        ›
-      </Button>
+          <span aria-live="polite">{`${String(at + 1)} of ${String(siblings.length)}`}</span>
+          <Button
+            type="button"
+            disabled={busy || next === undefined}
+            onClick={() => {
+              if (next !== undefined) onGo(next);
+            }}
+            aria-label="Next version"
+          >
+            ›
+          </Button>
+        </>
+      ) : null}
 
       {naming ? (
         <form
@@ -1649,6 +2062,55 @@ function recordedRemedy(turn: TurnRecord): string | null {
   const failed = (turn.steps ?? []).filter((step) => step.error !== undefined);
   const reason = failed.at(-1)?.error?.reason;
   return reason === undefined ? null : remedySentence(remedyFor({ reason, online: null }));
+}
+
+/**
+ * ***The turn being written*** — a live region, because its text arrives
+ * without the reader doing anything (the accessible-markup habit [work plan
+ * §2.1] calls day-one, applied where it actually matters).
+ *
+ * ***Painted as the chat it will be*** since [P13.5]: under `per-actor`
+ * dispatch each speaker's call streams into its own message, named as it
+ * opens (`liveMessages`), so the round reads as bubbles while it is written
+ * rather than becoming them only when it lands. When the stream cannot say
+ * who — a narrator, an older server, a reattach that missed the round's
+ * start — it is the joined text, as it always was.
+ */
+function LiveTurn(props: {
+  text: string;
+  messages: ReturnType<typeof liveMessages>;
+  actors: readonly LibraryObject[];
+}): React.JSX.Element | null {
+  if (props.messages !== null) {
+    return (
+      <li aria-live="polite" aria-busy="true" className="flex flex-col gap-3">
+        {props.messages.map((message, index) =>
+          message.speaker === null ? (
+            <p key={index} className="whitespace-pre-wrap text-story text-ink">
+              {message.text}
+            </p>
+          ) : (
+            <div key={index} className="flex gap-2">
+              <Portrait
+                actor={props.actors.find((one) => one.id === message.speaker?.id)}
+                name={message.speaker.name}
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-sm font-medium text-ink">{message.speaker.name}</span>
+                <p className="whitespace-pre-wrap text-story text-ink">{message.text}</p>
+              </div>
+            </div>
+          ),
+        )}
+      </li>
+    );
+  }
+  if (props.text.length === 0) return null;
+  return (
+    <li aria-live="polite" aria-busy="true">
+      <p className="whitespace-pre-wrap text-story text-ink">{props.text}</p>
+    </li>
+  );
 }
 
 /**

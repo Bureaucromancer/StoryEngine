@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { INITIAL, reduce, type PlayState } from './reducer.js';
+import { INITIAL, liveMessages, reduce, type PlayState } from './reducer.js';
 import { SseParser } from '../sse/parser.js';
 
 /**
@@ -373,5 +373,95 @@ describe('the live turn', () => {
 
     expect(state.live?.steps).toEqual([]);
     expect(state.live?.state).toBe('running');
+  });
+});
+
+/**
+ * ***A round, painted as the chat it will be*** — [P13 §1.8], [P13.5].
+ *
+ * The three claims a simplification would break: a piece lands in the message
+ * its index names and nowhere else but `text`; the between-speakers blank line
+ * (no index) never becomes a bubble; and a reattach that cost the round's start
+ * paints the text rather than half a chat.
+ */
+describe('the round, message by message', () => {
+  const indexed = (text: string, message?: number): { event: string; data: unknown } => ({
+    event: 'delta',
+    data: { jobId: 'job-1', text, ...(message === undefined ? {} : { message }) },
+  });
+  const VERA = { id: 'vera', name: 'Vera' };
+  const LUND = { id: 'lund', name: 'Lund' };
+
+  it('opens a named bubble per speaker and fills each from its own pieces', () => {
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't' }),
+      event(2, 'speakers.picked', { speakers: [VERA, LUND], by: 'model' }),
+      event(3, 'call.started', { stepId: 'g', message: 0, speaker: VERA }),
+      indexed('"You ', 0),
+      indexed('came."', 0),
+      indexed('\n\n'),
+      event(4, 'call.started', { stepId: 'g', message: 1, speaker: LUND }),
+      indexed('"Aye."', 1),
+    ]);
+
+    expect(liveMessages(state)).toEqual([
+      { speaker: VERA, text: '"You came."' },
+      { speaker: LUND, text: '"Aye."' },
+    ]);
+    expect(state.text).toBe('"You came."\n\n"Aye."');
+    expect(state.order).toEqual({ speakers: [VERA, LUND], by: 'model' });
+  });
+
+  it('paints the text when nothing is indexed, as a narrator’s turn is', () => {
+    const state = run(INITIAL, [snapshot(), indexed('Rain.')]);
+    expect(liveMessages(state)).toBeNull();
+    expect(state.text).toBe('Rain.');
+  });
+
+  it('paints the text after a reattach that missed the round’s start', () => {
+    const state = run(INITIAL, [
+      snapshot({ text: '"You came."\n\n' }),
+      event(1, 'call.started', { stepId: 'g', message: 1, speaker: LUND }),
+      indexed('"Aye."', 1),
+    ]);
+    expect(liveMessages(state)).toBeNull();
+    expect(state.text).toBe('"You came."\n\n"Aye."');
+  });
+
+  it('starts a new job with a fresh round and no order', () => {
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'speakers.picked', { speakers: [VERA], by: 'rules' }),
+      event(2, 'call.started', { stepId: 'g', message: 0, speaker: VERA }),
+      indexed('Hello.', 0),
+    ]);
+    const next = reduce(state, { kind: 'submitted', jobId: 'job-2' });
+    expect(liveMessages(next)).toBeNull();
+    expect(next.order).toBeNull();
+  });
+
+  it('clears the last job’s words when the next job’s frames beat its POST', () => {
+    const second = (seq: number, key: string, params: Record<string, unknown> = {}) => ({
+      event: 'progress',
+      id: `job-2.${String(seq)}`,
+      data: { jobId: 'job-2', seq, key, params, at: 0 },
+    });
+    const done = run(INITIAL, [
+      snapshot(),
+      event(1, 'speakers.picked', { speakers: [VERA], by: 'rules' }),
+      event(2, 'call.started', { stepId: 'g', message: 0, speaker: VERA }),
+      indexed('Hello.', 0),
+      event(3, 'turn.finished'),
+    ]);
+    const early = run(done, [
+      second(1, 'turn.started', { turnId: 't2' }),
+      second(2, 'call.started', { stepId: 'g', message: 0, speaker: LUND }),
+      { event: 'delta', data: { jobId: 'job-2', text: 'Aye.', message: 0 } },
+    ]);
+    const next = reduce(early, { kind: 'submitted', jobId: 'job-2' });
+    expect(next.text).toBe('Aye.');
+    expect(liveMessages(next)).toEqual([{ speaker: LUND, text: 'Aye.' }]);
+    expect(next.order).toBeNull();
   });
 });
