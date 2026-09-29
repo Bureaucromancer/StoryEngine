@@ -56,6 +56,24 @@ describe('outputFromMessages', () => {
   });
 
   /**
+   * ***`original` is kept and never joined*** — [P13 §1.1]. It is what the
+   * model returned before cleanup or the editor changed it, and `text` is what
+   * the transcript shows; a derivation that joined `original` would put the
+   * unedited reply back into everything that reads `text`.
+   */
+  it('keeps a message’s original on the message and out of the text', () => {
+    const cleaned: OutputMessage = {
+      speaker: MARLOW,
+      text: '"You came."',
+      original: 'Marlow: "You came."\nElena: "I said I would."',
+    };
+    const output = outputFromMessages([cleaned]);
+
+    expect(output.text).toBe('"You came."');
+    expect(output.messages).toEqual([cleaned]);
+  });
+
+  /**
    * *A copy, so a runner accumulating a round cannot reach into a record it
    * already checkpointed.* The falsifying mutation is `messages` stored by
    * reference.

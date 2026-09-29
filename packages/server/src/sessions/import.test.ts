@@ -398,11 +398,11 @@ describe('what a newer build wrote', () => {
  *
  * **Unchanged by `importSession`'s own rules**, which are the only changes an
  * import makes: a new session id, each turn naming the session it is in now,
- * and provenance on both. Everything else — the messages with their speakers
- * and the carried mark, the hide map keyed by a turn id the import keeps, the
- * speaker policy, the card switches and the author's note — is asserted equal
- * on the *re-export* from the second install, because an install passing the
- * session on is where a loss would travel.
+ * and provenance on both. Everything else — the messages with their speakers,
+ * the carried mark and a cleaned message's `original`, the hide map keyed by a
+ * turn id the import keeps, the speaker policy, the card switches and the
+ * author's note — is asserted equal on the *re-export* from the second install,
+ * because an install passing the session on is where a loss would travel.
  */
 describe('a chat that travels', () => {
   it('keeps three attributed messages and every chat setting, hidden index included', async () => {
@@ -414,7 +414,7 @@ describe('a chat that travels', () => {
     const sessionId = created.body.session.id as string;
 
     const messages: OutputMessage[] = [
-      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: null, text: 'Rain on the tin roof.', original: 'Narrator: Rain on the tin roof.' },
       { speaker: { id: 'actor-marlow', name: 'Marlow' }, text: '"You came."', carried: true },
       {
         speaker: { id: 'actor-elena', name: 'Elena' },

@@ -89,6 +89,10 @@ export const SPEAKER_DEFAULTS: Omit<SpeakerSettings, 'policy'> = {
  * kinds of depth-placed text agree unless somebody says otherwise; every 1 is
  * *every input*, the only reading of a missing interval under which a note is
  * ever seen.
+ *
+ * *A missing or unreadable interval, that is — not a zero.* An interval of 0 or
+ * less is a note switched off, and `noteOf` reads it as `every: 0` rather than
+ * as this default; see there.
  */
 const NOTE_DEFAULTS = { depth: 4, every: 1 } as const;
 
@@ -176,6 +180,20 @@ function speakersOf(value: unknown, select: SpeakerSettings['policy']): SpeakerS
  * The author's note. **No text is no note**: depth and interval are where and
  * how often, and without something to place there is nothing for them to
  * describe. A usable text with a malformed depth or interval keeps the text.
+ *
+ * ***An interval of 0 or less is a note switched off, and reads as
+ * `every: 0`.*** That is SillyTavern's meaning — `setFloatingPrompt` inserts
+ * nothing when `note_interval <= 0` (`authors-note.js:351`), and the field is
+ * labelled *"0 = Disable, 1 = Always"* — and [P13 §2.6] maps `note_interval`
+ * straight onto `every`. Read as malformed, it fell to the default of 1, so a
+ * converter copying the value across and a person typing 0 to silence the note
+ * both got a note on **every** input: the opposite of what either asked for.
+ *
+ * *Switched off rather than dropped*, because switching a note off is not
+ * deleting it: the text survives, so a settings panel built on this reader
+ * still shows the note, and saving it cannot write over what was kept. The
+ * renderer ([P13.3]) places no note whose `every` is 0. Any other interval that
+ * is not a whole number — missing, fractional, a string — is still the default.
  */
 function noteOf(value: unknown): ChatSettings['note'] {
   if (!isRecord(value)) return null;
@@ -184,8 +202,13 @@ function noteOf(value: unknown): ChatSettings['note'] {
   return {
     text,
     depth: isCount(depth, 0) ? depth : NOTE_DEFAULTS.depth,
-    every: isCount(every, 1) ? every : NOTE_DEFAULTS.every,
+    every: isCount(every, 1) ? every : isSwitchedOff(every) ? 0 : NOTE_DEFAULTS.every,
   };
+}
+
+/** A whole-number interval of 0 or less — SillyTavern's *disabled*. */
+function isSwitchedOff(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value <= 0;
 }
 
 /**

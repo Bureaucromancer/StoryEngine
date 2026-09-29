@@ -219,6 +219,15 @@ hidden?: Record<string, true | number[]>;                // §1.7
 prompts?: { instruction?: false; cards?: Record<string, false | CardPromptPart[]> };  // §1.5
 ```
 
+*Corrected 2026-09-29, at P13.0:* `policy` is typed as the SDK's
+`ParticipantPolicy['select']`, which **keeps `fixed`** where the sketch leaves
+it out. Three things need it: Scene declares `select: 'fixed'` until P13.1
+changes it, creation writes the mode's declared value, and the reading of a
+pre-P13 session below is narrator/merged/**fixed**. `smart` joins the union at
+P13.1, which builds it. And `note.every` of 0 or less is a note switched off
+with its text kept, which is ST's `note_interval <= 0` (`authors-note.js:351`),
+so §2.6 copies the value across as it is.
+
 **Scene's declared values become `embodied`, `per-actor`, `natural`.** In a
 single-character chat, `per-actor` and `merged` are the same single call.
 

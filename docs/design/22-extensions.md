@@ -154,7 +154,7 @@ Another mechanism that already existed.
 > rediscover them)*. `StepContext` is two parameters in the built contract —
 > `StepImplementation = (input: StepInput, host: StepHost) => Promise<StepResult>`
 > — because a host that is a *field on the payload* is the thing that cannot be
-> serialised; `StepResult` carries one `message`, not `messages[]`; `config` has
+> serialised; ~~`StepResult` carries one `message`, not `messages[]`;~~ `config` has
 > no shipped home yet; and `suspend` ([25 C5]) and `diagnostics` are unbuilt. The
 > split into input-and-host is the shape §4's own argument wants, and is the
 > reason the rest of this block reads as it does.
@@ -173,6 +173,16 @@ Another mechanism that already existed.
 > entitled to, and `speakers` and `setup` are the mode's own declaration answered
 > for the mode's own session. `cast` **is** filtered, because a scene's whole
 > cast is not a small thing to hand somebody who did not ask for it.
+>
+> ***And `StepResult` moved at [P13.0](workplan/30-p13-scene-and-session-import.md)***
+> (2026-09-29), which struck the second item above. It now carries `message`
+> (one reply by nobody in particular, as before) **or** `messages?: OutputMessage[]`
+> ([P13 §1.1](workplan/30-p13-scene-and-session-import.md)), each message with
+> its speaker, and never both: the runner fails a result carrying both as the
+> step's own failure, before anything else it carries is applied, and derives
+> `output.text` from the list. The sketch's `Message[]` ships as
+> `OutputMessage[]`; keeping `message` beside it, and the either/or rule between
+> them, is the difference that remains.
 >
 > `StepInput` and `StepResult` are both `structuredClone`-able today, asserted
 > in `turns/steps.test.ts`, which is the half of [01 §2]'s day-one item that can

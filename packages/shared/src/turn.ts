@@ -1131,6 +1131,38 @@ export interface OutputMessage {
    * absent, the record's usual shape for a flag.
    */
   carried?: true;
+  /**
+   * ***The text as the model returned it, when something since changed it*** —
+   * [P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [§1.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * reply cleanup and
+   * [§1.9.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * style editor.
+   *
+   * ***Here because nowhere else keeps it.*** `ModelCall` records the prompt,
+   * the parameters, the usage and the outcome, and never the reply — the reply
+   * lives only in the output. So once P13.2's cleanup strips a leading
+   * `Speaker:` or cuts a reply at another member's line, or P13.5c's editor
+   * rewrites it, the unmodified reply survives on this field or not at all. §1.4
+   * first said *"the raw reply stays in the call record"*, and was corrected to
+   * this on finding that it does not.
+   *
+   * **Written only when the two differ**, so absent means *`text` is what the
+   * model said* rather than *not recorded*: a message cleanup left alone would
+   * otherwise carry its text twice. **`text` stays what the transcript shows** —
+   * what `output.text` is derived from and what search, the summary chain and a
+   * later step read — and `original` is only what *show original* offers.
+   * `joinMessageTexts` never joins it.
+   *
+   * *Declared at [P13.0] with no writer yet*, beside the rest of the record,
+   * because it is an optional field every existing turn lacks — so adding it
+   * now, like adding it later, tightens nothing under
+   * [P11.10](../../../docs/design/workplan/28-p11-implementation.md)'s freeze,
+   * and `storyengine.session-export/1` carries it through either way. Declaring
+   * it with the record is what lets the round trip be tested before the stages
+   * that write it.
+   */
+  original?: string;
 }
 
 /**

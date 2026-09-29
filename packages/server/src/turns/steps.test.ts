@@ -363,7 +363,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
        * has to get right.
        */
       messages: [
-        { speaker: null, text: 'Rain.' },
+        { speaker: null, text: 'Rain.', original: 'Narrator: Rain.' },
         { speaker: { id: 'actor-vera', name: 'Vera' }, text: '"Late."', carried: true },
       ],
     };

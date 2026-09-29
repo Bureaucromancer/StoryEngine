@@ -385,6 +385,11 @@ export interface SessionFile {
    * difference between the two: guidance is one turn's advice and is never
    * recorded ([06 §5.1]); a note is standing configuration a person set once.
    * Absent is no note.
+   *
+   * ***`every: 0` is a note switched off***, text kept — SillyTavern's
+   * `note_interval <= 0` (*"0 = Disable, 1 = Always"*), so an importer copies
+   * the value across as it is ([P13 §2.6]) and the renderer places nothing.
+   * `chatSettingsOf` reads any whole number below 1 as 0.
    */
   note?: { text: string; depth: number; every: number };
   /**

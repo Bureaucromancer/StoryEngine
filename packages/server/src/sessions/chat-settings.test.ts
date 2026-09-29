@@ -211,6 +211,28 @@ describe('a file somebody edited by hand', () => {
     expect(
       chatSettingsOf({ note: { text: 'Keep it tense.', depth: 0, every: 3 } }, MOVED).note,
     ).toEqual({ text: 'Keep it tense.', depth: 0, every: 3 });
+    expect(
+      chatSettingsOf({ note: { text: 'Keep it tense.', every: 2.5 } }, MOVED).note?.every,
+    ).toBe(1);
+  });
+
+  /**
+   * ***An interval of 0 or less is SillyTavern's "disabled"*** —
+   * `note_interval <= 0`, *"0 = Disable, 1 = Always"* — and [P13 §2.6] copies
+   * it across as it is. The falsifying mutation is the old reading, which took
+   * it for malformed and put the note on every input: the opposite of what it
+   * says. Switched off, not dropped: the text is still there to switch back on.
+   */
+  it('reads an interval of 0 or less as a note switched off, text kept', () => {
+    for (const every of [0, -2]) {
+      expect(chatSettingsOf({ note: { text: 'x', every } }, MOVED).note, String(every)).toEqual({
+        text: 'x',
+        depth: 4,
+        every: 0,
+      });
+    }
+    // And a missing one is still every input, not off.
+    expect(chatSettingsOf({ note: { text: 'x' } }, MOVED).note?.every).toBe(1);
   });
 
   /**

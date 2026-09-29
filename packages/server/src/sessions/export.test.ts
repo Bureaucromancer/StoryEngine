@@ -178,8 +178,8 @@ describe('a session, exported whole', () => {
    *
    * The export spreads the document and writes each turn as it is on disk, and
    * this is the test that the spread is doing that job for the fields P13 grew:
-   * attributed messages on a turn — a narrator one, a carried one — and every
-   * chat setting on the session. The falsifying mutation is a serialiser that
+   * attributed messages on a turn — a narrator one keeping its `original`, a
+   * carried one — and every chat setting on the session. The falsifying mutation is a serialiser that
    * restates the shape, which would drop whichever of these it was written
    * before.
    */
@@ -197,7 +197,7 @@ describe('a session, exported whole', () => {
     });
     const said = uuidv7();
     const messages: OutputMessage[] = [
-      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: null, text: 'Rain on the tin roof.', original: 'Narrator: Rain on the tin roof.' },
       { speaker: { id: 'actor-marlow', name: 'Marlow' }, text: '"You came."', carried: true },
       { speaker: { id: 'actor-elena', name: 'Elena' }, text: '"I said I would."' },
     ];

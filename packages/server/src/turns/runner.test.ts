@@ -23,7 +23,7 @@ import {
   writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
-import type { PooledHook, Turn } from '../sessions/types.js';
+import type { ChannelEffect, PooledHook, Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
 import { readDraft, readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
@@ -32,7 +32,7 @@ import { Accounts } from '../auth/accounts.js';
 import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
-import type { StepDefinition, StepResult, TurnPlan } from './steps.js';
+import type { EffectProposal, StepDefinition, StepResult, TurnPlan } from './steps.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { registerMode } from '../mode-registry.js';
 
@@ -3974,7 +3974,7 @@ describe('a turn that speaks with several voices', () => {
 
   it('commits the messages, with the text and reasoning derived from them', async () => {
     const messages: OutputMessage[] = [
-      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: null, text: 'Rain on the tin roof.', original: 'Narrator: Rain on the tin roof.' },
       { speaker: MARLOW, text: '"You came."', carried: true },
       { speaker: ELENA, text: '"I said I would."', reasoning: 'She is tired.' },
     ];
@@ -3988,6 +3988,8 @@ describe('a turn that speaks with several voices', () => {
     const { job, turn } = await runTurn();
 
     expect(turn.status).toBe('complete');
+    // The narrator's `original` rides on its message and stays out of `text`,
+    // which is what the transcript shows and every older reader reads.
     expect(turn.output).toEqual({
       text: 'Rain on the tin roof.\n\n"You came."\n\n"I said I would."',
       reasoning: 'She is tired.',
@@ -4002,17 +4004,39 @@ describe('a turn that speaks with several voices', () => {
   });
 
   /**
+   * A proposal the record keeps whether or not it is admitted — `se.clock` is
+   * engine-computed, so a step's proposal lands `applied: false` — which makes
+   * it visible on `turn.effects` exactly when the runner let the result that
+   * carried it that far.
+   */
+  function clockProposal(stepId: string): EffectProposal {
+    return {
+      channelId: SE_CLOCK,
+      op: { type: 'set', path: '/' },
+      after: { day: 9, hour: 0, minute: 0 },
+      proposedBy: { kind: 'step', stepId },
+    };
+  }
+
+  /**
    * ***Both is the step's failure, not a choice the runner makes for it.*** The
    * two are rival answers to what the turn said; the falsifying mutation is a
    * runner that prefers one, which would commit a `complete` turn missing
    * whatever the other held.
+   *
+   * **And refused before any of it is applied**, which is what the runner's
+   * comment promises and what makes the refusal safe: the result also carries
+   * an effect and a `message` that differs from what streamed, so a check moved
+   * below the effect loop leaves the proposal on the failed turn, and one moved
+   * below `draft.output = result.message` records the other text.
    */
   it('refuses a result carrying both message and messages, under the step’s policy', async () => {
     makeRunner({
       script: [{ text: 'Rain on the tin roof.' }],
-      plan: voicing((said) => ({
-        message: { text: said },
+      plan: voicing(() => ({
+        message: { text: 'Something else entirely.' },
         messages: [{ speaker: MARLOW, text: '"You came."' }],
+        effects: [clockProposal(TEST_STEP.id)],
       })),
     });
 
@@ -4024,12 +4048,93 @@ describe('a turn that speaks with several voices', () => {
       stepId: TEST_STEP.id,
       state: 'failed',
       error: { reason: 'internal' },
+      contributed: { effects: 0 },
     });
     expect(turn.steps?.[0]?.error?.message).toContain('both message and messages');
     // Neither answer was recorded — what streamed is what survives, as for any
     // step that failed after its words had arrived.
     expect(turn.output?.messages).toBeUndefined();
     expect(turn.output?.text).toBe('Rain on the tin roof.');
+    // Nor anything else the result carried.
+    expect(turn.effects.filter((effect) => effect.proposedBy.kind === 'step')).toEqual([]);
+  });
+
+  /**
+   * ***A refused result under `warn` leaves no half of itself for the turn that
+   * goes on*** — the case where a misplaced check would do the most harm,
+   * because the turn completes and nothing marks what leaked into it: a
+   * candidate reaching the next step's prompt, an effect on the committed
+   * record.
+   *
+   * *With its control*: the same step returning only `messages` does
+   * contribute both, so the refused arm cannot pass by the candidate or the
+   * effect never having been able to get through at all.
+   */
+  describe('a refused result the turn goes on without', () => {
+    const VOICES: StepDefinition = { ...TEST_STEP, id: 'se.voices', failure: 'warn' };
+
+    /** A warned step voicing a round, and the narrator's call after it. */
+    function voicesThenNarrates(both: boolean): TurnPlan {
+      return {
+        steps: [
+          {
+            definition: VOICES,
+            run: async (_input, host) => {
+              await host.call({ stream: true });
+              return {
+                ...(both ? { message: { text: 'Something else entirely.' } } : {}),
+                messages: [{ speaker: MARLOW, text: '"You came."' }],
+                candidates: [
+                  {
+                    id: 'step.refused',
+                    source: { kind: 'step', stepId: VOICES.id },
+                    reason: 'what the voices step contributed',
+                    role: 'system',
+                    text: 'Marlow is lying.',
+                  },
+                ],
+                effects: [clockProposal(VOICES.id)],
+              };
+            },
+          },
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => ({ message: { text: (await host.call({})).text } }),
+          },
+        ],
+      };
+    }
+
+    async function taken(both: boolean): Promise<Turn> {
+      makeRunner({
+        script: [{ text: 'Rain on the tin roof.' }, { text: 'Still raining.' }],
+        plan: voicesThenNarrates(both),
+      });
+      const { turn } = await runTurn();
+      expect(turn.status).toBe('complete');
+      expect(turn.request?.calls).toHaveLength(2);
+      return turn;
+    }
+
+    const reachedTheNarrator = (turn: Turn): boolean =>
+      (turn.request?.calls[1]?.blocks ?? []).some((block) => block.id === 'step.refused');
+    const proposedByVoices = (turn: Turn): ChannelEffect[] =>
+      turn.effects.filter(
+        (effect) => effect.proposedBy.kind === 'step' && effect.proposedBy.stepId === VOICES.id,
+      );
+
+    it('the control: an accepted result contributes its candidate and its effect', async () => {
+      const turn = await taken(false);
+      expect(reachedTheNarrator(turn)).toBe(true);
+      expect(proposedByVoices(turn)).toHaveLength(1);
+    });
+
+    it('lets nothing of a refused result reach a later step or the record', async () => {
+      const turn = await taken(true);
+      expect(turn.steps?.[0]).toMatchObject({ stepId: VOICES.id, state: 'failed' });
+      expect(reachedTheNarrator(turn)).toBe(false);
+      expect(proposedByVoices(turn)).toEqual([]);
+    });
   });
 
   /**
