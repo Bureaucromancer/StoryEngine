@@ -208,9 +208,10 @@ policy become optional session fields. Each defaults to the mode's value, as
 voice?: 'narrator' | 'embodied';
 dispatch?: 'merged' | 'per-actor';
 speakers?: {
-  policy: 'natural' | 'list' | 'pooled' | 'manual';
+  policy: 'natural' | 'list' | 'pooled' | 'manual' | 'smart';
   allowSelfResponses: boolean;
   namesInHistory: 'never' | 'groups' | 'always';
+  maxPerRound: number;   // smart only: the most it may pick, default 3
 };
 note?: { text: string; depth: number; every: number };   // §1.5
 hidden?: Record<string, true | number[]>;                // §1.7
@@ -272,9 +273,109 @@ and presence `false` is **muted**. That is ST's `disabled_members` and
 Marinara's `inactiveCharacterIds`, and it is the checkbox the cast panel already
 has.
 
-*Not built:* Marinara's `smart` order, which asks a model who should reply. It
-is a fifth arm that costs a call per turn. It is recorded for when somebody
-wants it.
+A fifth arm, **`smart`**, asks a model who should reply. §1.3a is its whole
+design, because it is the one arm that makes a call.
+
+### 1.3a Smart order: a small call, a closed answer, a deterministic fallback
+
+Marinara's `smart` order (`generate.routes.ts:5306-5456`) is the best answer
+either source has to *"who would actually speak now?"*. It is also the only
+arm whose answer is a judgement rather than a rule. Marinara's version is:
+
+- explicit `@mentions` win outright;
+- otherwise a separate non-streamed call picks, at temperature 0.2, over the
+  roster, their talkativeness and personality, and the last five exchanges;
+- its prompt says *"usually choose exactly one character… avoid making the same
+  character speak twice in a row"*;
+- if the answer is unusable, it falls back to the first member who was not the
+  last speaker.
+
+**Ours takes that behaviour and builds it the way the hook selector is built**
+([P7.5](23-p7-implementation.md), `turns/hook-selector.ts`). That step is this
+build's existing answer to *"a cheap engine judgement before the prose"*, and
+every decision it made about cost, failure and trust applies here unchanged.
+
+**1. Rules first, and most turns never make the call.** `selectSpeakers` answers
+`smart` without a model whenever a rule already decides:
+
+| Situation | Answer | Call? |
+|---|---|---|
+| force-talk named somebody | them | no |
+| the activation text names eligible members | them, in order of mention | no |
+| one eligible member | them | no |
+| otherwise | ask, with `natural`'s pick computed as the fallback | **yes** |
+
+Mentions winning outright is Marinara's rule and ST's first step. It also means
+the call runs only when there is genuinely something to judge. In a
+three-person scene where the player addresses somebody by name, that is not
+most turns.
+
+**2. The call is an engine-owned `pre` step, `se.speakers.smart`.** It sits
+beside the hook selector and is planned only when the session's policy is
+`smart` and the rules asked. Its prompt is **its own candidates, not the
+scene**: `StepCallRequest.candidates` is set, so neither the preset nor the
+retriever runs. That is what makes it cheap. It gets:
+
+- **the roster**: each eligible member's id, name, talkativeness and the first
+  ~300 characters of their `se.summary`, plus how many rounds ago they last
+  spoke;
+- **what just happened**: the last six messages, each cut to ~600 characters,
+  with speakers named. Hidden lines are excluded, because the orchestrator sees
+  what the characters see;
+- **the question**: who should reply next, in order. Usually one; several only
+  when each has an immediate reason; the last speaker only if addressed; at
+  most `maxPerRound`. Marinara's instruction in substance, with our wording.
+
+**3. A closed answer, enforced twice.** The schema is an array of the eligible
+ids (`enum`), `minItems: 1`, `maxItems: maxPerRound`. Each item optionally
+carries a one-line `because`. The reader then filters to eligible ids,
+de-duplicates and caps. [P7.4] measured that `jsonSchema()` is not validated on
+the degraded path, and the hook selector's reason applies word for word: *"a
+model naming an ineligible hook is the failure [06 §6.1] warns about"*. A name
+instead of an id is accepted when it matches exactly one eligible member,
+because Marinara found models do that (`:5262-5304`).
+
+**4. It never fails a turn.** `failure: 'warn'`. A timeout, an unbound role, an
+unreadable answer or an empty one all fall back to rule 1's `natural` pick. That
+pick was drawn from the turn's tape before the call, so the fallback is
+deterministic and replayable. The fallback is recorded as a warned step, never
+silent. A person who chose `smart` and got the rule-based pick can see that
+happened and why ([00 §3.3](../00-stance.md)).
+
+**5. The role is `prose`, and that is deliberate.** The hook selector found
+that declaring `fast` fails on every stock install, because nothing binds it.
+The same holds here. An install that wants a cheap model for this points the
+session's `stepRoles` at `se.speakers.smart`, which is exactly the case that
+layer exists for. Temperature 0.2, as Marinara's, set as the call's parameter.
+
+**6. How the answer reaches the generate step.** Speakers are selected once,
+before the step loop (`runner.ts:756`), and a step cannot write `speakers`
+back through `StepResult`. That is correct: widening the result would let any
+mode rewrite who spoke. So this follows the hook selector's precedent. The
+runner hands the step an **engine-only cell**, the step writes its pick there,
+and the runner substitutes it into `StepInput.speakers` for the steps that
+follow. The door is only reachable from engine code, and `planFor` cannot
+produce one.
+
+**7. It is recorded, and a rewrite keeps it.**
+- The call is an ordinary `request.calls` entry.
+- The pick and its `because` lines go on the step's outcome, so the workbench
+  shows *who was chosen and why*.
+- The transcript shows only the result: the messages' speakers.
+- **Rewrite keeps the speakers and reroll asks again.** That is the same line
+  [07](../07-branching.md) draws between *"not that sentence"* and *"not that
+  outcome"*. A `rewriteOf` submission carries the redone turn's speakers,
+  read from its messages, and the call is not made.
+
+**8. The surface.** The policy control offers *"Smart — a model picks who
+replies (one extra call on turns where nobody is named)"*. The cost is in the
+label, not a help page. While a round streams, the *who speaks next* control
+shows the picked order, which is Marinara's `response_queue` event. Force-talk
+still overrides it.
+
+*Deliberately not built:* smart choosing **nobody**. Marinara's `manual` is the
+policy for *"only when I ask"*, and a smart arm that could answer nobody would
+make *let them talk* silently do nothing. `minItems: 1` is the guard.
 
 ### 1.4 Per-actor dispatch: one call per speaker, in order, each seeing the last
 
@@ -441,7 +542,6 @@ sources and stays client-side here.
 
 ### 1.9 What is not in Part A
 
-- **Marinara's `smart` order** (§1.3).
 - **Marinara's agents.** Trackers, the narrative director and post-processing
   writers are Marinara's product, not the chat. Scene's staging step is the
   closest thing here and is unchanged.
@@ -586,7 +686,7 @@ A resolved speaker becomes `speaker: { id, name }`. An unresolved one keeps
 | ST `disabled_members`, Marinara `inactiveCharacterIds` | presence `false` (muted) |
 | ST `generation_mode` SWAP / APPEND | recorded. The pack's speaker scoping is the equivalent, and it is a pack choice, not a session one |
 | Marinara `groupChatMode` individual / merged | `dispatch` per-actor / merged |
-| Marinara `groupResponseOrder` sequential / manual / smart | `list` / `manual` / `natural`, with a note that `smart` is not built |
+| Marinara `groupResponseOrder` sequential / manual / smart | `list` / `manual` / `smart` |
 | Marinara `groupSpeakerNamesInHistory` | `namesInHistory` |
 | ST `note_prompt` / `note_depth` / `note_interval` | `session.note` |
 | ST `is_system` lines, Marinara `hiddenFromAI` | **imported, and hidden** (`session.hidden`), no longer dropped |
@@ -637,9 +737,19 @@ imports unchanged, and a pre-P13 Scene session reads as narrator/merged/fixed.
 - `castIsPresent` and muting.
 - Talkativeness in `modeData`.
 - Force-talk on submission.
+- **Smart order** (§1.3a):
+  - `se.speakers.smart` and its rules-first pre-pass;
+  - the engine cell into `StepInput.speakers`;
+  - the fallback, and rewrite carrying the speakers.
 
-*Proof obligation:* each arm against a table transcribed from `group-chats.js`,
-and a replayed turn picking the same speakers.
+*Proof obligation:*
+- each arm against a table transcribed from `group-chats.js`;
+- a replayed turn picking the same speakers;
+- for `smart`, with a stubbed provider:
+  - mentions, force-talk and a single eligible member make **no** call;
+  - an ineligible id, a name, an empty array and a thrown call each land on the
+    tape's `natural` pick, with a warned outcome;
+  - a rewrite makes no call and keeps the speakers.
 
 #### P13.2 — Per-actor dispatch
 
@@ -761,7 +871,7 @@ include text, so a duplicate derivation costs one call and changes no key.
 ### What is deliberately not in this phase
 
 - **Sync** (§2.4).
-- **Marinara `smart` order and agents** (§1.9).
+- **Marinara's agents** (§1.9).
 - **Mixed voice** (C2), and per-character hide.
 - **`LoreScope`'s chat arm** ([18 §4.4](../18-session-import.md)).
 - **Aventuras `.avt`.**
@@ -781,7 +891,9 @@ criterion:
    swipes to its alternates. Swipe, continue, edit, hide and impersonate each
    behave like the thing a person who uses ST expects them to be.
 2. **A three-character group, played.** Natural activation picks plausible
-   speakers, and force-talk and *let them talk* work. Each message names its
+   speakers, and force-talk and *let them talk* work. **Played again on
+   `smart`**, where a person judges whether its picks beat natural's often
+   enough to be worth the call. Each message names its
    speaker, and nobody writes another member's lines.
 3. **A real SillyTavern data folder imported**, then played one turn. A branched
    chat is one session. A group keeps its members, strategy and muted members.
