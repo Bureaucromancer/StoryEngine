@@ -270,6 +270,64 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
 
   /**
+   * **A chat, imported as a session** —
+   * [P13.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * tree builder, for both sources.
+   *
+   * [P13 §2.6] ends on *"everything else is a note, never silence"*, and these
+   * are the places where the session is not quite the chat: a speaker the
+   * library does not have, a hidden line with no exact home, a branch whose
+   * parent never arrived. `hiddenInputShown` and `hiddenDisagrees` are the ones
+   * that change what the model is sent, which is why they warn — a turn here
+   * hides whole or by reply, and a player's line is neither; and a session has
+   * one answer for whether a line is hidden where the family's chats had one
+   * each.
+   */
+  'import.chat.speakerUnresolved':
+    '“{name}” is not in this library. Their messages keep the name, and the character shows as missing.',
+  'import.chat.castCapped':
+    '{count} more characters speak in this chat than the {limit} a cast can hold. Their messages keep their names; they are not in the cast.',
+  'import.chat.hiddenKept':
+    '{count} messages were hidden from the model in the source, and are hidden here too.',
+  'import.chat.hiddenInputShown':
+    '{count} of the player’s messages were hidden in the source while the replies to them were not. A turn here hides whole or by reply, so those messages are shown to the model.',
+  'import.chat.hiddenDisagrees':
+    '{count} messages were hidden from the model in one chat of this family and shown in another. The chats share them here, so they are hidden in every branch.',
+  'import.chat.swipes':
+    '{count} swipes came in as alternatives beside the messages they belong to.',
+  'import.chat.parentMissing':
+    '“{chat}” says it was branched from {parent}, which is not in this import. It is kept here anyway, sharing whatever it has in common with the other chats.',
+  'import.chat.emptyChat': '“{chat}” has no messages, so it has no branch in this session.',
+
+  /**
+   * **One chat file, read** —
+   * [P13.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * SillyTavern JSONL parser, which also reads Marinara's per-chat export.
+   *
+   * *Every one names its chat*, because a family's notes are read together: a
+   * branch and its parent share most of their lines, and "line 7" is only
+   * useful to somebody who knows which file to open. The warnings are the ones
+   * that change what the model is sent — a line lost, a tool call it no longer
+   * sees, an attachment gone, variables a prompt read, a note placed elsewhere;
+   * the rest say what was left behind and why nothing is missing because of it.
+   */
+  'import.chat.lineUnreadable': 'Line {line} of “{chat}” could not be read, so it was left out.',
+  'import.chat.interfaceSkipped':
+    '{count} of SillyTavern’s own screens saved in “{chat}” — help pages, the welcome message and the like — were left out. They were never part of the story.',
+  'import.chat.toolCallsHidden':
+    '{count} tool-call records in “{chat}” came in as hidden narration. SillyTavern sent them to models that could call tools; a turn here has nowhere to keep a tool call, so the model no longer sees them.',
+  'import.chat.attachmentsNotCarried':
+    '{count} messages in “{chat}” had files or pictures attached. The chat file does not hold them, so the messages came in without them.',
+  'import.chat.modelsNotCarried':
+    '{count} replies in “{chat}” recorded the model that wrote them. That is not kept: a turn here records only a request this server made.',
+  'import.chat.variablesNotCarried':
+    '“{chat}” had {count} chat variables set by scripts. They are not carried, so anything in the prompt that read them reads nothing.',
+  'import.chat.noteOutsideHistory':
+    'The author’s note in “{chat}” sat beside the story string in SillyTavern, outside the chat history. Here it sits in the history, {depth} messages from the end.',
+  'import.chat.noteRole':
+    'The author’s note in “{chat}” was sent as the {role}’s message in SillyTavern. Here it is placed the way the Scene pack places notes.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by

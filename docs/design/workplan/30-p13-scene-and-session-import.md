@@ -269,9 +269,12 @@ speakers.
 
   **On a turn with no input only**, the last message's speaker is excluded
   unless `allowSelfResponses`: ST bans them only when the round was not
-  started by the player (`:1245`). ST matches words with ASCII `\w`, so a name
-  like *Zoë* never matches; ours matches Unicode letters and digits, a
-  deliberate difference. **Talkativeness**
+  started by the player (`:1245`). ST matches words with ASCII `\w`, so a
+  name outside it matches badly: ~~a name like *Zoë* never matches~~
+  (*corrected at P13.1*: *Zoë* reads as `zo` and so matches "Zo" and "Zoé"
+  too; *Renée* reads as `ren` and a lone `e`; Cyrillic, Greek and CJK names
+  are never found). Ours matches Unicode letters and digits, a deliberate
+  difference. **Talkativeness**
   lives at `actor.modeData['storyengine.scene'].talkativeness`, default 0.5. It
   is participation, not prompt, so it belongs in `modeData`: the card schema's
   *"prompt assembly is owned by the preset"* exclusion (`actor.ts:158`) is about
@@ -937,6 +940,18 @@ ST's greetings-as-swipes on message 0 become sibling opening turns, which is
 id = uuidv7Shaped( time, H(account, familyKey, parentId, input, messages) )
 ```
 
+*Made exact at P13.6 (`import/chat/ids.ts`), 2026-09-29.* `messages` means each
+message's **speaker key and text** and nothing else: never a resolved library
+id (a card imported later must not move an id), never `carried` or `hidden`
+(both say how a node was reached or shown, not what it is; hashing `carried`
+split one swipe into two siblings when two chats showed different swipes, and
+the review caught it). `familyKey` is the root chat's bare path, the same
+string §2.7 stamps as `origin.originalFilename`. `time` is the **round's**:
+the player's line's send time, or for an output-only round the earliest time
+among its opening line's swipes, so a round and every swipe sibling of it
+share one time and switching the active swipe in the source moves no id; it is
+then forced above the parent's.
+
 - **Content and parent, not position.** Chats in one family that share a
   prefix produce the same ids for it, so the prefix collapses into one path.
   Each branch forks where it actually diverged, including a branch copy that
@@ -1068,6 +1083,19 @@ target session's lock, appends in the document's order (parents first, by
 `{ ok: true, sessionId, appended }`, and `appended: 0` becomes `unchanged` in
 the ledger. The `already-here` refusal stays for its original case: an export
 from this install being loaded back, where there is no source to extend from.
+
+**The open case, found at P13.6: a chat that grew *inside* its last round.**
+A round is one turn and its id hashes the whole round, so a group round that
+gains a fourth reply, or a player's line that gets its reply after the import,
+is a **different** node from the one imported, and a plain re-import writes it
+as a sibling beside the old round rather than extending it. Two ways out, for
+P13.10a to choose between with a test for each: key a round on its opening
+(the input and the first reply) and let later replies extend it in place,
+which gives up a little of §2.4's *identical content, identical id*; or accept
+the sibling, name it for what it is (*the round as it now stands*) and move the
+head onto it when the person had not played on. The builder's tests pin the
+current behaviour (`import/chat/build.test.ts`) so the choice is made on
+purpose.
 
 **How a person triggers it:** the same doors as a first import. Re-running a
 folder sweep or a server-path import brings every grown chat up to date. Play's
