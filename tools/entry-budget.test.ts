@@ -59,7 +59,20 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * a reason beside it** rather than by deciding the failure is noise. That is
  * the difference between a budget and a warning.
  */
-const JS_CEILING_KB = 310;
+/*
+ * ***Raised to 320 on 2026-09-29, at [P13.5]*** (the chat surface,
+ * [P13 §1.8](../docs/design/workplan/30-p13-scene-and-session-import.md)). The
+ * entry measured **306.91** before the stage and **314.69** after it: +7.78 kB
+ * of the play page's own code — the transcript drawn as a chat, the chat
+ * settings, the cast panel's four controls, the creation form's characters and
+ * auto-mode — and **no new dependency**, which is the [20 §7] trigger this
+ * ceiling exists to make loud. The play page is on the common entry, as every
+ * route is, so its growth lands here; splitting one page's code into a lazy
+ * chunk would be the first `React.lazy` in the client and a loading decision
+ * of its own, which a feature stage should not make in passing. The new
+ * number leaves about five kB, a little more than the three the stage found.
+ */
+const JS_CEILING_KB = 320;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;
