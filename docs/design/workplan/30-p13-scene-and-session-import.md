@@ -215,6 +215,7 @@ speakers?: {
 };
 note?: { text: string; depth: number; every: number };   // §1.5
 hidden?: Record<string, true | number[]>;                // §1.7
+prompts?: { instruction?: false; cards?: Record<string, false | CardPromptPart[]> };  // §1.5
 ```
 
 **Scene's declared values become `embodied`, `per-actor`, `natural`.** In a
@@ -429,23 +430,61 @@ prompt (`openai.js:101`), and the wording is ours. In a group it adds *"Write
 only as {{char}}"*, which is ST's group nudge (`openai.js:114`) and Marinara's
 *"Respond ONLY as"* (`generate.routes.ts:7332`).
 
-**The card's own prompt fields are honoured**, because a card that carries a
-system prompt is written for it:
+**The card's own prompt fields are honoured, and they stack rather than
+replace.** A card that carries a system prompt was written to be sent with it,
+so the pack sends it. The pack's own instruction is sent too.
 
-- `system_prompt` → an actor section `se.card.system`. When the **speaker** has
-  one it stands in for the pack's instruction. That is ST's default
-  `prefer_character_prompt`.
-- `post_history_instructions` → `se.card.post-history`, placed in history at
-  depth 0 as a user-role block. ST sends it after the history; Marinara places
-  it at depth 0 with the user role (`macro-context.ts:806`).
-- `extensions.depth_prompt` → `se.card.depth`, at its declared depth and role
-  (default 4, `system`).
+*Decided 2026-09-29, by instruction.* ST's default is the other way:
+`prefer_character_prompt` makes the card's prompt **replace** the main prompt
+(`openai.js:1486`). Stacking was chosen instead because a replacement throws
+away the pack's framing — names, the group nudge, the no-speaking-for-the-user
+rule — for every card whose author wrote a one-line *"You are {{char}}"*. A
+stack loses nothing that either author wrote, and anyone who wants ST's
+behaviour turns off the pack's half (below).
 
-Today these import into `actor.compat` with an `import.card.wantsPromptOverride`
-warning (`card.ts:367`). P13 moves them into sections the Scene pack places.
-**The pack places them, and 00 §2.4 holds**: assembly is still owned by the
-preset. A pack that does not want a card's system prompt leaves the section
-unplaced.
+| Card field | Section | Placed |
+|---|---|---|
+| `system_prompt` | `se.card.system` | directly **after** the pack's instruction: the more specific voice speaks last among the system blocks |
+| `post_history_instructions` | `se.card.post-history` | in history at depth 0, user role, after the last message. ST sends it after the history; Marinara at depth 0, user role (`macro-context.ts:806`) |
+| `extensions.depth_prompt` | `se.card.depth` | at its declared depth and role (default 4, `system`) |
+
+**Whose card prompts, in a group.** A card's prompts are written with `{{char}}`
+meaning that card's character.
+
+- Under `per-actor` dispatch, each call carries **the speaker's** card prompts
+  only, rendered with `{{char}}` as the speaker. Another member's system prompt
+  is an instruction to write *as them*, and sending it to somebody else's call
+  would tell the model to be two people. This matches both sources: ST's card
+  prompt is the active character's, and Marinara's per-responder call resolves
+  macros per responder.
+- Under `merged` dispatch, every present card's prompts are stacked, each in its
+  own block and rendered with its own `{{char}}`. The single call is writing for
+  all of them.
+
+**What a chat can switch off.** A session field:
+
+```ts
+prompts?: {
+  instruction?: false;                                   // skip the pack's instruction
+  cards?: Record<string, false | CardPromptPart[]>;      // per actor: all, or which
+};
+type CardPromptPart = 'system' | 'post-history' | 'depth';
+```
+
+- **`instruction: false`** sends the card's system prompt alone. That is ST's
+  default behaviour, one toggle away.
+- **`cards[actorId]: false`** skips that card's prompts entirely, and a list
+  skips the named parts. That is ST's `forbid_overrides`, made per card.
+
+Absent means *send everything*. Both toggles live in the session-settings panel,
+and the card toggles also appear on each member's cast row, because that is
+where a person looks when one character misbehaves.
+
+Today these fields import into `actor.compat` with an
+`import.card.wantsPromptOverride` warning (`card.ts:367`). P13 moves them into
+sections the Scene pack places, and the warning goes. **00 §2.4 holds**:
+assembly is still owned by the preset, and a pack that leaves the sections
+unplaced sends none of them.
 
 **Names in history** follow `speakers.namesInHistory`. The default `groups`
 prefixes `Name: ` on each attributed message when the window holds two or more
@@ -640,11 +679,11 @@ id = uuidv7Shaped( time, H(account, familyKey, parentId, input, messages) )
   appends in file order. `time` is the send time, forced strictly above the
   parent's: both sources hold send times that repeat or run backwards
   (`st-chat.importer.ts:89`).
-- **Deterministic**, so re-importing the same chat is `already-here`, which is
-  `unchanged` in the ledger.
-- **A chat that grew since it was imported cannot be imported again.** Its
-  prefix is already here. This is a one-shot copy, not a sync, and the surface
-  says so.
+- **Deterministic**, so re-importing an unchanged chat finds every turn already
+  present, which is `unchanged` in the ledger. ~~A chat that grew since it was
+  imported cannot be imported again… a one-shot copy, not a sync~~ — *reversed
+  2026-09-29, by instruction*: a chat that grew **extends** the session it was
+  imported into. See §2.7; this identity scheme is what makes it cheap.
 
 ### 2.5 Families, branch refs, resolution
 
@@ -703,7 +742,60 @@ Everything else is a note, never silence:
 `roleplay`. **Chat-scoped lorebooks** link as `global` books
 ([18 §4.4](../18-session-import.md)).
 
-### 2.7 A phase, and a branch that is not `p13`
+### 2.7 Sync: a re-import extends the session it came from
+
+**It is the library's re-import rule, applied to a session.** The library
+decides *same object* by *"same owner, same kind, same
+`Provenance.originalFilename`"* (`import/identity.ts:21`). A session gets the
+same rule. The converter stamps `origin.originalFilename` with the family's
+**root chat path**: ST's `chats/<folder>/<file>.jsonl` or
+`group chats/<id>.jsonl`, or Marinara's `storage/tables/chats.json#<chatId>`.
+A later import of the same account and the same root finds that session through
+the index and **extends it** instead of refusing.
+
+**Extending is append-only, and §2.4's identity is why that is enough.** A
+turn's id is its account, family, parent and content. So:
+
+- every message the chat already had is a turn already present, and is skipped;
+- every new message is a turn whose parent is present, and is appended;
+- a message **edited** in the source since the last import is a new node
+  beside the old one — the edit becomes a branch, as §1.6 says edits are;
+- a new branch chat in the family is a new `BranchRef`, and a new swipe is a
+  new sibling.
+
+Nothing already in the session is rewritten. The tree only grows, which is the
+only way [07](../07-branching.md) lets it change.
+
+**What sync does not do, and says so:**
+
+- **Deletions in the source are not deletions here.** A message deleted in ST
+  leaves its turn in the session. The import notes it, and the head does not
+  follow a path the source no longer has.
+- **It does not move the person.** The session's head, `lastSelectedChild` and
+  refs made in StoryEngine are left alone if the person has played on here
+  since the last import. The source's new head gets its own ref, named for the
+  chat. Only a session nobody has touched since its import follows the source's
+  head, which is the case where following is plainly what was meant.
+- **Turns played here are never compared with the source.** Their ids come from
+  the runner, not the trie, so they cannot collide and are not candidates.
+- **Hidden flags** are taken from the source for imported turns only, so an
+  unhide in ST arrives and a hide made here stays.
+- **One direction.** Nothing is written back to SillyTavern or Marinara.
+
+**The write path.** `importSession` gains an `extend` arm. It runs under the
+target session's lock, appends in the document's order (parents first, by
+§2.4's uuidv7 ordering), then merges refs and hidden flags. It answers with
+`{ ok: true, sessionId, appended }`, and `appended: 0` becomes `unchanged` in
+the ledger. The `already-here` refusal stays for its original case: an export
+from this install being loaded back, where there is no source to extend from.
+
+**How a person triggers it:** the same doors as a first import. Re-running a
+folder sweep or a server-path import brings every grown chat up to date. Play's
+session menu gains *Update from source* on an imported session, which offers
+the file picker (a browser cannot reopen a path) or re-sweeps the server path
+recorded in the ledger when the import came from one.
+
+### 2.8 A phase, and a branch that is not `p13`
 
 It is filed as a phase for P12's reason, and because it changes the frozen turn
 record. ***The branch is `claude/sillytavern-marinara-import-id4eim`***, by
@@ -771,7 +863,8 @@ prompt holds the first two replies.
   pack agreeing with them.
 
 *Ends at:* a preview of an imported ST card's session shows the card's system
-prompt in the instruction's place and its post-history instructions last.
+prompt stacked after the pack's instruction and its post-history instructions last,
+and a second preview with that card's prompts switched off shows neither.
 
 #### P13.4 — The gestures
 
@@ -828,7 +921,7 @@ The parser handles:
   tree's bytes.
 - **One file.** `readUpload` learns JSONL, and Play's *Import session* takes
   `.jsonl`.
-- The surface says once that an import is a copy taken now (§2.4).
+- The surface says once what an update from source does and does not do (§2.7).
 
 #### P13.9 — SillyTavern families and groups
 
@@ -851,6 +944,17 @@ three-member group imports with each round's messages attributed.
 The profile archive, data root and v1 profile come in through the sweep. The
 per-chat JSONL export comes in through P13.7.
 
+#### P13.10a — Sync
+
+- `origin.originalFilename` stamped with the family's root path.
+- `importSession`'s `extend` arm, under the session lock.
+- Ref, head and hidden merging by §2.7's rules.
+- *Update from source* in Play.
+
+*Ends at:* a fixture chat imported, grown by three messages, an edit and a new
+branch, and re-imported. The session gains exactly those turns, one new
+sibling and one ref. A session played on here in between keeps its head.
+
 #### P13.11 — The first turn after a long import
 
 `ensureChain` is lazy and sequential (`sessions/summaries.ts:213`). After
@@ -870,7 +974,6 @@ include text, so a duplicate derivation costs one call and changes no key.
 
 ### What is deliberately not in this phase
 
-- **Sync** (§2.4).
 - **Marinara's agents** (§1.9).
 - **Mixed voice** (C2), and per-character hide.
 - **`LoreScope`'s chat arm** ([18 §4.4](../18-session-import.md)).
@@ -901,7 +1004,8 @@ criterion:
 
 ### 4.2 The remainder — extends the standing list
 
-- The one-shot import message is understood by somebody who has not read §2.4.
+- *Update from source* is understood by somebody who has not read §2.7, including
+  why a message deleted in SillyTavern is still here.
 - The narrated setting still produces what Write's falsification test
   ([13](../13-write-mode.md)) assumes Scene produces.
 - Auto-mode stops when it should.
