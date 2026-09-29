@@ -26,6 +26,7 @@ import {
   SETTINGS,
   STORIES,
   STORY_COW_ROWS,
+  UNSAVED,
   VAULT_CHARACTERS,
   writeAventurasBackupFolder,
   writeAventurasDatabase,
@@ -33,10 +34,10 @@ import {
 } from '../fixtures/test-aventuras-db.js';
 import { MemoryFileSource } from '../memory-source.js';
 import { AVENTURAS_DISPOSITIONS, AVENTURAS_TABLES } from '../registries/aventuras.js';
-import type { FileSource, SourceItem } from '../source.js';
+import type { FileSource, ImportCandidate, SourceItem } from '../source.js';
 import { sweep } from '../sweep.js';
 import { ZipFileSource } from '../zip-source.js';
-import { AventurasReader } from './reader.js';
+import { AventurasReader, CONVERTED_TABLES } from './reader.js';
 import { AVENTURAS_KNOWN_SCHEMA } from './schema.js';
 
 /**
@@ -49,6 +50,11 @@ import { AVENTURAS_KNOWN_SCHEMA } from './schema.js';
  * table, every story, the log, the version, the backup's own note — without a
  * key from `settings` reaching anything; and the copy of somebody's install is
  * let go of however the reading ends.
+ *
+ * *Since P13.3* the characters are written, so *writes nothing* became
+ * *writes the characters and nothing else*, and a converted table is counted
+ * by its rows rather than by a row of its own; the characters themselves are
+ * `vault-character.test.ts`'s.
  *
  * The databases are built by `fixtures/test-aventuras-db.ts` from hand-written
  * DDL, never from Aventuras' migrations (§3).
@@ -98,11 +104,27 @@ async function opened(directory: string, dataRoot = layout.dataRoot): Promise<Lo
 }
 
 async function everything(reader: AventurasReader): Promise<ImportItemReport[]> {
+  return (await both(reader)).rows;
+}
+
+/** The review's rows and the candidates beside them, from one pass. */
+async function both(
+  reader: AventurasReader,
+): Promise<{ rows: ImportItemReport[]; candidates: ImportCandidate[] }> {
   const rows: ImportItemReport[] = [];
+  const candidates: ImportCandidate[] = [];
   for await (const item of reader.items()) {
     if (item.outcome === 'observed') rows.push(item.report);
+    else candidates.push(item.candidate);
   }
-  return rows;
+  return { rows, candidates };
+}
+
+/** Every character a pass offered the Writer, by source. */
+function characterSources(candidates: readonly ImportCandidate[]): string[] {
+  return candidates
+    .filter((candidate) => candidate.format === 'aventuras.character')
+    .map((candidate) => candidate.source);
 }
 
 function row(rows: readonly ImportItemReport[], source: string): ImportItemReport {
@@ -299,8 +321,9 @@ describe('the gate is the columns, and the version only colours it', () => {
       const rows = await everything(reader);
       const tables = rows.filter((item) => /^aventura\.db\/[^/]+$/.test(item.source));
       // `kept_separate` (037) and `time_anchors` (038) postdate it: not
-      // refused, and not listed, since the database has no such tables.
-      expect(tables).toHaveLength(AVENTURAS_TABLES.length - 2);
+      // refused, and not listed, since the database has no such tables. A
+      // converted table is listed by its rows, not by a row of its own.
+      expect(tables).toHaveLength(AVENTURAS_TABLES.length - 2 - CONVERTED_TABLES.length);
       expect(tables.map((item) => item.source)).not.toContain('aventura.db/time_anchors');
       expect(row(rows, 'aventura.db').notes[0]?.params).toEqual({
         version: 35,
@@ -463,11 +486,15 @@ describe('the log Aventuras has not checkpointed', () => {
       const survey = await reader.survey();
       expect(survey.notes.map((note) => note.key)).toEqual(['import.aventuras.walCopied']);
 
-      const rows = await everything(reader);
+      const { rows, candidates } = await both(reader);
       expect(row(rows, 'aventura.db').notes.map((note) => note.key)).toContain(
         'import.aventuras.walCopied',
       );
-      expect(rowCount(rows, 'character_vault')).toBe(VAULT_CHARACTERS.length + 1);
+      // The character saved only to the log is one of the characters offered.
+      expect(characterSources(candidates)).toHaveLength(VAULT_CHARACTERS.length + 1);
+      expect(characterSources(candidates)).toContain(
+        `aventura.db/character_vault/${UNSAVED.character.id}`,
+      );
       expect(row(rows, `aventura.db/stories/${STORIES[0]!.id}`).notes[0]?.params).toMatchObject({
         entries: STORIES[0]!.rows.story_entries + 1,
       });
@@ -488,8 +515,10 @@ describe('the log Aventuras has not checkpointed', () => {
     const reader = new AventurasReader(await opened(live), layout);
     try {
       expect(await reader.survey()).toEqual({ ok: true, kind: 'aventuras', notes: [] });
-      const rows = await everything(reader);
-      expect(rowCount(rows, 'character_vault')).toBe(VAULT_CHARACTERS.length + 1);
+      const { rows, candidates } = await both(reader);
+      expect(characterSources(candidates)).toContain(
+        `aventura.db/character_vault/${UNSAVED.character.id}`,
+      );
       // The log and its index were beside the database, and are the database's:
       // neither is a row of its own.
       expect(await readdir(live)).toEqual(
@@ -632,7 +661,7 @@ describe('a sweep of an Aventuras install', () => {
     return outcome.report;
   }
 
-  it('accounts for every table, every story and every file, and writes nothing', async () => {
+  it('accounts for every table, every story and every file, and writes only the characters', async () => {
     const directory = join(root, 'aventura-backup');
     await writeAventurasBackupFolder(directory);
     // What an older backup and a hand-copied folder carry beside the database.
@@ -644,12 +673,26 @@ describe('a sweep of an Aventuras install', () => {
 
     expect(report.source).toBe('aventuras');
 
-    // Every table of the pin, once, under its registry disposition.
+    // Every table of the pin, once, under its registry disposition — or, for
+    // a table that converts, not at all: it is its rows (P13.3).
     for (const table of AVENTURAS_TABLES) {
       const rows = report.items.filter((item) => item.source === `aventura.db/${table}`);
+      if (AVENTURAS_DISPOSITIONS[table] === 'converted') {
+        expect(rows, table).toEqual([]);
+        continue;
+      }
       expect(rows, table).toHaveLength(1);
       expect(rows[0]?.disposition, table).toBe(AVENTURAS_DISPOSITIONS[table]);
     }
+    // And those rows are the table's count: one item per character, each one
+    // imported.
+    const characters = report.items.filter((item) =>
+      item.source.startsWith('aventura.db/character_vault/'),
+    );
+    expect(characters.map((item) => item.source).sort()).toEqual(
+      VAULT_CHARACTERS.map((one) => `aventura.db/character_vault/${String(one['id'])}`).sort(),
+    );
+    expect(new Set(characters.map((item) => item.disposition))).toEqual(new Set(['converted']));
 
     // Every story, with what Part 2 would bring from it — the entities, and
     // not the rows Aventuras' branches keep beside them: a branch's edit is
@@ -710,13 +753,19 @@ describe('a sweep of an Aventuras install', () => {
     for (const file of ['metadata.json', 'notes.txt', 'stories/the-drowned-bell.avt']) {
       expect(row(report.items, file).disposition, file).toBe('skipped');
     }
-    const expected = 1 + 3 + AVENTURAS_TABLES.length + STORIES.length;
+    const expected =
+      1 +
+      3 +
+      (AVENTURAS_TABLES.length - CONVERTED_TABLES.length) +
+      STORIES.length +
+      VAULT_CHARACTERS.length;
     expect(report.items).toHaveLength(expected);
     expect(new Set(report.items.map((item) => item.source)).size).toBe(expected);
 
-    // Nothing converted, nothing written, and the copy gone.
-    expect(report.counts.converted).toBe(0);
-    expect((await ownObjects(server)).objects).toEqual([]);
+    // The characters converted and written, nothing else, and the copy gone.
+    expect(report.counts.converted).toBe(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server)).objects).toHaveLength(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
     expect(await scratchIn(serverLayout())).toEqual([]);
   });
 
@@ -757,7 +806,23 @@ describe('a sweep of an Aventuras install', () => {
     const fromZip = await swept(zip.source);
     const fromFolder = await swept(await opened(directory, server.dataDir));
 
-    expect(fromZip.items).toEqual(fromFolder.items);
+    // The same rows in the same order; everything but the characters word for
+    // word, and the characters the same objects, which the second sweep found
+    // already here — identity is the row, whichever way the database came
+    // (§1.5).
+    expect(fromFolder.items.map((item) => item.source)).toEqual(
+      fromZip.items.map((item) => item.source),
+    );
+    const character = (item: ImportItemReport): boolean =>
+      item.source.startsWith('aventura.db/character_vault/');
+    expect(fromFolder.items.filter((item) => !character(item))).toEqual(
+      fromZip.items.filter((item) => !character(item)),
+    );
+    const first = fromZip.items.filter(character);
+    const second = fromFolder.items.filter(character);
+    expect(first.map((item) => item.disposition)).toEqual(first.map(() => 'converted'));
+    expect(second.map((item) => item.disposition)).toEqual(second.map(() => 'unchanged'));
+    expect(second.map((item) => item.objectId)).toEqual(first.map((item) => item.objectId));
   });
 
   it('lets go of the copy when the survey refuses', async () => {
@@ -805,20 +870,53 @@ describe('a sweep of an Aventuras install', () => {
       });
     }
 
-    it('is heard after a read that succeeded', async () => {
-      // The contract P13.3 is told to weigh again: while this reader writes
-      // nothing, a handle this process forgot is worth a failed request.
+    it('is logged after a read that succeeded, and the report still returns', async () => {
+      /**
+       * *The contract P13.3 was told to weigh again, and weighed.* At P13.2 a
+       * handle this process forgot was worth a failed request, because the
+       * reader wrote nothing. Now the characters are in the library before
+       * `close()` runs, and a throw would answer their import with a 500 and
+       * no review of what landed — so the report wins, and the forgotten
+       * handle is a `warn` on the request's log.
+       */
       const { files } = await configDirectory({}, server.dataDir);
+      const warnings: [Record<string, unknown>, string][] = [];
+      const log = {
+        warn: (object: Record<string, unknown>, message: string) => {
+          warnings.push([object, message]);
+        },
+      };
       const close = failingClose();
+      let outcome;
       try {
-        await expect(
-          sweep({ library: server.services.library, handle: 'ned', files }),
-        ).rejects.toBe(stuck);
+        outcome = await sweep({ library: server.services.library, handle: 'ned', files, log });
         expect(close).toHaveBeenCalledTimes(1);
       } finally {
         close.mockRestore();
       }
+
+      if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
+      expect(outcome.report.counts.converted).toBe(VAULT_CHARACTERS.length);
+      expect((await ownObjects(server)).objects).toHaveLength(VAULT_CHARACTERS.length);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]?.[0]).toMatchObject({
+        event: 'import.reader-close-failed',
+        kind: 'aventuras',
+        type: 'Error',
+        message: stuck.message,
+      });
       expect(await scratchIn(serverLayout())).toEqual([]);
+    });
+
+    it('is not heard at all by a caller that gave no log, and still returns the report', async () => {
+      const { files } = await configDirectory({}, server.dataDir);
+      const close = failingClose();
+      try {
+        const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+        expect(outcome.ok).toBe(true);
+      } finally {
+        close.mockRestore();
+      }
     });
 
     it('does not replace the error that explains a read that failed', async () => {
@@ -912,17 +1010,26 @@ describe('the fixture is what it claims to be', () => {
   });
 
   it('gives an item for everything a reader sees and nothing it does not', async () => {
-    // One observed item per row of the review, and no candidates at P13.2.
+    // One observed item per row of the review — and, since P13.3, one
+    // candidate per character, which are the only candidates there are.
     const reader = new AventurasReader(
       new MemoryFileSource({ 'aventura.db': await aventurasDatabaseBytes() }),
       layout,
     );
     try {
       await reader.survey();
-      const outcomes: SourceItem['outcome'][] = [];
-      for await (const item of reader.items()) outcomes.push(item.outcome);
+      const items: SourceItem[] = [];
+      for await (const item of reader.items()) items.push(item);
 
-      expect(new Set(outcomes)).toEqual(new Set(['observed']));
+      const candidates = items.flatMap((item) =>
+        item.outcome === 'candidate' ? [item.candidate] : [],
+      );
+      expect(candidates.map((candidate) => candidate.format)).toEqual(
+        VAULT_CHARACTERS.map(() => 'aventuras.character'),
+      );
+      expect(new Set(items.map((item) => item.outcome))).toEqual(
+        new Set(['observed', 'candidate']),
+      );
     } finally {
       await reader.close();
     }

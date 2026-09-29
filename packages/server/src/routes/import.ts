@@ -34,7 +34,7 @@ import {
   recordImport,
   recordRefusal,
 } from '../import/jobs.js';
-import { convertOne, sweep, type SweepOutcome } from '../import/sweep.js';
+import { convertOne, sweep, type SweepOutcome, type SweepRequest } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
 import { SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
 import { looksLikeZip } from '../storage/zip.js';
@@ -313,6 +313,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         part.bytes,
         onConflict,
         into,
+        request.log,
       );
     } catch (error) {
       if (answeredNoRoom(error, reply)) return reply;
@@ -422,6 +423,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         handle: account.handle,
         files: opened.source,
         freeBytes: services.freeBytes,
+        log: request.log,
         ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
       });
     } catch (error) {
@@ -656,6 +658,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         handle: account.handle,
         files,
         freeBytes: services.freeBytes,
+        log: request.log,
         ...(onConflict === undefined ? {} : { onConflict }),
       });
     } catch (error) {
@@ -975,6 +978,8 @@ async function importOneFile(
   bytes: Uint8Array,
   onConflict?: ConflictPolicy,
   into?: ImportDestination,
+  /** The request's logger, for the one thing a sweep cannot put in its report ({@link SweepRequest.log}). */
+  log?: SweepRequest['log'],
 ): Promise<UploadResult> {
   const item = (
     disposition: ImportItemReport['disposition'],
@@ -1021,6 +1026,7 @@ async function importOneFile(
       // the `card.json` inside every one of them.
       rootName: filename,
       freeBytes: services.freeBytes,
+      ...(log === undefined ? {} : { log }),
       ...(onConflict === undefined ? {} : { onConflict }),
     });
     if (!outcome.ok) {

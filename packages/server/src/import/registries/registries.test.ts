@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { IMPORT_DISPOSITIONS } from '@storyengine/shared';
 
-import { STORY_COUNTS } from '../aventuras/reader.js';
+import { CONVERTED_TABLES, STORY_COUNTS } from '../aventuras/reader.js';
 import { AVENTURAS_REQUIRED } from '../aventuras/schema.js';
 import { NOT_CONVERTIBLE } from '../upload.js';
 
@@ -113,21 +113,29 @@ describe('the registries are honest about what they do not convert', () => {
 });
 
 /**
- * ***The Aventuras registry at P13.2, which converts nothing*** —
- * [P13.2](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * ***The Aventuras registry, one converted table per stage*** —
+ * [P13.2](../../../../../docs/design/workplan/30-p13-aventuras-import.md)
+ * converted nothing; P13.3 converts `character_vault`.
  *
- * Three claims the generic checks above cannot make, because they are about
- * what this stage promised rather than about coverage.
+ * Claims the generic checks above cannot make, because they are about what
+ * each stage promised rather than about coverage.
  */
 describe('the Aventuras registry', () => {
-  it('converts nothing yet — a `converted` row here would describe an import that did not happen', () => {
-    // P13.3 onwards change rows to `converted` one stage at a time, and this
-    // assertion with them; until then the review must not claim a table landed.
+  it('calls converted exactly the tables the reader converts', () => {
+    /**
+     * *Was "converts nothing yet" at P13.2*, which is what the stages after it
+     * were told to change one table at a time. Both directions now: a
+     * `converted` row the reader never emits a candidate for is a review
+     * describing an import that did not happen, and a table the reader
+     * converts while the registry still says `recorded` would be listed twice
+     * — once by its rows and once as waiting.
+     */
     const converted = Object.entries(AVENTURAS_DISPOSITIONS)
       .filter(([, disposition]) => disposition === 'converted')
       .map(([table]) => table);
 
-    expect(converted).toEqual([]);
+    expect(new Set(converted)).toEqual(new Set(CONVERTED_TABLES));
+    expect(converted).toEqual(['character_vault']);
   });
 
   it('drops the settings table as a credential, and nothing else', () => {

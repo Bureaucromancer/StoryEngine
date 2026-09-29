@@ -93,7 +93,8 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   charx: 'An unpacked CHARX character card. Ready to import.',
   'storyengine-backup':
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
-  aventuras: 'An Aventuras library. Read and listed; nothing is imported from it yet.',
+  aventuras:
+    'An Aventuras library. Its characters are imported; everything else in it is listed and left behind for now.',
   'loose-files':
     'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
 });

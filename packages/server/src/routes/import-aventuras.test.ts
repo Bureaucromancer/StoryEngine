@@ -5,15 +5,17 @@ import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { FastifyReply } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AVENTURAS_DB_VARIANTS,
   FIXTURE_API_KEY,
   STORIES,
+  VAULT_CHARACTERS,
   writeAventurasBackupFolder,
 } from '../import/fixtures/test-aventuras-db.js';
-import { AVENTURAS_TABLES } from '../import/registries/aventuras.js';
+import { AventurasReader } from '../import/aventuras/reader.js';
+import { AVENTURAS_DISPOSITIONS, AVENTURAS_TABLES } from '../import/registries/aventuras.js';
 import { makeZip } from '../storage/test-zip.js';
 import {
   makeTestServer,
@@ -89,7 +91,7 @@ function ledger(): string {
 }
 
 describe('pointing the server at an Aventuras folder', () => {
-  it('answers with the review, records it, and writes nothing to the library', async () => {
+  it('answers with the review, records it, and writes the characters and nothing else', async () => {
     await grantFileAccess();
     const root = join(container, 'aventura-backup');
     await writeAventurasBackupFolder(root);
@@ -104,9 +106,16 @@ describe('pointing the server at an Aventuras folder', () => {
     const report = response.body.report;
     expect(report.source).toBe('aventuras');
     const sources = (report.items as { source: string }[]).map((item) => item.source);
-    for (const table of AVENTURAS_TABLES) expect(sources).toContain(`aventura.db/${table}`);
+    // A converted table is listed by its rows (P13.3); every other by its own.
+    for (const table of AVENTURAS_TABLES) {
+      if (AVENTURAS_DISPOSITIONS[table] === 'converted') continue;
+      expect(sources).toContain(`aventura.db/${table}`);
+    }
+    for (const character of VAULT_CHARACTERS) {
+      expect(sources).toContain(`aventura.db/character_vault/${String(character['id'])}`);
+    }
     for (const story of STORIES) expect(sources).toContain(`aventura.db/stories/${story.id}`);
-    expect(report.counts.converted).toBe(0);
+    expect(report.counts.converted).toBe(VAULT_CHARACTERS.length);
     expect(report.counts.credential).toBe(1);
 
     // Addressable, as every sweep's review is, and holding the same rows.
@@ -121,8 +130,45 @@ describe('pointing the server at an Aventuras folder', () => {
     expect(JSON.stringify(response.body)).not.toContain(FIXTURE_API_KEY);
     expect(ledger()).not.toContain(FIXTURE_API_KEY);
 
-    expect((await ownObjects(server)).objects).toEqual([]);
+    expect((await ownObjects(server)).objects).toHaveLength(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
     expect(await scratch()).toEqual([]);
+  });
+
+  it('answers with the review of what it wrote even when the reader cannot let go', async () => {
+    /**
+     * *P13.3's half of the close contract, at the door.* The characters are in
+     * the library before the reader's `close()` runs, so a `close()` that
+     * throws must not become a 500 that hides them; the route hands the sweep
+     * its logger and gets the report back.
+     */
+    await grantFileAccess();
+    const root = join(container, 'aventura-backup');
+    await writeAventurasBackupFolder(root);
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- held to be put back, and only ever called with `.call(this)`
+    const release = AventurasReader.prototype.close;
+    const close = vi.spyOn(AventurasReader.prototype, 'close').mockImplementation(async function (
+      this: AventurasReader,
+    ) {
+      await release.call(this);
+      throw new Error('the handle would not close');
+    });
+
+    let response;
+    try {
+      response = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+      expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      close.mockRestore();
+    }
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.report.counts.converted).toBe(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
   });
 
   it('asks what the folder is without reading the database', async () => {

@@ -40,7 +40,10 @@ import { makePng } from '../../storage/card/test-png.js';
  * template somebody edited; a settings table with a provider key in it; and
  * two stories with different numbers of everything, and beside them the edits
  * and tombstones Aventuras' copy-on-write branches leave, which are rows and
- * not things a story holds.
+ * not things a story holds. *Since P13.3*, the characters a reader has to read
+ * around — a corrupt portrait, a truncated one, bare base64, a mislabelled
+ * WebP, a link, unreadable JSON columns, a row with no id — are
+ * {@link AWKWARD_CHARACTERS}, added only when a test asks for them.
  *
  * Composable on purpose: {@link buildAventurasDatabase} works on any open
  * connection, so a later stage can add its own rows before or after, and the
@@ -278,6 +281,8 @@ export interface AventurasDbOptions {
   migrations?: 'recorded' | 'none' | 'failed';
   /** Record a failed migration one past `version`, as the runner does before it stops. */
   failedNext?: boolean;
+  /** More `character_vault` rows after {@link VAULT_CHARACTERS} — {@link AWKWARD_CHARACTERS}, usually. */
+  extraCharacters?: readonly FixtureRow[];
 }
 
 /**
@@ -325,6 +330,29 @@ const JPEG = new Uint8Array([
   0x00, 0x01, 0x00, 0x00, 0xff, 0xd9,
 ]);
 
+/**
+ * A WebP by its magic, as the JPEG above is one: `RIFF`, a length, `WEBP`, and
+ * the first bytes of a lossless chunk. What the sniffer asks, and no more.
+ */
+const WEBP = new Uint8Array([
+  0x52, 0x49, 0x46, 0x46, 0x1a, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x4c,
+  0x0d, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00, 0x10, 0x07, 0x10, 0x11, 0x11, 0x88, 0x88, 0xfe,
+  0x07, 0x00,
+]);
+
+/**
+ * ***The pictures the portraits are made of***, exported so a test can hold
+ * what it reads back to the bytes that went in (P13.3: *a PNG portrait is the
+ * card's pixels; a JPEG one is present as its source*).
+ */
+export const FIXTURE_PORTRAITS = {
+  png: makePng(4, 3),
+  jpeg: JPEG,
+  webp: WEBP,
+  /** The legacy row's: a different picture, so it cannot pass as the first. */
+  bare: makePng(4, 7),
+} as const;
+
 export const LOREBOOK_IDS = {
   harbour: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e5f',
   empty: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e60',
@@ -344,7 +372,7 @@ export const VAULT_CHARACTERS: readonly FixtureRow[] = [
     description: 'A dock inspector who notices what the manifests leave out.',
     traits: ['patient', 'unbribable'],
     visual_descriptors: { hair: 'cropped grey', eyes: 'green, tired', clothing: 'an oilskin coat' },
-    portrait: dataUrl('image/png', makePng(4, 3)),
+    portrait: dataUrl('image/png', FIXTURE_PORTRAITS.png),
     tags: ['noir'],
     favorite: 1,
     source: 'manual',
@@ -359,7 +387,7 @@ export const VAULT_CHARACTERS: readonly FixtureRow[] = [
     description: 'Has signed everything for nine years and read none of it.',
     traits: ['affable', 'incurious'],
     visual_descriptors: { build: 'broad, slow', accessories: 'a brass stamp on a chain' },
-    portrait: dataUrl('image/jpeg', JPEG),
+    portrait: dataUrl('image/jpeg', FIXTURE_PORTRAITS.jpeg),
     tags: ['noir', 'quiet'],
     favorite: 0,
     source: 'import',
@@ -379,6 +407,130 @@ export const VAULT_CHARACTERS: readonly FixtureRow[] = [
     favorite: 0,
     source: 'story',
     original_story_id: '5b8e0d1c-2f3a-4b5c-8d6e-7f8091a2b3c1',
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+];
+
+/**
+ * ***The rows P13.3 has to read around*** — each an ordinary character but for
+ * one thing, added only when a test asks ({@link AventurasDbOptions.extraCharacters}),
+ * so the three rows above stay the whole vault for every stage that does not.
+ *
+ * - a portrait that decodes to bytes which are not an image;
+ * - a PNG portrait cut short, which still starts like a PNG;
+ * - the legacy bare base64 an older Aventuras stored, with no `data:` prefix;
+ * - a WebP labelled `image/png`, as Aventuras labels whatever its image
+ *   providers return — the bytes decide, not the label;
+ * - a portrait that is a link, which is never fetched;
+ * - four JSON columns that will not read as Aventuras writes them, two not
+ *   parsing at all and two parsing to the wrong shape;
+ * - and a row with no id, which a `TEXT PRIMARY KEY` in SQLite allows.
+ */
+export const AWKWARD_CHARACTERS: readonly FixtureRow[] = [
+  {
+    id: '3f6c1a2b-0c1d-4e2f-9a3b-4c5d6e7f80a1',
+    name: 'Corrupt Portrait',
+    description: 'Somebody’s tool wrote text where the picture was.',
+    traits: ['unlucky'],
+    visual_descriptors: { face: 'hard to make out' },
+    portrait: dataUrl('image/png', new TextEncoder().encode('this is not an image at all')),
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '3f6c1a2b-0c1d-4e2f-9a3b-4c5d6e7f80a2',
+    name: 'Cut Short',
+    description: 'The picture stops half way down.',
+    traits: [],
+    visual_descriptors: {},
+    portrait: dataUrl('image/png', makePng(4, 5)).slice(0, 80),
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '3f6c1a2b-0c1d-4e2f-9a3b-4c5d6e7f80a3',
+    name: 'Bare Base64',
+    description: 'Saved by an Aventuras old enough to keep the base64 alone.',
+    traits: ['old'],
+    visual_descriptors: {},
+    portrait: Buffer.from(FIXTURE_PORTRAITS.bare).toString('base64'),
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '3f6c1a2b-0c1d-4e2f-9a3b-4c5d6e7f80a4',
+    name: 'Mislabelled WebP',
+    description: 'Drawn by a provider that returns WebP, stored as if it were PNG.',
+    traits: [],
+    visual_descriptors: {},
+    portrait: dataUrl('image/png', FIXTURE_PORTRAITS.webp),
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '3f6c1a2b-0c1d-4e2f-9a3b-4c5d6e7f80a5',
+    name: 'Linked Face',
+    description: 'Her portrait is somewhere else on the internet.',
+    traits: [],
+    visual_descriptors: {},
+    portrait: 'https://images.example.invalid/linked-face.png',
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '3f6c1a2b-0c1d-4e2f-9a3b-4c5d6e7f80a6',
+    name: 'Broken Columns',
+    description: 'Everything about him was saved by hand, badly.',
+    // Stored as they are, not as JSON: `insert` passes a string through.
+    traits: '["patient", ',
+    visual_descriptors: 'hair: none',
+    portrait: null,
+    tags: '{"not": "a list"}',
+    favorite: 0,
+    source: null,
+    original_story_id: null,
+    metadata: '{oops',
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: null,
+    name: 'Nobody Keyed',
+    description: 'A row with no id to import by.',
+    traits: [],
+    visual_descriptors: {},
+    portrait: null,
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_story_id: null,
     metadata: null,
     created_at: CREATED,
     updated_at: UPDATED,
@@ -828,6 +980,7 @@ export function buildAventurasDatabase(db: DatabaseSync, options: AventurasDbOpt
       legacy ? { ...row, visual_descriptors: LEGACY_DESCRIPTORS[id] ?? [] } : row,
     );
   }
+  for (const row of options.extraCharacters ?? []) insert(db, 'character_vault', row);
   for (const row of VAULT_LOREBOOKS) insert(db, 'lorebook_vault', row);
   for (const row of VAULT_SCENARIOS) insert(db, 'scenario_vault', row);
   for (const row of VAULT_TAGS) insert(db, 'vault_tags', row);

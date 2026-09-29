@@ -186,6 +186,40 @@ export interface ImportCandidate {
   payload: unknown;
   /** Files to carry with the object, source-relative — a portrait, a CHARX asset. */
   assets?: readonly string[];
+  /**
+   * ***Bytes the reader already holds, keyed like `assets`*** —
+   * [P13 §1.6](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **For a picture that was never a file.** Every reader before the
+   * Aventuras one found its pictures beside the object — a PNG in a folder, an
+   * entry in a zip — so naming the path was enough and the Writer read it
+   * through the file source. An Aventuras portrait is a column: a data URL in
+   * `character_vault.portrait`, inside a database that is itself one file. The
+   * reader decodes it, and there is no path under the root that would give the
+   * Writer those bytes, so the reader hands them over here under the name it
+   * put in `assets`. The Writer asks this map first and the file source second.
+   *
+   * *The bytes are still sniffed, not trusted* — the Writer decides what they
+   * are exactly as it would for a file; all this changes is where they came
+   * from. A reader should key them under a name no file in its root can have
+   * (the Aventuras reader uses a path beneath `aventura.db`, which is a file),
+   * so a key missing from the map can never fall through to somebody's file.
+   */
+  inline?: ReadonlyMap<string, Uint8Array>;
+  /**
+   * ***What the reader noticed about this candidate before any converter saw
+   * it*** — [P13.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * A reader that works from rows rather than files can meet a problem with
+   * one field of an object that is otherwise fine: a JSON column that will
+   * not parse, a portrait too large to carry. Refusing the object over it
+   * would cost a character its whole self for one field, and saying nothing
+   * would be the silent drop this seam exists to prevent. So the reader reads
+   * around the field and says so here, and the Writer puts these first among
+   * the notes of whatever row the candidate becomes — for every format, so a
+   * reader that sets them cannot find an arm that drops them.
+   */
+  notes?: readonly ImportNote[];
 }
 
 /**
@@ -230,6 +264,10 @@ export interface SourceReader {
    * half way. `sweep()` is the one caller today. It must be safe to call more
    * than once, and after a survey that refused — which lets go by itself, so
    * that path leaks nothing even for a caller that forgot.
+   *
+   * *A `close()` that throws does not cost the caller its answer* (P13.3):
+   * by then the reading may have written objects, and the report of them is
+   * worth more than the exception. `sweep()` logs it and returns the report.
    */
   close?(): Promise<void>;
 }

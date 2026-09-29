@@ -73,6 +73,14 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This card names the player with SillyTavern’s placeholder. It is kept as written, so the model reads the placeholder rather than a name.',
   'import.card.wantsPromptOverride': 'This card wants to override prompts ({fields}); review.',
   'import.card.portraitUnreadable': 'The portrait could not be read, so the card has none.',
+  /**
+   * ***The portrait that was a picture and not a PNG*** — [P13.3]. A card's
+   * own image can only be a PNG, so an Aventuras portrait in JPEG or WebP is
+   * kept on the actor as its source image and the card starts blank; this is
+   * the sentence that stops a blank card reading as a lost face.
+   */
+  'import.card.portraitAsSource':
+    'The portrait is a {format}, and a card’s own image has to be a PNG, so it is kept with {actor} as the portrait’s source image and the card itself is blank.',
   // [P7.10]: a count rather than silence. An import that quietly grew a
   // character eight pictures is a surprise; one that says it did is a feature.
   'import.card.expressions': 'Brought {count} expressions in with {actor}.',
@@ -291,7 +299,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * Aventuras' own views shows (the reader's `entitiesOnly`).
    */
   'import.aventuras.database':
-    'An Aventuras database at schema version {version}, with {tables} tables. Each is listed here with what became of it.',
+    'An Aventuras database at schema version {version}, with {tables} tables. Each is listed here with what became of it; a table that was imported is listed as the things it held.',
   'import.aventuras.tableRows': '{rows} rows in {table}.',
   'import.aventuras.settingsDropped':
     '{rows} settings were dropped without being read. They may include provider keys, which are never imported.',
@@ -301,6 +309,16 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This database comes from a newer Aventuras (schema version {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
   'import.aventuras.backupMetadata':
     'An Aventuras backup, made by version {appVersion} on {createdAt}, holding {storyCount} stories.',
+
+  /**
+   * ***A vault row, read around a field*** — [P13.3]. A database row is
+   * somebody's character with one unreadable field, not an unreadable file,
+   * so both of these say what was left behind and let the rest import.
+   */
+  'import.aventuras.columnUnreadable':
+    'The {column} column could not be read as Aventuras writes it, so it was taken as empty.',
+  'import.aventuras.portraitTooLarge':
+    'The portrait is larger than the {limit} MB a card can carry, so {actor} was imported without it.',
 
   /**
    * **The other direction, and it is new at this stage.**

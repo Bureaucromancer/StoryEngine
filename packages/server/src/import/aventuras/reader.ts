@@ -34,18 +34,29 @@ import {
   quoted,
 } from './schema.js';
 import { isRecord } from './shapes.js';
+import {
+  CHARACTER_TABLE,
+  DEFAULT_MAX_PORTRAIT_BYTES,
+  vaultCharacterItems,
+} from './vault-character.js';
 
 /**
  * ***A whole Aventuras install, read as a review*** —
  * [P13.2](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
  *
- * **It converts nothing yet, and that is the stage.** Every table the database
- * has is one row of the review, with its disposition from the vendored
- * registry and its row count; every story is one more, with what Part 2 would
- * bring from it; and nothing reaches the library. P13.3 onwards turn the vault
- * rows into candidates one table at a time, on the reading this makes
- * possible — so the first thing built is the part that says what is there,
- * and each stage after it changes a `recorded` to a `converted` in plain view.
+ * **P13.2 converted nothing, and that was the stage.** Every table the
+ * database has is one row of the review, with its disposition from the
+ * vendored registry and its row count; every story is one more, with what
+ * Part 2 would bring from it. P13.3 onwards turn the vault rows into
+ * candidates one table at a time, on the reading that made possible — so the
+ * first thing built was the part that says what is there, and each stage after
+ * it changes a `recorded` to a `converted` in plain view.
+ *
+ * ***P13.3: the characters.*** `character_vault` is the first table converted:
+ * one candidate per row (`vault-character.ts`, the port of Aventuras' own row
+ * mapper), its portrait decoded and handed to the Writer beside it (§1.6), and
+ * the table's own row gone from the review — a converted table is reported by
+ * the objects it became ({@link CONVERTED_TABLES}).
  *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
@@ -93,7 +104,12 @@ import { isRecord } from './shapes.js';
  * 028 appended after every other column, `characters.portrait` among them — so
  * SQLite walks each of those rows to its end. That is once per character,
  * place, item, beat and lorebook entry, never per story entry, which is where
- * an install's size is.
+ * an install's size is. *And since P13.3*, the vault's own rows, one at a
+ * time: a character's columns and its portrait, which is read only when it is
+ * under the bound (`vault-character.ts`) and decoded from base64 here. That is
+ * the one per-row cost that scales with a picture, and it is paid once per
+ * character between the Writer's own writes, as a card's pixels are on every
+ * other road in.
  */
 
 /** The file the probe names, and the install. */
@@ -117,6 +133,19 @@ export const AVENTURAS_DATABASE_FILES = [AVENTURAS_DATABASE, AVENTURAS_WAL] as c
  * folder upload has to carry (`directory-upload.ts`), and all it has to.
  */
 export const AVENTURAS_READS = [...AVENTURAS_DATABASE_FILES, AVENTURAS_METADATA] as const;
+
+/**
+ * ***The tables whose rows this reader turns into candidates***, in the order
+ * it emits them — P13.3's characters so far. §1.7 fixes the order the rest
+ * join in (tags, lorebooks, characters, scenarios), because a scenario's link
+ * to a lorebook resolves only once the lorebook is stored.
+ *
+ * `registries.test.ts` holds this to the registry's `converted` rows in both
+ * directions: a table said to be converted is converted here, and a table
+ * converted here is not also listed as `recorded`. Such a table has no row of
+ * its own in the review ({@link tableRows}); its rows are the count.
+ */
+export const CONVERTED_TABLES = [CHARACTER_TABLE] as const;
 
 /**
  * The files SQLite keeps beside a database, which are the database rather than
@@ -148,6 +177,12 @@ export interface AventurasReaderOptions {
    * its condition happen for real.
    */
   seams?: SnapshotSeams;
+  /**
+   * The largest portrait carried, decoded — `DEFAULT_MAX_PORTRAIT_BYTES`,
+   * sixty-four megabytes, unless a test needs to meet the bound without
+   * building a portrait that size.
+   */
+  maxPortraitBytes?: number;
 }
 
 /** The names the per-story counts go by: the params of `storyRecorded`. */
@@ -212,6 +247,7 @@ export class AventurasReader implements SourceReader {
   readonly #files: FileSource;
   readonly #layout: Layout;
   readonly #seams: SnapshotSeams;
+  readonly #maxPortraitBytes: number;
   #owned: OwnedDatabase | null;
   #surveyed: Promise<SourceSurvey> | null = null;
   #held: Held | null = null;
@@ -224,6 +260,7 @@ export class AventurasReader implements SourceReader {
     this.#files = files;
     this.#layout = layout;
     this.#seams = options.seams ?? {};
+    this.#maxPortraitBytes = options.maxPortraitBytes ?? DEFAULT_MAX_PORTRAIT_BYTES;
     this.#owned = options.owned ?? null;
   }
 
@@ -263,6 +300,15 @@ export class AventurasReader implements SourceReader {
     ]);
     yield* this.#besideTheDatabase(held);
     yield* tableRows(held);
+    // The vault, as candidates — after every table's row and before the
+    // stories, so a review reads the database, then what it held, then what
+    // Part 2 would bring. A database older than a table has none of its rows.
+    if (held.tables.has(CHARACTER_TABLE)) {
+      yield* vaultCharacterItems(held.db, {
+        database: AVENTURAS_DATABASE,
+        maxPortraitBytes: this.#maxPortraitBytes,
+      });
+    }
     yield* storyRows(held);
   }
 
@@ -414,6 +460,14 @@ const FACT_LENGTH = 64;
  * reader runs against it, so no value in it is ever selected, and none can
  * reach the review or the ledger (§1.9). The test that holds this watches the
  * statements, not only the output.
+ *
+ * ***A converted table has no row here*** (P13.3) — the Marinara reader's
+ * rule, for the Marinara reason: its rows are reported by the objects they
+ * became, and a `converted` row for the table beside three `converted`
+ * characters would count four imports where there were three. The count is
+ * not lost: every row of such a table is an item of its own, a candidate or,
+ * for a row that cannot be one, an `unrecognised` row that says why
+ * (`vault-character.ts`), so the rows under its name *are* its row count.
  */
 function* tableRows(held: Held): Iterable<SourceItem> {
   const known = AVENTURAS_TABLES.filter((table) => held.tables.has(table));
@@ -423,6 +477,7 @@ function* tableRows(held: Held): Iterable<SourceItem> {
 
   for (const table of [...known, ...unknown]) {
     const disposition = ownEntry(AVENTURAS_DISPOSITIONS, table) ?? 'unrecognised';
+    if (disposition === 'converted') continue;
     const rows = countRows(held.db, table);
     const notes: ImportNote[] = [];
     if (rows !== null && disposition === 'credential') {

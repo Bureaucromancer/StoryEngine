@@ -579,9 +579,13 @@ database, and its review is a row for the database, one per table (with its row
 count), one per story (with what that story holds across all its branches — a
 branch's edits and deletions left out) and one per other file in the folder;
 SQLite's own `-wal`, `-shm` and `-journal` are part of the database and not rows
-of their own. At P13.2 nothing in it converts: every table is `recorded`, `skipped` or,
-for `settings`, `credential` — counted and never read, since it holds provider
-keys. A database missing a column this build reads, or with no
+of their own. **Since P13.3 its characters convert**: `character_vault` has no
+row of its own, and instead each of its rows is one — an actor, with the source
+`aventura.db/character_vault/<id>` that a re-import is recognised by, and its
+portrait carried (a PNG as the card's image, a JPEG or WebP as the card's
+`portrait-source` media on a blank card). Every other table is `recorded`,
+`skipped` or, for `settings`, `credential` — counted and never read, since it
+holds provider keys. A database missing a column this build reads, or with no
 `_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that
 has every column is read, with a `warn` note saying so.
 

@@ -105,22 +105,29 @@ export const AVENTURAS_STORY_TABLES = [
 export type AventurasStoryTable = (typeof AVENTURAS_STORY_TABLES)[number];
 
 /**
- * What becomes of each table **at P13.2, which converts nothing**.
+ * What becomes of each table — P13.2 converted nothing, and each stage since
+ * turns one `recorded` into a `converted` here.
  *
  * Grouped by what each group is waiting on, because that is the argument for
  * its row: every `recorded` below names the stage that turns it into
  * something, and the stage that does must change the row here — a table whose
  * rows are converted and which still says `recorded` is a review describing an
- * import that did not happen.
+ * import that did not happen. **The other direction is held too**: a
+ * `converted` table is one the reader emits a candidate per row for
+ * (`CONVERTED_TABLES` in the reader, which `registries.test.ts` holds to this
+ * list), and such a table has **no row of its own** in the review — it is
+ * reported by the objects it became, as Marinara's converted tables are, so a
+ * table of three characters is three rows and not four.
  */
 export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> = {
-  // ── The library: recorded now, converted from P13.3 on ───────────────────
+  // ── The library: converted stage by stage from P13.3 ─────────────────────
   //
   // The three vault tables are the rows Aventuras' own vault exports map
   // (§0.1), so their converters are the ones P4 §1.5 already wrote. Each
   // becomes `converted` at its stage: characters at P13.3, lorebooks at P13.4,
   // scenarios at P13.5, tags at P13.6.
-  character_vault: 'recorded',
+  /** P13.3: one actor per row, portrait carried (§1.6). */
+  character_vault: 'converted',
   lorebook_vault: 'recorded',
   scenario_vault: 'recorded',
   vault_tags: 'recorded',

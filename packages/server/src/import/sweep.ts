@@ -45,6 +45,8 @@ import { fileExists, writeFileBytes } from '../storage/files.js';
 import { userOwner } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
+import { sniff } from '../auth/avatars.js';
+import type { Logger } from '../state/commit.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
@@ -141,6 +143,18 @@ export interface SweepRequest {
    * the route test mocking the storage module to get there.
    */
   freeBytes?: (path: string) => Promise<number | null>;
+  /**
+   * ***Where the sweep says what it could not put in the report*** —
+   * [P13.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * One thing today: a reader whose `close()` failed after a reading that
+   * succeeded (see {@link sweep}). The routes pass the request's own logger,
+   * so the line carries the request id beside everything else that request
+   * did. Absent — a test, or a caller with no request — the failure is not
+   * heard, and the boot sweep of the scratch root is still the backstop for
+   * what it left.
+   */
+  log?: Pick<Logger, 'warn'>;
 }
 
 export type SweepOutcome =
@@ -171,12 +185,19 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
    * threw, a `close()` that also throws must not replace the error that
    * explains what happened — `ScratchSpace.dispose`'s own advice — so it is
    * caught on that path, and the boot sweep of the scratch root is the
-   * backstop for what it leaves. When the reading succeeded, a `close()` that
-   * throws is heard: it is a handle this process forgot, and the only other
-   * place it would ever show is a directory nobody looks in. *That is cheap
-   * while this reader writes nothing; the first stage that converts from it
-   * (P13.3) should weigh it again, since after writes it would cost the
-   * report of what was written.*
+   * backstop for what it leaves.
+   *
+   * ***When the reading succeeded, a `close()` that throws is logged, and the
+   * report still returns*** — P13.3, weighing again what P13.2 left it to.
+   * P13.2 threw it, on the argument that a handle this process forgot would
+   * otherwise show only in a directory nobody looks in, and that was cheap
+   * while the reader wrote nothing. From P13.3 the reader's candidates are
+   * written before `close()` runs, so a throw here would answer a request
+   * whose characters are already in the library with a 500 and no review of
+   * them — every object there, and nothing saying so, and no ledger row to
+   * find it by. The report is the more important of the two, so it wins; the
+   * forgotten handle is a `warn` line on the request's own log
+   * (`SweepRequest.log`), and the boot sweep collects the copy it held.
    */
   let outcome: SweepOutcome;
   try {
@@ -185,7 +206,22 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
     await reader.close?.().catch(() => undefined);
     throw error;
   }
-  await reader.close?.();
+  try {
+    await reader.close?.();
+  } catch (error) {
+    request.log?.warn(
+      {
+        // Kebab, as the boot sweep's `import.scratch-swept` is: a log event,
+        // not a review note, and spelled so the notes' vocabulary check
+        // (`note-labels.test.ts`) does not ask the client for a sentence.
+        event: 'import.reader-close-failed',
+        kind: classification.kind,
+        type: error instanceof Error ? error.name : typeof error,
+        message: error instanceof Error ? error.message : String(error),
+      },
+      'An import reader could not let go of what it held; the report was returned, and the next start clears its scratch.',
+    );
+  }
   return outcome;
 }
 
@@ -309,7 +345,21 @@ class Writer {
     this.#request = request;
   }
 
+  /**
+   * One candidate, into the library, as one row of the review.
+   *
+   * ***The reader's own notes come first*** (P13.3, `ImportCandidate.notes`):
+   * what it read around before any converter saw the object — a column that
+   * would not parse, a portrait too large to carry. Merged here rather than in
+   * the arm that reads them, so no arm can be the one that drops them.
+   */
   async write(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const report = await this.#convert(candidate);
+    if (candidate.notes === undefined || candidate.notes.length === 0) return report;
+    return { ...report, notes: [...candidate.notes, ...report.notes] };
+  }
+
+  async #convert(candidate: ImportCandidate): Promise<ImportItemReport> {
     /**
      * The preset formats come from a table rather than from case labels, so the
      * preview can make the same three-way choice without reaching a method whose
@@ -573,7 +623,15 @@ class Writer {
     notes: ImportNote[],
   ): Promise<string> {
     const asset = candidate.assets?.[0];
-    let pixels = asset === undefined ? null : await this.#request.files.read(asset);
+    /**
+     * ***Bytes the reader already holds come first*** —
+     * [P13 §1.6](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+     * An Aventuras portrait is a column, not a file, so its reader decodes it
+     * and hands the bytes over under the name it put in `assets`; every other
+     * reader names a file, and the file source is asked as it always was.
+     */
+    const inline = asset === undefined ? undefined : candidate.inline?.get(asset);
+    let pixels = asset === undefined ? null : (inline ?? (await this.#request.files.read(asset)));
 
     /**
      * ***A portrait that will not read costs the portrait, and only that***
@@ -582,14 +640,65 @@ class Writer {
      * every expression with it and no note said so. The actor is now written
      * on the blank card, which is what an actor without a portrait always is,
      * and the expressions go into it as they would into any other.
+     *
+     * *And "will not read" means will not read, not only will not sniff*
+     * (P13.3). A PNG signature over a body that does not parse — a truncated
+     * portrait, which a data URL cut short in somebody's database is — passed
+     * the sniff, and then `create()` threw on it and the actor was lost with
+     * `notStored`. `readsAsCard` asks the codec the question `create()` will.
      */
     let portraitless = false;
-    if (pixels !== null && codecFor(pixels) === null) {
-      notes.push({
-        key: 'import.card.portraitUnreadable',
-        params: { file: asset ?? '', actor: actor.name },
-        level: 'warn',
-      });
+    let portraitSource: { row: EmbeddedMedia; bytes: Uint8Array } | null = null;
+    if (pixels !== null && !readsAsCard(pixels)) {
+      /**
+       * ***A portrait that is a picture and not a PNG rides beside the card***
+       * — [P13 §1.6]. A card is a PNG (`codecFor` knows no other container),
+       * and Aventuras keeps JPEG and WebP portraits too; dropping them would
+       * make the full import lose faces the file import never had. So the
+       * picture is kept as the card's `portrait-source` — [03 §5.2]'s *"the
+       * uncropped original behind the card's own pixels"*, which is what it is
+       * — on the blank card, and a person can crop a card from it later.
+       *
+       * **Only for bytes a reader handed over inline**, which today means a
+       * portrait out of an Aventuras row, where the column says the picture
+       * *is* the portrait. A file's first asset keeps its old answer
+       * (`archives.test.ts` holds the CHARX case): whether a JPEG that happens
+       * to lead a CHARX is a portrait is a separate question from this stage.
+       *
+       * *Sniffed, never taken from the name or the data URL*: `sniff` is the
+       * one the account avatar and the library's own media upload use, so
+       * this door accepts exactly the pictures those do.
+       */
+      const kind = inline === undefined ? null : sniff(pixels);
+      if (kind !== null && kind.mime !== 'image/png') {
+        const digest = contentHashOf(pixels);
+        portraitSource = {
+          row: {
+            // From the key and the bytes, never the clock — the expressions'
+            // reasoning below: a re-import of the same row must compare
+            // `unchanged`, and a changed picture must be a new blob.
+            id: stableId('portrait-source', asset ?? ''),
+            role: 'portrait-source',
+            mime: kind.mime,
+            digest,
+            bytes: pixels.byteLength,
+            ref: stableId('portrait-source-ref', asset ?? '', digest),
+            tags: [],
+          },
+          bytes: pixels,
+        };
+        notes.push({
+          key: 'import.card.portraitAsSource',
+          params: { actor: actor.name, format: IMAGE_FORMAT_NAMES[kind.mime] ?? kind.extension },
+          level: 'info',
+        });
+      } else {
+        notes.push({
+          key: 'import.card.portraitUnreadable',
+          params: { file: asset ?? '', actor: actor.name },
+          level: 'warn',
+        });
+      }
       pixels = null;
       portraitless = true;
     }
@@ -625,6 +734,7 @@ class Writer {
     const rest = (candidate.assets ?? []).slice(1);
     const expressions: EmbeddedMedia[] = [];
     const blobs: BlobStore = new Map();
+    if (portraitSource !== null) blobs.set(portraitSource.row.ref, portraitSource.bytes);
 
     for (const path of rest) {
       const bytes = await this.#request.files.read(path);
@@ -666,13 +776,33 @@ class Writer {
       });
     }
 
-    const withMedia =
-      expressions.length === 0 ? actor : { ...actor, media: [...actor.media, ...expressions] };
+    const media = portraitSource === null ? expressions : [portraitSource.row, ...expressions];
+    const withMedia = media.length === 0 ? actor : { ...actor, media: [...actor.media, ...media] };
 
     // The blank card, only when there are pictures to carry on it: with none,
     // no canvas at all is the same file and the path every other actor takes.
+    // A portrait source is one such picture — [P13 §1.6]'s *"on a blank card"*
+    // is this line, which the expressions already needed, and not a second one.
     const canvas = portraitless && blobs.size > 0 ? blankCardPixels() : pixels;
-    return this.#write(withMedia, notes, canvas, blobs.size === 0 ? undefined : blobs);
+    const outcome = await this.#write(
+      withMedia,
+      notes,
+      canvas,
+      blobs.size === 0 ? undefined : blobs,
+    );
+    /**
+     * ***The id the object was stored under, back on the caller's actor*** —
+     * found at P13.3. `store()` settles an object's id by writing to the one it
+     * is handed — `identify` re-points a re-import to the id it already has
+     * here, and *keep both* mints a fresh one — and an actor carrying media is
+     * handed over as a copy. So every caller that then read `actor.id` for the
+     * review's `objectId`, or for the treatment a card's scenario names, read
+     * the converter's fresh uuid: an object that was never stored. It showed
+     * first as a JPEG portrait whose second sweep said `unchanged` and named
+     * the wrong id; a CHARX with expressions had done the same since P7.10.
+     */
+    actor.id = withMedia.id;
+    return outcome;
   }
 
   async #write(
@@ -1018,9 +1148,10 @@ class Writer {
     const { actor, notes } = converted.value;
     stampImported(actor, candidate.source);
     // Through `#createActor` rather than `store` directly, so a vault character
-    // that arrived in a zip beside its portrait gets the same asset handling a
-    // card does. It carries none today; the path costs nothing and diverging
-    // from it would have to be undone the first time one does.
+    // gets the same portrait handling a card does. A vault *file* carries none;
+    // a `character_vault` row carries its decoded portrait inline (P13.3), and
+    // this is the path that turned out to need it — a PNG becomes the card, a
+    // JPEG or WebP its source, and anything else a note.
     const outcome = await this.#createActor(candidate, actor, notes);
     if (outcome === 'failed') {
       return { source: candidate.source, disposition: 'unrecognised', notes };
@@ -1164,6 +1295,33 @@ function blobsOf(pixels: Uint8Array | null, media: BlobStore | undefined): BlobS
   if (media === undefined) return inside;
   return new Map([...inside, ...media]);
 }
+
+/**
+ * ***Whether these bytes will survive being a card*** — the question
+ * `create()` asks, asked first (P13.3).
+ *
+ * `codecFor` sniffs eight bytes, and `encodeObject` then reads the whole file
+ * through the codec: so a PNG signature over a body that does not parse
+ * passed the one and threw out of the other, and the actor was lost with it.
+ * Asking the codec to read it here is what makes *a portrait that will not
+ * read costs the portrait* true of a truncated portrait as well as a JPEG.
+ */
+function readsAsCard(bytes: Uint8Array): boolean {
+  const codec = codecFor(bytes);
+  if (codec === null) return false;
+  try {
+    codec.read(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** What a person calls each picture `sniff` knows that a card cannot be, for the review. */
+const IMAGE_FORMAT_NAMES: Readonly<Record<string, string>> = {
+  'image/jpeg': 'JPEG',
+  'image/webp': 'WebP',
+};
 
 function refusedItem(candidate: ImportCandidate, refusal: string): ImportItemReport {
   return {
