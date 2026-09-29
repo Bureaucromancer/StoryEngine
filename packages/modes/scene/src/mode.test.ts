@@ -535,7 +535,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     // (`openai.js:114`), which only a group sees.
     expect(embodied).toContain("Write {{ char }}'s next reply");
     expect(embodied).toContain('{{ charIfNotGroup }}');
-    expect(embodied).toMatch(/\{% if charIfNotGroup != char %\}.*write only as \{\{ char \}\}/);
+    // Only under `per-actor`: a merged reply may voice every member (2026-09-29).
+    expect(embodied).toMatch(
+      /\{% if charIfNotGroup != char and dispatch == 'per-actor' %\}.*write only as \{\{ char \}\}/,
+    );
     // Narrated: it describes rather than speaks as anybody, and is the narrator
     // instruction every earlier session was created with, word for word.
     const narrator = template('se.instruction');

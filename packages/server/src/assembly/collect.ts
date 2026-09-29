@@ -292,10 +292,20 @@ export function collectCandidates(context: CollectContext): Collected {
   const sequence: Candidate[] = [];
   const notFilled: NotFilledSlot[] = [];
   /** In-history blocks, held back until the history run is known. */
-  const injected: { fromEnd: number; tiebreak: number; order: number; candidates: Candidate[] }[] =
-    [];
+  const injected: Injected[] = [];
   let historyStart: number | null = null;
   let historyCount = 0;
+  /**
+   * ***Where the player's move and the round landed in `sequence`*** — the
+   * tail of the chat that engine and card depths count over (see
+   * {@link Injected.frame}), 2026-09-29, at the [P13.3] review.
+   */
+  const inputAt: number[] = [];
+  const roundAt: number[] = [];
+  const pushRound = (): void => {
+    roundAt.push(...round.map((_, index) => sequence.length + index));
+    sequence.push(...round);
+  };
   // Empty means all — which is what dissolves the eight special-cased
   // template fields [04 §8.4.3] describes.
   /**
@@ -339,7 +349,7 @@ export function collectCandidates(context: CollectContext): Collected {
     // iteration pushed — or would have, had there been an input.
     const afterInput = !roundPlaced && roundAfter !== -1 && order - 1 === roundAfter;
     if (afterInput) {
-      sequence.push(...round);
+      pushRound();
       roundPlaced = true;
     }
     if (!block.enabled) {
@@ -380,7 +390,8 @@ export function collectCandidates(context: CollectContext): Collected {
     if (block.kind === 'slot' && block.source.of === 'actor') {
       const { positioned, byDepth } = splitBySection(filled, context);
       for (const [fromEnd, candidates] of byDepth) {
-        injected.push({ fromEnd, tiebreak: 0, order, candidates });
+        // Counted over the whole chat, as ST counts a card's depth — see `frame`.
+        injected.push({ fromEnd, tiebreak: 0, order, candidates, frame: 'chat' });
       }
       placeable = positioned;
     }
@@ -432,6 +443,9 @@ export function collectCandidates(context: CollectContext): Collected {
       historyStart = sequence.length;
       historyCount = filled.length;
     }
+    if (isInputSlot(block)) {
+      inputAt.push(...filled.map((_, index) => sequence.length + index));
+    }
     sequence.push(...filled);
   }
   /**
@@ -443,7 +457,7 @@ export function collectCandidates(context: CollectContext): Collected {
    * that did not say where the player speaks. (~~Scene's and Freeform's both
    * end on it~~ — corrected 2026-09-29, at the [P13.2] review.)
    */
-  if (!roundPlaced) sequence.push(...round);
+  if (!roundPlaced) pushRound();
 
   const note = noteCandidate(context);
   if (note !== null) {
@@ -454,10 +468,48 @@ export function collectCandidates(context: CollectContext): Collected {
       tiebreak: 0,
       order: blocks.length,
       candidates: [note.candidate],
+      frame: 'chat',
     });
   }
 
-  return { candidates: splice(sequence, injected, historyStart, historyCount), notFilled };
+  const start = historyStart;
+  const history =
+    start === null ? [] : Array.from({ length: historyCount }, (_, index) => start + index);
+  const frames = {
+    history,
+    chat: [...history, ...inputAt, ...roundAt].sort((a, b) => a - b),
+    // Where an empty frame's runs go: an empty history run is still a place.
+    empty: historyStart,
+  };
+  return { candidates: splice(sequence, injected, frames), notFilled };
+}
+
+/**
+ * One depth-addressed run, held back until the frames it counts over are known.
+ */
+interface Injected {
+  fromEnd: number;
+  tiebreak: number;
+  order: number;
+  candidates: Candidate[];
+  /**
+   * ***What `fromEnd` counts over*** — added 2026-09-29, at the [P13.3] review.
+   *
+   * - **`history`**, the default: the history slot's run, as a pack's
+   *   in-history block and a lore entry's `at_depth` always counted. Unchanged,
+   *   because an imported preset's depths were written against it and its
+   *   tests pin it.
+   * - **`chat`**: the history run, **then the player's move and the round so
+   *   far** — every chat entry the call sends, which is what SillyTavern
+   *   counts a depth over: its chat holds the user's newest message, and a
+   *   group member's reply is saved into it before the next member assembles
+   *   (`group-chats.js:1051-1076`). For the author's note and a card's depth
+   *   prompt, the two placements [P13.3] brought that are ST's own. ~~Counted
+   *   from the end of the history run~~ they landed one entry deeper than ST's
+   *   on a first speaker and 1 + the round's length deeper on a later one, and
+   *   a depth-0 note sat before the move it was steering rather than after it.
+   */
+  frame?: 'history' | 'chat';
 }
 
 /**
@@ -884,55 +936,74 @@ function outOfScope(scope: ActorScope, context: CollectContext): boolean {
  */
 function splice(
   sequence: Candidate[],
-  injected: { fromEnd: number; tiebreak: number; order: number; candidates: Candidate[] }[],
-  historyStart: number | null,
-  historyCount: number,
+  injected: readonly Injected[],
+  frames: { history: readonly number[]; chat: readonly number[]; empty: number | null },
 ): Candidate[] {
   if (injected.length === 0) return sequence;
 
   /**
-   * **Grouped by depth, then spliced once per depth.**
+   * ***Where each run goes, resolved against the sequence as it stands*** —
+   * `null` is *appended*, for a frame with nothing in it and no history slot
+   * to stand for it; an empty history run is where its runs go, as it was.
    *
-   * Two blocks at one depth cannot be spliced one after the other at the same
-   * index: the second insertion pushes the first rightwards, so they come out
-   * in the reverse of the order asked for. Building each depth's run first and
-   * inserting it whole is the only version that reads the way it is written.
+   * Clamped: a depth past the start of the frame lands at its start rather
+   * than outside it, which is what a preset written for a longer history
+   * means. Depth 0 is after the frame's last entry; depth k is before the k-th
+   * entry from its end — the history run's for a `history` run, and the whole
+   * chat's for a `chat` one ({@link Injected.frame}), which need not be one
+   * contiguous stretch: a pack's goal and guidance sit between the history and
+   * the move, and a depth counted over chat does not count them.
    */
-  const byDepth = new Map<number, typeof injected>();
+  const at = (entry: Injected): number | null => {
+    const frame = entry.frame === 'chat' ? frames.chat : frames.history;
+    if (frame.length === 0) return frames.empty;
+    const k = frame.length - Math.min(entry.fromEnd, frame.length);
+    return k === frame.length ? (frame[k - 1] ?? 0) + 1 : (frame[k] ?? 0);
+  };
+
+  /**
+   * **Grouped by where they land, then spliced once per place.**
+   *
+   * Two blocks at one place cannot be spliced one after the other at the same
+   * index: the second insertion pushes the first rightwards, so they come out
+   * in the reverse of the order asked for. Building each place's run first and
+   * inserting it whole is the only version that reads the way it is written.
+   * ~~Grouped by depth~~ — by index since 2026-09-29, when the two frames
+   * arrived: a `history` depth and a `chat` depth can name one place, and two
+   * depths clamped to a frame's start always did.
+   */
+  const byPlace = new Map<number | null, Injected[]>();
   for (const entry of injected) {
-    byDepth.set(entry.fromEnd, [...(byDepth.get(entry.fromEnd) ?? []), entry]);
+    const place = at(entry);
+    byPlace.set(place, [...(byPlace.get(place) ?? []), entry]);
   }
+  const runOf = (group: Injected[]): Candidate[] =>
+    group
+      .sort(
+        // Deepest first within a place, then the author's explicit number,
+        // then declaration order. Dropping any would reorder somebody's prompt
+        // with nothing to show for it.
+        (a, b) => b.fromEnd - a.fromEnd || a.tiebreak - b.tiebreak || a.order - b.order,
+      )
+      .flatMap((entry) => entry.candidates);
 
   const out = [...sequence];
   /**
-   * **Deepest first, and every insertion after the first moved along by what
-   * went in before it** (2026-09-27). ~~Deepest first, so a shallower insertion
-   * is not shifted by an earlier one~~ — it is: a deeper run goes in at an
-   * earlier index and pushes everything after it right, so the shallower
-   * run's index, counted against the history as it was, landed that many
-   * messages too deep. A block at depth 4 and one at depth 1 came out at 4 and
-   * 2, and two depths past the start of a short history came out reversed.
-   * Deepest first still, because with no history to splice into the runs are
-   * appended and the deepest has to come first there too.
+   * **Last place first, so no insertion moves another's index** (2026-09-29).
+   * ~~Deepest first, and every insertion after the first moved along by what
+   * went in before it~~ (2026-09-27, itself correcting *deepest first, so a
+   * shallower insertion is not shifted by an earlier one*): with one frame,
+   * deeper was always earlier, and the running offset was right. With two,
+   * a `history` depth 1 can land after a `chat` depth 3, so the order that
+   * never shifts anything is by index, from the end. *Appended runs go last*,
+   * deepest first, which is where a depth-addressed block goes when there is
+   * nothing to be at a depth *in*.
    */
-  let inserted = 0;
-  for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
-    const group = (byDepth.get(depth) ?? []).sort(
-      // The author's explicit number, then declaration order. Dropping either
-      // would reorder somebody's prompt with nothing to show for it.
-      (a, b) => a.tiebreak - b.tiebreak || a.order - b.order,
-    );
-    const run = group.flatMap((entry) => entry.candidates);
-
-    if (historyStart === null) {
-      out.push(...run);
-      continue;
-    }
-    // Clamped: a depth past the start of the run lands at its start rather than
-    // outside it, which is what a preset written for a longer history means.
-    out.splice(historyStart + historyCount - Math.min(depth, historyCount) + inserted, 0, ...run);
-    inserted += run.length;
+  const places = [...byPlace.keys()].filter((place): place is number => place !== null);
+  for (const place of places.sort((a, b) => b - a)) {
+    out.splice(place, 0, ...runOf(byPlace.get(place) ?? []));
   }
+  out.push(...runOf(byPlace.get(null) ?? []));
   return out;
 }
 
@@ -981,12 +1052,15 @@ function namesAbout(context: CollectContext, member: { actor: Actor } | undefine
   const others = context.actors
     .filter(({ actor }) => actor.id !== member?.actor.id)
     .map(({ actor }) => actor.name);
+  const dispatch = context.chat?.dispatch;
   return {
     char,
     user,
     group,
     charIfNotGroup: cast.length === 1 ? char : group,
     notChar: [user, ...others].join(', '),
+    // The one setting beside the names, 2026-09-29 — see `RenderContext.dispatch`.
+    ...(dispatch === undefined ? {} : { dispatch }),
   };
 }
 
@@ -1871,10 +1945,34 @@ function channelText(channelId: string, context: CollectContext): string {
   return text.slice(0, Math.floor(definition.budget * perToken)).trimEnd();
 }
 
+/**
+ * The card prompt sections, which {@link personaText} leaves out — see there.
+ */
+const CARD_PROMPT_IDS: ReadonlySet<string> = new Set<string>(
+  Object.values(CARD_PROMPT_SECTION_IDS),
+);
+
+/**
+ * The persona's `always` sections, joined — what the persona slot says about
+ * the player's character.
+ *
+ * ***Less the card's own prompts*** (2026-09-29, the [P13.3] review). The card
+ * importer writes `se.card.system`, `se.card.post-history` and `se.card.depth`
+ * as `always` sections, so an imported card taken as the persona had its
+ * *"You are Vera…"*, its post-history instructions and its depth prompt sent
+ * in the persona block — on every call, in both voices, past every rule the
+ * actor path holds them to. Those sections are **instructions to the model
+ * about that actor as a speaker**, not a description of the player's
+ * character: a persona is somebody the reply must never write for, and a
+ * prompt telling the model to be them is the opposite of that. Only the actor
+ * path applies the voice, `voiced` and `prompts.cards` rules to them, so they
+ * reach a prompt through it or not at all.
+ */
 function personaText(persona: Actor | null): string {
   if (persona === null) return '';
   return persona.profile.sections
     .filter((section) => section.disposition === 'always')
+    .filter((section) => !CARD_PROMPT_IDS.has(section.id))
     .map((section) => section.body)
     .filter((body) => body.length > 0)
     .join('\n\n');

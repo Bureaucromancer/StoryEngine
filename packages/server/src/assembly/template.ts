@@ -92,6 +92,26 @@ export interface RenderContext {
    * room, and still somebody the reply must not speak as.
    */
   notChar: string;
+  /**
+   * ***How the call's session dispatches a round*** — `'per-actor'` or
+   * `'merged'`, the session's `dispatch` ([P13 §1.4]); absent outside a
+   * session. Added 2026-09-29, at the [P13.3] review, and **the one field here
+   * that is not a name**, so this is the argument the interface's own comment
+   * asks for.
+   *
+   * *The group nudge needs it and nothing else can say it.* Scene's embodied
+   * instruction adds *"write only as {{char}}, and leave {{notChar}} to speak
+   * for themselves"* in a group — right on a `per-actor` call, which is one
+   * member's reply, and wrong on a `merged` one, which is Marinara's merged
+   * mode: one reply that may voice every member ([P13 §1.4]). The names are
+   * the same on both calls (a merged call speaks as its first speaker), so no
+   * name can tell them apart. A block keyed to the dispatch would have been
+   * new collector machinery for one sentence; a condition in the template is
+   * the sentence saying when it applies. *It stays within the fence*: a
+   * setting's value, one of two words, and no body — a template that reads it
+   * can branch, not reach content.
+   */
+  dispatch?: 'per-actor' | 'merged';
 }
 
 /**
@@ -135,7 +155,8 @@ export type RenderResult = { ok: true; text: string } | RenderFailure;
  * - `memoryLimit` is charged before a range, `append`, `join` or `split`
  *   allocates, so that range is a thrown error and a {@link RenderFailure}.
  *   A million is several orders past anything a block legitimately builds,
- *   since the namespace holds ~~two names~~ five, all names ([P13.2]).
+ *   since the namespace holds ~~two names~~ five, all names ([P13.2]), and
+ *   one two-word setting ([P13.3]'s `dispatch`).
  * - `renderLimit` is a wall-clock backstop per render for loops that stay under
  *   the memory budget. Only a pathological template reaches it, so an
  *   ordinary render stays reproducible.
@@ -168,7 +189,9 @@ const engine = new Liquid({
  * five; a caller rendering one template outside a turn — the importer checking
  * what a converted macro renders to — has two names and no group, and a name
  * it does not pass renders empty, as any name outside the namespace does
- * (`strictVariables` is off above, for its stated reason).
+ * (`strictVariables` is off above, for its stated reason). *`dispatch` is
+ * optional in both* ([P13.3]): a collect outside a session has none, and a
+ * template asking for it reads no dispatch rather than a made-up one.
  */
 export function renderTemplate(
   template: string,

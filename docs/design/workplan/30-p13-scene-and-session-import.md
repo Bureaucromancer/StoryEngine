@@ -1327,7 +1327,11 @@ the code carries its argument:
   spells no mode id — from V1's top level or V2's `extensions`, strings read
   as numbers. `import.card.wantsPromptOverride` now fires only for `{{original}}`,
   the one request a stack cannot honour; the placeholder is taken out.
-  *Existing imports pick this up on re-import.* **Not placed by an imported
+  *Existing imports pick this up on re-import.* *Review, 2026-09-29*: the
+  persona slot leaves the three sections out, so a card taken as the persona
+  sends none of them — they are instructions about that actor as a speaker,
+  and only the actor path holds them to the voice, `voiced` and switch rules.
+  **Not placed by an imported
   SillyTavern preset**: its converter maps no marker to these sections, so a
   session on an imported pack sends no card prompts — a converter change, left
   for P13.9.
@@ -1335,10 +1339,25 @@ the code carries its argument:
   `in-history` depth 0 as the table says: this build's history run ends where
   the input slot begins, so depth 0 would sit *before* the move the reply
   answers. After the input they are also after the round, which is ST's
-  order. The same fact moves every depth by one against ST's — a depth-*n*
+  order. ~~The same fact moves every depth by one against ST's — a depth-*n*
   block here sits *n* entries before the input, where ST counts the player's
   new message as depth 0 — and that holds for the author's note and the
-  depth prompt too.
+  depth prompt too.~~ *Corrected at the review, 2026-09-29*: that offset was
+  1 + the round's length for a later speaker, and a depth-0 note sat before
+  the player's move. The author's note and a card's depth prompt now count
+  their depth over the whole chat — the history run, the move and the round
+  so far — as ST does, so depth 0 is after the round and depth *n* is *n*
+  entries before the newest one (`Injected.frame` in `assembly/collect.ts`).
+  A pack's own in-history blocks and a lore entry's `at_depth` still count
+  over the history run alone, which is what imported presets were written
+  against.
+- **The group nudge is `per-actor`'s** (review, 2026-09-29). §1.5 says the
+  instruction adds *"write only as {{char}}"* in a group; a `merged` call is
+  one reply that may voice every member (§1.4), so the nudge contradicted it.
+  The template now reads the session's dispatch — `dispatch`, added to the
+  namespace beside the five names as its one setting, argued in
+  `RenderContext` (`assembly/template.ts`) — and sends the sentence under
+  `per-actor` only.
 - **`prompts.instruction: false`** skips the blocks `isInstructionBlock`
   names — `se.instruction`, `se.instruction.*`, and an imported ST preset's
   `st.main` — an id convention rather than a schema field.
@@ -1348,7 +1367,15 @@ the code carries its argument:
   muted speaker keeps theirs. Without `castIsPresent` nothing changes.
   `readPresence` takes the mode's reading and is the one reader for the
   selector, the collector and the cast panel, whose rows now show a Scene
-  member nobody muted as present.
+  member nobody muted as present. *Review, 2026-09-29*: ~~the mode's
+  reading~~ **the mode's reading in an embodied session** —
+  `castIsPresentFor` (`sessions/chat-settings.ts`). Read through the mode
+  alone, every narrated Scene session (`legacy`, and those P13.0 created
+  narrated) dropped the card of a member the story had walked out, and its
+  panel moved every untouched member to *Here*; now those sessions keep the
+  prompt and the panel they had. And a value the quarantine reset to the
+  channel's `init: false` reads as absent under `castIsPresent`, by its
+  `degraded` marker, rather than as a mute nobody made.
 - **Names in history**: a turn with `output.messages` is one entry per
   message — `assistant`, named `Name: ` when names are on, or `system` and
   unnamed for a narrator's line — and the round is named by the same count.

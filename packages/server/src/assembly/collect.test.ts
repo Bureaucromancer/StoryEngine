@@ -3003,6 +3003,22 @@ describe('a chat, assembled', () => {
       expect(ids(rows)).not.toContain('se.instruction');
     });
 
+    /**
+     * ***Not under `merged`*** (2026-09-29, the [P13.3] review): the one call
+     * writes for the whole room ([P13 §1.4]), and telling it to write only as
+     * its first speaker contradicted what the dispatch is for.
+     */
+    it('leaves the group nudge out of a merged call, which may voice every member', () => {
+      const rows = speaking({ chat: { ...CHAT, dispatch: 'merged' } });
+      const instruction = rows.find((row) => row.id === 'se.instruction.embodied')?.text;
+
+      expect(instruction).toContain(
+        "Write Lund's next reply in a fictional chat between Vera, Lund and Ned.",
+      );
+      expect(instruction).not.toContain('group chat');
+      expect(instruction).not.toContain('write only as');
+    });
+
     it('leaves the group nudge out of a chat with one character', () => {
       const rows = speaking({ actors: [lund] });
       const instruction = rows.find((row) => row.id === 'se.instruction.embodied')?.text;
@@ -3072,11 +3088,13 @@ describe('a chat, assembled', () => {
         ],
       });
 
-      // Depth 1: before the newest history entry, as the user it asked to be.
-      expect(
-        ids(rows).slice(ids(rows).indexOf('se.history.t2.input'), ids(rows).indexOf('se.input')),
-      ).toEqual(['se.history.t2.input', 'se.card.depth.vera', 'se.history.t2.output']);
-      expect(rows.find((row) => row.id === 'se.card.depth.vera')?.role).toBe('user');
+      // Depth 1: before the newest chat entry — the player's move — as the user
+      // it asked to be. ~~Before the newest history entry~~: counted over the
+      // whole chat since 2026-09-29, the [P13.3] review, as ST counts it.
+      const at = ids(rows).indexOf('se.card.depth.vera');
+      expect(ids(rows)[at - 1]).toBe('se.history.t2.output');
+      expect(ids(rows)[at + 1]).toBe('se.input');
+      expect(rows[at]?.role).toBe('user');
     });
 
     it('sends only the card’s prompt when the chat switches the instruction off', () => {
@@ -3111,6 +3129,34 @@ describe('a chat, assembled', () => {
         }),
       ).notFilled;
       expect(notFilled.find((row) => row.blockId === 'se.card.system')?.reason).toBe('disabled');
+    });
+  });
+
+  /**
+   * ***A card taken as the persona brings no card prompts*** (2026-09-29, the
+   * [P13.3] review). The persona slot renders every `always` section, and the
+   * importer writes a card's three prompts as `always` sections — so its
+   * *"You are …"* reached every call, in both voices, past the rules the actor
+   * path holds them to.
+   */
+  describe('a carded persona', () => {
+    const carded_persona = carded('Ned', {
+      system: 'You are Ned. Never break character.',
+      post: 'Ned answers in one line.',
+      depth: ['Ned is wary.', 0, 'system'],
+    });
+
+    it.each([
+      ['a narrator call', { voice: 'narrator' as const }, true],
+      ['an embodied call', {}, false],
+    ])('keeps them out of the persona block on %s', (_, over, nobody) => {
+      const rows = speaking({ persona: carded_persona, ...over }, nobody);
+      const texts = rows.map((row) => row.text).join('\n');
+
+      expect(rows.find((row) => row.id === 'se.persona')?.text).toContain('Ned is in the room.');
+      expect(texts).not.toContain('You are Ned.');
+      expect(texts).not.toContain('Ned answers in one line.');
+      expect(texts).not.toContain('Ned is wary.');
     });
   });
 
@@ -3221,7 +3267,47 @@ describe('a chat, assembled', () => {
       const at = ids(rows).indexOf('se.note');
 
       expect(rows[at]).toEqual({ id: 'se.note', role: 'system', text: 'Keep it tense.' });
-      expect(ids(rows)[at + 1]).toBe('se.history.t2.input');
+      // Two entries from the end of the chat, the move counted: before the
+      // newest reply. ~~Before `t2.input`~~, counted from the history's end,
+      // until 2026-09-29.
+      expect(ids(rows)[at + 1]).toBe('se.history.t2.output');
+    });
+
+    /**
+     * ***Depths count the move and the round, as SillyTavern's do*** (2026-09-29,
+     * the [P13.3] review). Its chat holds the player's newest message and each
+     * earlier member's reply before the next member assembles, so on a later
+     * speaker's call depth 0 is after the round and depth 1 before its last
+     * line. Counted from the history's end, both sat before the player's move —
+     * 1 + the round's length deeper than ST's.
+     */
+    it('counts its depth, and a depth prompt’s, over the move and the round', () => {
+      const rows = speaking({
+        speaker: vera.actor.id,
+        history: [turn('t1', 'One.', undefined, 'First.')],
+        round: [line(lund, 'Lund first.'), line(vera, 'Vera once.')],
+        chat: { ...CHAT, note: { text: 'Keep it tense.', depth: 0 } },
+      });
+      const chat = ids(rows).filter(
+        (id) =>
+          id.startsWith('se.history.') ||
+          id === 'se.input' ||
+          id.startsWith('se.round.') ||
+          id === 'se.note' ||
+          id === 'se.card.depth.vera',
+      );
+
+      expect(chat).toEqual([
+        'se.history.t1.input',
+        'se.history.t1.output',
+        'se.input',
+        'se.round.0',
+        'se.card.depth.vera',
+        'se.round.1',
+        'se.note',
+      ]);
+      // Post-history is still last: it is placed after the chat, not in it.
+      expect(ids(rows).at(-1)).toBe('se.card.post-history.vera');
     });
 
     it('is absent when this call was not due one', () => {

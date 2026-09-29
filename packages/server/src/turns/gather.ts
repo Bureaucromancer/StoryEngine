@@ -7,7 +7,7 @@ import {
   type CollectContext,
   type Collected,
 } from '../assembly/collect.js';
-import { chatSettingsOf, noteDue } from '../sessions/chat-settings.js';
+import { castIsPresentFor, chatSettingsOf, noteDue } from '../sessions/chat-settings.js';
 import { saysSomething } from './speakers.js';
 import type { Accounts } from '../auth/accounts.js';
 import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
@@ -384,7 +384,8 @@ export function collectFor(
     (saysSomething(call.input) ? 1 : 0);
   const collectChat: CollectChat = {
     dispatch: chat.dispatch,
-    castIsPresent: inputs.mode.definition.participants.castIsPresent === true,
+    // The mode's reading, in an embodied session only — see `castIsPresentFor`.
+    castIsPresent: castIsPresentFor(chat, inputs.mode.definition),
     namesInHistory: chat.speakers.namesInHistory,
     hidden: chat.hidden,
     prompts: chat.prompts,

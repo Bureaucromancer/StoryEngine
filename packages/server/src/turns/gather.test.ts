@@ -18,11 +18,11 @@ import {
   writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
-import type { ChannelEffect, Turn } from '../sessions/types.js';
+import type { ChannelEffect, SessionFile, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { DEFAULT_MODE_ID, defaultMode } from '../mode-registry.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { collectFor, gatherAssemblyInputs } from './gather.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook } from '@storyengine/shared';
 
@@ -435,5 +435,78 @@ describe('what a session gets without asking for it', () => {
 
     expect(inputs.lore.books.map((one) => one.book.name)).toEqual(['Chosen']);
     expect(inputs.lore.books[0]?.by).toBe('session');
+  });
+});
+
+/**
+ * ***A narrated session keeps the presence reading it was played with***
+ * (2026-09-29, the [P13.3] review). Scene declares `castIsPresent` since
+ * P13.3, and read through the mode alone that re-read every narrated
+ * session's presence: a member the story had walked out (`false`, the
+ * channel's *not in this room*) lost their card from the narrator's one
+ * merged call. Tied to the session's voice, a `legacy` session and one P13.0
+ * made narrated keep the prompt they had.
+ */
+describe('a muted-looking member in a narrated session', () => {
+  function libraryOf(): LibraryContext {
+    return { db: sessions.index, layout: sessions.layout, keepHistoryPerObject: 0 };
+  }
+
+  async function assembled(
+    fields: Partial<Pick<SessionFile, 'voice' | 'dispatch' | 'speakers'>>,
+  ): Promise<{ ids: string[]; veraId: string }> {
+    const plain = newActor('Vera');
+    const vera = {
+      ...plain,
+      profile: {
+        ...plain.profile,
+        sections: plain.profile.sections.map((section) =>
+          section.id === 'se.summary' ? { ...section, body: 'Vera keeps the ferry.' } : section,
+        ),
+      },
+    };
+    await create(libraryOf(), ACCOUNT, vera);
+    const created = await createSession(sessions, ACCOUNT, {
+      name: 'Walked out',
+      cast: { persona: null, actors: [vera.id] },
+    });
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+    );
+    if (inputs.session === null) throw new Error('the session reads');
+    // The file as the era wrote it: none of the three for `legacy`.
+    const bare: SessionFile = { ...inputs.session };
+    delete bare.voice;
+    delete bare.dispatch;
+    delete bare.speakers;
+    const collected = collectFor(
+      { ...inputs, session: { ...bare, ...fields } },
+      {
+        callKind: 'narrate',
+        voice: fields.voice ?? 'narrator',
+        channels: { ...inputs.channels, [`se.presence#${vera.id}`]: { version: 1, value: false } },
+        lore: [],
+      },
+    );
+    return { ids: collected.candidates.map((one) => one.id), veraId: vera.id };
+  }
+
+  it('keeps their card in a legacy session’s narrator call', async () => {
+    const { ids, veraId } = await assembled({});
+
+    expect(ids).toContain(`se.actor.summary.${veraId}`);
+  });
+
+  it('keeps it in a session P13.0 created narrated', async () => {
+    const { ids, veraId } = await assembled({ voice: 'narrator', dispatch: 'merged' });
+
+    expect(ids).toContain(`se.actor.summary.${veraId}`);
+  });
+
+  it('drops it from a room that reads her as muted, which an embodied one does', async () => {
+    const { ids, veraId } = await assembled({ voice: 'embodied', dispatch: 'per-actor' });
+
+    expect(ids).not.toContain(`se.actor.summary.${veraId}`);
   });
 });

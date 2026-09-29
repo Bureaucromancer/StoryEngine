@@ -130,9 +130,15 @@ describe('an object rendered field by field', () => {
     // `newActor` writes the four conventional sections with empty bodies, so
     // the distinction is on screen the first time anybody opens a new actor.
     const sections = fieldValue(fieldValue(container, 'Profile'), 'Sections');
+    const bodies = [...sections.querySelectorAll('dl')].map((section) =>
+      fieldValue(section.parentElement ?? section, 'Body'),
+    );
 
-    expect(sections.textContent).toContain('Empty');
-    expect(sections.textContent).not.toContain('Not set');
+    // Each section's *body*, not the whole section: since P13.3 a section has
+    // an optional `placement` (a card's depth prompt), which is genuinely
+    // absent on these four and rightly reads "Not set".
+    expect(bodies.length).toBeGreaterThan(0);
+    for (const body of bodies) expect(body.textContent).toBe('Empty');
   });
 
   it('renders a nested object through its own declared fields', () => {

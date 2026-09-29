@@ -17,7 +17,8 @@ import {
 } from './cast.js';
 import { readFile } from 'node:fs/promises';
 
-import { channelDefinition, channelKey } from './channels.js';
+import { channelDefinition, channelKey, quarantineEffects } from './channels.js';
+import { applyEffects } from './store.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { acceptEffect } from '../turns/effects.js';
 import type { ChannelEffect, ChannelState, Turn } from './types.js';
@@ -363,6 +364,41 @@ describe('the cast panel under castIsPresent', () => {
       ['lund', false],
       ['vera', true],
     ]);
+  });
+
+  /**
+   * ***The quarantine's reset is not a mute*** (2026-09-29, the [P13.3]
+   * review). It writes the channel's `init: false`, which under this reading
+   * is *muted* — so a member whose presence a hand edit had mangled left every
+   * call, a decision nobody made. The `degraded` marker the reset carries is
+   * how the reader tells it from a person's `false`.
+   */
+  describe('a quarantined value', () => {
+    beforeEach(async () => {
+      await installBuiltIns();
+    });
+
+    const key = channelKey(SE_PRESENCE, 'lund');
+    const reset = () => {
+      const mangled = { [key]: { version: 1, value: 'yes' } };
+      return applyEffects(mangled, quarantineEffects('t-1', mangled));
+    };
+
+    it('reads as nobody-said-anything under castIsPresent: present', () => {
+      const after = reset();
+
+      expect(after[key]?.value).toBe(false);
+      expect(after[key]?.degraded).toBeDefined();
+      expect(readPresence(after, 'lund', true)).toBe(true);
+    });
+
+    it('reads as the reset it is where absent is absent', () => {
+      expect(readPresence(reset(), 'lund')).toBe(false);
+    });
+
+    it('leaves a person’s own false muted', () => {
+      expect(readPresence(muted, 'lund', true)).toBe(false);
+    });
   });
 
   it('reads presence as it always did for a mode that does not declare it', () => {

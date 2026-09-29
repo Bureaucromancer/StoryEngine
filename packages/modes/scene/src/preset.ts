@@ -133,6 +133,16 @@ export const SCENE_PRESET: Preset = {
      * then every other member, muted ones included, because a muted member is
      * still somebody the reply must not speak as (`assembly/template.ts`).
      *
+     * ***Under `per-actor` dispatch only*** (2026-09-29, the [P13.3] review).
+     * ~~In a group~~ — a `merged` call is one reply that may voice every member
+     * ([P13 §1.4], `mode.ts`), and telling it to write only as its first
+     * speaker and leave the rest to speak for themselves asked for the one
+     * thing merged dispatch is not. The names cannot tell the two calls apart,
+     * so the template reads the session's `dispatch`, the one setting in its
+     * namespace (`RenderContext.dispatch`). Absent outside a session, which
+     * sends no nudge: a call nobody said was one member's reply is not told
+     * it is.
+     *
      * *The player's words are refused in both voices*, which is the one rule
      * the narrator's instruction and this one share: a reply that writes the
      * player's lines has taken the player's turn.
@@ -151,7 +161,7 @@ export const SCENE_PRESET: Preset = {
       omitWhenEmpty: true,
       kind: 'text',
       template:
-        "Write {{ char }}'s next reply in a fictional chat between {{ charIfNotGroup }} and {{ user }}. Write as {{ char }}: what they say and do, in their own voice. Never write {{ user }}'s dialogue, thoughts or decisions.{% if charIfNotGroup != char %} This is a group chat: write only as {{ char }}, and leave {{ notChar }} to speak for themselves.{% endif %}",
+        "Write {{ char }}'s next reply in a fictional chat between {{ charIfNotGroup }} and {{ user }}. Write as {{ char }}: what they say and do, in their own voice. Never write {{ user }}'s dialogue, thoughts or decisions.{% if charIfNotGroup != char and dispatch == 'per-actor' %} This is a group chat: write only as {{ char }}, and leave {{ notChar }} to speak for themselves.{% endif %}",
     },
     /**
      * ***The card's own system prompt, stacked after the instruction*** —

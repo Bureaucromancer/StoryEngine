@@ -101,6 +101,16 @@ export const PRESENCE_CHANNEL: ChannelDefinition = {
    * **Absent is not present**, and the default matters more than it looks: a
    * cast member nobody has mentioned is not in the scene, and an init of `true`
    * would put the whole cast in every room until something said otherwise.
+   *
+   * ***Under a mode's `castIsPresent` this literal is not the default*** —
+   * [P13.3]. There absent reads as present and `false` as *muted*
+   * ({@link readPresence}), so the one place that writes `init` as a value —
+   * the quarantine, which resets a malformed value to it
+   * (`quarantineEffects`) — would have muted a member where it meant to put
+   * them back to nobody-said-anything. `readPresence` reads a quarantined
+   * value as absent instead (2026-09-29, the [P13.3] review); the literal
+   * stays `false` because the channel is the engine's, and the other reading
+   * is still the one every mode without `castIsPresent` has.
    */
   init: { kind: 'literal', value: false },
   /**
@@ -316,11 +326,24 @@ export function readStatus(
  * about the mode reads what it always read.
  */
 export function readPresence(
-  channels: Readonly<Record<string, { value: unknown }>>,
+  channels: Readonly<Record<string, { value: unknown; degraded?: unknown }>>,
   actorId: string,
   castIsPresent = false,
 ): boolean {
-  const held = channels[channelKey(SE_PRESENCE, actorId)]?.value;
+  const state = channels[channelKey(SE_PRESENCE, actorId)];
+  /**
+   * ***A quarantined value is absent, under `castIsPresent`*** (2026-09-29,
+   * the [P13.3] review). The quarantine resets a malformed value to the
+   * channel's `init: false` and marks the state `degraded`; read as written,
+   * that ~~is the default~~ is **muted** under this reading, so a member whose
+   * presence a hand edit had mangled left every call and the round — a
+   * decision nobody made. The marker is how to tell the engine's reset from a
+   * person's mute: the next write of the channel clears it (`store.ts`), so a
+   * member muted afterwards reads as muted. Without `castIsPresent` the reset
+   * already is the default, and nothing changes.
+   */
+  if (castIsPresent && state?.degraded !== undefined) return true;
+  const held = state?.value;
   return castIsPresent ? held !== false : held === true;
 }
 

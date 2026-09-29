@@ -49,7 +49,11 @@ import {
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { actorsWithState, castRows } from '../sessions/cast.js';
-import { chatSettingsAtCreation } from '../sessions/chat-settings.js';
+import {
+  castIsPresentFor,
+  chatSettingsAtCreation,
+  chatSettingsOf,
+} from '../sessions/chat-settings.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
 import type { HookSource } from '../sessions/types.js';
@@ -1380,12 +1384,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       surfaces: modeSurfaces(session.channels, modeId),
       // Presence read as the mode reads it — [P13.3]: under `castIsPresent` a
-      // member nobody has muted is present, and the panel says so.
+      // member nobody has muted is present, and the panel says so. ***In an
+      // embodied session only*** (2026-09-29, the review): a narrated one reads
+      // presence as it always did — see `castIsPresentFor`.
       cast: castRows(
         session.cast,
         session.channels,
         path,
-        packMode?.definition.participants.castIsPresent === true,
+        packMode !== null &&
+          castIsPresentFor(chatSettingsOf(session, packMode.definition), packMode.definition),
       ),
       hooks,
       goals,

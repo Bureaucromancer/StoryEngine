@@ -155,6 +155,32 @@ export function chatSettingsOf(session: unknown, mode: ModeDefinition): ChatSett
 }
 
 /**
+ * ***Whether this session reads an untouched member as present*** — the
+ * mode's `participants.castIsPresent`, **in an embodied session only**
+ * (2026-09-29, the [P13.3] review).
+ *
+ * `castIsPresent` is a statement about how the mode's *chat* reads presence:
+ * a group whose members are all here until somebody mutes one. A narrated
+ * session is not that chat. Its presence channel still means what it meant
+ * before P13.3 — *in this room or not*, `init: false`, written by the model
+ * as people walk in and out — and [P7.3] decided that a member who is not in
+ * the room keeps their card in the narrator's call. Read through the mode
+ * alone, every narrated Scene session — `legacy`, and the ones P13.0 created
+ * with explicit narrator values — changed under it at P13.3: a member the
+ * story had walked out lost every card from the one merged call, and every
+ * member nobody had touched moved from *Elsewhere* to *Here* on the panel.
+ * Tying the reading to the voice keeps those sessions' prompts byte-identical,
+ * which is what `legacy` exists to promise.
+ *
+ * *The collector's cards and the cast panel ask this.* The runner's speaker
+ * selection keeps the mode's flag, because it runs only in an embodied voice,
+ * where the two agree.
+ */
+export function castIsPresentFor(chat: Pick<ChatSettings, 'voice'>, mode: ModeDefinition): boolean {
+  return mode.participants.castIsPresent === true && chat.voice === 'embodied';
+}
+
+/**
  * The speaker policy, **member by member**: a partial object — one somebody
  * wrote by hand with only the policy they wanted — keeps what it says and
  * takes the rest from the defaults, rather than being thrown away whole for
